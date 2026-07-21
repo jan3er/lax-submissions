@@ -1,0 +1,12 @@
+name = "Lax3Proofs"
+defaultTargets = ["Lax3Proofs"]
+
+[leanOptions]
+autoImplicit = true
+
+[[require]]
+name = "Lax3"
+path = "../concepts"
+
+[[lean_lib]]
+name = "Lax3Proofs"
