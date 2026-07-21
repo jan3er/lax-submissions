@@ -18,17 +18,17 @@ noncomputable section
 
 def submittedStateOfSource {V : Type} [DecidableEq V]
     (T : Lax2Proofs.TwinWidth.TrigraphState V) :
-    TrigraphState.State V :=
+    Lax1.TwinWidth.State V :=
   ⟨T.bags, T.blackAdj, T.redAdj,
     ⟨T.bag_nonempty, T.bag_disjoint, T.bag_cover, T.black_symm, T.red_symm,
       T.black_irrefl, T.red_irrefl, T.black_red_disjoint⟩⟩
 
 def sourceStateOfSubmitted {V : Type} [DecidableEq V]
-    (T : TrigraphState.State V) :
+    (T : Lax1.TwinWidth.State V) :
     Lax2Proofs.TwinWidth.TrigraphState V where
-  bags := TrigraphState.bags T
-  blackAdj := TrigraphState.blackAdj T
-  redAdj := TrigraphState.redAdj T
+  bags := Lax1.TwinWidth.bags T
+  blackAdj := Lax1.TwinWidth.blackAdj T
+  redAdj := Lax1.TwinWidth.redAdj T
   bag_nonempty := by
     rcases T with ⟨bags, blackAdj, redAdj, h⟩
     exact h.down.1
@@ -58,10 +58,10 @@ def submittedInitialStateOfSource
     {V : Type} [Fintype V] [DecidableEq V] {G : SimpleGraph V}
     (T : Lax2Proofs.TwinWidth.TrigraphState V)
     (h : Lax2Proofs.TwinWidth.SimpleGraph.IsInitialState G T) :
-    InitialTrigraphState.InitialState G :=
+    Lax1.TwinWidth.InitialState G :=
   ⟨submittedStateOfSource T, ⟨by
     refine ⟨?_, ?_, ?_⟩
-    · simpa [submittedStateOfSource, SingletonBags.singletonBags,
+    · simpa [submittedStateOfSource, Lax1.TwinWidth.singletonBags,
         Lax2Proofs.TwinWidth.TrigraphState.singletonBags] using h.1
     · intro A B hA hB
       simpa [submittedStateOfSource] using h.2.1 hA hB
@@ -71,14 +71,14 @@ def submittedInitialStateOfSource
 def submittedFinalStateOfSource {V : Type} [DecidableEq V]
     (T : Lax2Proofs.TwinWidth.TrigraphState V)
     (h : Lax2Proofs.TwinWidth.SimpleGraph.IsFinalState T) :
-    FinalTrigraphState.FinalState V :=
+    Lax1.TwinWidth.FinalState V :=
   ⟨submittedStateOfSource T, ⟨by
     simpa [submittedStateOfSource] using h⟩⟩
 
 def submittedStepOfSource {V : Type} [DecidableEq V]
     {T U : Lax2Proofs.TwinWidth.TrigraphState V}
     (h : Lax2Proofs.TwinWidth.SimpleGraph.IsContractionStep T U) :
-    ContractionStep.Step (submittedStateOfSource T) (submittedStateOfSource U) := by
+    Lax1.TwinWidth.Step (submittedStateOfSource T) (submittedStateOfSource U) := by
   classical
   let A : Finset V := Classical.choose h
   have hApack := Classical.choose_spec h
@@ -103,18 +103,18 @@ def submittedStepOfSource {V : Type} [DecidableEq V]
   · simpa [submittedStateOfSource] using hB
   · simpa [submittedStateOfSource] using hbags
   · intro X Y hX hY
-    simpa [submittedStateOfSource, ContractedRed.contractedRed,
+    simpa [submittedStateOfSource, Lax1.TwinWidth.contractedRed,
       Lax2Proofs.TwinWidth.SimpleGraph.contractedRed] using hred hX hY
   · intro X Y hX hY
-    simpa [submittedStateOfSource, ContractedRed.contractedRed,
-      ContractedBlack.contractedBlack,
+    simpa [submittedStateOfSource, Lax1.TwinWidth.contractedRed,
+      Lax1.TwinWidth.contractedBlack,
       Lax2Proofs.TwinWidth.SimpleGraph.contractedRed,
       Lax2Proofs.TwinWidth.SimpleGraph.contractedBlack] using hblack hX hY
 
 def submittedContractionSequenceOfSource
     {V : Type} [Fintype V] [DecidableEq V] {G : SimpleGraph V} {d : ℕ}
     (S : Lax2Proofs.TwinWidth.SimpleGraph.ContractionSequence G d) :
-    ContractionSequenceWidth.ContractionSequence G d :=
+    Lax1.TwinWidth.ContractionSequence G d :=
   ⟨S.stepCount, fun i => submittedStateOfSource (S.state i),
     submittedInitialStateOfSource (S.state 0) S.starts,
     submittedFinalStateOfSource (S.state S.stepCount) S.ends,
@@ -122,14 +122,14 @@ def submittedContractionSequenceOfSource
     (fun i hi => submittedStepOfSource (S.step_contracts i hi)),
     ⟨by
       intro i hi A hA
-      simpa [submittedStateOfSource, RedDegree.redDegree,
+      simpa [submittedStateOfSource, Lax1.TwinWidth.redDegree,
         Lax2Proofs.TwinWidth.SimpleGraph.redDegree,
         Lax2Proofs.TwinWidth.TrigraphState.redDegree]
         using S.redDegree_le i hi hA⟩⟩
 
 theorem sourceContractionSequenceOfSubmitted
     {V : Type} [Fintype V] [DecidableEq V] {G : SimpleGraph V} {d : ℕ}
-    (h : Nonempty (ContractionSequenceWidth.ContractionSequence G d)) :
+    (h : Nonempty (Lax1.TwinWidth.ContractionSequence G d)) :
     Lax2Proofs.TwinWidth.SimpleGraph.HasTwinWidthAtMost G d := by
   rcases h with ⟨S⟩
   rcases S with ⟨stepCount, state, start, final, hstart, hfinal, hsteps, hred⟩
@@ -148,7 +148,7 @@ theorem sourceContractionSequenceOfSubmitted
     have hstartProp := start.2.down
     refine ⟨?_, ?_, ?_⟩
     · simpa [sourceState, sourceStateOfSubmitted,
-        SingletonBags.singletonBags,
+        Lax1.TwinWidth.singletonBags,
         Lax2Proofs.TwinWidth.TrigraphState.singletonBags] using hstartProp.1
     · intro A B hA hB
       simpa [sourceState, sourceStateOfSubmitted] using hstartProp.2.1 hA hB
@@ -166,22 +166,22 @@ theorem sourceContractionSequenceOfSubmitted
     · simpa [sourceState, sourceStateOfSubmitted] using hB
     · simpa [sourceState, sourceStateOfSubmitted] using hbags
     · intro X Y hX hY
-      simpa [sourceState, sourceStateOfSubmitted, ContractedRed.contractedRed,
+      simpa [sourceState, sourceStateOfSubmitted, Lax1.TwinWidth.contractedRed,
         Lax2Proofs.TwinWidth.SimpleGraph.contractedRed] using hredStep hX hY
     · intro X Y hX hY
-      simpa [sourceState, sourceStateOfSubmitted, ContractedRed.contractedRed,
-        ContractedBlack.contractedBlack,
+      simpa [sourceState, sourceStateOfSubmitted, Lax1.TwinWidth.contractedRed,
+        Lax1.TwinWidth.contractedBlack,
         Lax2Proofs.TwinWidth.SimpleGraph.contractedRed,
         Lax2Proofs.TwinWidth.SimpleGraph.contractedBlack] using hblackStep hX hY
   · intro i hi A hA
-    simpa [sourceState, sourceStateOfSubmitted, RedDegree.redDegree,
+    simpa [sourceState, sourceStateOfSubmitted, Lax1.TwinWidth.redDegree,
       Lax2Proofs.TwinWidth.SimpleGraph.redDegree,
       Lax2Proofs.TwinWidth.TrigraphState.redDegree] using hred.down i hi hA
 
 theorem hasTwinWidthAtMost_iff_submitted
     {V : Type} [Fintype V] [DecidableEq V] (G : SimpleGraph V) (d : ℕ) :
     Lax2Proofs.TwinWidth.SimpleGraph.HasTwinWidthAtMost G d ↔
-      Nonempty (ContractionSequenceWidth.ContractionSequence G d) := by
+      Nonempty (Lax1.TwinWidth.ContractionSequence G d) := by
   constructor
   · rintro ⟨S⟩
     exact ⟨submittedContractionSequenceOfSource S⟩
@@ -192,21 +192,21 @@ theorem sourceTwinWidth_eq_submitted
     Lax2Proofs.TwinWidth.SimpleGraph.twinWidth G = Lax1.TwinWidth.twinWidth G := by
   classical
   by_cases hs : ∃ d, Lax2Proofs.TwinWidth.SimpleGraph.HasTwinWidthAtMost G d
-  · have hp : ∃ d, Nonempty (ContractionSequenceWidth.ContractionSequence G d) := by
+  · have hp : ∃ d, Nonempty (Lax1.TwinWidth.ContractionSequence G d) := by
       rcases hs with ⟨d, hd⟩
       exact ⟨d, (hasTwinWidthAtMost_iff_submitted G d).mp hd⟩
     rw [Lax2Proofs.TwinWidth.SimpleGraph.twinWidth, dif_pos hs,
-      Lax1.TwinWidth.twinWidth, Lax1.LeastNatural.leastNat, dif_pos hp]
+      Lax1.TwinWidth.twinWidth, Lax1.TwinWidth.leastNat, dif_pos hp]
     apply Nat.le_antisymm
     · exact Nat.find_min' hs
         ((hasTwinWidthAtMost_iff_submitted G (Nat.find hp)).mpr (Nat.find_spec hp))
     · exact Nat.find_min' hp
         ((hasTwinWidthAtMost_iff_submitted G (Nat.find hs)).mp (Nat.find_spec hs))
-  · have hp : ¬ ∃ d, Nonempty (ContractionSequenceWidth.ContractionSequence G d) := by
+  · have hp : ¬ ∃ d, Nonempty (Lax1.TwinWidth.ContractionSequence G d) := by
       rintro ⟨d, hd⟩
       exact hs ⟨d, (hasTwinWidthAtMost_iff_submitted G d).mpr hd⟩
     rw [Lax2Proofs.TwinWidth.SimpleGraph.twinWidth, dif_neg hs,
-      Lax1.TwinWidth.twinWidth, Lax1.LeastNatural.leastNat, dif_neg hp]
+      Lax1.TwinWidth.twinWidth, Lax1.TwinWidth.leastNat, dif_neg hp]
 
 end
 

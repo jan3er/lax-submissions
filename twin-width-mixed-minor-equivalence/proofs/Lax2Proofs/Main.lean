@@ -1,4 +1,4 @@
-import Lax2.Main
+import Lax2.FunctionalEquivalence
 import Lax2Proofs.Bridge
 import Lax2Proofs.MixedBridge
 import Lax2Proofs.Source.TwinWidth.Equivalence.MainContract
@@ -7,7 +7,7 @@ namespace Lax2Proofs.Main
 
 /--
 ---
-conclusion: Lax2.Main.twin_width_functionally_equivalent_mixed_minor_number
+conclusion: Lax2.FunctionalEquivalence.twin_width_functionally_equivalent_mixed_minor_number
 ---
 The source proof establishes both directional bounds through Marcus–Tardos,
 matrix Theorem 10, Theorem 14, and the graph twin-decomposition bridge.

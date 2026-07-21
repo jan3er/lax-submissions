@@ -15,5 +15,5 @@ name = "Lax2Proofs"
 [[require]]
 name = "Lax1"
 git = "/home/jan/git/lax-submissions-origin.git"
-rev = "6b607de40536cf2f76d0ec2407bf418d0ef6a80e"
+rev = "72bc4ac2e7099c4db613d48fb48a7c4380e2f7d7"
 subDir = "twin-width-treewidth-exponential/concepts"
