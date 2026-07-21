@@ -10,3 +10,10 @@ path = "../concepts"
 
 [[lean_lib]]
 name = "Lax2Proofs"
+
+# twin-width tower: transparent definitions of submission Lax1
+[[require]]
+name = "Lax1"
+git = "/home/jan/git/lax-submissions-origin.git"
+rev = "6b607de40536cf2f76d0ec2407bf418d0ef6a80e"
+subDir = "twin-width-treewidth-exponential/concepts"
