@@ -1,5 +1,5 @@
 import Mathlib.Combinatorics.SimpleGraph.Acyclic
-import Mathlib.Data.Nat.Find
+import Mathlib.Data.Nat.Lattice
 
 /-!
 ---
@@ -11,25 +11,25 @@ vertex occurs in a bag, the endpoints of every graph edge occur together in a
 bag, and the nodes whose bags contain any fixed vertex induce a connected
 subgraph of $T$.
 
-The width of a tree decomposition is $\max_t |X_t|-1$. The treewidth
-$\operatorname{tw}(G)$ is the least width of a tree decomposition of $G$.
-The Lean minimum uses the value $0$ as a harmless fallback if the defining
-set is empty.
+The treewidth $\operatorname{tw}(G)$ is the least $w$ such that $G$ has a
+tree decomposition with every bag of size at most $w+1$. A tree decomposition
+always exists (a single node whose bag is all of $V(G)$), so the infimum
+below ranges over a nonempty set. The `Fintype` and `DecidableEq` hypotheses
+of `treewidth` are the uniform signature shared by all graph parameters in
+this archive.
 -/
 
 namespace Lax1.Treewidth
 
-/-- A tree decomposition of a simple graph: a finite tree of nodes, a bag of
-graph vertices at each node, such that bags cover every vertex and every
-edge, and the nodes whose bags contain any fixed vertex induce a connected
-subgraph of the tree. -/
-structure TreeDecomposition {V : Type} [DecidableEq V] (G : SimpleGraph V) where
+/-- A tree decomposition of a simple graph: a finite tree of nodes with a bag
+of graph vertices at each node, such that the bags cover every vertex and
+every edge, and the nodes whose bags contain any fixed vertex induce a
+connected subgraph of the tree. -/
+structure TreeDecomposition {V : Type} (G : SimpleGraph V) where
   /-- The node type of the decomposition tree. -/
   Node : Type
-  /-- The decomposition tree has finitely many nodes. -/
+  /-- The decomposition tree is finite. -/
   [nodeFintype : Fintype Node]
-  /-- Decomposition nodes have decidable equality. -/
-  [nodeDecidableEq : DecidableEq Node]
   /-- The graph on the decomposition nodes. -/
   tree : SimpleGraph Node
   /-- The node graph is a tree. -/
@@ -45,24 +45,15 @@ structure TreeDecomposition {V : Type} [DecidableEq V] (G : SimpleGraph V) where
   bag_indices_connected :
     ∀ v : V, (tree.induce {i : Node | v ∈ bag i}).Connected
 
-/-- The width of a tree decomposition: its largest bag size minus one. -/
-noncomputable def TreeDecomposition.width
-    {V : Type} [DecidableEq V] {G : SimpleGraph V}
-    (D : TreeDecomposition G) : ℕ :=
-  letI : Fintype D.Node := D.nodeFintype
-  (Finset.univ.sup fun i : D.Node => (D.bag i).card) - 1
+/-- `G` has a tree decomposition all of whose bags have at most `w + 1`
+vertices. -/
+def HasTreewidthAtMost {V : Type} (G : SimpleGraph V) (w : ℕ) : Prop :=
+  ∃ D : TreeDecomposition G, ∀ i, (D.bag i).card ≤ w + 1
 
-/-- The least natural satisfying `P`, or zero if no natural satisfies it.
-This packages the minimization convention used in the definition of
-treewidth. -/
-noncomputable def leastNat (P : ℕ → Prop) : ℕ :=
-  letI : Decidable (∃ n, P n) := Classical.propDecidable _
-  letI : DecidablePred P := Classical.decPred P
-  if h : ∃ n, P n then Nat.find h else 0
-
-/-- The treewidth of a finite simple graph. -/
+/-- The treewidth of a finite simple graph: the least `w` such that the
+graph has a tree decomposition with bags of at most `w + 1` vertices. -/
 noncomputable def treewidth {V : Type} [Fintype V] [DecidableEq V]
     (G : SimpleGraph V) : ℕ :=
-  leastNat fun width => ∃ D : TreeDecomposition G, D.width ≤ width
+  sInf {w | HasTreewidthAtMost G w}
 
 end Lax1.Treewidth
