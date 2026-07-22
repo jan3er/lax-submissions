@@ -1,42 +1,40 @@
 import Mathlib.Combinatorics.SimpleGraph.Basic
-import Mathlib.Data.Finset.Basic
-import Mathlib.Data.Nat.Find
+import Mathlib.Data.Nat.Lattice
 
 /-!
 ---
 title: Mixed minor number
 ---
-A $k$-division of a finite linearly ordered set partitions it into $k$
-nonempty consecutive intervals. A row division and a column division split a
-Boolean matrix into a grid of cells. A cell is *mixed* if it is neither
-constant in every column nor constant in every row, and the matrix has a
-$k$-mixed minor if some row and column $k$-divisions make all $k^2$ cells
-mixed. Its mixed number is the largest such $k$.
+A $k$-division of $\operatorname{Fin} n$ partitions it into $k$ nonempty
+consecutive intervals in increasing order; disjointness and convexity of the
+parts follow from the ordering and covering fields. A row division and a
+column division split a matrix into a grid of $k^2$ cells. A cell is
+vertical if each of its columns is constant, horizontal if each of its rows
+is constant, and mixed if it is neither; matrix entries are truth values, so
+constancy is propositional equivalence. The matrix has a $k$-mixed minor if
+some pair of row and column $k$-divisions makes all $k^2$ cells mixed, and
+its mixed number is the largest such $k$. A $k$-division of
+$\operatorname{Fin} n$ forces $k \le n$, so the supremum below ranges over a
+bounded set; it takes the value $0$ if the matrix has no mixed minor at all.
 
 An ordering of a finite simple graph's vertices turns its adjacency relation
-into a Boolean matrix. The graph's mixed minor number is the minimum mixed
-number of this matrix over all vertex orderings. The declarations below give
-this complete chain of definitions. The Lean minimum uses the value $0$ as a
-harmless fallback if the defining set is empty.
+into such a matrix. The mixed minor number of the graph is the least mixed
+number of this matrix over all vertex orderings; orderings always exist, so
+the infimum below ranges over a nonempty set.
 -/
 
 namespace Lax2.MixedMinorNumber
 
-/-- A division of `Fin n` into `k` nonempty, disjoint, covering, convex
-parts in increasing order. -/
+/-- A division of `Fin n` into `k` nonempty consecutive intervals in
+increasing order. Disjointness and convexity of the parts follow from
+`part_ordered` and `part_cover`. -/
 structure Division (n k : ℕ) where
   /-- The `i`-th part of the division. -/
   part : Fin k → Finset (Fin n)
   /-- Every part is nonempty. -/
   part_nonempty : ∀ i, (part i).Nonempty
-  /-- Distinct parts are disjoint. -/
-  part_disjoint : ∀ ⦃i j : Fin k⦄, i ≠ j → Disjoint (part i) (part j)
   /-- The parts cover the whole interval. -/
   part_cover : ∀ x : Fin n, ∃ i, x ∈ part i
-  /-- Each part is convex in the natural order on `Fin n`. -/
-  part_convex :
-    ∀ (i : Fin k) ⦃a b c : Fin n⦄,
-      a ∈ part i → c ∈ part i → a ≤ b → b ≤ c → b ∈ part i
   /-- Earlier-indexed parts lie strictly before later-indexed parts. -/
   part_ordered :
     ∀ ⦃i j : Fin k⦄, i < j →
@@ -44,57 +42,44 @@ structure Division (n k : ℕ) where
 
 /-- A matrix cell is vertical when each column is constant within the row
 part. -/
-def cellVertical {n m k : ℕ} (M : Fin n → Fin m → Bool)
+def cellVertical {n m k : ℕ} (M : Fin n → Fin m → Prop)
     (R : Division n k) (C : Division m k) (i j : Fin k) : Prop :=
   ∀ ⦃r₁ r₂ : Fin n⦄, r₁ ∈ R.part i → r₂ ∈ R.part i →
-    ∀ ⦃c : Fin m⦄, c ∈ C.part j → M r₁ c = M r₂ c
+    ∀ ⦃c : Fin m⦄, c ∈ C.part j → (M r₁ c ↔ M r₂ c)
 
 /-- A matrix cell is horizontal when each row is constant within the column
 part. -/
-def cellHorizontal {n m k : ℕ} (M : Fin n → Fin m → Bool)
+def cellHorizontal {n m k : ℕ} (M : Fin n → Fin m → Prop)
     (R : Division n k) (C : Division m k) (i j : Fin k) : Prop :=
   ∀ ⦃r : Fin n⦄, r ∈ R.part i →
     ∀ ⦃c₁ c₂ : Fin m⦄, c₁ ∈ C.part j → c₂ ∈ C.part j →
-      M r c₁ = M r c₂
+      (M r c₁ ↔ M r c₂)
 
 /-- A matrix cell is mixed when it is neither vertical nor horizontal. -/
-def cellMixed {n m k : ℕ} (M : Fin n → Fin m → Bool)
+def cellMixed {n m k : ℕ} (M : Fin n → Fin m → Prop)
     (R : Division n k) (C : Division m k) (i j : Fin k) : Prop :=
   ¬ cellVertical M R C i j ∧ ¬ cellHorizontal M R C i j
 
 /-- A matrix has a `k`-mixed minor if suitable row and column `k`-divisions
 make every induced cell mixed. -/
-def HasMixedMinor {n m : ℕ} (M : Fin n → Fin m → Bool) (k : ℕ) : Prop :=
-  k = 0 ∨
-    ∃ R : Division n k, ∃ C : Division m k,
-      ∀ i j : Fin k, cellMixed M R C i j
+def HasMixedMinor {n m : ℕ} (M : Fin n → Fin m → Prop) (k : ℕ) : Prop :=
+  ∃ R : Division n k, ∃ C : Division m k, ∀ i j : Fin k, cellMixed M R C i j
 
-/-- The largest order of a mixed minor of a Boolean matrix. -/
+/-- The largest order of a mixed minor of a matrix. -/
 noncomputable def matrixMixedNumber {n m : ℕ}
-    (M : Fin n → Fin m → Bool) : ℕ :=
-  letI : DecidablePred (HasMixedMinor M) := Classical.decPred _
-  Nat.findGreatest (HasMixedMinor M) (min n m)
+    (M : Fin n → Fin m → Prop) : ℕ :=
+  sSup {k | HasMixedMinor M k}
 
-/-- The Boolean adjacency matrix of a graph in a chosen vertex order. -/
-noncomputable def orderedAdjacency {V : Type} {n : ℕ}
-    (G : SimpleGraph V) (e : Fin n ≃ V) : Fin n → Fin n → Bool :=
-  fun i j =>
-    letI : Decidable (G.Adj (e i) (e j)) := Classical.propDecidable _
-    decide (G.Adj (e i) (e j))
+/-- The adjacency matrix of a graph in a chosen vertex order. -/
+def orderedAdjacency {V : Type} {n : ℕ}
+    (G : SimpleGraph V) (e : Fin n ≃ V) : Fin n → Fin n → Prop :=
+  fun i j => G.Adj (e i) (e j)
 
-/-- The least natural satisfying `P`, or zero if no natural satisfies it.
-This packages the minimization convention used for graph mixed minor
-number. -/
-noncomputable def leastNat (P : ℕ → Prop) : ℕ :=
-  letI : Decidable (∃ n, P n) := Classical.propDecidable _
-  letI : DecidablePred P := Classical.decPred P
-  if h : ∃ n, P n then Nat.find h else 0
-
-/-- The mixed minor number of a finite simple graph. -/
+/-- The mixed minor number of a finite simple graph: the least mixed number
+of its adjacency matrix over all vertex orderings. -/
 noncomputable def mixedMinorNumber {V : Type} [Fintype V] [DecidableEq V]
     (G : SimpleGraph V) : ℕ :=
-  leastNat fun k =>
-    ∃ e : Fin (Fintype.card V) ≃ V,
-      matrixMixedNumber (orderedAdjacency G e) = k
+  sInf (Set.range fun e : Fin (Fintype.card V) ≃ V =>
+    matrixMixedNumber (orderedAdjacency G e))
 
 end Lax2.MixedMinorNumber
