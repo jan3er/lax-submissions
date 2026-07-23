@@ -21,5 +21,5 @@ name = "Lax2Proofs"
 [[require]]
 name = "Lax1"
 git = "https://github.com/jan3er/lax-submissions"
-rev = "533e68304fe3055116c34bc9bdf576e14e523f5a"
+rev = "c30630a91495715bbbca6fae669590b361cfc101"
 subDir = "twin-width-treewidth-separation/concepts"
