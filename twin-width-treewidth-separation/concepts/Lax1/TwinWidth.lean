@@ -7,19 +7,20 @@ import Mathlib.Data.Nat.Lattice
 title: Twin-width
 type: definition
 ---
-A contraction sequence of a finite simple graph $G$ is a sequence of vertex
+A contraction sequence of a finite simple graph *G* is a sequence of vertex
 partitions: it starts at the partition into singletons and merges two parts
 at every step, until at most one part remains. Two parts are homogeneous if
-$G$ has either all possible edges between them or none; the red degree of a
+*G* has either all possible edges between them or none; the red degree of a
 part is the number of other parts it is not homogeneous with. The width of a
 contraction sequence is the largest red degree of any part occurring in it.
 
-The twin-width $\operatorname{tww}(G)$ is the least $d$ such that $G$ has a
-contraction sequence of width at most $d$.
+The twin-width of *G* is the least *d* such that *G* has a contraction
+sequence of width at most *d*.
 
 # Formalization notes
 
-Contracting in any order gives a sequence of width at most $|V(G)|$, so the
+Contracting in any order gives a sequence of width at most the number of
+vertices, so the
 infimum in `twinWidth` ranges over a nonempty set. Because every state is
 reached from the singleton partition by merges, each `partition i` with
 `i ≤ stepCount` is automatically a partition of the vertex set; values of
