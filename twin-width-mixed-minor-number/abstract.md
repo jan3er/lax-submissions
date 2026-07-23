@@ -15,5 +15,7 @@ equal to their source counterparts, via the black-is-complete /
 red-is-non-homogeneous invariant for contraction sequences and a pointwise
 division-and-cell translation for mixed minors.
 
-Ported from the original formalization by Édouard Bonnet
-(github.com/EdouardBonnet/leaning, `twin-width`, MIT-licensed).
+Ported from [Édouard Bonnet's original formalization][leaning] of twin-width,
+which is MIT-licensed.
+
+[leaning]: https://github.com/EdouardBonnet/leaning

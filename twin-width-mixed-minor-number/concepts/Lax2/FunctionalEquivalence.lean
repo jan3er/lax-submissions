@@ -8,13 +8,11 @@ type: theorem
 ---
 Two finite-graph parameters are *functionally equivalent* when each is
 bounded by a numerical function of the other. Twin-width and mixed minor
-number are functionally equivalent: there are functions
-$f,g:\mathbb N\to\mathbb N$ such that every finite simple graph $G$ satisfies
-$$
-  \operatorname{tww}(G) \le f(\operatorname{mmn}(G))
-  \quad\text{and}\quad
-  \operatorname{mmn}(G) \le g(\operatorname{tww}(G)).
-$$
+number are functionally equivalent: there are functions *f*, *g* : ℕ → ℕ
+such that every finite simple graph *G* satisfies both:
+
+- tww(*G*) ≤ *f*(mmn(*G*)); and
+- mmn(*G*) ≤ *g*(tww(*G*)).
 
 # Formalization notes
 
