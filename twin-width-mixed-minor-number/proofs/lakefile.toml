@@ -20,6 +20,6 @@ name = "Lax2Proofs"
 # twin-width tower: the twin-width parameter of submission Lax1
 [[require]]
 name = "Lax1"
-git = "/home/jan/git/lax-submissions-origin.git"
-rev = "15d7c29c3f7ebdd540dd97006c2411ac2e237f15"
+git = "https://github.com/jan3er/lax-submissions"
+rev = "533e68304fe3055116c34bc9bdf576e14e523f5a"
 subDir = "twin-width-treewidth-separation/concepts"
