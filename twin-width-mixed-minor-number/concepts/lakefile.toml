@@ -17,5 +17,5 @@ name = "Lax2"
 [[require]]
 name = "Lax1"
 git = "/home/jan/git/lax-submissions-origin.git"
-rev = "5a915fc721c913ef9e97c4ef46e1a00b437297b4"
+rev = "15d7c29c3f7ebdd540dd97006c2411ac2e237f15"
 subDir = "twin-width-treewidth-separation/concepts"
