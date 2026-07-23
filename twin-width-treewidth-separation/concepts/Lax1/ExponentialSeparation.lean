@@ -4,6 +4,7 @@ import Lax1.TwinWidth
 /-!
 ---
 title: Twin-width can be exponential in treewidth
+type: theorem
 ---
 For every $k\in\mathbb{N}$, there is a finite simple graph $G$ such that
 $$
@@ -12,10 +13,13 @@ $$
   2^k < \operatorname{tww}(G).
 $$
 Here $\operatorname{tw}$ and $\operatorname{tww}$ are the treewidth and
-twin-width parameters defined in the two prerequisite concepts. The graph is
-quantified over the canonical finite vertex types $\operatorname{Fin} n$,
-which loses no generality: every finite simple graph is isomorphic to a
-graph on some $\operatorname{Fin} n$.
+twin-width parameters defined in the two prerequisite concepts.
+
+# Formalization notes
+
+The graph is quantified over the canonical finite vertex types
+$\operatorname{Fin} n$, which loses no generality: every finite simple
+graph is isomorphic to a graph on some $\operatorname{Fin} n$.
 -/
 
 namespace Lax1.ExponentialSeparation

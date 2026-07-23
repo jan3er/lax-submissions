@@ -4,6 +4,7 @@ import Lax2.MixedMinorNumber
 /-!
 ---
 title: Twin-width and mixed minor number are functionally equivalent
+type: theorem
 ---
 Two finite-graph parameters are *functionally equivalent* when each is
 bounded by a numerical function of the other. Twin-width and mixed minor
@@ -14,6 +15,14 @@ $$
   \quad\text{and}\quad
   \operatorname{mmn}(G) \le g(\operatorname{tww}(G)).
 $$
+
+# Formalization notes
+
+`GraphParam` is the uniform signature shared by all graph parameters in this
+archive: a natural-valued function of finite simple graphs over `Fintype`
+and `DecidableEq` instances. It is an abbreviation, so the statement applies
+to `Lax1.TwinWidth.twinWidth` and `Lax2.MixedMinorNumber.mixedMinorNumber`
+directly, without wrapper lambdas.
 -/
 
 namespace Lax2.FunctionalEquivalence

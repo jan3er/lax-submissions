@@ -4,23 +4,30 @@ import Mathlib.Data.Nat.Lattice
 /-!
 ---
 title: Mixed minor number
+type: definition
 ---
 A $k$-division of $\operatorname{Fin} n$ partitions it into $k$ nonempty
-consecutive intervals in increasing order; disjointness and convexity of the
-parts follow from the ordering and covering fields. A row division and a
-column division split a matrix into a grid of $k^2$ cells. A cell is
-vertical if each of its columns is constant, horizontal if each of its rows
-is constant, and mixed if it is neither; matrix entries are truth values, so
-constancy is propositional equivalence. The matrix has a $k$-mixed minor if
-some pair of row and column $k$-divisions makes all $k^2$ cells mixed, and
-its mixed number is the largest such $k$. A $k$-division of
-$\operatorname{Fin} n$ forces $k \le n$, so the supremum below ranges over a
-bounded set; it takes the value $0$ if the matrix has no mixed minor at all.
+consecutive intervals in increasing order. A row division and a column
+division split a matrix into a grid of $k^2$ cells. A cell is vertical if
+each of its columns is constant, horizontal if each of its rows is constant,
+and mixed if it is neither. The matrix has a $k$-mixed minor if some pair of
+row and column $k$-divisions makes all $k^2$ cells mixed, and its mixed
+number is the largest such $k$.
 
 An ordering of a finite simple graph's vertices turns its adjacency relation
 into such a matrix. The mixed minor number of the graph is the least mixed
-number of this matrix over all vertex orderings; orderings always exist, so
-the infimum below ranges over a nonempty set.
+number of this matrix over all vertex orderings.
+
+# Formalization notes
+
+Disjointness and convexity of the parts of a `Division` follow from the
+ordering and covering fields, so the structure does not carry them. Matrix
+entries are truth values, so constancy of a cell's rows or columns is
+propositional equivalence. A $k$-division of $\operatorname{Fin} n$ forces
+$k \le n$, so the supremum in `matrixMixedNumber` ranges over a bounded set;
+it takes the value $0$ if the matrix has no mixed minor at all. Vertex
+orderings always exist, so the infimum in `mixedMinorNumber` ranges over a
+nonempty set.
 -/
 
 namespace Lax2.MixedMinorNumber

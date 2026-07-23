@@ -719,11 +719,20 @@ conclusion: Lax1.ExponentialSeparation.twin_width_can_be_exponential_in_treewidt
 ---
 Self-contained proof of the Bonnet–Déprés exponential gap: for every `k`, the
 Bonnet–Déprés graph `BD_k` has treewidth at most `2*k + 4` while its
-twin-width exceeds `2^k`.  The source development phrases contraction
-sequences as trigraph state machines; the proof bridges them to the submitted
-partition-based sequences through the invariant that black and red edges
-agree with completeness and non-homogeneity in the graph, and relabels the
-result onto the canonical vertex type `Fin n`.
+twin-width exceeds `2^k`.
+
+# Proof strategy
+
+The source development phrases contraction sequences as trigraph state
+machines; the proof bridges them to the submitted partition-based sequences
+through the invariant that black and red edges agree with completeness and
+non-homogeneity in the graph, and relabels the result onto the canonical
+vertex type `Fin n`.
+
+# Attribution
+
+Ported from Édouard Bonnet's formalization of Bonnet–Déprés,
+*Twin-width can be exponential in treewidth* (JCTB 2023).
 -/
 theorem twin_width_can_be_exponential_in_treewidth (k : ℕ) :
     ∃ n : ℕ, ∃ G : SimpleGraph (Fin n),

@@ -4,6 +4,7 @@ import Mathlib.Data.Nat.Lattice
 /-!
 ---
 title: Treewidth
+type: definition
 ---
 A tree decomposition of a finite simple graph $G$ consists of a finite tree
 $T$ and a bag $X_t \subseteq V(G)$ at each node $t$ such that every graph
@@ -12,11 +13,14 @@ bag, and the nodes whose bags contain any fixed vertex induce a connected
 subgraph of $T$.
 
 The treewidth $\operatorname{tw}(G)$ is the least $w$ such that $G$ has a
-tree decomposition with every bag of size at most $w+1$. A tree decomposition
-always exists (a single node whose bag is all of $V(G)$), so the infimum
-below ranges over a nonempty set. The `Fintype` and `DecidableEq` hypotheses
-of `treewidth` are the uniform signature shared by all graph parameters in
-this archive.
+tree decomposition with every bag of size at most $w+1$.
+
+# Formalization notes
+
+A tree decomposition always exists (a single node whose bag is all of
+$V(G)$), so the infimum in `treewidth` ranges over a nonempty set. The
+`Fintype` and `DecidableEq` hypotheses of `treewidth` are the uniform
+signature shared by all graph parameters in this archive.
 -/
 
 namespace Lax1.Treewidth

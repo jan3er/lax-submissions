@@ -788,13 +788,21 @@ theorem submitted_mixedMinorNumber_eq [Fintype V] [DecidableEq V]
 conclusion: Lax2.FunctionalEquivalence.twin_width_functionally_equivalent_mixed_minor_number
 ---
 Self-contained proof that the submitted twin-width parameter (from submission
-Lax1) and the submitted mixed minor number are functionally equivalent.  The
-submitted partition-based twin-width and the propositional mixed minor number
-are proved pointwise equal to their source counterparts — through the
+Lax1) and the submitted mixed minor number are functionally equivalent.
+
+# Proof strategy
+
+The submitted partition-based twin-width and the propositional mixed minor
+number are proved pointwise equal to their source counterparts — through the
 black-is-complete / red-is-non-homogeneous invariant for contraction
 sequences and a pointwise division-and-cell translation for mixed minors —
 and the source equivalence theorem (Marcus–Tardos, the matrix grid-minor
 theorem, and the twin-decomposition bridge) transports directly.
+
+# Attribution
+
+Ported from Édouard Bonnet's formalization of Bonnet–Kim–Thomassé–Watrigant,
+*Twin-width I: Tractable FO Model Checking* (J. ACM 2022).
 -/
 theorem twin_width_functionally_equivalent_mixed_minor_number :
     Lax2.FunctionalEquivalence.FunctionallyEquivalent
