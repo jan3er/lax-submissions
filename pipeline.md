@@ -181,4 +181,5 @@ obligation. Consequences for the concept surface:
 - [x] Step 3: concept package Lax5 builds, `lax build` pipeline OK
       (scaffold was pre-allocated; manifest + abstract written).
 - [ ] Step 4: proof package — `sorry`-stub the Section-2 skeleton first,
-      big ingredients (§3a item 4, HLW, [VC]) last.
+      big ingredients (§3a item 4, HLW, [VC]) last. Sub-state in
+      `todo.md` (4a top-level skeleton green; 4b App-A layer; 4c §3a).

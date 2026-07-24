@@ -83,6 +83,18 @@ Proof-package-only machinery (invisible to reviewers, can be ugly):
    are recorded at its end. Pending Jan's read of the actual Lean files.
 4. Proof package. Use `sorry`-stubs to get an end-to-end skeleton of the
    Section-2 argument compiling before filling in; big ingredients last.
+   - 4a ✅ Top level compiles (3 sorries): `Lemma21.lean` states Lem 21
+     in semi-induced form (on the class itself; the bipartite encoding
+     is pushed below this interface) + ingredient [VC] against
+     `Finset.vcDim`; `Theorem2.lean` derives the headline conclusion
+     theorem from Lem 21' via trace representatives — glue fully
+     proved; `Corollary6.lean` composes Cor 6 from the 6a/6b concept
+     axioms (proved); `Corollary6b.lean` is the stubbed 6b conclusion.
+   - 4b next: pull DMMPT26 App. A and state the set-system layer
+     (Lem 7/8/19, Lem 12) and sparsification machinery (Lem 23–26)
+     faithfully; design the bipartite-class + definable-family
+     encodings (R1) under Lem 21'.
+   - 4c: the 6b chain (§3a), coarse-to-fine; densification last.
 
 Guideline: first principles, weigh pros and cons carefully — flagship
 standards. Rewrite this file as things crystalize.
