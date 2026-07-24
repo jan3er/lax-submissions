@@ -105,42 +105,34 @@ picture:
    `isLocallyNowhereDense_iff_isNowhereDense`, 3 sorries carried in the
    backward steps 4–6; `SubdividedBicliqueRamsey.lean` —
    `subdividedBiclique_ramsey`, sorry-free, standard axioms.)
-2b. **Close the bridge backward direction — helper-routing rewrite**
-   (decided with Jan 2026-07-24; next session's work). The catalog close
-   plan is mathematically doomed: *funneling* branch sets (spine
-   `c_i—…—s_β—…—s_α`, legs to smaller partners fanning at `s_β`, larger
-   at `s_α`) are Ramsey-homogeneous yet admit no single trimmed centre,
-   so no trimming of the canonical pairwise walks yields a disjoint
-   system; disjoint paths must be routed through spare branch sets.
-   Replace backward steps 2–6 and the scaffold structures
-   (`CandidatePathData` … `CleanSubdivisionData`, delete as dead code;
-   keep the forward direction) with:
-   - Split `Fin (t+1)` into `M` principals and ≥ `M²`·(pigeonhole
-     slack) helpers; each principal pair later gets a private helper, so
-     cross-pair collisions die by branch-set disjointness.
-   - Per principal `i`: legs = `model.branchRadius` walks `c_i → x_{i,h}`
-     to the helper-facing bridge endpoints, `toPath`'d (support stays in
-     the branch set, length ≤ d). One pair-Ramsey over helpers with
-     bounded palette (collision pattern ⊆ `(d+1)²` × leg lengths, via
-     `multicolor_ramsey`); a 3-walk transitivity argument + path
-     injectivity forces the homogeneous pattern onto the diagonal; trim
-     at the last shared level `r*` (level 0 is always shared): one
-     centre `v_i`, pairwise-disjoint uniform-length tails to the
-     surviving helpers.
-   - Nested refinement: apply the focus step principal-by-principal,
-     each time shrinking the common helper pool (tower bound, fine —
-     contract is qualitative). Pigeonhole principals for uniform tail
-     length and trim level.
-   - Uniformize helper-side leg lengths `λ(h,i)` by double pigeonhole
-     (helpers by their length vector over principals, then principals);
-     assign private helpers to pairs injectively; middle segment
-     `x_{h,i} → c_h → x_{h,j}` toPath'd inside `B_h`, its length
-     uniformized by one final `multicolor_ramsey` over principal pairs.
-   - Assemble the `subdividedClique` copy: principals ↦ `v_i`,
-     path {i<j} = tail_i · bridge · middle_h(i,j) · bridge · tail_j
-     reversed; interior length ≤ 4d+2 (not ≤ 2d — harmless; step 6
-     takes `m := max over r ≤ 4d+2 of N_r` from the local-ND premise
-     and picks `t` large enough for the Ramsey/pigeonhole chain).
+2b. ~~**Close the bridge backward direction — helper-routing rewrite**~~
+   ✓ (2026-07-24). Backward direction fully proved; the whole bridge
+   `isLocallyNowhereDense_iff_isNowhereDense` reports standard axioms
+   only. Scaffold structures (`CandidatePathData` …
+   `CleanSubdivisionData`) and steps 1–6 deleted; forward direction
+   kept. Implementation as decided, with deltas:
+   - Legs need no `toPath` (`branchRadius` already yields paths). Leg
+     lengths are uniformized by a `d+1`-class pigeonhole *inside* each
+     focus step, so the Ramsey palette is exactly the `2^(d+1)²`
+     collision patterns (`focus_step`). Diagonal forcing via the 3-walk
+     transitivity + path-injectivity argument as planned; trimming at
+     the last shared level via `Nat.findGreatest`.
+   - The helper-side double pigeonhole is dropped entirely: bypassed
+     middle segments have length ≤ 2d regardless, and the single final
+     `multicolor_ramsey` over principal pairs (palette `2d+1`)
+     uniformizes the middle length. Only the principal-side tail length
+     is pigeonholed (`d+1` classes); the trim level needs no
+     uniformization.
+   - Interior length comes out as `r = 2τ + ρ + 1 ≤ 4d+1`; the final
+     numerics take `m := sup over r < 4d+2 of N_r` and build the copy
+     at exactly order `N_r`, so no subdivided-clique order-monotonicity
+     lemma is needed.
+   - Reusable packaging: `ramseyFor C Q` +
+     `exists_monochromatic_subset` (symmetric colouring by any fintype
+     → monochromatic subset; used by both Ramsey runs), and
+     `RoutedSystem` (hubs + uniform-length internally disjoint routed
+     paths → `subdividedClique` copy), which isolates all
+     `fromRel`/injectivity reasoning from the graph-specific work.
 3. `CrossingTransduction.lean` (the new work).
 4. `Corollary6a.lean` glue + encoding bridges + rewiring + axiom audit;
    update `todo.md`/`pipeline.md`.
