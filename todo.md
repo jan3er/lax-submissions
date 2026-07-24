@@ -133,11 +133,15 @@ Proof-package-only machinery (invisible to reviewers, can be ugly):
      (1+1/(M−1))^M ≤ e² < 8; expectation as weighted sum over
      `X.powerset`, marginalization by `sum_nbij'` to `(X∖N).powerset`).
      Sampling, SetSystems, Asymptotics all sorry-free.
-   - 4b'' remaining leaves (each a focused session; 5 sorries in 4b
+   - Lem 23 ✅ (`sparsGraphOn_mem_sparsGraphs`): the fixed R1 formulas
+     realize the label graph on `A ∪ reps`; the two side colors define
+     exactly that carrier. Biclique-freeness is a direct pigeonhole:
+     a copied `K_{k+1,k+1}` would inject `Fin (k+1)` label choices into
+     `Fin k` at a representative vertex.
+   - 4b'' remaining leaves (each a focused session; 3 sorries in 4b
      scope + Cor 6b which is 4c): Lem 25 (step; combinatorial half
      from Lem 19 + Cor 9 + Lem 7 + Lem 12, then the R1 definability
-     discharge — semantics of `mergeFormula`); Lem 23
-     (`sparsGraphOn_mem_sparsGraphs`); `Transduces.trans`; [VC].
+     discharge — semantics of `mergeFormula`); `Transduces.trans`; [VC].
    - 4c: the 6b chain (§3a), coarse-to-fine; densification last.
 
 Guideline: first principles, weigh pros and cons carefully — flagship

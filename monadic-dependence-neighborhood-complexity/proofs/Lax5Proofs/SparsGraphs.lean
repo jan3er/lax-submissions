@@ -109,13 +109,232 @@ belongs to `sparsGraphs C k`. Producing it: color the member `G` by
 the witness colors of definability plus `L := A` and `R := reps`, and
 embed the carrier by `orderIsoOfFin`; `K_{k+1,k+1}`-freeness holds
 since `reps`-vertices have degree at most `k` and `A` is disjoint from
-`reps ⊆ B`. Open obligation of step 4b. -/
+`reps ⊆ B`. -/
 theorem sparsGraphOn_mem_sparsGraphs {C : GraphClass} (hG : C n G)
     (hAB : Disjoint A B) (S : Sparsification G A B k)
     (hdef : S.Definable) {reps : Finset (Fin n)} (hsub : reps ⊆ S.supp)
-    (hinj : Set.InjOn S.tup reps) :
+    (_hinj : Set.InjOn S.tup reps) :
     sparsGraphs C k _ (sparsGraphOn S reps) := by
-  sorry
+  classical
+  refine ⟨?_, ?_⟩
+  · obtain ⟨baseColors, hbase⟩ := hdef
+    let colors : Fin (5 * k + 2) → Set (Fin n) :=
+      fun i => if h : i.val < 5 * k then baseColors ⟨i, h⟩
+        else if i.val = 5 * k then ↑A else ↑reps
+    let e := (A ∪ reps).orderIsoOfFin rfl
+    let g : Fin (A ∪ reps).card ↪ Fin n :=
+      ⟨fun i => e i, fun _ _ h => e.injective (Subtype.ext h)⟩
+    refine ⟨n, G.structure, ⟨G, hG, rfl⟩, colors, g, ?_, ?_⟩
+    · intro x
+      letI := G.structure
+      letI := colorStructure colors
+      change (∃ i, g i = x) ↔ _
+      have hrange : (∃ i, g i = x) ↔ x ∈ A ∨ x ∈ reps := by
+        constructor
+        · rintro ⟨i, rfl⟩
+          exact Finset.mem_union.1 (e i).property
+        · intro hx
+          have hx' : x ∈ A ∪ reps := Finset.mem_union.2 hx
+          refine ⟨e.symm ⟨x, hx'⟩, ?_⟩
+          exact congrArg Subtype.val (e.apply_symm_apply ⟨x, hx'⟩)
+      refine hrange.trans ?_
+      symm
+      simp only [sparsTransduction, RealizeIn,
+        Language.Formula.realize_sup]
+      constructor
+      · intro h
+        rcases h with h | h
+        · left
+          change x ∈ colors (⟨5 * k, by omega⟩ : Fin (5 * k + 2)) at h
+          simpa [colors] using h
+        · right
+          change x ∈ colors (⟨5 * k + 1, by omega⟩ : Fin (5 * k + 2)) at h
+          simpa [colors] using h
+      · intro h
+        rcases h with h | h
+        · left
+          change x ∈ colors (⟨5 * k, by omega⟩ : Fin (5 * k + 2))
+          simpa [colors] using h
+        · right
+          change x ∈ colors (⟨5 * k + 1, by omega⟩ : Fin (5 * k + 2))
+          simpa [colors] using h
+    · intro r R v
+      cases R with
+      | adj =>
+        letI := G.structure
+        letI := colorStructure colors
+        let x : Fin n := g (v 0)
+        let y : Fin n := g (v 1)
+        have hlift : 5 * k ≤ 5 * k + 2 := by omega
+        have hrestrict :
+            (fun i : Fin (5 * k) => colors (i.castLE hlift)) =
+              baseColors := by
+          funext i
+          simp [colors]
+        have hformula (j : Fin k) (b a : Fin n) (hb : b ∈ reps) :
+            Language.Formula.Realize
+                (liftFormula hlift (sparsFormulas k j)) ![b, a] ↔
+              S.f j b = a := by
+          change RealizeIn G.structure colors
+              (liftFormula hlift (sparsFormulas k j)) ![b, a] ↔ _
+          rw [realizeIn_liftFormula, hrestrict]
+          exact (hbase j b (hsub hb) a).symm
+        have hL (z : Fin 2) :
+            Language.Formula.Realize
+                (colorAtom (⟨5 * k, by omega⟩ : Fin (5 * k + 2))
+                  (Language.Term.var (Sum.inl z))) (g ∘ v) ↔
+              g (v z) ∈ A := by
+          change g (v z) ∈ colors
+            (⟨5 * k, by omega⟩ : Fin (5 * k + 2)) ↔ _
+          simp [colors]
+        have hR (z : Fin 2) :
+            Language.Formula.Realize
+                (colorAtom (⟨5 * k + 1, by omega⟩ : Fin (5 * k + 2))
+                  (Language.Term.var (Sum.inl z))) (g ∘ v) ↔
+              g (v z) ∈ reps := by
+          change g (v z) ∈ colors
+            (⟨5 * k + 1, by omega⟩ : Fin (5 * k + 2)) ↔ _
+          simp [colors]
+        have hswap
+            (φ : (withColors Language.graph (5 * k + 2)).Formula (Fin 2)) :
+            Language.Formula.Realize (Language.Formula.relabel ![1, 0] φ)
+                (g ∘ v) ↔ Language.Formula.Realize φ ![y, x] := by
+          rw [Language.Formula.realize_relabel]
+          have hw : (g ∘ v) ∘ ![1, 0] = ![y, x] := by
+            funext i
+            fin_cases i <;> rfl
+          rw [hw]
+        have hiSupSwap (hy : y ∈ reps) :
+            Language.Formula.Realize
+                (Language.BoundedFormula.iSup fun j : Fin k =>
+                  Language.Formula.relabel ![1, 0]
+                    (liftFormula hlift (sparsFormulas k j))) (g ∘ v) ↔
+              ∃ j : Fin k, S.f j y = x := by
+          calc
+            _ ↔ ∃ j : Fin k, Language.Formula.Realize
+                (Language.Formula.relabel ![1, 0]
+                  (liftFormula hlift (sparsFormulas k j))) (g ∘ v) :=
+              Language.BoundedFormula.realize_iSup
+            _ ↔ ∃ j : Fin k, Language.Formula.Realize
+                (liftFormula hlift (sparsFormulas k j)) ![y, x] := by
+              apply exists_congr
+              exact fun j => hswap _
+            _ ↔ ∃ j : Fin k, S.f j y = x := by
+              apply exists_congr
+              intro j
+              exact hformula j y x hy
+        have hiSup (hx : x ∈ reps) :
+            Language.Formula.Realize
+                (Language.BoundedFormula.iSup fun j : Fin k =>
+                  liftFormula hlift (sparsFormulas k j)) (g ∘ v) ↔
+              ∃ j : Fin k, S.f j x = y := by
+          calc
+            _ ↔ ∃ j : Fin k, Language.Formula.Realize
+                (liftFormula hlift (sparsFormulas k j)) (g ∘ v) :=
+              Language.BoundedFormula.realize_iSup
+            _ ↔ ∃ j : Fin k, S.f j x = y := by
+              apply exists_congr
+              intro j
+              have hw : (g ∘ v) = ![x, y] := by
+                funext i
+                fin_cases i <;> rfl
+              rw [hw]
+              exact hformula j x y hx
+        change (sparsGraphOn S reps).Adj (v 0) (v 1) ↔ _
+        simp only [sparsTransduction, RealizeIn,
+          Language.Formula.realize_sup, Language.Formula.realize_inf]
+        constructor
+        · intro hadj
+          change (sparsGraphAux S reps).Adj x y at hadj
+          rw [sparsGraphAux, SimpleGraph.fromRel_adj] at hadj
+          rcases hadj with ⟨_, hxy | hyx⟩
+          · obtain ⟨hxR, j, hj⟩ := hxy
+            have hyA := S.f_mem j x (hsub hxR)
+            rw [hj] at hyA
+            right
+            exact ⟨⟨(hL 1).2 hyA, (hR 0).2 hxR⟩,
+              (hiSup hxR).2 ⟨j, hj⟩⟩
+          · obtain ⟨hyR, j, hj⟩ := hyx
+            have hxA := S.f_mem j y (hsub hyR)
+            rw [hj] at hxA
+            left
+            exact ⟨⟨(hL 0).2 hxA, (hR 1).2 hyR⟩,
+              (hiSupSwap hyR).2 ⟨j, hj⟩⟩
+        · intro hreal
+          rcases hreal with hreal | hreal
+          · obtain ⟨⟨hxA, hyR⟩, hlabels⟩ := hreal
+            have hxA' : x ∈ A := (hL 0).1 hxA
+            have hyR' : y ∈ reps := (hR 1).1 hyR
+            have hlabels' : ∃ j : Fin k, S.f j y = x :=
+              (hiSupSwap hyR').1 hlabels
+            have hne : x ≠ y := by
+              intro hxy
+              rw [hxy] at hxA'
+              exact (Finset.disjoint_left.1 hAB hxA'
+                (S.supp_subset (hsub hyR')))
+            change (sparsGraphAux S reps).Adj x y
+            rw [sparsGraphAux, SimpleGraph.fromRel_adj]
+            exact ⟨hne, Or.inr ⟨hyR', hlabels'⟩⟩
+          · obtain ⟨⟨hyA, hxR⟩, hlabels⟩ := hreal
+            have hyA' : y ∈ A := (hL 1).1 hyA
+            have hxR' : x ∈ reps := (hR 0).1 hxR
+            have hlabels' : ∃ j : Fin k, S.f j x = y :=
+              (hiSup hxR').1 hlabels
+            have hne : x ≠ y := by
+              intro hxy
+              rw [← hxy] at hyA'
+              exact (Finset.disjoint_left.1 hAB hyA'
+                (S.supp_subset (hsub hxR')))
+            change (sparsGraphAux S reps).Adj x y
+            rw [sparsGraphAux, SimpleGraph.fromRel_adj]
+            exact ⟨hne, Or.inl ⟨hxR', hlabels'⟩⟩
+  · intro hK
+    obtain ⟨f⟩ := hK
+    let e := (A ∪ reps).orderIsoOfFin rfl
+    let emb : Fin (A ∪ reps).card → Fin n := fun i => e i
+    have label_of_adj {p q : Fin (A ∪ reps).card}
+        (hp : emb p ∈ reps) (hadj : (sparsGraphOn S reps).Adj p q) :
+        ∃ j : Fin k, S.f j (emb p) = emb q := by
+      change (sparsGraphAux S reps).Adj (emb p) (emb q) at hadj
+      rw [sparsGraphAux, SimpleGraph.fromRel_adj] at hadj
+      rcases hadj.2 with hpq | hqp
+      · exact hpq.2
+      · obtain ⟨hq, j, hj⟩ := hqp
+        have hpA := S.f_mem j (emb q) (hsub hq)
+        rw [hj] at hpA
+        exact (Finset.disjoint_left.1 hAB hpA
+          (S.supp_subset (hsub hp))).elim
+    have no_many (u : Fin (k + 1) ⊕ Fin (k + 1))
+        (opp : Fin (k + 1) → Fin (k + 1) ⊕ Fin (k + 1))
+        (hu : emb (f u) ∈ reps) (hopp : Function.Injective opp)
+        (hadj : ∀ i, (completeBipartiteGraph (Fin (k + 1))
+          (Fin (k + 1))).Adj u (opp i)) : False := by
+      have hex : ∀ i, ∃ j : Fin k,
+          S.f j (emb (f u)) = emb (f (opp i)) := fun i =>
+        label_of_adj hu (f.toHom.map_adj (hadj i))
+      choose label hlabel using hex
+      have hlabel_inj : Function.Injective label := by
+        intro i i' hii'
+        have hemb : emb (f (opp i)) = emb (f (opp i')) := by
+          calc
+            emb (f (opp i)) = S.f (label i) (emb (f u)) :=
+              (hlabel i).symm
+            _ = S.f (label i') (emb (f u)) := by rw [hii']
+            _ = emb (f (opp i')) := hlabel i'
+        have he : e (f (opp i)) = e (f (opp i')) := Subtype.ext hemb
+        exact hopp (f.injective (e.injective he))
+      have hcard := Fintype.card_le_of_injective label hlabel_inj
+      simp only [Fintype.card_fin] at hcard
+      omega
+    have hedge :
+        (sparsGraphOn S reps).Adj (f (Sum.inl 0)) (f (Sum.inr 0)) :=
+      f.toHom.map_adj (by simp)
+    change (sparsGraphAux S reps).Adj
+      (emb (f (Sum.inl 0))) (emb (f (Sum.inr 0))) at hedge
+    rw [sparsGraphAux, SimpleGraph.fromRel_adj] at hedge
+    rcases hedge.2 with hleft | hright
+    · exact no_many (Sum.inl 0) Sum.inr hleft.1 Sum.inr_injective (by simp)
+    · exact no_many (Sum.inr 0) Sum.inl hright.1 Sum.inl_injective (by simp)
 
 /-- Lemma 24 of DMMPT26: over a monadically dependent class, a
 definable terminal `k`-sparsification has size at most
