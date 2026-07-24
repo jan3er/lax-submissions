@@ -176,6 +176,14 @@ Proof-package-only machinery (invisible to reviewers, can be ugly):
      canonical `Fin m` copy, and bounds `m` polynomially in `|A|`; applying
      subpolynomial `wcol₂` at a rescaled exponent finishes Corollary 6b.
      The proof is sorry-free.
+   - 4d ✅ Dependency audit: `Corollary6` now consumes the proved
+     `Lax5Proofs.Corollary6b.hasAlmostLinearNC_of_nowhereDense`, rather than
+     the matching concept axiom. Consequently `#print axioms` on the
+     headline theorem reports only Lean's standard logical axioms and the
+     deliberately open Corollary-6a obligation
+     `nowhereDense_of_weaklySparse_of_monadicallyDependent`; the proved
+     nowhere-dense neighborhood-complexity and weak-coloring-number theorems
+     report only the standard logical axioms.
 
 Guideline: first principles, weigh pros and cons carefully — flagship
 standards. Rewrite this file as things crystalize.
