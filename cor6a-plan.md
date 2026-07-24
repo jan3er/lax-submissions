@@ -105,13 +105,42 @@ picture:
    `isLocallyNowhereDense_iff_isNowhereDense`, 3 sorries carried in the
    backward steps 4–6; `SubdividedBicliqueRamsey.lean` —
    `subdividedBiclique_ramsey`, sorry-free, standard axioms.)
-2b. **NEW: close bridge backward steps 4–6** (real proof work, size
-   comparable to or larger than step 3; see catalog close plan). Options
-   to decide with Jan: (a) follow the close plan — strengthen steps 1–3
-   (IsPath + suffix bits, or the blown-up interior-tuple Ramsey color
-   variant that avoids a separate collision round at the cost of bounds,
-   acceptable since the contract is qualitative); (b) any alternate
-   route Jan prefers.
+2b. **Close the bridge backward direction — helper-routing rewrite**
+   (decided with Jan 2026-07-24; next session's work). The catalog close
+   plan is mathematically doomed: *funneling* branch sets (spine
+   `c_i—…—s_β—…—s_α`, legs to smaller partners fanning at `s_β`, larger
+   at `s_α`) are Ramsey-homogeneous yet admit no single trimmed centre,
+   so no trimming of the canonical pairwise walks yields a disjoint
+   system; disjoint paths must be routed through spare branch sets.
+   Replace backward steps 2–6 and the scaffold structures
+   (`CandidatePathData` … `CleanSubdivisionData`, delete as dead code;
+   keep the forward direction) with:
+   - Split `Fin (t+1)` into `M` principals and ≥ `M²`·(pigeonhole
+     slack) helpers; each principal pair later gets a private helper, so
+     cross-pair collisions die by branch-set disjointness.
+   - Per principal `i`: legs = `model.branchRadius` walks `c_i → x_{i,h}`
+     to the helper-facing bridge endpoints, `toPath`'d (support stays in
+     the branch set, length ≤ d). One pair-Ramsey over helpers with
+     bounded palette (collision pattern ⊆ `(d+1)²` × leg lengths, via
+     `multicolor_ramsey`); a 3-walk transitivity argument + path
+     injectivity forces the homogeneous pattern onto the diagonal; trim
+     at the last shared level `r*` (level 0 is always shared): one
+     centre `v_i`, pairwise-disjoint uniform-length tails to the
+     surviving helpers.
+   - Nested refinement: apply the focus step principal-by-principal,
+     each time shrinking the common helper pool (tower bound, fine —
+     contract is qualitative). Pigeonhole principals for uniform tail
+     length and trim level.
+   - Uniformize helper-side leg lengths `λ(h,i)` by double pigeonhole
+     (helpers by their length vector over principals, then principals);
+     assign private helpers to pairs injectively; middle segment
+     `x_{h,i} → c_h → x_{h,j}` toPath'd inside `B_h`, its length
+     uniformized by one final `multicolor_ramsey` over principal pairs.
+   - Assemble the `subdividedClique` copy: principals ↦ `v_i`,
+     path {i<j} = tail_i · bridge · middle_h(i,j) · bridge · tail_j
+     reversed; interior length ≤ 4d+2 (not ≤ 2d — harmless; step 6
+     takes `m := max over r ≤ 4d+2 of N_r` from the local-ND premise
+     and picks `t` large enough for the Ramsey/pigeonhole chain).
 3. `CrossingTransduction.lean` (the new work).
 4. `Corollary6a.lean` glue + encoding bridges + rewiring + axiom audit;
    update `todo.md`/`pipeline.md`.
