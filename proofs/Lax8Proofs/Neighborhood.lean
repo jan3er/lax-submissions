@@ -1,4 +1,5 @@
 import Lax8Proofs.MergeWidthBasic
+import Lax8.BoundedMergeWidthLinearNeighborhoodComplexity
 
 /-!
 # Linear neighbourhood complexity of bounded merge-width classes
@@ -20,6 +21,7 @@ complexity.
 namespace Lax8Proofs
 
 open Lax8.MergeWidth
+open Lax8.NeighborhoodComplexity
 
 open scoped Classical
 open Finset
@@ -536,7 +538,7 @@ theorem neighborhoodComplexity_le (k : ℕ) (S : MergeSeq G) (hS : S.width 2 ≤
 
 /--
 ---
-conclusion: Lax8.MergeWidth.bounded_mergeWidth_linearNeighborhoodComplexity
+conclusion: Lax8.BoundedMergeWidthLinearNeighborhoodComplexity.bounded_mergeWidth_linearNeighborhoodComplexity
 ---
 Theorem 1.5 of Bonamy–Geniet: every graph class of bounded merge-width has
 linear neighbourhood complexity.

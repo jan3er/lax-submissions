@@ -1,4 +1,5 @@
 import Lax8Proofs.EdgeDecomp
+import Lax8.BoundedMergeWidthChiBounded
 
 /-!
 # χ-boundedness of bounded merge-width classes
@@ -12,6 +13,7 @@ merge-width at most `k` and clique number at most `t` satisfies
 namespace Lax8Proofs
 
 open Lax8.MergeWidth
+open Lax8.ChiBoundedness
 
 open scoped Classical
 open Finset
@@ -106,7 +108,7 @@ theorem chromatic_le_of_width (k : ℕ) (hk : 1 ≤ k) :
 
 /--
 ---
-conclusion: Lax8.MergeWidth.bounded_mergeWidth_chiBounded
+conclusion: Lax8.BoundedMergeWidthChiBounded.bounded_mergeWidth_chiBounded
 ---
 Theorem 1.2 of Bonamy–Geniet: every graph class of bounded merge-width is
 χ-bounded.

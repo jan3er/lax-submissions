@@ -1,0 +1,5 @@
+build-output.json
+concepts/.lake/
+concepts/lake-manifest.json
+proofs/.lake/
+proofs/lake-manifest.json
