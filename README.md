@@ -1,14 +1,13 @@
 # lax-submissions
 
-Flagship submissions for the [Lax archive](http://167.233.125.220:8080),
-ported from Édouard Bonnet's twin-width formalization
-(github.com/EdouardBonnet/leaning, `twin-width/`, MIT). This README is also
-the working brief for anyone — human or agent — creating the next
-submission: it condenses the parts of the Lax spec an author needs, and
-then states the style this repository holds itself to. Read the styleguide
-as seriously as the rules: these are **flagship submissions**, the examples
-future contributors will imitate, and the elegance of the concept packages
-is the whole point.
+Flagship submissions for the [Lax archive](http://167.233.125.220:8080). 
+
+This README is the working brief for anyone — human or agent — creating the
+next submission: it condenses the parts of the Lax spec an author needs, and
+then states the style this repository holds itself to. Read the styleguide as
+seriously as the rules: these are **flagship submissions**, the examples future
+contributors will imitate, and the elegance of the concept packages is the
+whole point.
 
 Current archive content (both in the **draft** state):
 
@@ -245,13 +244,9 @@ personal access token).
 npm install -g lax-archive
 ```
 
-Point the CLI at the live deployment (put these in your shell profile —
-the baked-in defaults point at a public instance that doesn't exist yet):
-
-```sh
-export LAX_SERVER_URL=http://167.233.125.220:8080
-export LAX_DB_URL=https://github.com/jan3er/lax-db.git
-```
+The CLI comes preconfigured for the live deployment: since 0.1.2 the
+baked-in defaults are the live server and database (`LAX_SERVER_URL` and
+`LAX_DB_URL` still override them if you ever need to).
 
 The archive website is at <http://167.233.125.220:8080>; the database (one
 folder per submission, `record.json` + `build-output.json`) is cloned to
