@@ -2,6 +2,7 @@ import Lax5.NowhereDenseWcol
 import Mathlib.Combinatorics.SimpleGraph.Walk.Basic
 import Mathlib.Combinatorics.SetFamily.Shatter
 import Mathlib.Data.Finset.Sort
+import Mathlib.Data.Finset.Max
 import Mathlib.Data.Nat.Choose.Bounds
 
 /-!
@@ -342,5 +343,494 @@ theorem card_lowerTrace_le_wreach {n : ℕ}
   simpa using Set.ncard_le_ncard (s := (lowerTrace G π Z u : Set (Fin n)))
     (t := wreach G π 1 u) fun x hx =>
       (mem_lowerTrace_iff_mem_wreach_one G π Z u x).1 hx |>.2
+
+/-! ## Local separators from a weak coloring order -/
+
+/-- The finset version of a submitted weak-reachability set. -/
+noncomputable def weakReachFinset {n : ℕ} (G : SimpleGraph (Fin n))
+    (π : Equiv.Perm (Fin n)) (r : ℕ) (u : Fin n) : Finset (Fin n) := by
+  classical
+  exact Finset.univ.filter fun x => x ∈ wreach G π r u
+
+@[simp] theorem mem_weakReachFinset_iff {n : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (r : ℕ) (u x : Fin n) :
+    x ∈ weakReachFinset G π r u ↔ x ∈ wreach G π r u := by
+  classical
+  simp [weakReachFinset]
+
+theorem card_weakReachFinset {n : ℕ} (G : SimpleGraph (Fin n))
+    (π : Equiv.Perm (Fin n)) (r : ℕ) (u : Fin n) :
+    (weakReachFinset G π r u).card = (wreach G π r u).ncard := by
+  classical
+  rw [← Set.ncard_coe_finset]
+  congr 1
+  ext x
+  simp
+
+/-- Every vertex weakly reaches itself, at every radius. -/
+theorem mem_wreach_self {n : ℕ} (G : SimpleGraph (Fin n))
+    (π : Equiv.Perm (Fin n)) (r : ℕ) (u : Fin n) :
+    u ∈ wreach G π r u := by
+  refine ⟨SimpleGraph.Walk.nil, by simp, ?_⟩
+  simp
+
+theorem wreach_mono_radius {n : ℕ} (G : SimpleGraph (Fin n))
+    (π : Equiv.Perm (Fin n)) {r s : ℕ} (hrs : r ≤ s) (u : Fin n) :
+    wreach G π r u ⊆ wreach G π s u := by
+  rintro x ⟨w, hw, hmin⟩
+  exact ⟨w, hw.trans hrs, hmin⟩
+
+/-- The witness ground set used in the radius-one counting argument:
+all vertices weakly one-reachable from a vertex of `A`. -/
+noncomputable def witnessGround {n : ℕ} (G : SimpleGraph (Fin n))
+    (π : Equiv.Perm (Fin n)) (A : Finset (Fin n)) : Finset (Fin n) :=
+  A.biUnion (weakReachFinset G π 1)
+
+@[simp] theorem mem_witnessGround_iff {n : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (A : Finset (Fin n)) (x : Fin n) :
+    x ∈ witnessGround G π A ↔
+      ∃ a ∈ A, x ∈ wreach G π 1 a := by
+  classical
+  simp [witnessGround]
+
+theorem subset_witnessGround {n : ℕ} (G : SimpleGraph (Fin n))
+    (π : Equiv.Perm (Fin n)) (A : Finset (Fin n)) :
+    A ⊆ witnessGround G π A := by
+  intro a ha
+  exact (mem_witnessGround_iff G π A a).2
+    ⟨a, ha, mem_wreach_self G π 1 a⟩
+
+theorem card_witnessGround_le {n d : ℕ} (G : SimpleGraph (Fin n))
+    (π : Equiv.Perm (Fin n)) (A : Finset (Fin n))
+    (hπ : ∀ u, (wreach G π 1 u).ncard ≤ d) :
+    (witnessGround G π A).card ≤ A.card * d := by
+  classical
+  calc
+    (witnessGround G π A).card
+        ≤ ∑ a ∈ A, (weakReachFinset G π 1 a).card :=
+      Finset.card_biUnion_le
+    _ ≤ ∑ _a ∈ A, d := by
+      apply Finset.sum_le_sum
+      intro a ha
+      simpa [card_weakReachFinset] using hπ a
+    _ = A.card * d := by simp
+
+/-- The local separator at `u`: the part of the witness ground set weakly
+one-reachable from `u`. -/
+noncomputable def localSeparator {n : ℕ} (G : SimpleGraph (Fin n))
+    (π : Equiv.Perm (Fin n)) (A : Finset (Fin n)) (u : Fin n) :
+    Finset (Fin n) :=
+  lowerTrace G π (witnessGround G π A) u
+
+@[simp] theorem mem_localSeparator_iff {n : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (A : Finset (Fin n)) (u x : Fin n) :
+    x ∈ localSeparator G π A u ↔
+      x ∈ witnessGround G π A ∧ x ∈ wreach G π 1 u := by
+  exact mem_lowerTrace_iff_mem_wreach_one G π _ u x
+
+theorem card_localSeparator_le {n d : ℕ} (G : SimpleGraph (Fin n))
+    (π : Equiv.Perm (Fin n)) (A : Finset (Fin n))
+    (hπ : ∀ u, (wreach G π 1 u).ncard ≤ d) (u : Fin n) :
+    (localSeparator G π A u).card ≤ d := by
+  exact (card_lowerTrace_le_wreach G π _ u).trans (hπ u)
+
+/-- Every edge from `u` to the target `A` meets the local separator at
+one of its endpoints.  This is the radius-one separator claim. -/
+theorem adjacent_target_meets_localSeparator {n : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (A : Finset (Fin n)) (u a : Fin n) (ha : a ∈ A) (hua : G.Adj u a) :
+    u ∈ localSeparator G π A u ∨ a ∈ localSeparator G π A u := by
+  by_cases huaOrd : π u ≤ π a
+  · left
+    rw [mem_localSeparator_iff]
+    refine ⟨?_, mem_wreach_self G π 1 u⟩
+    exact (mem_witnessGround_iff G π A u).2
+      ⟨a, ha, (mem_wreach_one_iff G π a u).2
+        (Or.inr ⟨hua.symm, huaOrd⟩)⟩
+  · right
+    rw [mem_localSeparator_iff]
+    refine ⟨subset_witnessGround G π A ha, ?_⟩
+    exact (mem_wreach_one_iff G π u a).2
+      (Or.inr ⟨hua, le_of_not_ge huaOrd⟩)
+
+/-- Outside the witness ground set, the open-neighborhood trace on `A` is
+determined by the local separator and the open-neighborhood trace on that
+separator. -/
+theorem neighborTrace_eq_of_outside_of_local_data_eq {n : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (A : Finset (Fin n)) (u v : Fin n)
+    (hu : u ∉ witnessGround G π A) (hv : v ∉ witnessGround G π A)
+    (hsep : localSeparator G π A u = localSeparator G π A v)
+    (hprofile : neighborTrace G (localSeparator G π A u) u =
+      neighborTrace G (localSeparator G π A u) v) :
+    neighborTrace G A u = neighborTrace G A v := by
+  classical
+  ext a
+  simp only [mem_neighborTrace_iff]
+  constructor
+  · rintro ⟨ha, hua⟩
+    have huSep : u ∉ localSeparator G π A u := fun hu' =>
+      hu ((mem_localSeparator_iff G π A u u).1 hu').1
+    have haSep : a ∈ localSeparator G π A u :=
+      (adjacent_target_meets_localSeparator G π A u a ha hua).resolve_left
+        huSep
+    have haProf : a ∈ neighborTrace G (localSeparator G π A u) u :=
+      (mem_neighborTrace_iff G _ u a).2 ⟨haSep, hua⟩
+    have haProf' : a ∈ neighborTrace G (localSeparator G π A u) v := by
+      rw [← hprofile]
+      exact haProf
+    have haProf'' : a ∈ neighborTrace G (localSeparator G π A v) v := by
+      rwa [← hsep]
+    exact ⟨ha, (mem_neighborTrace_iff G _ v a).1 haProf'' |>.2⟩
+  · rintro ⟨ha, hva⟩
+    have hvSep : v ∉ localSeparator G π A v := fun hv' =>
+      hv ((mem_localSeparator_iff G π A v v).1 hv').1
+    have haSep : a ∈ localSeparator G π A v :=
+      (adjacent_target_meets_localSeparator G π A v a ha hva).resolve_left
+        hvSep
+    have haProf : a ∈ neighborTrace G (localSeparator G π A u) v := by
+      rw [hsep]
+      exact (mem_neighborTrace_iff G _ v a).2 ⟨haSep, hva⟩
+    have haProf' : a ∈ neighborTrace G (localSeparator G π A u) u := by
+      rw [hprofile]
+      exact haProf
+    exact ⟨ha, (mem_neighborTrace_iff G _ u a).1 haProf' |>.2⟩
+
+/-- Two vertices weakly one-reachable from a common vertex are weakly
+two-reachable from the later one.  This is the elementary path-concatenation
+behind localization of the separator family. -/
+theorem mem_wreach_two_of_common_one {n : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (u b x : Fin n) (hx : x ∈ wreach G π 1 u)
+    (hb : b ∈ wreach G π 1 u) (hxb : π x ≤ π b) :
+    x ∈ wreach G π 2 b := by
+  rw [mem_wreach_one_iff] at hx hb
+  rcases hx with rfl | ⟨hux, hxu⟩
+  · rcases hb with rfl | ⟨hub, -⟩
+    · exact mem_wreach_self G π 2 b
+    · refine ⟨SimpleGraph.Walk.cons hub.symm .nil, by simp, ?_⟩
+      intro y hy
+      simp at hy
+      rcases hy with rfl | rfl
+      · exact hxb
+      · exact le_rfl
+  · rcases hb with rfl | ⟨hub, -⟩
+    · refine ⟨SimpleGraph.Walk.cons hux .nil, by simp, ?_⟩
+      intro y hy
+      simp at hy
+      rcases hy with rfl | rfl
+      · exact hxu
+      · exact le_rfl
+    · refine ⟨SimpleGraph.Walk.cons hub.symm
+          (SimpleGraph.Walk.cons hux .nil), by simp, ?_⟩
+      intro y hy
+      simp at hy
+      rcases hy with rfl | rfl | rfl
+      · exact hxb
+      · exact hxu
+      · exact le_rfl
+
+/-- If `b` is a latest vertex of a nonempty local separator, that separator
+is contained in the weak radius-two set of `b`. -/
+theorem localSeparator_subset_wreach_two {n : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (A : Finset (Fin n)) (u b : Fin n)
+    (hb : b ∈ localSeparator G π A u)
+    (hbmax : ∀ x ∈ localSeparator G π A u, π x ≤ π b) :
+    localSeparator G π A u ⊆ weakReachFinset G π 2 b := by
+  intro x hx
+  rw [mem_weakReachFinset_iff]
+  exact mem_wreach_two_of_common_one G π u b x
+    ((mem_localSeparator_iff G π A u x).1 hx).2
+    ((mem_localSeparator_iff G π A u b).1 hb).2 (hbmax x hx)
+
+/-- Once a separator lies in a localized ground set `Z`, restricting the
+lower trace to `Z` recovers the same separator. -/
+theorem lowerTrace_eq_localSeparator_of_subset {n : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (A Z : Finset (Fin n)) (u : Fin n)
+    (hZ : localSeparator G π A u ⊆ Z)
+    (hZW : Z ⊆ witnessGround G π A) :
+    lowerTrace G π Z u = localSeparator G π A u := by
+  ext x
+  rw [mem_lowerTrace_iff_mem_wreach_one, mem_localSeparator_iff]
+  constructor
+  · rintro ⟨hxZ, hxW⟩
+    exact ⟨hZW hxZ, hxW⟩
+  · rintro ⟨hxB, hxW⟩
+    exact ⟨hZ ((mem_localSeparator_iff G π A u x).2 ⟨hxB, hxW⟩), hxW⟩
+
+/-- Every nonempty local separator has an anchor in the witness ground set
+whose radius-two weak-reachability set contains the separator. -/
+theorem exists_anchor_localSeparator {n : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (A : Finset (Fin n)) (u : Fin n)
+    (hne : (localSeparator G π A u).Nonempty) :
+    ∃ b ∈ witnessGround G π A,
+      localSeparator G π A u ⊆ weakReachFinset G π 2 b := by
+  obtain ⟨b, hb, hbmax⟩ :=
+    Finset.exists_max_image (localSeparator G π A u) π hne
+  exact ⟨b, (mem_localSeparator_iff G π A u b).1 hb |>.1,
+    localSeparator_subset_wreach_two G π A u b hb hbmax⟩
+
+/-- Anchoring realizes each nonempty separator as a lower trace on a ground
+set of size bounded by the radius-two weak coloring number. -/
+theorem exists_anchor_lowerTrace_eq_localSeparator {n : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (A : Finset (Fin n)) (u : Fin n)
+    (hne : (localSeparator G π A u).Nonempty) :
+    ∃ b ∈ witnessGround G π A,
+      lowerTrace G π
+        (witnessGround G π A ∩ weakReachFinset G π 2 b) u =
+          localSeparator G π A u := by
+  obtain ⟨b, hbB, hb⟩ := exists_anchor_localSeparator G π A u hne
+  refine ⟨b, hbB, lowerTrace_eq_localSeparator_of_subset G π A _ u ?_ ?_⟩
+  · exact fun x hx => Finset.mem_inter.2
+      ⟨(mem_localSeparator_iff G π A u x).1 hx |>.1, hb hx⟩
+  · exact Finset.inter_subset_left
+
+theorem card_anchorGround_le {n d : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (A : Finset (Fin n)) (hπ : ∀ u, (wreach G π 2 u).ncard ≤ d)
+    (b : Fin n) :
+    (witnessGround G π A ∩ weakReachFinset G π 2 b).card ≤ d := by
+  calc
+    (witnessGround G π A ∩ weakReachFinset G π 2 b).card
+        ≤ (weakReachFinset G π 2 b).card :=
+      Finset.card_le_card Finset.inter_subset_right
+    _ = (wreach G π 2 b).ncard := card_weakReachFinset G π 2 b
+    _ ≤ d := hπ b
+
+/-- The coarse Sauer--Shelah polynomial used throughout the counting
+argument. -/
+def tracePolynomial (t d : ℕ) : ℕ :=
+  (3 * t + 1) * (d + 1) ^ (3 * t)
+
+theorem tracePolynomial_mono_right (t : ℕ) {d e : ℕ} (hde : d ≤ e) :
+    tracePolynomial t d ≤ tracePolynomial t e := by
+  unfold tracePolynomial
+  gcongr
+
+/-- The realized local separators. -/
+noncomputable def localSeparatorFamily {n : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (A : Finset (Fin n)) : Finset (Finset (Fin n)) :=
+  Finset.univ.image (localSeparator G π A)
+
+/-- Local separators have only almost linearly many possible values when
+radius-two weak reachability is bounded.  The empty separator contributes
+one value; every nonempty separator is anchored at a vertex of the witness
+ground, and Sauer--Shelah counts its possible localized lower traces. -/
+theorem card_localSeparatorFamily_le {n d t : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (A : Finset (Fin n)) (hKt : ¬ HasBiclique G t)
+    (hπ : ∀ u, (wreach G π 2 u).ncard ≤ d) :
+    (localSeparatorFamily G π A).card ≤
+      1 + (witnessGround G π A).card * tracePolynomial t d := by
+  classical
+  let B := witnessGround G π A
+  let localizedFamily : Fin n → Finset (Finset (Fin n)) := fun b =>
+    Finset.univ.image
+      (lowerTrace G π (B ∩ weakReachFinset G π 2 b))
+  have hsubset : localSeparatorFamily G π A ⊆
+      insert ∅ (B.biUnion localizedFamily) := by
+    intro X hX
+    obtain ⟨u, -, rfl⟩ := Finset.mem_image.1 hX
+    by_cases hne : (localSeparator G π A u).Nonempty
+    · obtain ⟨b, hbB, hbEq⟩ :=
+        exists_anchor_lowerTrace_eq_localSeparator G π A u hne
+      apply Finset.mem_insert_of_mem
+      rw [Finset.mem_biUnion]
+      refine ⟨b, hbB, Finset.mem_image.2 ⟨u, Finset.mem_univ _, ?_⟩⟩
+      simpa [B, localizedFamily] using hbEq
+    · have hempty : localSeparator G π A u = ∅ := Finset.not_nonempty_iff_eq_empty.1 hne
+      simp [hempty]
+  calc
+    (localSeparatorFamily G π A).card
+        ≤ (insert ∅ (B.biUnion localizedFamily)).card :=
+      Finset.card_le_card hsubset
+    _ ≤ 1 + (B.biUnion localizedFamily).card := by
+      simpa [Nat.add_comm] using
+        (Finset.card_insert_le (∅ : Finset (Fin n))
+          (B.biUnion localizedFamily))
+    _ ≤ 1 + ∑ b ∈ B, (localizedFamily b).card := by
+      gcongr
+      exact Finset.card_biUnion_le
+    _ ≤ 1 + ∑ _b ∈ B, tracePolynomial t d := by
+      gcongr with b hb
+      calc
+        (localizedFamily b).card
+            ≤ tracePolynomial t
+                (B ∩ weakReachFinset G π 2 b).card := by
+          simpa [localizedFamily, tracePolynomial] using
+            card_lowerTraces_le G t hKt π
+              (B ∩ weakReachFinset G π 2 b)
+        _ ≤ tracePolynomial t d :=
+          tracePolynomial_mono_right t (by
+            simpa [B] using card_anchorGround_le G π A hπ b)
+    _ = 1 + B.card * tracePolynomial t d := by simp
+    _ = 1 + (witnessGround G π A).card * tracePolynomial t d := by rfl
+
+/-- If equality of `g`-values forces equality of `f`-values on a finite
+domain, the image of `f` is no larger than the image of `g`. -/
+theorem card_image_le_card_image_of_eq_imp_eq
+    {α β γ : Type*} [DecidableEq α] [DecidableEq β] [DecidableEq γ]
+    (s : Finset α) (f : α → β) (g : α → γ)
+    (h : ∀ x ∈ s, ∀ y ∈ s, g x = g y → f x = f y) :
+    (s.image f).card ≤ (s.image g).card := by
+  classical
+  by_cases hs : s.Nonempty
+  swap
+  · simp [Finset.not_nonempty_iff_eq_empty.1 hs]
+  have hex (z : β) (hz : z ∈ s.image f) :
+      ∃ x ∈ s, f x = z := by
+    simpa [eq_comm] using Finset.mem_image.1 hz
+  let rep : β → α := fun z => if hz : z ∈ s.image f then
+    Classical.choose (hex z hz) else hs.choose
+  have hrep_mem (z : β) (hz : z ∈ s.image f) : rep z ∈ s := by
+    simp only [rep, dif_pos hz]
+    exact (Classical.choose_spec (hex z hz)).1
+  have hrep_eq (z : β) (hz : z ∈ s.image f) : f (rep z) = z := by
+    simp only [rep, dif_pos hz]
+    exact (Classical.choose_spec (hex z hz)).2
+  apply Finset.card_le_card_of_injOn (fun z => g (rep z))
+  · intro z hz
+    exact Finset.mem_image.2 ⟨rep z, hrep_mem z hz, rfl⟩
+  · intro z hz w hw hzw
+    rw [← hrep_eq z hz, ← hrep_eq w hw]
+    exact h (rep z) (hrep_mem z hz) (rep w) (hrep_mem w hw) hzw
+
+/-- The radius-one counting theorem for one fixed weak coloring order.
+The bound is deliberately coarse: its only downstream role is to be a fixed
+polynomial in the weak radius-two bound `d`, times `|A|`. -/
+theorem card_neighborTraceFamily_le_of_wreach {n d t : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (A : Finset (Fin n)) (hKt : ¬ HasBiclique G t)
+    (hπ : ∀ u, (wreach G π 2 u).ncard ≤ d) :
+    (Finset.univ.image (neighborTrace G A)).card ≤
+      A.card * d +
+        (1 + A.card * d * tracePolynomial t d) * tracePolynomial t d := by
+  classical
+  let B := witnessGround G π A
+  let outside : Finset (Fin n) := Finset.univ \ B
+  let sep : Fin n → Finset (Fin n) := localSeparator G π A
+  let key : Fin n → Finset (Fin n) × Finset (Fin n) := fun u =>
+    (sep u, neighborTrace G (sep u) u)
+  let profileKeys : Finset (Fin n) →
+      Finset (Finset (Fin n) × Finset (Fin n)) := fun X =>
+    Finset.univ.image fun u => (X, neighborTrace G X u)
+  have hout : (outside.image (neighborTrace G A)).card ≤
+      (outside.image key).card := by
+    apply card_image_le_card_image_of_eq_imp_eq outside
+    intro u hu v hv huv
+    have huB : u ∉ B := (Finset.mem_sdiff.1 hu).2
+    have hvB : v ∉ B := (Finset.mem_sdiff.1 hv).2
+    have hsep : sep u = sep v := congrArg Prod.fst huv
+    have hprofOwn : neighborTrace G (sep u) u =
+        neighborTrace G (sep v) v := congrArg Prod.snd huv
+    apply neighborTrace_eq_of_outside_of_local_data_eq G π A u v
+      (by simpa [B] using huB) (by simpa [B] using hvB)
+      (by simpa [sep] using hsep)
+    simpa [sep, hsep] using hprofOwn
+  have hkeySubset : outside.image key ⊆
+      (localSeparatorFamily G π A).biUnion profileKeys := by
+    intro K hK
+    obtain ⟨u, hu, rfl⟩ := Finset.mem_image.1 hK
+    rw [Finset.mem_biUnion]
+    refine ⟨sep u, ?_, ?_⟩
+    · exact Finset.mem_image.2 ⟨u, Finset.mem_univ _, by simp [sep]⟩
+    · exact Finset.mem_image.2 ⟨u, Finset.mem_univ _, by simp [key]⟩
+  have hprofile (X : Finset (Fin n))
+      (hX : X ∈ localSeparatorFamily G π A) :
+      (profileKeys X).card ≤ tracePolynomial t d := by
+    have hcardX : X.card ≤ d := by
+      obtain ⟨u, -, rfl⟩ := Finset.mem_image.1 hX
+      exact card_localSeparator_le G π A (fun u =>
+        (Set.ncard_mono (wreach_mono_radius G π (by omega) u)).trans
+          (hπ u)) u
+    have hkeys : profileKeys X =
+        (Finset.univ.image (neighborTrace G X)).image
+          (fun p => (X, p)) := by
+      ext K
+      simp [profileKeys]
+    calc
+      (profileKeys X).card
+          = ((Finset.univ.image (neighborTrace G X)).image
+              (fun p => (X, p))).card := congrArg Finset.card hkeys
+      _ = (Finset.univ.image (neighborTrace G X)).card :=
+        Finset.card_image_of_injective _
+          (fun _ _ h => congrArg Prod.snd h)
+      _ ≤ tracePolynomial t X.card := by
+        simpa [tracePolynomial] using card_neighborTraces_le G t hKt X
+      _ ≤ tracePolynomial t d := tracePolynomial_mono_right t hcardX
+  have hkeyCard : (outside.image key).card ≤
+      (localSeparatorFamily G π A).card * tracePolynomial t d := by
+    calc
+      (outside.image key).card
+          ≤ ((localSeparatorFamily G π A).biUnion profileKeys).card :=
+        Finset.card_le_card hkeySubset
+      _ ≤ ∑ X ∈ localSeparatorFamily G π A, (profileKeys X).card :=
+        Finset.card_biUnion_le
+      _ ≤ ∑ _X ∈ localSeparatorFamily G π A, tracePolynomial t d := by
+        exact Finset.sum_le_sum fun X hX => hprofile X hX
+      _ = (localSeparatorFamily G π A).card * tracePolynomial t d := by simp
+  have hsplit : Finset.univ = B ∪ outside := by
+    simp [outside]
+  calc
+    (Finset.univ.image (neighborTrace G A)).card
+        = ((B.image (neighborTrace G A)) ∪
+            (outside.image (neighborTrace G A))).card := by
+      rw [← Finset.image_union, ← hsplit]
+    _ ≤ (B.image (neighborTrace G A)).card +
+          (outside.image (neighborTrace G A)).card :=
+      Finset.card_union_le _ _
+    _ ≤ B.card + (localSeparatorFamily G π A).card *
+          tracePolynomial t d := by
+      gcongr
+      · exact Finset.card_image_le
+      · exact hout.trans hkeyCard
+    _ ≤ A.card * d +
+          (1 + A.card * d * tracePolynomial t d) * tracePolynomial t d := by
+      have hB : B.card ≤ A.card * d := by
+        simpa [B] using card_witnessGround_le G π A (fun u =>
+          (Set.ncard_mono (wreach_mono_radius G π (by omega) u)).trans (hπ u))
+      have hSep : (localSeparatorFamily G π A).card ≤
+          1 + B.card * tracePolynomial t d := by
+        simpa [B] using card_localSeparatorFamily_le G π A hKt hπ
+      calc
+        B.card + (localSeparatorFamily G π A).card * tracePolynomial t d
+            ≤ B.card + (1 + B.card * tracePolynomial t d) *
+                tracePolynomial t d := by gcongr
+        _ ≤ A.card * d +
+              (1 + A.card * d * tracePolynomial t d) *
+                tracePolynomial t d := by gcongr
+
+/-- The polynomial factor in the fixed-order neighborhood bound. -/
+def orderCountingPolynomial (t d : ℕ) : ℕ :=
+  d + tracePolynomial t d + d * tracePolynomial t d ^ 2
+
+/-- Multiplicative form of the fixed-order counting theorem for nonempty
+target sets. -/
+theorem card_neighborTraceFamily_le_mul_of_wreach {n d t : ℕ}
+    (G : SimpleGraph (Fin n)) (π : Equiv.Perm (Fin n))
+    (A : Finset (Fin n)) (hA : A.Nonempty) (hKt : ¬ HasBiclique G t)
+    (hπ : ∀ u, (wreach G π 2 u).ncard ≤ d) :
+    (Finset.univ.image (neighborTrace G A)).card ≤
+      A.card * orderCountingPolynomial t d := by
+  let P := tracePolynomial t d
+  calc
+    (Finset.univ.image (neighborTrace G A)).card
+        ≤ A.card * d + (1 + A.card * d * P) * P := by
+      simpa [P] using card_neighborTraceFamily_le_of_wreach G π A hKt hπ
+    _ = A.card * d + P + A.card * d * P ^ 2 := by ring
+    _ ≤ A.card * d + A.card * P + A.card * d * P ^ 2 := by
+      gcongr
+      exact Nat.le_mul_of_pos_left P hA.card_pos
+    _ = A.card * orderCountingPolynomial t d := by
+      simp only [orderCountingPolynomial, P]
+      ring
 
 end Lax5Proofs.NowhereDenseNeighborhoods

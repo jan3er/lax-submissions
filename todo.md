@@ -161,9 +161,14 @@ Proof-package-only machinery (invisible to reviewers, can be ugly):
      uniform `K_{t,t}`; this bounds the VC dimension of every self-or-adjacent
      family (covering both neighborhood traces and radius-1 lower traces);
      Sauer–Shelah gives explicit polynomial trace bounds; and lower traces are
-     identified exactly with submitted radius-1 weak reachability. Remaining:
-     local-separator counting, polynomial localization/assembly, and the final
-     asymptotic rescaling in Cor 6b.
+     identified exactly with submitted radius-1 weak reachability. The full
+     local-separator counting layer is now proved as well: target edges meet
+     the separator, outside vertices are classified by separator profiles,
+     every separator localizes inside one radius-2 weak-reachability set, and
+     the resulting number of neighborhood traces is `|A|` times an explicit
+     polynomial in `wcol₂`. Remaining: polynomial witness localization to an
+     induced subgraph, transport through its canonical `Fin m` copy, and the
+     final asymptotic rescaling in Cor 6b.
 
 Guideline: first principles, weigh pros and cons carefully — flagship
 standards. Rewrite this file as things crystalize.
