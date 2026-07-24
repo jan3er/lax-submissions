@@ -3,14 +3,14 @@ import Lax8Proofs.MergeWidthBasic
 /-!
 # Restriction of merge sequences to the blocks of a partition
 
-Given a finite simple graph `G` with a merge sequence `S` and a partition `Q`
-(a setoid) of its vertices, consider the graph `H = G ⊓ blockGraph Q` whose edges
-are exactly the edges of `G` lying inside a single `Q`-block.  (Equivalently `H`
-is the disjoint union of the induced subgraphs `G[block]`.)
+Given a finite simple graph $G$ with a merge sequence $S$ and a partition $Q$
+(a setoid) of its vertices, consider the graph $H = G ⊓ blockGraph Q$ whose edges
+are exactly the edges of $G$ lying inside a single $Q$-block.  (Equivalently $H$
+is the disjoint union of the induced subgraphs $G[block]$.)
 
-We build a merge sequence for `H` of radius-`r` width at most `max (S.width r) 1`:
-refine each partition `Pᵢ` of `S` by `Q`, keep only the resolved pairs of `Rᵢ`
-lying inside a `Q`-block, and append a final step merging everything to `⊤` (all
+We build a merge sequence for $H$ of radius-$r$ width at most $max (S.width r) 1$:
+refine each partition $Pᵢ$ of $S$ by $Q$, keep only the resolved pairs of $Rᵢ$
+lying inside a $Q$-block, and append a final step merging everything to $⊤$ (all
 in-block pairs resolved).  This shows merge-width does not increase under this
 "disjoint union of induced subgraphs" operation.
 -/
@@ -24,7 +24,7 @@ open scoped Classical
 universe u
 variable {V : Type u} [Fintype V] {G : SimpleGraph V}
 
-/-- The graph of distinct pairs lying inside a common `Q`-block. -/
+/-- The graph of distinct pairs lying inside a common $Q$-block. -/
 def blockGraph (Q : Setoid V) : SimpleGraph V := SimpleGraph.fromRel (fun x y => Q.r x y)
 
 @[simp] theorem blockGraph_adj (Q : Setoid V) (x y : V) :
@@ -33,7 +33,7 @@ def blockGraph (Q : Setoid V) : SimpleGraph V := SimpleGraph.fromRel (fun x y =>
   refine and_congr_right (fun _ => ?_)
   exact ⟨fun h => h.elim id (fun h => Q.iseqv.symm h), fun h => Or.inl h⟩
 
-/-- The within-block restriction of `G` by `Q`: edges of `G` inside a `Q`-block. -/
+/-- The within-block restriction of $G$ by $Q$: edges of $G$ inside a $Q$-block. -/
 def restrictGraph (G : SimpleGraph V) (Q : Setoid V) : SimpleGraph V :=
   G ⊓ blockGraph Q
 
@@ -44,11 +44,11 @@ def restrictGraph (G : SimpleGraph V) (Q : Setoid V) : SimpleGraph V :=
   · rintro ⟨hg, _, hq⟩; exact ⟨hg, hq⟩
   · rintro ⟨hg, hq⟩; exact ⟨hg, hg.ne, hq⟩
 
-/-- The refined partition at step `i`: `Pᵢ ⊓ Q` up to `length`, then `⊤`. -/
+/-- The refined partition at step $i$: $Pᵢ ⊓ Q$ up to $length$, then $⊤$. -/
 noncomputable def rpart (S : MergeSeq G) (Q : Setoid V) (i : ℕ) : Setoid V :=
   if i ≤ S.length then S.part i ⊓ Q else ⊤
 
-/-- The restricted resolved graph at step `i`: `Rᵢ` inside blocks, then all
+/-- The restricted resolved graph at step $i$: $Rᵢ$ inside blocks, then all
 in-block pairs. -/
 noncomputable def rresolved (S : MergeSeq G) (Q : Setoid V) (i : ℕ) : SimpleGraph V :=
   if i ≤ S.length then S.resolved i ⊓ blockGraph Q else blockGraph Q
@@ -140,8 +140,8 @@ theorem runiform (S : MergeSeq G) (Q : Setoid V) :
     · exact hnr_x'y' h.2.1 (h.2.2.elim id fun h => Q.symm h)
 
 
-/-- The restricted merge sequence: refine each partition by `Q`, keep resolved
-pairs inside blocks, and add a final step merging to `⊤`. -/
+/-- The restricted merge sequence: refine each partition by $Q$, keep resolved
+pairs inside blocks, and add a final step merging to $⊤$. -/
 noncomputable def restrictSeq (S : MergeSeq G) (Q : Setoid V) :
     MergeSeq (restrictGraph G Q) where
   length := S.length + 1
@@ -154,7 +154,7 @@ noncomputable def restrictSeq (S : MergeSeq G) (Q : Setoid V) :
   resolved_mono := rresolved_mono S Q
   uniform := runiform S Q
 
-/-- The restricted sequence has radius-`r` width at most `max (S.width r) 1`. -/
+/-- The restricted sequence has radius-$r$ width at most $max (S.width r) 1$. -/
 theorem restrictSeq_width_le (S : MergeSeq G) (Q : Setoid V) (r : ℕ) :
     (restrictSeq S Q).width r ≤ max (S.width r) 1 := by
   unfold MergeSeq.width
@@ -332,8 +332,8 @@ theorem restrictSeq_width_le (S : MergeSeq G) (Q : Setoid V) (r : ℕ) :
     )) (le_max_right _ _)
 
 /-- **Merge-width monotonicity under within-block restriction.**
-If `G` has a merge sequence of radius-`r` width `≤ k` (with `1 ≤ k`), then so does
-its within-block restriction by any partition `Q`. -/
+If $G$ has a merge sequence of radius-$r$ width $≤ k$ (with $1 ≤ k$), then so does
+its within-block restriction by any partition $Q$. -/
 theorem exists_restrict_mergeSeq (S : MergeSeq G) (Q : Setoid V) (r k : ℕ)
     (hk : 1 ≤ k) (hS : S.width r ≤ k) :
     ∃ S' : MergeSeq (restrictGraph G Q), S'.width r ≤ k := by

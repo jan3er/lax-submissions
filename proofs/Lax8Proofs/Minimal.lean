@@ -19,8 +19,8 @@ open scoped Classical
 universe u
 variable {V : Type u} [Fintype V] {G : SimpleGraph V}
 
-/-- `S` is **minimal** if any monotone, uniform family of resolved graphs `R'`
-below `S.resolved` (for the same partitions) is in fact equal to `S.resolved`. -/
+/-- $S$ is **minimal** if any monotone, uniform family of resolved graphs $R'$
+below $S.resolved$ (for the same partitions) is in fact equal to $S.resolved$. -/
 def Minimal (S : MergeSeq G) : Prop :=
   ∀ (R' : ℕ → SimpleGraph V),
     (∀ i, R' i ≤ S.resolved i) →
@@ -33,7 +33,7 @@ def Minimal (S : MergeSeq G) : Prop :=
 /-! ### Deleting a single edge on a window of steps (for Lemma 2.1) -/
 
 open Classical in
-/-- Delete the single unordered edge `x₁y₁` from `S` when `keep` holds. -/
+/-- Delete the single unordered edge $x₁y₁$ from $S$ when $keep$ holds. -/
 noncomputable def delEdge (S : SimpleGraph V) (x₁ y₁ : V) (keep : Prop) : SimpleGraph V :=
   if keep then S.deleteEdges {s(x₁, y₁)} else S
 
@@ -46,8 +46,8 @@ omit [Fintype V] in
   · simp [h, SimpleGraph.deleteEdges_adj]
   · simp [h]
 
-/-- The resolved family of `S` with the single edge `x₁y₁` deleted on the window
-`i < ℓ ≤ j`. -/
+/-- The resolved family of $S$ with the single edge $x₁y₁$ deleted on the window
+$i < ℓ ≤ j$. -/
 noncomputable def delRes (S : MergeSeq G) (x₁ y₁ : V) (i j ℓ : ℕ) : SimpleGraph V :=
   delEdge (S.resolved ℓ) x₁ y₁ (i < ℓ ∧ ℓ ≤ j)
 
@@ -73,9 +73,9 @@ theorem delRes_mono (S : MergeSeq G) {i j : ℕ} {x₁ y₁ : V}
   refine ⟨S.resolved_mono ha hab hblen h.1, ?_⟩
   rintro ⟨hwinb, hs⟩
   by_cases hia : i < a
-  · -- window at `a` holds too, contradicting `h.2`.
+  · -- window at $a$ holds too, contradicting $h.2$.
     exact h.2 ⟨⟨hia, le_trans hab hwinb.2⟩, hs⟩
-  · -- `a ≤ i`: then `s(u,v) = s(x₁,y₁)` gives a resolved pair at `i`.
+  · -- $a ≤ i$: then $s(u,v) = s(x₁,y₁)$ gives a resolved pair at $i$.
     push_neg at hia
     have hri : (S.resolved i).Adj u v := S.resolved_mono ha hia hilen h.1
     rw [Sym2.eq_iff] at hs
@@ -84,9 +84,9 @@ theorem delRes_mono (S : MergeSeq G) {i j : ℕ} {x₁ y₁ : V}
     · exact hnr₁ hri.symm
 
 omit [Fintype V] in
-/-- **Cross claim** for Lemma 2.1: at a window step `ℓ`, any cross pair `ab`
-(with `a` in the part of `x₁` and `b` in the part of `y₁`) that is unresolved in
-the deleted family agrees in `G`-adjacency with `x₁y₁`. -/
+/-- **Cross claim** for Lemma 2.1: at a window step $ℓ$, any cross pair $ab$
+(with $a$ in the part of $x₁$ and $b$ in the part of $y₁$) that is unresolved in
+the deleted family agrees in $G$-adjacency with $x₁y₁$. -/
 theorem delRes_crossClaim (S : MergeSeq G) {i j ℓ : ℕ} (hi : 1 ≤ i) (hiℓ : i ≤ ℓ)
     (hℓj : ℓ ≤ j) (hjlen : j ≤ S.length) {x₁ x₂ y₁ y₂ : V}
     (hx : (S.part i).r x₁ x₂) (hy : (S.part i).r y₁ y₂) (hne₂ : x₂ ≠ y₂)
@@ -111,7 +111,7 @@ theorem delRes_crossClaim (S : MergeSeq G) {i j ℓ : ℕ} (hi : 1 ≤ i) (hiℓ
     · exact ⟨fun h => h.symm, fun h => h.symm⟩
 
 omit [Fintype V] in
-/-- The deleted family is uniform for `G` (this is the crux of Lemma 2.1). -/
+/-- The deleted family is uniform for $G$ (this is the crux of Lemma 2.1). -/
 theorem delRes_uniform (S : MergeSeq G) {i j : ℕ} (hi : 1 ≤ i)
     (hjlen : j ≤ S.length) {x₁ x₂ y₁ y₂ : V}
     (hx : (S.part i).r x₁ x₂) (hy : (S.part i).r y₁ y₂)
@@ -122,7 +122,7 @@ theorem delRes_uniform (S : MergeSeq G) {i j : ℕ} (hi : 1 ≤ i)
       ¬ (delRes S x₁ y₁ i j ℓ).Adj x y → ¬ (delRes S x₁ y₁ i j ℓ).Adj x' y' →
       (G.Adj x y ↔ G.Adj x' y') := by
   intro ℓ h1ℓ hℓlen x x' y y' hxx' hyy' hxy hx'y' hnxy hnx'y'
-  -- Extract "unresolved in `R`" or "deleted edge in window" from `¬ delRes.Adj`.
+  -- Extract "unresolved in $R$" or "deleted edge in window" from $¬ delRes.Adj$.
   have key : ∀ {p q : V}, ¬ (delRes S x₁ y₁ i j ℓ).Adj p q →
       ¬ (S.resolved ℓ).Adj p q ∨ ((i < ℓ ∧ ℓ ≤ j) ∧ s(p, q) = s(x₁, y₁)) := by
     intro p q h
@@ -130,14 +130,14 @@ theorem delRes_uniform (S : MergeSeq G) {i j : ℕ} (hi : 1 ≤ i)
     by_cases hr : (S.resolved ℓ).Adj p q
     · exact Or.inr (by by_contra hc; exact h ⟨hr, hc⟩)
     · exact Or.inl hr
-  -- A pair equal to `x₁y₁` agrees with `x₁y₁` in `G` (symmetry of `G`).
+  -- A pair equal to $x₁y₁$ agrees with $x₁y₁$ in $G$ (symmetry of $G$).
   have edgeIff : ∀ {p q : V}, s(p, q) = s(x₁, y₁) → (G.Adj p q ↔ G.Adj x₁ y₁) := by
     intro p q h
     rw [Sym2.eq_iff] at h
     rcases h with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
     · exact Iff.rfl
     · exact ⟨fun h => h.symm, fun h => h.symm⟩
-  -- A cross pair (either orientation) unresolved-or-deleted agrees with `x₁y₁`.
+  -- A cross pair (either orientation) unresolved-or-deleted agrees with $x₁y₁$.
   have crossPair : ∀ {a b : V}, (i < ℓ ∧ ℓ ≤ j) → a ≠ b →
       (((S.part ℓ).r x₁ a ∧ (S.part ℓ).r y₁ b) ∨
         ((S.part ℓ).r x₁ b ∧ (S.part ℓ).r y₁ a)) →
@@ -158,7 +158,7 @@ theorem delRes_uniform (S : MergeSeq G) {i j : ℕ} (hi : 1 ≤ i)
     rcases key hnx'y' with hnr_x'y' | ⟨hwin2, hex'y'⟩
   · -- Both unresolved: original uniformity.
     exact S.uniform h1ℓ hℓlen hxx' hyy' hxy hx'y' hnr_xy hnr_x'y'
-  · -- `xy` unresolved, `x'y'` is the deleted edge.
+  · -- $xy$ unresolved, $x'y'$ is the deleted edge.
     have hor_xy : ((S.part ℓ).r x₁ x ∧ (S.part ℓ).r y₁ y) ∨
         ((S.part ℓ).r x₁ y ∧ (S.part ℓ).r y₁ x) := by
       rw [Sym2.eq_iff] at hex'y'
@@ -166,7 +166,7 @@ theorem delRes_uniform (S : MergeSeq G) {i j : ℕ} (hi : 1 ≤ i)
       · exact Or.inl ⟨Setoid.symm' _ hxx', Setoid.symm' _ hyy'⟩
       · exact Or.inr ⟨Setoid.symm' _ hyy', Setoid.symm' _ hxx'⟩
     exact (crossPair hwin2 hxy hor_xy (Or.inl hnr_xy)).trans (edgeIff hex'y').symm
-  · -- `xy` is the deleted edge, `x'y'` unresolved.
+  · -- $xy$ is the deleted edge, $x'y'$ unresolved.
     have hor_x'y' : ((S.part ℓ).r x₁ x' ∧ (S.part ℓ).r y₁ y') ∨
         ((S.part ℓ).r x₁ y' ∧ (S.part ℓ).r y₁ x') := by
       rw [Sym2.eq_iff] at hexy
@@ -178,9 +178,9 @@ theorem delRes_uniform (S : MergeSeq G) {i j : ℕ} (hi : 1 ≤ i)
     exact (edgeIff hexy).trans (edgeIff hex'y').symm
 
 omit [Fintype V] in
-/-- **Lemma 2.1.** In a minimal merge sequence, if `x₁y₁` and `x₂y₂` are two
-unresolved pairs between the same two parts `A, B ∈ Pᵢ` (with `x₂ ≠ y₂`), then
-they are resolved at the same later steps: `x₁y₁ ∈ Rⱼ → x₂y₂ ∈ Rⱼ`. -/
+/-- **Lemma 2.1.** In a minimal merge sequence, if $x₁y₁$ and $x₂y₂$ are two
+unresolved pairs between the same two parts $A, B ∈ Pᵢ$ (with $x₂ ≠ y₂$), then
+they are resolved at the same later steps: $x₁y₁ ∈ Rⱼ → x₂y₂ ∈ Rⱼ$. -/
 theorem lemma21 (S : MergeSeq G) (hmin : Minimal S) {i : ℕ} (hi : 1 ≤ i)
     (hilen : i ≤ S.length) {x₁ x₂ y₁ y₂ : V}
     (hx : (S.part i).r x₁ x₂) (hy : (S.part i).r y₁ y₂) (hne₂ : x₂ ≠ y₂)
@@ -189,7 +189,7 @@ theorem lemma21 (S : MergeSeq G) (hmin : Minimal S) {i : ℕ} (hi : 1 ≤ i)
     (S.resolved j).Adj x₂ y₂ := by
   by_contra hcon
   have hne₁ : x₁ ≠ y₁ := hres₁.ne
-  -- `j > i`, else `resolved j ≤ resolved i` contradicts `hnr₁`.
+  -- $j > i$, else $resolved j ≤ resolved i$ contradicts $hnr₁$.
   have hji : i < j := by
     by_contra hle
     push_neg at hle

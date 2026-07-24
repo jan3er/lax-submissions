@@ -5,13 +5,13 @@ import Lax8Proofs.ChiInfra
 
 This file develops the "freezing" construction used to prove Lemma 4.1 of
 Bonamy–Geniet: a graph with a structurally ω-bounded merge sequence of radius-2
-width `k` is `k`-colourable.
+width $k$ is $k$-colourable.
 
-The construction fixes a single partition `𝒫` (the *frozen* partition) built from
+The construction fixes a single partition $𝒫$ (the *frozen* partition) built from
 the *maximally unresolved* parts of the merge sequence, together with an index
-function.  We show the parts of `𝒫` are independent and the quotient graph is
-`(k-1)`-degenerate w.r.t. the index order, then conclude with
-`colorable_of_partition_degenerate`.
+function.  We show the parts of $𝒫$ are independent and the quotient graph is
+$(k-1)$-degenerate w.r.t. the index order, then conclude with
+$colorable_of_partition_degenerate$.
 -/
 
 namespace Lax8Proofs
@@ -24,30 +24,30 @@ open Finset
 universe u
 variable {V : Type u} [Fintype V] {G : SimpleGraph V}
 
-/-- A merge sequence is **structurally ω-bounded** if, whenever a part of `Pᵢ`
-does not induce an independent set (it contains an edge `ab`), then every edge
-incident to a vertex of that part is a resolved pair in `Rᵢ`. -/
+/-- A merge sequence is **structurally ω-bounded** if, whenever a part of $Pᵢ$
+does not induce an independent set (it contains an edge $ab$), then every edge
+incident to a vertex of that part is a resolved pair in $Rᵢ$. -/
 def StructurallyOmegaBounded (S : MergeSeq G) : Prop :=
   ∀ i, 1 ≤ i → i ≤ S.length → ∀ u a b : V,
     (S.part i).r u a → (S.part i).r u b → G.Adj a b →
     ∀ w, G.Adj u w → (S.resolved i).Adj u w
 
-/-- Auxiliary: a graph with no edges is `1`-colourable. -/
+/-- Auxiliary: a graph with no edges is $1$-colourable. -/
 theorem colorable_one_of_edgeless {W : Type u} (H : SimpleGraph W)
     (hno : ∀ u v, ¬ H.Adj u v) : H.Colorable 1 :=
   ⟨SimpleGraph.Coloring.mk (fun _ => (0 : Fin 1)) (fun {a b} h => (hno a b h).elim)⟩
 
-/-- The part of `Pᵢ` containing `v` is **unresolved** at step `i` if some edge of
-`G` incident to a vertex of that part is not a resolved pair in `Rᵢ`. -/
+/-- The part of $Pᵢ$ containing $v$ is **unresolved** at step $i$ if some edge of
+$G$ incident to a vertex of that part is not a resolved pair in $Rᵢ$. -/
 def unresolvedAt (S : MergeSeq G) (i : ℕ) (v : V) : Prop :=
   ∃ a b : V, (S.part i).r v a ∧ G.Adj a b ∧ ¬ (S.resolved i).Adj a b
 
-/-- The **index** of `v`: the largest step `i` (in `[1, length]`) at which the
-part of `v` is unresolved, or `0` if there is none. -/
+/-- The **index** of $v$: the largest step $i$ (in $[1, length]$) at which the
+part of $v$ is unresolved, or $0$ if there is none. -/
 noncomputable def idxU (S : MergeSeq G) (v : V) : ℕ :=
   ((Finset.Icc 1 S.length).filter (fun i => unresolvedAt S i v)).sup id
 
-/-- `unresolvedAt` depends only on the part of `v` at step `i`. -/
+/-- $unresolvedAt$ depends only on the part of $v$ at step $i$. -/
 theorem unresolvedAt_congr (S : MergeSeq G) {i : ℕ} {v w : V}
     (h : (S.part i).r v w) : unresolvedAt S i v → unresolvedAt S i w := by
   rintro ⟨a, b, hva, hab, hnr⟩
@@ -61,7 +61,7 @@ theorem idxU_le_length (S : MergeSeq G) (v : V) : idxU S v ≤ S.length := by
   simp at hi
   exact hi.1.2
 
-/-- If the index of `v` is positive, the part of `v` is unresolved at that step. -/
+/-- If the index of $v$ is positive, the part of $v$ is unresolved at that step. -/
 theorem unresolvedAt_idxU (S : MergeSeq G) (v : V) (h : 1 ≤ idxU S v) :
     unresolvedAt S (idxU S v) v := by
   unfold idxU at h ⊢
@@ -76,7 +76,7 @@ theorem unresolvedAt_idxU (S : MergeSeq G) (v : V) (h : 1 ≤ idxU S v) :
   rw [hsup_eq]
   exact Finset.mem_filter.mp ha |>.2
 
-/-- Beyond the index, the part of `v` is resolved. -/
+/-- Beyond the index, the part of $v$ is resolved. -/
 theorem not_unresolvedAt_of_gt (S : MergeSeq G) {v : V} {j : ℕ}
     (h : idxU S v < j) (hj : j ≤ S.length) : ¬ unresolvedAt S j v := by
   intro hunres
@@ -86,7 +86,7 @@ theorem not_unresolvedAt_of_gt (S : MergeSeq G) {v : V} {j : ℕ}
   have : idxU S v ≥ j := Finset.le_sup (f := id) hjmem
   omega
 
-/-- If `u, v` share a part at step `i = idxU u ≥ 1`, then `idxU v = i` too:
+/-- If $u, v$ share a part at step $i = idxU u ≥ 1$, then $idxU v = i$ too:
 the maximally unresolved parts are well defined. -/
 theorem idxU_eq_of_part_rel (S : MergeSeq G) {u v : V} {i : ℕ}
     (hi : idxU S u = i) (h1 : 1 ≤ i) (hr : (S.part i).r u v) : idxU S v = i := by
@@ -130,8 +130,8 @@ theorem part_indep_of_unresolvedAt (S : MergeSeq G)
     have hres := hSOB i hi1 hilen a u v hau_sym hav hadj b hab
     exact hnres hres
 
-/-- If `idxU u ≥ 1`, then `idxU u < length` (uses structural ω-boundedness: the
-top part `⊤` at the last step is resolved whenever `G` has an edge). -/
+/-- If $idxU u ≥ 1$, then $idxU u < length$ (uses structural ω-boundedness: the
+top part $⊤$ at the last step is resolved whenever $G$ has an edge). -/
 theorem idxU_lt_length (S : MergeSeq G) (hSOB : StructurallyOmegaBounded S)
     {u : V} (hi : 1 ≤ idxU S u) : idxU S u < S.length := by
   by_contra h
@@ -179,7 +179,7 @@ theorem frozenPart_eq (S : MergeSeq G) {u : V} (hi : 1 ≤ idxU S u) (v : V) :
     refine ⟨hi, ?_, h⟩
     exact (idxU_eq_of_part_rel S rfl hi h).symm
 
-/-- The parts of the frozen partition are independent in `G`. -/
+/-- The parts of the frozen partition are independent in $G$. -/
 theorem frozen_indep (S : MergeSeq G) (hSOB : StructurallyOmegaBounded S) :
     ∀ u v, (frozenSetoid S).r u v → ¬ G.Adj u v := by
   intro u v h
@@ -189,15 +189,15 @@ theorem frozen_indep (S : MergeSeq G) (hSOB : StructurallyOmegaBounded S) :
     have hunres := unresolvedAt_idxU S u hi
     exact part_indep_of_unresolvedAt S hSOB hi hilen hunres hr
 
-/-- `idxU` is constant on frozen parts. -/
+/-- $idxU$ is constant on frozen parts. -/
 theorem frozen_idx_const (S : MergeSeq G) :
     ∀ u v, (frozenSetoid S).r u v → idxU S u = idxU S v := by
   rintro u v (rfl | ⟨_, h, _⟩)
   · rfl
   · exact h
 
-/-- **Claim 4.2.** For a maximally unresolved part (positive index `i = idxU u`),
-there is a vertex `x` with `xy ∈ R_{i+1}` for every `y` in the part. -/
+/-- **Claim 4.2.** For a maximally unresolved part (positive index $i = idxU u$),
+there is a vertex $x$ with $xy ∈ R_{i+1}$ for every $y$ in the part. -/
 theorem claim42 (S : MergeSeq G) (hSOB : StructurallyOmegaBounded S) {u : V}
     (hu : 1 ≤ idxU S u) :
     ∃ x : V, ∀ y : V, (S.part (idxU S u)).r u y →
@@ -229,7 +229,7 @@ theorem claim42 (S : MergeSeq G) (hSOB : StructurallyOmegaBounded S) {u : V}
       exact hnotU ⟨y, b, hyb1, hGby.symm, hc⟩
     exact hres_yb.symm
 
-/-- `numAccessible` is bounded by the width for steps `i ∈ [2, length]`. -/
+/-- $numAccessible$ is bounded by the width for steps $i ∈ [2, length]$. -/
 theorem numAccessible_le_width (S : MergeSeq G) {r i : ℕ} (h2 : 2 ≤ i)
     (hlen : i ≤ S.length) (v : V) : S.numAccessible r i v ≤ S.width r := by
   simp only [MergeSeq.width]
@@ -237,7 +237,7 @@ theorem numAccessible_le_width (S : MergeSeq G) {r i : ℕ} (h2 : 2 ≤ i)
     (Finset.mem_Icc.mpr ⟨h2, hlen⟩))
   exact Finset.le_sup (f := fun v => S.numAccessible r i v) (Finset.mem_univ v)
 
-/-- If two vertices of index `≥ i ≥ 1` share a part at step `i`, they share a
+/-- If two vertices of index $≥ i ≥ 1$ share a part at step $i$, they share a
 frozen part. -/
 theorem frozen_of_Pi_rel_of_idx_ge (S : MergeSeq G) {i : ℕ} (hi1 : 1 ≤ i)
     {b b' : V} (hb : i ≤ idxU S b)
@@ -248,9 +248,9 @@ theorem frozen_of_Pi_rel_of_idx_ge (S : MergeSeq G) {i : ℕ} (hi1 : 1 ≤ i)
     idxU_eq_of_part_rel S rfl (le_trans hi1 hb) hpj
   exact Or.inr ⟨le_trans hi1 hb, hb'eq.symm, hpj⟩
 
-/-- Witness for Claim 4.2 in ball form: there is `x` with `u` in the radius-2
-`R_{i+1}`-ball of `x`, and any `G`-edge `pb` with `p` in the frozen part of `u`
-puts `b` in that ball too. -/
+/-- Witness for Claim 4.2 in ball form: there is $x$ with $u$ in the radius-2
+$R_{i+1}$-ball of $x$, and any $G$-edge $pb$ with $p$ in the frozen part of $u$
+puts $b$ in that ball too. -/
 theorem exists_ball_witness (S : MergeSeq G) (hSOB : StructurallyOmegaBounded S)
     {u : V} (hi : 1 ≤ idxU S u) :
     ∃ x : V,
@@ -305,16 +305,16 @@ theorem exists_ball_witness (S : MergeSeq G) (hSOB : StructurallyOmegaBounded S)
       exact ⟨SimpleGraph.Walk.cons hxp (SimpleGraph.Walk.cons hp_res_succ SimpleGraph.Walk.nil), by simp⟩
 
 
-/-- `numAccessible` as the cardinality of a `Finset` image of the resolved ball. -/
+/-- $numAccessible$ as the cardinality of a $Finset$ image of the resolved ball. -/
 theorem numAccessible_eq_image (S : MergeSeq G) (r i : ℕ) (v : V) :
     S.numAccessible r i v =
       ((resolvedBall (S.resolved i) r v).toFinset.image
         (Quotient.mk (S.part (i - 1)))).card := by
   simp [MergeSeq.numAccessible, Set.ncard_eq_toFinset_card']
 
-/-- Degree bound for a **singleton** vertex (`idxU u = 0`): all its `G`-edges are
-resolved at step 1, so its `R₂`-ball of radius 2 (whose `P₁`-image has size
-`≤ width ≤ k`) contains `u` and all its neighbours, giving `deg(u) + 1 ≤ k`. -/
+/-- Degree bound for a **singleton** vertex ($idxU u = 0$): all its $G$-edges are
+resolved at step 1, so its $R₂$-ball of radius 2 (whose $P₁$-image has size
+$≤ width ≤ k$) contains $u$ and all its neighbours, giving $deg(u) + 1 ≤ k$. -/
 theorem singleton_degree_bound (S : MergeSeq G) (k : ℕ) (hW : S.width 2 ≤ k)
     (h2len : 2 ≤ S.length) {u : V} (hi : idxU S u = 0) :
     (G.neighborFinset u).card + 1 ≤ k := by
@@ -370,10 +370,10 @@ theorem singleton_degree_bound (S : MergeSeq G) (k : ℕ) (hW : S.width 2 ≤ k)
     _ ≤ S.width 2 := numAccessible_le_width S (by omega) (by omega) u
     _ ≤ k := hW
 
-/-- **Generic back-degree counting.**  If `g : V → β` maps every `G`-edge `pb`
-with `p` frozen-equivalent to `u` into `T`, and is "frozen-injective" on the
-relevant edge endpoints, then the number of quotient-neighbour parts of `⟦u⟧` of
-index `≥ idxU u` is at most `T.card`. -/
+/-- **Generic back-degree counting.**  If $g : V → β$ maps every $G$-edge $pb$
+with $p$ frozen-equivalent to $u$ into $T$, and is "frozen-injective" on the
+relevant edge endpoints, then the number of quotient-neighbour parts of $⟦u⟧$ of
+index $≥ idxU u$ is at most $T.card$. -/
 theorem card_frozen_backneighbors_le {β : Type u} (S : MergeSeq G) (u : V)
     (T : Finset β) (g : V → β)
     (hmaps : ∀ p b : V, Quotient.mk (frozenSetoid S) p = Quotient.mk (frozenSetoid S) u →
@@ -462,8 +462,8 @@ theorem card_frozen_backneighbors_le {β : Type u} (S : MergeSeq G) (u : V)
   exact hcard
 
 
-/-- Back-degree bound for a **singleton** vertex (`idxU u = 0`): its `G`-degree,
-hence its number of quotient-neighbours, is at most `k - 1`. -/
+/-- Back-degree bound for a **singleton** vertex ($idxU u = 0$): its $G$-degree,
+hence its number of quotient-neighbours, is at most $k - 1$. -/
 theorem singleton_backdeg (S : MergeSeq G) (k : ℕ) (hk : 1 ≤ k)
     (hW : S.width 2 ≤ k) (h2len : 2 ≤ S.length) {u : V} (hi : idxU S u = 0) :
     (((quotientGraph G (frozenSetoid S)).neighborFinset
@@ -472,7 +472,7 @@ theorem singleton_backdeg (S : MergeSeq G) (k : ℕ) (hk : 1 ≤ k)
       ≤ k - 1 := by
   have hdeg : (G.neighborFinset u).card + 1 ≤ k := singleton_degree_bound S k hW h2len hi
   refine le_trans (card_frozen_backneighbors_le S u (G.neighborFinset u) id ?_ ?_) (by omega)
-  · -- hmaps: with `idxU u = 0`, `⟦p⟧ = ⟦u⟧` forces `p = u`.
+  · -- hmaps: with $idxU u = 0$, $⟦p⟧ = ⟦u⟧$ forces $p = u$.
     intro p b hpu hadj
     have hpeq : p = u := by
       rcases Quotient.exact hpu with h | ⟨hle, heq, _⟩
@@ -480,12 +480,12 @@ theorem singleton_backdeg (S : MergeSeq G) (k : ℕ) (hk : 1 ≤ k)
       · rw [hi] at heq; omega
     subst hpeq
     simpa [SimpleGraph.mem_neighborFinset] using hadj
-  · -- hinj: `g = id`.
+  · -- hinj: $g = id$.
     intro p1 b1 p2 b2 _ _ _ _ _ _ hg
     exact congrArg (Quotient.mk (frozenSetoid S)) (by simpa using hg)
 
-/-- Back-degree bound for a vertex of **positive index** (`idxU u ≥ 1`): the
-number of quotient-neighbour parts of index `≥ idxU u` is at most `k - 1`. -/
+/-- Back-degree bound for a vertex of **positive index** ($idxU u ≥ 1$): the
+number of quotient-neighbour parts of index $≥ idxU u$ is at most $k - 1$. -/
 theorem index_pos_backdeg (S : MergeSeq G) (hSOB : StructurallyOmegaBounded S)
     (k : ℕ) (hk : 1 ≤ k) (hW : S.width 2 ≤ k) {u : V} (hi : 1 ≤ idxU S u) :
     (((quotientGraph G (frozenSetoid S)).neighborFinset
@@ -495,7 +495,7 @@ theorem index_pos_backdeg (S : MergeSeq G) (hSOB : StructurallyOmegaBounded S)
   obtain ⟨x, hxu, hxball⟩ := exists_ball_witness S hSOB hi
   have hlt : idxU S u < S.length := idxU_lt_length S hSOB hi
   set i := idxU S u with hidef
-  -- Target finset: `Pᵢ`-classes accessible from `x`, minus the class of `u`.
+  -- Target finset: $Pᵢ$-classes accessible from $x$, minus the class of $u$.
   set img : Finset (Quotient (S.part i)) :=
     (resolvedBall (S.resolved (i + 1)) 2 x).toFinset.image (Quotient.mk (S.part i)) with himgdef
   set t0 : Quotient (S.part i) := Quotient.mk (S.part i) u with ht0def
@@ -532,12 +532,12 @@ theorem index_pos_backdeg (S : MergeSeq G) (hSOB : StructurallyOmegaBounded S)
     omega
 
 /-- **Lemma 4.1.** A graph with a structurally ω-bounded merge sequence of
-radius-2 width `k` (with `k ≥ 1`) is `k`-colourable. -/
+radius-2 width $k$ (with $k ≥ 1$) is $k$-colourable. -/
 theorem colorable_of_structurallyOmegaBounded (k : ℕ) (hk : 1 ≤ k) (S : MergeSeq G)
     (hS : S.width 2 ≤ k) (hSOB : StructurallyOmegaBounded S) : G.Colorable k := by
-  -- Handle the degenerate case `length = 1` (`⊥ = ⊤`, so `V` is a subsingleton).
+  -- Handle the degenerate case $length = 1$ ($⊥ = ⊤$, so $V$ is a subsingleton).
   rcases Nat.lt_or_ge S.length 2 with hlen | hlen
-  · -- length ≤ 1, so `part 1 = ⊥ = ⊤`, hence any two vertices are equal.
+  · -- length ≤ 1, so $part 1 = ⊥ = ⊤$, hence any two vertices are equal.
     have hlen1 : S.length = 1 := le_antisymm (by omega) S.one_le_length
     have hbot : S.part 1 = ⊥ := S.part_one
     have htop : S.part 1 = ⊤ := by rw [← hlen1]; exact S.part_length

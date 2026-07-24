@@ -4,18 +4,18 @@ import Lax8.BoundedMergeWidthLinearNeighborhoodComplexity
 /-!
 # Linear neighbourhood complexity of bounded merge-width classes
 
-Formalisation of Theorem 1.5 of Bonamy–Geniet: any graph `G` with radius-2
-merge-width at most `k` has linear neighbourhood complexity.  We prove the
+Formalisation of Theorem 1.5 of Bonamy–Geniet: any graph $G$ with radius-2
+merge-width at most $k$ has linear neighbourhood complexity.  We prove the
 per-graph bound
 
-  `π_G(p) ≤ (k+1) · 2^(k+2) · p`   (for all `p`),
+  $π_G(p) ≤ (k+1) · 2^(k+2) · p$   (for all $p$),
 
 and deduce that every class of bounded merge-width has linear neighbourhood
 complexity.
 
-(The paper's constant is `k·2^(k+2)`; we use the very slightly larger
-`(k+1)·2^(k+2)` so that the single argument also covers the degenerate case
-`k = 0` uniformly.)
+(The paper's constant is $k·2^(k+2)$; we use the very slightly larger
+$(k+1)·2^(k+2)$ so that the single argument also covers the degenerate case
+$k = 0$ uniformly.)
 -/
 
 namespace Lax8Proofs
@@ -29,32 +29,32 @@ open Finset
 universe u
 variable {V : Type u} [Fintype V] {G : SimpleGraph V}
 
-/-- The neighbourhood of `v` within a vertex set `X` (as used in
-`neighborhoodComplexity`). -/
+/-- The neighbourhood of $v$ within a vertex set $X$ (as used in
+$neighborhoodComplexity$). -/
 noncomputable def Nb (G : SimpleGraph V) (X : Finset V) (v : V) : Finset V :=
   X.filter (fun u => G.Adj v u)
 
-/-- The vertices adjacent to exactly one of `x` and `x'`; i.e. the symmetric
-difference `N(x) △ N(x')` of the two neighbourhoods. -/
+/-- The vertices adjacent to exactly one of $x$ and $x'$; i.e. the symmetric
+difference $N(x) △ N(x')$ of the two neighbourhoods. -/
 noncomputable def symmNb (G : SimpleGraph V) (x x' : V) : Finset V :=
   Finset.univ.filter (fun v => G.Adj v x ≠ G.Adj v x')
 
 /-- **From a violation of linearity to an initial obstruction.**
-If `π_G(p) > α·p`, there is a set `X` of size `p` and a disjoint set `Y` of
-size `> α·p` whose vertices have pairwise distinct neighbourhoods inside `X`. -/
+If $π_G(p) > α·p$, there is a set $X$ of size $p$ and a disjoint set $Y$ of
+size $> α·p$ whose vertices have pairwise distinct neighbourhoods inside $X$. -/
 lemma exists_initial (α p : ℕ) (hviol : α * p < neighborhoodComplexity G p) :
     ∃ X Y : Finset V, Disjoint X Y ∧ X.card = p ∧
       (∀ y ∈ Y, ∀ y' ∈ Y, Nb G X y = Nb G X y' → y = y') ∧
       α * p < Y.card := by
-  -- Recipe: `neighborhoodComplexity` is a `Finset.sup` over `powersetCard p`.
-  -- Use `Finset.lt_sup_iff` to get `X` with `X.card = p` and
-  -- `α*p < ((univ \ X).image (Nb G X)).card`.  Let `Y` be a set of
-  -- representatives, one per value of `Nb G X` on `univ \ X`:
-  -- `Y := (((univ \ X).image (Nb G X)).image (fun s => choose a preimage))`.
-  -- Then `Y ⊆ univ \ X` (so `Disjoint X Y`), the map `Nb G X` is injective on
-  -- `Y`, and `Y.card = ((univ \ X).image (Nb G X)).card > α*p`.
-  -- Note `neighborhoodComplexity G p` unfolds to that sup, and
-  -- `Nb G X v = X.filter (fun u => G.Adj v u)`.
+  -- Recipe: $neighborhoodComplexity$ is a $Finset.sup$ over $powersetCard p$.
+  -- Use $Finset.lt_sup_iff$ to get $X$ with $X.card = p$ and
+  -- $α*p < ((univ \ X).image (Nb G X)).card$.  Let $Y$ be a set of
+  -- representatives, one per value of $Nb G X$ on $univ \ X$:
+  -- $Y := (((univ \ X).image (Nb G X)).image (fun s => choose a preimage))$.
+  -- Then $Y ⊆ univ \ X$ (so $Disjoint X Y$), the map $Nb G X$ is injective on
+  -- $Y$, and $Y.card = ((univ \ X).image (Nb G X)).card > α*p$.
+  -- Note $neighborhoodComplexity G p$ unfolds to that sup, and
+  -- $Nb G X v = X.filter (fun u => G.Adj v u)$.
   unfold neighborhoodComplexity at hviol
   rw [Finset.lt_sup_iff] at hviol
   obtain ⟨X, hXmem, hXgt⟩ := hviol
@@ -120,29 +120,29 @@ lemma exists_initial (α p : ℕ) (hviol : α * p < neighborhoodComplexity G p) 
       exact Subtype.ext this
 
 /-- **Density increase (Lemma 5.1).**
-Given a disjoint pair `(X, Y)` with `Y` having pairwise distinct neighbourhoods
-in `X` and `|Y| > α·|X|`, one can shrink it to a pair `(X', Y')` with the same
+Given a disjoint pair $(X, Y)$ with $Y$ having pairwise distinct neighbourhoods
+in $X$ and $|Y| > α·|X|$, one can shrink it to a pair $(X', Y')$ with the same
 properties, still nonempty, and such that moreover any two distinct vertices of
-`X'` have neighbourhoods differing on more than `α` vertices of `Y'`. -/
+$X'$ have neighbourhoods differing on more than $α$ vertices of $Y'$. -/
 lemma exists_dense (α : ℕ) : ∀ n : ℕ, ∀ X Y : Finset V, X.card = n → Disjoint X Y →
     (∀ y ∈ Y, ∀ y' ∈ Y, Nb G X y = Nb G X y' → y = y') → α * X.card < Y.card →
     ∃ X' Y' : Finset V, X' ⊆ X ∧ Disjoint X' Y' ∧
       (∀ y ∈ Y', ∀ y' ∈ Y', Nb G X' y = Nb G X' y' → y = y') ∧
       α * X'.card < Y'.card ∧ (X.Nonempty → X'.Nonempty) ∧
       (∀ x ∈ X', ∀ x' ∈ X', x ≠ x' → α < (Y' ∩ symmNb G x x').card) := by
-  -- Recipe: strong induction on `n = X.card` (use `Nat.strong_induction_on`
-  -- or well-founded recursion).  If every distinct pair `x,x' ∈ X` already has
-  -- `α < (Y ∩ symmNb G x x').card`, take `X' = X`, `Y' = Y`.  Otherwise pick a
-  -- bad pair `x ≠ x'` with `(Y ∩ symmNb G x x').card ≤ α`, and recurse on
-  -- `X'' = X.erase x'` and `Y'' = Y \ symmNb G x x'`.
+  -- Recipe: strong induction on $n = X.card$ (use $Nat.strong_induction_on$
+  -- or well-founded recursion).  If every distinct pair $x,x' ∈ X$ already has
+  -- $α < (Y ∩ symmNb G x x').card$, take $X' = X$, $Y' = Y$.  Otherwise pick a
+  -- bad pair $x ≠ x'$ with $(Y ∩ symmNb G x x').card ≤ α$, and recurse on
+  -- $X'' = X.erase x'$ and $Y'' = Y \ symmNb G x x'$.
   -- Key facts to maintain:
-  -- * `Y''.card ≥ Y.card - (Y ∩ symmNb G x x').card > α*X.card - α = α*X''.card`;
-  -- * injectivity over `X''`: if `y, y' ∈ Y''` (so both agree on `x` vs `x'`,
-  --   i.e. `y, y' ∉ symmNb G x x'`) have `Nb G X'' y = Nb G X'' y'`, then they
-  --   also agree at `x'` (since they agree at `x ∈ X''` and are outside the
-  --   symmetric difference), hence `Nb G X y = Nb G X y'`, so `y = y'`;
-  -- * `X''.card = X.card - 1 = n - 1` and `X.Nonempty → X''.Nonempty` is used
-  --   only when `X.card ≥ 2` (a bad pair needs two elements).
+  -- * $Y''.card ≥ Y.card - (Y ∩ symmNb G x x').card > α*X.card - α = α*X''.card$;
+  -- * injectivity over $X''$: if $y, y' ∈ Y''$ (so both agree on $x$ vs $x'$,
+  --   i.e. $y, y' ∉ symmNb G x x'$) have $Nb G X'' y = Nb G X'' y'$, then they
+  --   also agree at $x'$ (since they agree at $x ∈ X''$ and are outside the
+  --   symmetric difference), hence $Nb G X y = Nb G X y'$, so $y = y'$;
+  -- * $X''.card = X.card - 1 = n - 1$ and $X.Nonempty → X''.Nonempty$ is used
+  --   only when $X.card ≥ 2$ (a bad pair needs two elements).
   intro n X Y hXcard hdisj hinj hYcard
   induction n using Nat.strong_induction_on generalizing X Y with
   | h n ih =>
@@ -237,21 +237,21 @@ lemma exists_dense (α : ℕ) : ∀ n : ℕ, ∀ X Y : Finset V, X.card = n → 
       exact hX''ne_imp ⟨x, hx''ne⟩
 
 /-- **Split lemma (Claim 5.2, combinatorial form).**
-If `C` has vertices with pairwise distinct neighbourhoods in `X` and
-`|C| > 2^(k+1)`, then at least `k+1` vertices of `X` are neither fully adjacent
-nor fully non-adjacent to `C`. -/
+If $C$ has vertices with pairwise distinct neighbourhoods in $X$ and
+$|C| > 2^(k+1)$, then at least $k+1$ vertices of $X$ are neither fully adjacent
+nor fully non-adjacent to $C$. -/
 lemma exists_split (k : ℕ) (X C : Finset V)
     (hCinj : ∀ c ∈ C, ∀ c' ∈ C, Nb G X c = Nb G X c' → c = c')
     (hC : 2 ^ (k + 1) < C.card) :
     k + 1 ≤ (X.filter (fun x => (∃ c ∈ C, G.Adj x c) ∧ (∃ c ∈ C, ¬ G.Adj x c))).card := by
-  -- Recipe: let `S` be the filtered "split" set.  A vertex `x ∈ X \ S` is
-  -- constant on `C` (adjacent to all of `C` or to none).  Hence the map
-  -- `C → Finset V`, `c ↦ Nb G S c = S.filter (fun x => G.Adj c x)` is injective
-  -- on `C`: if `Nb G S c = Nb G S c'`, then also `Nb G X c = Nb G X c'`
-  -- (they agree on `S` by assumption and on `X \ S` since those are constant),
-  -- so `c = c'` by `hCinj`.  Therefore
-  -- `C.card ≤ (S.powerset).card = 2 ^ S.card`.  With `2^(k+1) < C.card` this
-  -- gives `2^(k+1) < 2^S.card`, so `k+1 < S.card`, i.e. `k+1 ≤ S.card`.
+  -- Recipe: let $S$ be the filtered "split" set.  A vertex $x ∈ X \ S$ is
+  -- constant on $C$ (adjacent to all of $C$ or to none).  Hence the map
+  -- $C → Finset V$, $c ↦ Nb G S c = S.filter (fun x => G.Adj c x)$ is injective
+  -- on $C$: if $Nb G S c = Nb G S c'$, then also $Nb G X c = Nb G X c'$
+  -- (they agree on $S$ by assumption and on $X \ S$ since those are constant),
+  -- so $c = c'$ by $hCinj$.  Therefore
+  -- $C.card ≤ (S.powerset).card = 2 ^ S.card$.  With $2^(k+1) < C.card$ this
+  -- gives $2^(k+1) < 2^S.card$, so $k+1 < S.card$, i.e. $k+1 ≤ S.card$.
   -- Let S be the split set
   set S := X.filter (fun x => (∃ c ∈ C, G.Adj x c) ∧ (∃ c ∈ C, ¬ G.Adj x c)) with hSdef
 
@@ -327,21 +327,21 @@ lemma exists_split (k : ℕ) (X C : Finset V)
 /-- The number of accessible parts is bounded by the width (for a valid step). -/
 lemma neighborhood_numAccessible_le_width (S : MergeSeq G) (r i : ℕ) (hi2 : 2 ≤ i)
     (hilen : i ≤ S.length) (v : V) : S.numAccessible r i v ≤ S.width r := by
-  -- Recipe: `S.width r = (Finset.Icc 2 S.length).sup (fun i => univ.sup (...))`.
-  -- Apply `Finset.le_sup` twice: `i ∈ Finset.Icc 2 S.length` (from `hi2`,`hilen`)
-  -- and `v ∈ Finset.univ`.
+  -- Recipe: $S.width r = (Finset.Icc 2 S.length).sup (fun i => univ.sup (...))$.
+  -- Apply $Finset.le_sup$ twice: $i ∈ Finset.Icc 2 S.length$ (from $hi2$,$hilen$)
+  -- and $v ∈ Finset.univ$.
   apply le_trans (Finset.le_sup (f := fun v => S.numAccessible r i v) (by simp : v ∈ Finset.univ))
   apply Finset.le_sup (f := fun i => Finset.univ.sup (fun v => S.numAccessible r i v)) (by simp [Finset.mem_Icc, hi2, hilen])
 
-/-- A finset contained in a resolved ball has at most `numAccessible`-many parts. -/
+/-- A finset contained in a resolved ball has at most $numAccessible$-many parts. -/
 lemma card_image_part_le_numAccessible (S : MergeSeq G) (r i : ℕ) (v : V) (T : Finset V)
     (hT : ∀ u ∈ T, u ∈ resolvedBall (S.resolved i) r v) :
     (T.image (fun u => Quotient.mk (S.part (i - 1)) u)).card ≤ S.numAccessible r i v := by
-  -- Recipe: `S.numAccessible r i v` unfolds to
-  -- `Set.ncard ((fun u => Quotient.mk (S.part (i-1)) u) '' resolvedBall ..)`.
-  -- The finset image `T.image f` coerces to `f '' ↑T ⊆ f '' resolvedBall ..`.
-  -- Use `Set.ncard_le_ncard` (the big set is finite: subset of `univ`) and
-  -- `Set.ncard_coe_Finset` to identify `(T.image f).card` with the `ncard` of
+  -- Recipe: $S.numAccessible r i v$ unfolds to
+  -- $Set.ncard ((fun u => Quotient.mk (S.part (i-1)) u) '' resolvedBall ..)$.
+  -- The finset image $T.image f$ coerces to $f '' ↑T ⊆ f '' resolvedBall ..$.
+  -- Use $Set.ncard_le_ncard$ (the big set is finite: subset of $univ$) and
+  -- $Set.ncard_coe_Finset$ to identify $(T.image f).card$ with the $ncard$ of
   -- its coercion.
   have hTset : (T : Set V) ⊆ resolvedBall (S.resolved i) r v := by
     intro u hu
@@ -360,17 +360,17 @@ lemma card_image_part_le_numAccessible (S : MergeSeq G) (r i : ℕ) (v : V) (T :
     _ = S.numAccessible r i v := rfl
 
 /-- **The core contradiction.**
-A dense obstruction as produced by `exists_dense` cannot exist in a graph with a
-merge sequence of radius-2 width `≤ k`. -/
+A dense obstruction as produced by $exists_dense$ cannot exist in a graph with a
+merge sequence of radius-2 width $≤ k$. -/
 lemma no_dense_obstruction (k : ℕ) (S : MergeSeq G) (hS : S.width 2 ≤ k)
     (X Y : Finset V) (hdisj : Disjoint X Y) (hX2 : 2 ≤ X.card)
     (hYinj : ∀ y ∈ Y, ∀ y' ∈ Y, Nb G X y = Nb G X y' → y = y')
     (hdiff : ∀ x ∈ X, ∀ x' ∈ X, x ≠ x' → k * 2 ^ (k + 2) < (Y ∩ symmNb G x x').card) :
     False := by
   classical
-  -- Two distinct vertices of `X`.
+  -- Two distinct vertices of $X$.
   obtain ⟨x0, x0', hx0, hx0', hx0ne⟩ := Finset.one_lt_card_iff.mp (by omega : 1 < X.card)
-  -- The first step at which two vertices of `X` are merged.
+  -- The first step at which two vertices of $X$ are merged.
   set pred : ℕ → Prop := fun i => ∃ a ∈ X, ∃ b ∈ X, a ≠ b ∧ (S.part i).r a b with hpreddef
   have hpredlen : pred S.length :=
     ⟨x0, hx0, x0', hx0', hx0ne, by rw [S.part_length]; trivial⟩
@@ -381,7 +381,7 @@ lemma no_dense_obstruction (k : ℕ) (S : MergeSeq G) (hS : S.width 2 ≤ k)
   rw [Finset.mem_filter, Finset.mem_Icc] at hi0mem
   obtain ⟨⟨hi0_1, hi0_len⟩, x, hx, y, hy, hxyne, hxyrel⟩ := hi0mem
   rw [← hi0def] at hi0_1 hi0_len hxyrel
-  -- `i0 ≥ 2`.
+  -- $i0 ≥ 2$.
   have hi02 : 2 ≤ i0 := by
     rcases Nat.lt_or_ge i0 2 with h | h
     · exfalso
@@ -389,7 +389,7 @@ lemma no_dense_obstruction (k : ℕ) (S : MergeSeq G) (hS : S.width 2 ≤ k)
       rw [h1, S.part_one] at hxyrel
       exact hxyne hxyrel
     · exact h
-  -- At step `i0 - 1`, distinct vertices of `X` lie in distinct parts.
+  -- At step $i0 - 1$, distinct vertices of $X$ lie in distinct parts.
   have hi0m1_notpred : ¬ pred (i0 - 1) := by
     intro hp
     have hmem : i0 - 1 ∈ (Finset.Icc 1 S.length).filter pred :=
@@ -399,7 +399,7 @@ lemma no_dense_obstruction (k : ℕ) (S : MergeSeq G) (hS : S.width 2 ≤ k)
   have hDistinct : ∀ a ∈ X, ∀ b ∈ X, a ≠ b → ¬ (S.part (i0 - 1)).r a b := by
     intro a ha b hb hab hr
     exact hi0m1_notpred ⟨a, ha, b, hb, hab, hr⟩
-  -- The dense set `A = Y ∩ △(x,y)`.
+  -- The dense set $A = Y ∩ △(x,y)$.
   have hAcard : k * 2 ^ (k + 2) < (Y ∩ symmNb G x y).card := hdiff x hx y hy hxyne
   set A := Y ∩ symmNb G x y with hAdef
   have hAsubY : A ⊆ Y := Finset.inter_subset_left
@@ -415,7 +415,7 @@ lemma no_dense_obstruction (k : ℕ) (S : MergeSeq G) (hS : S.width 2 ≤ k)
       have h := (Finset.mem_inter.mp ha).2
       simpa [symmNb] using h
     exact uniform_resolved S (by omega) hi0_len hxyrel (hAne a ha).1 (hAne a ha).2 hsymm
-  -- Split `A` according to which of `x`, `y` the resolved pair reaches.
+  -- Split $A$ according to which of $x$, $y$ the resolved pair reaches.
   set Bx := A.filter (fun a => (S.resolved i0).Adj a x) with hBxdef
   set By := A.filter (fun a => (S.resolved i0).Adj a y) with hBydef
   have hcover : A ⊆ Bx ∪ By := by
@@ -432,7 +432,7 @@ lemma no_dense_obstruction (k : ℕ) (S : MergeSeq G) (hS : S.width 2 ≤ k)
     by_contra hc
     push_neg at hc
     nlinarith [hcardsum, hAcard, hc.1, hc.2]
-  -- The core argument, applied to whichever of `x`, `y` gets the larger half.
+  -- The core argument, applied to whichever of $x$, $y$ gets the larger half.
   have core : ∀ z ∈ X, ∀ B : Finset V, B ⊆ Y → (∀ b ∈ B, (S.resolved i0).Adj b z) →
       k * m < B.card → False := by
     intro z hzX B hBY hBadj hBcard
@@ -496,8 +496,8 @@ lemma no_dense_obstruction (k : ℕ) (S : MergeSeq G) (hS : S.width 2 ≤ k)
       (fun b hb => (Finset.mem_filter.mp hb).2) h
 
 /-- **Theorem 1.5 (per graph).**
-If `G` has a merge sequence of radius-2 width `≤ k`, then
-`π_G(p) ≤ (k+1)·2^(k+2)·p` for `p ≥ 1`. -/
+If $G$ has a merge sequence of radius-2 width $≤ k$, then
+$π_G(p) ≤ (k+1)·2^(k+2)·p$ for $p ≥ 1$. -/
 theorem neighborhoodComplexity_le (k : ℕ) (S : MergeSeq G) (hS : S.width 2 ≤ k)
     (p : ℕ) (hp : 1 ≤ p) : neighborhoodComplexity G p ≤ (k + 1) * 2 ^ (k + 2) * p := by
   by_contra hcon
@@ -514,14 +514,14 @@ theorem neighborhoodComplexity_le (k : ℕ) (S : MergeSeq G) (hS : S.width 2 ≤
   obtain ⟨X, Y, hXsub, hdisj, hinj, hYcard, hne, hdiff⟩ :=
     exists_dense (G := G) α X0.card X0 Y0 rfl hdisj0 hinj0 (by rw [hcard0]; exact hY0)
   have hXne : X.Nonempty := hne hX0ne
-  -- Every element of `Y` has a distinct neighbourhood in `X`, hence `|Y| ≤ 2^|X|`.
+  -- Every element of $Y$ has a distinct neighbourhood in $X$, hence $|Y| ≤ 2^|X|$.
   have hYle : Y.card ≤ 2 ^ X.card := by
     calc Y.card ≤ X.powerset.card :=
           Finset.card_le_card_of_injOn (fun y => Nb G X y)
             (fun y _ => Finset.mem_powerset.mpr (Finset.filter_subset _ _))
             (fun y hy y' hy' h => hinj y hy y' hy' h)
       _ = 2 ^ X.card := Finset.card_powerset X
-  -- Deduce `|X| ≥ 2`.
+  -- Deduce $|X| ≥ 2$.
   have hX2 : 2 ≤ X.card := by
     rcases Nat.lt_or_ge X.card 2 with h | h
     · exfalso

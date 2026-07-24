@@ -13,8 +13,8 @@ namespace Lax8.ChiBoundedness
 
 open Lax8.MergeWidth
 
-/-- A graph class `C` is χ-bounded if there is a function `f` such that every
-`G ∈ C` is `f(ω(G))`-colourable. -/
+/-- A graph class $C$ is χ-bounded if there is a function $f$ such that every
+$G ∈ C$ is $f(ω(G))$-colourable. -/
 def ChiBounded (C : GraphClass) : Prop :=
   ∃ f : ℕ → ℕ, ∀ ⦃V : Type⦄ [Fintype V] (G : SimpleGraph V), C G →
     G.Colorable (f G.cliqueNum)

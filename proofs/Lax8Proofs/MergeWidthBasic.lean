@@ -5,8 +5,8 @@ import Lax8.MergeWidth
 
 This file provides:
 * the existence of a merge sequence for every finite simple graph
-  (`MergeWidth.MergeSeq.trivial`), so that `mergeWidth` is a genuine minimum;
-* the characterisation `mergeWidth r G ≤ k ↔ ∃ S, S.width r ≤ k`.
+  ($MergeWidth.MergeSeq.trivial$), so that $mergeWidth$ is a genuine minimum;
+* the characterisation $mergeWidth r G ≤ k ↔ ∃ S, S.width r ≤ k$.
 -/
 
 namespace Lax8Proofs
@@ -42,11 +42,11 @@ def MergeSeq.trivial (G : SimpleGraph V) : MergeSeq G where
 
 instance : Nonempty (MergeSeq G) := ⟨MergeSeq.trivial G⟩
 
-/-- The set of achievable radius-`r` widths is nonempty. -/
+/-- The set of achievable radius-$r$ widths is nonempty. -/
 theorem widthSet_nonempty (r : ℕ) : {w | ∃ S : MergeSeq G, S.width r = w}.Nonempty :=
   ⟨(MergeSeq.trivial G).width r, MergeSeq.trivial G, rfl⟩
 
-/-- `mergeWidth r G ≤ k` iff there is a merge sequence of radius-`r` width `≤ k`. -/
+/-- $mergeWidth r G ≤ k$ iff there is a merge sequence of radius-$r$ width $≤ k$. -/
 theorem mergeWidth_le_iff (r k : ℕ) :
     mergeWidth r G ≤ k ↔ ∃ S : MergeSeq G, S.width r ≤ k := by
   constructor
@@ -81,8 +81,8 @@ theorem resolvedBall_mono (H : SimpleGraph V) {r r' : ℕ} (h : r ≤ r') (v : V
   rintro u ⟨w, hw⟩; exact ⟨w, hw.trans h⟩
 
 omit [Fintype V] in
-/-- Reusability lemma from the uniformity axiom: if `x, y` lie in the same part
-of step `i` and `a` is adjacent to exactly one of them, then one of `ax`, `ay`
+/-- Reusability lemma from the uniformity axiom: if $x, y$ lie in the same part
+of step $i$ and $a$ is adjacent to exactly one of them, then one of $ax$, $ay$
 is a resolved pair. -/
 theorem uniform_resolved {G : SimpleGraph V} (S : MergeSeq G) {i : ℕ} (hi1 : 1 ≤ i)
     (hilen : i ≤ S.length) {a x y : V} (hxy : (S.part i).r x y) (hax : a ≠ x)
@@ -95,7 +95,7 @@ theorem uniform_resolved {G : SimpleGraph V} (S : MergeSeq G) {i : ℕ} (hi1 : 1
 
 /-! ### Copying a merge sequence with different resolved sets -/
 
-/-- Replace the resolved sets of `S` by another monotone, uniform family `R'`
+/-- Replace the resolved sets of $S$ by another monotone, uniform family $R'$
 (keeping the same partitions). -/
 def MergeSeq.copyResolved (S : MergeSeq G) (R' : ℕ → SimpleGraph V)
     (hmono : ∀ ⦃i j⦄, 1 ≤ i → i ≤ j → j ≤ S.length → R' i ≤ R' j)

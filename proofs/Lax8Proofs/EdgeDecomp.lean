@@ -5,18 +5,18 @@ import Lax8Proofs.Minimal
 /-!
 # Edge decomposition for Lemma 4.3
 
-Working with the `Kt`-frozen partition `Q = ktSetoid S t` of a merge sequence `S`
-of radius-2 width `k`, we split the edges of `G` into three graphs:
+Working with the $Kt$-frozen partition $Q = ktSetoid S t$ of a merge sequence $S$
+of radius-2 width $k$, we split the edges of $G$ into three graphs:
 
-* `restrictGraph G Q` — edges inside a block (the `GI` of the paper);
-* `edgeR S t` — edges between distinct blocks that are *resolved* (at the step
+* $restrictGraph G Q$ — edges inside a block (the $GI$ of the paper);
+* $edgeR S t$ — edges between distinct blocks that are *resolved* (at the step
   just after the minimum of the two block indices);
-* `edgeU S t` — edges between distinct blocks that are *unresolved*.
+* $edgeU S t$ — edges between distinct blocks that are *unresolved*.
 
-We show `G = edgeR ⊔ edgeU ⊔ restrictGraph G Q`, that `edgeU` is `(k·t+1)`-colourable
-(Claim 4.4 — degeneracy), and that `edgeR` is `k`-colourable (Claim 4.5 — a
-structurally ω-bounded merge sequence).  Combined with the `GI` facts this yields
-`exists_edge_decomposition`.
+We show $G = edgeR ⊔ edgeU ⊔ restrictGraph G Q$, that $edgeU$ is $(k·t+1)$-colourable
+(Claim 4.4 — degeneracy), and that $edgeR$ is $k$-colourable (Claim 4.5 — a
+structurally ω-bounded merge sequence).  Combined with the $GI$ facts this yields
+$exists_edge_decomposition$.
 -/
 
 namespace Lax8Proofs
@@ -29,8 +29,8 @@ open Finset
 universe u
 variable {V : Type u} [Fintype V] {G : SimpleGraph V}
 
-/-- The between-block **resolved** edges: `G`-edges `xy` in different blocks that
-are resolved at step `min (idxKt x) (idxKt y) + 1`. -/
+/-- The between-block **resolved** edges: $G$-edges $xy$ in different blocks that
+are resolved at step $min (idxKt x) (idxKt y) + 1$. -/
 noncomputable def edgeR (S : MergeSeq G) (t : ℕ) : SimpleGraph V :=
   SimpleGraph.fromRel (fun x y => G.Adj x y ∧ ¬ (ktSetoid S t).r x y ∧
     (S.resolved (min (idxKt S t x) (idxKt S t y) + 1)).Adj x y)
@@ -65,7 +65,7 @@ omit [Fintype V] in
   · intro h
     exact ⟨h.1.ne, Or.inl h⟩
 
-/-- The three graphs edge-partition `G`. -/
+/-- The three graphs edge-partition $G$. -/
 theorem edge_decomp_eq (S : MergeSeq G) (t : ℕ) :
     G = edgeR S t ⊔ edgeU S t ⊔ restrictGraph G (ktSetoid S t) := by
   ext x y
@@ -80,17 +80,17 @@ theorem edge_decomp_eq (S : MergeSeq G) (t : ℕ) :
   · rintro ((⟨hg, _, _⟩ | ⟨hg, _, _⟩) | ⟨hg, _⟩) <;> exact hg
 
 omit [Fintype V] in
-/-- The `Kt`-index is constant on `Kt`-frozen blocks. -/
+/-- The $Kt$-index is constant on $Kt$-frozen blocks. -/
 theorem ktSetoid_idx_const (S : MergeSeq G) (t : ℕ) {a b : V}
     (h : (ktSetoid S t).r a b) : idxKt S t a = idxKt S t b := by
   rcases h with rfl | ⟨heq, _⟩
   · rfl
   · exact heq
 
-/-- **Witness for Claim 4.4.**  If `X` is a `t`-clique inside the part `P_{i+1}`
-of `u` (where `i = idxKt u`), and `pb` is an `edgeU`-edge with `p` in `u`'s block
-and `idxKt u ≤ idxKt b`, then `b` lies in the radius-2 `R_{i+1}`-ball of some
-`x ∈ X`. -/
+/-- **Witness for Claim 4.4.**  If $X$ is a $t$-clique inside the part $P_{i+1}$
+of $u$ (where $i = idxKt u$), and $pb$ is an $edgeU$-edge with $p$ in $u$'s block
+and $idxKt u ≤ idxKt b$, then $b$ lies in the radius-2 $R_{i+1}$-ball of some
+$x ∈ X$. -/
 theorem edgeU_witness (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (homega : G.cliqueNum = t)
     {u : V} {X : Finset V} (hXcard : X.card = t) (hXclique : G.IsClique (X : Set V))
     (hXpart : ∀ x ∈ X, (S.part (idxKt S t u + 1)).r u x)
@@ -107,12 +107,12 @@ theorem edgeU_witness (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (homega : G.cliq
   have hmineq : min (idxKt S t p) (idxKt S t b) = i := by
     rw [hidxp]; exact min_eq_left hbidx
   rw [hmineq] at hnr_pb
-  -- `u ~ p` in `P_i`, hence in `P_{i+1}`.
+  -- $u ~ p$ in $P_i$, hence in $P_{i+1}$.
   have hup_i : (S.part i).r u p := (ktSetoid_rel_iff S ht u p).mp hp
   have hup1 : (S.part (i + 1)).r u p := S.part_mono h1i (by omega) hilen1 hup_i
   by_cases hbX : b ∈ X
   · exact ⟨b, hbX, mem_resolvedBall_self _ _ _⟩
-  · -- some `x ∈ X` is non-adjacent to `b`, else `X ∪ {b}` is a `(t+1)`-clique.
+  · -- some $x ∈ X$ is non-adjacent to $b$, else $X ∪ {b}$ is a $(t+1)$-clique.
     have hexne : ∃ x ∈ X, ¬ G.Adj x b := by
       by_contra hcon
       push_neg at hcon
@@ -143,9 +143,9 @@ theorem edgeU_witness (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (homega : G.cliq
       exact hxnb hGpb
     exact ⟨x, hxX, mem_resolvedBall_of_adj _ (by norm_num) hres_xb⟩
 
-/-- **Claim 4.4 (degeneracy of `edgeU`).**  With respect to the `Kt`-frozen
-partition and its index order, each block is `edgeU`-adjacent to at most `k·t`
-blocks of index `≥` its own. -/
+/-- **Claim 4.4 (degeneracy of $edgeU$).**  With respect to the $Kt$-frozen
+partition and its index order, each block is $edgeU$-adjacent to at most $k·t$
+blocks of index $≥$ its own. -/
 theorem edgeU_backdeg (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (k : ℕ)
     (hW : S.width 2 ≤ k) (homega : G.cliqueNum = t) (u : V) :
     (((quotientGraph (edgeU S t) (ktSetoid S t)).neighborFinset
@@ -156,12 +156,12 @@ theorem edgeU_backdeg (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (k : ℕ)
   set i := idxKt S t u with hidef
   have h1i : 1 ≤ i := one_le_idxKt S ht u
   have hilt : i < S.length := idxKt_lt_length S ht homega u
-  -- A `t`-clique `X` inside the part `P_{i+1}` of `u`.
+  -- A $t$-clique $X$ inside the part $P_{i+1}$ of $u$.
   obtain ⟨X0, hX0card, hX0clique, hX0part⟩ := partHasClique_succ S ht homega u
   obtain ⟨X, hXsub, hXcard⟩ := Finset.le_card_iff_exists_subset_card.mp hX0card
   have hXclique : G.IsClique (X : Set V) := hX0clique.subset (Finset.coe_subset.mpr hXsub)
   have hXpart : ∀ x ∈ X, (S.part (i + 1)).r u x := fun x hx => hX0part x (hXsub hx)
-  -- The `P_i`-parts accessible from `x` within the radius-2 `R_{i+1}`-ball.
+  -- The $P_i$-parts accessible from $x$ within the radius-2 $R_{i+1}$-ball.
   set accP : V → Finset (Quotient (S.part i)) := fun x =>
     (resolvedBall (S.resolved (i + 1)) 2 x).toFinset.image (Quotient.mk (S.part i)) with haccPdef
   have haccP_card : ∀ x, (accP x).card ≤ k := by
@@ -170,7 +170,7 @@ theorem edgeU_backdeg (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (k : ℕ)
     have h2 : S.numAccessible 2 (i + 1) x ≤ k :=
       le_trans (numAccessible_le_width S (by omega) (by omega) x) hW
     omega
-  -- Target set and the map `g`.
+  -- Target set and the map $g$.
   set g : V → V × Quotient (S.part i) := fun b =>
     (if h : ∃ x, x ∈ X ∧ b ∈ resolvedBall (S.resolved (i + 1)) 2 x then h.choose else u,
      Quotient.mk (S.part i) b) with hgdef
@@ -206,7 +206,7 @@ theorem edgeU_backdeg (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (k : ℕ)
       S.part_mono h1i hb1 (idxKt_le_length S t b1) hrel
     exact Quotient.sound ((ktSetoid_rel_iff S ht b1 b2).mpr hmono)
 
-/-- `edgeU` is `(k·t + 1)`-colourable. -/
+/-- $edgeU$ is $(k·t + 1)$-colourable. -/
 theorem edgeU_colorable (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (k : ℕ)
     (hW : S.width 2 ≤ k) (homega : G.cliqueNum = t) :
     (edgeU S t).Colorable (k * t + 1) := by
@@ -221,9 +221,9 @@ theorem edgeU_colorable (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (k : ℕ)
   · intro u
     exact edgeU_backdeg S ht k hW homega u
 
-/-- **Claim 4.5 (transfer direction).**  Under the minimality of `S`, if `xy` and
-`x'y'` are two unresolved pairs at step `i` in the same two parts, and `xy` is an
-edge of `edgeR`, then so is `x'y'`. -/
+/-- **Claim 4.5 (transfer direction).**  Under the minimality of $S$, if $xy$ and
+$x'y'$ are two unresolved pairs at step $i$ in the same two parts, and $xy$ is an
+edge of $edgeR$, then so is $x'y'$. -/
 theorem edgeR_adj_transfer (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (hmin : Minimal S)
     (homega : G.cliqueNum = t) {i : ℕ} (hi : 1 ≤ i) (hilen : i ≤ S.length)
     {x x' y y' : V} (hx : (S.part i).r x x') (hy : (S.part i).r y y')
@@ -234,14 +234,14 @@ theorem edgeR_adj_transfer (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (hmin : Min
   obtain ⟨hG, hnq, hres⟩ := h
   set jx := idxKt S t x with hjx
   set jy := idxKt S t y with hjy
-  -- `min jx jy ≥ i`, else the resolved pair `xy` at step `min+1 ≤ i` contradicts `hnr`.
+  -- $min jx jy ≥ i$, else the resolved pair $xy$ at step $min+1 ≤ i$ contradicts $hnr$.
   have hjge : i ≤ min jx jy := by
     by_contra hlt
     push_neg at hlt
     exact hnr (S.resolved_mono (by omega) (by omega) hilen hres)
   have hix : i ≤ jx := le_trans hjge (min_le_left _ _)
   have hiy : i ≤ jy := le_trans hjge (min_le_right _ _)
-  -- `x, x'` (resp. `y, y'`) lie in the same `Kt`-frozen block, with equal indices.
+  -- $x, x'$ (resp. $y, y'$) lie in the same $Kt$-frozen block, with equal indices.
   have hpxx' : (S.part jx).r x x' := S.part_mono hi hix (idxKt_le_length S t x) hx
   have hpyy' : (S.part jy).r y y' := S.part_mono hi hiy (idxKt_le_length S t y) hy
   have hkxx' : (ktSetoid S t).r x x' := (ktSetoid_rel_iff S ht x x').mpr hpxx'
@@ -249,10 +249,10 @@ theorem edgeR_adj_transfer (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (hmin : Min
   have hidxx' : idxKt S t x' = jx := idxKt_eq_of_part_rel S ht rfl hpxx'
   have hidxy' : idxKt S t y' = jy := idxKt_eq_of_part_rel S ht rfl hpyy'
   refine ⟨(S.uniform hi hilen hx hy hne hne' hnr hnr').mp hG, ?_, ?_⟩
-  · -- `x', y'` are in different blocks, else `x, y` would be too.
+  · -- $x', y'$ are in different blocks, else $x, y$ would be too.
     intro hxy'
     exact hnq (Setoid.trans' _ hkxx' (Setoid.trans' _ hxy' (Setoid.symm' _ hkyy')))
-  · -- `x'y'` is resolved at step `min jx jy + 1`, by Lemma 2.1.
+  · -- $x'y'$ is resolved at step $min jx jy + 1$, by Lemma 2.1.
     rw [hidxx', hidxy']
     have hjlen : min jx jy + 1 ≤ S.length := by
       have := idxKt_lt_length S ht homega x
@@ -260,8 +260,8 @@ theorem edgeR_adj_transfer (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (hmin : Min
       omega
     exact lemma21 S hmin hi hilen hx hy hne' hnr hnr' (by omega) hjlen hres
 
-/-- **Claim 4.5.**  When `S` is minimal, `S` (same partitions and resolved sets)
-is also a valid merge sequence for `edgeR`: uniformity holds for `edgeR`. -/
+/-- **Claim 4.5.**  When $S$ is minimal, $S$ (same partitions and resolved sets)
+is also a valid merge sequence for $edgeR$: uniformity holds for $edgeR$. -/
 theorem edgeR_uniform (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (hmin : Minimal S)
     (homega : G.cliqueNum = t) :
     ∀ ⦃i⦄, 1 ≤ i → i ≤ S.length → ∀ ⦃x x' y y' : V⦄,
@@ -273,8 +273,8 @@ theorem edgeR_uniform (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (hmin : Minimal 
     edgeR_adj_transfer S ht hmin homega hi hilen (Setoid.symm' _ hx) (Setoid.symm' _ hy)
       hne' hne hnr' hnr⟩
 
-/-- The merge sequence for `edgeR` given by the same partitions and resolved
-sets as `S` (valid by `edgeR_uniform`). -/
+/-- The merge sequence for $edgeR$ given by the same partitions and resolved
+sets as $S$ (valid by $edgeR_uniform$). -/
 noncomputable def edgeR_seq (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (hmin : Minimal S)
     (homega : G.cliqueNum = t) :
     MergeSeq (edgeR S t) where
@@ -288,7 +288,7 @@ noncomputable def edgeR_seq (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (hmin : Mi
   resolved_mono := S.resolved_mono
   uniform := edgeR_uniform S ht hmin homega
 
-/-- The merge sequence `edgeR_seq` is structurally ω-bounded for `edgeR`. -/
+/-- The merge sequence $edgeR_seq$ is structurally ω-bounded for $edgeR$. -/
 theorem edgeR_SOB (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (hmin : Minimal S)
     (homega : G.cliqueNum = t) :
     StructurallyOmegaBounded (edgeR_seq S ht hmin homega) := by
@@ -330,7 +330,7 @@ theorem edgeR_SOB (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (hmin : Minimal S)
     have hilen_res : i ≤ S.length := hilen
     exact ((S.resolved_mono hi1' hir hilen_res) hw.2.2)
 
-/-- `edgeR` is `k`-colourable (Claim 4.5 + Lemma 4.1). -/
+/-- $edgeR$ is $k$-colourable (Claim 4.5 + Lemma 4.1). -/
 theorem edgeR_colorable (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (k : ℕ) (hk : 1 ≤ k)
     (hW : S.width 2 ≤ k) (hmin : Minimal S) (homega : G.cliqueNum = t) :
     (edgeR S t).Colorable k :=

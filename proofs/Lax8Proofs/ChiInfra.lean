@@ -5,15 +5,15 @@ import Lax8Proofs.MergeWidthBasic
 
 Reusable, general colouring lemmas used in the proof of Theorem 1.2:
 
-* `colorable_sup` — a proper colouring of an edge-union `G ⊔ H` from colourings
-  of `G` and `H` (chromatic number of an edge union is at most the product);
-* `quotientGraph` and `colorable_of_quotientGraph` — colouring a graph via a
+* $colorable_sup$ — a proper colouring of an edge-union $G ⊔ H$ from colourings
+  of $G$ and $H$ (chromatic number of an edge union is at most the product);
+* $quotientGraph$ and $colorable_of_quotientGraph$ — colouring a graph via a
   colouring of a quotient whose parts are independent;
-* `colorable_of_backdegree` — a `(d+1)`-colouring of a `d`-degenerate graph
+* $colorable_of_backdegree$ — a $(d+1)$-colouring of a $d$-degenerate graph
   (greedy colouring);
-* `colorable_of_partition_degenerate` — the combined principle: a graph whose
-  independent-set partition has a `d`-degenerate quotient (w.r.t. an index
-  order) is `(d+1)`-colourable.
+* $colorable_of_partition_degenerate$ — the combined principle: a graph whose
+  independent-set partition has a $d$-degenerate quotient (w.r.t. an index
+  order) is $(d+1)$-colourable.
 -/
 
 namespace Lax8Proofs
@@ -27,16 +27,16 @@ universe u
 variable {V : Type u} [Fintype V]
 
 omit [Fintype V] in
-/-- Product colouring: an edge-union `G ⊔ H` is `(m·n)`-colourable when `G` is
-`m`-colourable and `H` is `n`-colourable. -/
+/-- Product colouring: an edge-union $G ⊔ H$ is $(m·n)$-colourable when $G$ is
+$m$-colourable and $H$ is $n$-colourable. -/
 theorem colorable_sup {G H : SimpleGraph V} {m n : ℕ}
     (h1 : G.Colorable m) (h2 : H.Colorable n) : (G ⊔ H).Colorable (m * n) := by
-  -- Recipe: from `colorable_iff_exists_bdd_nat_coloring` get colourings
-  -- `cG : G.Coloring ℕ` with `cG v < m` and `cH : H.Coloring ℕ` with `cH v < n`.
-  -- Define `c v = cH v + cG v * n`.  It is bounded by `m*n` and proper on
-  -- `G ⊔ H`: from `c u = c v`, taking `% n` gives `cH u = cH v` and `/ n` gives
-  -- `cG u = cG v` (using `n > 0`, which holds since `V` is then nonempty), so an
-  -- edge of `G` or of `H` forces `c u ≠ c v`.
+  -- Recipe: from $colorable_iff_exists_bdd_nat_coloring$ get colourings
+  -- $cG : G.Coloring ℕ$ with $cG v < m$ and $cH : H.Coloring ℕ$ with $cH v < n$.
+  -- Define $c v = cH v + cG v * n$.  It is bounded by $m*n$ and proper on
+  -- $G ⊔ H$: from $c u = c v$, taking $% n$ gives $cH u = cH v$ and $/ n$ gives
+  -- $cG u = cG v$ (using $n > 0$, which holds since $V$ is then nonempty), so an
+  -- edge of $G$ or of $H$ forces $c u ≠ c v$.
   unfold SimpleGraph.Colorable at h1 h2
   obtain ⟨cG⟩ := h1
   obtain ⟨cH⟩ := h2
@@ -92,8 +92,8 @@ theorem colorable_sup {G H : SimpleGraph V} {m n : ℕ}
   intro u v huv
   simp [hc_valid u v huv]
 
-/-- The quotient graph of `G` by a partition `P`: two distinct parts are
-adjacent iff some edge of `G` joins them. -/
+/-- The quotient graph of $G$ by a partition $P$: two distinct parts are
+adjacent iff some edge of $G$ joins them. -/
 noncomputable def quotientGraph (G : SimpleGraph V) (P : Setoid V) :
     SimpleGraph (Quotient P) where
   Adj q q' := q ≠ q' ∧ ∃ a b, Quotient.mk P a = q ∧ Quotient.mk P b = q' ∧ G.Adj a b
@@ -101,8 +101,8 @@ noncomputable def quotientGraph (G : SimpleGraph V) (P : Setoid V) :
   loopless := ⟨fun _ h => h.1 rfl⟩
 
 omit [Fintype V] in
-/-- If the parts of `P` are independent in `G`, a colouring of the quotient graph
-pulls back to a colouring of `G`. -/
+/-- If the parts of $P$ are independent in $G$, a colouring of the quotient graph
+pulls back to a colouring of $G$. -/
 theorem colorable_of_quotientGraph (G : SimpleGraph V) (P : Setoid V) {n : ℕ}
     (hindep : ∀ u v, P.r u v → ¬ G.Adj u v)
     (h : (quotientGraph G P).Colorable n) : G.Colorable n := by
@@ -120,19 +120,19 @@ theorem colorable_of_quotientGraph (G : SimpleGraph V) (P : Setoid V) {n : ℕ}
   exact h
 
 /-- **Greedy colouring of a degenerate graph.**
-If `r` is an injective ranking of the vertices of a finite graph `K` such that
-each vertex has at most `d` neighbours of strictly larger rank, then `K` is
-`(d+1)`-colourable. -/
+If $r$ is an injective ranking of the vertices of a finite graph $K$ such that
+each vertex has at most $d$ neighbours of strictly larger rank, then $K$ is
+$(d+1)$-colourable. -/
 theorem colorable_of_backdegree {W : Type u} [Fintype W] (K : SimpleGraph W)
     (r : W → ℕ) (hr : Function.Injective r) (d : ℕ)
     (hdeg : ∀ w, ((K.neighborFinset w).filter (fun u => r w < r u)).card ≤ d) :
     K.Colorable (d + 1) := by
-  -- Recipe: strong induction on `Fintype.card W`.  If `W` is empty, done.
-  -- Otherwise let `w₀` minimise `r` (unique by injectivity); every neighbour of
-  -- `w₀` has larger rank, so `w₀` has at most `d` neighbours in total
-  -- (`hdeg w₀`).  Recurse on the induced subgraph on `{w₀}ᶜ` (its back-degrees
-  -- are no larger) to `(d+1)`-colour it, then extend to `w₀` with a colour in
-  -- `Fin (d+1)` avoiding its `≤ d` neighbours' colours.
+  -- Recipe: strong induction on $Fintype.card W$.  If $W$ is empty, done.
+  -- Otherwise let $w₀$ minimise $r$ (unique by injectivity); every neighbour of
+  -- $w₀$ has larger rank, so $w₀$ has at most $d$ neighbours in total
+  -- ($hdeg w₀$).  Recurse on the induced subgraph on ${w₀}ᶜ$ (its back-degrees
+  -- are no larger) to $(d+1)$-colour it, then extend to $w₀$ with a colour in
+  -- $Fin (d+1)$ avoiding its $≤ d$ neighbours' colours.
   by_cases hne : Nonempty W
   · -- Strong induction on Fintype.card W
     induction hc : Fintype.card W using Nat.strong_induction_on generalizing W K r d with
@@ -307,9 +307,9 @@ theorem colorable_of_backdegree {W : Type u} [Fintype W] (K : SimpleGraph W)
     exact isEmptyElim w
 
 /-- **Combined colouring principle.**
-Let `P` partition `V` into `G`-independent sets, with an index `idx` constant on
-parts.  If in the quotient graph every part is adjacent to at most `d` parts of
-index `≥` its own, then `G` is `(d+1)`-colourable. -/
+Let $P$ partition $V$ into $G$-independent sets, with an index $idx$ constant on
+parts.  If in the quotient graph every part is adjacent to at most $d$ parts of
+index $≥$ its own, then $G$ is $(d+1)$-colourable. -/
 theorem colorable_of_partition_degenerate (G : SimpleGraph V) (P : Setoid V)
     (idx : V → ℕ) (d : ℕ)
     (hindep : ∀ u v, P.r u v → ¬ G.Adj u v)
@@ -317,13 +317,13 @@ theorem colorable_of_partition_degenerate (G : SimpleGraph V) (P : Setoid V)
     (hdeg : ∀ u, (((quotientGraph G P).neighborFinset (Quotient.mk P u)).filter
       (fun q => ∃ a, Quotient.mk P a = q ∧ idx u ≤ idx a)).card ≤ d) :
     G.Colorable (d + 1) := by
-  -- Recipe: descend `idx` to `idxQ : Quotient P → ℕ` via `Quotient.lift`.
-  -- Build an injective ranking `r q = idxQ q * N + (e q).val` where
-  -- `e : Quotient P ≃ Fin N` and `N = Fintype.card (Quotient P)`; then `r`
-  -- refines `idxQ` (i.e. `idxQ q < idxQ q' → r q < r q'`), so
-  -- `{q' | r q < r q'} ⊆ {q' | idxQ q ≤ idxQ q'}`, and `hdeg` bounds the
-  -- back-degree of `quotientGraph G P` by `d`.  Apply `colorable_of_backdegree`
-  -- to get `(quotientGraph G P).Colorable (d+1)`, then `colorable_of_quotientGraph`.
+  -- Recipe: descend $idx$ to $idxQ : Quotient P → ℕ$ via $Quotient.lift$.
+  -- Build an injective ranking $r q = idxQ q * N + (e q).val$ where
+  -- $e : Quotient P ≃ Fin N$ and $N = Fintype.card (Quotient P)$; then $r$
+  -- refines $idxQ$ (i.e. $idxQ q < idxQ q' → r q < r q'$), so
+  -- ${q' | r q < r q'} ⊆ {q' | idxQ q ≤ idxQ q'}$, and $hdeg$ bounds the
+  -- back-degree of $quotientGraph G P$ by $d$.  Apply $colorable_of_backdegree$
+  -- to get $(quotientGraph G P).Colorable (d+1)$, then $colorable_of_quotientGraph$.
   -- Define idxQ on quotient
   let idxQ : Quotient P → ℕ := fun q => Quotient.lift idx (by intro u v huv; exact hidx u v huv) q
   -- Let N be the cardinality of the quotient
@@ -408,11 +408,11 @@ theorem colorable_of_partition_degenerate (G : SimpleGraph V) (P : Setoid V)
     intro w
     exact isEmptyElim w
 
-/-- **General back-neighbour counting.**  In the quotient of `G` by a partition
-`P` whose index `idx` is constant on parts, the number of quotient-neighbour
-parts of `u`'s part having index `≥ idx u` is at most `T.card`, provided every
-`G`-edge `pb` leaving `u`'s part with `idx u ≤ idx b` satisfies `g b ∈ T`, and
-`g` separates such `b`'s up to their `P`-class. -/
+/-- **General back-neighbour counting.**  In the quotient of $G$ by a partition
+$P$ whose index $idx$ is constant on parts, the number of quotient-neighbour
+parts of $u$'s part having index $≥ idx u$ is at most $T.card$, provided every
+$G$-edge $pb$ leaving $u$'s part with $idx u ≤ idx b$ satisfies $g b ∈ T$, and
+$g$ separates such $b$'s up to their $P$-class. -/
 theorem card_backneighbors_le (G : SimpleGraph V) (P : Setoid V) (idx : V → ℕ)
     (u : V) {β : Type u} (T : Finset β) (g : V → β)
     (hidx_const : ∀ a b, P.r a b → idx a = idx b)

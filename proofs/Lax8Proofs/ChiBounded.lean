@@ -4,9 +4,9 @@ import Lax8.BoundedMergeWidthChiBounded
 /-!
 # χ-boundedness of bounded merge-width classes
 
-Formalisation of Theorem 1.2 of Bonamy–Geniet: any graph `G` with radius-2
-merge-width at most `k` and clique number at most `t` satisfies
-`χ(G) ≤ (t+1)! · k^(2t-2)`.  Consequently every class of bounded merge-width is
+Formalisation of Theorem 1.2 of Bonamy–Geniet: any graph $G$ with radius-2
+merge-width at most $k$ and clique number at most $t$ satisfies
+$χ(G) ≤ (t+1)! · k^(2t-2)$.  Consequently every class of bounded merge-width is
 χ-bounded.
 -/
 
@@ -22,21 +22,21 @@ universe u
 variable {V : Type u} [Fintype V] {G : SimpleGraph V}
 
 /-- **Lemma 4.3 (edge decomposition).**
-A graph `G` with radius-2 merge-width `≤ k` and clique number `≤ t` decomposes as
-an edge-union `G = GR ⊔ GU ⊔ GI` where `GR` is `k`-colourable, `GU` is
-`(kt+1)`-colourable, and `GI` (a disjoint union of induced `Kt`-free subgraphs)
-has clique number `< t` and radius-2 merge-width `≤ k`. -/
+A graph $G$ with radius-2 merge-width $≤ k$ and clique number $≤ t$ decomposes as
+an edge-union $G = GR ⊔ GU ⊔ GI$ where $GR$ is $k$-colourable, $GU$ is
+$(kt+1)$-colourable, and $GI$ (a disjoint union of induced $Kt$-free subgraphs)
+has clique number $< t$ and radius-2 merge-width $≤ k$. -/
 theorem exists_edge_decomposition (k t : ℕ) (hk : 1 ≤ k) (ht : 2 ≤ t) (S : MergeSeq G)
     (hS : S.width 2 ≤ k) (homega : G.cliqueNum ≤ t) :
     ∃ GR GU GI : SimpleGraph V, G = GR ⊔ GU ⊔ GI ∧
       GR.Colorable k ∧ GU.Colorable (k * t + 1) ∧
       GI.cliqueNum + 1 ≤ t ∧ ∃ S' : MergeSeq GI, S'.width 2 ≤ k := by
   rcases lt_or_eq_of_le homega with hlt | heq
-  · -- `ω(G) < t`: trivial decomposition `G = ⊥ ⊔ ⊥ ⊔ G`.
+  · -- $ω(G) < t$: trivial decomposition $G = ⊥ ⊔ ⊥ ⊔ G$.
     refine ⟨⊥, ⊥, G, by simp, ?_, ?_, by omega, S, hS⟩
     · exact (colorable_one_of_edgeless (⊥ : SimpleGraph V) (fun u v => by simp)).mono hk
     · exact (colorable_one_of_edgeless (⊥ : SimpleGraph V) (fun u v => by simp)).mono (by omega)
-  · -- `ω(G) = t`: freeze a minimal merge sequence on maximally `Kt`-free parts.
+  · -- $ω(G) = t$: freeze a minimal merge sequence on maximally $Kt$-free parts.
     obtain ⟨S0, hmin, _, hwidth0⟩ := exists_minimal_mergeSeq S 2
     have hW0 : S0.width 2 ≤ k := le_trans hwidth0 hS
     refine ⟨edgeR S0 t, edgeU S0 t, restrictGraph G (ktSetoid S0 t),
@@ -44,7 +44,7 @@ theorem exists_edge_decomposition (k t : ℕ) (hk : 1 ≤ k) (ht : 2 ≤ t) (S :
       edgeU_colorable S0 ht k hW0 heq, restrictGraph_cliqueNum_lt S0 ht,
       exists_restrict_mergeSeq S0 (ktSetoid S0 t) 2 k hk hW0⟩
 
-/-- Auxiliary: if `cliqueNum H ≤ 1` then `H` has no edges. -/
+/-- Auxiliary: if $cliqueNum H ≤ 1$ then $H$ has no edges. -/
 theorem edgeless_of_cliqueNum_le_one {W : Type u} [Fintype W] (H : SimpleGraph W)
     (h : H.cliqueNum ≤ 1) : ∀ u v, ¬ H.Adj u v := by
   intro u v hadj
@@ -63,8 +63,8 @@ theorem edgeless_of_cliqueNum_le_one {W : Type u} [Fintype W] (H : SimpleGraph W
   omega
 
 /-- **Theorem 1.2 (per graph).**
-A graph `H` with radius-2 merge-width `≤ k` (with `k ≥ 1`) and clique number
-`≤ t` satisfies `χ(H) ≤ (t+1)! · k^(2t-2)`. -/
+A graph $H$ with radius-2 merge-width $≤ k$ (with $k ≥ 1$) and clique number
+$≤ t$ satisfies $χ(H) ≤ (t+1)! · k^(2t-2)$. -/
 theorem chromatic_le_of_width (k : ℕ) (hk : 1 ≤ k) :
     ∀ (t : ℕ) {W : Type u} [Fintype W] (H : SimpleGraph W),
       (∃ S : MergeSeq H, S.width 2 ≤ k) → H.cliqueNum ≤ t →
@@ -74,12 +74,12 @@ theorem chromatic_le_of_width (k : ℕ) (hk : 1 ≤ k) :
   | _ t IH =>
     intro W _ H hwit homega
     rcases Nat.lt_or_ge t 2 with htlt | htge
-    · -- `t ≤ 1`: `H` is edgeless.
+    · -- $t ≤ 1$: $H$ is edgeless.
       have hno := edgeless_of_cliqueNum_le_one H (by omega)
       refine (colorable_one_of_edgeless H hno).mono ?_
       exact Nat.one_le_iff_ne_zero.mpr
         (Nat.mul_ne_zero (Nat.factorial_ne_zero _) (pow_ne_zero _ (by omega)))
-    · -- `t ≥ 2`: use the edge decomposition and the induction hypothesis on `GI`.
+    · -- $t ≥ 2$: use the edge decomposition and the induction hypothesis on $GI$.
       obtain ⟨GR, GU, GI, hEq, hGR, hGU, hGIomega, S', hS'⟩ :=
         exists_edge_decomposition (G := H) k t hk htge hwit.choose hwit.choose_spec homega
       obtain ⟨s, rfl⟩ : ∃ s, t = s + 2 := ⟨t - 2, by omega⟩
