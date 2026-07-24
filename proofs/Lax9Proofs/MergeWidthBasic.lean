@@ -1,4 +1,4 @@
-import Lax8.MergeWidth
+import Lax9.MergeWidth
 
 /-!
 # Basic facts about merge sequences and merge-width
@@ -9,9 +9,9 @@ This file provides:
 * the characterisation $mergeWidth r G ≤ k ↔ ∃ S, S.width r ≤ k$.
 -/
 
-namespace Lax8Proofs
+namespace Lax9Proofs
 
-open Lax8.MergeWidth
+open Lax9.MergeWidth
 
 open scoped Classical
 
@@ -115,27 +115,27 @@ def MergeSeq.copyResolved (S : MergeSeq G) (R' : ℕ → SimpleGraph V)
 
 @[simp] theorem copyResolved_part (S : MergeSeq G) (R' : ℕ → SimpleGraph V)
     (hmono huniform) :
-    (Lax8Proofs.MergeSeq.copyResolved S R' hmono huniform).part = S.part := rfl
+    (Lax9Proofs.MergeSeq.copyResolved S R' hmono huniform).part = S.part := rfl
 
 @[simp] theorem copyResolved_resolved (S : MergeSeq G) (R' : ℕ → SimpleGraph V)
     (hmono huniform) :
-    (Lax8Proofs.MergeSeq.copyResolved S R' hmono huniform).resolved = R' := rfl
+    (Lax9Proofs.MergeSeq.copyResolved S R' hmono huniform).resolved = R' := rfl
 
 @[simp] theorem copyResolved_length (S : MergeSeq G) (R' : ℕ → SimpleGraph V)
     (hmono huniform) :
-    (Lax8Proofs.MergeSeq.copyResolved S R' hmono huniform).length = S.length := rfl
+    (Lax9Proofs.MergeSeq.copyResolved S R' hmono huniform).length = S.length := rfl
 
 /-- Shrinking the resolved sets (same partitions) does not increase the width. -/
 theorem width_copyResolved_le (S : MergeSeq G) (R' : ℕ → SimpleGraph V)
     (hmono huniform) (hle : ∀ i, R' i ≤ S.resolved i) (r : ℕ) :
-    (Lax8Proofs.MergeSeq.copyResolved S R' hmono huniform).width r ≤ S.width r := by
+    (Lax9Proofs.MergeSeq.copyResolved S R' hmono huniform).width r ≤ S.width r := by
   unfold MergeSeq.width
   apply Finset.sup_le
   intro i hi
   apply Finset.sup_le
   intro v _
   have hnum :
-      (Lax8Proofs.MergeSeq.copyResolved S R' hmono huniform).numAccessible r i v ≤
+      (Lax9Proofs.MergeSeq.copyResolved S R' hmono huniform).numAccessible r i v ≤
         S.numAccessible r i v := by
     unfold MergeSeq.numAccessible
     apply Set.ncard_le_ncard
@@ -149,4 +149,4 @@ theorem width_copyResolved_le (S : MergeSeq G) (R' : ℕ → SimpleGraph V)
   refine Finset.le_sup_of_le (b := i) ?_ (Finset.le_sup (Finset.mem_univ v))
   simpa using hi
 
-end Lax8Proofs
+end Lax9Proofs

@@ -1,4 +1,4 @@
-import Lax8Proofs.MergeWidthBasic
+import Lax9Proofs.MergeWidthBasic
 
 /-!
 # Minimal merge sequences and Lemma 2.1
@@ -10,9 +10,9 @@ satisfy the key transfer property (Lemma 2.1): two unresolved pairs between the
 same two parts are resolved at exactly the same later steps.
 -/
 
-namespace Lax8Proofs
+namespace Lax9Proofs
 
-open Lax8.MergeWidth
+open Lax9.MergeWidth
 
 open scoped Classical
 
@@ -220,7 +220,7 @@ theorem exists_minimal_mergeSeq (S : MergeSeq G) (r : ℕ) :
     · rw [Minimal] at hmin
       push_neg at hmin
       obtain ⟨R', hle, hmono, huniform, i0, hi0, hi0len, hnotle⟩ := hmin
-      set S' := Lax8Proofs.MergeSeq.copyResolved S R' hmono huniform with hS'def
+      set S' := Lax9Proofs.MergeSeq.copyResolved S R' hmono huniform with hS'def
       have hne : (R' i0).edgeFinset ≠ (S.resolved i0).edgeFinset := by
         intro heq
         apply hnotle
@@ -243,4 +243,4 @@ theorem exists_minimal_mergeSeq (S : MergeSeq G) (r : ℕ) :
       · rw [hpart0, hS'def, copyResolved_part]
       · exact width_copyResolved_le S R' hmono huniform hle r
 
-end Lax8Proofs
+end Lax9Proofs

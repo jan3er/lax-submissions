@@ -15,7 +15,7 @@ of that graph. A graph class has bounded merge-width if these parameters are
 bounded by a function of $r$ throughout the class.
 -/
 
-namespace Lax8.MergeWidth
+namespace Lax9.MergeWidth
 
 open scoped Classical
 
@@ -99,4 +99,4 @@ every $G ∈ C$ satisfies $mwᵣ(G) ≤ f(r)$ for all radii $r$. -/
 def BoundedMergeWidth (C : GraphClass) : Prop :=
   ∃ f : ℕ → ℕ, ∀ ⦃V : Type⦄ [Fintype V] (G : SimpleGraph V), C G → ∀ r, mergeWidth r G ≤ f r
 
-end Lax8.MergeWidth
+end Lax9.MergeWidth

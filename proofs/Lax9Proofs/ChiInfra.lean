@@ -1,4 +1,4 @@
-import Lax8Proofs.MergeWidthBasic
+import Lax9Proofs.MergeWidthBasic
 
 /-!
 # Colouring infrastructure for the χ-boundedness proof
@@ -16,9 +16,9 @@ Reusable, general colouring lemmas used in the proof of Theorem 1.2:
   order) is $(d+1)$-colourable.
 -/
 
-namespace Lax8Proofs
+namespace Lax9Proofs
 
-open Lax8.MergeWidth
+open Lax9.MergeWidth
 
 open scoped Classical
 open Finset
@@ -471,4 +471,4 @@ theorem card_backneighbors_le (G : SimpleGraph V) (P : Setoid V) (idx : V → �
         Finset.card_le_card (Finset.image_subset_iff.mpr hmaps')
     _ = T.card := Finset.card_image_of_injective _ (Option.some_injective _)
 
-end Lax8Proofs
+end Lax9Proofs

@@ -1,4 +1,4 @@
-import Lax8Proofs.ChiInfra
+import Lax9Proofs.ChiInfra
 
 /-!
 # Freezing for the χ-boundedness proof (Lemma 4.1)
@@ -14,9 +14,9 @@ $(k-1)$-degenerate w.r.t. the index order, then conclude with
 $colorable_of_partition_degenerate$.
 -/
 
-namespace Lax8Proofs
+namespace Lax9Proofs
 
-open Lax8.MergeWidth
+open Lax9.MergeWidth
 
 open scoped Classical
 open Finset
@@ -560,4 +560,4 @@ theorem colorable_of_structurallyOmegaBounded (k : ℕ) (hk : 1 ≤ k) (S : Merg
       · exact index_pos_backdeg S hSOB k hk hS hpos
     rwa [Nat.sub_add_cancel hk] at hcol
 
-end Lax8Proofs
+end Lax9Proofs

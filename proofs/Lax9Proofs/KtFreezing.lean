@@ -1,4 +1,4 @@
-import Lax8Proofs.MergeWidthMono
+import Lax9Proofs.MergeWidthMono
 
 /-!
 # Freezing on maximally $Kt$-free parts (for Lemma 4.3)
@@ -10,9 +10,9 @@ restriction $GI = restrictGraph G Q$ therefore has clique number $< t$, and by
 $exists_restrict_mergeSeq$ still has radius-2 merge-width $≤ k$.
 -/
 
-namespace Lax8Proofs
+namespace Lax9Proofs
 
-open Lax8.MergeWidth
+open Lax9.MergeWidth
 
 open scoped Classical
 open Finset
@@ -212,4 +212,4 @@ theorem restrictGraph_cliqueNum_lt (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) :
   have hlt := ktSetoid_block_KtFree S ht hGclique hsame
   omega
 
-end Lax8Proofs
+end Lax9Proofs

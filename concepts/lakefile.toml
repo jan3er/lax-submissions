@@ -1,5 +1,5 @@
-name = "Lax8"
-defaultTargets = ["Lax8"]
+name = "Lax9"
+defaultTargets = ["Lax9"]
 
 [leanOptions]
 autoImplicit = false
@@ -11,4 +11,4 @@ git = "https://github.com/leanprover-community/mathlib4"
 rev = "c5ea00351c28e24afc9f0f84379aa41082b1188f"
 
 [[lean_lib]]
-name = "Lax8"
+name = "Lax9"

@@ -1,4 +1,4 @@
-import Lax8Proofs.MergeWidthBasic
+import Lax9Proofs.MergeWidthBasic
 
 /-!
 # Restriction of merge sequences to the blocks of a partition
@@ -15,9 +15,9 @@ in-block pairs resolved).  This shows merge-width does not increase under this
 "disjoint union of induced subgraphs" operation.
 -/
 
-namespace Lax8Proofs
+namespace Lax9Proofs
 
-open Lax8.MergeWidth
+open Lax9.MergeWidth
 
 open scoped Classical
 
@@ -341,4 +341,4 @@ theorem exists_restrict_mergeSeq (S : MergeSeq G) (Q : Setoid V) (r k : ℕ)
   refine le_trans (restrictSeq_width_le S Q r) ?_
   exact max_le hS hk
 
-end Lax8Proofs
+end Lax9Proofs

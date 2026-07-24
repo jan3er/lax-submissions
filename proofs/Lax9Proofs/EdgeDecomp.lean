@@ -1,6 +1,6 @@
-import Lax8Proofs.Freezing
-import Lax8Proofs.KtFreezing
-import Lax8Proofs.Minimal
+import Lax9Proofs.Freezing
+import Lax9Proofs.KtFreezing
+import Lax9Proofs.Minimal
 
 /-!
 # Edge decomposition for Lemma 4.3
@@ -19,9 +19,9 @@ structurally ω-bounded merge sequence).  Combined with the $GI$ facts this yiel
 $exists_edge_decomposition$.
 -/
 
-namespace Lax8Proofs
+namespace Lax9Proofs
 
-open Lax8.MergeWidth
+open Lax9.MergeWidth
 
 open scoped Classical
 open Finset
@@ -337,4 +337,4 @@ theorem edgeR_colorable (S : MergeSeq G) {t : ℕ} (ht : 2 ≤ t) (k : ℕ) (hk 
   colorable_of_structurallyOmegaBounded k hk (edgeR_seq S ht hmin homega) hW
     (edgeR_SOB S ht hmin homega)
 
-end Lax8Proofs
+end Lax9Proofs

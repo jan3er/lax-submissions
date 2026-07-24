@@ -1,9 +1,0 @@
-import Lax8Proofs.ChiBounded
-import Lax8Proofs.ChiInfra
-import Lax8Proofs.EdgeDecomp
-import Lax8Proofs.Freezing
-import Lax8Proofs.KtFreezing
-import Lax8Proofs.MergeWidthBasic
-import Lax8Proofs.MergeWidthMono
-import Lax8Proofs.Minimal
-import Lax8Proofs.Neighborhood

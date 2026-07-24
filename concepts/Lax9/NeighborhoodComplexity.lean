@@ -1,4 +1,4 @@
-import Lax8.MergeWidth
+import Lax9.MergeWidth
 
 /-!
 ---
@@ -12,9 +12,9 @@ graph class has linear neighbourhood complexity if $π_G(p)$ is bounded by a
 constant multiple of $p$ for every positive $p$.
 -/
 
-namespace Lax8.NeighborhoodComplexity
+namespace Lax9.NeighborhoodComplexity
 
-open Lax8.MergeWidth
+open Lax9.MergeWidth
 open scoped Classical
 
 universe u
@@ -32,4 +32,4 @@ def LinearNeighborhoodComplexity (C : GraphClass) : Prop :=
   ∃ c : ℕ, ∀ ⦃V : Type⦄ [Fintype V] (G : SimpleGraph V), C G → ∀ p, 1 ≤ p →
     neighborhoodComplexity G p ≤ c * p
 
-end Lax8.NeighborhoodComplexity
+end Lax9.NeighborhoodComplexity

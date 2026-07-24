@@ -1,5 +1,5 @@
-import Lax8.MergeWidth
-import Lax8.NeighborhoodComplexity
+import Lax9.MergeWidth
+import Lax9.NeighborhoodComplexity
 
 /-!
 ---
@@ -10,14 +10,14 @@ Every class of finite simple graphs with bounded merge-width has linear
 neighbourhood complexity.
 -/
 
-namespace Lax8.BoundedMergeWidthLinearNeighborhoodComplexity
+namespace Lax9.BoundedMergeWidthLinearNeighborhoodComplexity
 
-open Lax8.MergeWidth
-open Lax8.NeighborhoodComplexity
+open Lax9.MergeWidth
+open Lax9.NeighborhoodComplexity
 
 /-- Every graph class of bounded merge-width has linear neighbourhood
 complexity. -/
 axiom bounded_mergeWidth_linearNeighborhoodComplexity
     (C : GraphClass) (h : BoundedMergeWidth C) : LinearNeighborhoodComplexity C
 
-end Lax8.BoundedMergeWidthLinearNeighborhoodComplexity
+end Lax9.BoundedMergeWidthLinearNeighborhoodComplexity
