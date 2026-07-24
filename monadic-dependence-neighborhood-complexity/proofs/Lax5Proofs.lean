@@ -1,4 +1,8 @@
 import Lax5Proofs.SetSystems
+import Lax5Proofs.Ramsey
+import Lax5Proofs.BipartiteRamsey
+import Lax5Proofs.TupleRamsey
+import Lax5Proofs.Subdivision
 import Lax5Proofs.Sampling
 import Lax5Proofs.Sparsification
 import Lax5Proofs.TransductionCalculus

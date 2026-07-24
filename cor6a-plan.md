@@ -73,9 +73,15 @@ picture:
 
 ## Module plan (proofs package)
 
-- `Lax5Proofs/Source/Catalog/MonadicDependence/…` — ports: Ramsey
-  toolbox, Subdivision/Biclique defs, NowhereDenseBridge,
-  SubdividedBicliqueRamsey (namespaces + toolchain deltas only).
+- Ports are folded in as native `Lax5Proofs/*.lean` modules (Jan's
+  call, superseding the Source/Catalog mirror proposal). **Done for the
+  Ramsey batch**: `Ramsey.lean` (two-color `ramsey` + `multicolor_ramsey`),
+  `BipartiteRamsey.lean` (`bipartite_ramsey`, `iterated_bipartite_ramsey`),
+  `TupleRamsey.lean` (`orderType`, `tuple_ramsey`,
+  `bipartite_tuple_ramsey` = thesis Lemma 4.15), `Subdivision.lean`
+  (`subdividedClique`, `subdividedBiclique`, `biclique`). Builds green,
+  standard axioms only. NowhereDenseBridge and SubdividedBicliqueRamsey
+  get the same native treatment in step 2.
 - `Lax5Proofs/CrossingTransduction.lean` — the new transduction proof.
 - `Lax5Proofs/Corollary6a.lean` — 13.7 glue adapted from
   `WeaklySparseMonDepIsNowhereDense`: concept-encoding bridges (1)(2),
@@ -85,7 +91,7 @@ picture:
 
 ## Order of work
 
-1. Port the Ramsey toolbox + Subdivision/Biclique defs; build green.
+1. ~~Port the Ramsey toolbox + Subdivision/Biclique defs; build green.~~ ✓
 2. Port NowhereDenseBridge and SubdividedBicliqueRamsey; build green.
 3. `CrossingTransduction.lean` (the new work).
 4. `Corollary6a.lean` glue + encoding bridges + rewiring + axiom audit;
@@ -95,9 +101,8 @@ Iteration checkpoints with Jan after 2 and 3.
 
 ## Open decisions (input wanted)
 
-- **Port location/attribution.** Proposed: keep the catalog files under
-  `Lax5Proofs/Source/Catalog/MonadicDependence/` mirroring the
-  SparsityLectures precedent (Full.lean only, no Contract.lean). OK?
+- ~~**Port location/attribution.**~~ Resolved: fold ports in as native
+  `Lax5Proofs/*.lean` modules, native naming, no Source/Catalog mirror.
 - **Bipartite→all-graphs**: two-step via `Transduces.trans` (proposed)
   vs a single edge-hub transduction. Two-step is thesis-faithful and
   less formula plumbing.
