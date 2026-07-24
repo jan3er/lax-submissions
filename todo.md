@@ -81,7 +81,7 @@ Proof-package-only machinery (invisible to reviewers, can be ugly):
    `monadic-dependence-neighborhood-complexity/` (10 modules,
    `lax build` OK; manifest + abstract filled). Deltas from `design.md`
    are recorded at its end. Pending Jan's read of the actual Lean files.
-4. Proof package. Use `sorry`-stubs to get an end-to-end skeleton of the
+4. ✅ Proof package (sorry-free). Used `sorry`-stubs to get an end-to-end skeleton of the
    Section-2 argument compiling before filling in; big ingredients last.
    - 4a ✅ Top level compiles (3 sorries): `Lemma21.lean` states Lem 21
      in semi-induced form (on the class itself; the bipartite encoding
@@ -154,7 +154,12 @@ Proof-package-only machinery (invisible to reviewers, can be ugly):
    - Lem 25 full step ✅: support representatives are chosen for sampled
      trace keys; the resulting `(k+1)`-sparsification has the required VC
      drop, R1 definability, injectivity, and exact quantitative loss.
-   - 4b'' remaining leaf: [VC].
+   - 4b'' ✅ [VC]: if neighborhood traces have unbounded VC dimension,
+     use a shattered set as the output domain and color one realizing
+     vertex for every desired edge. The fixed two-color formula joins two
+     distinct domain vertices exactly when they have a common colored
+     neighbor, thereby transducing every finite graph and contradicting
+     monadic dependence. The proof is sorry-free.
    - 4c ✅: the subpolynomial weak-coloring-number chain is restored
      and bridged to the submitted permutation-based `wcol`. The first
      neighborhood-counting layer is now proved: nowhere denseness excludes a

@@ -34,7 +34,50 @@ singleton `A` a twin-free family has at most `2^1` traces.
 
 namespace Lax5Proofs.Lemma21
 
+open FirstOrder Lax5.Transductions
 open Lax5.GraphClasses Lax5.MonadicDependence Lax5.NeighborhoodComplexity
+
+/-- Adjacency formula of `vcWitnessTransduction`. -/
+noncomputable def vcWitnessAdjFormula :
+    (withColors Language.graph 2).Formula (Fin 2) :=
+  let x : ∀ {m : ℕ}, (withColors Language.graph 2).Term (Fin 2 ⊕ Fin m) :=
+    fun {_} => Language.Term.var (Sum.inl 0)
+  let y : ∀ {m : ℕ}, (withColors Language.graph 2).Term (Fin 2 ⊕ Fin m) :=
+    fun {_} => Language.Term.var (Sum.inl 1)
+  ∼(x.bdEqual y) ⊓
+    (colorAtom (1 : Fin 2) (&0) ⊓ adjAtom (&0) x ⊓ adjAtom (&0) y).ex
+
+/-- The fixed transduction witnessing that unbounded neighborhood VC
+dimension is monadic independence.  The first color is the output
+domain.  The second color contains one vertex whose neighborhood trace
+is each desired edge; two distinct domain vertices are joined when they
+have a common second-color neighbor. -/
+noncomputable def vcWitnessTransduction :
+    Transduction Language.graph Language.graph where
+  colors := 2
+  domain :=
+    colorAtom (0 : Fin 2) (Language.Term.var (Sum.inl 0))
+  rel := fun R => match R with
+    | .adj => vcWitnessAdjFormula
+
+private theorem realize_vcWitnessTransduction_rel {n : ℕ}
+    (G : SimpleGraph (Fin n)) (colors : Fin 2 → Set (Fin n))
+    (x y : Fin n) :
+    RealizeIn G.structure colors vcWitnessAdjFormula ![x, y] ↔
+      x ≠ y ∧ ∃ z, z ∈ colors 1 ∧ G.Adj z x ∧ G.Adj z y := by
+  letI := G.structure
+  letI := colorStructure colors
+  have hcolor (i : Fin 2) (v : Fin 1 → Fin n) :
+      @Language.Structure.RelMap (withColors Language.graph 2)
+        _ _ 1 (Sum.inr (ColorRel.color i)) v ↔ v 0 ∈ colors i := Iff.rfl
+  have hadj (v : Fin 2 → Fin n) :
+      @Language.Structure.RelMap (withColors Language.graph 2)
+        _ _ 2 (Sum.inl Language.adj) v ↔ G.Adj (v 0) (v 1) := Iff.rfl
+  simp [vcWitnessAdjFormula, RealizeIn, Language.Formula.Realize,
+    Language.BoundedFormula.Realize, colorAtom, adjAtom,
+    Language.Relations.boundedFormula₁, Language.Relations.boundedFormula₂,
+    Language.Relations.boundedFormula, Language.Term.bdEqual,
+    hcolor, hadj, Fin.snoc]
 
 /-- The neighborhood traces of `G` on the finite vertex set `A`, as a
 finite set family: `Finset` counterpart of the trace set underlying
@@ -50,7 +93,113 @@ theorem exists_vcDim_traceFamily_le (C : GraphClass)
     (hC : MonadicallyDependent C) :
     ∃ d : ℕ, ∀ (n : ℕ) (G : SimpleGraph (Fin n)), C n G →
       ∀ A : Finset (Fin n), (traceFamily G A).vcDim ≤ d := by
-  sorry
+  classical
+  by_contra hbound
+  apply hC
+  refine ⟨vcWitnessTransduction, ?_⟩
+  intro m N hN
+  obtain ⟨H, -, rfl⟩ := hN
+  have hunbounded : ∀ d : ℕ, ∃ (n : ℕ) (G : SimpleGraph (Fin n)),
+      C n G ∧ ∃ A : Finset (Fin n), d < (traceFamily G A).vcDim := by
+    push Not at hbound
+    exact hbound
+  obtain ⟨n, G, hG, A, hvc⟩ := hunbounded m
+  unfold Finset.vcDim at hvc
+  rw [Finset.lt_sup_iff] at hvc
+  obtain ⟨S, hSsh, hmS⟩ := hvc
+  rw [Finset.mem_shatterer] at hSsh
+  obtain ⟨U, hUS, hUcard⟩ :=
+    Finset.exists_subset_card_eq hmS.le
+  have hUsh : (traceFamily G A).Shatters U :=
+    Finset.Shatters.mono_right hUS hSsh
+  have hUA : U ⊆ A := by
+    obtain ⟨q, hq, hUq⟩ := hUsh.exists_superset
+    intro x hx
+    have hxq := hUq hx
+    unfold traceFamily at hq
+    obtain ⟨b, -, rfl⟩ := Finset.mem_image.1 hq
+    exact (Finset.mem_filter.1 hxq).1
+  let e := U.orderIsoOfFin hUcard
+  let f : Fin m ↪ Fin n :=
+    ⟨fun i => (e i).val,
+      fun i j hij => e.injective (Subtype.ext hij)⟩
+  have hfU (i : Fin m) : f i ∈ U := (e i).property
+  let Edge := {p : Fin m × Fin m // H.Adj p.1 p.2}
+  have witness_exists (p : Edge) :
+      ∃ z : Fin n, U ∩ trace G A z = {f p.val.1, f p.val.2} := by
+    have hpU : ({f p.val.1, f p.val.2} : Finset (Fin n)) ⊆ U := by
+      simp only [Finset.insert_subset_iff, Finset.singleton_subset_iff]
+      exact ⟨hfU p.val.1, hfU p.val.2⟩
+    obtain ⟨q, hq, hqeq⟩ := hUsh hpU
+    unfold traceFamily at hq
+    obtain ⟨z, -, rfl⟩ := Finset.mem_image.1 hq
+    exact ⟨z, hqeq⟩
+  let w : Edge → Fin n := fun p => Classical.choose (witness_exists p)
+  have hw (p : Edge) :
+      U ∩ trace G A (w p) = {f p.val.1, f p.val.2} :=
+    Classical.choose_spec (witness_exists p)
+  let colors : Fin 2 → Set (Fin n) := ![(U : Set (Fin n)), Set.range w]
+  refine ⟨n, G.structure, ⟨G, hG, rfl⟩, colors, f, ?_, ?_⟩
+  · intro x
+    have hreal :
+        RealizeIn G.structure colors vcWitnessTransduction.domain ![x] ↔
+          x ∈ U := by
+      letI := G.structure
+      letI := colorStructure colors
+      change x ∈ colors 0 ↔ x ∈ U
+      simp [colors]
+    apply Iff.trans ?_ hreal.symm
+    constructor
+    · rintro ⟨i, rfl⟩
+      exact hfU i
+    · intro hx
+      refine ⟨e.symm ⟨x, hx⟩, ?_⟩
+      exact congrArg Subtype.val (e.apply_symm_apply ⟨x, hx⟩)
+  · intro r R v
+    cases R with
+    | adj =>
+      change H.Adj (v 0) (v 1) ↔
+        RealizeIn G.structure colors vcWitnessAdjFormula (f ∘ v)
+      have hvtuple : f ∘ v = ![f (v 0), f (v 1)] := by
+        funext i
+        fin_cases i <;> rfl
+      rw [hvtuple, realize_vcWitnessTransduction_rel]
+      constructor
+      · intro hadj
+        let p : Edge := ⟨(v 0, v 1), hadj⟩
+        refine ⟨fun h => hadj.ne (f.injective h), w p, ?_, ?_, ?_⟩
+        · change w p ∈ Set.range w
+          exact ⟨p, rfl⟩
+        · have hx : f (v 0) ∈ U ∩ trace G A (w p) := by
+            rw [hw p]
+            simp [p]
+          exact (Finset.mem_filter.1 (Finset.mem_inter.1 hx).2).2
+        · have hy : f (v 1) ∈ U ∩ trace G A (w p) := by
+            rw [hw p]
+            simp [p]
+          exact (Finset.mem_filter.1 (Finset.mem_inter.1 hy).2).2
+      · rintro ⟨hne, z, hz, hzx, hzy⟩
+        change z ∈ Set.range w at hz
+        obtain ⟨p, rfl⟩ := hz
+        have hx : f (v 0) ∈ U ∩ trace G A (w p) := by
+          refine Finset.mem_inter.2 ⟨hfU _, ?_⟩
+          simp only [trace, Finset.mem_filter]
+          exact ⟨hUA (hfU _), hzx⟩
+        have hy : f (v 1) ∈ U ∩ trace G A (w p) := by
+          refine Finset.mem_inter.2 ⟨hfU _, ?_⟩
+          simp only [trace, Finset.mem_filter]
+          exact ⟨hUA (hfU _), hzy⟩
+        rw [hw p] at hx hy
+        simp only [Finset.mem_insert, Finset.mem_singleton] at hx hy
+        have hx' : v 0 = p.val.1 ∨ v 0 = p.val.2 :=
+          hx.imp (fun h => f.injective h) (fun h => f.injective h)
+        have hy' : v 1 = p.val.1 ∨ v 1 = p.val.2 :=
+          hy.imp (fun h => f.injective h) (fun h => f.injective h)
+        rcases hx' with hx' | hx' <;> rcases hy' with hy' | hy'
+        · exact (hne (congrArg f (hx'.trans hy'.symm))).elim
+        · simpa [hx', hy'] using p.property
+        · simpa [hx', hy'] using p.property.symm
+        · exact (hne (congrArg f (hx'.trans hy'.symm))).elim
 
 /-- Lemma 21 (semi-induced form): in a monadically dependent class,
 vertices with pairwise distinct neighborhood traces on a nonempty set
