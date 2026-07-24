@@ -144,11 +144,26 @@ Proof-package-only machinery (invisible to reviewers, can be ugly):
      interpretation, and every second-stage quantifier is relativized
      to the first-stage domain. The exact-range clauses prove the
      realization induction at quantifiers.
-   - 4b'' remaining leaves (each a focused session; 2 sorries in 4b
-     scope + Cor 6b which is 4c): Lem 25 (step; combinatorial half
-     from Lem 19 + Cor 9 + Lem 7 + Lem 12, then the R1 definability
-     discharge — semantics of `mergeFormula`); [VC].
-   - 4c: the 6b chain (§3a), coarse-to-fine; densification last.
+   - Lem 25 quantitative core ✅: restricted part-trace keys are identified
+     with the image of support vertices; Lem 19 gives the dense core;
+     Cor 9 is summed over parts and one merge orientation retains half the
+     non-isolated keys; Lem 12 then gives unique sampled merge neighbors.
+     The exact bound `600(d+1)(log |A|+2)^2` is proved. The semantic
+     characterization of `mergeFormula` is also proved against an arbitrary
+     preceding formula tuple.
+   - Lem 25 full step ✅: support representatives are chosen for sampled
+     trace keys; the resulting `(k+1)`-sparsification has the required VC
+     drop, R1 definability, injectivity, and exact quantitative loss.
+   - 4b'' remaining leaf: [VC].
+   - 4c in progress: the subpolynomial weak-coloring-number chain is restored
+     and bridged to the submitted permutation-based `wcol`. The first
+     neighborhood-counting layer is now proved: nowhere denseness excludes a
+     uniform `K_{t,t}`; this bounds the VC dimension of every self-or-adjacent
+     family (covering both neighborhood traces and radius-1 lower traces);
+     Sauer–Shelah gives explicit polynomial trace bounds; and lower traces are
+     identified exactly with submitted radius-1 weak reachability. Remaining:
+     local-separator counting, polynomial localization/assembly, and the final
+     asymptotic rescaling in Cor 6b.
 
 Guideline: first principles, weigh pros and cons carefully — flagship
 standards. Rewrite this file as things crystalize.
