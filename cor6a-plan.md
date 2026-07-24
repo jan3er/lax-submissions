@@ -24,8 +24,16 @@ Directly reusable, sorry-free-looking:
 - **`MonadicDependence/NowhereDenseBridge`** (965 lines): shallow-minor
   nowhere-denseness ⟺ local subdivision-based nowhere-denseness — this
   IS the step-1 bridge (candidate paths → Ramsey-uniform length →
-  canonical pattern → trim → clean subdivision), already done both
-  directions.
+  canonical pattern → trim → clean subdivision). **CORRECTION (found
+  during the port): NOT done both directions.** Forward (local ⇐
+  shallow-minor) is proved; the backward direction — the load-bearing
+  one for 13.7 — has its steps 1–3 proved but steps 4–6 (trim paths,
+  build subdivision, extract bound) left as `sorry` scaffold leaves.
+  The catalog's `formalization-notes.md` has a detailed close plan;
+  step 4 alone is estimated there at 1–2 focused sessions and wants
+  strengthening of steps 1–3 (IsPath walks, shared-suffix pattern bits,
+  interior-collision handling via a thicker step-3 Ramsey or an extra
+  Ramsey round).
 - **`MonadicDependence/SubdividedBicliqueRamsey`** (2445 lines): thesis
   Lemma 13.8 (subgraph subdivided biclique ⇒ biclique or induced
   r′-subdivided biclique), already done.
@@ -92,7 +100,18 @@ picture:
 ## Order of work
 
 1. ~~Port the Ramsey toolbox + Subdivision/Biclique defs; build green.~~ ✓
-2. Port NowhereDenseBridge and SubdividedBicliqueRamsey; build green.
+2. ~~Port NowhereDenseBridge and SubdividedBicliqueRamsey; build
+   green.~~ ✓ (`NowhereDenseBridge.lean` — `IsLocallyNowhereDense`,
+   `isLocallyNowhereDense_iff_isNowhereDense`, 3 sorries carried in the
+   backward steps 4–6; `SubdividedBicliqueRamsey.lean` —
+   `subdividedBiclique_ramsey`, sorry-free, standard axioms.)
+2b. **NEW: close bridge backward steps 4–6** (real proof work, size
+   comparable to or larger than step 3; see catalog close plan). Options
+   to decide with Jan: (a) follow the close plan — strengthen steps 1–3
+   (IsPath + suffix bits, or the blown-up interior-tuple Ramsey color
+   variant that avoids a separate collision round at the cost of bounds,
+   acceptable since the contract is qualitative); (b) any alternate
+   route Jan prefers.
 3. `CrossingTransduction.lean` (the new work).
 4. `Corollary6a.lean` glue + encoding bridges + rewiring + axiom audit;
    update `todo.md`/`pipeline.md`.
