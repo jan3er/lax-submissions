@@ -1,5 +1,6 @@
 import Lax5.Transductions
 import Lax5Proofs.SetSystems
+import Lax5Proofs.Sampling
 import Mathlib.ModelTheory.Graph
 import Mathlib.Combinatorics.SimpleGraph.Basic
 
@@ -55,6 +56,14 @@ noncomputable def trace (G : SimpleGraph (Fin n)) (X : Finset (Fin n))
     (b : Fin n) : Finset (Fin n) :=
   letI := Classical.decRel G.Adj
   X.filter (G.Adj b)
+
+/-- Restricting a trace from `X` to a subset `Y` is the trace on `Y`. -/
+theorem trace_inter_eq_of_subset (G : SimpleGraph (Fin n))
+    (X Y : Finset (Fin n)) (hYX : Y ⊆ X) (b : Fin n) :
+    trace G X b ∩ Y = trace G Y b := by
+  ext x
+  simp only [trace, Finset.mem_inter, Finset.mem_filter]
+  aesop
 
 /-- A `k`-sparsification of the pair `(A, B)` in `G` (DMMPT26,
 Appendix A): a core `A₀ ⊆ A`, a support `B₀ ⊆ B`, and `k` labelling
@@ -127,6 +136,343 @@ theorem card_partTraces (S : Sparsification G A B k)
   exact S.inj x hxs y hys hxy fun j => by
     have := hxt.trans hyt.symm
     exact congrFun this j
+
+/-- Membership in the trace system of a part, unpacked to a vertex of
+the support with the prescribed label tuple. -/
+theorem mem_partTraces_iff (S : Sparsification G A B k)
+    (τ : Fin k → Fin n) (F : Finset (Fin n)) :
+    F ∈ S.partTraces τ ↔
+      ∃ b ∈ S.supp, S.tup b = τ ∧ trace G S.core b = F := by
+  simp [partTraces, part]
+  aesop
+
+/-- The part trace systems partition the support cardinality. -/
+theorem sum_card_partTraces (S : Sparsification G A B k) :
+    ∑ τ ∈ S.labels, (S.partTraces τ).card = S.size := by
+  have hsum : S.supp.card = ∑ τ ∈ S.labels, (S.part τ).card :=
+    Finset.card_eq_sum_card_fiberwise fun b hb =>
+      Finset.mem_image_of_mem _ hb
+  simp only [size]
+  rw [hsum]
+  exact Finset.sum_congr rfl fun τ _ => S.card_partTraces τ
+
+/-- A nonterminal sparsification has a core with at least two vertices;
+otherwise every part has at most the two possible traces on the core. -/
+theorem one_lt_core_card_of_not_terminal (S : Sparsification G A B k)
+    (hnt : ¬ S.Terminal) : 1 < S.core.card := by
+  classical
+  by_contra hcard
+  push Not at hcard
+  have hle : ∀ τ ∈ S.labels, (S.partTraces τ).card ≤ 2 := by
+    intro τ hτ
+    calc
+      (S.partTraces τ).card ≤ S.core.powerset.card :=
+        Finset.card_le_card fun F hF => Finset.mem_powerset.2 <| by
+          obtain ⟨b, hb, ht, rfl⟩ := (S.mem_partTraces_iff τ F).1 hF
+          exact Finset.filter_subset _ _
+      _ = 2 ^ S.core.card := Finset.card_powerset _
+      _ ≤ 2 := by interval_cases S.core.card <;> norm_num
+  apply hnt
+  show S.size ≤ 2 * S.partsCount
+  rw [← S.sum_card_partTraces]
+  simp only [partsCount]
+  calc
+    ∑ τ ∈ S.labels, (S.partTraces τ).card ≤
+        ∑ _τ ∈ S.labels, 2 := Finset.sum_le_sum hle
+    _ = 2 * S.labels.card := by simp [mul_comm]
+
+/-- The dense Hamming restriction supplied by Lemma 19, specialized to
+the trace systems of the parts of a nonterminal sparsification. -/
+theorem exists_core_hamming_dense (S : Sparsification G A B k)
+    (hnt : ¬ S.Terminal) :
+    ∃ X ⊆ S.core,
+      (S.size : ℝ) ≤ (2 * Real.log S.core.card + 2) *
+        ∑ τ ∈ S.labels,
+          (SetSystems.hammingEdgeCount
+            ((S.partTraces τ).image (· ∩ X)) : ℝ) := by
+  classical
+  have hground : ∀ τ ∈ S.labels, ∀ F ∈ S.partTraces τ, F ⊆ S.core := by
+    intro τ hτ F hF
+    obtain ⟨b, hb, ht, rfl⟩ := (S.mem_partTraces_iff τ F).1 hF
+    exact Finset.filter_subset _ _
+  have hm : 2 * S.labels.card <
+      ∑ τ ∈ S.labels, (S.partTraces τ).card := by
+    rw [S.sum_card_partTraces]
+    exact Nat.lt_of_not_ge hnt
+  obtain ⟨X, hX, hdense⟩ :=
+    SetSystems.exists_subset_hamming_dense S.labels S.partTraces
+      S.core hground (S.one_lt_core_card_of_not_terminal hnt) hm
+  refine ⟨X, hX, ?_⟩
+  have hsum : (∑ τ ∈ S.labels, ((S.partTraces τ).card : ℝ)) =
+      (S.size : ℝ) := by
+    exact_mod_cast S.sum_card_partTraces
+  rwa [hsum] at hdense
+
+/-- The trace family of one part after restriction to `X`. -/
+noncomputable def restrictedPartTraces (S : Sparsification G A B k)
+    (X : Finset (Fin n)) (τ : Fin k → Fin n) : Finset (Finset (Fin n)) :=
+  (S.partTraces τ).image (· ∩ X)
+
+/-- Keys `(old label tuple, restricted trace)` realized by the support. -/
+noncomputable def traceKeys (S : Sparsification G A B k) (X : Finset (Fin n)) :
+    Finset ((Fin k → Fin n) × Finset (Fin n)) :=
+  S.labels.biUnion fun τ =>
+    (S.restrictedPartTraces X τ).image (Prod.mk τ)
+
+/-- Positive or negative merge incidence between a coordinate and a
+restricted trace key. -/
+noncomputable def MergeAt (S : Sparsification G A B k) (X : Finset (Fin n))
+    (positive : Bool) (a : Fin n)
+    (q : (Fin k → Fin n) × Finset (Fin n)) : Prop :=
+  if positive then SetSystems.VPos (S.restrictedPartTraces X q.1) a q.2
+  else SetSystems.VNeg (S.restrictedPartTraces X q.1) a q.2
+
+noncomputable instance (S : Sparsification G A B k) (X : Finset (Fin n))
+    (positive : Bool) (a : Fin n)
+    (q : (Fin k → Fin n) × Finset (Fin n)) :
+    Decidable (S.MergeAt X positive a q) := by
+  unfold MergeAt
+  infer_instance
+
+/-- Restricted trace keys non-isolated in the chosen merge direction. -/
+noncomputable def mergeKeys (S : Sparsification G A B k) (X : Finset (Fin n))
+    (positive : Bool) : Finset ((Fin k → Fin n) × Finset (Fin n)) :=
+  (S.traceKeys X).filter fun q => ∃ a ∈ X, S.MergeAt X positive a q
+
+/-- All keys non-isolated in the Hamming graph of their restricted part
+trace system. -/
+noncomputable def nonisolatedKeys (S : Sparsification G A B k)
+    (X : Finset (Fin n)) :
+    Finset ((Fin k → Fin n) × Finset (Fin n)) :=
+  S.labels.biUnion fun τ =>
+    (SetSystems.nonIsolated (S.restrictedPartTraces X τ)).image (Prod.mk τ)
+
+/-- Coordinates actually incident with the chosen oriented merge keys. -/
+noncomputable def mergeCoords (S : Sparsification G A B k)
+    (X : Finset (Fin n)) (positive : Bool) : Finset (Fin n) :=
+  X.filter fun a => ∃ q ∈ S.mergeKeys X positive, S.MergeAt X positive a q
+
+/-- Trace keys are equivalently obtained by mapping every support vertex
+to its old label tuple and its trace on the restricted core. -/
+theorem traceKeys_eq_image (S : Sparsification G A B k)
+    (X : Finset (Fin n)) (hX : X ⊆ S.core) :
+    S.traceKeys X = S.supp.image fun b => (S.tup b, trace G X b) := by
+  classical
+  ext q
+  constructor
+  · intro hq
+    rw [traceKeys] at hq
+    obtain ⟨τ, hτ, hqτ⟩ := Finset.mem_biUnion.1 hq
+    obtain ⟨F, hF, rfl⟩ := Finset.mem_image.1 hqτ
+    rw [restrictedPartTraces] at hF
+    obtain ⟨T, hT, hTF⟩ := Finset.mem_image.1 hF
+    obtain ⟨b, hb, ht, hTb⟩ := (S.mem_partTraces_iff τ T).1 hT
+    refine Finset.mem_image.2 ⟨b, hb, ?_⟩
+    apply Prod.ext
+    · exact ht
+    · rw [← hTF, ← hTb]
+      exact (trace_inter_eq_of_subset G S.core X hX b).symm
+  · intro hq
+    obtain ⟨b, hb, rfl⟩ := Finset.mem_image.1 hq
+    rw [traceKeys, Finset.mem_biUnion]
+    refine ⟨S.tup b, Finset.mem_image_of_mem _ hb, ?_⟩
+    refine Finset.mem_image.2 ⟨trace G X b, ?_, rfl⟩
+    rw [restrictedPartTraces]
+    refine Finset.mem_image.2 ⟨trace G S.core b, ?_, ?_⟩
+    · exact (S.mem_partTraces_iff _ _).2 ⟨b, hb, rfl, rfl⟩
+    · exact trace_inter_eq_of_subset G S.core X hX b
+
+/-- The indexed union defining `nonisolatedKeys` is disjoint in its
+first coordinate, so its cardinality is the sum of the fiber sizes. -/
+theorem card_nonisolatedKeys (S : Sparsification G A B k)
+    (X : Finset (Fin n)) :
+    (S.nonisolatedKeys X).card =
+      ∑ τ ∈ S.labels,
+        (SetSystems.nonIsolated (S.restrictedPartTraces X τ)).card := by
+  classical
+  rw [nonisolatedKeys, Finset.card_biUnion]
+  · refine Finset.sum_congr rfl fun τ hτ => ?_
+    exact Finset.card_image_of_injective _ fun F F' h =>
+      congrArg Prod.snd h
+  · intro τ hτ τ' hτ' hne
+    change Disjoint
+      ((SetSystems.nonIsolated (S.restrictedPartTraces X τ)).image (Prod.mk τ))
+      ((SetSystems.nonIsolated (S.restrictedPartTraces X τ')).image (Prod.mk τ'))
+    rw [Finset.disjoint_left]
+    intro q hq hq'
+    obtain ⟨F, hF, rfl⟩ := Finset.mem_image.1 hq
+    obtain ⟨F', hF', heq⟩ := Finset.mem_image.1 hq'
+    exact hne (congrArg Prod.fst heq).symm
+
+/-- Every non-isolated restricted trace is incident in at least one of
+the two oriented merge relations. -/
+theorem nonisolatedKeys_subset_merge (S : Sparsification G A B k)
+    (X : Finset (Fin n)) :
+    S.nonisolatedKeys X ⊆ S.mergeKeys X true ∪ S.mergeKeys X false := by
+  classical
+  intro q hq
+  rw [nonisolatedKeys] at hq
+  obtain ⟨τ, hτ, hqτ⟩ := Finset.mem_biUnion.1 hq
+  obtain ⟨F, hF, rfl⟩ := Finset.mem_image.1 hqτ
+  have hF' : F ∈ S.restrictedPartTraces X τ ∧
+      ∃ a ∈ (S.restrictedPartTraces X τ).sup id,
+        SetSystems.VPos (S.restrictedPartTraces X τ) a F ∨
+          SetSystems.VNeg (S.restrictedPartTraces X τ) a F := by
+    simpa only [SetSystems.nonIsolated, Finset.mem_filter] using hF
+  obtain ⟨hFfam, a, hasup, hmerge⟩ := hF'
+  have haX : a ∈ X := by
+    obtain ⟨T, hTfam, haT⟩ := Finset.mem_sup.1 hasup
+    rw [restrictedPartTraces] at hTfam
+    obtain ⟨T', hT', rfl⟩ := Finset.mem_image.1 hTfam
+    exact Finset.inter_subset_right haT
+  have hkey : (τ, F) ∈ S.traceKeys X := by
+    rw [traceKeys, Finset.mem_biUnion]
+    exact ⟨τ, hτ, Finset.mem_image.2 ⟨F, hFfam, rfl⟩⟩
+  rw [Finset.mem_union]
+  rcases hmerge with hpos | hneg
+  · left
+    rw [mergeKeys, Finset.mem_filter]
+    exact ⟨hkey, a, haX, by simpa [MergeAt] using hpos⟩
+  · right
+    rw [mergeKeys, Finset.mem_filter]
+    exact ⟨hkey, a, haX, by simpa [MergeAt] using hneg⟩
+
+/-- Corollary 9, summed over the parts: one of the two oriented merge
+relations contains enough non-isolated trace keys to support all Hamming
+edges, up to the factor `2d`. -/
+theorem exists_merge_direction (S : Sparsification G A B k) {d : ℕ}
+    (hd : S.DimLE d) (X : Finset (Fin n)) :
+    ∃ positive : Bool,
+      ∑ τ ∈ S.labels,
+          SetSystems.hammingEdgeCount (S.restrictedPartTraces X τ) ≤
+        2 * d * (S.mergeKeys X positive).card := by
+  classical
+  have hvc : ∀ τ ∈ S.labels, (S.restrictedPartTraces X τ).vcDim ≤ d := by
+    intro τ hτ
+    obtain ⟨b, hb, ht⟩ := Finset.mem_image.1 hτ
+    subst τ
+    exact le_trans
+      (SetSystems.vcDim_image_inter_le (S.partTraces (S.tup b)) X)
+      (hd b hb)
+  have hedge :
+      ∑ τ ∈ S.labels,
+          SetSystems.hammingEdgeCount (S.restrictedPartTraces X τ) ≤
+        d * (S.nonisolatedKeys X).card := by
+    rw [S.card_nonisolatedKeys X, Finset.mul_sum]
+    exact Finset.sum_le_sum fun τ hτ =>
+      le_trans
+        (SetSystems.hammingEdgeCount_le_vcDim_mul_card_nonIsolated
+          (S.restrictedPartTraces X τ))
+        (Nat.mul_le_mul_right _ (hvc τ hτ))
+  have hni : (S.nonisolatedKeys X).card ≤
+      (S.mergeKeys X true).card + (S.mergeKeys X false).card :=
+    le_trans (Finset.card_le_card (S.nonisolatedKeys_subset_merge X))
+      (Finset.card_union_le _ _)
+  by_cases hdir : (S.mergeKeys X true).card ≤ (S.mergeKeys X false).card
+  · refine ⟨false, le_trans hedge ?_⟩
+    nlinarith
+  · refine ⟨true, le_trans hedge ?_⟩
+    push Not at hdir
+    nlinarith
+
+/-- Dense restriction, orientation, and Lemma 12 combined. The surviving
+trace keys have a unique neighbor in a sampled set of merge coordinates,
+with the quantitative loss used by `stepLoss`. -/
+theorem exists_sampled_merge (S : Sparsification G A B k) {d : ℕ}
+    (hd : S.DimLE d) (hnt : ¬ S.Terminal) :
+    ∃ X ⊆ S.core, ∃ positive : Bool,
+      ∃ X' ⊆ S.mergeCoords X positive,
+      ∃ Y' ⊆ S.mergeKeys X positive,
+        (S.size : ℝ) ≤
+          (600 * (d + 1) * (Real.log A.card + 2) ^ 2) * Y'.card ∧
+        ∀ q ∈ Y', ∃! a, a ∈ X' ∧ S.MergeAt X positive a q := by
+  classical
+  obtain ⟨X, hX, hdense⟩ := S.exists_core_hamming_dense hnt
+  obtain ⟨positive, hedge⟩ := S.exists_merge_direction hd X
+  have hedgeR :
+      (∑ τ ∈ S.labels,
+          (SetSystems.hammingEdgeCount (S.restrictedPartTraces X τ) : ℝ)) ≤
+        2 * d * (S.mergeKeys X positive).card := by
+    exact_mod_cast hedge
+  have hpre : (S.size : ℝ) ≤
+      (2 * Real.log S.core.card + 2) *
+        (2 * d * (S.mergeKeys X positive).card) :=
+    le_trans hdense (mul_le_mul_of_nonneg_left hedgeR <| by
+      have := Real.log_nonneg (show (1 : ℝ) ≤ S.core.card by
+        exact_mod_cast (S.one_lt_core_card_of_not_terminal hnt).le)
+      linarith)
+  have hcoord : ∀ a ∈ S.mergeCoords X positive,
+      ∃ q ∈ S.mergeKeys X positive, S.MergeAt X positive a q := by
+    intro a ha
+    exact (Finset.mem_filter.1 ha).2
+  have hkey : ∀ q ∈ S.mergeKeys X positive,
+      ∃ a ∈ S.mergeCoords X positive, S.MergeAt X positive a q := by
+    intro q hq
+    obtain ⟨hqt, a, haX, hmerge⟩ := Finset.mem_filter.1 hq
+    exact ⟨a, Finset.mem_filter.2 ⟨haX, q, hq, hmerge⟩, hmerge⟩
+  obtain ⟨X', hX', Y', hY', hsample, hunique⟩ :=
+    Sampling.exists_unique_neighbor_subsets
+      (S.mergeCoords X positive) (S.mergeKeys X positive)
+      (S.MergeAt X positive) hcoord hkey
+  refine ⟨X, hX, positive, X', hX', Y', hY', ?_, hunique⟩
+  have hsizepos : (0 : ℝ) < S.size := by
+    have hs : 0 < S.size := by
+      by_contra hs
+      apply hnt
+      show S.size ≤ 2 * S.partsCount
+      omega
+    exact_mod_cast hs
+  have hYpos : 0 < (S.mergeKeys X positive).card := by
+    by_contra hY
+    have hY0 : (S.mergeKeys X positive).card = 0 := Nat.eq_zero_of_not_pos hY
+    rw [hY0, Nat.cast_zero, mul_zero, mul_zero] at hpre
+    linarith
+  have hCpos : 0 < (S.mergeCoords X positive).card := by
+    obtain ⟨q, hq⟩ := Finset.card_pos.1 hYpos
+    obtain ⟨a, ha, hmerge⟩ := hkey q hq
+    exact Finset.card_pos.2 ⟨a, ha⟩
+  have hcoreA : S.core.card ≤ A.card :=
+    Finset.card_le_card S.core_subset
+  have hcoordA : (S.mergeCoords X positive).card ≤ A.card :=
+    Finset.card_le_card <| (Finset.filter_subset _ _).trans (hX.trans S.core_subset)
+  have hlogCore : Real.log S.core.card ≤ Real.log A.card :=
+    Real.log_le_log (by exact_mod_cast (S.one_lt_core_card_of_not_terminal hnt).le)
+      (by exact_mod_cast hcoreA)
+  have hlogCoord : Real.log (S.mergeCoords X positive).card ≤ Real.log A.card :=
+    Real.log_le_log (by exact_mod_cast hCpos)
+      (by exact_mod_cast hcoordA)
+  have hlogCore0 : 0 ≤ Real.log S.core.card :=
+    Real.log_nonneg (by exact_mod_cast (S.one_lt_core_card_of_not_terminal hnt).le)
+  have hlogCoord0 : 0 ≤ Real.log (S.mergeCoords X positive).card :=
+    Real.log_nonneg (by exact_mod_cast hCpos)
+  have hlogA0 : 0 ≤ Real.log A.card := le_trans hlogCore0 hlogCore
+  calc
+    (S.size : ℝ) ≤
+        (2 * Real.log S.core.card + 2) *
+          (2 * d * (S.mergeKeys X positive).card) := hpre
+    _ ≤ (2 * Real.log S.core.card + 2) *
+          (2 * d * (150 * (Real.log (S.mergeCoords X positive).card + 1) *
+            Y'.card)) := by
+      gcongr
+    _ ≤ (600 * (d + 1) * (Real.log A.card + 2) ^ 2) * Y'.card := by
+      have hfac : (d : ℝ) * (Real.log S.core.card + 1) *
+          (Real.log (S.mergeCoords X positive).card + 1) ≤
+          ((d : ℝ) + 1) * (Real.log A.card + 2) *
+            (Real.log A.card + 2) := by
+        gcongr <;> nlinarith
+      calc
+        (2 * Real.log ↑S.core.card + 2) *
+              (2 * ↑d *
+                (150 * (Real.log ↑(S.mergeCoords X positive).card + 1) *
+                  ↑Y'.card)) =
+            600 * ((d : ℝ) * (Real.log S.core.card + 1) *
+              (Real.log (S.mergeCoords X positive).card + 1)) * Y'.card := by
+                ring
+        _ ≤ 600 * (((d : ℝ) + 1) * (Real.log A.card + 2) *
+              (Real.log A.card + 2)) * Y'.card := by
+                gcongr
+        _ = 600 * ((d : ℝ) + 1) * (Real.log ↑A.card + 2) ^ 2 *
+              ↑Y'.card := by ring
 
 /-- The trivial `0`-sparsification of a twin-free pair. -/
 def trivial (htf : ∀ b ∈ B, ∀ b' ∈ B, trace G A b = trace G A b' → b = b') :
@@ -243,6 +589,56 @@ theorem realizeIn_liftFormula {k k' : ℕ} (h : k ≤ k')
   exact Language.LHom.realize_onFormula
     (Language.LHom.sumMap (Language.LHom.id Language.graph) (colorLHom h)) φ
 
+set_option maxHeartbeats 800000 in
+/-- Semantic form of the formula used for a new sparsification label.
+The five fresh colors mark, in order, the new core, target labels,
+support, trace representatives, and the sign of the merge. -/
+theorem realizeIn_mergeFormula {k : ℕ} (G : SimpleGraph (Fin n))
+    (colors : Fin (5 * k + 5) → Set (Fin n))
+    (ψ : Fin k → (withColors Language.graph (5 * k + 5)).Formula (Fin 2))
+    (b a : Fin n) :
+    RealizeIn G.structure colors (mergeFormula k ψ) ![b, a] ↔
+      b ∈ colors ⟨5 * k + 2, by omega⟩ ∧
+      a ∈ colors ⟨5 * k + 1, by omega⟩ ∧
+      ∃ b', b' ∈ colors ⟨5 * k + 3, by omega⟩ ∧
+        (∀ i, ∃ z, RealizeIn G.structure colors (ψ i) ![b, z] ∧
+          RealizeIn G.structure colors (ψ i) ![b', z]) ∧
+        (∀ x, x ∈ colors ⟨5 * k, by omega⟩ → x ≠ a →
+          (G.Adj b x ↔ G.Adj b' x)) ∧
+        ((colors ⟨5 * k + 4, by omega⟩).Nonempty →
+          G.Adj b a ∧ ¬ G.Adj b' a) ∧
+        (¬(colors ⟨5 * k + 4, by omega⟩).Nonempty →
+          ¬ G.Adj b a ∧ G.Adj b' a) := by
+  letI := G.structure
+  letI := colorStructure colors
+  have hψ' (i : Fin k) (v : Fin 2 → Fin n) (xs : Fin 0 → Fin n) :
+      Language.BoundedFormula.Realize (ψ i) v xs ↔
+        RealizeIn G.structure colors (ψ i) ![v 0, v 1] := by
+    rw [Language.Formula.boundedFormula_realize_eq_realize]
+    change RealizeIn G.structure colors (ψ i) v ↔ _
+    have hv : v = ![v 0, v 1] := by
+      funext j
+      fin_cases j <;> rfl
+    rw [hv]
+    simp
+  have hcolor (i : Fin (5 * k + 5)) (v : Fin 1 → Fin n) :
+      @Language.Structure.RelMap (withColors Language.graph (5 * k + 5))
+        _ _ 1 (Sum.inr (ColorRel.color i)) v ↔ v 0 ∈ colors i := Iff.rfl
+  have hadj (v : Fin 2 → Fin n) :
+      @Language.Structure.RelMap (withColors Language.graph (5 * k + 5))
+        _ _ 2 (Sum.inl Language.adj) v ↔ G.Adj (v 0) (v 1) := Iff.rfl
+  simp [mergeFormula, RealizeIn, Language.Formula.Realize,
+      Language.BoundedFormula.Realize, colorAtom, adjAtom,
+      Language.Relations.boundedFormula₁, Language.Relations.boundedFormula₂,
+      Language.Relations.boundedFormula, Language.Term.bdEqual, hcolor,
+      hadj, Function.comp_def, Fin.snoc, Set.Nonempty, eq_comm]
+  simp only [hψ']
+  simp only [Matrix.cons_val_zero, Matrix.cons_val_one, Sum.elim_inl, Sum.elim_inr]
+  simp only [show (0 : Fin 1) = Fin.last 0 by rfl,
+    show (0 : Fin 2) = Fin.castSucc (0 : Fin 1) by rfl,
+    show (1 : Fin 2) = Fin.last 1 by rfl, Fin.snoc_castSucc, Fin.snoc_last,
+    and_assoc]
+
 namespace Sparsification
 
 variable {G : SimpleGraph (Fin n)} {A B : Finset (Fin n)} {k : ℕ}
@@ -275,6 +671,7 @@ Lemma 19 (factor `2 ln |A| + 2`), the positive/negative split (factor
 noncomputable def stepLoss (d : ℕ) (x : ℝ) : ℝ :=
   600 * (d + 1) * (Real.log x + 2) ^ 2
 
+set_option maxHeartbeats 1200000 in
 /-- Lemma 25 of DMMPT26: a nonterminal `k`-sparsification of dimension
 at most `d` can be improved to a `(k+1)`-sparsification of dimension at
 most `d - 1`, losing only a `stepLoss` factor in size and staying
@@ -286,7 +683,396 @@ theorem Sparsification.step {G : SimpleGraph (Fin n)}
     ∃ S' : Sparsification G A B (k + 1),
       S'.DimLE (d - 1) ∧ S'.Definable ∧
       (S.size : ℝ) ≤ stepLoss d A.card * S'.size := by
-  sorry
+  classical
+  obtain ⟨X, hX, positive, X', hX', Y', hY', hloss, hunique⟩ :=
+    S.exists_sampled_merge hd hnt
+  have hYkeys : Y' ⊆ S.traceKeys X :=
+    hY'.trans (Finset.filter_subset _ _)
+  have allRep_exists (q : ↑(S.traceKeys X)) :
+      ∃ b ∈ S.supp, (S.tup b, trace G X b) = q := by
+    apply Finset.mem_image.1
+    rw [← S.traceKeys_eq_image X hX]
+    exact q.property
+  let allRep : (q : ↑(S.traceKeys X)) → Fin n := fun q =>
+    Classical.choose (allRep_exists q)
+  have allRep_mem (q : ↑(S.traceKeys X)) : allRep q ∈ S.supp :=
+    (Classical.choose_spec (allRep_exists q)).1
+  have allRep_key (q : ↑(S.traceKeys X)) :
+      (S.tup (allRep q), trace G X (allRep q)) = q :=
+    (Classical.choose_spec (allRep_exists q)).2
+  let rep : (q : ↑Y') → Fin n := fun q =>
+    allRep ⟨q, hYkeys q.property⟩
+  have rep_mem (q : ↑Y') : rep q ∈ S.supp :=
+    allRep_mem ⟨q, hYkeys q.property⟩
+  have rep_key (q : ↑Y') :
+      (S.tup (rep q), trace G X (rep q)) = q :=
+    allRep_key ⟨q, hYkeys q.property⟩
+  have label_mem (q : ↑Y') : q.val.1 ∈ S.labels := by
+    rw [← congrArg Prod.fst (rep_key q)]
+    exact Finset.mem_image_of_mem _ (rep_mem q)
+  have rep_inj : Function.Injective rep := by
+    intro q q' heq
+    apply Subtype.ext
+    calc
+      q.val = (S.tup (rep q), trace G X (rep q)) := (rep_key q).symm
+      _ = (S.tup (rep q'), trace G X (rep q')) := by rw [heq]
+      _ = q'.val := rep_key q'
+  let supp' : Finset (Fin n) := Y'.attach.image rep
+  have mem_supp'_iff (b : Fin n) :
+      b ∈ supp' ↔ ∃ q : ↑Y', rep q = b := by
+    simp [supp']
+  let newF : Fin n → Fin n := fun b =>
+    if hb : ∃ q : ↑Y', rep q = b then
+      Classical.choose (hunique hb.choose hb.choose.property)
+    else b
+  have newF_spec (q : ↑Y') :
+      newF (rep q) ∈ X' ∧
+        S.MergeAt X positive (newF (rep q)) q := by
+    let hex : ∃ q' : ↑Y', rep q' = rep q := ⟨q, rfl⟩
+    simp only [newF, dif_pos hex]
+    have hqq : hex.choose = q := rep_inj hex.choose_spec
+    simpa [hqq] using
+      (Classical.choose_spec (hunique hex.choose hex.choose.property)).1
+  have newF_unique (q : ↑Y') (a : Fin n) :
+      a ∈ X' ∧ S.MergeAt X positive a q → newF (rep q) = a := by
+    intro ha
+    exact (hunique q q.property).unique (newF_spec q) ha
+  let f' : Fin (k + 1) → Fin n → Fin n :=
+    Fin.snoc S.f newF
+  let S' : Sparsification G A B (k + 1) :=
+    { core := X
+      core_subset := hX.trans S.core_subset
+      supp := supp'
+      supp_subset := by
+        intro b hb
+        obtain ⟨q, rfl⟩ := (mem_supp'_iff b).1 hb
+        exact S.supp_subset (rep_mem q)
+      f := f'
+      f_mem := by
+        intro j b hb
+        obtain ⟨q, rfl⟩ := (mem_supp'_iff b).1 hb
+        refine Fin.lastCases ?_ (fun i => ?_) j
+        · simpa [f'] using S.core_subset
+            (hX (Finset.filter_subset _ _ (hX' (newF_spec q).1)))
+        · simpa [f'] using S.f_mem i (rep q) (rep_mem q)
+      inj := by
+        intro b hb b' hb' htrace hf
+        obtain ⟨q, rfl⟩ := (mem_supp'_iff b).1 hb
+        obtain ⟨q', rfl⟩ := (mem_supp'_iff b').1 hb'
+        congr 1
+        apply Subtype.ext
+        apply Prod.ext
+        · funext i
+          have hi := hf (Fin.castSucc i)
+          rw [← congrArg Prod.fst (rep_key q),
+            ← congrArg Prod.fst (rep_key q')]
+          simpa [f'] using hi
+        · rw [← congrArg Prod.snd (rep_key q),
+            ← congrArg Prod.snd (rep_key q')]
+          exact htrace }
+  refine ⟨S', ?_, ?_, ?_⟩
+  · intro b hb
+    obtain ⟨q, rfl⟩ := (mem_supp'_iff b).1 hb
+    have hqmerge := (newF_spec q).2
+    have hpart : S'.partTraces (S'.tup (rep q)) ⊆
+        (S.restrictedPartTraces X q.val.1).filter
+          (if positive then SetSystems.VPos (S.restrictedPartTraces X q.val.1)
+            (newF (rep q))
+          else SetSystems.VNeg (S.restrictedPartTraces X q.val.1)
+            (newF (rep q))) := by
+      intro F hF
+      obtain ⟨b', hb', htup, rfl⟩ :=
+        (S'.mem_partTraces_iff _ _).1 hF
+      obtain ⟨q', rfl⟩ := (mem_supp'_iff b').1 hb'
+      have hold : S.tup (rep q') = S.tup (rep q) := by
+        funext i
+        have hi := congrFun htup (Fin.castSucc i)
+        simpa [S', f', Sparsification.tup, Fin.snoc] using hi
+      have hnew : newF (rep q') = newF (rep q) := by
+        have hi := congrFun htup (Fin.last k)
+        simpa [S', f', Sparsification.tup, Fin.snoc] using hi
+      have hqq1 : q'.val.1 = q.val.1 := by
+        rw [← congrArg Prod.fst (rep_key q'),
+          ← congrArg Prod.fst (rep_key q)]
+        exact hold
+      have hmerge' := (newF_spec q').2
+      rw [Finset.mem_filter]
+      constructor
+      · rw [restrictedPartTraces]
+        refine Finset.mem_image.2 ⟨trace G S.core (rep q'), ?_, ?_⟩
+        · exact (S.mem_partTraces_iff _ _).2
+            ⟨rep q', rep_mem q',
+              (congrArg Prod.fst (rep_key q')).trans hqq1, rfl⟩
+        · exact trace_inter_eq_of_subset G S.core X hX (rep q')
+      · have htraceq : trace G X (rep q') = q'.val.2 :=
+          congrArg Prod.snd (rep_key q')
+        cases hp : positive
+        · change SetSystems.VNeg (S.restrictedPartTraces X q.val.1)
+              (newF (rep q)) (trace G X (rep q'))
+          unfold MergeAt at hmerge'
+          simp only [hp, Bool.false_eq] at hmerge'
+          rw [htraceq, ← hqq1, ← hnew]
+          exact hmerge'
+        · change SetSystems.VPos (S.restrictedPartTraces X q.val.1)
+              (newF (rep q)) (trace G X (rep q'))
+          unfold MergeAt at hmerge'
+          simp only [hp, if_true] at hmerge'
+          rw [htraceq, ← hqq1, ← hnew]
+          exact hmerge'
+    obtain ⟨b0, hb0, ht0⟩ := Finset.mem_image.1 (label_mem q)
+    have hvc : (S.restrictedPartTraces X q.val.1).vcDim ≤ d := by
+      rw [← ht0]
+      exact le_trans (SetSystems.vcDim_image_inter_le _ _) (hd b0 hb0)
+    cases hp : positive
+    · have hpart' : S'.partTraces (S'.tup (rep q)) ⊆
+          (S.restrictedPartTraces X q.val.1).filter
+            (SetSystems.VNeg (S.restrictedPartTraces X q.val.1)
+              (newF (rep q))) := by
+        intro F hF
+        simpa [hp] using hpart hF
+      apply le_trans (Finset.vcDim_mono hpart')
+      have hm := hqmerge
+      unfold MergeAt at hm
+      simp only [hp, Bool.false_eq] at hm
+      have hlt := SetSystems.vcDim_filter_vNeg_lt
+        ⟨q.val.2, Finset.mem_filter.2 ⟨hm.1, hm⟩⟩
+      omega
+    · have hpart' : S'.partTraces (S'.tup (rep q)) ⊆
+          (S.restrictedPartTraces X q.val.1).filter
+            (SetSystems.VPos (S.restrictedPartTraces X q.val.1)
+              (newF (rep q))) := by
+        intro F hF
+        simpa [hp] using hpart hF
+      apply le_trans (Finset.vcDim_mono hpart')
+      have hm := hqmerge
+      unfold MergeAt at hm
+      simp only [hp, if_true] at hm
+      have hlt := SetSystems.vcDim_filter_vPos_lt
+        ⟨q.val.2, Finset.mem_filter.2 ⟨hm.1, hm⟩⟩
+      omega
+  · obtain ⟨oldColors, holdColors⟩ := hdef
+    let colors : Fin (5 * (k + 1)) → Set (Fin n) := fun i =>
+      if hi : (i : ℕ) < 5 * k then oldColors ⟨i, hi⟩
+      else if i = ⟨5 * k, by omega⟩ then ↑X
+      else if i = ⟨5 * k + 1, by omega⟩ then ↑X'
+      else if i = ⟨5 * k + 2, by omega⟩ then ↑supp'
+      else if i = ⟨5 * k + 3, by omega⟩ then Set.range allRep
+      else if positive then Set.univ else ∅
+    refine ⟨colors, ?_⟩
+    intro j b hb a
+    obtain ⟨q, rfl⟩ := (mem_supp'_iff b).1 hb
+    have hlift (i : Fin k) (b : Fin n) (hb : b ∈ S.supp) (z : Fin n) :
+        RealizeIn G.structure colors
+            (liftFormula (by omega) (sparsFormulas k i)) ![b, z] ↔
+          S.f i b = z := by
+      rw [realizeIn_liftFormula]
+      simpa [colors] using (holdColors i b hb z).symm
+    refine Fin.lastCases ?_ (fun i => ?_) j
+    · have hsem := realizeIn_mergeFormula G colors
+          (fun i => liftFormula (by omega) (sparsFormulas k i)) (rep q) a
+      have hformula : sparsFormulas (k + 1) (Fin.last k) =
+          mergeFormula k (fun i => liftFormula (by omega)
+            (sparsFormulas k i)) := by simp [sparsFormulas]
+      rw [hformula]
+      rw [hsem]
+      have hlast : S'.f (Fin.last k) (rep q) = newF (rep q) := by
+        simp [S', f']
+      rw [hlast]
+      constructor
+      · intro hfa
+        subst a
+        refine ⟨by simpa [colors, supp'], by simpa [colors] using (newF_spec q).1,
+          ?_⟩
+        have hm := (newF_spec q).2
+        rcases positive with _ | _
+        · obtain ⟨hF, haF, hpartner⟩ := hm
+          let q' : ↑(S.traceKeys X) :=
+            ⟨(q.val.1, insert (newF (rep q)) q.val.2), by
+              rw [traceKeys, Finset.mem_biUnion]
+              exact ⟨q.val.1, label_mem q,
+                Finset.mem_image.2 ⟨_, hpartner, rfl⟩⟩⟩
+          refine ⟨allRep q', by simpa [colors] using Set.mem_range_self q',
+            ?_, ?_, ?_, ?_⟩
+          · intro i
+            refine ⟨S.f i (rep q), (hlift i _ (rep_mem q) _).2 rfl, ?_⟩
+            apply (hlift i _ (allRep_mem q') _).2
+            have hall := congrArg Prod.fst (allRep_key q')
+            have hrep := congrArg Prod.fst (rep_key q)
+            exact congrFun (hall.trans hrep.symm) i
+          · intro x hx hxa
+            have ht := congrArg Prod.snd (allRep_key q')
+            have htr := congrArg Prod.snd (rep_key q)
+            simp only [trace, Finset.ext_iff, Finset.mem_filter] at ht htr
+            specialize ht x; specialize htr x
+            have hins : x ∈ insert (newF (rep q)) q.val.2 ↔ x ∈ q.val.2 := by
+              simp [hxa]
+            rw [hins] at ht
+            have hxX : x ∈ X := by simpa [colors] using hx
+            constructor
+            · intro hadj
+              exact ((htr.trans ht.symm).1 ⟨hxX, hadj⟩).2
+            · intro hadj
+              exact ((htr.trans ht.symm).2 ⟨hxX, hadj⟩).2
+          · intro hs
+            exfalso
+            simpa [colors] using hs
+          · intro _
+            have haX0 : newF (rep q) ∈ X :=
+              Finset.filter_subset _ _ (hX' (newF_spec q).1)
+            constructor
+            · intro hadj
+              apply haF
+              rw [← congrArg Prod.snd (rep_key q)]
+              exact Finset.mem_filter.2 ⟨haX0, hadj⟩
+            · have ht : newF (rep q) ∈ trace G X (allRep q') := by
+                have htq : trace G X (allRep q') = q'.val.2 :=
+                  congrArg Prod.snd (allRep_key q')
+                rw [htq]
+                exact Finset.mem_insert_self _ _
+              exact (Finset.mem_filter.1 ht).2
+        · obtain ⟨hF, haF, hpartner⟩ := hm
+          let q' : ↑(S.traceKeys X) :=
+            ⟨(q.val.1, q.val.2.erase (newF (rep q))), by
+              rw [traceKeys, Finset.mem_biUnion]
+              exact ⟨q.val.1, label_mem q,
+                Finset.mem_image.2 ⟨_, hpartner, rfl⟩⟩⟩
+          refine ⟨allRep q', by simpa [colors] using Set.mem_range_self q',
+            ?_, ?_, ?_, ?_⟩
+          · intro i
+            refine ⟨S.f i (rep q), (hlift i _ (rep_mem q) _).2 rfl, ?_⟩
+            apply (hlift i _ (allRep_mem q') _).2
+            have hall := congrArg Prod.fst (allRep_key q')
+            have hrep := congrArg Prod.fst (rep_key q)
+            exact congrFun (hall.trans hrep.symm) i
+          · intro x hx hxa
+            have ht := congrArg Prod.snd (allRep_key q')
+            have htr := congrArg Prod.snd (rep_key q)
+            simp only [trace, Finset.ext_iff, Finset.mem_filter] at ht htr
+            specialize ht x; specialize htr x
+            have herase : x ∈ q.val.2.erase (newF (rep q)) ↔ x ∈ q.val.2 := by
+              simp [hxa]
+            rw [herase] at ht
+            have hxX : x ∈ X := by simpa [colors] using hx
+            constructor
+            · intro hadj
+              exact ((htr.trans ht.symm).1 ⟨hxX, hadj⟩).2
+            · intro hadj
+              exact ((htr.trans ht.symm).2 ⟨hxX, hadj⟩).2
+          · intro _
+            have haX0 : newF (rep q) ∈ X :=
+              Finset.filter_subset _ _ (hX' (newF_spec q).1)
+            constructor
+            · have ht : newF (rep q) ∈ trace G X (rep q) := by
+                have htq : trace G X (rep q) = q.val.2 :=
+                  congrArg Prod.snd (rep_key q)
+                rw [htq]
+                exact haF
+              exact (Finset.mem_filter.1 ht).2
+            · intro hadj
+              have ht : newF (rep q) ∈ trace G X (allRep q') :=
+                Finset.mem_filter.2 ⟨haX0, hadj⟩
+              have htq : trace G X (allRep q') = q'.val.2 :=
+                congrArg Prod.snd (allRep_key q')
+              rw [htq] at ht
+              exact (Finset.mem_erase.1 ht).1 rfl
+          · intro hs
+            exfalso
+            apply hs
+            exact ⟨rep q, by simp [colors]⟩
+      · rintro ⟨hbs, haX', b', hb'rep, hsame, htrace, hpos, hneg⟩
+        have hb'rep' : b' ∈ Set.range allRep := by
+          simpa [colors] using hb'rep
+        obtain ⟨qb, rfl⟩ := hb'rep'
+        have hsameLabels : S.tup (allRep qb) = q.val.1 := by
+          have heq : S.tup (rep q) = S.tup (allRep qb) := by
+            funext i
+            obtain ⟨z, hz, hz'⟩ := hsame i
+            exact ((hlift i _ (rep_mem q) z).1 hz).trans
+              ((hlift i _ (allRep_mem qb) z).1 hz').symm
+          exact heq.symm.trans (congrArg Prod.fst (rep_key q))
+        have htraceX (x : Fin n) (hx : x ∈ X) (hxa : x ≠ a) :
+            G.Adj (rep q) x ↔ G.Adj (allRep qb) x := by
+          exact htrace x (by simpa [colors] using hx) hxa
+        have hrepTrace : trace G X (rep q) = q.val.2 :=
+          congrArg Prod.snd (rep_key q)
+        have hF : q.val.2 ∈ S.restrictedPartTraces X q.val.1 := by
+          rw [restrictedPartTraces]
+          refine Finset.mem_image.2 ⟨trace G S.core (rep q), ?_, ?_⟩
+          · exact (S.mem_partTraces_iff _ _).2
+              ⟨rep q, rep_mem q, congrArg Prod.fst (rep_key q), rfl⟩
+          · exact (trace_inter_eq_of_subset G S.core X hX (rep q)).trans hrepTrace
+        have haX'mem : a ∈ X' := by simpa [colors] using haX'
+        apply newF_unique q a
+        constructor
+        · exact haX'mem
+        · rcases positive with _ | _
+          · simp only [MergeAt, Bool.false_eq, SetSystems.VNeg]
+            refine ⟨hF, ?_, ?_⟩
+            · intro haq
+              have hat : a ∈ trace G X (rep q) := by simpa [hrepTrace] using haq
+              exact (hneg (by simp [colors])).1 (Finset.mem_filter.1 hat).2
+            · rw [restrictedPartTraces]
+              refine Finset.mem_image.2 ⟨trace G S.core (allRep qb), ?_, ?_⟩
+              · exact (S.mem_partTraces_iff _ _).2
+                  ⟨allRep qb, allRep_mem qb, hsameLabels, rfl⟩
+              · rw [trace_inter_eq_of_subset G S.core X hX (allRep qb)]
+                ext x
+                simp only [trace, Finset.mem_filter, Finset.mem_insert]
+                by_cases hxa : x = a
+                · subst x
+                  have haX : a ∈ X :=
+                    Finset.filter_subset _ _ (hX' haX'mem)
+                  have hadj := (hneg (by simp [colors])).2
+                  simp [haX, hadj]
+                · have hxq : x ∈ q.val.2 ↔ x ∈ X ∧ G.Adj (rep q) x := by
+                    rw [← hrepTrace]
+                    simp [trace]
+                  rw [or_iff_right hxa, hxq]
+                  constructor
+                  · rintro ⟨hx, hadj⟩
+                    exact ⟨hx, (htraceX x hx hxa).2 hadj⟩
+                  · rintro ⟨hx, hadj⟩
+                    exact ⟨hx, (htraceX x hx hxa).1 hadj⟩
+          · simp only [MergeAt, if_true, SetSystems.VPos]
+            refine ⟨hF, ?_, ?_⟩
+            · have haX : a ∈ X :=
+                  Finset.filter_subset _ _ (hX' haX'mem)
+              have hat : a ∈ trace G X (rep q) :=
+                Finset.mem_filter.2 ⟨haX, (hpos ⟨rep q, by simp [colors]⟩).1⟩
+              rw [hrepTrace] at hat
+              exact hat
+            · have hsign : (colors ⟨5 * k + 4, by omega⟩).Nonempty :=
+                ⟨rep q, by simp [colors]⟩
+              rw [restrictedPartTraces]
+              refine Finset.mem_image.2 ⟨trace G S.core (allRep qb), ?_, ?_⟩
+              · exact (S.mem_partTraces_iff _ _).2
+                  ⟨allRep qb, allRep_mem qb, hsameLabels, rfl⟩
+              · rw [trace_inter_eq_of_subset G S.core X hX (allRep qb)]
+                ext x
+                simp only [trace, Finset.mem_filter, Finset.mem_erase]
+                by_cases hxa : x = a
+                · subst x
+                  have hsign : (colors ⟨5 * k + 4, by omega⟩).Nonempty :=
+                    ⟨rep q, by simp [colors]⟩
+                  have hadj := (hpos hsign).2
+                  simp [hadj]
+                · have hxq : x ∈ q.val.2 ↔ x ∈ X ∧ G.Adj (rep q) x := by
+                    rw [← hrepTrace]
+                    simp [trace]
+                  rw [hxq]
+                  constructor
+                  · rintro ⟨hx, hadj⟩
+                    exact ⟨hxa, hx, (htraceX x hx hxa).2 hadj⟩
+                  · rintro ⟨-, hx, hadj⟩
+                    exact ⟨hx, (htraceX x hx hxa).1 hadj⟩
+    · have hformula : sparsFormulas (k + 1) (Fin.castSucc i) =
+          liftFormula (by omega) (sparsFormulas k i) := by simp [sparsFormulas]
+      rw [hformula]
+      rw [realizeIn_liftFormula]
+      simpa [S', f', Fin.snoc, colors] using
+        (holdColors i (rep q) (rep_mem q) a)
+  · simpa [stepLoss, S', Sparsification.size, supp',
+      Finset.card_image_of_injective _ rep_inj] using hloss
 
 theorem one_le_stepLoss (d : ℕ) {x : ℝ} (hx : 1 ≤ x) :
     1 ≤ stepLoss d x := by
