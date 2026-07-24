@@ -1,0 +1,29 @@
+specVersion: "1"
+id: Lax5
+leanVersion: "v4.30.0"
+mathlibVersion: "c5ea00351c28e24afc9f0f84379aa41082b1188f"
+title: Almost Linear Neighborhood Complexity of Monadically Dependent Graph Classes
+authors:
+  - name: Jan Dreier
+bibEntries:
+  - |
+    @misc{DreierMahlmannMcCartyPilipczukTorunczyk2026,
+      author        = {Dreier, Jan and M{\"a}hlmann, Nikolas and McCarty, Rose
+                       and Pilipczuk, Micha{\l} and Toru{\'n}czyk, Szymon},
+      title         = {Neighborhood Complexity and Radius-1 Merge-Width in
+                       Monadically Dependent Graph Classes},
+      year          = {2026},
+      eprint        = {2607.10941},
+      archivePrefix = {arXiv}
+    }
+  - |
+    @article{AdlerAdler2014,
+      author  = {Adler, Hans and Adler, Isolde},
+      title   = {Interpreting nowhere dense graph classes as a classical
+                 notion of model theory},
+      journal = {European Journal of Combinatorics},
+      volume  = {36},
+      pages   = {322--330},
+      year    = {2014},
+      doi     = {10.1016/j.ejc.2013.06.048}
+    }
