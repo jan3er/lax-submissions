@@ -155,7 +155,7 @@ Proof-package-only machinery (invisible to reviewers, can be ugly):
      trace keys; the resulting `(k+1)`-sparsification has the required VC
      drop, R1 definability, injectivity, and exact quantitative loss.
    - 4b'' remaining leaf: [VC].
-   - 4c in progress: the subpolynomial weak-coloring-number chain is restored
+   - 4c ✅: the subpolynomial weak-coloring-number chain is restored
      and bridged to the submitted permutation-based `wcol`. The first
      neighborhood-counting layer is now proved: nowhere denseness excludes a
      uniform `K_{t,t}`; this bounds the VC dimension of every self-or-adjacent
@@ -166,9 +166,11 @@ Proof-package-only machinery (invisible to reviewers, can be ugly):
      the separator, outside vertices are classified by separator profiles,
      every separator localizes inside one radius-2 weak-reachability set, and
      the resulting number of neighborhood traces is `|A|` times an explicit
-     polynomial in `wcol₂`. Remaining: polynomial witness localization to an
-     induced subgraph, transport through its canonical `Fin m` copy, and the
-     final asymptotic rescaling in Cor 6b.
+     polynomial in `wcol₂`. Polynomial witness localization chooses one
+     representative per trace, transports the induced graph through its
+     canonical `Fin m` copy, and bounds `m` polynomially in `|A|`; applying
+     subpolynomial `wcol₂` at a rescaled exponent finishes Corollary 6b.
+     The proof is sorry-free.
 
 Guideline: first principles, weigh pros and cons carefully — flagship
 standards. Rewrite this file as things crystalize.

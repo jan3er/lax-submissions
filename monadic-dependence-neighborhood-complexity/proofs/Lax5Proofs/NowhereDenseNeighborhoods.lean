@@ -812,6 +812,44 @@ theorem card_neighborTraceFamily_le_of_wreach {n d t : ℕ}
 def orderCountingPolynomial (t d : ℕ) : ℕ :=
   d + tracePolynomial t d + d * tracePolynomial t d ^ 2
 
+/-- A single monomial upper bound for the fixed-order polynomial. -/
+theorem orderCountingPolynomial_le (t d : ℕ) :
+    orderCountingPolynomial t d ≤
+      (1 + (3 * t + 1) + (3 * t + 1) ^ 2) *
+        (d + 1) ^ (6 * t + 1) := by
+  let C := 3 * t + 1
+  let x := d + 1
+  have hx : 1 ≤ x := by simp [x]
+  have hd : d ≤ x := by simp [x]
+  have hD : 3 * t ≤ 6 * t + 1 := by omega
+  have h2D : 2 * (3 * t) + 1 = 6 * t + 1 := by omega
+  have hpD : x ^ (3 * t) ≤ x ^ (6 * t + 1) := by gcongr
+  have hpd : d ≤ x ^ (6 * t + 1) := by
+    calc d ≤ x := hd
+      _ ≤ x ^ (6 * t + 1) := by
+        simpa only [pow_one] using
+          (pow_le_pow_right₀ hx (show 1 ≤ 6 * t + 1 by omega) :
+            x ^ 1 ≤ x ^ (6 * t + 1))
+  have hlast : d * (C * x ^ (3 * t)) ^ 2 ≤
+      C ^ 2 * x ^ (6 * t + 1) := by
+    calc
+      d * (C * x ^ (3 * t)) ^ 2
+          ≤ x * (C * x ^ (3 * t)) ^ 2 := by gcongr
+      _ = C ^ 2 * (x * x ^ ((3 * t) * 2)) := by
+        simp only [pow_two, pow_mul]
+        ring
+      _ = C ^ 2 * x ^ ((3 * t) * 2 + 1) := by
+        rw [pow_succ]
+        ring
+      _ = C ^ 2 * x ^ (6 * t + 1) := by congr 2 <;> omega
+  change d + C * x ^ (3 * t) + d * (C * x ^ (3 * t)) ^ 2 ≤
+    (1 + C + C ^ 2) * x ^ (6 * t + 1)
+  calc
+    d + C * x ^ (3 * t) + d * (C * x ^ (3 * t)) ^ 2
+        ≤ x ^ (6 * t + 1) + C * x ^ (6 * t + 1) +
+            C ^ 2 * x ^ (6 * t + 1) := by gcongr
+    _ = (1 + C + C ^ 2) * x ^ (6 * t + 1) := by ring
+
 /-- Multiplicative form of the fixed-order counting theorem for nonempty
 target sets. -/
 theorem card_neighborTraceFamily_le_mul_of_wreach {n d t : ℕ}
@@ -832,5 +870,135 @@ theorem card_neighborTraceFamily_le_mul_of_wreach {n d t : ℕ}
     _ = A.card * orderCountingPolynomial t d := by
       simp only [orderCountingPolynomial, P]
       ring
+
+/-! ## Polynomial witness localization -/
+
+/-- Every neighborhood trace on `A` is already realized in an induced copy
+on `A` together with one representative per trace.  The coarse VC bound
+makes the resulting carrier polynomial in `|A|`. -/
+theorem exists_localized_copy {n t : ℕ} (G : SimpleGraph (Fin n))
+    (A : Finset (Fin n)) (hKt : ¬ HasBiclique G t) :
+    ∃ (m : ℕ) (H : SimpleGraph (Fin m)) (A' : Finset (Fin m)),
+      H ⊑ G ∧ ¬ HasBiclique H t ∧ A'.card = A.card ∧
+      (Finset.univ.image (neighborTrace G A)).card ≤
+        (Finset.univ.image (neighborTrace H A')).card ∧
+      m ≤ A.card + (3 * t + 1) * (A.card + 1) ^ (3 * t) := by
+  classical
+  let T := Finset.univ.image (neighborTrace G A)
+  have rep_exists (q : ↑T) : ∃ u : Fin n, neighborTrace G A u = q.val := by
+    obtain ⟨u, -, hu⟩ := Finset.mem_image.1 q.property
+    exact ⟨u, hu⟩
+  let rep : ↑T → Fin n := fun q => Classical.choose (rep_exists q)
+  have rep_key (q : ↑T) : neighborTrace G A (rep q) = q.val :=
+    Classical.choose_spec (rep_exists q)
+  have rep_inj : Function.Injective rep := by
+    intro q q' hqq'
+    apply Subtype.ext
+    rw [← rep_key q, ← rep_key q', hqq']
+  let reps : Finset (Fin n) := T.attach.image rep
+  have hreps_card : reps.card = T.card := by
+    rw [show reps = T.attach.image rep by rfl, Finset.card_image_of_injective _ rep_inj]
+    simp
+  have hrep_mem (q : ↑T) : rep q ∈ reps := by
+    refine Finset.mem_image.2 ⟨q, ?_, rfl⟩
+    simp
+  let X := A ∪ reps
+  let e := X.orderIsoOfFin rfl
+  let E : Fin X.card ↪ Fin n :=
+    ⟨fun i => (e i).val, fun i j hij => e.injective (Subtype.ext hij)⟩
+  let H : SimpleGraph (Fin X.card) := G.comap E
+  let A' : Finset (Fin X.card) := Finset.univ.filter fun i => E i ∈ A
+  have hA'_iff (i : Fin X.card) : i ∈ A' ↔ E i ∈ A := by
+    simp [A']
+  have hA'_card : A'.card = A.card := by
+    let f : ↑A' → ↑A := fun i =>
+      ⟨E i.val, (hA'_iff i.val).1 i.property⟩
+    have hf_inj : Function.Injective f := fun i j hij => by
+      apply Subtype.ext
+      have hE : E i.val = E j.val := by
+        simpa [f] using congrArg Subtype.val hij
+      exact E.injective hE
+    have hf_surj : Function.Surjective f := by
+      intro a
+      have haX : a.val ∈ X := Finset.mem_union_left reps a.property
+      let i : Fin X.card := e.symm ⟨a.val, haX⟩
+      have hEi : E i = a.val := by
+        simp [E, i]
+      have hiA' : i ∈ A' := (hA'_iff i).2 (hEi ▸ a.property)
+      refine ⟨⟨i, hiA'⟩, ?_⟩
+      apply Subtype.ext
+      exact hEi
+    simpa only [Fintype.card_coe] using
+      Fintype.card_congr (Equiv.ofBijective f ⟨hf_inj, hf_surj⟩)
+  let lift : ↑T → Finset (Fin X.card) := fun q =>
+    neighborTrace H A' (e.symm ⟨rep q,
+      Finset.mem_union_right A (hrep_mem q)⟩)
+  have lift_inj : Function.Injective lift := by
+    intro q q' hqq'
+    apply Subtype.ext
+    apply Finset.ext
+    intro x
+    have hxsub : x ∈ q.val → x ∈ A := by
+      intro hx
+      rw [← rep_key q] at hx
+      exact (mem_neighborTrace_iff G A (rep q) x).1 hx |>.1
+    have hxsub' : x ∈ q'.val → x ∈ A := by
+      intro hx
+      rw [← rep_key q'] at hx
+      exact (mem_neighborTrace_iff G A (rep q') x).1 hx |>.1
+    by_cases hxA : x ∈ A
+    · have hxX : x ∈ X := Finset.mem_union_left reps hxA
+      let i : Fin X.card := e.symm ⟨x, hxX⟩
+      have hEi : E i = x := by simp [E, i]
+      have hiA' : i ∈ A' := (hA'_iff i).2 (hEi ▸ hxA)
+      have hmem (r : ↑T) :
+          i ∈ lift r ↔ x ∈ r.val := by
+        rw [show lift r = neighborTrace H A'
+          (e.symm ⟨rep r, Finset.mem_union_right A (hrep_mem r)⟩) by rfl,
+          mem_neighborTrace_iff]
+        simp only [hiA', true_and]
+        change G.Adj (E (e.symm ⟨rep r,
+          Finset.mem_union_right A (hrep_mem r)⟩)) (E i) ↔ x ∈ r.val
+        simp only [E, hEi]
+        rw [← rep_key r, mem_neighborTrace_iff]
+        simp [hxA, G.adj_comm]
+      rw [← hmem q, hqq', hmem q']
+    · constructor <;> intro hx
+      · exact absurd (hxsub hx) hxA
+      · exact absurd (hxsub' hx) hxA
+  refine ⟨X.card, H, A', ?_, ?_, hA'_card, ?_, ?_⟩
+  · exact ⟨{
+      toHom := {
+        toFun := E
+        map_rel' := fun h => h }
+      injective' := E.injective }⟩
+  · intro hbic
+    rcases hbic with ⟨l, r, hl, hr, hlr, hadj⟩
+    apply hKt
+    refine ⟨E ∘ l, E ∘ r, E.injective.comp hl, E.injective.comp hr, ?_, ?_⟩
+    · rw [Set.disjoint_left]
+      intro x ⟨i, hi⟩ ⟨j, hj⟩
+      exact Set.disjoint_left.1 hlr
+        ⟨i, rfl⟩ ⟨j, (E.injective (hi.trans hj.symm)).symm⟩
+    · intro i j
+      exact hadj i j
+  · calc
+      T.card = (T.attach.image lift).card := by
+        rw [Finset.card_image_of_injective _ lift_inj]
+        simp
+      _ ≤ (Finset.univ.image (neighborTrace H A')).card := by
+        apply Finset.card_le_card
+        intro F hF
+        obtain ⟨q, -, rfl⟩ := Finset.mem_image.1 hF
+        exact Finset.mem_image.2 ⟨e.symm ⟨rep q,
+          Finset.mem_union_right A (hrep_mem q)⟩, Finset.mem_univ _, rfl⟩
+  · calc
+      X.card ≤ A.card + reps.card := by
+        change (A ∪ reps).card ≤ A.card + reps.card
+        exact Finset.card_union_le A reps
+      _ = A.card + T.card := by rw [hreps_card]
+      _ ≤ A.card + (3 * t + 1) * (A.card + 1) ^ (3 * t) := by
+        gcongr
+        exact card_neighborTraces_le G t hKt A
 
 end Lax5Proofs.NowhereDenseNeighborhoods
