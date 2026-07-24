@@ -1,0 +1,1145 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,thm-restate}
+\usepackage[hidelinks]{hyperref}
+\usepackage[capitalize]{cleveref}
+\usepackage{mathtools}
+\usepackage{mathrsfs}
+\usepackage{microtype}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc} 
+\usepackage[switch]{lineno}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{observation}[theorem]{Observation}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+
+
+\usepackage{xcolor}
+\usepackage[textsize=tiny]{todonotes}
+\newcommand{\CC}{{\mathscr C}}
+\newcommand{\DD}{{\mathscr D}}
+\newcommand{\BB}{{\mathscr B}}
+\newcommand{\QQ}{{\mathcal Q}}
+\newcommand{\PP}{{\mathcal P}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\jan}[1]{\begin{janin}#1\end{janin}}
+% \newcommand{\janin}[1]{\todo[inline,size=\normalsize,color=orange!40,caption={}]{Jan: #1}}
+\newcommand{\niko}[1]{\todo[color=green!40]{Niko: #1}}
+\newcommand{\nikoin}[1]{\todo[inline,size=\normalsize,color=green!40,caption={}]{Niko: #1}}
+\newcommand{\szym}[1]{\todo[color=blue!40]{Szymon: #1}}
+\newcommand{\szymin}[1]{\begin{szin}#1\end{szin}}
+\newcommand{\mipi}[1]{\todo[color=pink!40]{Michał: #1}}
+\newcommand{\mipiin}[1]{\todo[inline,size=\normalsize,color=pink!40,caption={}]{Michał: #1}}
+\newcommand{\rose}[1]{\todo[color=purple!40]{Rose: #1}}
+\newcommand{\RMM}[1]{\begin{RMMin}#1\end{RMMin}}
+
+\newcommand{\eps}{\varepsilon}
+\newcommand{\Oh}{\mathcal{O}}
+\newcommand{\inAppendix}{$\clubsuit$}%RMM ADDED
+\newcommand{\inducedSS}[2]{#1/#2}%RMM ADDED
+
+\renewcommand{\leq}{\leqslant}
+\renewcommand{\le}{\leqslant}
+\renewcommand{\geq}{\geqslant}
+\renewcommand{\ge}{\geqslant}
+\renewcommand{\subset}{\subseteq}
+\newcommand{\set}[1]{\{#1\}}
+\newcommand{\setof}[2]{\set{#1 \,|\, #2 }}
+\newcommand{\from}{\colon}
+\newcommand{\res}[1]{{\downharpoonright}_{#1}}
+\renewcommand{\cal}{\mathcal}
+
+\DeclareMathOperator{\VCdim}{VCdim}
+\DeclareMathOperator{\polylog}{polylog}
+\DeclareMathOperator{\poly}{poly}
+\DeclareMathOperator{\subpoly}{subpoly}
+
+% More compact itemizes
+\usepackage{enumitem}
+\setlist[itemize]{topsep=4pt,itemsep=3pt,parsep=0pt} 
+\setlist[enumerate]{topsep=4pt,itemsep=3pt,parsep=0pt}
+\setlist[description]{topsep=4pt,itemsep=3pt,parsep=0pt} 
+
+\usepackage{comment}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+
+\newif\ifcomments
+\commentstrue        % set to \commentsfalse to hide all comments
+
+\newlength{\NormalParindent}
+\newlength{\NormalParskip}
+\AtBeginDocument{%
+  \setlength{\NormalParindent}{\parindent}%
+  \setlength{\NormalParskip}{\parskip}%
+}
+
+\newcommand{\createCommentEnv}[3]{%
+  \ifcomments
+     \newtcolorbox{#1}{
+      breakable, enhanced,
+      colback=#3!10,
+      colframe=#3,
+      boxrule=1pt,
+      borderline west={2pt}{0pt}{#3},
+      left=10pt,right=10pt,top=5pt,bottom=5pt,
+      boxsep=0pt,      
+      before skip=\NormalParskip,
+      after skip=\NormalParskip,      
+      title={\bfseries #2:},
+      % stick out into margins:
+      width=\dimexpr\linewidth+10pt\relax,
+      left skip=-10pt,
+      % keep normal paragraph formatting:
+      before upper={
+        \setlength{\parindent}{\NormalParindent}
+        \setlength{\parskip}{\NormalParskip}
+      },
+    }%
+  \else
+    \excludecomment{#1}%
+  \fi
+}
+
+
+\createCommentEnv{szin}{Sz}{red}
+\createCommentEnv{janin}{Jan}{green}
+\createCommentEnv{RMMin}{RMM}{orange}
+\createCommentEnv{claudein}{Claude}{cyan}
+%\newcommand{\claude}[1]{\begin{claudein}#1\end{claudein}}
+%\createCommentEnv{oldin}{Old}{gray}
+%\newcommand{\old}[1]{\begin{oldin}#1\end{oldin}}
+%\createCommentEnv{newin}{New}{green!50!black}
+%\newcommand{\new}[1]{\begin{newin}#1\end{newin}}
+%\DeclareRobustCommand{\revold}[1]{\textcolor{red!65!black}{\textsf{[old: #1]}}}
+%\DeclareRobustCommand{\revnew}[1]{\textcolor{green!45!black}{\textsf{[new: #1]}}}
+
+% %%% LEFTBAR BEGIN %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \usepackage{framed}
+% %https://tex.stackexchange.com/questions/50612/alignment-in-the-leftbar-environment-is-rightbar-possible
+% \newlength{\leftbarwidth}
+% \setlength{\leftbarwidth}{3pt}
+% \newlength{\leftbarsep}
+% \setlength{\leftbarsep}{10pt}
+
+% \renewenvironment{leftbar}[1][blue]
+% {%
+% \def\FrameCommand
+% {%
+% {\hspace{-8pt} \color{#1} \vrule width 3pt}%
+% \hspace{0pt}%must no space.
+% \fboxsep=\FrameSep\colorbox{#1!5!}%
+% }%
+% \MakeFramed{\hsize\hsize\advance\hsize-\width\FrameRestore}%
+% }
+% {\endMakeFramed}
+% \setlength{\FrameSep}{5pt}
+% %%% LEFTBAR END %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+% \makeatletter
+% %define \szin environment, which which ignores its content if todonotes is used with "disabled" option, and shows a comment otherwise
+
+% \newcommand{\createCommentEnv}[2]{%
+%   \if@todonotes@disabled
+%     \excludecomment{#1}%
+%   \else
+%     \newenvironment{#1}{\begin{leftbar}[#2]{\noindent\bf}}{\end{leftbar}}%
+%   \fi
+% }
+% \makeatother
+
+% \createCommentEnv{szin}{red}
+% \createCommentEnv{janin}{blue}
+% \createCommentEnv{RMM}{orange}
+
+%   \if@todonotes@disabled % Check todnotes is used with disabled option
+%   \excludecomment{szin}
+%   \excludecomment{janin}
+%   \excludecomment{RMM}
+%   \else %todonotes enabled
+%   \newenvironment{szin}{\begin{leftbar}[red]{\noindent\bf sz: }}{\end{leftbar}}
+%   \newenvironment{RMM}{\begin{leftbar}[orang]{\noindent\bf sz: }}{\end{leftbar}}
+%   \fi
+%   \if@todonotes@disabled % Check todnotes is used with disabled option
+%   \excludecomment{janin}
+%   \else %todonotes enabled
+%   \newenvironment{janin}{\begin{leftbar}[blue]{\noindent\bf Jan: }}{\end{leftbar}}
+%   \fi
+
+% \makeatother
+
+
+
+\let\phi\varphi
+\let\epsilon\varepsilon
+\newcommand{\Pp}{\mathcal{P}}
+
+
+
+\newcommand{\funding}{
+  NM received funding from the European Union through an ERA Fellowship with grant agreement No.\ 101334340 -- LoCoMoDe.
+  RM was supported by the National Science Foundation under Grant No.\ DMS-2452111.
+  MP was supported by the project BOBR that has received funding from the European Research Council (ERC) under the European Union’s Horizon 2020 research and innovation programme, grant agreement No.\ 948057.
+  SzT received funding from the European Research Council (ERC) with grant agreement No.\ 101126229 -- BUKA.\\[0.5em]
+\hspace*{\fill}\includegraphics[width=40px]{logo-eu.png}\hspace{1em}\includegraphics[width=40px]{logo-erc.jpg}
+}
+
+
+\begin{document}
+
+\title{Neighborhood Complexity and Radius-1 Merge-Width\\ in Monadically Dependent Graph Classes\footnote{\funding}}
+ \author{Jan Dreier, Nikolas M{\"a}hlmann, Rose McCarty, Michał Pilipczuk, Szymon Toruńczyk}
+\date{\today}
+\date{}
+
+\maketitle
+\thispagestyle{empty}
+% \linenumbers
+
+
+\begin{abstract}
+Monadic dependence is a proposed structural dividing line for fixed-parameter tractability of first-order model checking on hereditary graph classes. A graph class is \emph{monadically dependent} if the class of all graphs cannot be interpreted in its vertex-colored members using a fixed first-order formula. We prove two structural consequences of monadic dependence. First, every monadically dependent class has \emph{almost linear neighborhood complexity}: for every graph $G$ in the class and every set $A\subseteq V(G)$, the family $\{N_G(v)\cap A : v\in V(G)\}$ has size $|A|^{1+o(1)}$. Second, every $n$-vertex graph in a monadically dependent class has radius-1 merge-width $n^{o(1)}$. Here, merge-width is the decomposition parameter of Dreier and Toru\'nczyk based on construction sequences; its radius-$r$ version measures local reachability among parts through already resolved pairs. This settles the radius-1 case of the conjectured connection between monadic dependence and almost bounded merge-width and 
+provides the first decomposition-based structural description of monadically dependent graph classes. Our proof is algorithmic: we give an $\mathcal{O}(n^5)$-time algorithm that, given an $n$-vertex graph $G$ such that $|\{N_G(v)\cap A : v\in V(G)\}|\le \Oh(|A|^d)$ for every $A\subseteq V(G)$, computes a construction sequence witnessing radius-1 merge-width $\mathcal{O}(n^{1-1/d}\log n)$.
+
+	% \szym{polish}A graph class $\CC$ is \emph{monadically dependent} if one cannot interpret all graphs in vertex-colored graphs from $\CC$ using a fixed formula of first-order logic. While originating in model theory, monadic dependence is conjectured to constitute an important dividing line in complexity theory:
+  % It is conjectured that a hereditary graph class admits a fixed-parameter tractable model checking algorithm for first-order logic if and only if it is monadically dependent.
+	
+	% As the next step in this program, we prove that every monadically dependent class $\CC$ enjoys the following two structural properties:
+	% \begin{itemize}
+	% 	\item \emph{Almost linear neighborhood complexity}: For any graph $G\in \CC$ and any subset of vertices $A\subseteq V(G)$, the number of distinct neighborhoods within $A$ that the vertices of $G$ can have is bounded by $|A|^{1+o(1)}$.
+	% 	\item \emph{Almost bounded radius-$1$ merge-width}: Every $n$-vertex graph $G\in \CC$ has radius-$1$ merge-width bounded by $n^{o(1)}$. 
+	% \end{itemize}
+	% Merge-width is a family of graph parameters introduced by Dreier and Toru\'nczyk~[STOC~'25] with the intention of characterizing monadically dependent graph classes by means of a global decomposition. Thus, our result provides the first decompositional description of graphs from monadically dependent classes. 
+    
+  %   Our methods are algorithmic. We obtain an $\mathcal{O}(n^5)$-time algorithm which takes in an $n$-vertex graph $G$ and computes a construction sequence certifying that the radius-1 merge-width is $\mathcal{O}(n^{1-1/d}\log n)$ when the neighborhood complexity of $G$ is bounded by a polynomial of degree~$d$.
+\end{abstract}
+
+% \vfill
+
+% \paragraph{AI Disclosure.} 
+% We used Claude Code with Opus 4.6 and ChatGPT Pro 5.4  for proofreading, refactoring, and improving the presentation of the text; all mathematical results are due to the authors.
+% % The tools significantly affected \Cref{sec:intro} and \Cref{sec:merge-width}, but also other parts of the paper.
+% The authors verified the correctness and originality of all content including references.
+
+% \newpage
+
+\setcounter{page}{1}
+
+\section{Introduction}\label{sec:intro}
+
+In the \emph{first-order model checking} problem, the input 
+is a graph (or other structure) and a sentence $\varphi$ of first-order logic, and the task is to decide whether \(\varphi\) is true in \(G\).
+This fundamental problem captures many concrete problems of interest,
+including $k$-Clique, $k$-Dominating Set, and $k$-Independent Set, and
+has been the focus of decades of research aimed at understanding which structural restrictions on the input graph render the problem tractable. 
+
+A landmark result of Grohe, Kreutzer, and Siebertz~\cite{grohe2017deciding} established that first-order model checking is fixed-parameter tractable on every \emph{nowhere dense} graph class; the running time of the algorithm is of the form $f(|\varphi|)\cdot n^{1+o(1)}$, where $f$ is a function depending on the class and the $o(1)$ term also depends on the class. For \emph{monotone} (subgraph-closed) graph classes, nowhere denseness is precisely the dividing line between (fixed-parameter) tractability and intractability~\cite{DvorakKT13-journal, grohe2017deciding}. However, there are natural tractable classes --- such as classes of bounded clique-width~\cite{courcelle2000linear} or twin-width~\cite{twwI} --- that are not monotone, contain dense graphs, and hence lie beyond the scope of this classification.
+
+The search for the exact tractability boundary among all \emph{hereditary} (induced-subgraph-closed) graph classes has converged on a notion from Shelah's classification theory: \emph{monadic dependence}~\cite{baldwin1985second}. A graph class $\CC$ is \emph{monadically dependent} if one cannot interpret all graphs in vertex-colored graphs from $\CC$ using a fixed first-order formula. Monadic dependence precisely captures the known tractability boundaries in all settings where a complete classification exists: it is equivalent to nowhere denseness for monotone classes~\cite{adler2014interpreting}, to monadic stability for orderless classes~\cite{nevsetvril2021rankwidth}, and to bounded twin-width for classes of ordered graphs~\cite{twwIV}. This has led to the following conjecture, which is now the central open problem in the area.
+
+\begin{conjecture}[e.g., \cite{warwick-problems,twwIV,ssmc,bddeg}]\label{conj:main}
+Let $\CC$ be a hereditary class of graphs. Then the first-order model checking problem is fixed-parameter tractable on $\CC$ if and only if $\CC$ is monadically dependent.
+\end{conjecture}
+
+The hardness direction of \Cref{conj:main} was recently confirmed: first-order model checking is AW[$*$]-hard on every hereditary graph class that is not monadically dependent~\cite{flip-breakability}. (Here, AW[$*$] is a parameterized complexity class that can be understood as the parameterized analogue of~PSPACE. In particular, it is strongly believed that AW[$*$]$\neq$FPT.) Tractability has been established for increasingly general subclasses: nowhere dense classes~\cite{grohe2017deciding}, structurally nowhere dense classes~\cite{ssmc}, and monadically stable classes~\cite{stable_MC}.
+Yet the full tractability direction for all monadically dependent classes remains open.
+
+Very recently, Dreier and Toru\'nczyk~\cite{mw-mc} suggested a possible line of attack towards \cref{conj:main}. Inspired by \emph{twin-width}~\cite{twwI} and \emph{flip-width}~\cite{flipwidth}, they introduced a family of graph parameters called \emph{merge-width}, indexed by a radius parameter $r\in \N$. They conjectured that every monadically dependent class has \emph{almost bounded merge-width} (i.e., for every fixed $r$, the radius-$r$ merge-width of $n$-vertex graphs in the class is $n^{o(1)}$), and showed that first-order model checking is fixed-parameter tractable on graphs of \emph{bounded merge-width}, provided a suitable decomposition called a \emph{construction sequence} is supplied on input. A possible route towards \cref{conj:main} is then as follows:
+\begin{itemize}
+\item For a sufficiently high radius $r$ depending on the given sentence $\varphi$, compute a construction sequence of the input graph $G$ whose radius-$r$ merge-width is $|V(G)|^{o(1)}$.
+\item Then, use the obtained construction sequence to solve the model checking problem by an extension of the method from~\cite{mw-mc}.
+\end{itemize}
+In this work, we advance this line of work by the following contributions:
+\begin{description}%[leftmargin=*]
+	\item[\textbf{Result I:}] We prove that monadically dependent graph classes have \emph{almost linear neighborhood complexity}, as defined below.
+  % By a  result of Bonamy and Geniet~\cite{bonamy2025chiboundednessneighbourhoodcomplexitybounded}, this is a necessary step towards establishing that monadically dependent classes have almost bounded merge-width.
+	\item[\textbf{Result II:}] We leverage the bound on the neighborhood complexity to prove that monadically dependent classes have almost bounded radius-$1$ merge-width. This provides a first step towards the conjecture of Dreier and Toru\'nczyk. Importantly, our proof yields a polynomial-time algorithm that computes a construction sequence of radius-$1$ width $n^{o(1)}$.
+\end{description}
+We now describe these results and their relevance in more detail.
+%
+\begin{comment}
+\begin{RMMin}First of all, we prove that monadically dependent classes have almost linear neighborhood complexity. This property has played a role in all known tractable cases~\cite{stable_MC, ssmc, grohe2017deciding} and is widely believed to be a critical step towards \Cref{conj:main}. Secondly, we show how to use this property to efficiently compute contraction sequences with almost-bounded radius-$1$ merge-width. This is the first step towards addressing a second key barrier. Model checking algorithms are only known in classes of bounded twin-width~\cite{twwI} and bounded merge-width~\cite{mw-mc} when a contraction sequence is given as input to the algorithm. Computing contraction sequences is widely considered to be the main open problem for twin-width. Due to the difficulty of this problem, the hope is to find a way to side-step this issue by instead computing some more general types of contraction sequences. In particular, it is conjectured that monadically dependent classes are precisely the classes with almost bounded merge-width, and this provides a route to proving \Cref{conj:main}.\end{RMMin}
+\end{comment}
+
+\paragraph{Neighborhood complexity\!\!} is a 
+fundamental quantitative notion used in the study of well-structured graph classes. For a graph $G$ and 
+vertex set $A\subseteq V(G)$, the \emph{neighborhood complexity} of $A$ is the number of distinct sets of the form $N(v)\cap A$ for $v\in V(G)$, where $N(v)$ denotes the neighborhood of $v$.
+We say that a graph class $\CC$ has \emph{almost linear neighborhood complexity} if for every $G\in\CC$ and every $A\subseteq V(G)$,
+\[\Big|\set{N(v)\cap A\,:\, v\in V(G)}\Big| \leq |A|^{1+o(1)}.\]
+We remark that the $o(1)$ term hides a dependence on the graph class~$\CC$.
+% where the $\Oh_{\CC,\varepsilon}(\cdot)$-notation hides constants depending on \(\CC\) and \(\varepsilon\).
+
+In the language of set systems, this says that the set system of neighborhoods in graphs from $\CC$ has an almost linear shatter function, or VC density $1$.
+Neighborhood complexity has played a central role in the algorithmic theory of sparse and dense graph classes alike. It is known to be almost linear for nowhere dense classes~\cite{EickmeyerGKKPRS17}, %structurally nowhere dense classes~\cite{PilipczukST18a}, 
+and more generally, all monadically stable classes~\cite{stable_MC}, and   all classes of almost bounded merge-width \cite{bonamy2025chiboundednessneighbourhoodcomplexitybounded}.  All these classes are monadically dependent.
+ %In particular, the last result was vitally used in the fixed-parameter model checking algorithm on monadically stable classes~\cite{stable_MC}.
+
+Almost linear neighborhood complexity serves as a powerful entry point for establishing a range of quantitative structural properties.
+For example, a classic result of Welzl~\cite{Welzl88} shows that every graph class with almost linear neighborhood complexity admits vertex orderings with crossing number \(n^{o(1)}\).
+The key observation made in~\cite{stable_MC} was that Welzl orderings with crossing number \(n^{o(1)}\) can be used to efficiently construct \emph{sparse neighborhood covers} with overlap \(n^{o(1)}\). 
+These covers serve as a key ingredient in the model checking algorithms for nowhere dense and monadically stable classes~\cite{grohe2017deciding,ssmc,stable_MC}.
+
+% --- which were the key missing ingredient for the model checking algorithm on monadically stable classes~\cite{stable_MC}.
+
+Whether monadically dependent classes also have almost linear neighborhood complexity was posed as an open problem in~\cite{stable_MC}.
+Our first main result answers this question affirmatively.
+
+\begin{restatable}{theorem}{thmnc}\label{thm:nei-comp-NIP}
+Let $\CC$ be a monadically dependent graph class. Then for every $G\in \CC$ and $A\subseteq V(G)$,
+\[\Big|\set{N(v)\cap A\,:\, v\in V(G)}\Big| \leq |A|^{1+o(1)}.\]
+\end{restatable}
+\noindent As usual, the $o(1)$ term hides a dependence on the graph class $\CC$. 
+Equivalently, we prove that for every $\epsilon>0$ there is some $c=c(\epsilon, \CC)$ so that the cardinality above is bounded by $c|A|^{1+\epsilon}$.
+This result is essentially tight as already nowhere dense classes can have superlinear neighborhood complexity\footnote{The class $\CC \coloneqq \{G \mid \mathrm{maxdegree}(G) \leq \mathrm{girth}(G)\}$ is nowhere dense but has unbounded average degree~\cite[Lem.\ 8]{pilipczuk2017sparsity-lecture1}. The class of $1$-subdivisions of graphs from $\CC$ is still nowhere dense and has superlinear neighborhood complexity.}.
+
+The proof of the corresponding statement for monadically stable classes in~\cite{stable_MC} relies on a reduction to the nowhere dense case using tools from stability theory (Shelah's 2-rank/branching index). 
+Our proof of \Cref{thm:nei-comp-NIP} has a similar global structure, but uses induction on the VC-dimension instead of the branching index. This introduces technical difficulties which we overcome using ideas concerning set systems of bounded VC-dimension, originating in the work of Sauer and Shelah \cite{sauer1972sauershelah,shelah1972sauershelah}, and Haussler, Littlestone, Warmuth \cite{Haussler1994,Haussler95} in computational learning theory, such as the unit-distance graph (also called the Hamming graph).
+
+Combined with known results for graphs  of almost linear neighborhood complexity, \Cref{thm:nei-comp-NIP} has several immediate applications.
+%\revnew{Previously, almost linear neighborhood complexity was known for nowhere dense classes~\cite{EickmeyerGKKPRS17}, monadically stable classes~\cite{stable_MC}, and classes of almost bounded merge-width~\cite{bonamy2025chiboundednessneighbourhoodcomplexitybounded}. \Cref{thm:nei-comp-NIP} extends this structural input to all monadically dependent classes, so the consequences below apply beyond those earlier regimes.}
+
+\begin{corollary}\label{cor:consequences}
+  For every monadically dependent graph class $\CC$, every $n$-vertex graph $G\in\CC$ admits:  
+  \begin{itemize}
+    \item a vertex order (also called a spanning path) with crossing number $n^{o(1)}$ \cite{Welzl88},\\ which can be computed in time $(n+m)\cdot n^{o(1)}$ \cite{dreier2026nearlineartimecomputationwelzl},
+    \item a neighborhood cover with overlap $n^{o(1)}$ and strong radius $2$ \cite{stable_MC},
+    \item a spanner with stretch $4$ and $n^{1 + o(1)}$ edges\footnote{Take the neighborhood cover from the previous item. For each cluster $C$ with center $v$, keep for each vertex in $C$ the edges of a shortest path to $v$. See for example \cite{peleg1989spanners} for the definition of a spanner.},
+    \item an $n^{o(1)}$-bit adjacency labeling scheme/implicit representation \cite{Alon2023,adj-lab},
+    \item an algorithm solving All-Pairs Shortest Path in time $n^{2+o(1)}$, \\by combining  
+     \cite[Thm. 6.2]{twwIII} and \cite[Lem. 13]{duraj} (see also \cite[Thm. 11]{bonnet2026fastshortestpathgraphs}).
+  \end{itemize}
+\end{corollary}
+% The latter three items rely on the existence of a vertex order as in the first item.
+% The construction of such an order is algorithmic \cite{Welzl88}, and for a class $\CC$ with almost linear neighborhood complexity, there is a randomized algorithm computing such an order on a given graph $G\in\CC$ with $n$ vertices and $m$ edges in time $(n+m)\cdot n^{o(1)}$,
+% by the recent result of Dreier and Kuske \cite{dreier2026nearlineartimecomputationwelzl}.
+
+% Moreover, by combining the 
+% results \cite[Thm. 6.2]{twwIII} and \cite[Lem. 13]{duraj} (see also \cite[Thm. 11]{bonnet2026fastshortestpathgraphs}), we obtain the following.
+% \begin{corollary}
+%   Let $\CC$ be a monadically dependent graph class. Then,
+% All-Pairs Shortest Path can be solved in time $n^{2+o(1)}$ on $n$-vertex graphs in $\CC$.
+% \end{corollary}
+
+Previously, the results mentioned in \cref{cor:consequences} were known in more restrictive regimes where almost linear neighborhood complexity was settled, such as nowhere dense classes~\cite{EickmeyerGKKPRS17}, monadically stable classes~\cite{stable_MC}, and classes of almost bounded merge-width~\cite{bonamy2025chiboundednessneighbourhoodcomplexitybounded}. (The equivalence of the last one with monadic dependence on hereditary classes is the subject of the conjecture of Dreier and Toru\'nczyk~\cite{mw-mc}.)
+
+While neighborhood complexity has rich structural and algorithmic consequences, the overarching goal --- fixed-parameter tractable first-order model checking on monadically dependent classes --- demands more.
+Monadic dependence is defined by \emph{forbidding} certain patterns to be interpretable in graphs from the class, a characterization that is inherently non-constructive.
+On the other hand, algorithms require \emph{decompositions}. For nowhere dense classes, this role is played by \emph{generalized coloring numbers}, which underlie most algorithmic applications. As discussed above, the working hypothesis is that the right analogue for monadically dependent classes is provided by \emph{merge-width}.
+
+\paragraph{Merge-width\!\!}
+    is a family of graph parameters introduced by Dreier and Toru\'nczyk~\cite{mw-mc} that unifies several central structural measures, including treewidth, degeneracy, twin-width, clique-width, and generalized coloring numbers. The underlying notion of a decomposition is called a \emph{construction sequence}: starting from the partition into singletons, it builds the graph by repeatedly either merging two parts, or resolving all currently unresolved vertex pairs between two parts as edges or as non-edges. The \emph{\mbox{radius-$r$} merge-width} measures how many parts any vertex can reach via a path consisting of at most $r$ resolved vertex pairs at any point during the construction.
+
+Graph classes of \emph{bounded merge-width} --- where the radius-$r$ merge-width is bounded by a constant for each fixed $r\in \N$ --- include all classes of bounded expansion and all classes of bounded twin-width, unifying the two frameworks.
+The model checking problem for first-order logic is fixed-parameter tractable on graph classes of bounded merge-width, given a witnessing construction sequence~\cite{mw-mc}.
+This unifies the model checking results for bounded expansion~\cite{DvorakKT13-journal} and bounded twin-width~\cite{twwI}.
+
+Relaxing this condition, a class $\CC$ has \emph{almost bounded merge-width} if for each fixed $r\in \N$, the $n$-vertex graphs in $\CC$ have radius-$r$ merge-width at most $n^{o(1)}$ (where the ${o(1)}$ term depends on both the radius $r$ and the class $\CC$). This parallels the characterization of nowhere dense classes via almost bounded generalized coloring numbers. It is conjectured~\cite{mw-mc} that almost bounded merge-width coincides with monadic dependence for hereditary classes.
+One direction holds: almost bounded merge-width implies monadic dependence~\cite{flip-breakability}. The other direction is open, however our second main result settles it for $r=1$:
+
+\begin{theorem}\label{thm:main}
+Let $\CC$ be a monadically dependent graph class.
+Then every $n$-vertex graph $G\in \CC$ has radius-$1$ merge-width at most $n^{o(1)}$.
+\end{theorem}
+
+Our techniques are algorithmic, not just existential, and they apply to all graphs, not just graphs from monadically dependent classes. Our algorithm returns a construction sequence of small radius-$1$ width for any graph with polynomial neighborhood complexity. More precisely, we prove the following theorem. We note that the value of the constant $k$ in our theorem primarily comes from the constant in Haussler's Packing Lemma~\cite{Haussler95}.
+
+\begin{restatable}{theorem}{mergeWidth}
+\label{thm:mergeWidth}
+    There is an algorithm that, given an $n$-vertex graph $G$,  computes in time $\mathcal{O}(n^5)$ a construction sequence for $G$ with the following guarantee:
+    For all real numbers $c$ and $d\geq 1$, there exists an integer $k = k(c,d)$ so that if $G$ is an $n$-vertex graph such that for every nonempty $A \subseteq V(G)$,
+    \[\Big|\set{N(v)\cap A\,:\, v\in V(G)}\Big| \leq c|A|^d,\]
+    then the construction sequence has radius-1 merge-width at most $k\cdot n^{1-1/d} \log{n}$.
+\end{restatable}
+
+%\revnew{The main difficulty in \Cref{thm:mergeWidth} is not to prove that some close pair exists once weights are fixed, but to choose such pairs through a whole construction sequence while keeping the radius-$1$ width under control. The proof combines a two-weight fractional-twins selection with a Welzl-style multiplicative-weight update so that the total number of times any vertex can become exposed to newly resolved parts stays near the target bound.}
+
+If $G$ is drawn from a monadically dependent class $\CC$,
+then \Cref{thm:nei-comp-NIP} guarantees almost linear neighborhood complexity,
+and the algorithm computes a construction sequence with \mbox{radius-1} merge-width $n^{o(1)}$, implying \Cref{thm:main}.
+Similarly, if $G$ belongs to a class $\CC$ of bounded merge-width, then $G$ has linear neighborhood complexity by~\cite{bonamy2025chiboundednessneighbourhoodcomplexitybounded}, and so the algorithm returns a construction sequence of radius-1 merge-width $\mathcal{O}(\log{n})$ (hiding a constant depending on the class). Notably, the algorithm is oblivious to the values of $d$ and $c$ and its running time is always just~$\mathcal{O}(n^5)$. \Cref{thm:mergeWidth} itself is obtained by a greedy procedure with an iterative reweighing technique similar to the one used by~Welzl~\cite{Welzl88}. 
+
+We did not optimize the running time $\mathcal{O}(n^5)$ of the algorithm. 
+A construction sequence 
+of radius-1 merge-width $\mathcal{O}(\log{n})$ gives rise to a very particular \emph{signed tree model} with $\mathcal{O}(n\log{n})$ transversal pairs. For graphs of bounded twin-width, signed tree models with $\mathcal{O}(n\log{n})$ transversal pairs can also be constructed in randomized time $\Oh(m+n)\log n$ \cite[Thm. 4]{bonnet2026fastshortestpathgraphs}. 
+We leave for future research the question of whether construction sequences of width $\Oh(\log n)$ can be obtained in a similar time for all graphs of linear neighborhood complexity.
+% Comparing to the signed tree models that are obtained in \cite[Thm. 4]{bonnet2026fastshortestpathgraphs}, construction sequences 
+% of radius-1 merge-width $\mathcal{O}(\log{n})$ are significantly more structured, and can be viewed as a very special form of a  signed tree model with $\mathcal{O}(n\log{n})$ transversal pairs.
+% Indeed, such a construction sequence can be viewed as a very special form of a  signed tree model with $\mathcal{O}(n\log{n})$ transversal pairs.
+
+
+
+% \szym{Compare with signed tree models and \cite{bonnet2026fastshortestpathgraphs}}
+
+
+\section{Neighborhood Complexity}
+\label{sec:neighborhoodComplexity}
+
+In this section we give a high-level overview of the proof of \Cref{thm:nei-comp-NIP}. The complete proof can be found in \Cref{apn:nc}. We begin by introducing the relevant notions. 
+% concerning transductions, monadic dependence, and set systems.
+
+\paragraph{Transductions and monadic dependence}
+\label{sec:prelims}
+
+% \szymin{In extended abstract, we can write $n^{o(1)}$, and define transductions more succinctly: we don't need unary expansions there. We can write:
+
+A \emph{transduction} $T$ is specified by a number $k$ and a first-order formula $\phi(x,y)$ in the signature consisting of a binary adjacency symbol and $k$ unary relation symbols.
+Given a graph $G$, define $T(G)$ as the set of graphs $H$ which can be obtained as follows: first expand $G$ by interpreting the~$k$ unary predicates arbitrarily; then construct a graph on vertex set $V(G)$ and edges $uv$ with $u\neq v$ such that $\phi(u,v)\lor\phi(v,u)$ holds in the expanded structure; finally, take an arbitrary induced subgraph $H$ of the resulting graph.
+
+For example, the two formulas
+$\phi_1(x,y) \coloneqq \neg E(x,y)$ and 
+$\phi_2(x,y) \coloneqq E(x,y) \vee \exists z\,(E(x,z) \wedge E(z,y))$
+specify (with $k=0$) transductions producing the complement and the square of a graph, respectively.
+
+For a graph class $\CC$, we define $T(\CC)\coloneqq \bigcup \setof{T(G)}{G\in\CC}$.
+% }
+If $\CC$ and $\DD$ are graph classes, then $\CC$ \emph{transduces} $\DD$ if $\DD\subseteq T(\CC)$ for some transduction $T$. A graph class is \emph{monadically dependent} if it does not transduce the class of all graphs. 
+(This is the transduction formulation of monadic dependence; the original definition is model-theoretic, and the equivalence follows from the work of Baldwin and Shelah~\cite{baldwin1985second}.)
+Since transducibility is transitive (by composing the defining first-order formulas and unary expansions), if $\CC$ is monadically dependent and $\CC$ transduces $\DD$, then also $\DD$ is monadically dependent. 
+
+It is well-known that if $\CC$ is a monadically dependent graph class
+that does not contain $K_{t,t}$ as a subgraph, for some $t$,
+then $\CC$ is \emph{nowhere dense}.
+This follows e.g. by combining the results of 
+\cite{adler2014interpreting} and~\cite{dvovrak2018induced}; see \cite[Lemma~35]{flipping-and-forking} or \cite[Lemma~13.7]{maehlmann-thesis} for a direct argument. 
+The definition of nowhere denseness will not be relevant here, only the fact that such classes are known to have almost linear neighborhood complexity \cite{EickmeyerGKKPRS17}.
+Combining these results, we obtain  the following corollary.
+
+\begin{corollary}
+\label{thm:weaklySparseCase}
+Fix $t\in\N$ and a monadically dependent class $\CC$ of graphs. Then for every $G \in \CC$ that does not contain $K_{t,t}$ as a subgraph and every $A \subseteq V(G)$,
+\[\Big|\set{N(v)\cap A\,:\,v\in V(G)}\Big| \leq 
+|A|^{1+o(1)},\]
+where the $o(1)$ term depends on both $t$ and $\CC$.
+\end{corollary}
+
+
+
+
+\paragraph{Set systems and VC-dimension}
+  A \emph{set system} on a set $D$ is a set $\cal F$ of subsets of $D$.  
+  If $\cal F$ is a set system on $D$
+  and $X\subset D$,
+  then by $\cal F\res X$ we denote the set system $\setof{X\cap F}{F\in\cal F}$ on $X$.
+  The \emph{VC-dimension} of $\cal F$ is the maximal size 
+  of a set $X$ such that $\cal F\res X=2^X$, and is $-\infty$ if $\cal F=\emptyset$.
+% Observe that a set system $\cal F$ on a nonempty domain has VC-dimension $0$
+% if and only $|\cal F|=1$.
+% For a set system $\cal F$ we define its \emph{shatter function} $\pi_{\cal F}$ as follows:
+% $$\pi_{\cal F}(m)\coloneqq\max_{A\subset D,|A|\le m}\Big|\cal F\res A\Big|\qquad\text{for $m\in\N$.}$$  
+For a graph $G$, 
+we write $\VCdim(G)$ 
+to denote the VC-dimension of the set system $\setof{N(v)}{v\in V(G)}$ on $V(G)$.
+A graph class $\CC$ has \emph{bounded} VC-dimension if there exists $d \in \N$ such that $\VCdim(G) \leq d$ for all $G\in \CC$.
+It is easy to see that every monadically dependent graph class has bounded VC-dimension.
+% Monadic dependence was originally (and equivalently) defined through the VC-dimension of definable set systems~\cite{baldwin1985second}. It follows from this definition that every monadically dependent graph class has bounded VC-dimension.
+
+
+
+% The fundamental Sauer-Shelah-Perles lemma \cite{sauer1972sauershelah,shelah1972sauershelah} implies that if $G$ has VC-dimension $d$ and $A\subset V(G)$, then $\setof{N(v)\cap A}{v\in V(G)}|\le O(|A|)^d$.
+% shatter function is bounded by $O(m^d)$.
+% \begin{theorem}[Sauer-Shelah-Perles Lemma]\label{thm:sauer-shelah}
+%   Let $\cal F$ be a set system of VC-dimension $d$.
+%   Then for every $m\in\N$ we have
+%   $$\pi_{\cal F}(m)\le\sum_{i=0}^d{m\choose i}\le O(m^d).$$
+% \end{theorem}
+
+% Thus, the Sauer-Shelah-Perles lemma
+% implies that $\pi_G(m)\le O(m^d)$ for all $G\in\CC$ and $m\in\N$.
+% \cref{thm:nei-comp-NIP} states that for every monadically dependent graph class, we have that $$\pi_G(m)\le m^{1+o(1)}\qquad\text{for all $G\in\CC$ and $m\in\N$.}$$ 
+% Our proof of \Cref{thm:nei-comp-NIP} will leverage the basic observations underlying the proof of  the Sauer-Shelah-Perles lemma, which we recall now.
+
+%\medskip \RMM{I didn't use such skips and it looks like they are not used consistently here.}
+Let $\cal F$ be a set system on $V$, and let $v\in V$.
+% We say that a set $A\in\cal F$ is \emph{$v$-merged} if 
+% $(A\triangle \set{v})\in\cal F$. 
+We say that $A$ and $B$ are a \emph{$v$-pair}
+if $A,B\in\cal F$ and $A\triangle B=\set{v}$, that is, if $v$ is the unique element on which $A$ and $B$ differ.
+If $A\in\cal F$ is in some $v$-pair then $A$ is \emph{$v$-positive} 
+if $v\in A$ and is \emph{$v$-negative} otherwise. The following observation  underlies the inductive proof of the fundamental Sauer-Shelah-Perles lemma (see for instance \cite[Lemma~5.9]{discrepancy}). We leverage this lemma in our proof of \Cref{thm:nei-comp-NIP}. (Claims marked with \inAppendix{} are proved in the~appendix.)
+
+\begin{restatable}[\inAppendix]{lemma}{lemVCind}\label{lem:VC-induction}
+  For every nonempty set system $\cal F$ on a set $V$ and every  $v\in V$,
+  the following two set systems on~$V$ 
+  have VC-dimension strictly smaller than the VC-dimension of $\cal F$:
+  \begin{align*}
+    \setof{F\in\cal F}{\text{$F$ is $v$-positive}}
+    \quad
+    \text{and}
+    \quad
+    \setof{F\in\cal F}{\text{$F$ is $v$-negative}}.
+  \end{align*}  
+\end{restatable}
+
+
+% We will use the following tool.
+\newcommand{\hamming}{\mathrm{Hamming}}
+% \begin{definition}
+  
+% \end{definition}
+
+% Every edge in the Hamming graph is 
+% a $v$-pair, for exactly one $v\in D$, which proves the following.
+% \begin{lemma}\label{lem:hamming-merges}
+%   Let $\cal F$ be a set system on a domain $D$.
+% Then:
+%   $$|E(\hamming(\cal F))|=\sum_{v\in D}\text{number of $v$-pairs}.$$
+% \end{lemma}
+The \emph{Hamming graph} of a set system $\cal F$, denoted as $\hamming(\cal F)$, is 
+  the graph with vertex set $\cal F$, where two sets 
+  $A,B\in\cal F$ are adjacent if and only if $|A\triangle B|=1$.
+We use a lemma due to Haussler, Littlestone, and Warmuth \cite[Lemma 2.4]{Haussler1994} (see also \cite[Lemma 2]{Haussler95}). 
+\begin{lemma}\label{lem:hamming-deg}
+  The Hamming graph of a set system $\cal F$ of VC-dimension $d$ has at most $d|\cal F|$ edges.
+\end{lemma}
+\begin{corollary}\label{cor:hamming}
+  Let $\cal F$ be a set system of VC-dimension $d$, whose Hamming graph $H$ has $m$ edges. Then $H$ has at least $m/d$ non-isolated vertices.
+\end{corollary}
+\begin{proof}
+  Let $\cal G\subset \cal F=V(H)$ be the set of non-isolated vertices of $H$.
+  Then $\cal G$ is a set system of VC-dimension at most $d$ with $m=|E(H)|$ Hamming edges,
+so $m\le d|\cal G|$ by \Cref{lem:hamming-deg}.
+% Therefore, $m\le d\cdot |\cal G|$, proving $|\cal G|\ge m/d$.
+\end{proof}
+
+
+% \subsection{Merge graphs}
+% \newcommand{\bip}{\mathrm{bip}}
+% % For a set system $\cal F$ on a domain $A$,
+% % the \emph{bipartite representation} of $\cal F$, denoted $\bip(\cal F)$, is the bipartite graph 
+% % with parts $A$ and $\cal F$
+% % and edges $\set{a,F}$ with $a\in F\in\cal F$.
+% For a set system $\cal F$ on a domain $A$,
+% we define two bipartite graphs -- the \emph{positive merge graph} and the \emph{negative merge graph} of $\cal F$ -- as the bipartite graphs 
+% with parts $\cal F$ and $A$,
+% and edges $\set{a,F}$ with $a\in A$ and  $F\in\cal F$ such that $F$ is $v$-positive, or $v$-negative, respectively. 
+% Note that the negative merge graph of $\cal F$ is the same as the positive merge graph of $\overline{\cal F}\coloneqq \setof{A-F}{F\in \cal F}$, so in many statements we will only talk about the positive merge graph, as the negative merge graph can be treated by symmetry.
+
+% \begin{lemma}\label{lem:blue-vc}
+%   Let $\cal F$ be a set system on a domain $A$ and let $H$ be the positive merge graph of $\cal F$ and $a\in A$.
+%   Then the neighborhood of $a$ in $H$ 
+%   is a subset of $\cal F$ 
+%   of smaller VC-dimension.
+% \end{lemma}
+% \begin{proof}
+%   The neighborhood of $a$ in the positive merge graph of $\cal F$ is the set of $a$-positive sets in $\cal F$, which has VC-dimension smaller than the VC-dimension of $\cal F$ by Lemma~\ref{lem:VC-induction}.
+% \end{proof}
+
+% \begin{szin}We don't need the following in the paper:
+
+%   We show that in the setting of monadically dependent graph classes, the resulting positive and negative merge graphs are $K_{t,t}$-free for some fixed $t$.
+
+% \begin{lemma}\label{lem:weakly-sparse-blue}
+%   Let $\CC$ be a monadically dependent class of graphs. Then there is a bound $t\in\N$ such that 
+%   for every $G\in \CC$ and $A\subset V(G)$, the positive and negative merge graphs of $\setof{N(v)\cap A}{v\in V(G)}$ 
+%   do not contain $K_{t,t}$.
+% \end{lemma}
+% This will follow from the next lemma.
+
+
+% \begin{lemma}
+%   There is a transduction $T$ such that the following holds.
+
+%   If $\cal F$ is a set system such that the  positive merge graph of $\cal F$ contains 
+%   $K_{t,t}$ for some $t$, then $T(\bip(\cal F))$ contains the 1-subdivision of $K_{t,t}$.
+% \end{lemma}
+
+% \begin{proof}
+%   Let $\cal F$ be a set system on a domain $A$.
+%   Suppose $a_1,\ldots,a_t\in A$ and $F_1,\ldots,F_t$ form a biclique
+%   in the positive merge graph of $\cal F$. In particular, $a_j\in F_i$ for all $i,j\in[t]$.
+%   Furthermore, for each $i,j\in[t]$ there is 
+%   some $F_{i,j}\in \cal F$ such that 
+%   $F_{i}\triangle F_{i,j}=\set{a_j}$ and $a_j\in F_i$. In particular, $a_k\in F_{i,j}$ if and only if $k=j$. Therefore,
+%  $a_j$ can be uniquely determined from $F_{i,j}$,
+% since $\set{a_k}=F_{i,j}\setminus \set{a_1,\ldots,a_t}$.
+% It follows that $F_i$ can also be uniquely determined from $F_{i,j}$,
+% since $F_i=F_{i,j}\triangle\set{a_j}$.
+% In particular, the sets 
+% $(F_{i,j}:i,j\in[t])$ are all distinct. 
+
+% The above observations amount 
+% to saying that the two functions 
+% $$F_{i,j}\mapsto a_j,\qquad F_{i,j}\mapsto F_i$$
+% are well-defined. Moreover, it follows from the reasoning above, that those two functions can be defined by first-order formulas, involving a unary predicate marking the set $\set{a_1,\ldots,a_t}$.
+
+% This observation can be used 
+% to define the transduction $T$, 
+% involving a unary predicates $U$, 
+%  and the following formula 
+% $$\phi(x,y)\coloneqq 
+% (U(x)\land \neg E(x,y))\quad \lor \quad
+% \exists a\, U(a)\land \, \forall b\, E(b,x)\triangle E(b,y)\rightarrow (a=b).
+% $$
+% It follows from the above discussion that
+% $T(\bip(\cal F))$ contains the $1$-subdivision of $K_{t,t}$,
+% formed by the vertices $a_j$, $F_i$ and $F_{i,j}$ for $i,j\in[t]$.
+% \end{proof}
+
+
+% \begin{proof}[Proof of \cref{lem:weakly-sparse-blue}]
+%   If the positive merge graph of $\setof{N(v)\cap A}{v\in V(G)}$ contains $K_{t,t}$ for arbitrarily large $t$, then $T(\bip(\cal F))$ contains the 1-subdivision of $K_{t,t}$ for arbitrarily large $t$, contradicting the monadic dependence of $\CC$. (Indeed, it is well known and easy to see that the class $\BB$ of $1$-subdivided bicliques is not monadically dependent. Hence, no monadically dependent class $\CC$ transduces $\BB$.)
+  
+%   The same follows for the negative merge graphs, as the negative merge graph of $\setof{N_G(v)\cap A}{v\in V(G)}$ is the positive merge graph of $\setof{N_{\overline G}(v)\cap A}{v\in V(G)}$, where $\overline G$ is the edge complement of $G$, and the class $\setof{\overline G}{G\in \CC}$ is also monadically dependent.
+% \end{proof}
+% \end{szin}
+
+%\RMM{The below notation for $\subpoly(n)$ and $\subpoly_k(n)$ is just what $n^{o(1)}$ and $n^{o_k(1)}$ mean. I have changed it to this up until the theorem proof begins.}
+%\szymin{I don't like $n^{o_k(1)}.$
+%For instance, in $|B|\le |A|^{1+o_{\BB,i}(1)}$, we have a subscript in the superscript, and it's not apparent from the notation what the argument of the subpolynomial function is ($|A|$ or $|B|$?). But I'm not strongly opposed. And now we're using three notations, which is bad:
+%$n^{o(1)},\subpoly(n)$, and $\forall_{\varepsilon>0} \Oh_\varepsilon(n^\varepsilon)$.
+%}\RMM{Ok I have reverted it to $\subpoly(n)$ in this section. I added a note to the introduction about where notation still needs to be changed.}
+
+
+
+
+\paragraph{Bipartite Graphs as Set Systems}
+In the proof of \cref{thm:nei-comp-NIP}, it will be enough to consider bipartite graphs $G=(A,B,E)$.
+Every bipartite graph $G=(A,B,E)$ \emph{induces} a set system $\setof{N(b)}{b\in B}$ on $A$, and we denote this set system by $\inducedSS{B}{A}$. 
+Notice that $|\inducedSS{B}{A}|=|B|$ if $B$ does not contain any pair of \emph{twins}, that is, two vertices with equal neighborhoods.
+More generally, for $A'\subset A$ and $B'\subset B$, we view $\inducedSS{B'}{A'}$ as the set system $\setof{N(b)\cap A'}{b\in B'}$ on~$A'$. 
+
+% \begin{observation}\label{obs:vc-hereditary}
+%   For every bipartite graph $G = (A,B,E)$ and subsets $A_1 \subseteq A_0 \subseteq A$ and $B_1 \subseteq B_0 \subseteq B$, the VC-dimension of $A_1/B_1$ is at most that of $A_0/B_0$.
+% \end{observation}
+
+
+% a monadically dependent class $\BB$ of bipartite graphs. It will also be enough to show that if $G=(A,B,E) \in \BB$ is such that no two vertices in $B$ are \emph{twins} (have equal neighborhoods), then $|B|\le |A|\cdot \subpoly_{\BB}(|A|)$.
+
+% We often need to delete vertices from $A$ and then look at how many distinct neighborhoods the vertices in $B$ still have. For this reason, and to be able to easily apply lemmas about set systems, it is convenient to introduce the following notation. Any bipartite graph $G=(A,B,E)$ \emph{induces} a set system $\setof{N(b)}{b\in B}$ on $A$, and we denote this set system by $\inducedSS{B}{A}$. Notice that $|\inducedSS{B}{A}|$ is the number of vertices in $B$ with distinct neighborhoods, so this number can be much smaller than $|B|$. More generally, for $A'\subset A$ and $B'\subset B$, we view $\inducedSS{B'}{A'}$ as the set system $\setof{N(b)\cap A'}{b\in B'}$ on~$A'$. The VC-dimension of $\inducedSS{B'}{A'}$ is at most that of $\inducedSS{B}{A}$.
+
+We define two auxiliary bipartite graphs from $G=(A,B,E)$ -- the \emph{positive merge graph} and the \emph{negative merge graph} -- as follows. Both graphs have parts $A$ and $\inducedSS{B}{A}$.
+We include edges $\set{a,F}$ with $a\in A$ and  $F\in \inducedSS{B}{A}$ such that $F$ is $a$-positive or $a$-negative, respectively, in the set system $\inducedSS{B}{A}$ on $A$.
+%\begin{oldin}
+%So, for instance, we include $\set{a,F}$ as an edge of the positive merge graph if there exists a set $F' \in \inducedSS{B}{A}$ so that $F \Delta F'=\{v\}$ and $v \in F$. In this case we also include $\set{v,F'}$ in the negative merge graph. The intuition is that removing $v$ from $A$ causes $F$ and $F'$ to ``merge'', i.e., $F - \{v\} = F' - \{v\} = F'$.
+%\end{oldin}
+%\begin{newin}
+For instance, we include $\set{a,F}$ as an edge of the positive merge graph if there exists a set $F' \in \inducedSS{B}{A}$ such that $F \Delta F'=\{a\}$ and $a \in F$. In this case $F'=F-\{a\}$, and we also include $\set{a,F'}$ in the negative merge graph. The intuition is that removing $a$ from the domain causes $F$ and $F'$ to merge, i.e., $F-\{a\}=F'$.
+%\end{newin} 
+Note that a set $F\in \inducedSS{B}{A}$ is non-isolated in the Hamming graph 
+of $\inducedSS{B}{A}$ if and only if it is non-isolated in at least one of the merge graphs of $\inducedSS{B}{A}$.
+% Note that 
+%  both the positive merge graph and the negative merge graph of $\inducedSS{B}{A}$ have exactly as many edges as the Hamming graph of $\inducedSS{B}{A}$. 
+%  
+The advantage of merge graphs over the Hamming graph is that they allow us to describe subsets of $B$ using vertices of $A$. Moreover, \cref{lem:VC-induction} yields the following.
+
+\begin{lemma}
+\label{lem:blue-vc}
+  Let $G=(A,B,E)$ be a bipartite graph and let  $v\in A$.
+  Then the neighborhood of $v$ in both the positive merge graph and the negative merge graph 
+  is a set system of  strictly smaller VC-dimension than $\inducedSS{B}{A}$.
+\end{lemma}
+
+
+% More generally, for $A'\subset A$ and $B'\subset B$,
+% let $B'/A'$ denote the set system $\setof{N(b)\cap A'}{b\in B'}$ on $A'$.
+% The VC-dimension of $B'/A'$ is not greater than the VC-dimension of $\inducedSS{B}{A}$.
+
+
+
+
+  % When providing upper bounds, we can write inequalities such as $$2\cdot \polylog(n)\cdot \subpoly(n)\le \subpoly(n),$$
+  % meaning that a product of functions as on the left-hand side is upper bounded by some subpolynomial function.
+
+
+
+  
+
+\paragraph{High-level Overview} We now give an overview of the 
+proof of \cref{thm:nei-comp-NIP}.
+It is enough to show that if $\BB$ is a monadically dependent class of bipartite graphs, and $G=(A,B,E) \in \BB$ has no twins in $B$, then $|B|\le |A|^{1+o(1)}$.
+As $\BB$ is monadically dependent, 
+the VC-dimension of $\inducedSS{B}{A}$ is bounded by some $d\in\N$  depending only on $\BB$.
+
+% Let $G=(A,B,E)$ be drawn from a monadically dependent class of bipartite graphs $\BB$ and have no twins in $B$. 
+% then $|B|\le |A|\cdot \subpoly_{\BB}(|A|)$. 
+
+The crux of the argument is to find sets $A_1\subset A$ and $B_1\subset B$ with $|B_1|\ge |B|/\polylog(|A|)$, and a partition $\cal P_1$ of $B_1$ so that for each part $P$ of $\cal P_1$,
+all vertices of $P$ have distinct neighborhoods on $A_1$, and $\inducedSS{P}{A_1}$ has a VC-dimension at most $d-1$. Moreover, the partition $\cal P_1$ should be definable by a fixed transduction. We now sketch this construction.
+% We then recurse into each part of $\cal P_1$ in parallel, in each step reducing the VC-dimension by at least one.
+% This is similar to the proof of \cite[Theorem~3]{stable_MC} about neighborhood complexity in monadically stable classes.
+%  In fact, as in that proof, we ultimately reduce to the case of graphs which exclude $K_{t,t}$ as a subgraph, and apply \Cref{thm:weaklySparseCase},
+% about the almost linear neighborhood complexity of $K_{t,t}$-free, monadically dependent graph classes (that is, nowhere dense classes).
+
+% \begin{proof}
+%   $N_+(a)$ is the set of $a$-positive sets in the set system $\inducedSS{B}{A}$, which has VC-dimension smaller than the VC-dimension of $\inducedSS{B}{A}$ by Lemma~\cref{lem:VC-induction}. The argument for $N_-(a)$ is analogous.
+% \end{proof}
+We would like the Hamming graph of $\inducedSS{B}{A}$ to have many edges so that we can apply \cref{cor:hamming}. However, even if $|\inducedSS{B}{A}|$ is much larger than $|A|$, its Hamming graph may be sparse or even edgeless
+(think of the set system of even-sized subsets of $[n]$). 
+% \footnote{The set system of even-sized subsets of $[n]$ has an edgeless Hamming graph.}. 
+The next lemma shows that after restricting to a suitable $A_1\subseteq A$, one obtains a dense Hamming graph.
+
+\begin{lemma}[Special case of Lem. \ref{lem:star}]\label{lem:star0}
+  Let $G=(A,B,E)$ be a bipartite graph without twins in $B$ and  $|B|>2$.
+  Then there is a set $A_1\subseteq A$ 
+  s.t. the Hamming graph of $\inducedSS{B}{A_1}$ has at least $\frac{|B|}{2\ln |A|+2}$~edges.
+  % \[
+  %   |E(\hamming(\inducedSS{B}{A_1}))|
+  %   \ge \frac{|B|}{3\ln |A|}.
+  % \]
+\end{lemma}
+% \noindent\Cref{lem:star0} is a special case of Lemma~\ref{lem:star} below, so its proof is omitted.
+
+Let $A_1\subset A$ be as in \Cref{lem:star0}
+and let $B'\subset B$ be a maximal subset with no twins towards $A_1$,
+so that $\inducedSS{B}{A_1}=\inducedSS{B'}{A_1}$.
+By \Cref{cor:hamming}, the Hamming graph of $\inducedSS{B'}{A_1}$ has at least 
+${|B|}/({d(2\ln |A|+2)})$ non-isolated vertices.
+Each such vertex is non-isolated in either the positive or the negative merge graph of $\inducedSS{B'}{A_1}$.
+Thus, one of the two merge graphs has at least ${|B|}/({2d(2\ln |A|+2)})$ non-isolated vertices in $\inducedSS{B'}{A_1}$; by symmetry, assume it is the positive merge graph. Note that by \cref{lem:blue-vc}, the neighborhood of each vertex in $A_1$ in the positive merge graph of $\inducedSS{B'}{A_1}$ has VC-dimension smaller than $d$. We now wish to make these neighborhoods disjoint so that we can find a partition of $\inducedSS{B'}{A_1}$. To do so, we use the following lemma from \cite{stable_MC} to find a large subset $B_1\subset B'$ and a set $A_1'\subset A_1$ such that every vertex in $B_1$ has exactly one neighbor in~$A_1'$.
+
+\begin{lemma}[{\cite[Lemma~10]{stable_MC}}]\label{lem:dreier-sampling}
+  Let $G=(X,Y,E)$ be a bipartite graph
+  % \footnote{The statement in \cite[Lemma~10]{stable_MC} additionally demands that $|X|>1$. However, the statement is trivial for $|X| \leq 1$: in this case, since all of $Y$ is non-isolated, $X$ must consist of a single vertex adjacent to all of $Y$. Thus, we drop the extra assumption from this statement.} 
+  with no isolated vertices. Then there are  $X'\subset X$ and $Y'\subset Y$ with $|Y'|\ge \frac{|Y|}{150\ln |X|}$ such that every vertex in $Y'$ has exactly one neighbor in $X'$.
+\end{lemma}
+
+
+% (The proof of \Cref{lem:dreier-sampling} proceeds as follows. Fix a parameter $\alpha>1$. First, find a subset $Y'$ of $|Y|/\log_\alpha(|X|)$ many vertices in $Y$, whose degrees lie in an interval $[\alpha^k,\alpha^{k+1})$ for some $k\in\N$. Then randomly  sample a subset $X'$ of~$X$, by picking each vertex of $X$ independently with probability about $1/\alpha^k$, and argue that with positive probability, every vertex in $Y'$ has exactly one neighbor in $X'$;
+%  see \cite[Lem. 10]{stable_MC} for details.)
+% \medskip
+By applying \cref{lem:dreier-sampling} to the positive merge graph of
+$\inducedSS{B'}{A_1}$ restricted to its non-isolated vertices, we obtain sets $A_1'\subset A_1$ and 
+$B_1\subseteq B'$ with
+\(
+  |B_1|\,\ge\, \Omega\!\left({|B|}/({d\log^2 |A|})\right)
+\)
+such that every vertex in $B_1$ has exactly one neighbor in $A_1'$ in the
+positive merge graph of $\inducedSS{B}{A_1}$. 
+% Thus each vertex of $B_1$
+% selects a unique ``witness'' in $A_1'$. 
+% At the same time, distinct vertices of
+% $B_1$ still have distinct neighborhoods in $A_1$, even though several of them
+% may select the same witness in $A_1'$.
+Let $\cal P_1$ partition $B_1$ into the neighborhoods (in the positive merge graph) of vertices in $A_1'$.
+% so that two vertices 
+% lie in the same part whenever they have the same neighbor in $A_1'$; thus each part is encoded by a
+% single vertex of $A_1'$. 
+By
+\cref{lem:blue-vc}, for each part $P\in\cal P_1$, the set system $\inducedSS{P}{A_1}$ has VC-dimension at
+most $d-1$. The key point is that while we achieved a major progress in reducing the VC-dimension, this came only at a cost of restricting attention to a set $B_1$ that is still large compared with $B$, losing only a polylogarithmic multiplicative factor. So repeating this argument $d$ times preserves a subset of size $|B|/\polylog(|A|)^d$.
+
+We then induct on each part of $\cal P_1$, in parallel. %\szym{figure}
+On a high level, the resulting process is as follows. Starting from all
+vertices of $B$, we keep a large subset $B_i\subseteq B$, a set
+$A_i\subseteq A$, and a partition $\cal P_i$ of~$B_i$, so that each part $P\in \cal P_i$ is specified by $i$ vertices of $A$ and has no twins towards $A_i$, and the set system $\inducedSS{P}{A_i}$ has VC-dimension at most
+$d-i$. Each step loses only a $\polylog(|A|)$ factor in the size of $B_i$ and lowers the
+VC-dimension by one. The next step can be carried as long as $|\cal P_i|<|B_i|/2$, and the process is terminated once $|\cal P_i|\ge |B_i|/2$. This must happen in step $i=d$ at the latest, since 
+then for each $P\in \cal P_d$, the set system $\inducedSS{P}{A_d}$ has VC-dimension $0$, so $|P|=1$ and thus $|\cal P_d| = |B_d|$.
+Once the process terminates, we have that:
+\begin{itemize}
+  \item $B_i$ is still almost as large as $B$: $|B_i|\ge |B|/\polylog_d(|A|)$, and
+  \item $\cal P_i$ contains many parts: $|\cal P_i|\ge |B_i|/2$.
+\end{itemize}
+
+The bipartite graph with sides $\cal P_i$ and $A$, where each 
+part $P\in\cal P_i$ is adjacent to the~$i\le d$ vertices encoding it, is $K_{d+1,d+1}$-free and transducible from $G$ by a fixed transduction.
+Applying \Cref{thm:weaklySparseCase} then gives 
+$|\cal P_i|\le |A|^{1+o(1)}$. Combining the inequalities yields
+$|B|\le |A|^{1+o(1)}$, as desired.
+% See \Cref{apn:nc} for more details.
+
+
+
+\section{Radius-1 Merge-Width}
+\label{sec:merge-width}
+
+This section is dedicated to proving \Cref{thm:mergeWidth}, which shows how to efficiently compute a construction sequence with small radius-1 merge-width. We begin by defining the relevant terms.
+
+\paragraph{Merge-Width}
+
+Consider a vertex set $V$.
+A \emph{construction sequence} is a sequence of steps, maintaining a partition $\cal P$~of~$V$ and a partition of  ${V\choose 2}$ into three sets:  
+\emph{edges} $E$, \mbox{\emph{non-edges}~$N$},
+and \emph{unresolved} pairs~$U$.
+ Initially, $\cal P$ partitions $V$ into singletons, and every pair in $V\choose 2$ is unresolved.
+In each step, one of three operations is performed:
+\begin{itemize}
+  \item  \emph{merge} two parts $A,B\in\cal P$, \(A \neq B\), replacing the two parts by their union $A\cup B$, 
+  \item \emph{resolve positively} a pair of parts $A,B\in\cal P$ (possibly $A=B$), declaring 
+ all the unresolved pairs $\set{a,b}\in U$ with $a\in A,b\in B$ as \emph{edges}, that is, moving them from \(U\) to \(E\), or 
+  \item \emph{resolve negatively} a pair of parts $A,B\in\cal P$ (possibly $A=B$), declaring 
+     the corresponding unresolved pairs as \emph{non-edges}, that is, moving them from \(U\) to \(N\).
+\end{itemize}
+In the end, we require that $\cal P$ has one part, and that every pair from ${V\choose 2}$ is resolved as either an edge or a non-edge.
+We thus say this is a construction sequence of the graph $G=(V,E)$, where \(E\) is the final edge set of the process. 
+
+The \emph{radius-$r$ width}
+of a construction sequence is the smallest integer $k$ such that at every step in the sequence, for every vertex $v\in V$, at most $k$ parts
+of the current partition $\cal P$ can be reached from $v$ by a path of length ${\le}\,r$ in the graph $(V,E\cup N)$.
+Finally, the \emph{radius-$r$ merge-width} of a graph~$G$
+is the minimum radius-$r$ width over all construction sequences of $G$. 
+
+Observe that for any construction sequence of a graph $G$, at any given step, for any two parts $A,B$ of the partition $\cal P$, the unresolved vertex pairs $ab$ with $a\in A$ and $b\in B$ are either all edges of~$G$, or are all non-edges in $G$.
+See \Cref{fig:b} for an example illustrating radius-$1$ merge-width.
+
+{\definecolor{lightred}{RGB}{255, 158, 159}
+\definecolor{darkred}{RGB}{176, 0, 2} 
+\definecolor{lightergray}{RGB}{234,234,234}
+\definecolor{darkergray}{RGB}{126,126,126}
+\begin{figure}
+%%\vspace{-0.1cm}
+    \centering
+    \includegraphics[scale=0.9]{figures/construction-seq.pdf}
+    \caption{
+    A construction sequence of a graph witnessing radius-1 merge-width at most three.
+    The \emph{resolved pairs} are drawn as  \textcolor{darkred}{\rule[0.5ex]{0.3cm}{1.3pt}} (edges) and \textcolor{lightred}{\rule[0.5ex]{0.3cm}{1.3pt}} (non-edges).
+    The \emph{unresolved pairs} are drawn in an aggregated way as \textcolor{darkergray}{\rule[-0.ex]{0.3cm}{5.3pt}} (edges) 
+    and \textcolor{lightergray}{\rule[-0.ex]{0.3cm}{5.3pt}} (non-edges) connecting parts,
+    and as
+    background colors within each part.
+    The first and sixth displayed stages each present several resolve steps.
+    Figure replicated with permission from~\cite[Fig.\ 4]{mw-mc}.
+}\label{fig:b}
+\end{figure}
+}
+\paragraph{Fractional Twins}
+Our algorithm is built on techniques from computational geometry and the combinatorics of set systems related to VC-dimension and $\delta$-separated set systems. In particular, our algorithm uses the \emph{multiplicative weight update} technique of Welzl~\cite{Welzl88, ChazelleWelzl89}. In order to apply this technique, we now describe how graphs with small neighborhood complexity contain weighted near twins, i.e. pairs of vertices with almost the same neighborhood.
+
+
+For a graph $G$ with distinct vertices $u$ and $v$, we write $\Delta_G(u,v)\coloneqq (N(u)\triangle N(v))\cup\set{u,v}$ for the set of all vertices that are either equal to $u$ or $v$ or adjacent to exactly one of $u$ and $v$. 
+% Thus $\Delta_G(u,v)$ is similar to the symmetric difference of the neighborhoods of $u$ and $v$, except that we always include $u$ and $v$ in this set as well. 
+We omit the subscript whenever the graph is clear from context.
+
+For a positive real number $p$, we say that a graph $G$ has \emph{$p$-fractional twins} if for every weight function $w:V(G) \rightarrow \mathbb{Z}^+$, there exist distinct vertices $u,v \in V(G)$ such that \begin{align}\label{eq:frac-twins} w\left(\Delta(u,v)\right) \leq p \cdot w(V(G)).\end{align}For a set $S\subset V(G)$ we denote $w(S)\coloneqq \sum_{v \in S}w(v)$. Any  pair of vertices $u$ and $v$ satisfying \eqref{eq:frac-twins}  is called a pair of \emph{$p$-fractional twins with respect to $w$}. 
+
+The following lemma is a corollary of Haussler's Packing Lemma~\cite{Haussler95}.
+
+\begin{restatable}[\inAppendix{}]{lemma}{existFractionalTwins}
+\label{lem:existFractionalTwins}
+For all real numbers $c$ and $d\geq 1$, there exists an integer $r = r(c,d)$ so that if $G$ is an $n$-vertex graph such that $n\geq 2$ and for every nonempty $A \subseteq V(G)$,
+    \[\Big|\set{N(v)\cap A\,:\,v\in V(G)}\Big| \leq c|A|^d,\]
+then $G$ has $(r \cdot n^{-1/d})$-fractional twins.
+\end{restatable}
+
+
+Next we show how to find a single pair of fractional twins with respect to two different weight functions simultaneously. We note that the auxiliary function $w$ below is just a weighted average. 
+
+% \RMM{It seems to me that we need to be very careful about handling the weights and thus $\mathcal{O}(n^4)$ is the naive uniform running time for the lemma below.}
+
+\begin{restatable}[\inAppendix{}]{lemma}{twoWeightFunctions}
+\label{lem:twoWeightFunctions}
+    Let $p>0$, let $G$ be a graph with $p$-fractional twins, and let $w_1, w_2: V(G) \rightarrow \mathbb{Z}^+$. Then there exist distinct vertices $u$ and $v$ that are $3p$-fractional twins with respect to both $w_1$ and $w_2$. Moreover, given an arbitrary graph $G$ and functions $w_1,w_2: V(G) \rightarrow \mathbb{Z}^+$ as input (i.e., without any knowledge of $p$), such vertices $u$ and $v$ can be found by computing an auxiliary weight function $w$ and selecting $u$ and $v$ to minimize $w(\Delta(u,v))$. If $G$ has at most $n$ vertices and every vertex has weight at most $2^n$ with respect to both $w_1$ and $w_2$, then this algorithm runs in time $\mathcal{O}(n^4)$.
+\end{restatable}
+
+\paragraph{Finding Construction Sequences}
+
+Now we prove the main theorem about radius-1 merge-width.
+
+\mergeWidth* \begin{proof} 
+
+    The algorithm directly constructs the construction sequence in $n-1$ rounds, each consisting of several resolve operations followed by a single merge. We write $\Pp_i$ and $R_i\subset {V\choose 2}$ for the partition and the set of resolved vertex pairs at the beginning of round~$i=0,1,\ldots,n-2$, where $|\cal P_i|=n-i$. Along with these, we maintain the following additional information:
+    \begin{itemize}
+    \item a \emph{leader} $L_i(P) \in P$ for each part $P \in \Pp_i$; we write $L_i(x)$ for the leader of the part containing~$x$;
+    \item the \emph{leader graph} $G_i$, the subgraph of $G$ induced by the leaders $\{L_i(P): P \in \Pp_i\}$; and
+    \item a weight function $w_i\colon V(G_i) \rightarrow \mathbb{Z}^+$.
+    \end{itemize}
+    
+    Let $r=r(c,d)$ denote the integer from Lemma~\ref{lem:existFractionalTwins}. Since the assumption of the theorem holds not only for $G$ but trivially also for every induced subgraph of $G$, by Lemma~\ref{lem:existFractionalTwins} every induced subgraph of $G$ with $\ell\geq 2$ vertices has $(r \cdot \ell^{-1/d})$-fractional twins. In particular, since at every stage we merge exactly two parts, the leader graph $G_i$ has exactly $n-i$ vertices. Thus $G_i$ has $r(n-i)^{-1/d}$-fractional twins. We now give the algorithm.
+
+    \begin{tcolorbox}[breakable, enhanced, colback=black!5, colframe=black!40, boxrule=0.5pt, left=6pt, right=6pt, top=6pt, bottom=6pt]
+    \noindent\textbf{The algorithm.} Let $G_0=G$ and $\mathcal{P}_0$ be the partition of $V(G)$ into $n$ singleton sets, and $R_0=\emptyset$. For each $P \in \mathcal{P}_0$, let its leader $L_0(P)$ be the unique vertex $x \in P$ and set $w_0(x)=1$. 
+
+    \medskip
+
+    \noindent For $i=0,1,2,\ldots, n-2$, do the following.\begin{enumerate}[leftmargin=*]
+    \item\label{itm:twoWeightsStep} Apply \Cref{lem:twoWeightFunctions} to the weight function $w_i$ of $G_i$ and the weight function $w_\mathbf{1}$ assigning every vertex of $G_i$ weight 1; that is, compute a weighted average of these two weight functions and then find distinct vertices $u_i$ and $v_i$ so that $\Delta_{G_i}(u_i, v_i)$ has minimum weight with respect to this weighted average. Thus we are guaranteed that\begin{align}\label{equationMUW} w_i(\Delta_{G_i}(u_i, v_i)) &\leq 3r (n-i)^{-1/d} \cdot w_i(V(G_i)),\textit{\quad and}\\
+    %\end{align} and
+    %\begin{align}
+      \label{equationSize}
+    |\Delta_{G_i}(u_i, v_i)|
+    &=
+    w_\mathbf{1}(\Delta_{G_i}(u_i, v_i))
+    \leq
+    3r (n-i)^{-1/d} \cdot w_\mathbf{1}(V(G_i))
+    \leq 3r (n-i)^{1-1/d}.
+    \end{align}
+    Rename $u_i$ and $v_i$ so that $|\Pp_i(u_i)| \ge |\Pp_i(v_i)|$, where $\Pp_i(w)$ denotes the part of $\Pp_i$ containing~$w$.
+    \item\label{itm:resolveStep} For each part $Q\in\Pp_i$ with $L_i(Q)\in\Delta_{G_i}(u_i,v_i)$, resolve $\Pp_i(v_i)$ and~$Q$: positively if $v_i$ and $L_i(Q)$ are adjacent, negatively otherwise. Add the resolved vertex pairs to~$R_i$ to obtain~$R_{i+1}$.
+
+    (In particular, since $u_i \in\Delta_{G_i}(u_i,v_i)$, this step resolves $\PP(u_i)$ and $\PP(v_i)$.)
+    \item\label{itm:leaderChoice} Let $\Pp_{i+1}$ be the partition of $V(G)$ formed by merging $\Pp_i(u_i)$ and $\Pp_i(v_i)$ into a single new part, whose leader is~$u_i$. All other parts keep their leaders.
+    \item\label{itm:weightUpdate}
+        Mirroring the multiplicative weight update strategy of Welzl~\cite{Welzl88, ChazelleWelzl89},
+        set for each leader $x$ in the new leader graph $G_{i+1}$,
+    \[
+    w_{i+1}(x)\coloneqq
+    \begin{cases}
+    2\max(w_i(u_i),w_i(v_i)) & \text{if } x=u_i,\\
+    2w_i(x) & \text{if } x\in \Delta_{G_i}(u_i,v_i)\setminus\{u_i,v_i\},\\
+    w_i(x) & \text{otherwise.}
+    \end{cases}
+    \]
+    \end{enumerate}
+    \end{tcolorbox}
+
+    \bigskip
+    
+    We claim that the algorithm indeed computes a construction sequence for the graph $G$. The intuition is that for each unresolved pair $\set{x,y}\notin R_i$ with $x$ and $y$ in different parts, the adjacency between $x$ and $y$ agrees with the adjacency between their leaders $L_i(x)$ and $L_i(y)$. Any time this invariant would be violated by a leader change, the pair is resolved beforehand in Step~\ref{itm:resolveStep}.
+
+    \begin{restatable}[\inAppendix{}]{claim}{buildsGraph}
+    \label{clm:buildsGraph}
+    The algorithm computes a construction sequence of $G$.
+    \end{restatable}
+
+     
+    We next bound the radius-$1$ merge-width of the computed construction sequence. We begin by bounding the number of times the leader of a vertex can change. This  is the only place where we use the choice of which vertex becomes the new leader in step~\ref{itm:leaderChoice} of the algorithm. Essentially, this choice balances the ``tree of how leaders change'', ensuring that it has logarithmic height.
+
+    \begin{restatable}[\inAppendix{}]{claim}{numberOfLeaders}
+    \label{clm:numberOfLeaders}
+        For each vertex $x \in V(G)$, there are at most $\log_2 n + 1$ different vertices which are ever leaders for the part containing $x$. That is, $|\{L_i(x): i \in \{0,1,\ldots, n-1\}\}|\leq\log_2 n + 1$.
+    \end{restatable}
+
+    Finally, we bound for each vertex the number of rounds \(i\) such that its leader can appear in $\Delta_{G_i}(u_i, v_i)$.
+    The proof of this claim very closely resembles the multiplicative weight update strategy of Welzl~\cite{Welzl88, ChazelleWelzl89}. This claim is the only place where we use inequality~(\ref{equationMUW}).
+    
+    \begin{restatable}[\inAppendix{}]{claim}{MWUtotal}
+    \label{clm:MWUtotal}
+        For each vertex $x \in V(G)$, there are at most $\cal O_{c,d}(n^{1-1/d} + \log{n})$ many integers $i \in \{0,1,\ldots, n-2\}$ so that $L_i(x) \in \Delta_{G_i}(u_i,v_i)$.
+    \end{restatable}
+    \noindent 
+    We will next use \Cref{clm:numberOfLeaders} and \Cref{clm:MWUtotal} to bound the width of the construction sequence. 
+    In each round $i$ of the algorithm, multiple  resolve steps are performed, followed by a single merge step.
+    During each such step, the set of resolved edges is a subset of $R_{i+1}$ and the width is measured in the partition $\PP_i$ (for the resolve steps) or in $\PP_{i+1}$ (for the merge step).
+    The width of a single step can therefore be upper bounded by the width achieved for $\PP_i$ and $R_{i+1}$: the finest partition and the most resolved edges.
+    As $\PP_i$ and $\PP_{i+1}$ only differ in one part, up to a difference of $1$, the following claim suffices to bound the width of the entire construction sequence.
+
+    \begin{claim}\label{clm:bound-mw}
+      For each $i \in \{0,1,2,\ldots, n-1\}$ and vertex $x\in V(G)$, $x$ has neighbors in at most $\mathcal{O}_{c,d}(n^{1-1/d}\log{n})$ different parts of $\PP_i$ in the graph $(V(G), R_i)$.
+    \end{claim}
+
+    \begin{proof}
+      % [Proof of \Cref{clm:bound-mw}]
+      Fix $x\in V(G)$.
+    Our goal is to bound the number of parts of $\Pp_i$ which contain a vertex \(y\) such that $\set{x,y}\in R_i$ by $\mathcal{O}_{c,d}(n^{1-1/d}\log{n})$.
+    Each relevant pair $\set{x,y}$ is resolved at a unique round $j\le i$.
+    Disregarding the single part $\PP_i(x)$, we can assume that $x$ and $y$ are in different parts of $\PP_i$.
+    Then $x$ and $y$ are also in different parts of the finer partition $\Pp_j$, and exactly one of them is in~$\Pp_j(v_j)$.
+    Recall that $v_j$ does \emph{not} become the leader of the merged part.
+    We distinguish two cases.
+
+    First, we bound the number of parts of $\Pp_i$ which contain a vertex $y$
+    so that $\set{x,y}$ was resolved at time \(j\) with $x\in\Pp_j(v_j)$.
+    Then $L_j(x) \neq L_{j+1}(x)$. By \Cref{clm:numberOfLeaders}, there are
+    at most $\log_2 n$ such rounds $j$. Moreover, by
+    inequality~(\ref{equationSize}), there are at most $3r(n-j)^{1-1/d} \leq 3rn^{1-1/d}$ different
+    parts of $\Pp_j$ that $y$ could be contained in. Since $\PP_i$ is coarser than each $\PP_j$, this case contributes at most $3rn^{1-1/d} \log_2{n} \leq \cal O_{c,d}(n^{1-1/d} \log{n})$ parts reachable in $\PP_i$.
+
+    Next, we bound the number of parts of $\Pp_i$ which contain a vertex $y$
+    so that $\set{x,y}$ was resolved at time \(j\) with $y\in\Pp_j(v_j)$.
+    At each round $j$, there is at most one such part, namely $\Pp_j(v_j)$. Moreover, $L_j(x) \in
+    \Delta_{G_j}(u_j, v_j)$ by definition. By \Cref{clm:MWUtotal}, there are
+    only $\cal O_{c,d}(n^{1-1/d} + \log{n})$ such rounds~$j$.
+\newcommand{\setoff}[2]{\{#1\,:\,#2\}}
+
+    Summing the two cases,
+     $|\setoff{\Pp_i(y)}{\set{x,y}\in R_i|}\le \mathcal{O}_{c,d}(n^{1-1/d}\log{n})$, as claimed.
+    \end{proof}
+    
+
+    Having bounded the width of the computed construction sequence, it remains to bound the running time. The bottleneck is applying
+    \Cref{lem:twoWeightFunctions} in each of the $n$ rounds
+    (step~\ref{itm:twoWeightsStep}). Since $G_i$ has at most $n$ vertices and $w_i$
+    assigns weight at most $2^n$ to each vertex, each application runs in time
+    $\mathcal{O}(n^4)$, giving an overall runtime of $\mathcal{O}(n^5)$.
+\end{proof}
+
+\bibliographystyle{plain}
+\bibliography{ref}
+
+% \setcounter{section}{0}
+% \renewcommand\thesection{\Alph{section}}
+
+\appendix
+
+\input{nc}
+
+
+
+
+
+
+
+\section{Radius-1 Merge-Width}
+\label{apn:mergeWidth}
+
+In this section we include the proofs that were omitted from \Cref{sec:merge-width} about merge-width.
+
+
+Before beginning the main proofs, we need to state Haussler's Packing Lemma~\cite{Haussler95}. We state an equivalent formulation in terms of bipartite graphs. This is equivalent to the usual version for set systems: take $X$ to be the ground set and $\{N(v):v \in Y\}$ to be the set system. We refer the reader to~\cite[Lem. 5.14]{discrepancy} for another statement of the lemma.
+
+\begin{lemma}[\cite{Haussler95}]
+\label{lem:Haussler}
+    For all real numbers $c$ and $d\geq 1$, there exists an integer $t = t(c,d)$ so that for any integer $\delta\geq 1$, if $H=(X,Y,E)$ is a bipartite graph such that\begin{enumerate}
+        \item for all distinct vertices $u,v \in Y$, there are at least $\delta$ vertices in $X$ which are adjacent to exactly one of $u$ and $v$, and
+        \item for every nonempty $A \subseteq X$, we have $|\set{N(v)\cap A\,:\, v\in Y}| \leq c|A|^d$,
+    \end{enumerate}
+then $|Y|\leq \max \left(t \cdot (|X|/\delta)^d, 1\right)$.
+\end{lemma}
+
+Now we can use \Cref{lem:Haussler} to prove the key lemma about fractional twins.
+
+\existFractionalTwins*
+\begin{proof}
+    Let $t = t(c+1,d)$ be the integer from \Cref{lem:Haussler}, and write $V$ for $V(G)$.
+
+    Fix a weight function $w\colon V \rightarrow \mathbb{Z}^+$. We define a bipartite graph $H=(X,Y,E)$ with $Y=V$ and $|X|=2w(V)$, as follows. For each vertex $v$ of $G$, we place $2w(v)$ vertices in $X$, called the \emph{copies} of~$v$: $w(v)$ of them have neighborhood $N_G(v)$ in $H$, and the remaining $w(v)$ have neighborhood $\{v\}$ in $H$. We call the former \emph{neighborhood copies} and the latter \emph{self copies} of~$v$.
+
+    We verify condition~(2) of \Cref{lem:Haussler} with constant $c+1$. 
+    
+    \begin{claim}
+      For every nonempty $A \subseteq X$, we have $|\setof{N_H(v)\cap A}{v\in Y}| \leq (c+1)|A|^d$.
+    \end{claim}
+    \begin{proof}
+    Consider a nonempty set $A \subseteq X$, and let $A' \subseteq V$ be the set of vertices of $G$ with at least one copy in $A$. Since each element of $A$ is a copy of exactly one vertex, $|A'| \leq |A|$. For $u \in Y$ with no copy in $A$, the set $N_H(u) \cap A$ consists exactly of the neighborhood copies in $A$ of vertices in $N_G(u)$, which is determined by $N_G(u) \cap A'$. Hence,
+    \[
+    |\setof{N_H(v) \cap A}{v \in Y}| \leq |A'| + |\setof{N_G(v) \cap A'}{v \in V}| \leq |A| + c|A|^d \leq (c+1)|A|^d.\qedhere
+    \]
+    \end{proof}
+
+    We apply \Cref{lem:Haussler} contrapositively with $\delta \coloneqq r \cdot n^{-1/d} w(V)$, where $r = r(c,d)$ is chosen below. 
+    Using $|X| = 2w(V)$, the bound from \Cref{lem:Haussler} gives
+    \begin{align*}
+    |Y| \leq \max\!\left(t\cdot \left(\frac{|X|}{\delta}\right)^{\!d}\!, 1\right) \leq \max\!\left(t\cdot \left(\frac{2}{r}\right)^{\!d} n, 1\right).
+    \end{align*}
+
+    Choosing $r$ large enough so that $t \cdot (2/r)^d < 1$, the right-hand side is less than $n = |Y|$, a contradiction. So condition~(1) of \Cref{lem:Haussler} must fail: there exist distinct $u, v \in Y$ such that fewer than $\delta$ vertices of $X$ are adjacent to exactly one of $u$ and $v$.
+    It remains to show that $w(\Delta_G(u,v)) \leq \delta$.
+    The $w(u)$ self copies of $u$, the $w(v)$ self copies of $v$, and for each $x \in \Delta_G(u,v) \setminus \{u,v\}$, the $w(x)$ neighborhood copies of $x$, are all distinct elements of $X$ adjacent to exactly one of $u$ and $v$. Hence $w(\Delta_G(u,v)) = w(u) + w(v) + w(\Delta_G(u,v) \setminus \{u,v\}) < \delta = rn^{-1/d}w(V)$, as desired.
+\end{proof}
+
+The next lemma shows how to obtain a single pair of vertices which are fractional twins with respect to two weight functions simultaneously.
+
+\twoWeightFunctions*
+\begin{proof}
+    Denote $V\coloneqq V(G)$. Without loss of generality, we may assume that $w_1(V) \geq w_2(V)$. Now, for each vertex $x \in V$, set \begin{align*} w(x) = w_1(x)+w_2(x) \cdot \left\lceil {w_1(V)}/{w_2(V)}\right\rceil.\end{align*}Then $w(V)\leq 2w_1(V)+w_2(V)\leq 3 w_1(V)$ where the extra $w_2(V)$ is used to handle parity. Now, let $u$ and $v$ be distinct vertices of $G$ which are $p$-fractional twins with respect to $w$. Then \begin{align*} w_1(\Delta(u,v)) \leq w(\Delta(u,v))\leq p\cdot w(V) \leq 3p\cdot w_1(V),\end{align*} so $u$ and $v$ are $3p$-fractional twins with respect to $w_1$. To prove $3p$-fractional twins with respect to $w_2$, we have by definition 
+    \[
+      w_2(\Delta(u,v)) \cdot \left\lceil {w_1(V)}/{w_2(V)}\right\rceil = w(\Delta(u,v)) - w_1(\Delta(u,v)).
+    \]
+    So in particular
+    \[
+      w_2(\Delta(u,v))\cdot \left( {w_1(V)}/{w_2(V)}\right) \leq w(\Delta(u,v))\leq 3p\cdot w_1(V).
+    \]
+    Dividing the leftmost and the rightmost side by $\left( {w_1(V)}/{w_2(V)}\right)$, we obtain $w_2(\Delta(u,v)) \leq 3p\cdot w_2(V)$,
+    as desired.
+
+    Now, notice that every vertex has weight at most $2^{\mathcal{O}(n)}$ with respect to $w$. So we may find such vertices $u$ and $v$ by iterating through all $\mathcal{O}(n^2)$ pairs of vertices $u$ and $v$, and then computing $w(\Delta(u,v))$ in $\mathcal{O}(n^2)$ time. (Here we represent the weights of size $2^{\mathcal{O}(n)}$ as bitstrings of length $\mathcal{O}(n)$, which we can add and compare in time $\mathcal{O}(n)$.)
+\end{proof} 
+
+We conclude this section by proving three claims which are all part of the proof of \Cref{thm:mergeWidth}. The reader may wish to refer back to that proof.
+
+\buildsGraph*
+\begin{proof}
+    By induction on \(i\), we maintain two invariants at the beginning of round \(i\):
+    \begin{itemize}
+        \item\label{inv:within} Every pair of vertices within the same part of~$\Pp_i$ is resolved.
+        \item\label{inv:leader} For every unresolved pair $\set{x,y} \not\in R_i$ with $x$ and $y$ in different parts of~$\Pp_i$, $x$ is adjacent to $y$ if and only if $L_i(x)$ is adjacent to $L_i(y)$.
+    \end{itemize}
+
+    Together, these invariants prove the claim:
+    At round~$n-1$, only a single part is left, and by the first item every pair is resolved.
+    Moreover, Step~\ref{itm:resolveStep} resolves a pair \(\{x,y\}\) positively if and only if their leaders are adjacent.
+    By the second item, this is the case if and only if \(x\) and \(y\) are adjacent.
+    Hence, every pair is resolved according to their adjacency in the graph, proving the claim.
+
+    At $i=0$, every vertex is its own leader and every part is a singleton, so
+    both items hold trivially. Assume both hold at round~$i$, and we verify them at
+    round~$i+1$.
+
+    To prove the first invariant, observe that the only new part of~$\Pp_{i+1}$ is $\Pp_i(u_i)\cup\Pp_i(v_i)$.
+    Pairs within~$\Pp_i(u_i)$ or within~$\Pp_i(v_i)$ are already resolved by induction.
+    Since $u_i\in\Delta_{G_i}(u_i,v_i)$, Step~\ref{itm:resolveStep} resolves \(\Pp_i(u_i)\) and \(\Pp_i(v_i)\),
+    resolving all pairs in $\Pp_i(u_i)\cup\Pp_i(v_i)$ and proving the invariant.
+    
+    To prove the second invariant, let $\set{x,y}\not\in R_{i+1}$ with $x$ and~$y$ in different parts of~$\Pp_{i+1}$.
+    Then $\set{x,y}$ was unresolved also at round~$i$, and $x,y$ are in different parts of~$\Pp_i$ as well (since parts only merge).
+    The only leader that changes from round~$i$ to~$i{+}1$ is that of vertices in~$\Pp_i(v_i)$: from~$v_i$ to~$u_i$.
+    If neither $x$ nor~$y$ is in~$\Pp_i(v_i)$, then both leaders are unchanged and the invariant carries over from round~$i$.
+    So suppose $x\in\Pp_i(v_i)$ (the other case is symmetric).
+    Since $x$ and~$y$ are in different parts of~$\Pp_{i+1}$, we have $y\notin\Pp_i(u_i)\cup\Pp_i(v_i)$, so $L_{i+1}(y)=L_i(y)$.
+    Since $\set{x,y}$ was not resolved at round~$i$, we have $L_i(y)\notin\Delta_{G_i}(u_i,v_i)$, meaning $L_i(y)$ has the same adjacency to~$u_i$ and~$v_i$.
+    Again, the invariant carries over from round~$i$.
+
+\end{proof}
+
+\numberOfLeaders*
+\begin{proof}
+    Consider a rooted forest on~$V(G)$ that evolves with the algorithm.
+    At round~$0$, there are $n$ single-vertex trees, one per part.
+    At round~$i$, when parts $\Pp_i(u_i)$ and $\Pp_i(v_i)$ merge, we make~$v_i$ a child of~$u_i$, joining the two trees with~$u_i$ as root.
+    After all $n{-}1$ rounds, this yields a single rooted tree~$T$ on~$V(G)$.
+    The distinct leaders of a vertex~$x$ across all rounds are exactly its ancestors in~$T$ (including~$x$ itself), so the claim is equivalent to~$T$ having height at most~$\log_2 n$.
+
+    We show by induction on~$i$ that for each part $P \in \Pp_i$, the tree corresponding~$P$ has height at most~$\log_2 |P|$.
+    At round~$0$ this holds since each tree has height~$0$.
+    When $\Pp_i(u_i)$ and $\Pp_i(v_i)$ merge, the height of the new tree is $\max(h_u,\, 1 + h_v)$, where $h_u$ and~$h_v$ are the heights of the two subtrees.
+    By induction, $h_u \leq \log_2 |\Pp_i(u_i)| \leq \log_2 |\Pp_i(u_i) \cup \Pp_i(v_i)|$.
+    Since $|\Pp_i(u_i)| \geq |\Pp_i(v_i)|$, we have $1 + h_v \leq 1 + \log_2 |\Pp_i(v_i)| = \log_2(2|\Pp_i(v_i)|) \leq \log_2(|\Pp_i(u_i)| + |\Pp_i(v_i)|)$.
+    Both are at most $\log_2 |\Pp_i(u_i) \cup \Pp_i(v_i)|$, completing the induction.
+\end{proof}
+
+\MWUtotal*
+\begin{proof} 
+    Denote the total weight as $t_i\coloneqq w_i(V(G_i))$ for each $i$. Then $t_0=n$.
+    We first show that for every $i\in\{0,1,\ldots,n-2\}$,
+    \[
+    t_{i+1}\leq t_i+w_i(\Delta_{G_i}(u_i,v_i)).
+    \]
+    Indeed, by Step~\ref{itm:weightUpdate} of the algorithm, every leader in $\Delta_{G_i}(u_i,v_i)\setminus\{u_i,v_i\}$ doubles its weight, contributing an increase of exactly
+    $w_i(\Delta_{G_i}(u_i,v_i)\setminus\{u_i,v_i\})$.
+    Moreover, by Step~\ref{itm:weightUpdate}, $v_i$ disappears and $u_i$ receives weight $2\max(w_i(u_i),w_i(v_i))$, so the net change on $\{u_i,v_i\}$ is
+    \[
+    2\max(w_i(u_i),w_i(v_i))-w_i(u_i)-w_i(v_i)
+    =|w_i(u_i)-w_i(v_i)|
+    \leq w_i(u_i)+w_i(v_i).
+    \]
+    Hence the displayed inequality holds. Using~(\ref{equationMUW}), we obtain
+    \[
+    t_{i+1}\leq t_i\left(1+3r(n-i)^{-1/d}\right)
+    \qquad\text{for every }i\in\{0,1,\ldots,n-2\}.
+    \]
+    Therefore, using $t_0=n$,
+    \[
+    t_{n-1}\leq n\prod_{i=0}^{n-2}\left(1+3r(n-i)^{-1/d}\right)
+    =n\prod_{i=2}^{n}\left(1+3ri^{-1/d}\right).
+    \]
+
+    Let
+    \[
+    m\coloneqq\left|\bigl\{i\in\{0,1,\ldots,n-2\}: L_i(x)\in \Delta_{G_i}(u_i,v_i)\bigr\}\right|.
+    \]
+    Every time $L_i(x)\in \Delta_{G_i}(u_i,v_i)$, the weight of the current leader of $x$ at least doubles from round $i$ to round $i+1$.
+    Iterating over the $m$ relevant rounds, we obtain \(w_{n-1}(L_{n-1}(x))\geq 2^m\), and therefore (using \(1+y\leq e^y\)),
+    \[
+    2^m\leq w_{n-1}(L_{n-1}(x))\leq t_{n-1}
+    \leq n\prod_{i=2}^{n}\left(1+3ri^{-1/d}\right)
+    \leq n\exp\left(3r\sum_{i=2}^{n} i^{-1/d}\right).
+    \]
+    Since $i^{-1/d}$ is decreasing,
+    \[
+    \sum_{i=2}^{n} i^{-1/d}\leq \int_1^n i^{-1/d}\,di.
+    \]
+    If $d=1$, this integral is $\log n$, so $m\le \mathcal{O}_{c}(\log n)$.
+    If $d>1$, this integral is $\mathcal{O}_d(n^{1-1/d})$, so $m\le \mathcal{O}_{c,d}(n^{1-1/d})$.
+    In either case
+    \[
+    m\leq \cal O_{c,d} (n^{1-1/d} + \log n).\qedhere
+    \]
+\end{proof}
+
+
+% \paragraph{Discussion}
+
+% We should list obstacles towards extending the merge-width result to higher radii.
+% \niko{I think we do not necessarily need a discussion}
+
+
+
+
+\end{document}

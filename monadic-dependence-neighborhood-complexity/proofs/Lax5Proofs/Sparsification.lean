@@ -235,7 +235,13 @@ theorem realizeIn_liftFormula {k k' : ℕ} (h : k ≤ k')
     (φ : (withColors Language.graph k).Formula β) (v : β → Fin n) :
     RealizeIn M colors (liftFormula h φ) v ↔
       RealizeIn M (fun i => colors (i.castLE h)) φ v := by
-  sorry
+  letI := M
+  letI := colorStructure colors
+  letI := colorStructure fun i => colors (i.castLE h)
+  haveI : (colorLHom h).IsExpansionOn (Fin n) :=
+    ⟨fun f => f.elim, fun R x => by cases R; rfl⟩
+  exact Language.LHom.realize_onFormula
+    (Language.LHom.sumMap (Language.LHom.id Language.graph) (colorLHom h)) φ
 
 namespace Sparsification
 
@@ -282,6 +288,93 @@ theorem Sparsification.step {G : SimpleGraph (Fin n)}
       (S.size : ℝ) ≤ stepLoss d A.card * S'.size := by
   sorry
 
+theorem one_le_stepLoss (d : ℕ) {x : ℝ} (hx : 1 ≤ x) :
+    1 ≤ stepLoss d x := by
+  have hlog : 0 ≤ Real.log x := Real.log_nonneg hx
+  simp only [stepLoss]
+  nlinarith [Nat.cast_nonneg (α := ℝ) d]
+
+theorem stepLoss_le_stepLoss {d d' : ℕ} (h : d ≤ d') {x : ℝ}
+    (hx : 1 ≤ x) : stepLoss d x ≤ stepLoss d' x := by
+  have hlog : 0 ≤ Real.log x := Real.log_nonneg hx
+  have hdd : (d : ℝ) ≤ (d' : ℝ) := Nat.cast_le.2 h
+  simp only [stepLoss]
+  nlinarith [sq_nonneg (Real.log x + 2)]
+
+/-- A sparsification of dimension `0` is terminal: every part carries
+at most one trace, hence at most one vertex. -/
+theorem Sparsification.terminal_of_dimLE_zero {G : SimpleGraph (Fin n)}
+    {A B : Finset (Fin n)} {k : ℕ} (S : Sparsification G A B k)
+    (h : S.DimLE 0) : S.Terminal := by
+  classical
+  have hsum : S.supp.card = ∑ τ ∈ S.labels, (S.part τ).card :=
+    Finset.card_eq_sum_card_fiberwise fun b hb =>
+      Finset.mem_image_of_mem _ hb
+  have hle : ∀ τ ∈ S.labels, (S.part τ).card ≤ 1 := by
+    intro τ hτ
+    obtain ⟨b, hb, rfl⟩ := Finset.mem_image.1 hτ
+    calc (S.part (S.tup b)).card
+        = (S.partTraces (S.tup b)).card := (S.card_partTraces _).symm
+      _ ≤ 1 := SetSystems.card_le_one_of_vcDim_eq_zero
+          (Nat.le_zero.1 (h b hb))
+  have hcount : S.size ≤ S.partsCount := by
+    show S.supp.card ≤ S.labels.card
+    calc S.supp.card = ∑ τ ∈ S.labels, (S.part τ).card := hsum
+      _ ≤ ∑ _τ ∈ S.labels, 1 := Finset.sum_le_sum hle
+      _ = S.labels.card := by simp
+  show S.size ≤ 2 * S.partsCount
+  omega
+
+/-- Iteration core of Lemma 26: from any definable sparsification of
+dimension at most `d`, at most `d` applications of Lemma 25 reach a
+terminal one, each costing a `stepLoss d` factor. -/
+private theorem exists_terminal_of_dimLE {G : SimpleGraph (Fin n)}
+    {A B : Finset (Fin n)} (hA : 1 ≤ A.card) :
+    ∀ (d k : ℕ) (S : Sparsification G A B k), S.Definable → S.DimLE d →
+      ∃ i, k ≤ i ∧ i ≤ k + d ∧ ∃ S' : Sparsification G A B i,
+        S'.Definable ∧ S'.Terminal ∧
+        (S.size : ℝ) ≤ stepLoss d A.card ^ d * S'.size := by
+  have hx1 : (1 : ℝ) ≤ (A.card : ℝ) := by exact_mod_cast hA
+  intro d
+  induction d with
+  | zero =>
+    intro k S hdef hdim
+    exact ⟨k, le_refl _, by omega, S, hdef,
+      S.terminal_of_dimLE_zero hdim, by simp⟩
+  | succ d ih =>
+    intro k S hdef hdim
+    have hsl1 : (1 : ℝ) ≤ stepLoss (d + 1) (A.card : ℝ) :=
+      one_le_stepLoss _ hx1
+    by_cases hterm : S.Terminal
+    · refine ⟨k, le_refl _, by omega, S, hdef, hterm, ?_⟩
+      have hpow : (1 : ℝ) ≤ stepLoss (d + 1) (A.card : ℝ) ^ (d + 1) :=
+        one_le_pow₀ hsl1
+      nlinarith [Nat.cast_nonneg (α := ℝ) S.size]
+    · obtain ⟨S', hdim', hdef', hloss⟩ := S.step hdim hterm hdef
+      obtain ⟨i, hki, hikd, S'', hdef'', hterm'', hsize''⟩ :=
+        ih (k + 1) S' hdef' hdim'
+      refine ⟨i, by omega, by omega, S'', hdef'', hterm'', ?_⟩
+      have hslm : stepLoss d (A.card : ℝ) ≤ stepLoss (d + 1) (A.card : ℝ) :=
+        stepLoss_le_stepLoss (by omega) hx1
+      have hsl0 : (0 : ℝ) ≤ stepLoss d (A.card : ℝ) :=
+        le_trans zero_le_one (one_le_stepLoss _ hx1)
+      calc (S.size : ℝ)
+          ≤ stepLoss (d + 1) (A.card : ℝ) * S'.size := hloss
+        _ ≤ stepLoss (d + 1) (A.card : ℝ) *
+              (stepLoss d (A.card : ℝ) ^ d * S''.size) := by
+            have := mul_le_mul_of_nonneg_left hsize''
+              (le_trans zero_le_one hsl1)
+            exact this
+        _ ≤ stepLoss (d + 1) (A.card : ℝ) *
+              (stepLoss (d + 1) (A.card : ℝ) ^ d * S''.size) := by
+            have hpowle : stepLoss d (A.card : ℝ) ^ d ≤
+                stepLoss (d + 1) (A.card : ℝ) ^ d :=
+              pow_le_pow_left₀ hsl0 hslm d
+            exact mul_le_mul_of_nonneg_left
+              (mul_le_mul_of_nonneg_right hpowle (Nat.cast_nonneg _))
+              (le_trans zero_le_one hsl1)
+        _ = stepLoss (d + 1) (A.card : ℝ) ^ (d + 1) * S''.size := by ring
+
 /-- Lemma 26 of DMMPT26: a twin-free pair whose trace system has VC
 dimension at most `d` admits a definable terminal `i`-sparsification,
 `i ≤ d`, of size at least `|B| / stepLoss^d`. -/
@@ -292,6 +385,15 @@ theorem exists_terminal_sparsification {G : SimpleGraph (Fin n)}
     ∃ i ≤ d, ∃ S : Sparsification G A B i,
       S.Definable ∧ S.Terminal ∧
       (B.card : ℝ) ≤ stepLoss d A.card ^ d * S.size := by
-  sorry
+  have hdim : (Sparsification.trivial htf).DimLE d := by
+    intro b hb
+    refine le_trans (Finset.vcDim_mono ?_) hvc
+    intro F hF
+    obtain ⟨b', hb', rfl⟩ := Finset.mem_image.1 hF
+    exact Finset.mem_image_of_mem _ (Finset.filter_subset _ _ hb')
+  obtain ⟨i, -, hid, S, hdef, hterm, hsize⟩ :=
+    exists_terminal_of_dimLE (by omega) d 0 (.trivial htf)
+      (Sparsification.definable_trivial htf) hdim
+  exact ⟨i, by omega, S, hdef, hterm, hsize⟩
 
 end Lax5Proofs

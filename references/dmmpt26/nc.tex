@@ -1,0 +1,600 @@
+\section{Neighborhood Complexity}
+\label{apn:nc}
+
+In this appendix, we give the full proof of \Cref{thm:nei-comp-NIP}.
+We begin by introducing the relevant notions.
+\subsection{Preliminaries}
+\label{apn:prelims}
+
+
+
+\paragraph{Asymptotic notation.}
+Throughout this section, $\subpoly(n)$ denotes an unspecified function $f\from\N\to\mathbb R_{\ge 0}$ such that for every fixed $\eps>0$ we have $f(n)\le n^\eps$ for large enough $n$. We write $\subpoly_k(n)$ when $f$ may additionally depend on a fixed parameter $k$, and similarly we write $\subpoly_{\CC}(n)$ when $f$ may depend on a fixed class of graphs $\CC$. (So this notation is the same as writing $n^{o(1)}$, $n^{o_k(1)}$, or $n^{o_{\CC}(1)}$. However, we introduce the new notation as to make the variables and parameters explicit.) Similarly, $\polylog(n)$ denotes an unspecified function bounded by $p(\log n)$ for some polynomial $p$, and $\polylog_k(n)$ allows dependence of the polynomial on a fixed parameter~$k$.
+
+
+\paragraph{Graphs.}
+A graph $G$ consists of a set $V$ of vertices and a set $E\subset {V\choose 2}$ of edges, which are denoted $V(G)$ and $E(G)$, respectively.
+For a graph $G$ with disjoint subsets $A,B \subseteq V(G)$,  let $G[A,B]$ denote the bipartite graph $(A,B,E')$ that is \emph{semi-induced} by $A$ and $B$, where $E'$ contains those edges of $G$ with one endpoint in $A$ and one endpoint in $B$.
+
+\paragraph{Structures.}
+% We give a more formal definition of transductions than in \Cref{sec:prelims}. 
+A graph is viewed as a relational structure, equipped with a binary relation symbol $E$ denoting adjacency.
+A \emph{unary expansion} of a relational structure $A$ is obtained from $A$ by 
+adding several unary relations (also called unary predicates) to~$A$.
+%  A (unary) \emph{expansion} of such a structure $S$ by a unary predicate $U$ is a structure $S'$ 
+% with the same domain and relations as $S'$,
+% and additional unary predicates.
+% A (first-order) \emph{transduction} $T$ is specified 
+% by a formula $\phi(x,y)$ in the signature of graphs (a binary adjacency relation symbol $E$) extended with additional unary predicates.
+% Given a graph~$G$, its output $T(G)$
+% is the set of all graphs $H$ that can be obtained by first arbitrarily expanding $G$ with unary predicates occurring in $\phi$, then defining a graph with the same vertex set as $G$ and edges $ab \in {V(G)\choose 2}$ such that $\phi(a,b)\lor\phi(a,b)$ holds,
+% and then taking an arbitrary induced subgraph $H$ of the obtained graph.
+% For a graph class $\CC$, we define $T(\CC)\coloneqq \bigcup \setof{T(G)}{G\in\CC}$. 
+
+
+
+
+
+% \medskip
+% In general, we will proceed in steps, where in step $i$ we maintain 
+% a set $A_i\subset A$ and 
+% a partition $\cal P_i$ of a subset $B_i$ of $B$.
+% We will maintain that  
+% \begin{align}\label{eq:inv-ineq}
+% \sum_{P\in\cal P_i} |\inducedSS{P}{A_i}|\ge |A|^{1+\delta}/\polylog_i(|A|).  
+% \end{align}
+
+% For $i=0$, $\cal P_0=\set{B}$, while 
+% for $i>0$, $\cal P_i$ is a refinement of $\cal P_{i-1}$ such that for $P\in \cal P_i$, 
+% if $P'$ is the part of $\cal P_{i-1}$ containing $P$,
+% then $P$ is carved out inside $P'$
+% by asking for a unique sampled neighbor $x\in A_i$ in the positive or negative merge graph of $P'/A_i$.
+% In particular, $P$ is contained in the corresponding neighborhood.
+% In particular, it will follow that $\inducedSS{P}{A_i}$ has VC-dimension at most $d-i$.
+
+
+% After $d$ steps of the construction, we will 
+% conclude  that for $P\in \cal P_d$,  $P/A_d$ has VC-dimension $0$,
+% so $|P/A_d|=1$.
+% Therefore, by \eqref{eq:inv-ineq}, we get that $$|\cal P_d|\ge |A|^{1+\delta}/\polylog_d(|A|).$$  
+% As each of the involved positive/negative merge graph is transducible from $G$
+% we can transduce a structure $H$ equipped with $d$ binary relations of out-degree $1$, with one part equal to $\cal P_d$ and the other part equal to $A$, and every vertex in $\cal P_d$ is uniquely determined by its $d$ outneighbors. As $H$ is transducible from a monadically dependent graph class by a fixed transduction and the underlying bipartite graph $H'$ is $K_{d+1,d+1}$-free, it follows that  $H'$ belongs to a nowhere dense graph class. Using the known bound for nowhere dense classes, we obtain that for every fixed $\varepsilon>0$, assuming $|A|$ is large enough, we have:
+% $$|\cal P_d|\le |A|^{1+\varepsilon}.$$
+% Putting together the two inequalities we obtain $|A|^{\delta}\le |A|^{\varepsilon}\cdot \polylog_d(|A|)$, where $\varepsilon$ is any fixed constant. This is a contradiction, if $|A|$ large enough.
+
+\subsection{A simple lemma on VC-dimension}
+\lemVCind*
+\begin{proof}[Proof of \Cref{lem:VC-induction}]
+It is enough to prove the claim for the family $\cal F_+$ of all $v$-positive sets in $\cal F$; the argument for the family of $v$-negative sets is symmetric.
+If $\cal F_+=\emptyset$, then $\VCdim(\cal F_+)=-\infty$ and there is nothing to prove.
+
+Suppose $\cal F_+$ shatters a set $X\subseteq V$.
+Since every set in $\cal F_+$ contains $v$, we must have $v\notin X$.
+For each $Y\subseteq X$, choose $F_Y\in\cal F_+$ with $F_Y\cap X=Y$.
+As $F_Y$ is $v$-positive, there is a set $F'_Y\in\cal F$ such that $F'_Y\triangle F_Y=\set{v}$.
+Then $F'_Y\cap X=Y$, while exactly one of $F_Y$ and $F'_Y$ contains $v$.
+Hence
+\[
+\{F_Y\cap (X\cup\set{v}),\ F'_Y\cap (X\cup\set{v})\}=\set{Y\cup\set{v},\ Y}.
+\]
+Since this holds for every $Y\subseteq X$, the family $\cal F$ shatters $X\cup\set{v}$.
+Therefore,
+\(
+\VCdim(\cal F)\ge |X|+1,
+\)
+so $\VCdim(\cal F_+)\le \VCdim(\cal F)-1$.
+This proves that $\cal F_+$ has VC-dimension strictly smaller than~$\cal F$.
+\end{proof}
+
+
+
+
+
+\subsection{Exhibiting many Hamming edges}
+We prove the following generalization of \Cref{lem:star0}.
+
+\begin{restatable}%[\inAppendix]
+  {lemma}{lemstar}\label{lem:star}
+  Let $G=(A,B,E)$ be a bipartite graph with $|A|=n>1$, and let $\cal P$ be a partition of $B$.
+  Suppose
+  \[
+    m:=\sum_{P\in \cal P}|\inducedSS{P}{A}|> 2|\cal P|.
+  \]
+  Then there is a set $X\subseteq A$ such that
+  \[
+    \sum_{P\in \cal P}|E(\hamming(\inducedSS{P}{X}))|
+    \ge \frac{m}{2\ln n+2}.
+  \]
+\end{restatable}
+\begin{proof}
+  Let $H(n):=1+1/2+\ldots+1/n$ be the $n$th harmonic number.
+  Initially, set $X:=A$.
+  As long as there is a vertex $v\in X$ such that 
+  \[
+    \sum_{P\in\cal P}\left(|\inducedSS{P}{X}|-|\inducedSS{P}{(X-\set v)}|\right)
+    \le \frac{m}{2|X|\cdot H(n)},
+  \]
+  remove $v$ from $X$ and repeat. Otherwise, if there is no such $v$, terminate.
+  
+
+  \begin{claim}
+    At the end of the process, the set $X$ is nonempty.
+  \end{claim}
+  \begin{proof}
+    At any point in the process, consider the sum
+    \[
+      \mu(X):=\sum_{P\in \cal P}|\inducedSS{P}{X}|.
+    \]
+    Initially, when $X=A$, this sum is equal to $m$ by definition.
+    In each step of the process, when a vertex $v$ is removed from $X$, the sum decreases by
+    \[
+      \sum_{P\in \cal P}\Big(|\inducedSS{P}{X}|-|\inducedSS{P}{(X-\set v)}|\Big)
+      \le \frac{m}{2H(n)}\cdot \frac{1}{|X|}.
+    \]
+    Hence, if we remove all $n$ elements from $X$, the sum decreases by at most
+    \[
+      \left(\frac{m}{2H(n)}\cdot \frac{1}{n}\right) + \left(\frac{m}{2H(n)}\cdot \frac{1}{n-1}\right) + \ldots + \left(\frac{m}{2H(n)}\cdot \frac{1}{1}\right) = \frac{m}{2H(n)}\cdot \sum_{i=1}^n \frac 1 i
+      = \frac{m}{2}.
+    \]
+    This means $\mu(\emptyset)\geq \mu(A) - m/2 = m/2$.
+    On the other hand we have
+    \[
+      \mu(\emptyset)
+      =\sum_{P\in\cal P}|\inducedSS{P}{\emptyset}|
+      =\sum_{P\in\cal P}1
+      =|\cal P|
+      <\frac{m}{2};
+    \]
+    a contradiction which proves the claim.
+  \end{proof}
+
+  For every part $P\in\cal P$ and every vertex $v\in X$, the quantity
+  \[
+    |\inducedSS{P}{X}|-|\inducedSS{P}{(X-\set v)}|
+  \]
+  is exactly the number of edges of $\hamming(\inducedSS{P}{X})$ whose endpoints
+  differ on~$v$. Therefore every edge of every graph
+  $\hamming(\inducedSS{P}{X})$ is counted exactly once when we sum over
+  $v\in X$, and hence
+  \begin{multline*}
+    \sum_{P\in\cal P}|E(\hamming(\inducedSS{P}{X}))|
+    = \sum_{v\in X}
+    \sum_{P\in\cal P}\left(|\inducedSS{P}{X}|-|\inducedSS{P}{(X-\set v)}|\right)\\
+    > \sum_{v\in X}\frac{m}{2|X|\cdot H(n)}
+    = |X|\cdot \frac{m}{2|X|\cdot H(n)}
+    = \frac{m}{2H(n)}
+    \ge \frac{m}{2\ln(n)+2}.
+  \end{multline*}
+\end{proof}
+
+
+\subsection{Proof of \Cref{thm:nei-comp-NIP}}
+
+ \Cref{thm:nei-comp-NIP} will follow directly from the next lemma.
+\begin{restatable}{lemma}{lemnc}\label{lem:nc}
+  Let $\BB$ be a monadically dependent class of bipartite graphs $G=(A,B,E)$
+  with no twins in $B$.
+  Then \begin{equation}\label{eq:bip-version}
+  |B|\le |A|\cdot \subpoly_{\BB}(|A|).
+\end{equation}
+\end{restatable}
+We first argue that \Cref{lem:nc} implies 
+\cref{thm:nei-comp-NIP}.
+
+\begin{proof}[Proof of \Cref{thm:nei-comp-NIP}]
+Let $\BB$ be the class of all bipartite graphs $G[A,B]$
+such that $G\in \CC$ and $A,B\subseteq V(G)$ are disjoint,
+and no two vertices in $B$ have equal neighborhoods in $A$.
+As $\CC$ transduces $\BB$, the class $\BB$ is monadically dependent.
+For a graph $G\in \CC$ and set $A\subseteq V(G)$, let $B\subset V(G)-A$ 
+be maximal such that no two vertices in $B$ have equal neighborhoods in $A$.
+Then
+\[
+  \Big|\setof{N_G(v)\cap A}{v\in V(G)}\Big|\le  \Big|\setof{N_G(v)\cap A}{v\in A}\Big|+\Big|\setof{N_G(v)\cap A}{v\in B}\Big|   
+  \le |A|+|B|,
+\]
+ Applying \Cref{lem:nc} to $G[A,B]\in\BB$ yields the theorem.
+\end{proof}
+
+We now proceed to the proof of \Cref{lem:nc}.
+The following notion encapsulates the invariant used in the inductive proof.
+\begin{definition}
+  Let $G=(A,B,E)$ be a bipartite graph and $k\in\N$.
+  A \emph{$k$-sparsification} consists of:
+  \begin{itemize}
+    \item sets $A_0\subseteq A$ and $B_0\subseteq B$, and
+    \item functions $f_1,\ldots,f_k\from B_0\to A$,
+  \end{itemize}
+  such that
+  the mapping $b\mapsto (N(b)\cap A_0,f_1(b),\ldots,f_k(b))$ is an injection from $B_0$ to $2^{A_0} \times A^k$.
+For such a $k$-sparsification we define:
+\begin{itemize}
+  \item The \emph{associated partition} $\cal P$ as the partition of $B_0$ such that two vertices $b,b'$ are in the same part of $\cal P$ if and only if 
+  $f_j(b)=f_j(b')$ for all $j=1,\ldots,k$. Note that vertices in the same part of $\cal P$ have pairwise distinct neighborhoods in $A_0$;
+  \item The \emph{size} as $s=|B_0|$;
+  \item The \emph{dimension} as $\max_{P\in\cal P} \VCdim(\inducedSS{P}{A_0})$; and
+  \item The \emph{complexity} as the least $c\ge0$ such that there are first-order formulas $\phi_1(x,y),\ldots,\phi_k(x,y)$ of quantifier rank ${\le}c$, each using ${\le}c$ unary predicates, and there is an expansion $G'$ of $G$ with $c$ unary predicates,
+  such that $\phi_j$ defines $f_j$ in $G'$ for $j=1,\ldots,k$, so that 
+  \[
+    f_j(b)=a\iff G'\models \phi_j(b,a)
+    \quad
+    \text{for all $b\in B_0$ and $a\in A$.}  
+  \]
+\end{itemize}
+We say that a sparsification is \emph{terminal} if its size $s$ and
+associated partition $\cal P$ satisfy $s\le 2|\cal P|$, and
+\emph{nonterminal} otherwise.
+\end{definition}
+
+Note that a bipartite graph $G=(A,B,E)$ with no twins in $B$ has a trivial $0$-sparsification with $A_0=A$ and $B_0=B$. Its associated partition is $\cal P=\set{B}$, size $s=|B|$, and complexity is $0$.
+We prove the following, for bipartite graphs $G$ from a monadically dependent class $\BB$:
+\begin{enumerate}
+  \item a nonterminal $k$-sparsification can be improved to a $(k+1)$-sparsification with strictly smaller dimension, by losing only a $\polylog(|A|)$ factor in the size, and increasing the complexity only by a constant (\Cref{lem:step});
+  \item repeating this argument, we reach a terminal sparsification after at most $d$ steps, where $d$ upper bounds the VC-dimension of every $G$ in $\BB$ (\Cref{lem:iterate});
+  \item  a terminal $k$-sparsification of $G\in \BB$ of bounded complexity has size $s\le |A|\cdot \subpoly_{\BB,k}(|A|)$ (\Cref{lem:terminal}).
+\end{enumerate}
+Combining these three points yields a terminal $k$-sparsification with $k\le d$ and size $s$ satisfying
+$$\frac{|B|}{\polylog_d(|A|)}\le s\le |A|\cdot\subpoly_{\BB,d}(|A|).$$
+This proves the inequality \eqref{eq:bip-version} in \Cref{lem:nc}. We now prove the necessary lemmas.
+
+
+\begin{restatable}%[\inAppendix]
+  {lemma}{lemtransduce}\label{lem:transduce}
+  For every $k,c\in\N$ there is a transduction $T_{k,c}$ with the following property.
+  Let $G=(A,B,E)$ be a bipartite graph with a $k$-sparsification 
+   of complexity $c$, consisting of sets 
+   $A_0\subseteq A,B_0\subseteq B$ and functions $f_1,\ldots,f_k\from B_0\to A$.
+   Consider the bipartite graph $H=(A,B_0,E')$
+with $N_H(b)=\setof{f_j(b)}{j\in[k]}$ for $b\in B_0$.
+Then $H\in T_{k,c}(G)$.
+\end{restatable}
+\begin{proof}
+Fix $k,c\in\N$.
+Up to logical equivalence, there are only finitely many binary formulas of
+quantifier rank at most $c$ over the signature consisting of the adjacency
+relation and $c$ unary predicates.
+Hence there are only finitely many $k$-tuples of such formulas; list them as
+\[
+  \bar\phi^1,\ldots,\bar\phi^m,
+  \qquad
+  \bar\phi^t=(\phi^t_1,\ldots,\phi^t_k).
+\]
+
+Let $T_{k,c}$ be the transduction that guesses:
+\begin{itemize}
+  \item $c$ unary predicates for the witness expansion from the definition of complexity,
+  \item two unary predicates $L,R$ marking the sets $A$ and $B_0$, and
+  \item unary predicates $S_1,\ldots,S_m$ used as global flags selecting one
+  of the tuples $\bar\phi^1,\ldots,\bar\phi^m$.
+\end{itemize}
+It then applies the formula
+\[
+  \psi(x,y)\ :=\ L(x)\land R(y)\land
+  \bigvee_{t=1}^m\left(\exists z\,S_t(z)\land \bigvee_{j=1}^k\phi_j^t(y,x)\right),
+\]
+where the inner disjunction is interpreted as false when $k=0$,
+and finally takes the induced subgraph on $L\cup R$.
+
+Now suppose $G$ comes with a $k$-sparsification of complexity $c$ as in the
+statement.
+By definition of complexity, after choosing a suitable expansion of $G$ by
+$c$ unary predicates, there is some index $t\in[m]$ such that
+$\phi_1^t,\ldots,\phi_k^t$ define the functions $f_1,\ldots,f_k$ on~$B_0$.
+Interpret $L$ as $A$, $R$ as $B_0$, interpret $S_t$ as $V(G)$, and interpret
+all other flags $S_{t'}$ as empty.
+For this choice of unary predicates, the graph produced by $\psi$ has exactly
+the edges $\{a,b\}$ with $a\in A$, $b\in B_0$, and $a=f_j(b)$ for some $j\in[k]$.
+Therefore, the induced subgraph on $A\cup B_0$ is precisely the graph
+$H=(A,B_0,E')$ with
+\[
+  N_H(b)=\setof{f_j(b)}{j\in[k]}
+  \qquad\text{for every }b\in B_0.
+\]
+Hence, $H\in T_{k,c}(G)$.
+\end{proof}
+
+\begin{lemma}\label{lem:terminal}
+  Let $\BB$ be a monadically dependent class of bipartite graphs and let $k,c\in\N$.
+  Let $G=(A,B,E)\in\BB$ have a terminal $k$-sparsification of complexity at most $c$ and size $s$.
+  Then
+  \[
+    s\le |A|\cdot \subpoly_{\BB,c,k}(|A|).
+  \]
+\end{lemma}
+\begin{proof}
+Let $A_0\subseteq A$, $B_0\subseteq B$, and $f_1,\ldots,f_k\from B_0\to A$
+witness the given $k$-sparsification,
+and let $\cal P$ be the associated partition. We prove that $|\cal P|\le |A|\cdot \subpoly_{\BB,c,k}(|A|)$, which will imply the claim as $s\le 2|\cal P|$ by terminality.
+Choose a set $B^*\subseteq B_0$ containing exactly one vertex from each part of the associated partition
+$\cal P$.
+
+By \Cref{lem:transduce}, there is a transduction $T_{k,c}$ such that the
+bipartite graph $H_0$ with parts $A$ and $B_0$ and
+edges $\setof{\set{b,f_j(b)}}{b\in B_0,j\in[k]}$ 
+belongs to $T_{k,c}(G)$.
+Since transductions allow taking induced subgraphs, the graph
+$H\coloneqq H_0[A\cup B^*]$ also belongs to $T_{k,c}(G)$.
+
+Each vertex of $B^*$ has degree at most $k$ in $H$, so $H$ is
+$K_{k+1,k+1}$-free.
+Moreover, distinct vertices of $B^*$ lie in different parts of $\cal P$, hence
+their tuples
+\[
+  (f_1(b),\ldots,f_k(b))
+\]
+are pairwise distinct.
+Therefore, for every set $S\subseteq A$, there are at most $|S|^k$ vertices
+$b\in B^*$ with $N_H(b)=S$, because each coordinate of the above tuple must
+then belong to $S$.
+Since every such $S$ has size at most $k$, there are in fact at most
+$k^k$ such vertices (with $0^0=1$). Consequently, 
+\[
+  |\cal P|=|B^*|
+  \le k^k\cdot \Big|\setof{N_H(b)}{b\in B^*}\Big|.
+\]
+
+Since $T_{k,c}(\BB)$ is again monadically dependent and $H\in T_{k,c}(\BB)$,
+applying \Cref{thm:weaklySparseCase} with $t=k+1$ yields
+\[
+  \Big|\setof{N_H(b)}{b\in B^*}\Big|
+  =\Big|\setof{N_H(b)\cap A}{b\in B^*}\Big|
+  \le |A|\cdot \subpoly_{\BB,c,k}(|A|).
+\]
+The two inequalities,
+together with $s\le 2|\cal P|$,
+prove the
+statement.
+\end{proof}
+
+The next lemma is the key ingredient of the proof of \Cref{thm:nei-comp-NIP}.
+\begin{lemma}\label{lem:step}
+  Suppose $G=(A,B,E)$ has a nonterminal $k$-sparsification of size $s$,
+  dimension $d$, and complexity $c$.
+  Then there is a $(k+1)$-sparsification of $G$ with:
+  \begin{itemize}
+    \item size at least $\Omega(\frac{s}{d\cdot \log^2(|A|)})$,
+    \item dimension at most $d-1$,
+    \item complexity at most $c+5$.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+Let $A_0\subseteq A$, $B_0\subseteq B$, and $f_1,\ldots,f_k\from B_0\to A$
+witness the given $k$-sparsification.
+Let $\cal P$ be its associated partition.
+Since the sparsification is nonterminal, we have $s>2|\cal P|$.
+For every part $P\in\cal P$, the functions $f_1,\ldots,f_k$ are constant on $P$,
+so the injectivity condition in the definition of a sparsification implies that
+the map $b\mapsto N_G(b)\cap A_0$ is injective on $P$.
+Therefore,
+\[
+  |\inducedSS{P}{A_0}|=|P|
+  \qquad\text{for every }P\in\cal P,
+\]
+and hence
+\[
+  \sum_{P\in\cal P}|\inducedSS{P}{A_0}|=\sum_{P\in\cal P}|P|=|B_0|=s.
+\]
+In particular, $d\ge 1$, since otherwise every set system $\inducedSS{P}{A_0}$
+would have VC-dimension $0$ and hence size $1$, contradicting
+$s>2|\cal P|$.
+In particular, $|A_0|>1$, since otherwise every set system $\inducedSS{P}{A_0}$
+would have size at most $2$, contradicting $s>2|\cal P|$.
+
+Apply \cref{lem:star} to the bipartite graph $G[A_0,B_0]$ and the partition
+$\cal P$ of $B_0$. Since
+\[
+  \sum_{P\in\cal P}|\inducedSS{P}{A_0}|=s>2|\cal P|,
+\]
+we obtain a set $A_1\subseteq A_0$ such that
+\begin{equation}\label{eq:step-many-hamming-edges}
+  \sum_{P\in\cal P}|E(\hamming(\inducedSS{P}{A_1}))|
+  \ge \frac{s}{2\ln |A_0|+2}.
+\end{equation}
+
+Choose a set $B^*\subseteq B_0$ so that for each part $P\in\cal P$,
+\[
+  \inducedSS{(P\cap B^*)}{A_1}=\inducedSS{P}{A_1}
+\]
+and no two vertices in $P\cap B^*$ have equal neighborhoods in $A_1$.
+Thus, the map $b\mapsto N_G(b)\cap A_1$ is a bijection from $P\cap B^*$ to
+$\inducedSS{P}{A_1}$.
+
+For each $P\in\cal P$, let $H_P$ be the Hamming graph of
+$\inducedSS{P}{A_1}$, with vertex set identified with $P\cap B^*$ (identified using the previously constructed bijection between the two).
+Let $H^*$ be the disjoint union of the graphs $H_P$, for $P\in\cal P$.
+Then $V(H^*)=B^*$ and, by \eqref{eq:step-many-hamming-edges},
+\[
+  |E(H^*)|
+  =\sum_{P\in\cal P}|E(H_P)|
+  \ge \frac{s}{2\ln |A_0|+2}.
+\]
+
+For each $P\in\cal P$, let $M_P^+$ and $M_P^-$ denote the positive and
+negative merge graphs of $\inducedSS{P}{A_1}$.
+Let $M^+$ and $M^-$ be the disjoint unions of the graphs
+$M_P^+$ and $M_P^-$, respectively, identified along the common part $A_1$.
+As $A_1\subset A_0$,
+% \By \Cref{obs:vc-hereditary},
+ we have $\VCdim(\inducedSS{P}{A_1})\le \VCdim(\inducedSS{P}{A_0})\le d$ for every $P\in\cal P$.
+Then \Cref{cor:hamming} implies that $H_P$ has at least $|E(H_P)|/d$
+non-isolated vertices.
+Summing over $P\in\cal P$, we infer that $H^*$ has at least
+\[
+  \frac{|E(H^*)|}{d}
+  \ge \frac{s}{d(2\ln |A_0|+2)}
+\]
+non-isolated vertices.
+Every such vertex is non-isolated in at least one
+of $M^+$ and $M^-$, so for some $\sigma\in\set{+,-}$ the graph $M^\sigma$
+has at least
+\begin{equation}\label{eq:step-many-nonis}
+  \frac{s}{2d(2\ln |A_0|+2)}
+\end{equation}
+non-isolated vertices in $B^*$.
+
+We now choose a large subset on which each vertex has a unique
+$M^\sigma$-neighbor.
+We apply \cref{lem:dreier-sampling} to the bipartite graph obtained
+from $M^\sigma$ by removing the isolated vertices. % from $B^*$.
+We obtain sets $A_1'\subseteq A_1$ and $B_1\subseteq B^*$ such that every
+vertex of $B_1$ has exactly one neighbor in $A_1'$ in $M^\sigma$, and
+\[
+  |B_1|
+  \ge \Omega\left(\frac{s}{d\cdot \log^2|A|}\right),
+\]
+because $|A_1|\le |A_0|\le |A|$.
+
+Define $f_{k+1}\from B_1\to A_1'$ by mapping each $b\in B_1$ to its unique
+neighbor in $A_1'$ in the graph $M^\sigma$.
+Let $\cal P_1$ be the family of all nonempty sets of the form
+$f_{k+1}^{-1}(v)\cap P$, where $P\in\cal P$ and $v\in A_1'$.
+
+We claim that $A_1$, $B_1$, and the functions
+$f_1,\ldots,f_k,f_{k+1}$ form a $(k+1)$-sparsification of $G$.
+Indeed, if $b,b'\in B_1$ lie in different parts of $\cal P$, then
+$(f_1(b),\ldots,f_k(b))\neq (f_1(b'),\ldots,f_k(b'))$.
+If they lie in the same part $P\in\cal P$, then 
+$N_G(b)\cap A_1\neq N_G(b')\cap A_1$ whenever $b\neq b'$.
+This is because we have chosen $B^* \supseteq B_1$ such that all vertices in $P \cap B^*$ have pairwise different neighborhoods on $A_1$ in $G$.
+Hence, the map
+\[
+  b\mapsto (N_G(b)\cap A_1,f_1(b),\ldots,f_k(b),f_{k+1}(b))
+\]
+is injective on $B_1$.
+Moreover, by construction, $\cal P_1$ is exactly the associated partition of
+this new sparsification.
+
+We now verify the claimed properties.
+First, let $P'\in\cal P_1$.
+Then $P'=f_{k+1}^{-1}(v)\cap P$ for some $P\in\cal P$ and $v\in A_1'$.
+The set system $\inducedSS{P'}{A_1}$ is a subfamily of the neighborhood of $v$
+in the $\sigma$-merge graph of $\inducedSS{P}{A_1}$, so
+\Cref{lem:blue-vc} yields
+\[
+  \VCdim(\inducedSS{P'}{A_1})\le \VCdim(\inducedSS{P}{A_1}) - 1 \le \VCdim(\inducedSS{P}{A_0}) - 1 \le d-1,
+\]
+where the second inequality holds as $A_1\subset A_0$.
+Thus, the new sparsification has dimension at most $d-1$.
+Second, the size of the new sparsification is
+\[
+  s'\coloneqq |B_1|,
+\]
+and by the choice of $B_1$ we have
+\[
+  s' \ge \Omega\left(\frac{s}{d\cdot \log^2|A|}\right).
+\]
+
+Finally, let $G'$ be an expansion of $G$ witnessing that the original
+$k$-sparsification has complexity $c$,
+and let $\phi_1,\ldots,\phi_k$ be formulas defining
+$f_1,\ldots,f_k$ in $G'$.
+Expand $G'$ further by five unary predicates marking the sets
+$A_1$, $A_1'$, $B_1$, $B^*$, and a set $S$ which is all of $V(G)$ if
+$\sigma=+$ and empty if $\sigma=-$.
+Using the formulas $\phi_1,\ldots,\phi_k$, the relation of belonging to the
+same part of $\cal P$ is first-order definable with quantifier rank at most
+$c+1$.
+Consequently, the edge relation of $M^\sigma$ on $B^*\times A_1$ is also
+first-order definable with quantifier rank at most $c+2$:
+for $b\in B^*$ and $a\in A_1$, we ask whether there exists
+$b'\in B^*$ in the same part of $\cal P$ such that
+$N_G(b)\cap (A_1-\set{a})=N_G(b')\cap (A_1-\set{a})$ and
+$b,b'$ differ on $a$ in the direction prescribed by $\sigma$.
+Restricting this relation to $B_1\times A_1'$ gives a formula defining the
+function $f_{k+1}$, of quantifier rank at most $c+2$.
+Thus the new sparsification has complexity at most $c+5$.
+(We only used quantifier rank $c + 2$, but $c+5$ many unary predicates.)
+\end{proof}
+
+
+\begin{lemma}\label{lem:iterate}
+  Let $G=(A,B,E)$ be a bipartite graph with no twins in $B$, with
+  $|A|>1$, and with $B\neq\emptyset$. 
+  Suppose $\VCdim(\inducedSS{B}{A})\le d$ for some $d$.
+  Then for some $i\le d$, the graph $G$ has a terminal $i$-sparsification 
+  of complexity at most $5i$ 
+  and size $s$ such that
+  \[
+    s\ge \frac{|B|}{\polylog_d(|A|)}.
+  \]
+\end{lemma}
+\begin{proof}
+  Set $n\coloneqq|A|$ and $m\coloneqq|B|$.
+Let $\mathbf S_0$ be the trivial $0$-sparsification of $G$, given by
+$A_0\coloneqq A$ and $B_0\coloneqq B$.
+Since there are no twins in $B$, this is indeed a sparsification, with
+size $s_0=m$, dimension at most $d$, and complexity $c_0=0$.
+
+For $j=0,1,2,\ldots$, construct $\mathbf S_j$ recursively as follows.
+Write $s_j$, $d_j$, and $c_j$ for the size, dimension, and
+complexity of $\mathbf S_j$, and write $\cal P_j$ for its associated
+partition.
+
+If $\mathbf S_j$ is terminal, or if $j=d$, stop and set $i\coloneqq j$.
+Otherwise, \Cref{lem:step} yields a $(j+1)$-sparsification
+$\mathbf S_{j+1}$ of size $s_{j+1}$ and complexity $c_{j+1}$ such that
+\[
+  s_{j+1}
+  \ge \Omega\left(\frac{s_j}{d_j\cdot \log^2 n}\right)
+  \ge \Omega\left(\frac{s_j}{d\cdot \log^2 n}\right),
+\]
+while $c_{j+1}\le c_j+5$ and $d_{j+1}\le d_j-1$.
+
+Let $0 \leq i \leq d$ be the index for which the above construction stops.
+Repeated application of the above bounds
+gives
+\[
+  s_i\ge \frac{m}{\polylog_d(n)}
+  \qquad\text{and}\qquad
+  c_i\le 5i\qquad\text{and}\qquad d_i\le d-i.
+\]
+We argue that $\mathbf S_i$ is terminal,
+which will yield the conclusion for $s\coloneqq s_i$.
+
+If $i<d$, then $\mathbf S_i$ is terminal by construction.
+Suppose now that $i=d$.
+Then $\mathbf S_d$ has dimension~$0$.
+Let $P\in\cal P_d$.
+By definition of the associated partition, the functions
+$f^d_1,\ldots,f^d_d$ are constant on $P$.
+Since $\mathbf S_d$ is a sparsification, the map
+$b\mapsto N_G(b)\cap A_d$ is injective on~$P$. 
+Hence, the vertices of $P$ have pairwise different neighborhoods on $A_d$, and we have $|\inducedSS{P}{A_d}| = |P|$.
+Furthermore, as $d_i=0$, the set system $\inducedSS{P}{A_d}$ has VC-dimension $0$,
+and hence size $1$.
+Thus, also $|P|=1$ for every $P\in\cal P_d$, and therefore
+\[
+  s_d=|B_d|=|\cal P_d|\le 2|\cal P_d|.
+\]
+So $\mathbf S_d$ is terminal as well.
+\end{proof}
+
+
+We now prove \cref{lem:nc}, which we restate here for convenience.
+
+\lemnc*
+
+\begin{proof}
+Fix now a graph $G=(A,B,E)\in\BB$,
+and let $n\coloneqq |A|$ and $m\coloneqq |B|$.
+If $|A|\le 1$ or $|B|=0$ then the statement is trivial, so suppose $|A|\ge 2$ and $|B|\ge 1$.
+As $\BB$ is monadically dependent, the set system $\inducedSS{B}{A}$ has
+VC-dimension bounded by a constant $d$ depending only on~$\BB$.
+By \Cref{lem:iterate}, for some $i\le d$, the graph $G$ has a
+terminal $i$-sparsification of size $s$ and complexity at most $5i$ such
+that
+\[
+  s\ge \frac{m}{\polylog_d(n)}.
+\]
+By \Cref{lem:terminal}, as $i\le d$, we have
+\[
+  s
+  \le n\cdot \subpoly_{\BB,d}(n).
+\]
+Combining the two inequalities, we obtain
+\[
+  m
+  \le n\cdot \polylog_d(n)\cdot \subpoly_{\BB,d}(n)\le n\cdot \subpoly_{\BB}(n),
+\]
+ which proves  \eqref{eq:bip-version}.
+\end{proof}

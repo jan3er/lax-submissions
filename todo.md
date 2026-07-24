@@ -112,13 +112,32 @@ Proof-package-only machinery (invisible to reviewers, can be ugly):
      and Lem 21' will split B = (B∖A) ∪ (B∩A), |B∩A| ≤ |A|; (iii) the
      only calculus fact needed anywhere is transitivity + monos —
      induced-subgraph closure is inside the image-class definition.
-   - 4b' next: wire `ncard_le_rpow_of_injOn_traces` from [VC] +
-     Lem 26 + Lem 24 + absorption (edge case |A| = 1: ≤ 2 traces off
-     A plus |B∩A| ≤ |A|; uniformize Lem 24's constant over i ≤ d by
-     summing the nonneg constants). Then discharge leaves, roughly in
-     order: realizeIn_liftFormula, Lem 19, Lem 26-from-25, Cor 6-side
-     counting of Lem 24, HLW, Lem 25, Lem 12, Transduces.trans, [VC],
-     absorption.
+   - 4b' ✅ Lem 21' proved from [VC] + Lem 26 + Lem 24 + absorption
+     (as planned: B split off A, |A| = 1 edge case via powerset,
+     Lem-24 constant uniformized by summing over i ≤ d).
+     Leaves discharged since: realizeIn_liftFormula (sumMap expansion
+     + `realize_onFormula`); polylog absorption (`log_le_rpow_div`);
+     Lem 26 from Lem 25 (downward induction, `DimLE 0 → Terminal`);
+     Lem 19 (deletion process as downward induction on |X| with
+     invariant `μ(X) ≥ m/2 + (m/2H(n))·H(|X|)`, `harmonic` from
+     mathlib, drop identity `card_image_erase_add_card_vPos`);
+     HLW Lem 8 (induction on ground set; v-edges counted by VNeg
+     members; rest injects into edges of erase-v projection ⊕ edges
+     of VNeg family — double-lift edges are VNeg edges); Cor-6-side
+     counting of Lem 24 (reps per label tuple, neighborhood of a rep
+     = its label set via A∩B = ∅, ≤ k^k reps per trace via piFinset,
+     transport along `orderIsoOfFin` preimage). SetSystems and
+     Asymptotics are sorry-free.
+   - Lem 12 ✅ (simplified FOCS'24: powers-of-2 buckets, sample
+     p = 1/2^(j+1); per-vertex success ≥ 1/16 via
+     (1+1/(M−1))^M ≤ e² < 8; expectation as weighted sum over
+     `X.powerset`, marginalization by `sum_nbij'` to `(X∖N).powerset`).
+     Sampling, SetSystems, Asymptotics all sorry-free.
+   - 4b'' remaining leaves (each a focused session; 5 sorries in 4b
+     scope + Cor 6b which is 4c): Lem 25 (step; combinatorial half
+     from Lem 19 + Cor 9 + Lem 7 + Lem 12, then the R1 definability
+     discharge — semantics of `mergeFormula`); Lem 23
+     (`sparsGraphOn_mem_sparsGraphs`); `Transduces.trans`; [VC].
    - 4c: the 6b chain (§3a), coarse-to-fine; densification last.
 
 Guideline: first principles, weigh pros and cons carefully — flagship
