@@ -1,4 +1,4 @@
-# Corollary 6a proof plan (draft for iteration)
+# Corollary 6a proof plan (rev 2, after recycling survey)
 
 Target: discharge the open obligation
 `Lax5.WeaklySparseDependent.nowhereDense_of_weaklySparse_of_monadicallyDependent`
@@ -6,99 +6,101 @@ Target: discharge the open obligation
 headline theorem's `#print axioms` reports standard axioms only.
 
 Primary source: Mählmann's thesis (Lemma 13.7/13.8 + the §2 star-crossing
-transduction), fetched to `references/maehlmann-thesis/` (untracked).
-Secondary: flipping-and-forking App. A (`references/flipfork/`),
-flip-breakability §4 Ramsey lemmas (`references/flipbreak/`).
+transduction), `references/maehlmann-thesis/` (untracked). Secondary:
+flipping-and-forking App. A (`references/flipfork/`), flip-breakability §4
+(`references/flipbreak/`).
 
-## Route
+## Recycling: `~/git/autoformalize/4/catalog/Catalog/`
 
-Contrapositive. Assume ¬NowhereDense: some depth `r` has `K_t` as a
-depth-`r` minor of members for all `t`; weak sparseness gives `t₀` with no
-`K_{t₀,t₀}` subgraph anywhere in `C`. Derive `Transduces C allGraphs`.
+Jan formalized most of this before (toolchain v4.29.0-rc2 vs our
+v4.30.0; the `Lax5Proofs/Source/Catalog/SparsityLectures/*` modules were
+already ported from this same catalog, so the port path is established).
+Directly reusable, sorry-free-looking:
 
-Chain, with per-step sources:
+- **Ramsey toolbox**: `SparsityLectures/{Ramsey,MulticolorRamsey,
+  BipartiteRamsey,IterativeBipartiteRamsey}` + `MonadicDependence/
+  BipartiteRamsey` (~1600 lines total). Kills the "nothing in mathlib"
+  problem.
+- **`MonadicDependence/NowhereDenseBridge`** (965 lines): shallow-minor
+  nowhere-denseness ⟺ local subdivision-based nowhere-denseness — this
+  IS the step-1 bridge (candidate paths → Ramsey-uniform length →
+  canonical pattern → trim → clean subdivision), already done both
+  directions.
+- **`MonadicDependence/SubdividedBicliqueRamsey`** (2445 lines): thesis
+  Lemma 13.8 (subgraph subdivided biclique ⇒ biclique or induced
+  r′-subdivided biclique), already done.
+- **`MonadicDependence/WeaklySparseMonDepIsNowhereDense`** (439 lines):
+  the 13.7 glue (negate ND, r = 0 biclique case, r ≥ 1 via 13.8 +
+  pigeonhole) — reusable as a template, but its endpoint differs (below).
+- Support defs: `Subdivision`, `Biclique`, `WeaklySparse`, local
+  `NowhereDense`, crossing definitions.
 
-1. **Bridge (shallow minor → subdivided biclique subgraph).** Ours (the
-   thesis starts from the subdivision definition of nowhere denseness; our
-   frozen concept uses shallow minors, so this gap is ours to close).
-   From a `ShallowMinorModel` of `K_t` at depth `r`: prune to connection
-   paths `P_uv` (center-to-center through the two branch trees, length
-   ≤ 4r+3). Ramsey the *connection type* over 4-tuples of branch indices:
-   color = full coincidence pattern (which positions of `P_uv`, `P_wx`
-   are equal) + path lengths. On a homogeneous set the equality pattern
-   collapses: shared positions force equal position pairs (a≠b yields a
-   within-path repetition), sharing lives inside the common branch tree,
-   so each branch has a hub vertex `h_u` with pairwise internally disjoint
-   path segments of one uniform length `ℓ+1` to the other hubs. Output:
-   for every `s` some member contains an exact `ℓ`-subdivided biclique of
-   order `s` as a **subgraph**, `ℓ ≤ L(r)` uniform (class-level pigeonhole
-   over `ℓ`). `ℓ = 0` is the immediate weak-sparseness contradiction.
-   Only equalities and lengths are Ramseyed here; edges are step 2's job.
+**Definition mismatches to bridge during the port** (the catalog's
+`GraphClass` is instance-carrying over arbitrary vertex types; Lax5's is
+`∀ n, SimpleGraph (Fin n) → Prop`; the 4c ports already established the
+translation pattern):
 
-2. **Induced upgrade (thesis Lemma 13.8, formalized verbatim).** Bipartite
-   Ramsey on atomic types of path pairs; principal sets WLOG independent;
-   direct principal-principal edges give semi-induced bicliques (kill via
-   `t₀`); shortest-path renormalization inside each path's vertex set
-   gives uniform positions `k₁<…<k_{ℓ'}` (kills shortcuts, `ℓ' ∈ [ℓ]`);
-   any cross-path or principal-path edge pattern yields a semi-induced
-   biclique via order-type splitting (kill via `t₀`). Output: for every
-   `s` some member contains an exact `ℓ'`-subdivided `K_{s,s}` as an
-   **induced** subgraph, `ℓ' ≥ 1` fixed (pigeonhole again).
+1. Catalog `IsNowhereDense` (shallow minor) ↔ concept
+   `Lax5.NowhereDenseClasses.NowhereDense` — same content, encoding glue.
+2. Catalog `IsWeaklySparse` ↔ concept `WeaklySparse` (`⊑` vs
+   `IsContained` — same notion, small glue).
+3. **The real gap**: catalog `IsMonadicallyDependent` is the thesis
+   Thm 2.3(3) forbidden-patterns characterization; our concept is
+   transduction-based. We do NOT port that definition or Thm 2.3.
+   Instead, the final step of 13.7 ("star r′-crossings are forbidden in
+   mon dep classes", definitional in the catalog) becomes a real
+   transduction argument for us — and only the *star* case is needed:
+   13.8's output is honest induced subdivided bicliques, so flips,
+   clique/half-graph crossings and comparability grids are all skipped.
 
-3. **Transduction (thesis §2 hardness picture).** Star-`ℓ'`-crossing
-   transduction: colors mark the copy's principals and the internal
-   vertices of *kept* paths (per target bipartite graph); interpreting
-   formula φ(x,y) = "some path of length `ℓ'+1` from x to y with all
-   internal vertices blue" (built by recursion on `ℓ'`). Induced-ness +
-   exact length make φ define exactly the kept adjacency: blue internals
-   confine the path to the copy, induced-ness confines it to a single
-   subdivision path. Gives `Transduces C allBipartite`. Then the standard
-   incidence encoding (`allBipartite` ⊇ incidence graphs, x~y iff common
-   edge-vertex neighbor) gives `Transduces allBipartite allGraphs`;
-   compose with the proved `Transduces.trans`. Contradiction with
-   monadic dependence.
+## The one genuinely new proof: star-crossing transduction
 
-## New proof-package modules
+If `C` contains, for a fixed `ℓ ≥ 1`, induced exact-`ℓ`-subdivided
+bicliques of every order, then `Transduces C allGraphs`
+(contradicting concept `MonadicallyDependent`). Thesis §2 hardness
+picture:
 
-- `Lax5Proofs/Ramsey.lean` — finite Ramsey, self-contained (nothing in
-  pinned mathlib): subset Ramsey for `m`-uniform hypergraphs, any finite
-  color set (induction on `m`); tuple reformulation "color depends only
-  on order type"; bipartite product version (thesis Lemma 4.15 /
-  flip-breakability Lemma 4.4). Reusable beyond this submission.
-- `Lax5Proofs/MinorSubdivision.lean` — step 1. Shared def: an explicit
-  `SubdividedBiclique` witness structure (principals + paths + uniform
-  length + disjointness [+ induced flag or a separate Prop]) so steps
-  1→2→3 compose without re-encoding.
-- `Lax5Proofs/InducedSubdivision.lean` — step 2 (thesis 13.8).
-- `Lax5Proofs/CrossingTransduction.lean` — step 3: path formula,
-  correctness against an induced copy, incidence step, composition.
-- `Lax5Proofs/Corollary6a.lean` — glue: contrapositive assembly, class
-  pigeonholes, final theorem; rewire `Corollary6.lean` to consume it
-  (same pattern as the 6b rewiring, 4d) and re-audit `#print axioms`.
+- Colors mark the copy's principals and internal vertices of *kept*
+  paths (chosen per target bipartite graph); φ(x,y) = "some path of
+  length `ℓ+1` from x to y with all internal vertices blue" (formula by
+  recursion on `ℓ`). Induced-ness + exact length confine any such path
+  to a single subdivision path of the copy, so φ defines exactly the
+  kept adjacency ⇒ `Transduces C allBipartite`.
+- Incidence encoding (x~y iff common edge-vertex neighbor) gives
+  `Transduces allBipartite allGraphs`; compose with the proved
+  `Transduces.trans`. In-repo precedent for this style: the 4b'' [VC]
+  proof (common-colored-neighbor formula = the ℓ = 1 case).
 
-## Order of work / step boundaries
+## Module plan (proofs package)
 
-1. Ramsey toolbox (independent, reusable; enables everything).
-2. `SubdividedBiclique` def + step-1 bridge.
-3. Step-2 induced upgrade.
-4. Step-3 transduction + incidence + composition.
-5. Glue, rewiring, axiom audit, todo/pipeline update.
+- `Lax5Proofs/Source/Catalog/MonadicDependence/…` — ports: Ramsey
+  toolbox, Subdivision/Biclique defs, NowhereDenseBridge,
+  SubdividedBicliqueRamsey (namespaces + toolchain deltas only).
+- `Lax5Proofs/CrossingTransduction.lean` — the new transduction proof.
+- `Lax5Proofs/Corollary6a.lean` — 13.7 glue adapted from
+  `WeaklySparseMonDepIsNowhereDense`: concept-encoding bridges (1)(2),
+  endpoint replaced by `CrossingTransduction`; rewire `Corollary6.lean`
+  to consume the proved theorem (same pattern as the 6b rewiring in 4d);
+  re-audit `#print axioms`.
 
-Each is a commit-sized unit; iteration checkpoint with Jan after 1, 2,
-and 4.
+## Order of work
+
+1. Port the Ramsey toolbox + Subdivision/Biclique defs; build green.
+2. Port NowhereDenseBridge and SubdividedBicliqueRamsey; build green.
+3. `CrossingTransduction.lean` (the new work).
+4. `Corollary6a.lean` glue + encoding bridges + rewiring + axiom audit;
+   update `todo.md`/`pipeline.md`.
+
+Iteration checkpoints with Jan after 2 and 3.
 
 ## Open decisions (input wanted)
 
-- **Bridge output shape.** Proposed: subgraph-level exact-`ℓ` subdivided
-  biclique (thesis 13.8's input), keeping all edge-cleanup in step 2.
-  Alternative: fuse steps 1+2 into one Ramsey pass (single homogeneous
-  set, adjacency colors included). Split matches the sources and keeps
-  the bridge's Ramsey colors small; fused saves one extraction layer.
-- **Bipartite→all-graphs.** Proposed: thesis-faithful two-step via
-  `Transduces.trans` (proved). Alternative: single transduction with
-  edge-hub encoding (right principals as edge gadgets), avoiding the
-  composition. Two-step is less bespoke formula plumbing.
-- **Formalization-notes stance for the bridge.** The bridge is folklore
-  (implicit in the classical minor/subdivision equivalence); notes will
-  argue it as the depth-`r`-minor-to-subdivision Ramsey argument rather
-  than citing a specific numbered lemma. OK?
+- **Port location/attribution.** Proposed: keep the catalog files under
+  `Lax5Proofs/Source/Catalog/MonadicDependence/` mirroring the
+  SparsityLectures precedent (Full.lean only, no Contract.lean). OK?
+- **Bipartite→all-graphs**: two-step via `Transduces.trans` (proposed)
+  vs a single edge-hub transduction. Two-step is thesis-faithful and
+  less formula plumbing.
+- **Formalization-notes stance**: bridge + 13.8 credited to thesis
+  Ch. 13 (+ folklore for the bridge); transduction step credited to
+  thesis §2 / flip-breakability hardness. OK?
