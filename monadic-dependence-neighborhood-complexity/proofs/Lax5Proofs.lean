@@ -32,5 +32,9 @@ import Lax5Proofs.Source.Catalog.SparsityLectures.ShallowMinor.Full
 import Lax5Proofs.Source.Catalog.SparsityLectures.ShallowMinorComposition.Full
 import Lax5Proofs.Source.Catalog.SparsityLectures.ShallowTopologicalMinor.Full
 import Lax5Proofs.Source.Catalog.SparsityLectures.StrongColoringBoundByAdm.Full
+import Lax5Proofs.Source.Catalog.SparsityLectures.UniformQuasiWideness.Full
+import Lax5Proofs.Source.Catalog.SparsityLectures.OddStepReduction.Full
+import Lax5Proofs.Source.Catalog.SparsityLectures.EvenStepReduction.Full
+import Lax5Proofs.Source.Catalog.SparsityLectures.NDImpliesUQW.Full
 import Lax5Proofs.Source.Catalog.SparsityLectures.StrongColoringBoundByAdm.TreeCounting
 import Lax5Proofs.Theorem2
