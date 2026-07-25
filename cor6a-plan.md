@@ -190,6 +190,6 @@ Iteration checkpoints with Jan after 2 and 3.
 - ~~**Bipartite→all-graphs**~~: two-step via `Transduces.trans`, as
   proposed (thesis-faithful; the walk-forcing core is shared either
   way).
-- **Formalization-notes stance**: bridge + 13.8 credited to thesis
-  Ch. 13 (+ folklore for the bridge); transduction step credited to
-  thesis §2 / flip-breakability hardness. OK?
+- ~~**Formalization-notes stance**~~ Resolved (Jan, 2026-07-25): bridge
+  + 13.8 credited to thesis Ch. 13 (+ folklore for the bridge);
+  transduction step credited to thesis §2 / flip-breakability hardness.
