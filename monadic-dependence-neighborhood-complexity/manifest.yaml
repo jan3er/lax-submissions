@@ -32,7 +32,9 @@ bibEntries:
                    Monadically Dependent Graph Classes},
       booktitle = {Proceedings of the 56th Annual ACM Symposium on Theory
                    of Computing (STOC 2024)},
-      year      = {2024}
+      year      = {2024},
+      eprint    = {2403.15201},
+      archivePrefix = {arXiv}
     }
   - |
     @article{AdlerAdler2014,
