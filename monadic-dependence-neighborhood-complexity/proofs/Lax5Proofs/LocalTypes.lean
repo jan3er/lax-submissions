@@ -173,7 +173,7 @@ noncomputable def ltype (H : SimpleGraph V) (dec : V → D) (c : V) (R : ℕ) :
      (ballFinset H c R).image fun x => ltype H dec c R j (Fin.snoc t x))
 
 /-- The atomic-data component of a local type value. -/
-def LType.atomPart : ∀ {j ℓ : ℕ}, LType D R j ℓ → AtomData D R ℓ
+def LType.atomPart {R : ℕ} : ∀ {j ℓ : ℕ}, LType D R j ℓ → AtomData D R ℓ
   | 0, _, a => a
   | _ + 1, _, a => a.1
 
