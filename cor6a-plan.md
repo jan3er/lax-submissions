@@ -154,11 +154,32 @@ picture:
      transported by `finSumFinEquiv`.
    - No import path to `Corollary6`, so the step-4 rewiring cannot
      create a cycle.
-4. `Corollary6a.lean` glue + encoding bridges + rewiring + axiom audit;
-   update `todo.md`/`pipeline.md`. Note for the glue: 13.8's per-`n`
-   varying `r'` needs the pigeonhole *and* an order-monotonicity lemma
-   for induced subdivided-biclique copies (first `N` principals per
-   side) to reach the `∀ m` hypothesis shape of step 3.
+4. ~~`Corollary6a.lean` glue + encoding bridges + rewiring + axiom
+   audit.~~ ✓ (2026-07-25). `Lax5Proofs/Corollary6a.lean` proves the
+   concept-axiom statement with standard axioms only, following the
+   catalog template:
+   - Encoding bridges: `copyClosure` (the NowhereDenseWcol pattern)
+     lifts the submitted class; a submitted `ShallowMinorModel` of
+     `⊤ : SimpleGraph (Fin t)` converts to a catalog `IsShallowMinor`
+     of `completeGraph (Fin t)` (walks → bypass paths), giving
+     "catalog ND of the closure ⇒ concept ND". Contrapose, cross
+     `isLocallyNowhereDense_iff_isNowhereDense`, and extract members
+     containing subdivided cliques of every order at a fixed radius.
+   - Pattern containments ported from the catalog glue (private):
+     subdivided biclique of order `⌊N/2⌋` in the subdivided clique of
+     order `N`, the `r = 0` biclique case, biclique order-mono, and
+     the induced order-monotonicity `subdividedBiclique k r ⊴
+     subdividedBiclique m r` for `k ≤ m` (via `Fin.castLE`).
+   - 13.8 + double pigeonhole exactly as in the template (biclique
+     branch at unbounded orders vs a fixed `r'` via
+     `Finite.exists_infinite_fiber`); endpoint replaced by
+     `transduces_allGraphs_of_isIndContained_subdividedBiclique`
+     against `MonadicallyDependent`.
+   - `Corollary6.lean` rewired to consume the proved theorem. Audit:
+     the headline `Lax5Proofs.Theorem2.hasAlmostLinearNC_of_monadicallyDependent`
+     now reports only `propext`, `Classical.choice`, `Quot.sound`.
+   - `abstract.md` updated (only Adler–Adler remains open);
+     `manifest.yaml` gains the thesis bib entry.
 
 Iteration checkpoints with Jan after 2 and 3.
 

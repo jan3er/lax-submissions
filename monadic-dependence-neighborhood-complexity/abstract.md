@@ -20,11 +20,12 @@ headline theorem; and nowhere dense classes are monadically dependent
 (Adler–Adler).
 
 The proof package discharges the headline theorem via the paper's
-VC-dimension sparsification argument, and the nowhere dense counting
+VC-dimension sparsification argument; the nowhere dense counting
 statement from the coloring-number theorem, via radius-1 trace counting
-along a weak coloring order and localization. The two remaining
-obligations — weakly sparse dependent classes are nowhere dense, and the
-Adler–Adler direction — are deliberately
-left open as well-defined targets for follow-up submissions; together they
-carry the classical equivalence that on weakly sparse classes, monadic
-dependence and nowhere denseness coincide.
+along a weak coloring order and localization; and the weakly sparse
+theorem via Mählmann's Ramsey-theoretic extraction of induced subdivided
+bicliques (thesis, Lemma 13.8) together with a star-crossing transduction
+of all graphs. The one remaining obligation — the Adler–Adler direction —
+is deliberately left open as a well-defined target for a follow-up
+submission; it is the remaining half of the classical equivalence that on
+weakly sparse classes, monadic dependence and nowhere denseness coincide.

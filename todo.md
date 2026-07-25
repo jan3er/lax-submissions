@@ -184,6 +184,17 @@ Proof-package-only machinery (invisible to reviewers, can be ugly):
      `nowhereDense_of_weaklySparse_of_monadicallyDependent`; the proved
      nowhere-dense neighborhood-complexity and weak-coloring-number theorems
      report only the standard logical axioms.
+   - 4e ✅ Corollary 6a discharged (plan + status: `cor6a-plan.md`).
+     Recycled from the autoformalize/4 catalog as native modules: Ramsey
+     toolbox, `NowhereDenseBridge` (backward direction newly proved via
+     helper routing), `SubdividedBicliqueRamsey` (thesis 13.8). New:
+     `CrossingTransduction` (induced exact-`ℓ`-subdivided bicliques of
+     every order ⇒ transduces all graphs) and `Corollary6a` (13.7 glue:
+     copyClosure encoding bridge, 13.8 + pigeonhole, transduction
+     endpoint). `Corollary6` rewired onto the proved theorem; the
+     headline theorem now reports **only** `propext`,
+     `Classical.choice`, `Quot.sound`. Abstract/manifest updated: the
+     sole remaining open obligation is Adler–Adler.
 
 Guideline: first principles, weigh pros and cons carefully — flagship
 standards. Rewrite this file as things crystalize.

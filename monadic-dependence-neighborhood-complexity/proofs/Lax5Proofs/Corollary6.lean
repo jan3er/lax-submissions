@@ -1,11 +1,11 @@
-import Lax5.WeaklySparseDependent
+import Lax5Proofs.Corollary6a
 import Lax5Proofs.Corollary6b
 
 /-!
-Corollary 6 of DMMPT26, composed from the two concept statements: 6a
-(weakly sparse + monadically dependent ⇒ nowhere dense, an *open*
-obligation of this submission) and the proved 6b (nowhere dense ⇒ almost
-linear neighborhood complexity, discharged in `Corollary6b`). Consumed by the
+Corollary 6 of DMMPT26, composed from the two proved halves: 6a (weakly
+sparse + monadically dependent ⇒ nowhere dense, discharged in
+`Corollary6a`) and 6b (nowhere dense ⇒ almost linear neighborhood
+complexity, discharged in `Corollary6b`). Consumed by the
 terminal-sparsification step (Lemma 24) of the Appendix-A machinery.
 -/
 
@@ -20,6 +20,6 @@ theorem hasAlmostLinearNC_of_weaklySparse_of_monadicallyDependent
     (C : GraphClass) (hs : WeaklySparse C) (hd : MonadicallyDependent C) :
     HasAlmostLinearNC C :=
   Corollary6b.hasAlmostLinearNC_of_nowhereDense C
-    (nowhereDense_of_weaklySparse_of_monadicallyDependent C hs hd)
+    (Corollary6a.nowhereDense_of_weaklySparse_of_monadicallyDependent C hs hd)
 
 end Lax5Proofs.Corollary6
