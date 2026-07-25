@@ -180,6 +180,7 @@ obligation. Consequences for the concept surface:
       arbitrary relational structures per Jan).
 - [x] Step 3: concept package Lax5 builds, `lax build` pipeline OK
       (scaffold was pre-allocated; manifest + abstract written).
-- [ ] Step 4: proof package — `sorry`-stub the Section-2 skeleton first,
-      big ingredients (§3a item 4, HLW, [VC]) last. Sub-state in
-      `todo.md` (4a top-level skeleton green; 4b App-A layer; 4c §3a).
+- [x] Step 4: proof package, sorry-free (sub-state in `todo.md`,
+      4a–4e all done, 2026-07-25). Headline theorem + Cor 6a + Cor 6b
+      all audit to standard axioms only; sole open obligation is
+      Adler–Adler.
