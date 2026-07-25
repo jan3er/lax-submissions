@@ -16,6 +16,7 @@ import Lax5Proofs.Corollary6
 import Lax5Proofs.Corollary6a
 import Lax5Proofs.Corollary6b
 import Lax5Proofs.NowhereDenseWcol
+import Lax5Proofs.QuasiWideness
 import Lax5Proofs.NowhereDenseNeighborhoods
 import Lax5Proofs.Source.Catalog.SparsityLectures.AdmBoundByTopGrad.Full
 import Lax5Proofs.Source.Catalog.SparsityLectures.Admissibility.Full
