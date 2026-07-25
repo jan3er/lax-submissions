@@ -1,4 +1,16 @@
-# Adler–Adler backward direction: proof plan (rev 1)
+# Adler–Adler backward direction: proof plan (rev 1) — COMPLETE
+
+Status 2026-07-25: all steps done.
+`Lax5Proofs.AdlerAdler.monadicallyDependent_of_nowhereDense` proves the
+concept-axiom statement; `#print axioms` reports only `propext`,
+`Classical.choice`, `Quot.sound`. Deltas from the plan discovered during
+implementation: the two mirrored clusters (forward/backward) collapse to
+*one* mirrored tuple pair whose position pairs carry an orientation bit
+(this closes the distance-transfer gap when a move is near the other
+mirror's image side and halves the case analysis); backward extension is
+plain list reversal; the deletion set is enumerated with padding and
+handled purely by decoration; the endgame needs only s+4 same-colored
+scattered vertices (traces {first, j-th}), not disjoint foursomes.
 
 Target: discharge the last open obligation of the Lax5 submission,
 `Lax5.AdlerAdler.monadicallyDependent_of_nowhereDense`

@@ -195,6 +195,17 @@ Proof-package-only machinery (invisible to reviewers, can be ugly):
      headline theorem now reports **only** `propext`,
      `Classical.choice`, `Quot.sound`. Abstract/manifest updated: the
      sole remaining open obligation is Adler–Adler.
+   - 4f ✅ Adler–Adler discharged (plan + status: `adleradler-plan.md`).
+     `Lax5Proofs.AdlerAdler.monadicallyDependent_of_nowhereDense` proves
+     the concept-axiom statement with only `propext`, `Classical.choice`,
+     `Quot.sound`. Route: UQW chain ported from the catalog
+     (`nd_implies_uqw` + Odd/EvenStepReduction), a new fully semantic
+     locality core (`LocalTypes` rank-j local types of decorated balls,
+     `EFAgreement` back-and-forth ⇒ rank-q agreement, `BallSwap`
+     mirrored-tuple swap system — no Gaifman normal form, no syntactic
+     rewriting), and a powerset-graph shattering + pigeonhole + triangle
+     assembly (`AdlerAdler`). No open obligations remain; all five
+     theorem concepts are proved.
 
 Guideline: first principles, weigh pros and cons carefully — flagship
 standards. Rewrite this file as things crystalize.

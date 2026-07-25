@@ -25,6 +25,16 @@ bibEntries:
       year   = {2024}
     }
   - |
+    @inproceedings{DreierMahlmannTorunczyk2024,
+      author    = {Dreier, Jan and M{\"a}hlmann, Nikolas and Toru{\'n}czyk,
+                   Szymon},
+      title     = {Flip-Breakability: A Combinatorial Dichotomy for
+                   Monadically Dependent Graph Classes},
+      booktitle = {Proceedings of the 56th Annual ACM Symposium on Theory
+                   of Computing (STOC 2024)},
+      year      = {2024}
+    }
+  - |
     @article{AdlerAdler2014,
       author  = {Adler, Hans and Adler, Isolde},
       title   = {Interpreting nowhere dense graph classes as a classical

@@ -117,6 +117,9 @@ noncomputable def pb (p : Prop) : Bool :=
 
 theorem pb_eq_pb {p q : Prop} : pb p = pb q ↔ (p ↔ q) := decide_eq_decide
 
+theorem pb_iff {p : Prop} : pb p = true ↔ p :=
+  @decide_eq_true_iff p (Classical.propDecidable p)
+
 /-- Atomic data of an `ℓ`-tuple: adjacency and equality patterns, the
 decorations of the entries, and their distance-to-center thresholds up
 to `R`. -/

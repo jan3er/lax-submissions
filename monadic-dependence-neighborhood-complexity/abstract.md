@@ -22,10 +22,16 @@ headline theorem; and nowhere dense classes are monadically dependent
 The proof package discharges the headline theorem via the paper's
 VC-dimension sparsification argument; the nowhere dense counting
 statement from the coloring-number theorem, via radius-1 trace counting
-along a weak coloring order and localization; and the weakly sparse
+along a weak coloring order and localization; the weakly sparse
 theorem via Mählmann's Ramsey-theoretic extraction of induced subdivided
 bicliques (thesis, Lemma 13.8) together with a star-crossing transduction
-of all graphs. The one remaining obligation — the Adler–Adler direction —
-is deliberately left open as a well-defined target for a follow-up
-submission; it is the remaining half of the classical equivalence that on
-weakly sparse classes, monadic dependence and nowhere denseness coincide.
+of all graphs; and the Adler–Adler direction via uniform quasi-wideness
+and a semantic locality argument — the deletion specialization of the
+flip-breakability route, with hereditarily finite rank-bounded local
+types of decorated balls and a ball-swap back-and-forth system in place
+of Gaifman's theorem. A transduction of all graphs would shatter
+arbitrarily large sets; quasi-wide scattering, a local-type pigeonhole,
+and the swap lemma refute this. With that, all five theorem concepts are
+proved, and every one reports only Lean's standard logical axioms — the
+surface carries the full classical equivalence that on weakly sparse
+classes, monadic dependence and nowhere denseness coincide.
