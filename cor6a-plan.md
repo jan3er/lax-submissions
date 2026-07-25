@@ -133,9 +133,32 @@ picture:
      `RoutedSystem` (hubs + uniform-length internally disjoint routed
      paths → `subdividedClique` copy), which isolates all
      `fromRel`/injectivity reasoning from the graph-specific work.
-3. `CrossingTransduction.lean` (the new work).
+3. ~~`CrossingTransduction.lean` (the new work).~~ ✓ (2026-07-25).
+   `transduces_allGraphs_of_isIndContained_subdividedBiclique`: induced
+   exact-`ℓ`-subdivided bicliques of every order (`ℓ ≥ 1` fixed) ⇒
+   `Transduces C allGraphs`. Standard axioms. Two-step as proposed:
+   - Step 1 (`subdivisionTransduction ℓ` → `bipartiteGraphs`): the
+     blue-walk formula is built by recursion on `ℓ` (relabel the tail's
+     start onto the fresh quantifier) and mirrored by a recursive
+     `BlueWalk` Prop, so its semantics lemma is a clean induction and
+     the forcing argument never touches `Fin`-indexed chains. Forcing
+     is done on the abstract `subdividedBiclique` and transported
+     through the copy embedding (`blueWalk_map`); the key simplification
+     over the plan sketch: no position/monotonicity argument is needed —
+     interior blue vertices pin the walk to one kept path, and the two
+     *distinct* principal endpoints of that path are automatically its
+     ends (walks, not paths, suffice).
+   - Step 2 (`incidenceTransduction`): common-edge-side-neighbor
+     formula (the [VC]-proof style); incidence graph built on
+     `Fin q ⊕ Fin ec` via `Finset.equivFin` on `edgeFinset` and
+     transported by `finSumFinEquiv`.
+   - No import path to `Corollary6`, so the step-4 rewiring cannot
+     create a cycle.
 4. `Corollary6a.lean` glue + encoding bridges + rewiring + axiom audit;
-   update `todo.md`/`pipeline.md`.
+   update `todo.md`/`pipeline.md`. Note for the glue: 13.8's per-`n`
+   varying `r'` needs the pigeonhole *and* an order-monotonicity lemma
+   for induced subdivided-biclique copies (first `N` principals per
+   side) to reach the `∀ m` hypothesis shape of step 3.
 
 Iteration checkpoints with Jan after 2 and 3.
 
@@ -143,9 +166,9 @@ Iteration checkpoints with Jan after 2 and 3.
 
 - ~~**Port location/attribution.**~~ Resolved: fold ports in as native
   `Lax5Proofs/*.lean` modules, native naming, no Source/Catalog mirror.
-- **Bipartite→all-graphs**: two-step via `Transduces.trans` (proposed)
-  vs a single edge-hub transduction. Two-step is thesis-faithful and
-  less formula plumbing.
+- ~~**Bipartite→all-graphs**~~: two-step via `Transduces.trans`, as
+  proposed (thesis-faithful; the walk-forcing core is shared either
+  way).
 - **Formalization-notes stance**: bridge + 13.8 credited to thesis
   Ch. 13 (+ folklore for the bridge); transduction step credited to
   thesis §2 / flip-breakability hardness. OK?

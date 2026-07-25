@@ -8,6 +8,7 @@ import Lax5Proofs.SubdividedBicliqueRamsey
 import Lax5Proofs.Sampling
 import Lax5Proofs.Sparsification
 import Lax5Proofs.TransductionCalculus
+import Lax5Proofs.CrossingTransduction
 import Lax5Proofs.SparsGraphs
 import Lax5Proofs.Asymptotics
 import Lax5Proofs.Lemma21
