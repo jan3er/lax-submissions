@@ -7,8 +7,8 @@ type: definition
 ---
 A random access machine program computes a function of words within a
 time bound *T* on a set *D* of admissible inputs if, started on any
-input *x* in *D*, it halts after at most *T(x)* steps with the value of
-the function at *x* laid out in memory as its output. The bound is a
+input *x* in *D*, it halts after at most *T(x)* steps having written
+the value of the function at *x* to its output tape. The bound is a
 function of the input, so that bounds like "linear in the length of the
 input" are stated by instantiating *T*.
 

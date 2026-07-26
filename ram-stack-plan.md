@@ -1,17 +1,21 @@
-# RAM stack plan (rev 3 — C0 written, awaiting the freeze review)
+# RAM stack plan (rev 4 — C0 frozen, I/O moved to AHU tapes, P1 under way)
 
 Status (2026-07-26): id **Lax11** provisioned via `lax init
 ram-linear-time`; scaffold in place. Jan delegated the P-layer design
-choices (D9–D12, settled below). The C0 surface decisions D1–D7 are
-my recommendations and get their review at the step-1 freeze boundary
-as planned.
+choices (D9–D12, settled below) and, in the session of 2026-07-26 (2),
+the answers to the three step-1 review questions ("follow your
+recommendations").
 
-**Steps 1–2 are drafted: the four C0 concept modules are written and
-`lax build ram-linear-time` is OK** (manifest, abstract, both packages
-green, no spec violations). The surface is *not* frozen — it is now a
-concrete artifact to review rather than a sketch, which is exactly the
-step-1 review object. Deltas from the sketch below are recorded as
-D13–D15; three smoke tests validate it (see "Surface as written").
+**Steps 1–2 are done and the surface is frozen** at the recommended
+answers: `ComputesInTime` only (D13 kept), `edgeCount` = declared
+half-length with repetitions permitted (D14 kept), `EncodesGraph` a
+`Prop`-structure (D14 kept). Writing the compiler then forced one
+*substantive* correction to the frozen shape — the memory-resident I/O
+convention D3 makes a one-accumulator machine unable to address its
+scratch space, so I/O moved to the input and output tapes of the cited
+source (**D16**), which is the model AHU §1.2 actually defines. With
+tapes, IMP+ does its own I/O (**D17**) and the array-extent header
+(D11) evaporates.
 
 Goal: a reusable stack for honest algorithmic statements in Lax. The
 concept surface talks about a **textbook RAM** — cost intrinsic to the
@@ -41,6 +45,7 @@ inductive Op | lit (n : ℕ) | mem (a : ℕ) | ind (a : ℕ)
 
 /-- Instructions of the RAM. `sub` is truncated subtraction. -/
 inductive Instr
+  | read (a : ℕ) | write (o : Op)
   | load (o : Op) | store (a : ℕ) | storeInd (a : ℕ)
   | add (o : Op) | sub (o : Op)
   | jump (l : ℕ) | jzero (l : ℕ) | jgtz (l : ℕ)
@@ -48,27 +53,35 @@ inductive Instr
 
 abbrev Program := List Instr
 
-/-- Machine state: program counter, accumulator, memory. -/
+/-- Machine state: program counter, accumulator, memory, the input not
+yet read, the output written so far. -/
 structure State where
   pc : ℕ
   acc : ℕ
   mem : ℕ → ℕ
+  inp : List ℕ
+  out : List ℕ
 
-/-- One step; `none` iff halted (halt instruction or pc past the
-program). Total, deterministic, ~25 lines. -/
-def step (p : Program) (s : State) : Option State := ...
+/-- The instruction semantics; `none` iff the machine halts (`halt`, or
+a read from an exhausted tape). -/
+def Instr.effect : Instr → State → Option State := ...
 
-/-- `RunsTo p x y t`: started on input `x`, the machine halts after
-exactly `t` steps with output `y` (I/O convention D3). -/
+/-- One step: fetch, then execute; `none` also when pc ran past the
+program. -/
+def step (p : Program) (s : State) : Option State :=
+  p[s.pc]?.bind fun i => i.effect s
+
+/-- `RunsTo p x y t`: started on input tape `x`, the machine halts
+after exactly `t` steps with output tape `y` (I/O convention D16). -/
 def RunsTo (p : Program) (x y : List ℕ) (t : ℕ) : Prop := ...
 ```
 
 - Unit cost: time = number of `step`s to halt. No space measure (D6).
-- I/O (D3): initial memory `mem 0 = x.length`, `mem (i+1) = x[i]`,
-  zero elsewhere; on halt symmetrically `mem 0 = y.length`,
-  `mem (i+1) = y[i]`. Memory-resident, no tapes, no heads.
-- The interpreter `step` is the whole trusted semantics: one page,
-  auditable against AHU §1.2 line by line.
+- I/O (D16): read-only input tape, write-only output tape, all memory
+  cells initially zero. `RunsTo` constrains the output tape and nothing
+  else.
+- The interpreter `Instr.effect`/`step` is the whole trusted semantics:
+  one page, auditable against AHU §1.2 line by line.
 
 ### Computes / InTime (definition-concept `RamComputes`)
 
@@ -128,16 +141,15 @@ like the textbook sentence.)
 Surface size: four small files. The RAM interpreter is the only
 nontrivial audit object.
 
-## Surface as written (2026-07-26)
+## Surface as written (2026-07-26, frozen)
 
 Four concepts, all green:
 
 - `Lax11/Ram.lean` — `Op`, `Instr`, `Program`, `State`, `Op.value`,
-  `write`, `step`, `run`, `cells`, `initState`, `RunsTo`. The I/O
-  convention is carried by one function, `cells x` ("cell 0 holds the
-  length, cell `i+1` the `i`-th entry, everything else 0"), used on
-  both sides: the input pins *every* cell, the output only the first
-  `|y|+1` (the rest is scratch).
+  `setCell`, `Instr.effect`, `step`, `run`, `initState`, `RunsTo`. The
+  I/O convention is the tapes (D16): `initState x` has all cells zero,
+  `inp = x`, `out = []`, and `RunsTo p x y t` says the machine halts
+  after exactly `t` steps with `out = y`.
 - `Lax11/RamComputes.lean` — `ComputesInTime p D f T` only (D13).
 - `Lax11/GraphEncoding.lean` — `vertexCount`, `edgeCount`, `offset`,
   `target`, and `EncodesGraph` as a seven-field `Prop`-structure
@@ -148,9 +160,10 @@ Four concepts, all green:
 Smoke tests in `proofs/` (helpers, no `conclusion:` frontmatter — they
 exist to keep the surface from being quietly wrong):
 
-- `RamSanity`: a five-instruction program is run end-to-end,
-  `RunsTo lengthProgram x [x.length] 4`, plus its `ComputesInTime`
-  packaging. The machine demonstrably halts, produces output, and the
+- `RamSanity`: a six-instruction program is run end-to-end,
+  `RunsTo sumProgram (a :: b :: x) [a + b] 6` (by `⟨_, rfl, rfl, rfl⟩`
+  — the semantics computes), plus its `ComputesInTime` packaging. The
+  machine demonstrably reads its tape, halts, writes an output, and the
   step count is the instruction count.
 - `EncodingSanity`: `EncodesGraph [2,1,0,1,2,1,0] 2 ⊤` — the encoding
   is satisfiable and the header/offset/target index arithmetic lines
@@ -159,12 +172,14 @@ exist to keep the surface from being quietly wrong):
   will use) and the computations `ccLabels ⊤ = [0,0]`,
   `ccLabels ⊥ = [0,1]` on `Fin 2`.
 
-Watch item for the review: the concept package generates no auxiliary
-declarations of its own, but `simp [cells]` *in the proof package*
-emits `Lax11.Ram.cells.match_1.splitter`, which the namespace rule
-rejects. Proof-side lemmas about `cells` must therefore be stated and
-proved without `simp`-unfolding it (`rfl` and explicit equation lemmas
-are fine). This will recur throughout P1–P3.
+Watch item, still live: the concept package generates no auxiliary
+declarations of its own, but `simp`-unfolding a concept definition that
+was written by pattern matching emits e.g.
+`Lax11.Ram.Instr.effect.match_1.splitter` *from the proof package*,
+which the namespace rule rejects (only `Lax11Proofs`-prefixed names may
+be declared there). The discipline throughout P1–P3: state the equation
+lemmas you want in `Lax11Proofs`, prove them by `rfl`, and simp with
+those. Never `simp [Instr.effect]`.
 
 ## Proof-package tower
 
@@ -178,9 +193,13 @@ where the RAM's flatness is dealt with once:
 
 - Syntax: scalar variables and array names (both `String`), `Expr`
   over `+`/monus/literals/vars/array-reads, commands
-  `skip / assign / arrStore / seq / if / while`, and a program header
-  declaring each array's extent (D11).
-- Environment (D10): `vars : String → ℕ`, `arrs : String → List ℕ`.
+  `skip / assign / store / seq / if / while / read / write`. No
+  program header, no array extents: since the machine's memory starts
+  zeroed and is unbounded, an array of any length costs nothing to
+  have, so the array lengths live in the *initial environment* the
+  user of the simulation theorem picks (D17).
+- Environment (D10): `vars : String → ℕ`, `arrs : String → List ℕ`,
+  plus `inp`/`out` for the tapes.
   Expression evaluation is `Option`-valued; an out-of-bounds array
   access has **no big-step derivation** (stuck, not
   default-to-zero) — this is what makes the layout simulation
@@ -190,17 +209,16 @@ where the RAM's flatness is dealt with once:
   disjoint *by construction* — aliasing dies here, permanently;
   nothing above P1 reasons about memory overlap (this is the move
   that replaces separation logic).
-- Extents (D11): the header declares each array's length as an `Expr`
-  over literals and reads of the reserved input array only (CC needs
-  extents `n`, `n+1`, `2m` — all input cells or sums thereof).
-  Reserved names `INPUT`/`OUTPUT` carry the I/O convention into IMP+.
-- Compiler `compileCom : ImpProg → Program`: prologue evaluates the
-  extent Exprs (input cells sit at known RAM addresses), accumulates
-  base addresses by additions into reserved cells, then the body
-  lowers control flow to jumps and array indexing to base+index
-  indirect addressing.
+- I/O is by the commands `read x` (scalar) and `write e` (D17), which
+  compile to one and two instructions; the tapes are in the
+  environment. So I/O cost is *in* the IMP+ cost of the run and the
+  simulation bound stays the clean `C_c · (k + 1)` — no prologue, no
+  epilogue, no reserved `INPUT`/`OUTPUT` names.
+- Compiler `compile : Layout → Com → ℕ → Program` (the `ℕ` is the
+  address the block is laid at, because machine jumps are absolute);
+  control flow lowers to jumps, array indexing to indirect addressing.
 - Simulation theorem, the P1 deliverable:
-  `⟨c, σ_init(x)⟩ ⇓[t] σ' → ∃ t' ≤ C_c * (t + 1), RunsTo (compileCom c) x (out σ') t'`
+  `BigStep c (initEnv ext x) σ' k → ∃ t ≤ C_c * k, RunsTo (compileProgram c) x σ'.out t`
   with `C_c` program-dependent, input-independent. O()-sloppy
   constants throughout; nothing is tight, ever.
 
@@ -208,63 +226,71 @@ Precedent: Concrete Semantics ch. 8 plus a cost index
 (Nipkow–Haslbeck, *Hoare Logics for Time Bounds*). No research risk;
 the grind is the layout invariant.
 
-#### Status and compiler design (2026-07-26)
+#### Status and compiler design (rev 4, 2026-07-26)
 
 Written and green: `proofs/Lax11Proofs/Imp.lean` — `Expr` (lit / var /
 get / add / sub), `Cond` (eq / lt), `Com` (skip / assign / store / seq
-/ ite / while), `Env` with `setVar`/`setArr`, `Option`-valued
-`Expr.eval` and `Cond.eval`, the sizes, the cost-indexed `BigStep`
-relation, and `BigStep.unique` (determinism in *both* the final
-environment and the cost — so the cost of a terminating run is a
-function of program and input, never a quantity the prover picks).
-`Expr`/`Cond` are shared with P3's `Prog` by design.
+/ ite / while / read / write), `Env` with `setVar`/`setArr`,
+`Option`-valued `Expr.eval` and `Cond.eval`, the sizes, the
+cost-indexed `BigStep` relation, and `BigStep.unique` (determinism in
+*both* the final environment and the cost — so the cost of a
+terminating run is a function of program and input, never a quantity
+the prover picks). `Expr`/`Cond` are shared with P3's `Prog` by design.
 
-Remaining for P1: the header, the compiler, the simulation theorem.
-The layout below is the design to implement; it is what the grind
-stands or falls on, so it is recorded before writing it.
+**Why the I/O convention had to change (D16).** The compiler needs a
+constant number of scratch cells at addresses it knows statically. With
+the input laid out in memory from cell 1, free memory begins at cell
+`|x|+1`, an address known only at run time, so scratch must be reached
+through a pointer cell. There is exactly one statically-known cell to
+hold that pointer (cell 0, the length), the machine has one
+accumulator, and moving the pointer destroys it: a memory-to-memory
+move is then impossible, so *no* compiler exists for that convention
+without reserving an arbitrary constant number of cells in the concept
+surface itself. Tapes remove the problem at the root — memory starts
+empty, every address is static — and they are what the cited source
+defines. The price is that the machine cannot random-access its input
+without copying it (one instruction per number), which no linear-time
+algorithm minds.
 
-- **The input region is never touched until the end.** Machine memory
-  starts as `cells x`: cell 0 the length, cells `1 … |x|` the word,
-  everything above already **zero**. So array blocks are placed above
-  the input and no zero-initialization loop is needed at all — the
-  machine hands us zeroed memory for free. This is worth keeping in
-  mind before writing an init loop that is not necessary.
-- **Layout.** A fixed block of reserved cells first (accumulator
-  spills, one temp per expression nesting depth, one base cell and one
-  length cell per declared array), then the scalar variables at fixed
-  cells, then the array blocks, each at a base computed by the
-  prologue. Bases are cumulative sums of the extents, accumulated by
-  additions — the prologue evaluates each extent `Expr`, which by D11
-  reads only literals and `INPUT` cells, all at known addresses.
-- **`INPUT` is not copied.** It *is* cells `1 … |x|`, with length in
-  cell 0; `get INPUT i` compiles to "compute `1 + i` into a temp, then
-  `load (ind temp)`". `OUTPUT` is an ordinary block above the input,
-  and an **epilogue** copies it down to cells `0 … |OUTPUT|` and writes
-  the length into cell 0. The copy is a loop, linear in the output
-  length, which the cost budget absorbs. Doing it the other way round
-  — placing `OUTPUT` at cells 0.. from the start — would clobber the
-  input while the body still needs it, so the epilogue is not
-  avoidable.
-- **Expressions** compile with one temp cell per nesting depth: `add e
-  f` is "compile `e`; store to `temp d`; compile `f` at depth `d+1`;
-  add `temp d`". Every node emits a constant number of instructions,
-  so the machine cost of an expression is `≤ C · e.size`, which is
-  exactly the shape the IMP+ cost model was chosen to have.
-  `Cond` compiles to a subtraction plus `jzero`/`jgtz`; `lt e f` is
-  `jgtz` on `f - e` (monus makes this the right test, and this is why
-  the machine needs no comparison instruction).
-- **Control flow** is the standard lowering, with the code laid out
-  contiguously and jump targets computed from block lengths. The
-  induction is on the `BigStep` derivation, so `while` needs no
-  separate fuel argument.
-- **Simulation statement.** The invariant `Represents` ties an `Env` to
-  a machine memory: each scalar at its cell, each array block
-  contiguous at its base with its declared length, base and length
-  cells holding those values, and the input region untouched. Then
-  `BigStep c σ σ' k` and `Represents σ mem` give a run of the compiled
-  block from its first instruction to just past its last, in
-  `≤ C_c · (k + 1)` steps, ending in a memory representing `σ'`.
-  `C_c` depends on the program only. Nothing is tight, ever.
+**Layout (D18).** With static addresses the layout is a fixed function
+of the program's names, `Layout` = a list of scalar names, a list of
+array names, and a temp count `T`:
+
+- cells `0 … T-1`: temporaries, one per expression nesting depth;
+- cell `T + i`: the `i`-th scalar variable;
+- cell `T + p + j + q·i`: entry `i` of the `j`-th array, where `p` is
+  the number of scalars and `q` the number of arrays.
+
+Arrays are **interleaved** rather than blocked: array lengths are
+unbounded, so blocked layout would need run-time base addresses again,
+while striding by `q` keeps every address a static affine function of
+the index. Address arithmetic costs `q` additions — a per-program
+constant, which is all the bound needs. Unbounded memory is free (D6:
+no space measure), so the factor `q` of address space costs nothing.
+
+- **Expressions** compile with one temp per nesting depth: `add e f` at
+  depth `d` is "compile `f` at `d`; `store d`; compile `e` at `d+1`;
+  `add (mem d)`" (`f` first, so that the non-commutative `sub` works
+  the same way). Every node emits `≤ q + c` instructions, so the
+  machine cost of an expression is `≤ C · e.size` — exactly the shape
+  the IMP+ cost model was chosen to have. Straight-line code is exact:
+  the number of steps *is* the number of instructions.
+- **Conditions** compile to "accumulator zero iff the condition holds",
+  so both take a `jzero` to the true branch: `eq e f` computes
+  `(e-f)+(f-e)`, `lt e f` computes `1-(f-e)`. Monus makes both work,
+  and this is why the machine needs no comparison instruction.
+- **Control flow** is the standard lowering with absolute targets, so
+  block lengths must be known before the code is emitted: a syntactic
+  `size : Layout → Com → ℕ` computes them, and
+  `(compile L c a).length = size L c` (address-independent) is proved
+  once. The induction is on the `BigStep` derivation, so `while` needs
+  no separate fuel argument.
+- **Simulation statement.** `Represents L σ s` ties an environment to a
+  machine state: each scalar at its cell, each array entry *within its
+  declared length* at its cell, and the tapes equal. Array lengths
+  never reach the machine — they only decide which programs have a
+  derivation at all — so an initial environment with arbitrary,
+  zero-filled arrays is represented by the all-zero memory for free.
 
 ### P2 — thin Hoare-with-time kit over IMP+
 
@@ -345,24 +371,24 @@ needs it.
 
 ## Steps
 
-1. **Statement design** — ✅ drafted, ⏸ *not frozen*. C0 is written out
-   (RAM instruction list, `step`, I/O, `ComputesInTime`, CSR validity,
-   `ccLabels`, axiom packaging), against the pinned mathlib (toolchain
-   v4.30.0, same rev as Lax5), with D13–D15 recorded above. →
-   **awaiting Jan review; then D-record updated and surface frozen.**
-   Open questions I would put to that review: (a) is dropping
-   `Computes`/`ComputesLinear` from the surface right, or is the named
-   "linear time" vocabulary worth an unused definition? (b) `edgeCount`
-   as declared length rather than the true edge count — keep, or add
-   the no-repetition field? (c) is the `Prop`-structure the right shape
-   for `EncodesGraph`, against a plain conjunction?
+1. **Statement design** — ✅ done, **frozen** 2026-07-26. C0 is written
+   out (RAM instruction list, `Instr.effect`, tape I/O, `ComputesInTime`,
+   CSR validity, `ccLabels`, axiom packaging), against the pinned
+   mathlib (toolchain v4.30.0, same rev as Lax5). The three review
+   questions were answered by Jan's delegation with "follow the
+   recommendation": (a) `Computes`/`ComputesLinear` stay dropped,
+   (b) `edgeCount` stays the declared half-length with repetitions
+   permitted, (c) `EncodesGraph` stays a `Prop`-structure. D13–D15 are
+   therefore settled; the one later change is D16, which is not a
+   review answer but a correction forced by the compiler.
 2. **Concepts package** — ✅ four modules, manifest (title, author,
    AHU + Cook–Reckhow bib entries), abstract; `lax build` OK, no
    violations; three smoke tests in the proof package.
-3. **P1**: IMP+ semantics, compiler, simulation theorem. Smoke test:
-   a five-line IMP+ program ("sum the input") taken end-to-end to a
-   RAM `ComputesLinear` by hand, *before* P3 exists — validates the
-   chain early. → **checkpoint: report constants/pain level.**
+3. **P1**: IMP+ semantics ✅, compiler, simulation theorem. Smoke test:
+   a short IMP+ program ("sum the input") taken end-to-end to a RAM
+   `ComputesInTime` linear bound by hand, *before* P3 exists —
+   validates the chain early. → **checkpoint: report constants/pain
+   level.**
 4. **P2**: the thin Hoare kit, as needed by 3/5.
 5. **P3**: `Prog`, `run`, rule library, `compileProg`, adequacy.
    Re-run the smoke test at P3 (should shrink to a few lines of
@@ -383,9 +409,10 @@ first-order, closure-free, and has a bounded fallback. The driver's
 math side is small. No step has research-grade risk; step 5 has
 ergonomics risk, contained by the step-3 smoke test and the fallback.
 
-## Decision record (rev 2 — D8–D12 settled by Jan's delegation
-2026-07-26; D1–D7 are recommendations reviewed at the step-1 surface
-freeze)
+## Decision record (rev 4 — D8–D12 settled by Jan's delegation
+2026-07-26; D1–D7 and D13–D15 frozen at the step-1 review, which
+answered "follow the recommendation"; D16–D18 are mine, taken while
+writing the compiler)
 
 - **D1** RAM flavor: accumulator machine, AHU §1.2 instruction set
   minus MULT/DIV, lit/direct/indirect operands, `halt` instruction,
@@ -394,8 +421,8 @@ freeze)
   Constant-factor multiplications are unrolled additions; nothing we
   target needs more. Extending the instruction set later is a *new*
   concept, argued then.
-- **D3** I/O memory-resident: `mem 0` = length, `mem (i+1)` = words;
-  same convention for output on halt. No tapes.
+- **D3** (superseded by D16) I/O memory-resident: `mem 0` = length,
+  `mem (i+1)` = words; same convention for output on halt. No tapes.
 - **D4** Time bounds on the surface are elementary (`∃ c, ≤ c·(|x|+1)`),
   not `IsBigO` over input filters.
 - **D5** Graph encoding: CSR with an iff-validity predicate; dumbness
@@ -413,10 +440,10 @@ freeze)
   big-step derivation), never default-valued — required for the
   layout simulation. `Option`-valued expression eval; cost = 1 +
   expression size per executed construct.
-- **D11** (settled) Array extents: header Exprs over literals and
-  reads of the reserved `INPUT` array only; compiler prologue
-  computes cumulative bases by additions. Reserved `INPUT`/`OUTPUT`
-  names carry the I/O convention.
+- **D11** (settled, then dropped by D17) Array extents: header Exprs
+  over literals and reads of the reserved `INPUT` array only; compiler
+  prologue computes cumulative bases by additions. Reserved
+  `INPUT`/`OUTPUT` names carry the I/O convention.
 - **D13** (mine, review at the freeze) The `Computes*` concept declares
   **only** `ComputesInTime p D f T`. `Computes` (untimed) and
   `ComputesLinear` were dropped: nothing in the submission uses them,
@@ -447,6 +474,30 @@ freeze)
   `List ℕ → List ℕ`. `label` is `sInf (Fin.val '' {u | G.Reachable u v})`
   — the least *number* of a reachable vertex — and `ccLabels` is
   `List.ofFn (label G)`.
+- **D16** (mine, forced by the compiler) I/O is by AHU's read-only
+  input tape and write-only output tape, with `read a` and `write o`
+  instructions; memory starts all zero. Supersedes D3. Rationale in
+  "Why the I/O convention had to change" above: with a memory-resident
+  input the compiler has no statically-addressable scratch and a
+  one-accumulator machine cannot then move memory to memory. Side
+  benefits: the surface loses the `cells` function and the asymmetric
+  "only the first `|y|+1` cells are constrained" clause, and it now
+  matches the cited source verbatim. Cost: no sublinear-time
+  algorithms, which this stack does not contain.
+- **D17** (mine) IMP+ does its own I/O with `read`/`write` commands and
+  has no header and no array extents. Array lengths belong to the
+  initial environment (`initEnv ext x`), because the machine never
+  represents them: they are exactly the fiction that makes
+  out-of-range access stuck, and the machine's zeroed unbounded memory
+  represents zero-filled arrays of *any* lengths for free. This kills
+  D11's extent machinery, the prologue, the epilogue and the reserved
+  names, and it restores the clean `t ≤ C_c · k` bound (I/O cost is in
+  `k` because I/O is a command).
+- **D18** (mine) Static layout: temps `0 … T-1`, scalars above them,
+  arrays *interleaved* with stride `q` = number of arrays. Blocked
+  arrays would need run-time bases (lengths are unbounded); striding
+  keeps every address a static affine function of the index at a cost
+  of `q` additions per access, and address space is free under D6.
 - **D12** (settled) P3 denotation is a fuel interpreter
   `run : Prog → Env → ℕ → Option (Env × ℕ)` with fuel-monotonicity
   and a once-proved combinator rule library (seq/ite rules,
