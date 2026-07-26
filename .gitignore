@@ -1,2 +1,5 @@
 .claude/settings.local.json
 references
+/.agents/
+/*/.agents/
+/*/.codex/

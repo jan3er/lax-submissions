@@ -1,4 +1,10 @@
-# Statement design (step 2 deliverable, rev 3 — frozen)
+# Lax5 statement design (rev 3 — implemented)
+
+Status (2026-07-26): this is the historical design record. The implemented
+surface has eleven concepts (the ten below plus `NowhereDenseWcol`), and all
+five theorem concepts now have proofs using only Lean's standard logical
+axioms. Later sections retain the original pre-implementation wording where
+it records the decisions that guided the build.
 
 Exact Lean forms for the concept surface of the flagship submission
 (Theorem 2 of DMMPT26). Companion to `todo.md` and `pipeline.md`. All
@@ -24,7 +30,7 @@ Everything below was checked against the pinned mathlib
 at the pin; the color language is a small custom inductive in the style
 of mathlib's `graphRel`.
 
-## Concept partition (10 concepts, 2 with open obligations)
+## Original concept partition (10 concepts, 2 initially open)
 
     1  GraphClasses            (def)          —
     2  Transductions           (def)          —              [structures]

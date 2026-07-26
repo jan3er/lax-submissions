@@ -1,4 +1,8 @@
-# Pipeline survey (step 1 deliverable, draft for iteration)
+# Lax5 proof pipeline survey — complete
+
+Status (2026-07-26): the pipeline below is the historical source survey and
+proof plan. Every listed ingredient was implemented; all five theorem
+concepts are proved with only Lean's standard logical axioms.
 
 Target: Theorem 2 of arXiv:2607.10941 (DMMPT26 below). This document maps
 every ingredient of the proof to a chosen source and records how it will
@@ -152,26 +156,27 @@ Effort estimate for §3a: item 4 is the bulk; items 5–7 are careful but
 routine; item 3 is short. Everything is finite combinatorics over
 `SimpleGraph (Fin n)` + one excursion into finite probability (item 4).
 
-## 4. Scope decision (settled with Jan, 2026-07-24)
+## 4. Original scope decision (settled with Jan, 2026-07-24)
 
-**Option (ii)**: prove 6b (via §3a), leave 6a as a stated open
-obligation. Consequences for the concept surface:
+**Option (ii)** initially meant proving 6b (via §3a) while leaving 6a as a
+stated open obligation. Both 6a and the optional Adler–Adler direction were
+subsequently proved. The original consequences for the concept surface were:
 
 - "Nowhere dense" (with shallow minors) becomes a definition-concept.
-- 6a ("weakly sparse + monadically dependent ⇒ nowhere dense") is a
-  theorem-concept whose proof obligation stays open — a well-defined
-  bounty for a follow-up submission.
+- 6a ("weakly sparse + monadically dependent ⇒ nowhere dense") was a
+  theorem-concept whose proof obligation initially stayed open as a
+  well-defined bounty for a follow-up submission.
 - Optionally also state the converse (nowhere dense ⇒ monadically
-  dependent, Adler–Adler), likewise open, so the surface carries the
+  dependent, Adler–Adler), initially likewise open, so the surface carries the
   full equivalence "on weakly sparse classes: monadically dependent =
   nowhere dense" that motivated the submission. Decide in step 2.
 - 6b (radius-1 almost-linear NC of nowhere dense classes) is a
   theorem-concept, proved.
-- The headline theorem's proof then uses the 6a and 6b statements as
-  axioms of this submission's own concept package — allowed, and the
-  build stays green with 6a undischarged.
+- The headline theorem's first proof used the 6a and 6b statements as axioms
+  of this submission's own concept package. The final proof package rewires
+  this dependency to the proved theorems.
 
-## 5. Next actions (step 1 wrap-up → step 2)
+## 5. Completion record
 
 - [x] Scope: option (ii) — prove 6b, leave 6a open.
 - [x] Survey the 6b chain at r=1 (§3a).
@@ -180,7 +185,6 @@ obligation. Consequences for the concept surface:
       arbitrary relational structures per Jan).
 - [x] Step 3: concept package Lax5 builds, `lax build` pipeline OK
       (scaffold was pre-allocated; manifest + abstract written).
-- [x] Step 4: proof package, sorry-free (sub-state in `todo.md`,
-      4a–4e all done, 2026-07-25). Headline theorem + Cor 6a + Cor 6b
-      all audit to standard axioms only; sole open obligation is
-      Adler–Adler.
+- [x] Step 4: proof package, sorry-free (full build log in `todo.md`).
+      The headline theorem, Corollaries 6a and 6b, and Adler–Adler all audit
+      to standard logical axioms only; no proof obligations remain.

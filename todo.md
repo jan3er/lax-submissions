@@ -1,11 +1,16 @@
-# Flagship: almost linear neighborhood complexity of monadically dependent classes
+# Lax5 implementation log — complete
+
+Status (2026-07-26): all eleven concepts are implemented, all five theorem
+concepts are proved, both Lake packages build, and the theorem axiom audits
+report only `propext`, `Classical.choice`, and `Quot.sound`. This file is kept
+as the chronological implementation log; it contains no remaining tasks.
 
 Target: Theorem 2 of <https://arxiv.org/abs/2607.10941> (Dreier, Mählmann,
 McCarty, Pilipczuk, Toruńczyk): for every monadically dependent class *C*,
 every G ∈ C and A ⊆ V(G) satisfy |{N(v) ∩ A : v ∈ V(G)}| ≤ |A|^(1+o(1)).
 
-Scope assumption (confirm): Theorem 2 only — the merge-width results
-(Theorems 4, 5) are out of scope.
+Scope (settled): Theorem 2 only — the merge-width results (Theorems 4, 5)
+are out of scope.
 
 ## Formal shape of the headline theorem
 

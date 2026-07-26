@@ -12,7 +12,7 @@ plain list reversal; the deletion set is enumerated with padding and
 handled purely by decoration; the endgame needs only s+4 same-colored
 scattered vertices (traces {first, j-th}), not disjoint foursomes.
 
-Target: discharge the last open obligation of the Lax5 submission,
+Completed target: discharge the last open obligation of the Lax5 submission,
 `Lax5.AdlerAdler.monadicallyDependent_of_nowhereDense`
 (nowhere dense ⇒ monadically dependent), with standard axioms only.
 

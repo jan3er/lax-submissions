@@ -9,7 +9,7 @@ seriously as the rules: these are **flagship submissions**, the examples future
 contributors will imitate, and the elegance of the concept packages is the
 whole point.
 
-Current archive content (both in the **draft** state):
+Submission directories currently in this repository:
 
 - `twin-width-treewidth-separation/` — **Lax1**: twin-width can be
   exponential in treewidth (three concepts: treewidth, twin-width, and the
@@ -17,8 +17,12 @@ Current archive content (both in the **draft** state):
 - `twin-width-mixed-minor-number/` — **Lax2**: twin-width and mixed minor
   number are functionally equivalent (two concepts: mixed minor number and
   the equivalence theorem). Depends on the Lax1 draft.
+- `monadic-dependence-neighborhood-complexity/` — **Lax5**: monadically
+  dependent graph classes have almost linear neighborhood complexity. Its
+  eleven concepts and five proofs also formalize the weakly sparse
+  equivalence between monadic dependence and nowhere denseness.
 
-These two are the reference implementations of everything below. When in
+These submissions are the reference implementations of everything below. When in
 doubt, open them and imitate. The normative rule set is the Lax spec
 (`lax spec` prints the exact version the installed CLI enforces); when this
 document and the spec disagree, the spec wins.
@@ -83,7 +87,7 @@ produces this whole layout; never author `lake-manifest.json` or run
 `manifest.yaml` allows exactly these keys — `specVersion`, `id`,
 `leanVersion` (`"v4.30.0"`), `mathlibVersion` (the pin), `title`, `authors`
 (list of `name` + optional `orcid`/`github`), `bibEntries` (verbatim BibTeX
-strings). See the two existing manifests.
+strings). See the existing manifests.
 
 Lakefiles are whitelisted: `name`, `defaultTargets`, `[leanOptions]` with
 `autoImplicit = false`, `[[require]]` entries, one `[[lean_lib]]`. Package
@@ -228,7 +232,7 @@ to the source notion and transporting the source theorem across.
 
 **Abstracts are for mathematicians.** `abstract.md` states what is proved,
 in what form, and how the concept surface is organized into review units —
-see the two existing abstracts for the register.
+see the existing abstracts for the register.
 
 ## 5. Setup
 

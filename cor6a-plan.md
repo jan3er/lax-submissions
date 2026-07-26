@@ -1,6 +1,10 @@
-# Corollary 6a proof plan (rev 2, after recycling survey)
+# Corollary 6a proof plan (rev 2 — complete)
 
-Target: discharge the open obligation
+Status (2026-07-25): implemented and axiom-audited. The final theorem uses
+only `propext`, `Classical.choice`, and `Quot.sound`; this file is retained as
+the implementation and attribution record.
+
+Completed target: discharge the open obligation
 `Lax5.WeaklySparseDependent.nowhereDense_of_weaklySparse_of_monadicallyDependent`
 (weakly sparse + monadically dependent ⇒ nowhere dense), so that the
 headline theorem's `#print axioms` reports standard axioms only.
