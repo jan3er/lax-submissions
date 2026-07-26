@@ -1,4 +1,4 @@
-# RAM stack plan (rev 4 — C0 frozen, I/O moved to AHU tapes, P1 under way)
+# RAM stack plan (rev 5 — C0 frozen, P1 done, P3 next)
 
 Status (2026-07-26): id **Lax11** provisioned via `lax init
 ram-linear-time`; scaffold in place. Jan delegated the P-layer design
@@ -6,7 +6,7 @@ choices (D9–D12, settled below) and, in the session of 2026-07-26 (2),
 the answers to the three step-1 review questions ("follow your
 recommendations").
 
-**Steps 1–2 are done and the surface is frozen** at the recommended
+**Steps 1–3 are done.** The surface is frozen at the recommended
 answers: `ComputesInTime` only (D13 kept), `edgeCount` = declared
 half-length with repetitions permitted (D14 kept), `EncodesGraph` a
 `Prop`-structure (D14 kept). Writing the compiler then forced one
@@ -15,7 +15,10 @@ convention D3 makes a one-accumulator machine unable to address its
 scratch space, so I/O moved to the input and output tapes of the cited
 source (**D16**), which is the model AHU §1.2 actually defines. With
 tapes, IMP+ does its own I/O (**D17**) and the array-extent header
-(D11) evaporates.
+(D11) evaporates. **P1 is finished and green**: compiler, simulation
+theorem, and the step-3 smoke test taken all the way to a
+`ComputesInTime` statement about a concrete machine program. The
+step-3 checkpoint report is below.
 
 Goal: a reusable stack for honest algorithmic statements in Lax. The
 concept surface talks about a **textbook RAM** — cost intrinsic to the
@@ -226,71 +229,123 @@ Precedent: Concrete Semantics ch. 8 plus a cost index
 (Nipkow–Haslbeck, *Hoare Logics for Time Bounds*). No research risk;
 the grind is the layout invariant.
 
-#### Status and compiler design (rev 4, 2026-07-26)
+#### Why the I/O convention had to change (D16)
 
-Written and green: `proofs/Lax11Proofs/Imp.lean` — `Expr` (lit / var /
-get / add / sub), `Cond` (eq / lt), `Com` (skip / assign / store / seq
-/ ite / while / read / write), `Env` with `setVar`/`setArr`,
-`Option`-valued `Expr.eval` and `Cond.eval`, the sizes, the
-cost-indexed `BigStep` relation, and `BigStep.unique` (determinism in
-*both* the final environment and the cost — so the cost of a
-terminating run is a function of program and input, never a quantity
-the prover picks). `Expr`/`Cond` are shared with P3's `Prog` by design.
+Kept here because it is the one argument in this plan that a reader
+will want to check. The compiler needs a constant number of scratch
+cells at addresses it knows statically. With the input laid out in
+memory from cell 1 (the old D3), free memory begins at cell `|x|+1`,
+an address known only at run time, so scratch must be reached through
+a pointer cell. There is exactly one statically-known cell to hold
+that pointer (cell 0, the length), the machine has one accumulator,
+and moving the pointer destroys it — so a memory-to-memory move is
+impossible, and *no* compiler exists for that convention unless the
+concept surface itself reserves an arbitrary constant number of cells.
+Tapes remove the problem at the root: memory starts empty, so every
+address is static. They are also what the cited source defines. The
+price is that the machine cannot random-access its input without
+copying it, one instruction per number, which no linear-time algorithm
+minds.
 
-**Why the I/O convention had to change (D16).** The compiler needs a
-constant number of scratch cells at addresses it knows statically. With
-the input laid out in memory from cell 1, free memory begins at cell
-`|x|+1`, an address known only at run time, so scratch must be reached
-through a pointer cell. There is exactly one statically-known cell to
-hold that pointer (cell 0, the length), the machine has one
-accumulator, and moving the pointer destroys it: a memory-to-memory
-move is then impossible, so *no* compiler exists for that convention
-without reserving an arbitrary constant number of cells in the concept
-surface itself. Tapes remove the problem at the root — memory starts
-empty, every address is static — and they are what the cited source
-defines. The price is that the machine cannot random-access its input
-without copying it (one instruction per number), which no linear-time
-algorithm minds.
-
-**Layout (D18).** With static addresses the layout is a fixed function
-of the program's names, `Layout` = a list of scalar names, a list of
-array names, and a temp count `T`:
-
-- cells `0 … T-1`: temporaries, one per expression nesting depth;
-- cell `T + i`: the `i`-th scalar variable;
-- cell `T + p + j + q·i`: entry `i` of the `j`-th array, where `p` is
-  the number of scalars and `q` the number of arrays.
-
-Arrays are **interleaved** rather than blocked: array lengths are
-unbounded, so blocked layout would need run-time base addresses again,
+**Layout (D18).** Temporaries in cells `0 … T-1`, the `i`-th scalar in
+cell `T + i`, entry `i` of the `j`-th array in cell `T + p + j + q·i`
+(`p` scalars, `q` arrays). Arrays are *interleaved*, not blocked:
+lengths are unbounded, so blocks would need run-time bases again,
 while striding by `q` keeps every address a static affine function of
-the index. Address arithmetic costs `q` additions — a per-program
-constant, which is all the bound needs. Unbounded memory is free (D6:
-no space measure), so the factor `q` of address space costs nothing.
+the index for `q` additions per access. Address space is free (D6).
 
-- **Expressions** compile with one temp per nesting depth: `add e f` at
-  depth `d` is "compile `f` at `d`; `store d`; compile `e` at `d+1`;
-  `add (mem d)`" (`f` first, so that the non-commutative `sub` works
-  the same way). Every node emits `≤ q + c` instructions, so the
-  machine cost of an expression is `≤ C · e.size` — exactly the shape
-  the IMP+ cost model was chosen to have. Straight-line code is exact:
-  the number of steps *is* the number of instructions.
-- **Conditions** compile to "accumulator zero iff the condition holds",
-  so both take a `jzero` to the true branch: `eq e f` computes
-  `(e-f)+(f-e)`, `lt e f` computes `1-(f-e)`. Monus makes both work,
-  and this is why the machine needs no comparison instruction.
-- **Control flow** is the standard lowering with absolute targets, so
-  block lengths must be known before the code is emitted: a syntactic
-  `size : Layout → Com → ℕ` computes them, and
-  `(compile L c a).length = size L c` (address-independent) is proved
-  once. The induction is on the `BigStep` derivation, so `while` needs
-  no separate fuel argument.
-- **Simulation statement.** `Represents L σ s` ties an environment to a
-  machine state: each scalar at its cell, each array entry *within its
-  declared length* at its cell, and the tapes equal. Array lengths
-  never reach the machine — they only decide which programs have a
-  derivation at all — so an initial environment with arbitrary,
-  zero-filled arrays is represented by the all-zero memory for free.
+#### Status (rev 5, 2026-07-26): P1 is done
+
+Five modules in `proofs/Lax11Proofs/`, all green, axiom audit clean
+(`propext`, `Classical.choice`, `Quot.sound`):
+
+- `Imp.lean` — `Expr` / `Cond` / `Com` (incl. `read`/`write`), `Env`
+  with the two tapes, `Option`-valued evaluation, the cost-indexed
+  `BigStep`, `BigStep.unique`, `initEnv`.
+- `Machine.lean` — the concept's equations restated as `rfl` lemmas in
+  this package's namespace, `run_add`/`run_trans`/`run_one`, and
+  `Fits` (block placement) with its append/singleton lemmas.
+- `Compile.lean` — `Layout`, the address functions, `compileExpr`,
+  `condExpr`/`compileCond`, `compile`, `compileProgram`, the `Ok`
+  predicates, `size`/`esize`/`bsize` with `compile_length`, and the
+  injectivity of the layout (`index_inj` and friends).
+- `Simulation.lean` — `Represents`, `Reaches`, `compileExpr_correct`,
+  `compileCond_correct`, `compile_correct` (the induction on the
+  derivation) and `compileProgram_runsTo`.
+- `SumSmoke.lean` — the step-3 end-to-end test.
+
+The deliverable:
+
+```lean
+theorem compileProgram_runsTo (hok : Com.Ok L c)
+    (hbs : BigStep c (initEnv ext x) σ' k) :
+    ∃ t ≤ L.const * k, RunsTo (compileProgram L c) x σ'.out t
+```
+
+`L.const = 3 * L.idxLen + 13`, and `L.idxLen = (#arrays - 1) + 3` is
+the cost of one array access. So the constant depends on the layout
+only, never on the program or the input.
+
+Design points that survived contact (see D16–D18 for the decisions):
+
+- **Conditions compile through the expression compiler.** `condExpr`
+  turns a condition into an expression that is zero exactly when the
+  condition holds — `(e-f)+(f-e)` for equality, `1-(f-e)` for order —
+  which truncated subtraction makes sound. Both are then followed by
+  the same `jzero`. This deleted an entire second instruction chain
+  from the proof; it was the single biggest simplification.
+- **`Reaches` is the right abstraction for straight-line code.** It
+  bundles fall-through, step count, accumulator, untouched tapes, and
+  the frame condition "writes only temporaries from `d` upwards". The
+  frame clause is what lets the two operands of a binary operator be
+  compiled at consecutive depths with the first result surviving.
+- **Array lengths never reach the machine.** They only decide which
+  IMP+ programs have a derivation, so the all-zero memory of a
+  starting machine represents an initial environment with zero-filled
+  arrays of *any* declared lengths. `initEnv` takes the lengths as a
+  parameter and they cost nothing.
+- The compiler was checked by **evaluation** (`#eval` on the fuel-free
+  `run`) before any proving: successor, array store/read, a summing
+  while-loop, both branches of an equality test. Two real bugs would
+  have cost hours of proof debugging otherwise. Do this again at P3.
+
+#### Step-3 checkpoint: constants and pain level
+
+**Constants.** For the smoke test's layout (four scalars, no arrays,
+two temporaries) `L.const = 22`, the IMP+ derivation costs `21` per
+input number, so the concept-level bound is `462 * (|x| + 1)` where
+the compiled program actually takes about `19 * |x|` steps. Loose by
+roughly 30×, and deliberately: no step of the tower attempts a tight
+constant, and the driver's statement only needs *some* constant.
+
+**Pain level, honestly.** The simulation proof itself was a grind but
+never in doubt: about 700 lines, of which the genuinely fiddly part is
+`Fits` bookkeeping (splitting a block's placement hypothesis and
+matching program-counter arithmetic across `++`). The pattern that
+worked is: right-associate the code with a `show ... from by simp
+[List.append_assoc]`, `rw [fits_append, …]`, then `Fits.congr (by
+omega)` whenever an address does not match syntactically.
+
+What the smoke test *actually* measured is the cost of using P1
+directly, and this is the number that matters for the P3 decision: a
+five-line program needed ~60 lines of proof, of which ~25 are the loop
+lemma. The loop is proved by induction on the input that is left (its
+variant) with the invariant inlined into the statement, and the cost
+bound is carried as a `≤` alongside. Two frictions dominate:
+
+1. **Environment bookkeeping.** Every `setVar` is a function update, so
+   reading a variable back is a chain of `if`-reductions
+   (`simp [Env.setVar]` handles it, but it is in every step).
+2. **Cost arithmetic on the nose.** The `BigStep` constructors produce
+   costs like `1 + b.size + k + k'` which are *not* definitionally
+   `13 + k`, so the existential's witness has to be left as `_` and
+   bounded afterwards by `omega`.
+
+Both are exactly what P3's rule library is meant to absorb: the
+while-rule takes an invariant, a variant and a cost potential and the
+per-algorithm proof never sees a derivation. The measurement says P3 is
+worth building; it also says the fallback (P2-style lockstep
+refinement) would be unpleasant, since it would keep friction 1.
 
 ### P2 — thin Hoare-with-time kit over IMP+
 
@@ -384,12 +439,13 @@ needs it.
 2. **Concepts package** — ✅ four modules, manifest (title, author,
    AHU + Cook–Reckhow bib entries), abstract; `lax build` OK, no
    violations; three smoke tests in the proof package.
-3. **P1**: IMP+ semantics ✅, compiler, simulation theorem. Smoke test:
-   a short IMP+ program ("sum the input") taken end-to-end to a RAM
-   `ComputesInTime` linear bound by hand, *before* P3 exists —
-   validates the chain early. → **checkpoint: report constants/pain
-   level.**
-4. **P2**: the thin Hoare kit, as needed by 3/5.
+3. **P1** — ✅ done. IMP+ semantics, compiler, simulation theorem, and
+   the smoke test: `sumProgram_computesInTime` is a `ComputesInTime`
+   statement of the concept surface about a concrete machine program,
+   proved through the tower. → **checkpoint reported above.**
+4. **P2**: the thin Hoare kit — *skipped for now*. P1 needed nothing
+   from it and P3 is the ergonomic answer; it stays available as the
+   fallback if step 5 disappoints.
 5. **P3**: `Prog`, `run`, rule library, `compileProg`, adequacy.
    Re-run the smoke test at P3 (should shrink to a few lines of
    rule-library reasoning). → **checkpoint: this is the make-or-break ergonomics
