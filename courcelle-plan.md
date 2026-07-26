@@ -146,6 +146,26 @@ axiom courcelle :
   child-slots left"). This is the **P4 tree-fold schema**,
   generic over any table — built and verified *before* the type
   algebra exists, against an abstract table, in Lax11's proof package.
+
+  **C7a (rev 3, orchestrator, after M1): the bag-edge pitfall.**
+  The per-node label needs the bag's internal adjacency pattern, and
+  computing it naively (per bag vertex, scan its CSR block) costs
+  `Σ_t Σ_{u∈B_t} deg u` — *not* linear (a hub vertex can sit in
+  every bag). The linear method, four phases in the label pass:
+  (a) compute each vertex's **top node** `top v` (highest node whose
+  bag contains `v`; unique because occurrence sets are connected —
+  coherence); (b) at `top v`, mark the bag and scan `v`'s CSR block
+  once — total `O(Σ|B_t|·k + m)`; this finds every edge at the top
+  node of its own occurrence set, by the lemma: *for an edge `uv`,
+  the set of nodes whose bag contains both is connected with root
+  `top u` or `top v` (the lower of the two)*; (c) propagate
+  **top-down** (indices `N−1` down to `0`, the opposite direction of
+  the fold): `edges(B_c) = edges discovered at c ∪ edges(B_parent)
+  restricted to B_c` — sound by the lemma: *an edge in `B_c` with
+  top ≠ c is also in `B_{parent c}`*; `O(k²)` per node;
+  (d) child/parent overlap patterns by bag marking, `O(k²)` per node.
+  Q2 owes the two italicized coherence lemmas; Q6 implements the four
+  phases. Nothing else in the plan changes.
 - **C8 (rev 2: single submission)** Everything lands in **Lax11**
   (`ram-linear-time/`), per Jan's instruction. Q1/Q2/Q3 are
   `Lax11Proofs` files permanently (no migration, ever). At step 5 the
