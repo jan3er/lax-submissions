@@ -144,6 +144,9 @@ theorem fits_append {p : Program} {a : ℕ} {q r : Program} :
       have := h₂ (i - q.length) (by simp at hi; omega)
       rwa [Nat.add_assoc, Nat.add_sub_cancel' hge] at this
 
+theorem Fits.congr {p : Program} {a a' : ℕ} {q : Program} (h : Fits p a q) (ha : a = a') :
+    Fits p a' q := ha ▸ h
+
 theorem fits_singleton {p : Program} {a : ℕ} {ins : Instr} :
     Fits p a [ins] ↔ p[a]? = some ins := by
   constructor

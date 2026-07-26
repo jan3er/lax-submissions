@@ -73,6 +73,13 @@ def Layout.idxCode (L : Layout) (a : String) (d : ℕ) : Program :=
 /-- The length of `Layout.idxCode`. -/
 def Layout.idxLen (L : Layout) : ℕ := L.arrays.length - 1 + 3
 
+/-- The constant of the simulation theorem: the compiled program takes
+at most this many machine steps per unit of IMP+ cost. It depends on
+the layout only through the cost of one array access, which is where
+the number of arrays enters, and not on the program or the input.
+Nothing about it is tight. -/
+def Layout.const (L : Layout) : ℕ := 3 * L.idxLen + 13
+
 /-- The code evaluating `e` into the accumulator, using the temporaries
 from `d` upwards. -/
 def compileExpr (L : Layout) : Expr → ℕ → Program
@@ -92,20 +99,21 @@ def esize (L : Layout) : Expr → ℕ
   | .add e f => esize L f + 1 + esize L e + 1
   | .sub e f => esize L f + 1 + esize L e + 1
 
+/-- The arithmetic expression that is zero exactly when the condition
+holds. Truncated subtraction is what makes both conditions expressible,
+and it is why the machine needs no comparison instruction; compiling a
+condition is then compiling this expression, and the `jzero` that
+follows needs to know nothing else. -/
+def condExpr : Cond → Expr
+  | .eq e f => .add (.sub e f) (.sub f e)
+  | .lt e f => .sub (.lit 1) (.sub f e)
+
 /-- The code leaving the accumulator zero exactly when `b` holds. -/
-def compileCond (L : Layout) : Cond → ℕ → Program
-  | .eq e f, d =>
-      compileExpr L f d ++ [.store d] ++ compileExpr L e (d + 1) ++
-        [.store (d + 1), .sub (.mem d), .store (d + 2),
-         .load (.mem d), .sub (.mem (d + 1)), .add (.mem (d + 2))]
-  | .lt e f, d =>
-      compileExpr L e d ++ [.store d] ++ compileExpr L f (d + 1) ++
-        [.sub (.mem d), .store d, .load (.lit 1), .sub (.mem d)]
+def compileCond (L : Layout) (b : Cond) (d : ℕ) : Program :=
+  compileExpr L (condExpr b) d
 
 /-- The number of instructions of `compileCond`. -/
-def bsize (L : Layout) : Cond → ℕ
-  | .eq e f => esize L f + 1 + esize L e + 6
-  | .lt e f => esize L e + 1 + esize L f + 4
+def bsize (L : Layout) (b : Cond) : ℕ := esize L (condExpr b)
 
 /-- The number of instructions of `compile`. -/
 def size (L : Layout) : Com → ℕ
@@ -151,9 +159,7 @@ def Expr.Ok (L : Layout) : Expr → ℕ → Prop
   | .sub e f, d => Expr.Ok L f d ∧ Expr.Ok L e (d + 1) ∧ d < L.temps
 
 /-- `b` can be compiled by `L` at depth `d`. -/
-def Cond.Ok (L : Layout) : Cond → ℕ → Prop
-  | .eq e f, d => Expr.Ok L f d ∧ Expr.Ok L e (d + 1) ∧ d + 2 < L.temps
-  | .lt e f, d => Expr.Ok L e d ∧ Expr.Ok L f (d + 1) ∧ d + 1 < L.temps
+def Cond.Ok (L : Layout) (b : Cond) (d : ℕ) : Prop := Expr.Ok L (condExpr b) d
 
 /-! ### Code lengths
 
@@ -176,7 +182,7 @@ address it is emitted at. -/
 
 @[simp] theorem compileCond_length (L : Layout) (b : Cond) (d : ℕ) :
     (compileCond L b d).length = bsize L b := by
-  cases b <;> simp [compileCond, bsize] <;> omega
+  simp [compileCond, bsize]
 
 @[simp] theorem compile_length (L : Layout) (c : Com) (a : ℕ) :
     (compile L c a).length = size L c := by
