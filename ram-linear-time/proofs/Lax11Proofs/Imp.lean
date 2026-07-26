@@ -21,6 +21,16 @@ out-of-range store has no derivation. A semantics that defaulted to
 zero would diverge from what the flat machine memory returns, and the
 layout simulation would then be false.
 
+*Input and output are commands.* The environment carries the two tapes
+and `read`/`write` are ordinary constructs, so their cost is part of
+the cost of the run and the compiled program needs neither a prologue
+that copies the input into memory nor an epilogue that writes the
+output out. Array lengths are not declared anywhere: they belong to the
+initial environment, because the compiled machine program never
+represents them — memory is unbounded and starts zeroed, so an array of
+any length is there for free, and its length exists only to make an
+out-of-range access stuck.
+
 The cost of a derivation is the number of executed constructs, each
 weighted by the size of the expressions it evaluates. Constants are
 never tight anywhere in this development; this measure is chosen only
@@ -51,8 +61,8 @@ inductive Cond
   /-- The first value is smaller than the second. -/
   | lt (e f : Expr)
 
-/-- Commands: the usual structured constructs, together with a store
-into an array cell. -/
+/-- Commands: the usual structured constructs, a store into an array
+cell, and the two tape operations. -/
 inductive Com
   /-- Do nothing. -/
   | skip
@@ -66,15 +76,23 @@ inductive Com
   | ite (b : Cond) (c d : Com)
   /-- Run the body while the condition holds. -/
   | while (b : Cond) (c : Com)
+  /-- Read the next number of the input into the scalar variable `x`. -/
+  | read (x : String)
+  /-- Write the value of `e` to the output. -/
+  | write (e : Expr)
 
-/-- An environment: the value of every scalar variable and the contents
-of every array. Distinct names are distinct objects, so no two names
-can alias. -/
+/-- An environment: the value of every scalar variable, the contents of
+every array, and the two tapes. Distinct names are distinct objects, so
+no two names can alias. -/
 structure Env where
   /-- The value of each scalar variable. -/
   vars : String → ℕ
   /-- The contents of each array. -/
   arrs : String → List ℕ
+  /-- The input not yet read. -/
+  inp : List ℕ
+  /-- The output written so far. -/
+  out : List ℕ
 
 /-- The environment with the scalar variable `x` set to `v`. -/
 def Env.setVar (σ : Env) (x : String) (v : ℕ) : Env :=
@@ -148,6 +166,14 @@ inductive BigStep : Com → Env → Env → ℕ → Prop
   /-- A loop whose condition fails does nothing. -/
   | while_false {b : Cond} {c : Com} {σ : Env} (hb : b.eval σ = some false) :
       BigStep (.while b c) σ σ (1 + b.size)
+  /-- A read takes the next number off the input; there is no
+  derivation once the input is exhausted, just as the machine halts on
+  a read from an exhausted tape. -/
+  | read {σ : Env} {x : String} {v : ℕ} {rest : List ℕ} (h : σ.inp = v :: rest) :
+      BigStep (.read x) σ { σ.setVar x v with inp := rest } 1
+  /-- A write appends the value of its expression to the output. -/
+  | write {σ : Env} {e : Expr} {v : ℕ} (h : e.eval σ = some v) :
+      BigStep (.write e) σ { σ with out := σ.out ++ [v] } (1 + e.size)
 
 /-- The semantics is deterministic in both the final environment and
 the cost: a command run in a given environment has at most one outcome.
@@ -182,5 +208,20 @@ theorem BigStep.unique {c : Com} {σ σ₁ σ₂ : Env} {k₁ k₂ : ℕ}
   | while_false hb => cases h₂ with
     | while_true hb' _ _ => rw [hb] at hb'; exact absurd hb' (by simp)
     | while_false hb' => exact ⟨rfl, rfl⟩
+  | read h => cases h₂ with
+    | read h' => rw [h] at h'; cases h'; exact ⟨rfl, rfl⟩
+  | write h => cases h₂ with
+    | write h' => rw [h] at h'; cases h'; exact ⟨rfl, rfl⟩
+
+/-- The initial environment on input `x`: every scalar zero, the array
+`a` holding `ext a` zeros, nothing written yet. The array lengths are
+chosen by whoever uses the simulation theorem: an array costs nothing,
+since the machine's memory is unbounded and starts zeroed, and the
+lengths exist only to make an out-of-range access stuck. -/
+def initEnv (ext : String → ℕ) (x : List ℕ) : Env where
+  vars := fun _ => 0
+  arrs := fun a => List.replicate (ext a) 0
+  inp := x
+  out := []
 
 end Lax11Proofs.Imp
