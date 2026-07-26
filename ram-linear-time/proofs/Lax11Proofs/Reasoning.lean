@@ -220,16 +220,24 @@ most `Φ σ + 1 + b.size`.
 Termination is not a separate obligation: an iteration costs at least
 one unit, so a potential that pays for it strictly decreases. The
 potential form is what makes amortized bounds direct — the cost of a
-single iteration need not be bounded at all, only the total. -/
+single iteration need not be bounded at all, only the total.
+
+The conclusion bounds the cost by the potential *drop*, not by the
+potential at entry. That is what lets one loop's leftover potential pay
+for what happens after it: a nested search whose outer sweep and inner
+searches draw on the same budget could not be assembled from the weaker
+form, since the outer proof would have to count the inner potential
+twice. -/
 theorem Run.while_pot {b : Cond} {c : Com} (I : Env → Prop) (Φ : Env → ℕ)
     (hdef : ∀ σ, I σ → ∃ v, b.eval σ = some v)
     (hstep : ∀ σ, I σ → b.eval σ = some true →
       ∃ σ' K, Run c σ σ' K ∧ I σ' ∧ 1 + b.size + K + Φ σ' ≤ Φ σ)
     {σ : Env} (hI : I σ) :
-    ∃ σ', Run (.while b c) σ σ' (Φ σ + 1 + b.size) ∧ I σ' ∧ b.eval σ' = some false := by
+    ∃ σ' K, Run (.while b c) σ σ' K ∧ I σ' ∧ b.eval σ' = some false ∧
+      K + Φ σ' ≤ Φ σ + 1 + b.size := by
   suffices H : ∀ n σ, I σ → Φ σ ≤ n →
-      ∃ σ', Run (.while b c) σ σ' (Φ σ + 1 + b.size) ∧ I σ' ∧ b.eval σ' = some false from
-    H (Φ σ) σ hI le_rfl
+      ∃ σ' K, Run (.while b c) σ σ' K ∧ I σ' ∧ b.eval σ' = some false ∧
+        K + Φ σ' ≤ Φ σ + 1 + b.size from H (Φ σ) σ hI le_rfl
   clear hI σ
   intro n
   induction n with
@@ -237,7 +245,7 @@ theorem Run.while_pot {b : Cond} {c : Com} (I : Env → Prop) (Φ : Env → ℕ)
       intro σ hI hΦ
       obtain ⟨v, hv⟩ := hdef σ hI
       cases v with
-      | false => exact ⟨σ, (Run.while_false hv).mono (by omega), hI, hv⟩
+      | false => exact ⟨σ, _, Run.while_false hv, hI, hv, by omega⟩
       | true =>
           obtain ⟨σ₁, K, hrun, _, hpay⟩ := hstep σ hI hv
           omega
@@ -245,13 +253,14 @@ theorem Run.while_pot {b : Cond} {c : Com} (I : Env → Prop) (Φ : Env → ℕ)
       intro σ hI hΦ
       obtain ⟨v, hv⟩ := hdef σ hI
       cases v with
-      | false => exact ⟨σ, (Run.while_false hv).mono (by omega), hI, hv⟩
+      | false => exact ⟨σ, _, Run.while_false hv, hI, hv, by omega⟩
       | true =>
           obtain ⟨σ₁, K, hrun, hI₁, hpay⟩ := hstep σ hI hv
-          obtain ⟨σ', hrun', hI', hfalse⟩ := ih σ₁ hI₁ (by omega)
+          obtain ⟨σ', K', hrun', hI', hfalse, hpay'⟩ := ih σ₁ hI₁ (by omega)
           obtain ⟨k, hk, hbs⟩ := hrun
           obtain ⟨k', hk', hbs'⟩ := hrun'
-          exact ⟨σ', ⟨1 + b.size + k + k', by omega, .while_true hv hbs hbs'⟩, hI', hfalse⟩
+          exact ⟨σ', 1 + b.size + k + k', ⟨1 + b.size + k + k', le_rfl,
+            .while_true hv hbs hbs'⟩, hI', hfalse, by omega⟩
 
 /-- **The counted while rule**, the common case: an invariant, a
 variant that strictly decreases, and one bound `P` on the cost of an
@@ -262,13 +271,18 @@ theorem Run.while_count {b : Cond} {c : Com} (I : Env → Prop) (V : Env → ℕ
     {σ : Env} (hI : I σ) :
     ∃ σ', Run (.while b c) σ σ' ((1 + b.size + P) * V σ + 1 + b.size) ∧ I σ' ∧
       b.eval σ' = some false := by
-  refine Run.while_pot I (fun σ => (1 + b.size + P) * V σ) hdef ?_ hI
-  intro σ hI hv
-  obtain ⟨σ', hrun, hI', hV⟩ := hstep σ hI hv
-  refine ⟨σ', P, hrun, hI', ?_⟩
-  calc 1 + b.size + P + (1 + b.size + P) * V σ'
-      = (1 + b.size + P) * (V σ' + 1) := by ring
-    _ ≤ (1 + b.size + P) * V σ := Nat.mul_le_mul_left _ hV
+  have key : ∀ τ, I τ → b.eval τ = some true →
+      ∃ τ' K, Run c τ τ' K ∧ I τ' ∧
+        1 + b.size + K + (1 + b.size + P) * V τ' ≤ (1 + b.size + P) * V τ := by
+    intro τ hIτ hv
+    obtain ⟨τ', hrun, hI', hV⟩ := hstep τ hIτ hv
+    refine ⟨τ', P, hrun, hI', ?_⟩
+    calc 1 + b.size + P + (1 + b.size + P) * V τ'
+        = (1 + b.size + P) * (V τ' + 1) := by ring
+      _ ≤ (1 + b.size + P) * V τ := Nat.mul_le_mul_left _ hV
+  obtain ⟨σ', K, hrun, hI', hfalse, hpay⟩ :=
+    Run.while_pot I (fun σ => (1 + b.size + P) * V σ) hdef key hI
+  exact ⟨σ', hrun.mono (by omega), hI', hfalse⟩
 
 /-! ### Cashing a `Run` in at the concept surface
 

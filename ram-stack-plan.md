@@ -483,6 +483,60 @@ is explicitly out of scope for this submission; it emerges from
 whatever lemmas the driver forces, and gets named when Courcelle
 needs it.
 
+### Where the driver stands (2026-07-26, session 3)
+
+Green and committed: `CC.lean` (program, layout, `Com.Ok`, and eight
+`#guard`ed runs of the compiled machine on encoded graphs, all giving
+the least-vertex labels), `CCPhases.lean` (the two read loops, the
+label-clearing loop, the write loop), `CCGraph.lean` (the labelling and
+encoding facts, including the tiling bound `sum_deg_queue`), and
+`CCSearch.lean` up to `drain_run`.
+
+**The correctness invariant, which is the thing worth not re-deriving.**
+A label, once written, is *already the right one*: a vertex is labelled
+only from a root that the sweep found unlabelled, and such a root is
+the least vertex of its own component. So `Base.lab` reads
+`∀ w < n, L w = n ∨ L w = lbl G w`, and the algorithm's remaining job
+is only to *reach* every vertex. `Base` (seven fields) holds all run
+long; `Live` (four more) holds inside one search. `Base.exp` says the
+neighbours of an expanded vertex carry *that vertex's* label, not the
+current root's — which is what lets the clause survive a change of
+root, and it is what `Base.rch_labelled` (the exit argument: labelled
+vertices are closed under reachability) consumes.
+
+**The cost.** One potential, `Pot n m τ = 30·(2m − sc) + 23·(n − tail)
++ 23·(tail − head)`, plus `27·(n − u)` for the sweep. Per turn of the
+drain: the scan of the dequeued vertex's block costs `30·deg`, paid by
+the first term; the enqueues cost `23` each, paid by the second, and
+the third gives it straight back, so an enqueue is potential-neutral;
+`23` is left over for the turn itself. `Run.while_pot` had to be
+strengthened to report the potential *drop* rather than the potential
+at entry, or the sweep would count the drain's potential twice.
+
+**What is left**, in order:
+
+1. `outerBody_run` and `sweep_run`. A 174-line draft that typechecks
+   except for a handful of `omega`/`simp` goals is parked at
+   `ram-linear-time/proofs/sweep-draft.lean.txt`; the two lessons from
+   the session are that `simp only [vars_setVar]` leaves an undecided
+   `if "head" = "tail"` (use plain `simp`), and that `omega` needs
+   structure fields pulled out into hypotheses (`have := hB.hd`) before
+   it sees them. The arithmetic to check: in the "unlabelled" branch
+   the cost is `K_drain + 19` and the enqueue leaves `Pot` unchanged,
+   so `4 + K + Pot τ' + 27(n−u−1) ≤ Pot τ + 27(n−u)` follows from
+   `K_drain + Pot τ₂ ≤ Pot τ + 4` and `27 ≥ 23`; the other branch costs
+   `10` and needs only `14 ≤ 27`.
+2. Assembly in a `CCMain.lean`: chain the phases with `Run.seq`, feed
+   `computesInTime_of_run` with `ext` = the per-input array lengths
+   (`off ↦ n+1`, `tgt ↦ 2m`, `lab ↦ n`, `q ↦ n`), and connect the read
+   loops' `ys.getD i 0` to `offset x i` / `target x j` through
+   `EncodesGraph.length_eq`. The total IMP+ cost is
+   `84n + 84m + 58 ≤ 84·|x|`, so with `L.const = 31` the concept-level
+   constant is `31 · 84 = 2604`.
+3. Discharge `exists_linearTime_program_ccLabels`; the output list is
+   `(List.range n).map L = List.ofFn (label G)` by `List.ext_getElem`.
+4. Formalization notes, abstract, audit.
+
 ### Driver — connected components at P3
 
 - Pure model: `ccPure : CSR → List ℕ` via BFS over the CSR arrays;
@@ -522,8 +576,12 @@ needs it.
    `computesInTime_of_run`. Smoke test re-proved at that level.
    → **checkpoint reported above: 59 → 34 lines, constant 462 → 286,
    verdict "sufficient, no fallback needed".**
-6. **Driver**: `ccPure` + mathlib proof, BFS `Prog`, cost invariant,
-   assembly, axiom discharge, audit.
+6. **Driver** — *in progress*, everything below the sweep is green.
+   Done: the program and its eight `#guard`ed machine runs (`CC.lean`),
+   the three straight phases (`CCPhases.lean`), the graph and encoding
+   facts (`CCGraph.lean`), and the search up to and including the queue
+   drain (`CCSearch.lean`). Remaining: the sweep, the assembly, the
+   axiom discharge and the audit — see "Where the driver stands".
 7. **Wrap-up**: formalization notes (honesty ledger: D2 no-MULT
    rationale, D5 encoding dumbness, D7 label convention, D4 bound
    form), abstract, build-output, commit.

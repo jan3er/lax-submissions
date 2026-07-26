@@ -1,0 +1,174 @@
+/-! ### The sweep over the vertices -/
+
+/-- The invariant of the outer loop: between searches the queue is
+exhausted, every component below `u` is labelled, and no label above
+`u` has been written. -/
+def SweepInv (x : List ℕ) (n m : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
+    (τ : Env) : Prop :=
+  τ.vars "n" = n ∧ τ.vars "m" = m ∧ τ.vars "u" ≤ n ∧
+  τ.arrs "off" = arrOf (n + 1) O ∧ τ.arrs "tgt" = arrOf (2 * m) T ∧
+  τ.vars "head" = τ.vars "tail" ∧
+  ∃ L Q, τ.arrs "lab" = arrOf n L ∧ τ.arrs "q" = arrOf n Q ∧
+    Base x n G L Q (τ.vars "head") (τ.vars "tail") ∧
+    (∀ w < n, lbl G w < τ.vars "u" → L w ≠ n) ∧
+    (∀ w < n, L w ≠ n → L w < τ.vars "u") ∧
+    τ.vars "sc" = ∑ i ∈ Finset.range (τ.vars "head"), deg x (Q i)
+
+/-- The potential of the whole sweep: the search's, plus twenty-seven
+per vertex not yet swept. -/
+def SweepPot (n m : ℕ) (τ : Env) : ℕ := Pot n m τ + 27 * (n - τ.vars "u")
+
+/-- One vertex of the sweep. -/
+theorem outerBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
+    (hO : ∀ i ≤ n, O i = offset x i) (hT : ∀ j < 2 * m, T j = target x j)
+    {τ : Env} (hI : SweepInv x n m G O T τ)
+    (hc : (Cond.lt (.var "u") (.var "n")).eval τ = some true) :
+    ∃ τ' K, Run outerBody τ τ' K ∧ SweepInv x n m G O T τ' ∧
+      1 + (Cond.lt (Expr.var "u") (Expr.var "n")).size + K + SweepPot n m τ'
+        ≤ SweepPot n m τ := by
+  obtain ⟨hn, hmm, hun, hoff, htgt, hht, L, Q, hlab, hq, hB, hdone, hlow, hsum⟩ := hI
+  have hu : τ.vars "u" < n := by simp [hn] at hc; omega
+  have hhd := hB.hd
+  have htl := hB.tl
+  by_cases hLu : L (τ.vars "u") = n
+  · -- an unlabelled vertex: it is the least of its component, so search from it
+    have hlu : lbl G (τ.vars "u") = τ.vars "u" := by
+      have h₁ := lbl_le (G := G) hu
+      have h₂ : ¬ lbl G (τ.vars "u") < τ.vars "u" := fun h => hdone _ hu h hLu
+      omega
+    have htail : τ.vars "tail" < n := hB.tail_lt hu hLu
+    have hceval : (Cond.eq (.get "lab" (.var "u")) (.var "n")).eval τ = some true := by
+      simp [hlab, getElem?_arrOf L hu, hn, hLu]
+    have hQne : ∀ p, p < τ.vars "tail" → Q p ≠ τ.vars "u" := by
+      intro p hp hpu
+      exact (hB.qmem p hp).2 (by rw [hpu, hLu])
+    -- the state the search starts from
+    have hdrainI : DrainInv x n (edgeCount x) (τ.vars "u") G O T
+        (((τ.setArr "lab" (τ.vars "u") (τ.vars "u")).setArr "q" (τ.vars "tail")
+          (τ.vars "u")).setVar "tail" (τ.vars "tail" + 1)) := by
+      refine ⟨fun z => if z = τ.vars "u" then τ.vars "u" else L z,
+        fun i => if i = τ.vars "tail" then τ.vars "u" else Q i,
+        ⟨by simp [hn], by simp [hmm, hm], by simp, by simp [hoff], by simp [htgt, hm],
+          by simp [hlab, set_arrOf], by simp [hq, set_arrOf]⟩, ?_, ?_⟩
+      · refine ⟨⟨?_, by simp; omega, by simp; omega, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_⟩
+        · intro z hz
+          by_cases hzu : z = τ.vars "u"
+          · exact Or.inr (by simp [hzu, hlu])
+          · simpa [if_neg hzu] using hB.lab z hz
+        · intro i hi
+          simp at hi
+          by_cases hit : i = τ.vars "tail"
+          · simp [hit, hu]; omega
+          · have hi' : i < τ.vars "tail" := by simp at hi; omega
+            rw [if_neg hit, if_neg (hQne i hi')]
+            exact hB.qmem i hi'
+        · intro z hz hlz
+          by_cases hzu : z = τ.vars "u"
+          · exact ⟨τ.vars "tail", by simp, by simp [hzu]⟩
+          · rw [if_neg hzu] at hlz
+            obtain ⟨i, hi, rfl⟩ := hB.qall z hz hlz
+            exact ⟨i, by simp; omega, by simp [if_neg (show i ≠ τ.vars "tail" by omega)]⟩
+        · intro i hi j hj hij
+          simp at hi hj
+          by_cases hit : i = τ.vars "tail" <;> by_cases hjt : j = τ.vars "tail"
+          · omega
+          · rw [if_pos hit, if_neg hjt] at hij
+            exact absurd hij.symm (hQne j (by simp at hj; omega))
+          · rw [if_neg hit, if_pos hjt] at hij
+            exact absurd hij (hQne i (by simp at hi; omega))
+          · rw [if_neg hit, if_neg hjt] at hij
+            exact hB.qinj i (by simp at hi; omega) j (by simp at hj; omega) hij
+        · intro i hi j hj₁ hj₂
+          simp at hi
+          have hit : i ≠ τ.vars "tail" := by omega
+          rw [if_neg hit] at hj₁ hj₂ ⊢
+          have hnotu : target x j ≠ τ.vars "u" := by
+            intro hju
+            have := hB.exp i (by omega) j hj₁ hj₂
+            rw [hju, hLu] at this
+            exact (hB.qmem i (by omega)).2 this.symm
+          rw [if_neg hnotu, if_neg (hQne i (by omega))]
+          exact hB.exp i (by omega) j hj₁ hj₂
+        · intro z hz hlz
+          by_cases hzu : z = τ.vars "u"
+          · simp [hzu]; omega
+          · simpa [if_neg hzu] using hdone z hz hlz
+        · intro z hz hlz
+          by_cases hzu : z = τ.vars "u"
+          · simp [hzu]
+          · rw [if_neg hzu] at hlz ⊢
+            exact le_of_lt (hlow z hz hlz)
+        · simp
+          omega
+        · intro i hi₁ hi₂
+          simp at hi₁ hi₂
+          have hit : i = τ.vars "tail" := by omega
+          simp [hit]
+      · show τ.vars "sc" = _
+        simp only [vars_setVar]
+        rw [hsum]
+        exact Finset.sum_congr rfl fun i hi =>
+          by rw [if_neg (show i ≠ τ.vars "tail" by
+            have := Finset.mem_range.1 hi; omega)]
+    obtain ⟨τ₄, K₄, hdrun, hdI, hdhead, hdpay⟩ :=
+      drain_run hx rfl hO (by simpa [hm] using hT) hu hdrainI
+    obtain ⟨L₄, Q₄, ⟨hn₄, hm₄, hu₄, hoff₄, htgt₄, hlab₄, hq₄⟩, hL₄, hsum₄⟩ := hdI
+    refine ⟨τ₄.setVar "u" (τ.vars "u" + 1), _,
+      Run.seq (Run.ite_true hceval
+        (Run.seq (Run.store (idx := τ.vars "u") (v := τ.vars "u")
+            (by simp) (by simp) (by simp [hlab, hu]))
+          (Run.seq (Run.store (idx := τ.vars "tail") (v := τ.vars "u")
+              (by simp) (by simp) (by simp [hq, htail]))
+            (Run.seq (Run.assign (v := τ.vars "tail" + 1) (by simp)) hdrun))))
+        (Run.assign (v := τ.vars "u" + 1) (by simp [hu₄])), ?_, ?_⟩
+    · refine ⟨by simp [hn₄], by simp [hm₄, hm], by simp; omega, by simp [hoff₄],
+        by simp [htgt₄, hm], by simp [hdhead], L₄, Q₄, by simp [hlab₄], by simp [hq₄],
+        by simpa using hL₄.base, ?_, ?_, by simpa using hsum₄⟩
+      · intro w hw hlw
+        simp at hlw
+        rcases Nat.lt_or_ge (lbl G w) (τ.vars "u") with h | h
+        · exact hL₄.done w hw h
+        · have hlweq : lbl G w = τ.vars "u" := by omega
+          have hrch : Rch G (τ.vars "u") w := hlweq ▸ rch_lbl (G := G) hw
+          have hBt : Base x n G L₄ Q₄ (τ₄.vars "tail") (τ₄.vars "tail") := hdhead ▸ hL₄.base
+          exact hBt.rch_labelled hx hrch hL₄.root
+      · intro w hw hlw
+        simp only [vars_setVar]
+        have := hL₄.low w hw hlw
+        omega
+    · have hhd4 := hL₄.base.hd
+      have htl4 := hL₄.base.tl
+      simp only [SweepPot, Pot, vars_setVar, size_condLt, size_var, if_pos rfl] at *
+      omega
+  · -- an already labelled vertex: nothing to do
+    have hceval : (Cond.eq (.get "lab" (.var "u")) (.var "n")).eval τ = some false := by
+      simp [hlab, getElem?_arrOf L hu, hn]
+      omega
+    refine ⟨τ.setVar "u" (τ.vars "u" + 1), _,
+      Run.seq (Run.ite_false hceval Run.skip) (Run.assign (v := τ.vars "u" + 1) (by simp)),
+      ?_, ?_⟩
+    · refine ⟨by simp [hn], by simp [hmm], by simp; omega, by simp [hoff], by simp [htgt],
+        by simp [hht], L, Q, by simp [hlab], by simp [hq], by simpa using hB, ?_, ?_,
+        by simpa using hsum⟩
+      · intro w hw hlw
+        simp at hlw
+        rcases Nat.lt_or_ge (lbl G w) (τ.vars "u") with h | h
+        · exact hdone w hw h
+        · -- `u` belongs to an older component, so nothing has label `u`
+          have hlueq : lbl G w = τ.vars "u" := by omega
+          have hLuu : L (τ.vars "u") = lbl G (τ.vars "u") :=
+            (hB.lab _ hu).resolve_left hLu
+          have h₁ : lbl G (τ.vars "u") < τ.vars "u" := by
+            have := hlow _ hu hLu; omega
+          have h₂ : Rch G (τ.vars "u") w := hlueq ▸ rch_lbl (G := G) hw
+          have := lbl_eq_of_rch h₂
+          omega
+      · intro w hw hlw
+        simp only [vars_setVar]
+        have := hlow w hw hlw
+        omega
+    · have := hB.hd
+      have := hB.tl
+      simp only [SweepPot, Pot, vars_setVar, size_condLt, size_var, size_get, size_condEq,
+        if_pos rfl] at *
+      omega
