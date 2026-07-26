@@ -69,8 +69,12 @@ lemma powFin_adj (d : ℕ) (sb : Fin d → Bool) (i : Fin d) :
 
 /-! ### The theorem -/
 
-/-- Nowhere dense graph classes are monadically dependent
-(Adler–Adler). -/
+/--
+---
+conclusion: Lax5.AdlerAdler.monadicallyDependent_of_nowhereDense
+---
+Nowhere dense graph classes are monadically dependent (Adler–Adler).
+-/
 theorem monadicallyDependent_of_nowhereDense
     (C : Lax5.GraphClasses.GraphClass)
     (h : Lax5.NowhereDenseClasses.NowhereDense C) :

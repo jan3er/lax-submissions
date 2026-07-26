@@ -290,7 +290,11 @@ private lemma subdividedBiclique_isIndContained_of_le {k m r : ℕ} (h : k ≤ m
 
 /-! ### Corollary 6a -/
 
-/-- Corollary 6a of DMMPT26 (Mählmann Lemma 13.7): every weakly sparse
+/--
+---
+conclusion: Lax5.WeaklySparseDependent.nowhereDense_of_weaklySparse_of_monadicallyDependent
+---
+Corollary 6a of DMMPT26 (Mählmann Lemma 13.7): every weakly sparse
 monadically dependent graph class is nowhere dense.  This proves the
 statement of the concept axiom
 `Lax5.WeaklySparseDependent.nowhereDense_of_weaklySparse_of_monadicallyDependent`. -/
