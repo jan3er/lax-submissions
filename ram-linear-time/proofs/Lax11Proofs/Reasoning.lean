@@ -105,6 +105,11 @@ def arrOf (n : ℕ) (f : ℕ → ℕ) : List ℕ := (List.range n).map f
     (arrOf n f)[i]? = some (f i) := by
   simp [arrOf, List.getElem?_map, List.getElem?_range, h]
 
+/-- An array that has just been created is the constant function: this
+is the shape in which `initEnv` hands its arrays over. -/
+theorem replicate_eq_arrOf (n v : ℕ) : List.replicate n v = arrOf n (fun _ => v) := by
+  simp [arrOf, List.map_const']
+
 /-- Storing into an array updates the function it comes from. -/
 theorem set_arrOf {n i : ℕ} (f : ℕ → ℕ) (v : ℕ) :
     (arrOf n f).set i v = arrOf n (fun k => if k = i then v else f k) := by
@@ -283,6 +288,44 @@ theorem Run.while_count {b : Cond} {c : Com} (I : Env → Prop) (V : Env → ℕ
   obtain ⟨σ', K, hrun, hI', hfalse, hpay⟩ :=
     Run.while_pot I (fun σ => (1 + b.size + P) * V σ) hdef key hI
   exact ⟨σ', hrun.mono (by omega), hI', hfalse⟩
+
+/-! ### The one frame condition that is worth having generically
+
+A phase lemma states its own frame conditions on the variables and
+arrays it touches, because those differ from phase to phase. The output
+tape is the exception: almost every phase leaves it alone, and it is
+syntactically evident which ones do. So it is stated once, for all
+commands that contain no `write`, and no invariant has to carry it. -/
+
+/-- The command contains no `write`. -/
+def _root_.Lax11Proofs.Imp.Com.NoWrite : Com → Prop
+  | .skip => True
+  | .assign _ _ => True
+  | .store _ _ _ => True
+  | .read _ => True
+  | .write _ => False
+  | .seq c d => c.NoWrite ∧ d.NoWrite
+  | .ite _ c d => c.NoWrite ∧ d.NoWrite
+  | .while _ c => c.NoWrite
+
+/-- A command that contains no `write` leaves the output tape alone. -/
+theorem BigStep.out_eq {c : Com} {σ σ' : Env} {k : ℕ} (h : BigStep c σ σ' k) :
+    c.NoWrite → σ'.out = σ.out := by
+  induction h with
+  | skip => intro _; rfl
+  | assign _ => intro _; rfl
+  | store _ _ _ => intro _; rfl
+  | seq _ _ ih ih' => intro hc; rw [ih' hc.2, ih hc.1]
+  | ite_true _ _ ih => intro hc; exact ih hc.1
+  | ite_false _ _ ih => intro hc; exact ih hc.2
+  | while_true _ _ _ ih ih' => intro hc; rw [ih' hc, ih hc]
+  | while_false _ => intro _; rfl
+  | read _ => intro _; rfl
+  | write _ => intro hc; exact absurd hc not_false
+
+theorem Run.out_eq {c : Com} {σ σ' : Env} {K : ℕ} (h : Run c σ σ' K)
+    (hc : c.NoWrite) : σ'.out = σ.out := by
+  obtain ⟨k, _, hbs⟩ := h; exact BigStep.out_eq hbs hc
 
 /-! ### Cashing a `Run` in at the concept surface
 
