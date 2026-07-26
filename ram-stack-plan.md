@@ -1,8 +1,10 @@
-# RAM stack plan (rev 1 — draft for Jan's review)
+# RAM stack plan (rev 2 — P-layers settled, surface freeze pending)
 
-Status (2026-07-26): design draft. Nothing scaffolded yet. Review
-boundary: decisions D1–D9 below, then step 1 freezes the concept
-surface.
+Status (2026-07-26): id **Lax11** provisioned via `lax init
+ram-linear-time`; scaffold in place. Jan delegated the P-layer design
+choices (D9–D12, settled below). The C0 surface decisions D1–D7 are
+my recommendations and get their review at the step-1 freeze boundary
+as planned.
 
 Goal: a reusable stack for honest algorithmic statements in Lax. The
 concept surface talks about a **textbook RAM** — cost intrinsic to the
@@ -11,7 +13,7 @@ package builds a tower of verified transpilation + reasoning layers
 (P1–P3) so that algorithms are *written and verified once, shallowly*,
 and compile down to RAM programs with cost bounds. Driver theorem:
 **connected components in linear time**. Everything lands in a single
-test submission (working dir `ram-linear-time/`); we split
+test submission (`ram-linear-time/`, id Lax11); we split
 infrastructure from headline later.
 
 Companion: the Courcelle discussion (chat, 2026-07-26). Courcelle is
@@ -132,17 +134,26 @@ where the RAM's flatness is dealt with once:
 - Syntax: scalar variables and array names (both `String`), `Expr`
   over `+`/monus/literals/vars/array-reads, commands
   `skip / assign / arrStore / seq / if / while`, and a program header
-  declaring each array's extent as an `Expr` over input-derived
-  scalars.
-- Semantics: big-step `⟨c, σ⟩ ⇓[t] σ'`, cost = 1 + expression sizes
-  per executed construct. Distinct names are disjoint *by
-  construction* — aliasing dies here, permanently; nothing above P1
-  reasons about memory overlap (this is the move that replaces
-  separation logic).
-- Compiler `compileCom : ImpProg → Program`: prologue evaluates
-  extents and lays out arrays (base-address table, bump layout),
-  body lowers control flow to jumps, array indexing to
-  base+index indirect addressing.
+  declaring each array's extent (D11).
+- Environment (D10): `vars : String → ℕ`, `arrs : String → List ℕ`.
+  Expression evaluation is `Option`-valued; an out-of-bounds array
+  access has **no big-step derivation** (stuck, not
+  default-to-zero) — this is what makes the layout simulation
+  provable, since a defaulting semantics would diverge from what the
+  flat RAM memory returns. Cost = 1 + syntactic size of the
+  expressions used, per executed construct. Distinct names are
+  disjoint *by construction* — aliasing dies here, permanently;
+  nothing above P1 reasons about memory overlap (this is the move
+  that replaces separation logic).
+- Extents (D11): the header declares each array's length as an `Expr`
+  over literals and reads of the reserved input array only (CC needs
+  extents `n`, `n+1`, `2m` — all input cells or sums thereof).
+  Reserved names `INPUT`/`OUTPUT` carry the I/O convention into IMP+.
+- Compiler `compileCom : ImpProg → Program`: prologue evaluates the
+  extent Exprs (input cells sit at known RAM addresses), accumulates
+  base addresses by additions into reserved cells, then the body
+  lowers control flow to jumps and array indexing to base+index
+  indirect addressing.
 - Simulation theorem, the P1 deliverable:
   `⟨c, σ_init(x)⟩ ⇓[t] σ' → ∃ t' ≤ C_c * (t + 1), RunsTo (compileCom c) x (out σ') t'`
   with `C_c` program-dependent, input-independent. O()-sloppy
@@ -176,27 +187,40 @@ inductive Prog
   | skip
 ```
 
-with three artifacts:
+with three artifacts (D12 — rev 2 correction: rev 1 sketched a
+fuel-free `M α := Env → Option (α × Env × ℕ)` denotation, which is
+not definable for `while` in Lean without well-founded plumbing; the
+settled design makes fuel explicit but invisible):
 
-1. `denote : Prog → M Unit` where `M α := Env → Option (α × Env × ℕ)`
-   is a fuel-free cost-counting state monad over the *named*
-   environment (`Option` for divergence; termination obligations are
-   discharged where the cost bound is proved — a cost bound is a
-   fuel bound). **All reasoning happens here**: `denote` is
-   executable, simp-friendly, and proofs relate it to pure model
-   functions by induction on loops with invariants.
-2. `compileProg : Prog → ImpCom` — structural, near-identity (Prog is
-   IMP+-shaped by design; the DSL's value is the *denotation*, not
-   syntax distance).
-3. Adequacy: `denote p env = some (_, env', k)` implies the compiled
-   command big-steps to the matching state in cost `≤ C_p * (k + 1)`.
+1. `run : Prog → Env → ℕ → Option (Env × ℕ)` — an executable
+   **fuel interpreter** (fuel bounds steps; returns the final
+   environment and the cost incurred, charging exactly the IMP+ cost
+   model so the compiler correctness proof stays structural).
+   Monotonicity in fuel is proved once. Termination and cost merge:
+   `RunsWithin p env k env' := ∃ f, run p env f = some (env', k')`
+   with `k' ≤ k`.
+2. A **combinator rule library** proved once by induction on fuel:
+   seq/ite congruence rules and the workhorse while-rule
+   (invariant + ℕ-variant + cost potential ⇒ `RunsWithin` with the
+   summed bound). **Per-algorithm proofs never mention fuel** — they
+   instantiate invariants and variants against a pure Lean model
+   function, with `run`'s executability available for `simp`/`decide`
+   on straight-line fragments.
+3. `compileProg : Prog → ImpCom` — structural, near-identity (Prog is
+   IMP+-shaped by design; the DSL's value is the *reasoning layer*,
+   not syntax distance) — plus adequacy in one direction:
+   `run p env f = some (env', k)` implies the compiled command
+   big-steps to the matching state with cost `≤ C_p * (k + 1)`.
 
 So the workflow per algorithm is: write `Prog`; prove
-`denote prog ∘ load = pure model` and `cost ≤ c * size` at the
-denotation level against a pure Lean model function; get the RAM
-program and its linear bound by composing adequacy + P1 simulation.
-Tick-monad ergonomics, but the counts are *theorems about compiled
-code*, not trusted annotations.
+`RunsWithin prog (load x) (c * size x) (store (model x))` via the
+rule library against the pure model; get the RAM program and its
+linear bound by composing adequacy + P1 simulation. Tick-monad
+ergonomics, but the counts are *theorems about compiled code*, not
+trusted annotations.
+
+`Cond` stays minimal: `Expr = Expr` and `Expr < Expr` (other
+comparisons via monus tricks or branch swaps at the `Prog` level).
 
 P4 (schema library — verified fold/map/BFS-loop patterns over `Prog`)
 is explicitly out of scope for this submission; it emerges from
@@ -223,16 +247,17 @@ needs it.
    packaging). Written against the pinned mathlib
    (toolchain v4.30.0, same rev as Lax5). → **Jan review, D-record
    updated, surface frozen.**
-2. **Scaffold + concepts package** (`ram-linear-time/concepts/`,
-   manifest, abstract stub). Builds green.
+2. **Concepts package** (scaffold done: Lax11 provisioned
+   2026-07-26; remaining: concept modules, manifest fields, abstract
+   stub). Builds green.
 3. **P1**: IMP+ semantics, compiler, simulation theorem. Smoke test:
    a five-line IMP+ program ("sum the input") taken end-to-end to a
    RAM `ComputesLinear` by hand, *before* P3 exists — validates the
    chain early. → **checkpoint: report constants/pain level.**
 4. **P2**: the thin Hoare kit, as needed by 3/5.
-5. **P3**: `Prog`, `M`, `denote`, `compileProg`, adequacy. Re-run the
-   smoke test at P3 (should shrink to a few lines of denotation
-   reasoning). → **checkpoint: this is the make-or-break ergonomics
+5. **P3**: `Prog`, `run`, rule library, `compileProg`, adequacy.
+   Re-run the smoke test at P3 (should shrink to a few lines of
+   rule-library reasoning). → **checkpoint: this is the make-or-break ergonomics
    review; if the while-rule at denotation level is unpleasant,
    fallback is P2-style lockstep refinement before the driver.**
 6. **Driver**: `ccPure` + mathlib proof, BFS `Prog`, cost invariant,
@@ -249,7 +274,9 @@ first-order, closure-free, and has a bounded fallback. The driver's
 math side is small. No step has research-grade risk; step 5 has
 ergonomics risk, contained by the step-3 smoke test and the fallback.
 
-## Decision record (rev 1 — all pending Jan's sign-off)
+## Decision record (rev 2 — D8–D12 settled by Jan's delegation
+2026-07-26; D1–D7 are recommendations reviewed at the step-1 surface
+freeze)
 
 - **D1** RAM flavor: accumulator machine, AHU §1.2 instruction set
   minus MULT/DIV, lit/direct/indirect operands, `halt` instruction,
@@ -266,8 +293,25 @@ ergonomics risk, contained by the step-3 smoke test and the fallback.
   argued in formalization notes.
 - **D6** Time only; no space measure in this submission.
 - **D7** CC output: least-vertex labels (canonical function).
-- **D8** Single test submission holds C0 + P1–P3 + driver; split
-  infra/headline later. Working id Lax6 (confirm numbering).
-- **D9** P3 = deep first-order `Prog` DSL + shallow cost-monad
+- **D8** (settled) Single test submission holds C0 + P1–P3 + driver;
+  split infra/headline later. Id **Lax11**, dir `ram-linear-time/`,
+  provisioned via `lax init` 2026-07-26.
+- **D9** (settled) P3 = deep first-order `Prog` DSL + executable
   denotation + compiler + adequacy; reasoning at the denotation,
   never on compiled artifacts. Fallback: lockstep refinement at P2.
+- **D10** (settled) IMP+ env `vars : String → ℕ`,
+  `arrs : String → List ℕ`; out-of-bounds access is stuck (no
+  big-step derivation), never default-valued — required for the
+  layout simulation. `Option`-valued expression eval; cost = 1 +
+  expression size per executed construct.
+- **D11** (settled) Array extents: header Exprs over literals and
+  reads of the reserved `INPUT` array only; compiler prologue
+  computes cumulative bases by additions. Reserved `INPUT`/`OUTPUT`
+  names carry the I/O convention.
+- **D12** (settled) P3 denotation is a fuel interpreter
+  `run : Prog → Env → ℕ → Option (Env × ℕ)` with fuel-monotonicity
+  and a once-proved combinator rule library (seq/ite rules,
+  while-rule with invariant + variant + cost potential); fuel never
+  appears in per-algorithm proofs. Adequacy proved in the
+  run-success → big-step direction only. (Rev 2 correction: rev 1's
+  fuel-free `Option` state monad is not definable for `while`.)
