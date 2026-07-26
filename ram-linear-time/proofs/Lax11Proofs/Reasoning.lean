@@ -251,14 +251,21 @@ and the arithmetic of the constant. -/
 
 /-- A well-formed IMP+ program whose `Run` on every valid input
 produces the right output within `K` compiles to a machine program that
-computes the same function within `L.const * K` steps. -/
-theorem computesInTime_of_run {L : Layout} {c : Com} {ext : String → ℕ}
+computes the same function within `L.const * K` steps.
+
+The declared array lengths `ext` are chosen *per input*. They have to
+be: an algorithm sizes its arrays by what it reads, and the compiled
+program does not represent them at all — the machine's memory is
+unbounded and starts zeroed, so arrays of any lengths are there for
+free, and the lengths exist only to say which accesses are in range
+(D17). -/
+theorem computesInTime_of_run {L : Layout} {c : Com}
     {D : Set (List ℕ)} {f : List ℕ → List ℕ} {T : List ℕ → ℕ} (hok : Com.Ok L c)
-    (h : ∀ x ∈ D, ∃ (σ' : Env) (K : ℕ), Run c (initEnv ext x) σ' K ∧ σ'.out = f x ∧
-      L.const * K ≤ T x) :
+    (h : ∀ x ∈ D, ∃ (ext : String → ℕ) (σ' : Env) (K : ℕ),
+      Run c (initEnv ext x) σ' K ∧ σ'.out = f x ∧ L.const * K ≤ T x) :
     ComputesInTime (compileProgram L c) D f T := by
   intro x hx
-  obtain ⟨σ', K, ⟨k, hk, hbs⟩, hout, hT⟩ := h x hx
+  obtain ⟨ext, σ', K, ⟨k, hk, hbs⟩, hout, hT⟩ := h x hx
   obtain ⟨t, ht, hrun⟩ := compileProgram_runsTo hok hbs
   refine ⟨t, ?_, ?_⟩
   · exact ht.trans ((Nat.mul_le_mul_left _ hk).trans hT)

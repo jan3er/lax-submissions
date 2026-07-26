@@ -113,13 +113,13 @@ unit of it, and `22 * (13 * |xs| + 11) ≤ 286 * (|xs| + 2)`. -/
 theorem sumProgram_computesInTime :
     ComputesInTime sumProgram {x : List ℕ | ∃ xs, x = xs.length :: xs}
       (fun x => [x.tail.sum]) (fun x => 286 * (x.length + 1)) := by
-  refine computesInTime_of_run (ext := fun _ => 0) sumCom_ok ?_
+  refine computesInTime_of_run sumCom_ok ?_
   rintro x ⟨xs, rfl⟩
   set σ₀ : Env := initEnv (fun _ => 0) (xs.length :: xs) with hσ₀
   obtain ⟨σ', hloop, hs, hout⟩ :=
     loop_run (({ σ₀.setVar "n" xs.length with inp := xs }.setVar "i" 0).setVar "s" 0)
       (by simp [hσ₀, initEnv])
-  refine ⟨_, _, Run.seq (Run.read rfl)
+  refine ⟨fun _ => 0, _, _, Run.seq (Run.read rfl)
     (Run.seq (Run.assign (v := 0) rfl)
       (Run.seq (Run.assign (v := 0) rfl)
         (Run.seq hloop (Run.write (v := σ'.vars "s") rfl)))), ?_, ?_⟩

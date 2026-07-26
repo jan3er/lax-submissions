@@ -7,3 +7,4 @@ import Lax11Proofs.Compile
 import Lax11Proofs.Simulation
 import Lax11Proofs.Reasoning
 import Lax11Proofs.SumSmoke
+import Lax11Proofs.CC
