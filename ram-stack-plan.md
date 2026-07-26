@@ -1,4 +1,4 @@
-# RAM stack plan (rev 6 — C0 frozen, P1 done, reasoning kit done, driver next)
+# RAM stack plan (rev 7 — all seven steps done; the submission is complete)
 
 Status (2026-07-26): id **Lax11** provisioned via `lax init
 ram-linear-time`; scaffold in place. Jan delegated the P-layer design
@@ -13,7 +13,17 @@ layers P2 and P3 collapse into one file, `Reasoning.lean`, because the
 D12 turned out to buy nothing a per-algorithm proof can use (**D19**,
 argued below). What was built instead is the bounded judgment `Run` and
 the potential-based while rule; the smoke test re-proved at that level
-halved and the constant improved. Next is the driver.
+halved and the constant improved.
+
+**All seven steps are done (2026-07-26).** The driver is proved and the
+wrap-up is written: `Lax11Proofs.CCMain.exists_linearTime_program_ccLabels`
+carries the `conclusion:` frontmatter of the concept axiom (checked by
+`rfl` to be definitionally the same type), with witness `ccProgram` and
+constant `2604`; `lake build` green, no `sorry`, `#print axioms` =
+`propext`, `Classical.choice`, `Quot.sound`; `lax build ram-linear-time
+--replay` OK with no violations and `assumptions: []`. The step-6
+checkpoint is below. The one thing deliberately not done is `lax submit`,
+which is outward-facing and Jan's call.
 
 The surface is frozen at the recommended
 answers: `ComputesInTime` only (D13 kept), `edgeCount` = declared
@@ -550,6 +560,87 @@ at entry, or the sweep would count the drain's potential twice.
 - Assemble: adequacy + P1 simulation discharge the concept axiom;
   `#print axioms` audit to standard axioms only.
 
+#### Step-6 checkpoint: the driver as built (supersedes the two sections above)
+
+**File structure.** Six modules, 1478 lines, all green:
+
+- `CC.lean` (168) — `ccCom`, `layout`, `ccProgram = compileProgram
+  layout ccCom`, `ccCom_ok`, and eight `#guard`ed runs of the *compiled
+  machine* on encoded graphs, each giving the least-vertex labels.
+- `CCGraph.lean` (215) — the mathematics. Labels on plain numbers
+  (`lbl`, `Adjn`, `Rch`, `lbl_eq_of_rch`, `rch_lbl`, `rch_closed`),
+  encoding facts (`offset_mono'`, `adjn_of_slot`, `slot_of_adjn`), and
+  the tiling bound `sum_deg` / `sum_deg_le` / `sum_deg_queue`.
+- `CCPhases.lean` (175) — `readLoop_run` (generic in the array and
+  limit names, so it serves both read loops), `initLab_run`,
+  `writeLoop_run`.
+- `CCSearch.lean` (416) — `Base` (7 fields) and `Live` (4), `Pot`, then
+  `scanBody_run`, `scan_run`, `expandBody_run`, `drain_run`.
+- `CCSweep.lean` (409) — `SweepInv`, `SweepPot = Pot + 27·(n−u)`,
+  `outerBody_run`, `sweep_run`, `ccExt`, and `ccCom_run` end to end.
+- `CCMain.lean` (95) — `const_eq` and the theorem, 4 tactic lines.
+
+**The `ccPure` sketch was not built, and should not have been.** The
+plan called for a pure model `ccPure : CSR → List ℕ` plus `ccPure =
+ccLabels`. What that model would buy is a refinement proof between two
+loop structures, and the invariant that proves the refinement is exactly
+`Base`/`Live` — so the model is a layer that proves nothing the
+invariant does not, while adding its own termination argument and its own
+BFS. The cost argument has to live on the IMP+ loop in any case. So
+correctness is stated directly at the invariant level, in `CCGraph`'s
+number-level vocabulary, and the pure model became those lemmas.
+`Base.lab` is why this is cheap: a label, once written, is *already* the
+right one, so there is no "compare against the model at the end" step.
+
+**Key numbers.** `ccCom_run` gives `Run ccCom (initEnv (ccExt n m) x) σ'
+K` with `σ'.out = ccLabels G` and `K ≤ 84 * (|x| + 1)` — stated in `|x|`
+rather than as `a·n + b·m + d`, which folds the encoding's `length_eq`
+arithmetic in once and makes the assembly trivial. Four arrays give
+`layout.idxLen = 6` and so `layout.const = 31` (`3·6 + 13`), exactly as
+predicted at step 5. The concept-level constant is `31 · 84 = 2604`.
+Against it, the `#guard`ed machine runs take about 100 steps per input
+number (`|x| = 14`: 1513 steps, bound 39060), so the tower is loose by
+roughly 25× — the same order as the smoke test's 30×, i.e. the driver
+added no new sloppiness of its own.
+
+**Kit additions.** The driver needed four things from `Reasoning.lean`:
+`arrOf n f` with `length_arrOf` / `getElem?_arrOf` / `set_arrOf` (arrays
+described by what they hold at each position, not by what list they
+are — this is what lets an invariant name an array without a `List`
+existential); `replicate_eq_arrOf`, the bridge from `initEnv`'s
+zero-filled arrays into that form; and `Com.NoWrite` with
+`BigStep.out_eq` / `Run.out_eq`, the output-tape frame condition, so the
+three phases before the write loop can be shown not to touch the output.
+`Run.while_pot` also had to be strengthened to report the potential
+*drop* rather than the potential at entry, or the sweep would count each
+search's potential twice. That is the whole interface change the driver
+forced on the kit in six sessions — the step-5 verdict held.
+
+**Pain level, honestly.** Nothing in the driver was in doubt, and
+nothing needed a new idea after the invariant was found; what it cost was
+volume. The two cost files are 825 of the 1478 lines, and the reason is
+mechanical: eleven invariant fields have to be re-established at every
+one of the six `_run` lemmas, and each re-establishment is a page of
+`omega` and `simp` over environment updates that the kit cannot abstract
+because the fields are algorithm-specific. Two frictions recurred often
+enough to name: `simp only [vars_setVar]` leaves an undecided
+`if "head" = "tail"` (use plain `simp`), and `omega` cannot see structure
+fields until they are pulled out into hypotheses (`have := hB.hd`). The
+evaluation-first discipline from P1 paid again — the eight `#guard`s
+caught the program's bugs before any proof was attempted, and no
+correctness bug survived into the proving. Set against the ~60 lines the
+five-line smoke test needed at P1, ~1500 lines for a real algorithm with
+an amortized bound is the kit working as designed, not a warning; but a
+reader should not expect the *next* algorithm to be short either. The
+invariant is the work, and the invariant is not something a rule library
+can supply.
+
+**Watch item (new, live).** After a `lake build` run from Bash, the
+`lean-lsp` MCP server serves stale results: it reported `sorryAx` and
+unknown identifiers for declarations the real build accepts. Trust
+`lake build` and `#print axioms`; re-run `lean_build` through the server
+(not Bash) if the LSP's answers must be believed.
+
 ## Steps
 
 1. **Statement design** — ✅ done, **frozen** 2026-07-26. C0 is written
@@ -576,15 +667,24 @@ at entry, or the sweep would count the drain's potential twice.
    `computesInTime_of_run`. Smoke test re-proved at that level.
    → **checkpoint reported above: 59 → 34 lines, constant 462 → 286,
    verdict "sufficient, no fallback needed".**
-6. **Driver** — *in progress*, everything below the sweep is green.
-   Done: the program and its eight `#guard`ed machine runs (`CC.lean`),
-   the three straight phases (`CCPhases.lean`), the graph and encoding
-   facts (`CCGraph.lean`), and the search up to and including the queue
-   drain (`CCSearch.lean`). Remaining: the sweep, the assembly, the
-   axiom discharge and the audit — see "Where the driver stands".
-7. **Wrap-up**: formalization notes (honesty ledger: D2 no-MULT
-   rationale, D5 encoding dumbness, D7 label convention, D4 bound
-   form), abstract, build-output, commit.
+6. **Driver** — ✅ done. The program and its eight `#guard`ed machine
+   runs (`CC.lean`), the graph and encoding facts (`CCGraph.lean`), the
+   three straight phases (`CCPhases.lean`), the search
+   (`CCSearch.lean`), the sweep and `ccCom_run` (`CCSweep.lean`), and
+   the concept axiom discharged in `CCMain.lean` with constant `2604`.
+   → **checkpoint reported above: 1478 lines, no `ccPure`, bound
+   `84 * (|x| + 1)` × `layout.const = 31`, loose by ~25×.**
+7. **Wrap-up** — ✅ done. The honesty ledger (D2, D4, D5, D7, D16) was
+   already written in full in the `# Formalization notes` of the four
+   frozen concept docstrings, so `concepts/` was not touched; what the
+   wrap-up did was move the "global queue + `sc` counter, both free"
+   argument out of `CC.lean`'s module docstring (which the archive never
+   renders) into a `# What the program is allowed to help itself to`
+   section of the theorem annotation, and rewrite the abstract's last
+   paragraph, which still described the obligation as open and the
+   superseded D19 DSL as the plan. `lax build --replay` OK, no
+   violations, `assumptions: []`. Only `lax submit` remains, and it is
+   Jan's call.
 
 Feasibility judgment: P1/P2 are textbook-plus-cost-index (the
 Isabelle precedents solved strictly harder problems — separation
