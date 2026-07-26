@@ -1,10 +1,17 @@
-# RAM stack plan (rev 2 — P-layers settled, surface freeze pending)
+# RAM stack plan (rev 3 — C0 written, awaiting the freeze review)
 
 Status (2026-07-26): id **Lax11** provisioned via `lax init
 ram-linear-time`; scaffold in place. Jan delegated the P-layer design
 choices (D9–D12, settled below). The C0 surface decisions D1–D7 are
 my recommendations and get their review at the step-1 freeze boundary
 as planned.
+
+**Steps 1–2 are drafted: the four C0 concept modules are written and
+`lax build ram-linear-time` is OK** (manifest, abstract, both packages
+green, no spec violations). The surface is *not* frozen — it is now a
+concrete artifact to review rather than a sketch, which is exactly the
+step-1 review object. Deltas from the sketch below are recorded as
+D13–D15; three smoke tests validate it (see "Surface as written").
 
 Goal: a reusable stack for honest algorithmic statements in Lax. The
 concept surface talks about a **textbook RAM** — cost intrinsic to the
@@ -120,6 +127,44 @@ like the textbook sentence.)
 
 Surface size: four small files. The RAM interpreter is the only
 nontrivial audit object.
+
+## Surface as written (2026-07-26)
+
+Four concepts, all green:
+
+- `Lax11/Ram.lean` — `Op`, `Instr`, `Program`, `State`, `Op.value`,
+  `write`, `step`, `run`, `cells`, `initState`, `RunsTo`. The I/O
+  convention is carried by one function, `cells x` ("cell 0 holds the
+  length, cell `i+1` the `i`-th entry, everything else 0"), used on
+  both sides: the input pins *every* cell, the output only the first
+  `|y|+1` (the rest is scratch).
+- `Lax11/RamComputes.lean` — `ComputesInTime p D f T` only (D13).
+- `Lax11/GraphEncoding.lean` — `vertexCount`, `edgeCount`, `offset`,
+  `target`, and `EncodesGraph` as a seven-field `Prop`-structure
+  (D14).
+- `Lax11/ConnectedComponents.lean` — `label`, `ccLabels`, and the
+  axiom `exists_linearTime_program_ccLabels` (D15).
+
+Smoke tests in `proofs/` (helpers, no `conclusion:` frontmatter — they
+exist to keep the surface from being quietly wrong):
+
+- `RamSanity`: a five-instruction program is run end-to-end,
+  `RunsTo lengthProgram x [x.length] 4`, plus its `ComputesInTime`
+  packaging. The machine demonstrably halts, produces output, and the
+  step count is the instruction count.
+- `EncodingSanity`: `EncodesGraph [2,1,0,1,2,1,0] 2 ⊤` — the encoding
+  is satisfiable and the header/offset/target index arithmetic lines
+  up. Without this the headline theorem could be vacuously true.
+- `Labels`: `label_eq` (the least-vertex characterization later work
+  will use) and the computations `ccLabels ⊤ = [0,0]`,
+  `ccLabels ⊥ = [0,1]` on `Fin 2`.
+
+Watch item for the review: the concept package generates no auxiliary
+declarations of its own, but `simp [cells]` *in the proof package*
+emits `Lax11.Ram.cells.match_1.splitter`, which the namespace rule
+rejects. Proof-side lemmas about `cells` must therefore be stated and
+proved without `simp`-unfolding it (`rfl` and explicit equation lemmas
+are fine). This will recur throughout P1–P3.
 
 ## Proof-package tower
 
@@ -242,14 +287,20 @@ needs it.
 
 ## Steps
 
-1. **Statement design** — freeze C0 exactly (RAM instruction list,
-   `step`, I/O, `Computes*`, CSR validity, `ccLabels`, axiom
-   packaging). Written against the pinned mathlib
-   (toolchain v4.30.0, same rev as Lax5). → **Jan review, D-record
-   updated, surface frozen.**
-2. **Concepts package** (scaffold done: Lax11 provisioned
-   2026-07-26; remaining: concept modules, manifest fields, abstract
-   stub). Builds green.
+1. **Statement design** — ✅ drafted, ⏸ *not frozen*. C0 is written out
+   (RAM instruction list, `step`, I/O, `ComputesInTime`, CSR validity,
+   `ccLabels`, axiom packaging), against the pinned mathlib (toolchain
+   v4.30.0, same rev as Lax5), with D13–D15 recorded above. →
+   **awaiting Jan review; then D-record updated and surface frozen.**
+   Open questions I would put to that review: (a) is dropping
+   `Computes`/`ComputesLinear` from the surface right, or is the named
+   "linear time" vocabulary worth an unused definition? (b) `edgeCount`
+   as declared length rather than the true edge count — keep, or add
+   the no-repetition field? (c) is the `Prop`-structure the right shape
+   for `EncodesGraph`, against a plain conjunction?
+2. **Concepts package** — ✅ four modules, manifest (title, author,
+   AHU + Cook–Reckhow bib entries), abstract; `lax build` OK, no
+   violations; three smoke tests in the proof package.
 3. **P1**: IMP+ semantics, compiler, simulation theorem. Smoke test:
    a five-line IMP+ program ("sum the input") taken end-to-end to a
    RAM `ComputesLinear` by hand, *before* P3 exists — validates the
@@ -308,6 +359,36 @@ freeze)
   reads of the reserved `INPUT` array only; compiler prologue
   computes cumulative bases by additions. Reserved `INPUT`/`OUTPUT`
   names carry the I/O convention.
+- **D13** (mine, review at the freeze) The `Computes*` concept declares
+  **only** `ComputesInTime p D f T`. `Computes` (untimed) and
+  `ComputesLinear` were dropped: nothing in the submission uses them,
+  and unused declarations are review surface spent for nothing. The
+  linear bound therefore appears literally as `c * (x.length + 1)` at
+  the point of use, which is also more transparent than an indirection.
+  The reason `ComputesLinear` *cannot* be used for the driver is
+  quantifier order — it hides `∃ c` inside, and the constant must be
+  chosen before the graph, not after it.
+- **D14** (mine) `EncodesGraph x n G` is a `Prop`-structure with seven
+  named fields (`vertexCount_eq`, `length_eq`, `offset_zero`,
+  `offset_last`, `offset_mono`, `target_lt`, `adj_iff`), so each
+  condition is a separately checkable obligation. Cells are read with
+  `List.getD` (default 0), which `length_eq` makes unreachable at every
+  constrained position; this keeps the encoding proof-obligation-free
+  in the concept. `edgeCount x` is only the *declared* half-length of
+  the target array: with repetitions permitted it is ≥ the number of
+  edges, and equal exactly when no block repeats a neighbor. Both
+  dumbnesses (no sortedness, repetitions allowed) weaken the hypothesis
+  and hence strengthen the theorem.
+- **D15** (mine) Driver packaging: the inlined form loses, the
+  `ComputesInTime` form wins —
+  `∃ p c, ∀ n G, ComputesInTime p {x | EncodesGraph x n G}
+  (fun _ => ccLabels G) (fun x => c * (x.length + 1))`. One program and
+  one constant, quantified ahead of the graph; the domain is the
+  encodings *of that graph*, so the function is constant on it and no
+  choice function is needed to turn "the graph encoded by `x`" into a
+  `List ℕ → List ℕ`. `label` is `sInf (Fin.val '' {u | G.Reachable u v})`
+  — the least *number* of a reachable vertex — and `ccLabels` is
+  `List.ofFn (label G)`.
 - **D12** (settled) P3 denotation is a fuel interpreter
   `run : Prog → Env → ℕ → Option (Env × ℕ)` with fuel-monotonicity
   and a once-proved combinator rule library (seq/ite rules,
