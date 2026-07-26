@@ -5,3 +5,4 @@ import Lax11Proofs.Imp
 import Lax11Proofs.Machine
 import Lax11Proofs.Compile
 import Lax11Proofs.Simulation
+import Lax11Proofs.SumSmoke
