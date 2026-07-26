@@ -1,4 +1,10 @@
-# Courcelle plan (rev 1 — decisions taken under Jan's delegation 2026-07-27)
+# Courcelle plan (rev 2 — single-submission; decisions taken under Jan's delegation 2026-07-27)
+
+Rev 2 (Jan's last instruction before signing off): **everything goes
+into Lax11 itself** — no new submission, no `lax init`. C8 and C10
+are superseded accordingly; nothing is blocked on Jan anymore, and
+steps 5–7 proceed under the standing delegation, gated by the step-2
+checkpoint.
 
 Status (2026-07-27, night): written by the Fable orchestrator under
 Jan's explicit "no approval needed" delegation; the C-decisions below
@@ -140,29 +146,20 @@ axiom courcelle :
   child-slots left"). This is the **P4 tree-fold schema**,
   generic over any table — built and verified *before* the type
   algebra exists, against an abstract table, in Lax11's proof package.
-- **C8 (staging and homes)** Three work packages, two eventual
-  submissions:
-  - **Q3 = P4 tree-fold schema**: lives in `Lax11Proofs` as helper
-    files now (mirrors D8: split infrastructure when the second
-    consumer exists).
-  - **Q1 = type algebra** and **Q2 = decomposition math**: pure
-    mathematics, no RAM anywhere. Developed now in the Lax11 proofs
-    package under a `Lax11Proofs.MsoTypes` / `.TreeDecomp` namespace
-    (it has mathlib and a warm build), migrated verbatim when Jan
-    provisions the ids.
-  - Submission A (needs `lax init`, Jan): MSO + tree decompositions +
-    the `courcelle` axiom — the concept surface above.
-  - Submission B (optional split, later): the type-algebra
-    infrastructure as its own endorsement surface, if the
-    composition lemma turns out to deserve independent citation.
+- **C8 (rev 2: single submission)** Everything lands in **Lax11**
+  (`ram-linear-time/`), per Jan's instruction. Q1/Q2/Q3 are
+  `Lax11Proofs` files permanently (no migration, ever). At step 5 the
+  Courcelle surface is *added* to `concepts/Lax11/` as new files
+  (`Mso.lean`, `TreeDecomposition.lean`, `Courcelle.lean`); the four
+  existing concept files stay frozen verbatim — the submission grows,
+  its existing endorsement surface never changes. Abstract and
+  manifest are extended at step 7. Any split into separate
+  submissions is Jan's future call, explicitly out of scope.
 - **C9** Output `[1]`/`[0]`, decided by membership of the root type
   in the accepting set.
-- **C10 (cross-submission reuse, open tooling question for Jan)**
-  Submission A's concepts should *import* Lax11's (`Program`,
-  `ComputesInTime`, `EncodesGraph`) rather than restate them. Whether
-  lax supports concept-package dependencies is the one provisioning
-  question Jan must answer; if not, we restate verbatim with a
-  ledger note. **This is the only decision genuinely blocked on Jan.**
+- **C10 (moot in rev 2)** Same package, direct imports — the
+  Courcelle concepts import `Lax11.Ram`, `Lax11.RamComputes`,
+  `Lax11.GraphEncoding` directly. Nothing is blocked on Jan.
 
 ## Steps
 
@@ -183,11 +180,14 @@ axiom courcelle :
 4. **Q2 — decomposition math**: separation lemma, the abstract
    bottom-up fold as a pure Lean recursion, its correctness
    (root type determines `Sat G φ` via adequacy).
-5. **C0 freeze**: write the surface (MSO, TreeDecomposition,
-   EncodesInstance, the axiom), smoke tests in proofs (Sat on
-   two-vertex graphs, a hand-checked width-1 decomposition of a
-   path). Requires Jan's `lax init` and the C10 answer; everything
-   before this point is deliberately surface-independent.
+5. **C0 freeze**: write the surface as new files in
+   `concepts/Lax11/` (MSO, TreeDecomposition, EncodesInstance, the
+   axiom — existing concept files untouched), smoke tests in proofs
+   (Sat on two-vertex graphs, a hand-checked width-1 decomposition
+   of a path). Under the standing delegation this needs no external
+   input; it is gated on the step-2 checkpoint being green, because
+   the surface's `Sat` must be verbatim the `Sat` that Q1's adequacy
+   induction proved tractable.
 6. **Driver**: instantiate Q3's schema with Q1's table, the per-node
    bag/overlap scanning program, assemble phases CC-style, discharge
    the axiom, audit.
