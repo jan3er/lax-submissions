@@ -12,19 +12,11 @@ visited array, with `n` — not a vertex — as the marker for "unvisited",
 so no second array is needed.
 
 Two details are chosen for the sake of the cost proof rather than the
-algorithm, and both are free.
-
-*The queue is global.* It is never reset between searches: a search
-leaves `head = tail` behind, and the next one continues from there. So
-`tail` only ever increases, and since a vertex is enqueued only in the
-step that labels it, `tail` never exceeds `n`. The quantity `n - tail`
-is therefore a budget for the whole run, out of which every enqueue is
-paid — with a per-search queue it would be a budget per search, and the
-searches would have to be counted separately.
-
-*Nothing is precomputed.* The input word is read once into the four
-arrays in the order the tape presents it, so the reading phase is a
-plain copy and the encoding stays the dumb one the concept fixes.
+algorithm — the queue is never reset between searches, and a scalar
+counts the adjacency slots already scanned — and neither of them costs
+the algorithm anything. The argument that they are free belongs where a
+reader of the submission will look for it, so it is in the annotation of
+`CCMain.exists_linearTime_program_ccLabels` rather than here.
 
 The cost argument, for the record, is a single potential
 `c₁·(2m − scanned) + c₀·(n − tail) + c₀·(tail − head) + c₂·(n − u)`,
