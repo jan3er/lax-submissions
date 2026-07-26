@@ -1,0 +1,186 @@
+import Mathlib.Tactic
+
+/-!
+IMP+: a structured while-language with scalar variables and named
+arrays, given a big-step semantics indexed by a cost. It is the layer
+at which the flatness of the machine is dealt with once and for all:
+the compiler to machine programs lowers control flow to jumps and array
+indexing to indirect addressing, and everything above IMP+ reasons
+structurally.
+
+Two design points carry the weight.
+
+*Aliasing is impossible by construction.* An environment maps names to
+values and names to arrays, so distinct names denote disjoint objects
+and no statement anywhere in the tower has to reason about overlap.
+This is what replaces separation logic.
+
+*Out-of-bounds access is stuck, not defaulted.* Expression evaluation
+is `Option`-valued and an out-of-range array read has no value; an
+out-of-range store has no derivation. A semantics that defaulted to
+zero would diverge from what the flat machine memory returns, and the
+layout simulation would then be false.
+
+The cost of a derivation is the number of executed constructs, each
+weighted by the size of the expressions it evaluates. Constants are
+never tight anywhere in this development; this measure is chosen only
+so that it is bounded below by the number of steps of the compiled
+machine program divided by a program-dependent constant.
+-/
+
+namespace Lax11Proofs.Imp
+
+/-- Arithmetic expressions: literals, scalar variables, array reads,
+addition, and truncated subtraction. -/
+inductive Expr
+  /-- The literal `n`. -/
+  | lit (n : ℕ)
+  /-- The value of the scalar variable `x`. -/
+  | var (x : String)
+  /-- The entry of array `a` at the position given by `i`. -/
+  | get (a : String) (i : Expr)
+  /-- The sum of two expressions. -/
+  | add (e f : Expr)
+  /-- The truncated difference of two expressions. -/
+  | sub (e f : Expr)
+
+/-- Conditions: equality and strict order of two expressions. -/
+inductive Cond
+  /-- The two expressions have equal values. -/
+  | eq (e f : Expr)
+  /-- The first value is smaller than the second. -/
+  | lt (e f : Expr)
+
+/-- Commands: the usual structured constructs, together with a store
+into an array cell. -/
+inductive Com
+  /-- Do nothing. -/
+  | skip
+  /-- Assign the value of `e` to the scalar variable `x`. -/
+  | assign (x : String) (e : Expr)
+  /-- Store the value of `e` into array `a` at position `i`. -/
+  | store (a : String) (i e : Expr)
+  /-- Run `c`, then `d`. -/
+  | seq (c d : Com)
+  /-- Run `c` or `d` according to the condition. -/
+  | ite (b : Cond) (c d : Com)
+  /-- Run the body while the condition holds. -/
+  | while (b : Cond) (c : Com)
+
+/-- An environment: the value of every scalar variable and the contents
+of every array. Distinct names are distinct objects, so no two names
+can alias. -/
+structure Env where
+  /-- The value of each scalar variable. -/
+  vars : String → ℕ
+  /-- The contents of each array. -/
+  arrs : String → List ℕ
+
+/-- The environment with the scalar variable `x` set to `v`. -/
+def Env.setVar (σ : Env) (x : String) (v : ℕ) : Env :=
+  { σ with vars := fun y => if y = x then v else σ.vars y }
+
+/-- The environment with position `i` of array `a` set to `v`. -/
+def Env.setArr (σ : Env) (a : String) (i v : ℕ) : Env :=
+  { σ with arrs := fun b => if b = a then (σ.arrs a).set i v else σ.arrs b }
+
+/-- The value of an expression, or `none` if an array is read out of
+range. -/
+def Expr.eval : Expr → Env → Option ℕ
+  | lit n, _ => some n
+  | var x, σ => some (σ.vars x)
+  | get a i, σ => (i.eval σ).bind fun k => (σ.arrs a)[k]?
+  | add e f, σ => (e.eval σ).bind fun m => (f.eval σ).map fun n => m + n
+  | sub e f, σ => (e.eval σ).bind fun m => (f.eval σ).map fun n => m - n
+
+/-- The size of an expression, which is what evaluating it costs. -/
+def Expr.size : Expr → ℕ
+  | lit _ => 1
+  | var _ => 1
+  | get _ i => i.size + 1
+  | add e f => e.size + f.size + 1
+  | sub e f => e.size + f.size + 1
+
+/-- Whether a condition holds, or `none` if an array is read out of
+range. -/
+def Cond.eval : Cond → Env → Option Bool
+  | eq e f, σ => (e.eval σ).bind fun m => (f.eval σ).map fun n => m == n
+  | lt e f, σ => (e.eval σ).bind fun m => (f.eval σ).map fun n => m < n
+
+/-- The size of a condition, which is what evaluating it costs. -/
+def Cond.size : Cond → ℕ
+  | eq e f => e.size + f.size + 1
+  | lt e f => e.size + f.size + 1
+
+/-- `BigStep c σ σ' k`: running `c` in `σ` terminates in `σ'` at cost
+`k`. There is no derivation when an array is accessed out of range, so
+such a program is stuck rather than continuing with a default value. -/
+inductive BigStep : Com → Env → Env → ℕ → Prop
+  /-- `skip` changes nothing. -/
+  | skip {σ : Env} : BigStep .skip σ σ 1
+  /-- An assignment evaluates its expression and updates the
+  variable. -/
+  | assign {σ : Env} {x : String} {e : Expr} {v : ℕ} (h : e.eval σ = some v) :
+      BigStep (.assign x e) σ (σ.setVar x v) (1 + e.size)
+  /-- A store evaluates position and value and updates the array; it
+  requires the position to be in range. -/
+  | store {σ : Env} {a : String} {i e : Expr} {k v : ℕ}
+      (hi : i.eval σ = some k) (he : e.eval σ = some v)
+      (hk : k < (σ.arrs a).length) :
+      BigStep (.store a i e) σ (σ.setArr a k v) (1 + i.size + e.size)
+  /-- Costs of a sequence add up. -/
+  | seq {c d : Com} {σ σ' σ'' : Env} {k k' : ℕ} :
+      BigStep c σ σ' k → BigStep d σ' σ'' k' →
+      BigStep (.seq c d) σ σ'' (k + k')
+  /-- A conditional whose condition holds runs its first branch. -/
+  | ite_true {b : Cond} {c d : Com} {σ σ' : Env} {k : ℕ}
+      (hb : b.eval σ = some true) (hc : BigStep c σ σ' k) :
+      BigStep (.ite b c d) σ σ' (1 + b.size + k)
+  /-- A conditional whose condition fails runs its second branch. -/
+  | ite_false {b : Cond} {c d : Com} {σ σ' : Env} {k : ℕ}
+      (hb : b.eval σ = some false) (hd : BigStep d σ σ' k) :
+      BigStep (.ite b c d) σ σ' (1 + b.size + k)
+  /-- A loop whose condition holds runs its body once and then again. -/
+  | while_true {b : Cond} {c : Com} {σ σ' σ'' : Env} {k k' : ℕ}
+      (hb : b.eval σ = some true) (hc : BigStep c σ σ' k)
+      (hw : BigStep (.while b c) σ' σ'' k') :
+      BigStep (.while b c) σ σ'' (1 + b.size + k + k')
+  /-- A loop whose condition fails does nothing. -/
+  | while_false {b : Cond} {c : Com} {σ : Env} (hb : b.eval σ = some false) :
+      BigStep (.while b c) σ σ (1 + b.size)
+
+/-- The semantics is deterministic in both the final environment and
+the cost: a command run in a given environment has at most one outcome.
+So the cost of a terminating run is a function of the program and its
+input, not a quantity the prover gets to choose. -/
+theorem BigStep.unique {c : Com} {σ σ₁ σ₂ : Env} {k₁ k₂ : ℕ}
+    (h₁ : BigStep c σ σ₁ k₁) (h₂ : BigStep c σ σ₂ k₂) : σ₁ = σ₂ ∧ k₁ = k₂ := by
+  induction h₁ generalizing σ₂ k₂ with
+  | skip => cases h₂; exact ⟨rfl, rfl⟩
+  | assign h => cases h₂ with
+    | assign h' => rw [h] at h'; cases h'; exact ⟨rfl, rfl⟩
+  | store hi he _ => cases h₂ with
+    | store hi' he' _ =>
+      rw [hi] at hi'; rw [he] at he'; cases hi'; cases he'; exact ⟨rfl, rfl⟩
+  | seq _ _ ih ih' => cases h₂ with
+    | seq h h' =>
+      obtain ⟨rfl, rfl⟩ := ih h
+      obtain ⟨rfl, rfl⟩ := ih' h'
+      exact ⟨rfl, rfl⟩
+  | ite_true hb _ ih => cases h₂ with
+    | ite_true hb' h => obtain ⟨rfl, rfl⟩ := ih h; exact ⟨rfl, rfl⟩
+    | ite_false hb' _ => rw [hb] at hb'; exact absurd hb' (by simp)
+  | ite_false hb _ ih => cases h₂ with
+    | ite_true hb' _ => rw [hb] at hb'; exact absurd hb' (by simp)
+    | ite_false hb' h => obtain ⟨rfl, rfl⟩ := ih h; exact ⟨rfl, rfl⟩
+  | while_true hb _ _ ih ih' => cases h₂ with
+    | while_true hb' h h' =>
+      obtain ⟨rfl, rfl⟩ := ih h
+      obtain ⟨rfl, rfl⟩ := ih' h'
+      exact ⟨rfl, rfl⟩
+    | while_false hb' => rw [hb] at hb'; exact absurd hb' (by simp)
+  | while_false hb => cases h₂ with
+    | while_true hb' _ _ => rw [hb] at hb'; exact absurd hb' (by simp)
+    | while_false hb' => exact ⟨rfl, rfl⟩
+
+end Lax11Proofs.Imp

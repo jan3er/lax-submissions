@@ -208,6 +208,64 @@ Precedent: Concrete Semantics ch. 8 plus a cost index
 (Nipkow–Haslbeck, *Hoare Logics for Time Bounds*). No research risk;
 the grind is the layout invariant.
 
+#### Status and compiler design (2026-07-26)
+
+Written and green: `proofs/Lax11Proofs/Imp.lean` — `Expr` (lit / var /
+get / add / sub), `Cond` (eq / lt), `Com` (skip / assign / store / seq
+/ ite / while), `Env` with `setVar`/`setArr`, `Option`-valued
+`Expr.eval` and `Cond.eval`, the sizes, the cost-indexed `BigStep`
+relation, and `BigStep.unique` (determinism in *both* the final
+environment and the cost — so the cost of a terminating run is a
+function of program and input, never a quantity the prover picks).
+`Expr`/`Cond` are shared with P3's `Prog` by design.
+
+Remaining for P1: the header, the compiler, the simulation theorem.
+The layout below is the design to implement; it is what the grind
+stands or falls on, so it is recorded before writing it.
+
+- **The input region is never touched until the end.** Machine memory
+  starts as `cells x`: cell 0 the length, cells `1 … |x|` the word,
+  everything above already **zero**. So array blocks are placed above
+  the input and no zero-initialization loop is needed at all — the
+  machine hands us zeroed memory for free. This is worth keeping in
+  mind before writing an init loop that is not necessary.
+- **Layout.** A fixed block of reserved cells first (accumulator
+  spills, one temp per expression nesting depth, one base cell and one
+  length cell per declared array), then the scalar variables at fixed
+  cells, then the array blocks, each at a base computed by the
+  prologue. Bases are cumulative sums of the extents, accumulated by
+  additions — the prologue evaluates each extent `Expr`, which by D11
+  reads only literals and `INPUT` cells, all at known addresses.
+- **`INPUT` is not copied.** It *is* cells `1 … |x|`, with length in
+  cell 0; `get INPUT i` compiles to "compute `1 + i` into a temp, then
+  `load (ind temp)`". `OUTPUT` is an ordinary block above the input,
+  and an **epilogue** copies it down to cells `0 … |OUTPUT|` and writes
+  the length into cell 0. The copy is a loop, linear in the output
+  length, which the cost budget absorbs. Doing it the other way round
+  — placing `OUTPUT` at cells 0.. from the start — would clobber the
+  input while the body still needs it, so the epilogue is not
+  avoidable.
+- **Expressions** compile with one temp cell per nesting depth: `add e
+  f` is "compile `e`; store to `temp d`; compile `f` at depth `d+1`;
+  add `temp d`". Every node emits a constant number of instructions,
+  so the machine cost of an expression is `≤ C · e.size`, which is
+  exactly the shape the IMP+ cost model was chosen to have.
+  `Cond` compiles to a subtraction plus `jzero`/`jgtz`; `lt e f` is
+  `jgtz` on `f - e` (monus makes this the right test, and this is why
+  the machine needs no comparison instruction).
+- **Control flow** is the standard lowering, with the code laid out
+  contiguously and jump targets computed from block lengths. The
+  induction is on the `BigStep` derivation, so `while` needs no
+  separate fuel argument.
+- **Simulation statement.** The invariant `Represents` ties an `Env` to
+  a machine memory: each scalar at its cell, each array block
+  contiguous at its base with its declared length, base and length
+  cells holding those values, and the input region untouched. Then
+  `BigStep c σ σ' k` and `Represents σ mem` give a run of the compiled
+  block from its first instruction to just past its last, in
+  `≤ C_c · (k + 1)` steps, ending in a memory representing `σ'`.
+  `C_c` depends on the program only. Nothing is tight, ever.
+
 ### P2 — thin Hoare-with-time kit over IMP+
 
 `{P} c {Q | t}` as a semantic definition + derived rules (seq/if/
