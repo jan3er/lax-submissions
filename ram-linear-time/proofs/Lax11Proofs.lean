@@ -14,3 +14,4 @@ import Lax11Proofs.CCSearch
 import Lax11Proofs.CCSweep
 import Lax11Proofs.CCMain
 import Lax11Proofs.TreeFold
+import Lax11Proofs.TreeFoldRun

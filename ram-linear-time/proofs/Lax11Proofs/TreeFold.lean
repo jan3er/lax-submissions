@@ -181,6 +181,16 @@ def sweep (T : Table) (par lab : ℕ → ℕ) : ℕ → ℕ → ℕ
       if i = par j then T.step (sweep T par lab j (par j)) (sweep T par lab j j)
       else sweep T par lab j i
 
+/-- The sweep before anything has been pushed. -/
+theorem sweep_zero (T : Table) (par lab : ℕ → ℕ) :
+    sweep T par lab 0 = fun i => T.init (lab i) := rfl
+
+/-- One push: the only accumulator that moves is the parent's. -/
+theorem sweep_succ (T : Table) (par lab : ℕ → ℕ) (j i : ℕ) :
+    sweep T par lab (j + 1) i =
+      if i = par j then T.step (sweep T par lab j (par j)) (sweep T par lab j j)
+      else sweep T par lab j i := rfl
+
 /-- After `j` pushes, every node holds the fold of the children it has
 seen so far. Only the parent pointers actually used are constrained. -/
 theorem sweep_eq_foldl (T : Table) (par lab : ℕ → ℕ) :
@@ -214,6 +224,26 @@ theorem sweep_eq_foldl (T : Table) (par lab : ℕ → ℕ) :
       · have hsw : sweep T par lab (j + 1) i = sweep T par lab j i := by simp [sweep, hp]
         rw [hsw, hsplit, if_neg (by tauto)]
         exact ihj i
+
+/-- Partial sums stay in the alphabet too. This is the fact the program
+needs and the pure `val_lt` does not give it: the accumulator array holds
+sweep values at every intermediate stage, and every table lookup the push
+loop makes is indexed by two of them. The hypotheses are bounded by `N`,
+because the arrays the program reads say nothing outside their range. -/
+theorem sweep_lt {T : Table} (hT : T.Wf) {par lab : ℕ → ℕ} {N : ℕ}
+    (hlab : ∀ i < N, lab i < T.L) (hpar : ∀ i, i + 1 < N → par i < N) :
+    ∀ j, j + 1 ≤ N → ∀ i < N, sweep T par lab j i < T.V := by
+  intro j
+  induction j with
+  | zero => intro _ i hi; exact hT.init_lt _ (hlab i hi)
+  | succ j ih =>
+      intro hj i hi
+      rw [sweep_succ]
+      by_cases h : i = par j
+      · rw [if_pos h]
+        exact hT.step_lt _ (ih (by omega) _ (hpar j (by omega))) _ (ih (by omega) _ (by omega))
+      · rw [if_neg h]
+        exact ih (by omega) i hi
 
 /-- Once the sweep has passed a node, that node holds its value. -/
 theorem sweep_eq_val (T : Table) (par lab : ℕ → ℕ) {i j : ℕ}

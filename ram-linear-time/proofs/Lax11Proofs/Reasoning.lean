@@ -110,6 +110,21 @@ is the shape in which `initEnv` hands its arrays over. -/
 theorem replicate_eq_arrOf (n v : ℕ) : List.replicate n v = arrOf n (fun _ => v) := by
   simp [arrOf, List.map_const']
 
+/-- Two functions that agree below `n` give the same array: what an
+array holds above its own length is not a question. This is what lets a
+phase lemma state its result as a *named* function rather than as an
+existential over functions that agree where it matters. -/
+theorem arrOf_congr {n : ℕ} {f g : ℕ → ℕ} (h : ∀ i < n, f i = g i) :
+    arrOf n f = arrOf n g := by
+  refine List.ext_getElem (by simp) fun k h₁ _ => ?_
+  simp only [arrOf, List.length_map, List.length_range] at h₁
+  simp [arrOf, h k h₁]
+
+/-- Reading an entry back out of the list an array is. -/
+@[simp] theorem getD_arrOf {n i : ℕ} (f : ℕ → ℕ) (h : i < n) :
+    (arrOf n f).getD i 0 = f i := by
+  simp [List.getD_eq_getElem?_getD, getElem?_arrOf f h]
+
 /-- Storing into an array updates the function it comes from. -/
 theorem set_arrOf {n i : ℕ} (f : ℕ → ℕ) (v : ℕ) :
     (arrOf n f).set i v = arrOf n (fun k => if k = i then v else f k) := by
