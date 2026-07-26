@@ -87,6 +87,34 @@ range condition of the next store is about. -/
   · subst_vars; exact List.length_set ..
   · rfl
 
+/-! ### Arrays as functions
+
+An IMP+ array is a list, but an invariant wants to say what is *at*
+each position, not what the list is. `arrOf n f` is the array of length
+`n` whose entry `i` is `f i`; an invariant then names the function, a
+store updates the function at a point, and a read is a function
+application. -/
+
+/-- The array of length `n` whose `i`-th entry is `f i`. -/
+def arrOf (n : ℕ) (f : ℕ → ℕ) : List ℕ := (List.range n).map f
+
+@[simp] theorem length_arrOf (n : ℕ) (f : ℕ → ℕ) : (arrOf n f).length = n := by
+  simp [arrOf]
+
+@[simp] theorem getElem?_arrOf {n i : ℕ} (f : ℕ → ℕ) (h : i < n) :
+    (arrOf n f)[i]? = some (f i) := by
+  simp [arrOf, List.getElem?_map, List.getElem?_range, h]
+
+/-- Storing into an array updates the function it comes from. -/
+theorem set_arrOf {n i : ℕ} (f : ℕ → ℕ) (v : ℕ) :
+    (arrOf n f).set i v = arrOf n (fun k => if k = i then v else f k) := by
+  refine List.ext_getElem (by simp) fun k h₁ h₂ => ?_
+  simp only [arrOf, List.length_map, List.length_range] at h₁ h₂
+  rw [List.getElem_set]
+  by_cases hk : k = i
+  · subst hk; simp [arrOf]
+  · simp [arrOf, hk, Ne.symm hk]
+
 /-! ### Evaluating expressions and counting their size
 
 Both are structural recursions on syntax, and both are wanted as `simp`
@@ -149,10 +177,10 @@ theorem Run.skip {σ : Env} : Run .skip σ σ 1 := .of_bigStep .skip
 theorem Run.assign {σ : Env} {x : String} {e : Expr} {v : ℕ} (h : e.eval σ = some v) :
     Run (.assign x e) σ (σ.setVar x v) (1 + e.size) := .of_bigStep (.assign h)
 
-theorem Run.store {σ : Env} {a : String} {i e : Expr} {k v : ℕ}
-    (hi : i.eval σ = some k) (he : e.eval σ = some v) (hk : k < (σ.arrs a).length) :
-    Run (.store a i e) σ (σ.setArr a k v) (1 + i.size + e.size) :=
-  .of_bigStep (.store hi he hk)
+theorem Run.store {σ : Env} {a : String} {i e : Expr} {idx v : ℕ}
+    (hi : i.eval σ = some idx) (he : e.eval σ = some v) (hidx : idx < (σ.arrs a).length) :
+    Run (.store a i e) σ (σ.setArr a idx v) (1 + i.size + e.size) :=
+  .of_bigStep (.store hi he hidx)
 
 theorem Run.read {σ : Env} {x : String} {v : ℕ} {rest : List ℕ} (h : σ.inp = v :: rest) :
     Run (.read x) σ { σ.setVar x v with inp := rest } 1 := .of_bigStep (.read h)

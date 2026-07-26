@@ -44,10 +44,11 @@ open Lax11Proofs.Imp Lax11Proofs.Compile Lax11Proofs.Reasoning
 
 /-! ### The program -/
 
-/-- Read `limit` numbers off the input tape into the array `a`. -/
-def readLoop (a : String) (limit : Expr) : Com :=
+/-- Read `lim` numbers off the input tape into the array `a`, where
+`lim` is a scalar the loop does not touch. -/
+def readLoop (a lim : String) : Com :=
   .seq (.assign "i" (.lit 0))
-    (.while (.lt (.var "i") limit)
+    (.while (.lt (.var "i") (.var lim))
       (.seq (.read "t")
         (.seq (.store a (.var "i") (.var "t"))
           (.assign "i" (.add (.var "i") (.lit 1))))))
@@ -61,7 +62,9 @@ def initLab : Com :=
         (.assign "i" (.add (.var "i") (.lit 1)))))
 
 /-- Look at the adjacency slot `j`: if the vertex it names is
-unvisited, label it and put it on the queue. -/
+unvisited, label it and put it on the queue. `sc` counts the slots
+looked at; it exists only so that the cost potential is a function of
+the scalars, and it costs one unit per slot. -/
 def scanBody : Com :=
   .seq (.assign "w" (.get "tgt" (.var "j")))
     (.seq (.ite (.eq (.get "lab" (.var "w")) (.var "n"))
@@ -69,15 +72,18 @@ def scanBody : Com :=
               (.seq (.store "q" (.var "tail") (.var "w"))
                 (.assign "tail" (.add (.var "tail") (.lit 1)))))
             .skip)
-      (.assign "j" (.add (.var "j") (.lit 1))))
+      (.seq (.assign "sc" (.add (.var "sc") (.lit 1)))
+        (.assign "j" (.add (.var "j") (.lit 1)))))
 
-/-- Take the next vertex off the queue and scan its whole block. -/
+/-- Take the next vertex off the queue and scan its whole block. The
+queue pointer moves *after* the scan, so that "the vertices before
+`head` have been expanded" is an invariant of the scan as well. -/
 def expandBody : Com :=
   .seq (.assign "v" (.get "q" (.var "head")))
-    (.seq (.assign "head" (.add (.var "head") (.lit 1)))
-      (.seq (.assign "j" (.get "off" (.var "v")))
-        (.seq (.assign "jend" (.get "off" (.add (.var "v") (.lit 1))))
-          (.while (.lt (.var "j") (.var "jend")) scanBody))))
+    (.seq (.assign "j" (.get "off" (.var "v")))
+      (.seq (.assign "jend" (.get "off" (.add (.var "v") (.lit 1))))
+        (.seq (.while (.lt (.var "j") (.var "jend")) scanBody)
+          (.assign "head" (.add (.var "head") (.lit 1))))))
 
 /-- Empty the queue: the breadth-first search itself. -/
 def drain : Com := .while (.lt (.var "head") (.var "tail")) expandBody
@@ -104,20 +110,23 @@ def writeLoop : Com :=
 def ccCom : Com :=
   .seq (.read "n")
     (.seq (.read "m")
-      (.seq (readLoop "off" (.add (.var "n") (.lit 1)))
-        (.seq (readLoop "tgt" (.add (.var "m") (.var "m")))
+      (.seq (.assign "len" (.add (.var "n") (.lit 1)))
+        (.seq (readLoop "off" "len")
+         (.seq (.assign "len" (.add (.var "m") (.var "m")))
+          (.seq (readLoop "tgt" "len")
           (.seq initLab
             (.seq (.assign "u" (.lit 0))
               (.seq (.assign "head" (.lit 0))
                 (.seq (.assign "tail" (.lit 0))
+                 (.seq (.assign "sc" (.lit 0))
                   (.seq (.while (.lt (.var "u") (.var "n")) outerBody)
-                    writeLoop))))))))
+                    writeLoop)))))))))))
 
-/-- Eleven scalars, the four arrays of the encoding, four temporaries
+/-- Thirteen scalars, the four arrays of the encoding, four temporaries
 (the deepest expression is the condition `lab[w] = n`, which the
 compiler turns into `(lab[w] - n) + (n - lab[w])`). -/
 def layout : Layout :=
-  ⟨["n", "m", "i", "t", "u", "v", "w", "j", "jend", "head", "tail"],
+  ⟨["n", "m", "i", "t", "u", "v", "w", "j", "jend", "head", "tail", "len", "sc"],
    ["off", "tgt", "lab", "q"], 4⟩
 
 /-- The machine program. -/
@@ -148,20 +157,20 @@ def runOut : ℕ → Program → State → ℕ → Option (List ℕ × ℕ)
 def test (x : List ℕ) : Option (List ℕ × ℕ) := runOut 100000 ccProgram (initState x) 0
 
 -- no vertices
-#guard test [0, 0, 0] = some ([], 94)
+#guard test [0, 0, 0] = some ([], 97)
 -- one vertex, no edges
 #guard test [1, 0, 0, 0] = some ([0], 292)
 -- two vertices, the edge between them
-#guard test [2, 1, 0, 1, 2, 1, 0] = some ([0, 0], 633)
+#guard test [2, 1, 0, 1, 2, 1, 0] = some ([0, 0], 634)
 -- two vertices, no edge
-#guard test [2, 0, 0, 0, 0] = some ([0, 1], 490)
+#guard test [2, 0, 0, 0, 0] = some ([0, 1], 487)
 -- three vertices, the edge 1-2
-#guard test [3, 1, 0, 0, 1, 2, 2, 1] = some ([0, 1, 1], 831)
+#guard test [3, 1, 0, 0, 1, 2, 2, 1] = some ([0, 1, 1], 829)
 -- four vertices, the edges 0-2 and 1-3: two components, interleaved
-#guard test [4, 2, 0, 1, 2, 3, 4, 2, 3, 0, 1] = some ([0, 1, 0, 1], 1172)
+#guard test [4, 2, 0, 1, 2, 3, 4, 2, 3, 0, 1] = some ([0, 1, 0, 1], 1171)
 -- five vertices, the path 0-1-2-3 and an isolated vertex
 #guard test [5, 3, 0, 1, 3, 5, 6, 6, 1, 0, 2, 1, 3, 2] = some ([0, 0, 0, 0, 4], 1513)
 -- four vertices, a triangle and an isolated vertex
-#guard test [4, 3, 0, 2, 4, 6, 6, 1, 2, 0, 2, 0, 1] = some ([0, 0, 0, 3], 1324)
+#guard test [4, 3, 0, 2, 4, 6, 6, 1, 2, 0, 2, 0, 1] = some ([0, 0, 0, 3], 1327)
 
 end Lax11Proofs.CC
