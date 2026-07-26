@@ -1,4 +1,4 @@
-# RAM stack plan (rev 5 — C0 frozen, P1 done, P3 next)
+# RAM stack plan (rev 6 — C0 frozen, P1 done, reasoning kit done, driver next)
 
 Status (2026-07-26): id **Lax11** provisioned via `lax init
 ram-linear-time`; scaffold in place. Jan delegated the P-layer design
@@ -6,7 +6,16 @@ choices (D9–D12, settled below) and, in the session of 2026-07-26 (2),
 the answers to the three step-1 review questions ("follow your
 recommendations").
 
-**Steps 1–3 are done.** The surface is frozen at the recommended
+**Steps 1–5 are done.** Step 5 was taken with the delegated mandate to
+follow my own analysis, and the analysis changed its shape: the two
+layers P2 and P3 collapse into one file, `Reasoning.lean`, because the
+`Prog` DSL of D9 turned out to *be* IMP+ and the fuel interpreter of
+D12 turned out to buy nothing a per-algorithm proof can use (**D19**,
+argued below). What was built instead is the bounded judgment `Run` and
+the potential-based while rule; the smoke test re-proved at that level
+halved and the constant improved. Next is the driver.
+
+The surface is frozen at the recommended
 answers: `ComputesInTime` only (D13 kept), `edgeCount` = declared
 half-length with repetitions permitted (D14 kept), `EncodesGraph` a
 `Prop`-structure (D14 kept). Writing the compiler then forced one
@@ -347,14 +356,77 @@ per-algorithm proof never sees a derivation. The measurement says P3 is
 worth building; it also says the fallback (P2-style lockstep
 refinement) would be unpleasant, since it would keep friction 1.
 
-### P2 — thin Hoare-with-time kit over IMP+
+### P2/P3 — the reasoning kit (`Reasoning.lean`, done)
 
-`{P} c {Q | t}` as a semantic definition + derived rules (seq/if/
-while-with-invariant-variant-and-cost-potential). Deliberately thin:
-P2 exists to prove the P1/P3 compilers and as the fallback for ad-hoc
-programs. End users live at P3; if P3 works, P2 never grows a VCG.
+**What was built.** One file, ~230 lines, no new syntax:
 
-### P3 — the catch: write once, shallowly
+- `Run c σ σ' K := ∃ k ≤ K, BigStep c σ σ' k` — the cost is a *bound*,
+  so the cost arithmetic of the model is never matched syntactically.
+  `Run.mono` takes slack at any point instead of at the end.
+- A rule per construct (`skip`/`assign`/`store`/`read`/`write`/`seq`/
+  `ite_true`/`ite_false`/`while_false`), all one-liners over the
+  constructors. Because each rule *computes* its final environment,
+  chains like `Run.seq (Run.read h) (Run.seq (Run.assign (v := …) (by
+  simp)) …)` infer every intermediate environment: the user names none
+  of them, which was half of the P1-level friction.
+- `Run.while_pot` — invariant `I` plus **potential** `Φ : Env → ℕ`,
+  obligation `1 + b.size + K + Φ σ' ≤ Φ σ` per iteration, conclusion
+  `Run (while b c) σ σ' (Φ σ + 1 + b.size)` with `I σ'` and the
+  condition false. Termination is not a separate obligation: a
+  potential that pays for a nonzero cost strictly decreases, so it *is*
+  the variant. This is the form amortized bounds need — an outer BFS
+  iteration has no constant bound, but pays out of "queue entries left
+  plus adjacency slots left".
+- `Run.while_count` — the uniform-cost corollary (invariant, variant,
+  one bound `P` per iteration), which is what ordinary loops use.
+- `simp` sets for reading back an updated environment
+  (`vars_setVar`, `arrs_setArr`, …), for `Expr.eval`/`Cond.eval` and
+  for `Expr.size`/`Cond.size`, so evaluation side conditions and cost
+  numerals are discharged by bare `simp`.
+- `computesInTime_of_run` — the lemma that ends an algorithm proof:
+  a `Run` on every valid input, plus the output it computes, plus
+  `L.const * K ≤ T x`, gives the concept's `ComputesInTime` for the
+  compiled program. The compiler and the machine never appear again.
+
+**Step-5 checkpoint (the make-or-break review).** The smoke test was
+re-proved at this level. Same three theorems, **59 → 34 lines** of
+tactic script, and the bound improved from `462 * (|x| + 1)` to
+`286 * (|x| + 1)` because slack is now taken once. More important than
+the count: what remains is the algorithm — the invariant, the argument
+that the loop exits with its input consumed, the arithmetic — while the
+bookkeeping (environment updates, derivation building, on-the-nose
+costs) is gone. The loop is *one* rule application with four one-line
+obligations. Verdict: the kit is sufficient for the driver; the
+fallback is not needed and P2 as a separate layer never has to exist.
+
+#### D19 — why there is no `Prog` and no fuel interpreter
+
+The plan's P3 was a second syntax `Prog` with an executable fuel
+denotation `run`, a compiler `compileProg : Prog → Com`, and an
+adequacy theorem. Written out, all three are degenerate:
+
+- `Prog` is `Com`. D17 had already given IMP+ `read`/`write` and taken
+  away extents and headers, so the two grammars are the same grammar;
+  the compiler is the identity and adequacy is a restatement. The
+  DSL's advertised value was never syntax distance — it was the
+  reasoning layer, and the reasoning layer does not need it.
+- The fuel interpreter would earn its keep only if per-algorithm proofs
+  *evaluated* it. They cannot: the environments in an invariant are
+  symbolic, so `run p σ f` never reduces at the point where the
+  argument happens. Fuel-monotonicity and adequacy would be paid for
+  and not used.
+- Executable testing, the interpreter's other purpose, already exists
+  one level down and is strictly better there: `#eval` on the compiled
+  machine program tests the compiler too, which is how the two P1 bugs
+  were found.
+
+So D9's "reason at the denotation, never on compiled artifacts" is kept
+— `Run` *is* the denotation-level judgment — while its syntactic
+apparatus is dropped. D12 is superseded. The fallback in D9 (P2-style
+lockstep refinement) is moot, since what was built is the P2 kit in the
+P3 style.
+
+### P3 as originally planned (superseded by D19, kept for the record)
 
 Design (D9): a **deep first-order combinator DSL with a shallow
 denotation**, not lockstep refinement of hand-written IMP+.
@@ -443,14 +515,13 @@ needs it.
    the smoke test: `sumProgram_computesInTime` is a `ComputesInTime`
    statement of the concept surface about a concrete machine program,
    proved through the tower. → **checkpoint reported above.**
-4. **P2**: the thin Hoare kit — *skipped for now*. P1 needed nothing
-   from it and P3 is the ergonomic answer; it stays available as the
-   fallback if step 5 disappoints.
-5. **P3**: `Prog`, `run`, rule library, `compileProg`, adequacy.
-   Re-run the smoke test at P3 (should shrink to a few lines of
-   rule-library reasoning). → **checkpoint: this is the make-or-break ergonomics
-   review; if the while-rule at denotation level is unpleasant,
-   fallback is P2-style lockstep refinement before the driver.**
+4. **P2**: the thin Hoare kit — merged into step 5 by D19; there is no
+   separate layer.
+5. **The reasoning kit** — ✅ done. `Run`, the construct rules, the
+   potential while rule and its counted corollary, the `simp` sets, and
+   `computesInTime_of_run`. Smoke test re-proved at that level.
+   → **checkpoint reported above: 59 → 34 lines, constant 462 → 286,
+   verdict "sufficient, no fallback needed".**
 6. **Driver**: `ccPure` + mathlib proof, BFS `Prog`, cost invariant,
    assembly, axiom discharge, audit.
 7. **Wrap-up**: formalization notes (honesty ledger: D2 no-MULT
@@ -554,7 +625,15 @@ writing the compiler)
   arrays would need run-time bases (lengths are unbounded); striding
   keeps every address a static affine function of the index at a cost
   of `q` additions per access, and address space is free under D6.
-- **D12** (settled) P3 denotation is a fuel interpreter
+- **D19** (mine, taken under Jan's delegation at step 5) No `Prog`
+  syntax and no fuel interpreter. The reasoning layer is `Run`, the
+  bounded judgment over `BigStep`, with a rule per construct and a
+  while rule taking an invariant and a **potential** (termination and
+  the cost bound are then one obligation, and amortized bounds are
+  direct). Supersedes D12 and the syntactic half of D9; the merged
+  layer replaces P2 as well. Full argument in "D19" above; the
+  measurement that backs it is the step-5 checkpoint.
+- **D12** (superseded by D19) P3 denotation is a fuel interpreter
   `run : Prog → Env → ℕ → Option (Env × ℕ)` with fuel-monotonicity
   and a once-proved combinator rule library (seq/ite rules,
   while-rule with invariant + variant + cost potential); fuel never

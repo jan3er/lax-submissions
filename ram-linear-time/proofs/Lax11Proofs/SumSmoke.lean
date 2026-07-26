@@ -1,24 +1,32 @@
-import Lax11.RamComputes
-import Lax11Proofs.Simulation
+import Lax11Proofs.Reasoning
 
 /-!
-The P1 chain, end to end, on one algorithm: an IMP+ program that reads
-a length-prefixed word and writes its sum runs on the machine within a
+The chain, end to end, on one algorithm: an IMP+ program that reads a
+length-prefixed word and writes its sum runs on the machine within a
 linear time bound.
 
-This is a test of the tower, not of the algorithm. It is written at the
-level P1 offers — a big-step derivation built by hand, with the loop
-done by induction on the remaining input — precisely to record what
-that costs before P2 and P3 exist to make it pleasant. Everything about
-the constants is deliberately crude: 21 units of IMP+ cost per input
-number, times the layout's 22 machine steps per unit, gives 462, and
-nothing is tight anywhere.
+This is a test of the tower, not of the algorithm, and it is the
+measurement that decides whether the reasoning kit was worth building.
+The same three theorems were first proved directly against the big-step
+semantics (git history, rev 5 of the plan): a derivation built by hand
+for every command, the loop by induction on the remaining input, every
+intermediate environment named, and the cost of every construct matched
+on the nose and repaired afterwards by `omega`. That came to 59 lines
+of tactic script, and the constant came out at `462 * (|x| + 1)`.
+
+Here it is 34, and what is left is the algorithm rather than the
+semantics: the invariant, the argument that the loop exits with the
+input consumed, and the arithmetic of the bound. The loop is one
+application of `Run.while_count`; the straight-line code is four rule
+applications with the environments inferred; the constant — now
+`286 * (|x| + 1)`, smaller because slack is taken once instead of at
+every construct — falls out of `computesInTime_of_run`.
 -/
 
 namespace Lax11Proofs.SumSmoke
 
 open Lax11.Ram Lax11.RamComputes Lax11Proofs.Imp Lax11Proofs.Compile
-open Lax11Proofs.Simulation
+open Lax11Proofs.Reasoning
 
 /-- `i < n`, the loop condition. -/
 def loopCond : Cond := .lt (.var "i") (.var "n")
@@ -54,87 +62,69 @@ theorem sumCom_ok : Com.Ok layout sumCom := by
 theorem const_eq : layout.const = 22 := by
   simp [Layout.const, Layout.idxLen, layout]
 
-/-- The loop: whatever the input still holds, it is read, counted and
-summed, at a cost of at most 14 per number. Induction on the input that
-is left, which is the loop's variant. -/
-theorem loop_bigStep : ∀ (rest : List ℕ) (σ : Env), σ.inp = rest →
-    σ.vars "n" = σ.vars "i" + rest.length →
-    ∃ (σ' : Env) (k : ℕ), BigStep loop σ σ' k ∧ k ≤ 14 * (rest.length + 1) ∧
-      σ'.vars "s" = σ.vars "s" + rest.sum ∧ σ'.out = σ.out := by
-  intro rest
-  induction rest with
-  | nil =>
-      intro σ _ hn
-      refine ⟨σ, 4, BigStep.while_false ?_, by omega, by simp, rfl⟩
-      simp [loopCond, Cond.eval, Expr.eval, hn]
-  | cons v rest ih =>
-      intro σ hinp hn
-      have hlt : loopCond.eval σ = some true := by
-        simp [loopCond, Cond.eval, Expr.eval, hn]
-      have hb₁ : BigStep (.read "v") σ { σ.setVar "v" v with inp := rest } 1 :=
-        BigStep.read (by rw [hinp])
-      set σ₁ : Env := { σ.setVar "v" v with inp := rest } with hσ₁
-      have hb₂ : BigStep (.assign "s" (.add (.var "s") (.var "v"))) σ₁
-          (σ₁.setVar "s" (σ.vars "s" + v)) 4 := by
-        refine BigStep.assign ?_
-        simp [Expr.eval, hσ₁, Env.setVar]
-      set σ₂ : Env := σ₁.setVar "s" (σ.vars "s" + v) with hσ₂
-      have hb₃ : BigStep (.assign "i" (.add (.var "i") (.lit 1))) σ₂
-          (σ₂.setVar "i" (σ.vars "i" + 1)) 4 := by
-        refine BigStep.assign ?_
-        simp [Expr.eval, hσ₂, hσ₁, Env.setVar]
-      set σ₃ : Env := σ₂.setVar "i" (σ.vars "i" + 1) with hσ₃
-      obtain ⟨σ', k, hk, hkle, hs, hout⟩ := ih σ₃ (by simp [hσ₃, hσ₂, hσ₁, Env.setVar])
-        (by simp [hσ₃, hσ₂, hσ₁, Env.setVar] at hn ⊢; omega)
-      refine ⟨σ', 13 + k, BigStep.while_true hlt (BigStep.seq hb₁ (BigStep.seq hb₂ hb₃)) hk,
-        by simp; omega, ?_, ?_⟩
-      · rw [hs]
-        simp [hσ₃, hσ₂, hσ₁, Env.setVar]
-        omega
-      · rw [hout]
-        simp [hσ₃, hσ₂, hσ₁, Env.setVar]
+/-- The loop invariant, relative to the environment `σ₀` in which the
+loop is entered: the counter has the input still to be read left to go,
+the sum of what was read is already in `s`, and nothing was written. -/
+def Inv (σ₀ τ : Env) : Prop :=
+  τ.vars "n" = τ.vars "i" + τ.inp.length ∧
+  τ.vars "s" + τ.inp.sum = σ₀.vars "s" + σ₀.inp.sum ∧
+  τ.out = σ₀.out
 
-/-- The whole program: on a length-prefixed word, the derivation
-exists, it costs at most `21 * (|x| + 1)`, and it writes the sum. -/
-theorem sumCom_bigStep (xs : List ℕ) :
-    ∃ (σ' : Env) (k : ℕ),
-      BigStep sumCom (initEnv (fun _ => 0) (xs.length :: xs)) σ' k ∧
-      k ≤ 21 * ((xs.length :: xs).length + 1) ∧ σ'.out = [xs.sum] := by
-  set σ₀ : Env := initEnv (fun _ => 0) (xs.length :: xs) with hσ₀
-  have hb₁ : BigStep (.read "n") σ₀ { σ₀.setVar "n" xs.length with inp := xs } 1 :=
-    BigStep.read rfl
-  set σ₁ : Env := { σ₀.setVar "n" xs.length with inp := xs } with hσ₁
-  have hb₂ : BigStep (.assign "i" (.lit 0)) σ₁ (σ₁.setVar "i" 0) 2 := BigStep.assign rfl
-  set σ₂ : Env := σ₁.setVar "i" 0 with hσ₂
-  have hb₃ : BigStep (.assign "s" (.lit 0)) σ₂ (σ₂.setVar "s" 0) 2 := BigStep.assign rfl
-  set σ₃ : Env := σ₂.setVar "s" 0 with hσ₃
-  obtain ⟨σ', k, hk, hkle, hs, hout⟩ := loop_bigStep xs σ₃ (by simp [hσ₃, hσ₂, hσ₁, Env.setVar])
-    (by simp [hσ₃, hσ₂, hσ₁, hσ₀, initEnv, Env.setVar])
-  have hb₅ : BigStep (.write (.var "s")) σ' { σ' with out := σ'.out ++ [σ'.vars "s"] } 2 :=
-    BigStep.write rfl
-  refine ⟨{ σ' with out := σ'.out ++ [σ'.vars "s"] }, _,
-    BigStep.seq hb₁ (BigStep.seq hb₂ (BigStep.seq hb₃ (BigStep.seq hk hb₅))), ?_, ?_⟩
-  · simp only [List.length_cons]; omega
-  · show σ'.out ++ [σ'.vars "s"] = _
-    rw [hout, hs]
-    simp [hσ₃, hσ₂, hσ₁, hσ₀, initEnv, Env.setVar]
+/-- The loop: whatever the input still holds is read, counted and
+summed, at a cost of at most 13 per number. The variant is the input
+that is left; one application of the counted while rule. -/
+theorem loop_run (σ₀ : Env) (hn : σ₀.vars "n" = σ₀.vars "i" + σ₀.inp.length) :
+    ∃ σ', Run loop σ₀ σ' (13 * σ₀.inp.length + 4) ∧
+      σ'.vars "s" = σ₀.vars "s" + σ₀.inp.sum ∧ σ'.out = σ₀.out := by
+  have hstep : ∀ τ : Env, Inv σ₀ τ → loopCond.eval τ = some true →
+      ∃ τ', Run body τ τ' 9 ∧ Inv σ₀ τ' ∧ τ'.inp.length < τ.inp.length := by
+    rintro τ ⟨hn', hs', hout'⟩ hcond
+    have hlt : τ.vars "i" < τ.vars "n" := by
+      simpa [loopCond] using hcond
+    obtain ⟨v, rest, hinp⟩ : ∃ v rest, τ.inp = v :: rest := by
+      rcases h : τ.inp with _ | ⟨v, rest⟩
+      · rw [h] at hn'; simp at hn'; omega
+      · exact ⟨v, rest, rfl⟩
+    refine ⟨_, (Run.seq (Run.read hinp)
+        (Run.seq (Run.assign (v := τ.vars "s" + v) (by simp))
+          (Run.assign (v := τ.vars "i" + 1) (by simp)))).mono
+        (by simp), ⟨?_, ?_, ?_⟩, ?_⟩
+    · simp [hinp] at hn' ⊢; omega
+    · simp [hinp] at hs' ⊢; omega
+    · simpa using hout'
+    · simp [hinp]
+  obtain ⟨σ', hrun, ⟨hn'', hs'', hout''⟩, hfalse⟩ :=
+    Run.while_count (b := loopCond) (c := body) (Inv σ₀) (fun τ => τ.inp.length) 9
+      (fun τ _ => ⟨_, rfl⟩) hstep ⟨hn, rfl, rfl⟩
+  have hexit : ¬ σ'.vars "i" < σ'.vars "n" := by
+    simpa [loopCond] using hfalse
+  have hnil : σ'.inp = [] := by
+    rcases h : σ'.inp with _ | ⟨v, rest⟩
+    · rfl
+    · rw [h] at hn''; simp at hn''; omega
+  refine ⟨σ', hrun.mono (by simp [loopCond]), ?_, hout''⟩
+  rw [hnil] at hs''; simpa using hs''
 
 /-- **The chain, end to end.** The compiled machine program computes
-the sum of a length-prefixed word within `462 * (|x| + 1)` steps. The
-constant comes from `21` units of IMP+ cost per input number and the
-layout's `22` machine steps per unit; the time is the machine's own
-step count. -/
+the sum of a length-prefixed word within `286 * (|x| + 1)` steps, in
+the machine's own step count. Three lines of arithmetic: the IMP+ cost
+of the run is `13 * |xs| + 11`, the layout costs `22` machine steps per
+unit of it, and `22 * (13 * |xs| + 11) ≤ 286 * (|xs| + 2)`. -/
 theorem sumProgram_computesInTime :
     ComputesInTime sumProgram {x : List ℕ | ∃ xs, x = xs.length :: xs}
-      (fun x => [x.tail.sum]) (fun x => 462 * (x.length + 1)) := by
+      (fun x => [x.tail.sum]) (fun x => 286 * (x.length + 1)) := by
+  refine computesInTime_of_run (ext := fun _ => 0) sumCom_ok ?_
   rintro x ⟨xs, rfl⟩
-  obtain ⟨σ', k, hbs, hk, hout⟩ := sumCom_bigStep xs
-  obtain ⟨t, ht, hrun⟩ := compileProgram_runsTo sumCom_ok hbs
-  refine ⟨t, ?_, ?_⟩
-  · rw [const_eq] at ht
-    calc t ≤ 22 * k := ht
-      _ ≤ 22 * (21 * ((xs.length :: xs).length + 1)) := Nat.mul_le_mul_left _ hk
-      _ = 462 * ((xs.length :: xs).length + 1) := by ring
-  · simpa [hout] using hrun
+  set σ₀ : Env := initEnv (fun _ => 0) (xs.length :: xs) with hσ₀
+  obtain ⟨σ', hloop, hs, hout⟩ :=
+    loop_run (({ σ₀.setVar "n" xs.length with inp := xs }.setVar "i" 0).setVar "s" 0)
+      (by simp [hσ₀, initEnv])
+  refine ⟨_, _, Run.seq (Run.read rfl)
+    (Run.seq (Run.assign (v := 0) rfl)
+      (Run.seq (Run.assign (v := 0) rfl)
+        (Run.seq hloop (Run.write (v := σ'.vars "s") rfl)))), ?_, ?_⟩
+  · show σ'.out ++ [σ'.vars "s"] = _
+    rw [hout, hs]; simp [hσ₀, initEnv]
+  · rw [const_eq]; simp [hσ₀, initEnv]; omega
 
 end Lax11Proofs.SumSmoke
