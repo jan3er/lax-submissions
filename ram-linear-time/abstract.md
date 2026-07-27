@@ -117,12 +117,23 @@ something the program computes; the formalization notes on the theorem
 say plainly what that leaves open, as they do for everything else the
 statement decides rather than proves.
 
-The vertex cover statement is open. The archive decouples concepts
-from proofs — a submission may leave its own obligations open — and a
-catch-all submission uses that deliberately: a statement joins the
-surface when its form is settled, and its discharge, here a bounded
-search tree written in the same while-language and costed by the same
-loop rule, can arrive in a later record without the surface moving
-under its reviewers. What is proved and what is merely stated is said
-plainly, here and in the formalization notes, because the submission's
-value is exactly that distinction.
+The vertex cover statement is discharged as well, and by the same
+apparatus: the textbook bounded search tree of Downey and Fellows,
+written in the same while-language and costed by the same loop rule.
+The driver marks vertices in an array and keeps the alternatives it
+still owes on a stack, branching on an edge with neither endpoint
+marked, and correctness is a single invariant splitting the answer
+between the marking it has committed to and the frames it has yet to
+try. The cost is again one potential — $4\cdot 2^b-3$ for the subtree
+still to be searched at remaining budget $b$, plus slack for the
+frames — so the whole tree is paid for by one application of the loop
+rule rather than by a recursion, and the factor $2^k$ enters exactly
+once, as the potential of the initial configuration. The constant that comes out is
+33300: thirty-seven machine steps per statement of the compiled
+program, times $900\,2^k(|x|+1)$ statements. No reduction rules are
+applied, and nothing here competes with the refined analyses that beat
+the base 2. The statement joined the surface before it had a proof,
+which is what the archive's decoupling of concepts from proofs is for;
+what is proved and what is merely stated is said plainly, here and in
+the formalization notes, because the submission's value is exactly
+that distinction.
