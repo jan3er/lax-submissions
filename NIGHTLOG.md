@@ -631,3 +631,651 @@ Plan bumped to rev 5 (C11–C14 added; C4/C6/C7/C7a superseded); brief
 milestones rewritten (rev 4): M8 Q4a expressions, M9 Q4b congruences,
 M10 Q4c table + main induction + gate, M11 freeze, M12 driver, M13
 wrap-up. Relay resumes at M8.
+
+## Session 12 — 2026-07-27 ~22:40 UTC
+Milestone: M8 — Q4a (k-expressions, the object) — done
+Commits: 5a99b35 "Courcelle Q4a: k-expressions, the object"
+State: `ram-linear-time/proofs/Lax11Proofs/CliqueExpr.lean` (413 lines,
+namespace `Lax11Proofs.CliqueExpr`, imported from `Lax11Proofs.lean`; imports
+Mathlib only — zero coupling to MsoTypes or TreeFold). Contains: `Expr n k`
+(`leaf v l` / `union` / `addEdges i j` / `relabel i j`); the evaluator split
+into four independent structural recursions — `leafIds : List (Fin n)`,
+`verts : Finset (Fin n)`, `cls : Fin k → Finset (Fin n)`,
+`graph : SimpleGraph (Fin n)` (`⊥` / `⊔` / `⊔ SimpleGraph.fromRel …`) — plus
+`opsOk : Bool`; a `DecidableRel (graph e).Adj` instance by the same recursion;
+20 one-line `rfl` equation lemmas (`@[simp]`), so no proof simps with a
+pattern-matching definition; `Valid` (leaf ids `Nodup` + `opsOk`) and
+`ValidFor e G` (adds `verts e = univ`, `graph e = G`). Structural facts, all
+proved: `mem_verts_iff` / `verts_eq_toFinset` (vertex set = leaf-id set),
+`cls_subset_verts`, `exists_mem_cls`, `verts_eq_biUnion_cls` (classes cover),
+`cls_unique` + `cls_disjoint` (classes partition, from leaf-distinctness),
+`verts_disjoint` / `Valid.disjoint` (**⊕-side disjointness**),
+`mem_verts_of_adj` (edges stay inside `verts`), `sep_union` (the `Glue.sep`
+shape verbatim, over `Set` coercions), and the sub-validity lemmas
+`Valid.left/right/of_addEdges/of_relabel/ne`. Smoke test first, per house
+discipline: `pathExpr : Expr 3 2` for the path 0—1—2, with `#guard`s on
+`leafIds`, `verts = univ`, both label classes, `opsOk`, the **decided edge
+set** `{(0,1),(1,0),(1,2),(2,1)}`, and that `relabel 1 0` merges the classes
+and changes no edge. `lake build` green (2990 jobs), no `sorry`, no new
+warnings; `#print axioms` on five main lemmas = propext, Classical.choice,
+Quot.sound.
+Cost: the smoke test passed on the first elaboration (the `decide`d edge set
+caught nothing — the `relabel` if-order below was fixed while writing);
+everything green in three diagnostic rounds; longest proof is `cls_unique`'s
+relabel case at ~25 lines, everything else under 10.
+Next: M9 — Q4b, the op congruences (C13), starting with `typ_disjUnion` as the
+`c = 0` instance of `typ_union_congr`: feed it `Valid.disjoint` (for `interX`/
+`interY`, vacuous at the empty overlap) and `sep_union` (for `Glue.sep`), with
+`X := ↑(verts e₁)`, `Y := ↑(verts e₂)`, `A i := ↑(cls _ i)`.
+Decisions: (1) **`Finset`, not `Set`, in the evaluator.** `verts`/`cls` are
+`Finset (Fin n)`, which is what makes `graph e` decidable and the whole smoke
+test `#guard`able (a genuine edge-set check, not a hand-simp). M9/M10 consume
+them through `↑` coercions — `typ` wants `Set (Fin n)`; `sep_union` is already
+stated in coerced form to show the friction is nil. If M9 finds the coercions
+annoying, the fix is Set-level restatements *added* here, not a change of
+definition — computability of the surface object is worth more.
+(2) **The evaluator is four recursions, not one tuple-valued `eval`.** Plan
+C12 writes `eval e = (X, H, lab)`; splitting it gives one clean equation lemma
+per function and no projection noise, and the concept-surface copy at M11 is
+just as auditable (~45 lines of definitions). Flagging it as a deviation in
+presentation only.
+(3) **`i ≠ j` for `addEdges` lives in validity (`opsOk`), not in the
+constructor.** A proof field in the inductive would infect every `Expr`
+literal and the encoding at M12. Nothing in the mathematics needs `i ≠ j`
+(the η congruence will hold for `i = j` too); it is there for fidelity to the
+standard definition of clique-width, so that the surface does not silently
+claim a larger class of graphs. `Valid.ne` extracts it.
+(4) **`relabel i j` tests `t = j` before `t = i`**, so that `relabel i i` is
+the identity rather than the class-erasing operation the other order would
+give. Cheap and worth keeping in any surface copy.
+(5) `sep_union` needs **no** validity hypothesis — a `⊕` adds no edges, so the
+separation is unconditional; only the disjointness clause of `Glue` uses
+leaf-distinctness. Slightly fewer hypotheses to carry at M9 than expected.
+
+**Orchestrator gate (after session 12): approved, all five.** The
+as-built shape (Finset evaluator, four recursions + `opsOk`, `i ≠ j`
+in validity, `relabel i i` = identity) *is* the C12 object now —
+presentation amendments, no rev bump; M11's surface copy is verbatim
+the as-built `CliqueExpr` definitions, ~45 lines. If M9 wants
+Set-level restatements they are added lemmas, never definition
+changes. Proceed to M9.
+
+## Session 13 — 2026-07-27 ~23:55 UTC
+Milestone: M9 — Q4b (the op congruences, C13) — done
+Commits: fc4080a "Courcelle Q4b: the op congruences"
+State: `ram-linear-time/proofs/Lax11Proofs/MsoCliqueOps.lean` (582 lines, imported
+from `Lax11Proofs.lean`; imports `MsoComposition` + `CliqueExpr`). Frozen files
+untouched — `CliqueExpr.lean` did not need even the permitted added lemmas, the
+two `Set`-level restatements went in the new file. Namespace
+`Lax11Proofs.MsoTypes` for everything general about `typ` (it would belong in
+`MsoTypes.lean` if that were not frozen; the docstring says so, as session 10 did
+with `typ_succ_congr`), and a closing `Lax11Proofs.CliqueExpr` block for the four
+bridging lemmas. Contents, in the brief's order:
+(1) `typ_disjUnion` — the `c = a = b = 0` instance of `typ_union_congr`, exactly
+as session 12 spelled it out: the two `Glue`s are built inline from
+`Set.disjoint_left` (the two overlap clauses) and `Fin.elim0` (the four mark
+clauses and the overlap pattern), `sep` is passed through verbatim. **17 lines,
+statement included**; the pivot's core claim is confirmed.
+(2) `typ_setRemap` for `f : Fin s' → Finset (Fin s)`, `A' j = ⋃ i ∈ f j, A i`,
+via `setRemap`/`liftLastF`/`setRemap_snoc` (the set-side counterpart of
+`snoc_comp_liftLast`); instances `typ_relabel` (through `relabelSets`/`relabelF`,
+the exact shape of `cls (.relabel i j e)`) and `typ_forgetAll` (`s' = 0`).
+(3) `typ_addEdges`, over `addEdgesG G A i j := G ⊔ SimpleGraph.fromRel (· ∈ A i ∧ · ∈ A j)`
+— **no hypothesis beyond equality of the types**, in particular no `i ≠ j` and
+no marks-in-`X`. All the work is `Atomic.of_addEdges` (10 lines): the new
+adjacency is `adj ∨ (¬eq ∧ (mem i ∧ mem j ∨ …))`, three atoms the diagram
+already carries.
+(4) `typ_singleton` — general mark tuple all of whose entries are the vertex
+(that is what the vertex move produces); the set move maps `S ⊆ {v₁}` to
+`if v₁ ∈ S then {v₂} else ∅`.
+Plus `typ_congr_edges` and the bridge: `Valid.disjoint_coe`, `graph_addEdges_eq`
+(`rfl`), `cls_relabel_eq`, `typ_graph_union_left`/`_right`. Non-vacuity anchor:
+the outer `⊕` of `pathExpr` satisfies the disjointness hypothesis, by
+`Valid.of_addEdges … |>.disjoint_coe` with `Valid pathExpr` by `decide`.
+`lake build` green (2991 jobs), no `sorry`, no new warnings; `#print axioms` on
+all seven main results = propext, Classical.choice, Quot.sound.
+Cost: three compile rounds, no approach abandoned. Every one of the four is the
+same q-induction skeleton as `typ_comp_congr` (diagram + `vstep` + `sstep`), so
+the proofs are transcription, not invention; the longest is `typ_setRemap` at 60
+lines including its restated hypothesis block, the shortest `typ_disjUnion` at
+17. Set-move hypothesis restatement is again where the volume is (session 10's
+measurement holds), but the identity vertex sets mean there is no re-indexing
+anywhere.
+Next: M10 — Q4c, the table and the main induction. The interfaces line up:
+`typeOf e := typ q ↑(verts e) (Fin.elim0) (fun i => ↑(cls e i))`; the `⊕` case is
+`typ_graph_union_left`/`_right` to move the children into the parent's graph,
+`typ_congr_inter` to move the children's set parameters from `cls e₁`/`cls e₂` to
+`cls (union e₁ e₂)` (they agree inside each child's vertex set, which is exactly
+that lemma's hypothesis), then `typ_disjUnion` fed `Valid.disjoint_coe` +
+`sep_union`; the `η` case is `graph_addEdges_eq` + `typ_addEdges`; the `ρ` case is
+`cls_relabel_eq` + `typ_relabel`; the leaf is `typ_singleton`; the root corollary
+is `typ_forgetAll` + `satIn_congr`.
+Decisions: (1) **"typ depends only on edges within X" is NOT implicit in M4** —
+the plan's open question, answered. `Atomic.of` reads `G.Adj (m i) (m j)` for a
+mark tuple that `typ` never requires to lie in `X`, so the statement is simply
+false without `∀ i, m i ∈ X`. With that hypothesis it is the same cheap
+induction: `typ_congr_edges` (16 lines) plus the instance `typ_sup_of_avoids`.
+Both are general facts about `typ`, so they are M11-surface-irrelevant but
+MsoTypes-shaped; flagged in the file's docstring for whoever un-freezes.
+(2) **`typ_addEdges` needs no `i ≠ j`**, confirming session 12's decision (3)
+from the other side: validity carries it for fidelity to the standard definition
+of clique-width, and nothing in the mathematics wants it. Also no marks-in-`X`
+hypothesis — the congruence is unconditional.
+(3) **`typ_setRemap` is stated with `Finset (Fin s)`, not a `Set` or a
+predicate.** The union `⋃ i ∈ f j, A i` needs no decidability and `liftLastF`
+uses `Finset.image`; a `Set (Fin s)` index would work equally but `Finset` is
+what `relabelF` writes down by `if`-cascade and what a future table-side
+enumeration would want.
+(4) **The `⊕` case will need `typ_congr_inter` as well as `typ_disjUnion`** —
+flagging it now because it is the one plumbing step M10 cannot get from C13: the
+children's types are taken with the *children's* label classes as set parameters,
+the union's with the union's, and `cls (union e₁ e₂) i ∩ verts e₁ = cls e₁ i`
+(from `cls_subset_verts` + `Valid.disjoint`). It is one line per side, but it is
+a real step and the plan's C13 list does not mention it.
+(5) `Reasoning.lean` untouched; no mathlib-shaped lemma was missing.
+
+**Orchestrator gate (after session 13): clean, proceed to M10.** The
+`typ_congr_inter` step in the ⊕ case (decision 4) is accepted as part
+of the case plan — it is an existing M4 lemma, not new machinery.
+Reminder to session 14: M10 ends at its checkpoint block; the freeze
+(M11) is orchestrator-gated, do not start it.
+
+## Session 14 — 2026-07-28 ~01:10 UTC
+Milestone: M10 — Q4c (the table, the main induction) — done, in one session
+Commits: a410ef3 "Courcelle Q4c: the type table, and the main induction"
+State: `ram-linear-time/proofs/Lax11Proofs/MsoTable.lean` (618 lines: 330 code,
+207 docstring, 81 blank), namespace `Lax11Proofs.MsoTable`, imported from
+`Lax11Proofs.lean`; imports `MsoCliqueOps` + `TreeFold` — **this is the first
+file that imports both workstreams**, which is what C14 is. No committed file
+was edited except the import line. Full `lake build` green (2992 jobs), no
+`sorry`, **no new warnings**; `#print axioms` on all eleven main results =
+propext, Classical.choice, Quot.sound. Contents, in order:
+(1) `Op k` (`union`/`leaf l`/`eta i j`/`rho i j`), the **computable** code
+`Op.code` (blocks `0` | `1+l` | `1+k+(i·k+j)` | `1+k+k²+(i·k+j)`), its
+computable inverse `Op.decode`, `Op.decode_code`, `Op.code_lt`,
+`opCard k = 1+k+2k²` (= the fold's `Table.L`).
+(2) `Val q k` = `done (t : T q 0 k)` | `unionEmpty` | `unionLeft t` |
+`etaWait i j` | `rhoWait i j`, `deriving DecidableEq, Fintype` (it just works,
+`instFintypeT` is found); `enc`/`dec` by `Fintype.equivFin` with `dec_enc`.
+(3) `Inst`/`UInst` (a region, resp. two disjoint mutually non-adjacent regions
+of one ambient graph, label classes as set parameters) and the three table
+entries `etaVal`/`rhoVal`/`unionVal` by `dif` on "∃ a realization of this
+type", with `etaVal_ty`/`rhoVal_ty`/`unionVal_ty` — **6, 6 and 9 lines**, each
+one `congrArg Val.done` applied to `typ_addEdges`/`typ_relabel`/
+`typ_disjUnion` at `h.choose_spec`. `leafType` needs no choice at all.
+(4) `initV`, `stepV` (four meaningful cases, all four equations `rfl`),
+`table q k : Table`, `table_wf` (**2 lines** — the partial states are
+inhabitants of `Val`, so `V` counts them and closure is `enc_lt`).
+(5) `typeOf q e := typ (graph e) ↑(verts e) q Fin.elim0 (fun i => ↑(cls e i))`
+and the four case lemmas.
+(6) `EncExpr par lab i e` (10 lines) and **`val_eq_typeOf`**: for `Valid e`
+and `EncExpr par lab i e`, `val (table q k) par lab i = enc (.done (typeOf q e))`.
+(7) The root: `sat_congr_typeOf` (equal root types ⟹ same rank-≤q sentences,
+via `typ_forgetAll` + `sat_congr_sentence` + `verts = univ` + `graph = G`),
+the accepting set `Accepts` with `accepts_typeOf`, and `acceptVal_val` — the
+C9 statement the driver cashes in: `acceptVal q k φ (val (table q k) par lab i)
+= true ↔ Sat G Fin.elim0 Fin.elim0 φ`.
+(8) Smoke test: `pathPar`/`pathLab`, the seven-node parent-pointer tree of
+`pathExpr`, with `EncExpr pathPar pathLab 6 pathExpr` proved by `decide`s.
+Cost: **two diagnostic rounds**. The first compile had six errors, all trivial
+(two `omega`-shaped arithmetic leftovers in `decode_code`, one over-eager
+`omega`, one missing explicit `q`); nothing was redesigned and no approach was
+abandoned.
+
+### Q4c checkpoint: the table and the induction as built
+
+*Verdict: **green, freeze recommended**. The pivot's promise held exactly.
+The main induction is 38 lines — ~8 per constructor — and every case is one
+C13 congruence plus `simp only` bookkeeping. Cross-graph plumbing stayed
+cheap: it cost two `rw`s, in one case, once.*
+
+*Lines per case* (proof bodies of `val_eq_typeOf`, and the semantic lemma
+each consumes):
+- **leaf**: induction case **4**, `typeOf_leaf` 6. One `typ_singleton`, with
+  the canonical one-vertex graph `(⊥ : SimpleGraph (Fin 1))` as the
+  representative. This is the lemma that makes the vertex-id array unread.
+- **⊕**: induction case **6**, `typeOf_union` 35 + two `cls_union_inter_*`
+  helpers 15 each = **65 — the only case with any volume**, and the whole of
+  it is the plumbing session 13 flagged in its decision (4). Breakdown: the
+  `UInst` literal 8, `tyL`/`tyR` 6+6 (each = one `typ_congr_inter` + one
+  `typ_graph_union_left/right`), `tyU` 4 (`Finset.coe_union`), assembly 1;
+  the two helpers are the set identity
+  `↑(cls e₁ j ∪ cls e₂ j) ∩ ↑(verts e₁) = ↑(cls e₁ j) ∩ ↑(verts e₁)`, i.e.
+  `cls_subset_verts` + `Valid.disjoint`.
+- **η**: induction case **6**, `typeOf_addEdges` **4** — and three of those
+  four lines are naming the `Inst`; the actual content is `rfl`, because
+  `graph (.addEdges i j e)` *is* `addEdgesG (graph e) ↑(cls e) i j` on the
+  nose (session 13's `graph_addEdges_eq`).
+- **ρ**: induction case **6**, `typeOf_relabel` **5** (`cls_relabel_eq`,
+  then `rfl`).
+- **root**: `sat_congr_typeOf` 23, `accepts_typeOf` 11, `acceptVal_val` 7.
+
+*Did cross-graph plumbing stay cheap?* **Yes, and cheaper than expected.**
+The plan's worry was that a child's type is computed in the child's evaluated
+graph while the parent's type lives in the parent's, so every case would owe
+a transfer. In the event only `⊕` owes one — `typ_graph_union_left/right`,
+already proved at M9, applied with the vacuous `∀ i, m i ∈ X` of the empty
+mark pool (`fun i => i.elim0`) — and `η`/`ρ` owe none, because their
+evaluated graph/classes are *definitionally* the operation applied to the
+child's. Two `rw`s in one case is the entire cost of "the graph varies along
+the tree".
+
+*The table by choice: measured.* The C5 device cost **21 lines of proof**
+(three correctness lemmas) plus two structures. The dependent ambient size
+`n` lives *inside* `Inst`/`UInst`, so the existential quantified over is over
+a single structure and `Exists.choose` needs no bundling gymnastics; the
+cross-ambient statements of M5/M6/M9 are what make this work — a same-ambient
+congruence could not have been lifted this way at all. `Table.Wf` is 2 lines
+because the partial states are constructors of `Val`, not a separate alphabet
+glued on: the brief's requirement that they count toward `Table.V` is
+satisfied by construction rather than by an argument.
+
+*The `Expr`↔encoding correspondence: shape and cost.* A relation, 10 lines:
+`EncExpr par lab i e`, by structural recursion on `e`, saying "the op code at
+`i` is `e`'s and `children par i` (the schema's own increasing-index list) is
+the list of the subexpressions' nodes, left before right". It is stated
+against `TreeFold.children`, which is exactly what `val_eq_foldl` unfolds to,
+so the induction consumes it with a single `rw [val_eq_foldl, hc]` per case
+and *no* fuel, index or ordering reasoning appears anywhere. The literal
+`par`/`lab`-array form is **not** deferred in spirit: the op codes are pinned
+here as explicit arithmetic with a proved inverse (`Op.decode_code`) and a
+proved bound (`Op.code_lt`, i.e. `lab i < Table.L`), and the smoke test
+exhibits real arrays satisfying `EncExpr`. What M12 still owes is only the
+bridge from an input word to `(par, lab)` — `EncodesTree`'s job, which it
+already does — plus the two facts `EncExpr` deliberately does not carry:
+`par c > c` and `root = N-1` (needed by `sweep_eq_val`, not by `val`).
+Recommend M12 state `EncodesInstance` as `EncodesTree` ∧ `EncExpr par lab (N-1) e`
+∧ `ValidFor e G`; nothing else is missing.
+
+*Readiness for the surface freeze: ready.* The three objects the freeze
+copies out are untouched by this milestone and were consumed exactly as they
+stand: `MSO`/`rank`/`Sat` appear only in the root corollary, in the sentence
+form `Sat G Fin.elim0 Fin.elim0 φ`; `Expr`/`verts`/`cls`/`graph`/`Valid`/
+`ValidFor` appear only through `Valid.left/right/of_addEdges/of_relabel`,
+`Valid.disjoint`, `ValidFor.verts_eq/graph_eq` and the 20 `rfl` equation
+lemmas. **`CliqueExpr.lean` needed no added lemma this session either** — M9
+and M10 both got through on what M8 shipped, which is the strongest evidence
+the surface shape is right. The one surface-visible number the freeze must
+carry is `opCard k = 1 + k + 2k²` and the code layout, since they are the
+input format; `Op`/`Op.code`/`Op.decode` are ~20 lines and are the natural
+fourth block of `concepts/Lax11/CliqueExpr.lean` (or of `Courcelle.lean`,
+where `EncodesInstance` will read them) — **orchestrator's call at M11**.
+
+Next: M11 — the surface freeze, **on the orchestrator's green only** (not
+started, `concepts/` untouched). Then M12 with the plumbing above.
+Decisions: (1) **The op codes are computable arithmetic, the value numbering
+is not.** `Fintype.equivFin` would have given a uniform two-line numbering for
+both alphabets, but the label alphabet is *in the input word*: a reader of
+`EncodesInstance` must be able to say that `η 0 1` at `k = 2` is the number
+`4`. So `Op.code`/`Op.decode`/`Op.decode_code` (≈45 lines with the four
+arithmetic helpers) buy an auditable input format; the values, which nobody
+writes down, stay noncomputable per C5.
+(2) **`EncExpr` is a relation, not an `Expr`-indexed `val`.** The brief
+allowed either. The relation is 10 lines, is stated in `children` (so it is
+literally what `val_eq_foldl` needs), and — unlike an `Expr`-level `val` —
+it is *also* what M12 must produce anyway, so nothing is proved twice.
+(3) **The accepting set is an existential, not a choice.** `Accepts q φ t :=
+∃ a valid expression of type t whose graph satisfies φ`; `accepts_typeOf` is
+11 lines and its forward direction is exactly `sat_congr_typeOf`. This keeps
+C9 free of a second choice and gives M12 a membership test rather than a
+function to invert.
+(4) **`stepV`'s junk cases answer `unionEmpty`, not a `default`.** A
+`default : T q 0 k` would need an `Inhabited` instance for the type algebra
+(provable, but a noncomputable instance on a frozen-file-shaped object);
+routing junk to a partial state costs nothing and keeps `MsoTypes.lean`'s
+API untouched.
+(5) `Reasoning.lean` untouched; no mathlib-shaped lemma was missing; the four
+`Fin`/`Nat` arithmetic helpers (`div_lt_sq`, `pos_of_lt_sq`, `mod_lt_sq`,
+`pair_lt`, `div_pair`) are private and local to the code arithmetic.
+
+**Orchestrator gate (after session 14): M10 checkpoint GREEN — the
+freeze is authorized. M11 decisions:**
+(1) `Op`/`Op.code`/`Op.decode`/`opCard` go in
+`concepts/Lax11/CliqueExpr.lean` as the fourth block — the code
+layout is part of the expression object's serialization, and
+`Courcelle.lean` stays statement-only.
+(2) `EncodesInstance` keeps C14's explicit leaf vertex-id array: the
+input literally is a k-expression (deterministic decode), the honest
+"given a k-expression" form; the program never reads it — ledger
+line, and the surface relation ties ids at leaves. The surface
+predicate must be self-contained in `concepts/` (no proofs imports):
+restate the tree layout in `EncodesGraph`'s style and a surface-level
+expression↔arrays relation (EncExpr's shape plus the id clause).
+(3) After copying, the proofs drafts (`Lax11Proofs` Mso + CliqueExpr
+definitions) switch to aliases/re-exports of the surface definitions
+— verbatim identity makes this mechanical — so M12's discharge is
+about the *surface* statement with M8–M10 compiling unchanged.
+Session-14 decisions (1)–(5) all approved as-is.
+
+## Session 15 — 2026-07-28 ~02:40 UTC
+Milestone: M11 — step 5, the surface freeze — done
+Commits: 93740a2 "Courcelle step 5: the surface freeze"
+State: Three new files in `concepts/Lax11/`, imported from `Lax11.lean`
+(which gained three import lines — the library root, not one of the four
+frozen files, which are untouched):
+- `Mso.lean` (100 lines, 45 of definition): `MSO r s` (seven
+  constructors), `rank`, `Sat` — **verbatim** from the proofs draft, in
+  namespace `Lax11.Mso`, docstring rewritten in the surface voice.
+- `CliqueExpr.lean` (206 lines, ~110 of definition): `Expr`, `leafIds`,
+  `verts`, `cls`, `graph` + the `DecidableRel` instance, `opsOk`,
+  `Valid`, `ValidFor` verbatim, then per gate decision 1 the fourth
+  block `Op` / `Op.code` / `opCard` / `Op.decode` (with the three
+  `private` arithmetic side conditions `Op.decode` needs to typecheck).
+  Definitions only, no theorems.
+- `Courcelle.lean` (154 lines): `nodeCount`/`parent`/`opCode`/
+  `vertexName` in `EncodesGraph`'s `List.getD` style, `children`,
+  `EncodesExprTree` (six fields: node count, `1 ≤ N`, `length = 1+3N`,
+  children-before-parent, op codes `< opCard k`), the surface relation
+  `EncodesExpr par lab ids i e` (`EncExpr`'s shape plus `ids i = ↑v` at
+  leaves), `EncodesInstance x n G k := ∃ g t N e, x = g ++ t ∧
+  EncodesGraph g n G ∧ EncodesExprTree t N k ∧ EncodesExpr … (N-1) e ∧
+  ValidFor e G`, and the axiom
+  `Lax11.Courcelle.exists_linearTime_program_modelChecking` in exactly
+  the plan's C0 rev-5 form (`MSO 0 0`, `ComputesInTime`,
+  `c * (x.length + 1)`, `[1]`/`[0]`; `open Classical in` for the `if`).
+Both packages green (`concepts` 821 jobs, `proofs` 2996), no `sorry`,
+**no new warnings** (the nine `unusedSimpArgs` in Reasoning/CCPhases/
+CCSweep are the pre-existing ones), `lax build ram-linear-time` **OK**.
+`#print axioms` on `val_eq_typeOf`, `acceptVal_val`, `Op.decode_code`
+and the new `encodesInstance_instanceWord` = propext, Classical.choice,
+Quot.sound.
+
+*The sanctioned proofs-side switch, exactly* (four committed files):
+- `Lax11Proofs/Mso.lean` (−75/+34): `import Lax11.Mso` added; the
+  `inductive MSO`, `def rank`, `def Sat` blocks deleted and replaced by
+  one `export Lax11.Mso (MSO MSO.adj MSO.eq MSO.mem MSO.not MSO.and
+  MSO.exV MSO.exS rank Sat)`; module docstring updated. Everything else
+  (the seven `rank_*` simp lemmas, `SatIn` + its simp lemmas,
+  `satIn_univ`, the four smoke `example`s) unchanged.
+- `Lax11Proofs/CliqueExpr.lean` (−134/+50): `import Lax11.CliqueExpr`;
+  the nine definitions deleted, replaced by two `export`s (the object,
+  and the op-code block); five new `rfl` equation lemmas
+  (`Op.code_union/leaf/eta/rho`, `opCard_eq`) added to the equations
+  section; docstring updated. The 20 old equation lemmas, all structural
+  facts, all `Valid.*` lemmas and the `pathExpr` smoke test unchanged.
+- `Lax11Proofs/MsoTable.lean` (−85/+21): the `Op` block deleted
+  (`inductive Op`, `Op.code`, `opCard`, `Op.decode`, and the three
+  private helpers `div_lt_sq`/`pos_of_lt_sq`/`mod_lt_sq` that moved to
+  the surface with `decode`); `pair_lt`, `div_pair`, `Op.decode_code`,
+  `Op.code_lt` stay, with `simp only [Op.code, opCard]` → the new `rfl`
+  lemmas; six dot-notation call sites de-sugared (below); two docstring
+  paragraphs updated.
+- `Lax11Proofs/MsoCliqueOps.lean` (4 lines): four dot-notation call
+  sites de-sugared. Nothing else; `Valid.disjoint_coe` and the four
+  bridging lemmas are unchanged in content.
+New: `Lax11Proofs/CourcelleSmoke.lean` (136 lines), imported from
+`Lax11Proofs.lean`.
+Cost: the concepts package was green on the first compile; the proofs
+side took four rounds, all of them the two mechanical issues below.
+Next: M12 — Q6, the driver. The bridge it owes is now visible: from
+`EncodesInstance x n G k` produce `TreeFold.EncodesTree` for the
+expression block (the surface block has *three* arrays where
+`EncodesTree` has two, and the word is `csr ++ t` rather than `t`, so
+M12 either generalizes `EncodesTree` or reads the block directly) plus
+`MsoTable.EncExpr` from `Courcelle.EncodesExpr` — the two relations are
+the *same* recursion up to the extra `ids` clause and the two `children`
+definitions are syntactically identical, so the forgetful direction
+should be a structural induction of ~10 lines. Then the accept-bit
+epilogue and `acceptVal_val`.
+Decisions: (1) **`export` does not carry dot notation, and that is what
+the switch actually cost.** `export Lax11.CliqueExpr (Valid)` makes
+`Valid` resolve, but `h.left` for `h : Valid …` looks up
+`Lax11.CliqueExpr.Valid.left`, which does not exist — Lean's
+`findMethod?` never consults aliases. Likewise `MSO.adj` as an explicit
+name fails unless the *constructors* are exported too (they now are, for
+both `MSO` and `Expr` and `Op`). The two ways out were (a) exporting the
+helper lemmas back into `Lax11.CliqueExpr` from the proof package, which
+puts proof-package names in the concept namespace — the standing watch
+item — or (b) writing the ten affected call sites as `Valid.left hv`
+instead of `hv.left`. I took (b): `h.disjoint` ×3, `h.disjoint_coe` ×4,
+`hv.left`/`hv.right`/`hv.of_addEdges`/`hv.of_relabel` ×1 each, across
+`MsoCliqueOps.lean` (4) and `MsoTable.lean` (6). So M9/M10 did *not*
+compile literally unchanged — ten lines, no content, listed above. Field
+and parent projections (`h.nodup`, `h.ops`, `h₁.verts_eq`, `hv.toValid`)
+and anonymous constructors are unaffected.
+(2) **The splitter leakage the guardrails warn about is real, and `lax`
+catches it.** `simp only [Op.code, …]` in `Op.decode_code` generated
+`Lax11.CliqueExpr.Op.code.match_1.splitter` inside the proof package and
+`lax build` rejected it by the namespace rule. Fixed the house way:
+`Op.code_union/leaf/eta/rho` and `opCard_eq` as `rfl` lemmas in
+`Lax11Proofs.CliqueExpr`, and the note is now in that file's docstring
+so the next person does not rediscover it. Nothing else in the two
+packages unfolds a concept definition by `simp`.
+(3) **At most one module docstring per concept file.** `lax` rejects
+`/-! ### … -/` section headers in `concepts/` (five in `CliqueExpr`,
+three in `Courcelle` on the first attempt). The new files therefore have
+one front docstring and no section headers, which is also what the four
+frozen files look like.
+(4) **`EncodesInstance` splits the word as `x = g ++ t`** rather than
+indexing one word by absolute offsets. `EncodesGraph` already pins its
+own length from its header, so the split is unique and the CSR block is
+reused verbatim instead of being restated with a base offset. The
+expression block's own accessors are then offsets into `t`, which is
+what makes the file readable; the driver pays for it by computing the
+block boundary as `3 + n + 2m` from the first two entries, which it must
+read anyway.
+(5) **No `parent (N-1) = N-1` clause.** Session 11's decision 2 demanded
+it for `TreeDecomp`, which the pivot sunk; nothing in the fold reads the
+root's parent entry (`children` only looks below `i`), so requiring it
+would only shrink the admissible input set. The root is pinned instead
+by *rooting the expression relation at `N-1`*, which is where the plan's
+"root `N−1`" belongs. The smoke test's array happens to be self-parented
+at the root, so a driver may still produce that shape.
+(6) The surface relation is named `EncodesExpr` (not `EncExpr`) and the
+axiom `exists_linearTime_program_modelChecking` (in the style of
+`exists_linearTime_program_ccLabels`); the plan's `courcelle` was a
+sketch name, and the concept namespace `Lax11.Courcelle` already carries
+the attribution.
+(7) `Reasoning.lean` untouched; the four originally frozen concept files
+untouched (verified by `git diff`); `TreeDecomp.lean` still idles.
+
+**Orchestrator gate (after session 15): freeze verified, proceed to
+M12.** Commit 93740a2 audited: the four original concept files are
+absent from the diff; the proofs-side switch matches the sanctioned
+list exactly. The dot-notation de-sugaring (decision 1, option b) is
+the right call — proof-package names never enter the concept
+namespace. The splitter leakage on `Op.code` (decision 2) confirms
+the house rule extends to the new surface: proofs-side `rfl` equation
+lemmas are now the standing pattern for all three new concept files.
+From here `concepts/` is FULLY frozen — all seven files; M12/M13 are
+proofs-only.
+
+## Session 16 — 2026-07-28 ~07:10 UTC (system clock reads 2026-07-27)
+Milestone: M12 — Q6, the driver — **done, in one session, not split**
+Commits: 25daa9c "Courcelle Q6: the driver, the program and the bridges";
+20937f6 "Courcelle Q6: the theorem, cashed in at the concept surface"
+State: Two new files, both imported from `Lax11Proofs.lean` (the only
+committed file touched — two import lines), namespace `Lax11Proofs.Courcelle`.
+`concepts/` untouched (verified: absent from both diffs).
+- `CourcelleDriver.lean` (309 lines): `driverCom T acp` — the schema's program
+  with the instance word's front end (`.read "n"`, `.read "m"`, `len := n+1+2m`,
+  `readLoop "csr" "len"`, `.read "N"`, `readLoop` × 3 for `par`/`lab`/`ids`,
+  the four `stores` prologues, `seedLoop`, `pushLoop`) and the C9 epilogue
+  `.write (.get "acp" (.get "acc" (.sub (.var "N") (.lit 1))))`; `layout`
+  (7 scalars, 9 arrays, 4 temps), `driverProgram`, `driverCom_ok`,
+  `driverExt`; the two bridges — `encExpr_of_encodesExpr` (**7 lines**, the
+  `children`s are `rfl`-equal, `children_eq` says so) and `instance_tape`
+  (the word decomposed into `n :: m :: (gr ++ N :: tr)` with all the fold's
+  hypotheses, ~45 lines) plus `getD_take`/`getD_drop`; and the smoke test.
+- `CourcelleMain.lean` (343 lines): `driverCost T = 3*(L+V+V²+V)+60`,
+  `driverCom_run` (the fifteen phases in a row, `K ≤ 100*(|x|+1) + driverCost T`),
+  `const_eq : layout.const = 46`, `acpArr`, and
+  **`exists_linearTime_program_modelChecking`** with the conclusion
+  frontmatter, witness `driverProgram (table (rank φ) k) (acpArr (rank φ) k φ)`
+  and constant `46 * (100 + driverCost (table (rank φ) k))`.
+Full `lake build` green (2998 jobs), no `sorry`, **no new warnings** (the nine
+`unusedSimpArgs` are the pre-existing ones); `lax build ram-linear-time` **OK**,
+`build-output.json` records the proof of
+`Lax11.Courcelle.exists_linearTime_program_modelChecking` with `assumptions: []`.
+`#print axioms` on the theorem, on `driverCom_run` and on `instance_tape` =
+propext, Classical.choice, Quot.sound (`encExpr_of_encodesExpr` needs none).
+No-drift check (run in scratch, not committed, so that the proof package does
+not reference the axiom): `example : Lax11.Courcelle.exists_… = Lax11Proofs.Courcelle.exists_… := rfl`
+elaborates — `Eq` forces the two types to be defeq, proof irrelevance closes it.
+Cost: three diagnostic rounds for the driver file, two for the main file; no
+approach was abandoned and no lemma of M1–M11 was restated or amended.
+Next: M13 — discharge + wrap-up (Q7). Nothing is owed to it by this milestone
+beyond the ledger lines listed in the brief; two new ones are below (decisions
+2 and 3).
+Decisions: (1) **The block is read directly; `EncodesTree` is not generalized.**
+The surface expression block has three arrays where `EncodesTree` has two, and
+the word is `csr ++ t`, so a generalized `EncodesTree` would have had to grow a
+base offset and a third array and would then be used exactly once. Instead
+`instance_tape` produces the tape segments (`gr`, `tr.take N`,
+`(tr.drop N).take N`, `tr.drop (N+N)`) and the two functions `par := tr.getD ·`,
+`lab := tr.getD (N + ·)` directly, and the phase lemmas of M2 — which speak
+about *arrays*, never about the word — consume them unchanged. `EncodesTree`
+and `foldCom_run` stay as the schema's own theorem, untouched.
+(2) **Read-and-discard is a `readLoop` into a junk array**, not a new
+skip-loop command: `csr` (extent `n+1+2m`) and `ids` (extent `N`) are read
+into arrays that no expression in the program ever mentions again. This
+reuses `readLoop_run` verbatim — zero new `Run` lemmas — at the price of two
+array names in the layout, i.e. of `layout.const` being 46 rather than 40.
+Loose constants everywhere, as instructed. *Ledger line for M13*: the program
+reads the whole input word (it must, to find the expression block) but uses
+only the expression block's parent and op-code arrays.
+(3) **The `#eval` check runs a computable stand-in table, and it cannot run
+the real one.** `table q k` is noncomputable by construction (C5: choice), and
+so is `acceptVal`; the machine-vs-model check therefore instantiates the
+*generic* `driverCom T acp` with `edgeTable`, a hand table over the **same**
+op alphabet, decoded by the **same** `Op.decode`, whose values are the three
+bits "class 0 nonempty", "class 1 nonempty", "there is an edge", plus the
+partial states the sequential fold needs — a genuine clique-width dynamic
+program. The two sentences are therefore "some two vertices are adjacent"
+(true on the path, machine writes `[1]`) and its negation (`[0]`), rather
+than the brief's edge-existence/triangle pair: a triangle is not decidable
+from three bits, and a state big enough for it would put `V²` table entries
+into every `#eval` of the build. The run is 4.3 s of build time; a table with
+`V = 89` would have been ~10× that.
+(4) The smoke test is joined to the mathematics by a `#guard` that the
+`parent`/`opCode` accessors on `CourcelleSmoke.exprBlock` agree with
+`MsoTable.pathPar`/`pathLab` on all seven nodes — session 7's decision 4 as
+standing practice; without it the machine run and the model run are joined
+by nothing but the reader's eye.
+(5) `Reasoning.lean` untouched; no mathlib-shaped lemma was missing. The only
+new generic-looking items are `getD_take` and `getD_drop`, which are two
+`simp only`s each and are kept local to the driver file.
+(6) The theorem takes `q := rank φ`, so the table is as small as the statement
+allows; `acceptVal_val`'s `rank φ ≤ q` is `le_rfl`.
+
+**Orchestrator gate (after session 16): M12 accepted, all six
+decisions approved.** The stand-in-table `#eval` (decision 3) is the
+correct reading of the house discipline under C5 — the machine run
+exercises the entire program text through the same `Op.decode`; the
+real table's content is exactly what the proof carries. Ledger lines
+for M13 confirmed: reads-whole-word-uses-two-arrays, the stand-in
+rationale, and (from the day's Q&A) that the machine has add/sub
+only — no multiplication anywhere, table indexing strength-reduced
+to the `row` lookup array, so the theorem is honest even under a
+strict word-RAM reading. TreeDecomp disposition: orchestrator
+recommends KEEP as bonus theory (self-contained, green, feeds a
+future treewidth submission) — final argument to be written at M13.
+Proceed to M13.
+
+## Session 17 — 2026-07-28 ~09:30 UTC
+Milestone: M13 — discharge + wrap-up (Q7) — done. **The relay is finished.**
+Commits: 12e83e7 "Courcelle Q7: the wrap-up — the honesty of the theorem"
+State: No Lean was touched. Four files committed: new
+`ram-linear-time/notes.md` (250 lines), `abstract.md`, `manifest.yaml`,
+`courcelle-plan.md` (rev 6). `NIGHTLOG.md`, `asdf`, `cc-night-brief.md` left
+unstaged; `concepts/` and every committed proofs file untouched (verified by
+`git status` before staging).
+
+*Audit — all green, nothing papered over.*
+- `lake build`: concepts 821 jobs, proofs 2998 jobs, both successful, no
+  `sorry`, no new warnings (the nine `unusedSimpArgs` in Reasoning/CCPhases/
+  CCSweep are the pre-existing ones). Caches were not deleted, per instruction.
+- `lax build ram-linear-time` **OK**; `lax build ram-linear-time --replay`
+  **OK** (the replay is supported and was run; kernel-replays both packages).
+  `build-output.json` records **two** proofs — `exists_linearTime_program_ccLabels`
+  and `exists_linearTime_program_modelChecking` — each with `assumptions: []`,
+  and seven concepts.
+- `#print axioms` (via `lake env lean` on a scratch file, not committed) =
+  propext, Classical.choice, Quot.sound on
+  `Lax11Proofs.Courcelle.exists_linearTime_program_modelChecking` and on six
+  further results: the three spot-checks asked for —
+  `MsoTypes.typ_union_congr` (composition), `MsoTypes.satIn_congr` (adequacy),
+  `MsoTable.val_eq_typeOf` (the main induction) — plus
+  `MsoTable.acceptVal_val`, `TreeFold.sweep_eq_val` and
+  `CCMain.exists_linearTime_program_ccLabels`. The no-drift `example`
+  (`Lax11.Courcelle.exists_… = Lax11Proofs.Courcelle.exists_… := rfl`) still
+  elaborates, re-run in the same scratch file.
+- Post-edit re-run of `lax build ram-linear-time` after the abstract/manifest
+  changes: OK (the manifest's new keys are only `title` text and `bibEntries`).
+
+*The formalization notes.* All eleven ledger items are written, each as an
+argued paragraph or two, in `ram-linear-time/notes.md`: MSO₁ scope with
+MSO₂+treewidth deferred as one unit (and *why* "by the same argument" would be
+a false claim); the well-scoped de Bruijn family and what capture-avoiding
+substitution would cost *on the trust surface*; the noncomputable table and the
+∃-program shape of the statement; the cliquewidth pivot, the unformalized
+tw→cw conversion and Oum–Seymour out of scope, at the status Bodlaender had;
+expression-as-certificate with the whole word read but only `par`/`lab` used;
+children-before-parent as an encoding restriction and not a class restriction;
+add/sub only with table indexing strength-reduced to the materialized `row`
+array; the `#eval` stand-in table (`edgeTable`) with an exact statement of what
+it does and does not establish; the tower, paid once and never estimated;
+`TreeDecomp.lean` KEEP with the argument; and a closing item naming de Bruijn
+positions as *the* single non-textbook device a reviewer must translate.
+I checked every session block for anything else flagged "ledger" — sessions 7,
+12, 15, 16 and the two orchestrator gates — and found no twelfth item; the
+`stepList`-is-`V²` point from session 7 is folded into the tower paragraph, and
+the splitter-leakage rule from session 15 is a house build convention, not an
+honesty item, so it stayed in the file docstrings where it is actionable.
+
+*Abstract and manifest.* Abstract rewritten to the grown submission in its own
+voice: two theorems in the opening, seven review units (five definitions, two
+theorems) in the surface paragraph, the RAM/compiler/reasoning-kit tower and
+the CC paragraph unchanged in substance, then two new paragraphs — the
+Ehrenfeucht–Fraïssé engine (composition at every rank, cross-ambient, the four
+ops uniform, table by finiteness and choice) and the generic fold with its
+`row`-array indexing, the epilogue, and the tower paid before the input is
+read. Manifest title is now "Connected Components and Courcelle's Theorem in
+Linear Time on a Random Access Machine"; four bib entries added (Courcelle
+1990, Courcelle–Olariu 2000, Courcelle–Makowsky–Rotics 2000, Oum–Seymour 2006).
+Next: nothing in the plan. Outward-facing and Jan's: `lax submit`.
+Decisions: (1) **The notes are a new root-level `notes.md`, not a docstring.**
+The brief said "extend Lax11's existing notes document"; there is none — the
+house pattern puts `# Formalization notes` in concept module docstrings and
+extra `#` sections in proof annotations (session 3 did exactly that for CC),
+and *both* were closed to me: `concepts/` is fully frozen since M11 and
+committed proofs files are off limits at M13. The archive spec allows files
+beyond the layout and ignores them, so `notes.md` is admissible but **not
+rendered on the submission page**. That is the one cost, and it is Jan's call
+to fix in a minute if he wants it rendered: the natural home is a
+`# Formalization notes` section appended to the theorem annotation in
+`CourcelleMain.lean`, which is exactly the shape session 3 used for CC, and the
+text is written to drop in unchanged. I did not do it myself because it is an
+edit to a committed proofs file.
+(2) **The abstract does not absorb the ledger.** Eleven argued items would have
+tripled it and broken the length discipline the existing abstract keeps; the
+abstract states the two theorems and the route, names the two honesty points a
+reader cannot do without (the tower is never estimated; the expression is
+input), and points at the notes for the rest.
+(3) **`TreeDecomp.lean` kept**, per the orchestrator's recommendation, with the
+argument written out: mathlib-only, green, imported by nothing, and stated in
+the machine's own `par : ℕ → ℕ` shape, so a future MSO₂/treewidth submission
+inherits its whole combinatorial layer. The note exists so no reviewer hunts
+for the place it is used.
+(4) The plan is rev 6: header paragraph, ✅ + session/checkpoint pointer on each
+step (Q3 → sessions 5–7, Q1 → 8–10, Q2a → 11, Q4 → 12–14, freeze → 15, driver →
+16, wrap-up → 17), and an appended "Final state" section. Rev 5's text is
+untouched — no history was rewritten. The night briefs were not edited.
+(5) Constants for the record: the Courcelle theorem's is
+`46 * (100 + driverCost (table (rank φ) k))` with
+`driverCost T = 3*(L+V+V²+V)+60`, `layout.const = 46`; CC's is 2604. Neither is
+estimated further, and the notes say why the first cannot be.
+
+**Orchestrator close-out — 2026-07-28.** The relay is finished:
+sessions 12–17, six milestones, six green single-session landings, no
+split, no stuck report, no abandoned approach.
+`Lax11.Courcelle.exists_linearTime_program_modelChecking` is proved
+(assumptions: [], standard three axioms, replay clean). The rev-5
+pivot's ledger, plan rev 6, abstract and manifest are committed
+(12e83e7). Open for Jan: (1) `lax submit` — outward-facing, his call,
+covers the grown single submission per C8; (2) the notes.md placement
+question (session 17 decision 1): the ledger text is written to drop
+verbatim into `CourcelleMain.lean`'s conclusion annotation if he
+wants it rendered, which would touch a committed proofs file — his
+call; (3) TreeDecomp.lean kept as bonus theory per the M12 gate note,
+argued in notes.md item 10.
