@@ -19,7 +19,7 @@ path = "../concepts"
 [[require]]
 name = "Lax12"
 git = "https://github.com/lax-archive/lax-submissions"
-rev = "1e0d4822f19e09f8003811db1c8a7d89bc87990e"
+rev = "3767b962ad65db56ea2151e9a4c762eae14541e5"
 subDir = "sparsity-lectures/concepts"
 
 # finite Ramsey theorems: the Ramsey statements of submission Lax14
