@@ -14,5 +14,12 @@ rev = "c5ea00351c28e24afc9f0f84379aa41082b1188f"
 name = "Lax12"
 path = "../concepts"
 
+# finite Ramsey theorems: the Ramsey statements of submission Lax14
+[[require]]
+name = "Lax14"
+git = "https://github.com/lax-archive/lax-submissions"
+rev = "9a996781305678aa3bea6e0dd81e8a3cad7d752f"
+subDir = "finite-ramsey/concepts"
+
 [[lean_lib]]
 name = "Lax12Proofs"

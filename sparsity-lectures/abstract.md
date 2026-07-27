@@ -53,7 +53,10 @@ discharged by a port of the development accompanying the lecture notes:
 a Ramsey-theoretic extraction of distance-independent sets for
 quasi-wideness, a Chernoff-based densification argument for the density
 theorem, and the tree-counting and path-routing arguments for the
-coloring-number chain, each bridged to the submitted concepts.
+coloring-number chain, each bridged to the submitted concepts. Ramsey's
+theorem itself is not reproved here: the quasi-wideness proof assumes the
+two Ramsey statements of the submission *Finite Ramsey Theorems for Pairs
+and Tuples*, so that dependency is visible on the archive as well.
 
 All material is from the lecture notes *Sparsity* taught at the University
 of Warsaw; the numbering above follows the 2019/20 edition of Marcin
