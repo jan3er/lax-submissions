@@ -36,9 +36,11 @@ inhabitants of the value type, so they are counted by `Table.V` and
 op codes are the `lab` array of the instance word — a reader of the
 statement must be able to say which number means `η 0 1` — so `Op.code`
 is a computable formula and `Op.decode` is its computable inverse,
-proved so by `Op.decode_code`. Both live on the endorsement surface,
-with the expression type they number. The *value* numbering, which
-nobody writes down, is `Fintype.equivFin` and is noncomputable.
+proved so by `Op.decode_code`. The code lives on the endorsement
+surface, with the expression type it numbers; `decode`, which no
+surface statement consumes, is defined proof-side in
+`Lax11Proofs/CliqueExpr.lean`. The *value* numbering, which nobody
+writes down, is `Fintype.equivFin` and is noncomputable.
 
 *The fold is joined to the expression by a relation, not by an array.*
 `EncExpr par lab i e` says "node `i` of the tree `(par, lab)` is the
@@ -62,12 +64,12 @@ One symbol per operation of a `k`-expression, with the leaf's *label*
 inside the symbol and the leaf's vertex name outside it: the type of a
 one-vertex region does not depend on which vertex it is
 (`typ_singleton`), which is why the driver never reads the vertex-id
-array. `Op`, `Op.code`, `Op.decode` and `opCard` are the surface
-definitions of `Lax11.CliqueExpr` (re-exported by
-`Lax11Proofs/CliqueExpr.lean`, so that there is one op-code layout and
-the instance encoding on the surface reads the same numbers the fold
-does); what is proved here is that the codes are a bijection onto an
-initial segment, which is what makes them the fold's labels. -/
+array. `Op`, `Op.code` and `opCard` are the surface definitions of
+`Lax11.CliqueExpr` (re-exported by `Lax11Proofs/CliqueExpr.lean`, which
+adds the proof-side inverse `Op.decode`, so that there is one op-code
+layout and the instance encoding on the surface reads the same numbers
+the fold does); what is proved here is that the codes are a bijection
+onto an initial segment, which is what makes them the fold's labels. -/
 
 /-- A pair of labels read in base `k` is below `k²`. -/
 private theorem pair_lt (i j : Fin k) : (i : ℕ) * k + (j : ℕ) < k * k := by

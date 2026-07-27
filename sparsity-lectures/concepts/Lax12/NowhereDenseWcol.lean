@@ -23,13 +23,10 @@ members of the class only, whereas the predicate used here demands it
 uniformly for all subgraphs of members; the two are equivalent, because
 the subgraphs of the members of a nowhere dense class again form a
 nowhere dense class, and the subgraph-uniform form is what downstream
-localization arguments consume. It is also the form of the identically
-named predicate in the neighborhood-complexity submission, so the
-statement transports there definitionally. This is the headline of the
-submission and
-is the composition of the four preceding theorem concepts: subpolynomial
-shallow-minor density, the admissibility bound, and the two links of the
-coloring-number chain.
+localization arguments consume. This is the headline of the submission
+and is the composition of the four preceding theorem concepts:
+subpolynomial shallow-minor density, the admissibility bound, and the
+two links of the coloring-number chain.
 -/
 
 namespace Lax12.NowhereDenseWcol

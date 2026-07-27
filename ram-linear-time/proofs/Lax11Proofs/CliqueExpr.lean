@@ -70,10 +70,34 @@ export Lax11.CliqueExpr (Expr Expr.leaf Expr.union Expr.addEdges Expr.relabel
 
 /-! The numbering of the operations is on the surface too — it is the
 alphabet an expression is written in when it is handed to the machine,
-so it is part of the input format. `MsoTable.lean` proves the two facts
-about it that the fold needs. -/
+so it is part of the input format. Only the *encoding* direction is
+surface, since the instance encoding speaks `Op.code` alone; the
+decoding direction is the fold's reading device and is defined here,
+proof-side. `MsoTable.lean` proves the two facts about the numbering
+that the fold needs. -/
 
-export Lax11.CliqueExpr (Op Op.union Op.leaf Op.eta Op.rho Op.code Op.decode opCard)
+export Lax11.CliqueExpr (Op Op.union Op.leaf Op.eta Op.rho Op.code opCard)
+
+/-- The inverse of `Op.code`, total by sending every number that names
+no operation to `union`. No surface statement consumes it — the
+encoding of an instance requires every number in an expression block to
+be the number of an operation, so an ill-formed number is never decoded
+and totality is only what makes decoding a function. A code in one of
+the two `k²` blocks is read in base `k`; that its digits are labels is
+`Nat.div_lt_of_lt_mul` and `Nat.mod_lt`, the latter needing `0 < k`,
+which the block itself supplies since no number is below `k²` when `k`
+is zero. `MsoTable.lean` proves it inverts `Op.code`. -/
+def Op.decode (k c : ℕ) : Op k :=
+  if c = 0 then .union
+  else if h : c - 1 < k then .leaf ⟨c - 1, h⟩
+  else if h : c - 1 - k < k * k then
+    have hk : 0 < k := Nat.pos_of_ne_zero (by rintro rfl; simp at h)
+    .eta ⟨(c - 1 - k) / k, Nat.div_lt_of_lt_mul h⟩ ⟨(c - 1 - k) % k, Nat.mod_lt _ hk⟩
+  else if h : c - 1 - k - k * k < k * k then
+    have hk : 0 < k := Nat.pos_of_ne_zero (by rintro rfl; simp at h)
+    .rho ⟨(c - 1 - k - k * k) / k, Nat.div_lt_of_lt_mul h⟩
+      ⟨(c - 1 - k - k * k) % k, Nat.mod_lt _ hk⟩
+  else .union
 
 /-! ### The equations
 

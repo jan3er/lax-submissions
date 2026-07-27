@@ -60,12 +60,6 @@ cliquewidth, and leaving it out would silently claim the theorem for a
 larger class of graphs than the name denotes. Relabelling tests for the
 target class before the source class, so that relabelling a class into
 itself is the identity rather than an operation that empties it.
-
-The decoding of an operation number is total: numbers that name no
-operation decode to the disjoint union. This is only so that decoding
-is a function; the encoding of an instance requires every number in an
-expression block to be the number of an operation, so no such number is
-ever decoded.
 -/
 
 namespace Lax11.CliqueExpr
@@ -176,22 +170,5 @@ def Op.code : Op k → ℕ
 
 /-- The size of the operation alphabet. -/
 def opCard (k : ℕ) : ℕ := 1 + k + 2 * (k * k)
-
-/-- The inverse of `Op.code`, total by sending every number that names
-no operation to `union`. A code in one of the two `k²` blocks is read in
-base `k`; that its digits are labels is `Nat.div_lt_of_lt_mul` and
-`Nat.mod_lt`, the latter needing `0 < k`, which the block itself
-supplies since no number is below `k²` when `k` is zero. -/
-def Op.decode (k c : ℕ) : Op k :=
-  if c = 0 then .union
-  else if h : c - 1 < k then .leaf ⟨c - 1, h⟩
-  else if h : c - 1 - k < k * k then
-    have hk : 0 < k := Nat.pos_of_ne_zero (by rintro rfl; simp at h)
-    .eta ⟨(c - 1 - k) / k, Nat.div_lt_of_lt_mul h⟩ ⟨(c - 1 - k) % k, Nat.mod_lt _ hk⟩
-  else if h : c - 1 - k - k * k < k * k then
-    have hk : 0 < k := Nat.pos_of_ne_zero (by rintro rfl; simp at h)
-    .rho ⟨(c - 1 - k - k * k) / k, Nat.div_lt_of_lt_mul h⟩
-      ⟨(c - 1 - k - k * k) % k, Nat.mod_lt _ hk⟩
-  else .union
 
 end Lax11.CliqueExpr

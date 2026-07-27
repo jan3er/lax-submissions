@@ -61,8 +61,11 @@ load-bearing choice. Ring subtraction is derivable in O(1) after the O(w)
 all-ones prelude, and the monus machine and the wraparound machine simulate
 each other with constant overhead, so no statable claim depends on the
 choice — the formalization notes of the concept must say all of this.
-**JAN-FLAG: monus-vs-wraparound `sub` is my call under autonomy; it is the
-one model decision worth a second look.**
+**JAN-FLAG — RESOLVED 2026-07-27, Jan endorses monus.** The second look
+happened in the concept-surface review: the `sub`+`jgtz` comparison idiom
+is what the accumulator architecture needs, wraparound subtraction stays
+derivable at constant cost, and the simulation argument recorded in the
+formalization notes of `Ram.lean` stands as written.
 
 Time is the intrinsic step count, one unit per instruction — honest now for
 `mul` too, precisely because words are bounded. No space measure (derivable
@@ -192,10 +195,14 @@ build green) and commits before the next phase starts.
   `#guard`: the compiled driver contains no mul/div/shift. SumSmoke and
   the five stale old-kit files deleted. All packages green, lean_verify
   background-only, defeq checked both directions.
-  **JAN-FLAG:** the per-entry conjunct could be traded for plain
-  `c * (|x| + 1) ≤ 2 ^ w` by constraining those two entry families in
-  InstanceEncoding (smaller admissible set, tidier statement). Kept loose
-  per the GraphEncoding philosophy ("fewer conditions strengthen claims").
+  **JAN-FLAG — RESOLVED 2026-07-27, Jan endorses keeping the per-entry
+  conjunct.** It could be traded for plain `c * (|x| + 1) ≤ 2 ^ w` by
+  constraining those two entry families in InstanceEncoding (smaller
+  admissible set, tidier statement), but the loose admissible set contains
+  the tidier one up to adjusting `c` — every constrained entry is below
+  `|x|` plus a width-dependent constant — so the per-entry form is the
+  strictly stronger theorem. Kept loose per the GraphEncoding philosophy
+  ("fewer conditions strengthen claims").
 - [x] Phase 6 plumbing + drafts submitted — Lax11 abstract rewritten for the
   new architecture; one archive-check snag: Lean match *splitters* are
   module-private and were being generated downstream with Lax13Proofs names
