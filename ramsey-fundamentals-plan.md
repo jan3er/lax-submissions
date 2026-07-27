@@ -901,3 +901,135 @@ Compiled with `lake env lean` against the pinned toolchain/mathlib from
 Not yet compiled: the graph-form reverse bridge (§5A.4, second bullet), the
 `otp`/`orderType` correspondence (§4.5), and the re-proof of `tuple_ramsey`
 (§5B).
+
+---
+
+## 10. Implementation log (P1 + P2)
+
+Executed 2026-07-27 by the implementation agent. Everything below is fact, not
+design; it supersedes the `LaxR` placeholder of §§1–9.
+
+### Allocated id
+
+`lax init finite-ramsey` allocated **`Lax14`**. Resolutions:
+
+| placeholder | actual |
+| --- | --- |
+| `LaxR` (package/namespace) | `Lax14` |
+| `LaxRProofs` | `Lax14Proofs` |
+| `concepts/LaxR/…` | `finite-ramsey/concepts/Lax14/…` |
+| require `name = "LaxR"`, `subDir = "finite-ramsey/concepts"` | `name = "Lax14"`, same `subDir` |
+
+### Concept axiom names for downstream packages
+
+These are the permanent assumption targets. Downstream `assumptions:` blocks
+and `open`/`import` lines use exactly these:
+
+| module to import | statement (axiom) to assume |
+| --- | --- |
+| `Lax14.MulticolorRamsey` | `Lax14.MulticolorRamsey.exists_monochromatic_set` |
+| `Lax14.Ramsey` | `Lax14.Ramsey.exists_clique_or_indepSet` |
+| `Lax14.TupleRamsey` | `Lax14.TupleRamsey.exists_orderType_homogeneous` |
+| `Lax14.OrderTypes` | *(definition-concept, no axiom)* — exports `Lax14.OrderTypes.orderType` |
+
+Statement types are exactly as printed in §3 with `LaxR` → `Lax14`; no
+signature moved during implementation.
+
+Note for the bridge writers (`sparsity-lectures` P2, Lax5 P4): the concept
+`orderType` is `Prop`-valued (`Fin ℓ → Fin ℓ → Prop`), while the local
+`Lax5Proofs.TupleRamsey.orderType` is `Ordering`-valued
+(`Fin ℓ × Fin ℓ → Ordering`). The correspondence lemma proved here is
+`Lax14Proofs.TupleRamsey.otp_eq_of_orderType_eq` (⇐ direction: equal
+`Prop`-valued order types force equal `Ordering`-valued ones), but it lives in
+the **proof** package, which downstream packages cannot import — they pin
+`finite-ramsey/concepts` only. The ⇒ direction they need for the
+`tuple_ramsey` re-proof (§5B) is the easy one (`compare_lt_iff_lt`) and must
+be re-derived locally; the ⇐ direction, if needed, is ~15 lines and can be
+copied from `finite-ramsey/proofs/Lax14Proofs/TupleRamsey.lean`.
+
+### Files as built
+
+    finite-ramsey/manifest.yaml                     -- title per D1, 3 bibEntries, authors: []
+    finite-ramsey/abstract.md
+    finite-ramsey/concepts/Lax14.lean               -- 4 imports
+    finite-ramsey/concepts/Lax14/OrderTypes.lean        definition, 0 axioms
+    finite-ramsey/concepts/Lax14/MulticolorRamsey.lean   theorem, 1 axiom
+    finite-ramsey/concepts/Lax14/Ramsey.lean             theorem, 1 axiom
+    finite-ramsey/concepts/Lax14/TupleRamsey.lean        theorem, 1 axiom
+    finite-ramsey/proofs/Lax14Proofs.lean            -- 5 imports
+    finite-ramsey/proofs/Lax14Proofs/PairRamsey.lean       239 lines, ported, helpers
+    finite-ramsey/proofs/Lax14Proofs/MulticolorRamsey.lean frontmattered proof
+    finite-ramsey/proofs/Lax14Proofs/Ramsey.lean           frontmattered glue proof
+    finite-ramsey/proofs/Lax14Proofs/TupleCore.lean        381 lines, ported, helpers
+    finite-ramsey/proofs/Lax14Proofs/TupleRamsey.lean      frontmattered proof + otp bridge
+
+### Build and axiom-set status
+
+- `lake build` in `concepts/`: green (979 jobs), no warnings.
+- `lake build` in `proofs/`: green (1093 jobs), no warnings.
+- `lax build finite-ramsey --replay`: **OK, no violations.**
+- `#print axioms` on the three frontmattered theorems:
+  * `Lax14Proofs.MulticolorRamsey.exists_monochromatic_set` — `[propext, Classical.choice, Quot.sound]`
+  * `Lax14Proofs.Ramsey.exists_clique_or_indepSet` — `[propext, Classical.choice, Quot.sound, Lax14.MulticolorRamsey.exists_monochromatic_set]` (exactly the declared assumption)
+  * `Lax14Proofs.TupleRamsey.exists_orderType_homogeneous` — `[propext, Classical.choice, Quot.sound]`
+- No `sorry` anywhere; nothing generated is tracked.
+
+Not done here (by instruction): commit, push, `lax submit`, README submission
+list, memory update. §5A/§5B rewiring untouched; no other submission directory
+was modified.
+
+### Deviations from the plan
+
+**Concepts — none.** All four modules of §3 compiled verbatim (modulo the id
+rename); statements, docstrings and formalization notes are as drafted.
+
+**Proofs — the §4.2 and §4.3 bodies compiled verbatim** as promised by the
+verification log. The remaining deviations are all in the ported helpers and
+in the two items §9 listed as uncompiled:
+
+1. **`TupleCore.lean` is not inside `section Helpers`.** §4.4 says to copy
+   lines 15–22 and 85–439 of `Lax5Proofs/TupleRamsey.lean`, which straddles
+   the `section Helpers` opened at line 24 and closed at 518. Since
+   `existsMonotoneUnbounded` (33–84) is deliberately not copied, the section
+   wrapper was dropped with it. No effect: the section carried no `variable`s
+   and `private` is file-scoped anyway.
+
+2. **`orderType_comp_strictMono` was also renamed to `otp_comp_strictMono`.**
+   §4.4 only prescribes renaming the `Ordering`-valued `orderType` def to
+   `otp`; leaving the lemma name unrenamed would have left a helper named
+   after a notion the file no longer mentions. Statement unchanged.
+
+3. **`tupleRamseyAtSize` docstring edits beyond the prescribed one.** The
+   stale "**Proof strategy (not yet formalized).**" was fixed to "**Proof
+   strategy.**" as §8 requires; additionally the sentence "define
+   `f : orderType → Fin k`" became "define `f` on order types", which the
+   mechanical `orderType` → `otp` rename would otherwise have turned into the
+   nonsensical "`f : otp → Fin k`". `TupleCore.lean` also got a new module
+   docstring (it is a new file; the source's module docstring described a
+   different file).
+
+4. **`otp_eq_of_orderType_eq` is stated more generally than §4.5 sketches.**
+   The plan's signature is `{n ℓ : ℕ} {a b : Fin ℓ → Fin n}`; the implemented
+   one is `{V : Type*} [LinearOrder V] {ℓ : ℕ} {a b : Fin ℓ → V}`, matching
+   the generality of `otp` and of the concept's `orderType`. It costs nothing
+   and makes the lemma reusable by the downstream bridges. The proof is the
+   sketched one (`funext` on the coordinate pair, `lt_trichotomy`, the two
+   `Prop` equalities read off by `congrFun`/`iff_of_eq`, then
+   `compare_lt_iff_lt` / `compare_eq_iff_eq` / `compare_gt_iff_gt`), 15 lines
+   rather than the budgeted 20.
+
+5. **`k = 0` in the tuple proof.** §4.5's quantifier map says to close it with
+   `(c (fun _ => ⟨0, _⟩)).elim0` and notes `ℓ = 0` needs `Fin.elim0`. It does
+   not: `fun _ => ⟨0, hn⟩` is a well-typed `Fin ℓ → Fin n` for every `ℓ`
+   including `0`, so one line covers both cases. `N := 1` as planned.
+
+6. **`bibEntries`.** §4.6 prescribes Ramsey 1930, Erdős–Rado 1952 and the
+   Mählmann thesis. The Mählmann entry is copied verbatim from Lax5's
+   manifest; the other two were written here (`Ramsey1930`, `ErdosRado1952`,
+   both with DOIs). `authors: []` as `lax init` scaffolds, per §4.6.
+
+7. **Not a deviation, recorded for §5B.** The submission-side name of the
+   ported two-colour graph statement is `Lax14Proofs.PairRamsey.ramsey` and of
+   the list-indexed one `Lax14Proofs.PairRamsey.multicolor_ramsey` — both
+   private to this proof package. Downstream must go through the concept
+   axioms, never these.
