@@ -25,8 +25,9 @@ does not exceed — rather than through asymptotic notation. Asymptotics
 would require a filter on inputs and would obscure, rather than
 clarify, a statement that quantifies over encodings of every graph; a
 linear bound is spelled out at the point of use as `c * (x.length + 1)`
-with an explicit constant, the `+ 1` making it meaningful for the
-empty input as well.
+with an explicit constant, a fixed-parameter bound as
+`c * 2 ^ k * (x.length + 1)` with the parameter dependence written in,
+the `+ 1` making both meaningful for the empty input as well.
 
 Only the timed notion is defined: every statement of this submission
 carries a bound, and plain computability is the special case in which

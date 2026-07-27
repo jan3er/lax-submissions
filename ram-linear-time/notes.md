@@ -28,3 +28,11 @@ submission page.
   annotation of `proofs/Lax11Proofs/CCMain.lean`, and the machine,
   the cost model and the graph encoding carry their own notes in
   `concepts/Lax11/`.
+- **The vertex cover theorem's** items — the parameter dependence
+  written into the bound rather than quantified away, the program and
+  constant uniform in the parameter, the parameter as a single entry
+  after the self-delimiting graph block, and the decision problem as
+  the honest scope — are in the `# Formalization notes` of
+  `concepts/Lax11/VertexCover.lean`. Its statement is an open
+  obligation: no proof-package conclusion discharges it yet, and the
+  abstract says so.

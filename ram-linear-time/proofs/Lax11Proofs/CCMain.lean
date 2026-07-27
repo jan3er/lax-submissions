@@ -80,8 +80,8 @@ plain copy and the encoding stays the dumb one the concept fixes.
 
 # Attribution
 
-The theorem of the submission; the algorithm is the textbook sweep of
-breadth-first searches.
+The first theorem of the submission; the algorithm is the textbook
+sweep of breadth-first searches.
 -/
 theorem exists_linearTime_program_ccLabels :
     ∃ (p : Program) (c : ℕ), ∀ (n : ℕ) (G : SimpleGraph (Fin n)),
