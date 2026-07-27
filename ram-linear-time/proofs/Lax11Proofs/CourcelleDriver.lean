@@ -284,6 +284,14 @@ def acpNoEdge (v : ℕ) : ℕ := if v < 8 ∧ b2 v = 0 then 1 else 0
 def runDriver (T : Table) (acp : ℕ → ℕ) (x : List ℕ) : Option (List ℕ) :=
   (runOut 2000000 (driverProgram T acp) (initState x) 0).map Prod.fst
 
+-- the model is the model *of that word*: the parent and op-code arrays
+-- the driver reads out of the expression block are the ones `MsoTable`'s
+-- smoke test proved to encode `pathExpr`. Without this the machine run
+-- and the model run would be joined by nothing but the reader's eye.
+#guard (List.range 7).all fun i =>
+  parent CourcelleSmoke.exprBlock i == pathPar i &&
+    opCode CourcelleSmoke.exprBlock i == pathLab i
+
 -- the model, by hand: the root of `pathExpr` has both classes nonempty
 -- and an edge, so its value is `mkD 1 1 1 = 7`
 #guard val edgeTable pathPar pathLab 6 = 7
