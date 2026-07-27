@@ -196,7 +196,23 @@ build green) and commits before the next phase starts.
   `c * (|x| + 1) ≤ 2 ^ w` by constraining those two entry families in
   InstanceEncoding (smaller admissible set, tidier statement). Kept loose
   per the GraphEncoding philosophy ("fewer conditions strengthen claims").
-- [ ] Phase 6 plumbing + drafts submitted
+- [x] Phase 6 plumbing + drafts submitted — Lax11 abstract rewritten for the
+  new architecture; one archive-check snag: Lean match *splitters* are
+  module-private and were being generated downstream with Lax13Proofs names
+  (namespace violation) — fixed upstream by materializing the `Ok`/`NoWrite`
+  `eq_*` equation lemmas in the kit (splitters only arise as their
+  byproduct). Accepted benign leak: `Lax13Proofs.Imp.initEnv.eq_1` realized
+  downstream (inspector accepts reserved `eq_*`; one simp lemma in Imp.lean
+  would close it). Possible upstream inspector bug noted: foreign `eq_*`
+  declarations are never reported, only splitters. **Lax13 draft submitted**
+  at `0dd4e34` (word-ram), **Lax11 draft re-submitted** at `d2ccf88`
+  (ram-linear-time, pins Lax13 concepts+proofs at `0dd4e34`); both server
+  builds green. Registration is Jan's.
+
+Standing kit rule discovered in phase 6: any `simp [f]`/`split` in a consumer
+package on a match-defined Lax13Proofs function whose equations were never
+realized upstream leaks foreign names; the kit now materializes equations for
+all evaluator/compiler/Ok/NoWrite functions.
 - [ ] Phase 3 CC port
 - [ ] Phase 4 VC port
 - [ ] Phase 5 Courcelle port
