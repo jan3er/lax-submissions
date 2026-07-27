@@ -425,4 +425,74 @@ theorem outerBody_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     simp only [size_condEq, size_var, size_lit]
     omega
 
+/-! ### The loop
+
+One application of `Run.while_pot`. The invariant is "some
+configuration is represented and satisfies `Inv`, and the tapes are
+untouched"; the potential is the numeric one, scaled by the cost of a
+turn. Each turn pays `1 + 3` for the test and at most `100m + 50n +
+100` for the body, and buys one unit of `pot`, so the factor `100m +
+50n + 104` covers it. -/
+
+/-- **The search loop.** From a represented state satisfying the
+invariant, the outer loop reaches a represented, invariant state in
+mode `2`, in at most `(100m + 50n + 104) · pot C₀ + 4` steps. -/
+theorem searchLoop_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
+    (hO : ∀ i ≤ n, O i = offset g i) (hT : ∀ j < 2 * m, T j = target g j)
+    {C₀ : Config n} {σ : Env} (hRep : Rep n m k O T C₀ σ) (hInv : Inv G k C₀) :
+    ∃ (C' : Config n) (τ' : Env) (K : ℕ),
+      Run (.while (.lt (.var "mode") (.lit 2)) outerBody) σ τ' K ∧
+      Rep n m k O T C' τ' ∧ Inv G k C' ∧ C'.mode = 2 ∧
+      τ'.inp = σ.inp ∧ τ'.out = σ.out ∧
+      K ≤ (100 * m + 50 * n + 104) * pot C₀ + 4 := by
+  -- a turn: the body runs, the invariant survives, the potential pays
+  have hstep : ∀ τ : Env,
+      (∃ C, Rep n m k O T C τ ∧ Inv G k C ∧ τ.inp = σ.inp ∧ τ.out = σ.out) →
+      (Cond.lt (.var "mode") (.lit 2)).eval τ = some true →
+      ∃ τ'' K, Run outerBody τ τ'' K ∧
+        (∃ C, Rep n m k O T C τ'' ∧ Inv G k C ∧ τ''.inp = σ.inp ∧ τ''.out = σ.out) ∧
+        1 + (Cond.lt (Expr.var "mode") (Expr.lit 2)).size + K +
+            (100 * m + 50 * n + 104) *
+              potN (τ''.vars "mode") (τ''.vars "bud") (phasesOf τ'') ≤
+          (100 * m + 50 * n + 104) *
+            potN (τ.vars "mode") (τ.vars "bud") (phasesOf τ) := by
+    rintro τ ⟨C, hRepC, hInvC, hinp, hout⟩ hc
+    have hlen : C.bud + C.frames.length = k := hInvC.2.1
+    have hmd : τ.vars "mode" = C.mode := hRepC.2.2.2.1
+    have hmode : C.mode < 2 := by
+      simp only [Cond.eval, Expr.eval, Option.bind_some, Option.map_some,
+        Option.some.injEq, decide_eq_true_eq, hmd] at hc
+      exact hc
+    obtain ⟨C', τ'', K, hrunb, hRep', hInv', hpot, hK, hi, ho⟩ :=
+      outerBody_run hg hm hO hT hRepC hInvC hmode
+    refine ⟨τ'', K, hrunb, ⟨C', hRep', hInv', by rw [hi, hinp], by rw [ho, hout]⟩, ?_⟩
+    have hlen' : C'.bud + C'.frames.length = k := hInv'.2.1
+    have e1 := potN_eq hRep' (show C'.frames.length ≤ k by omega)
+    have e2 := potN_eq hRepC (show C.frames.length ≤ k by omega)
+    have hmul : (100 * m + 50 * n + 104) * (pot C' + 1) ≤
+        (100 * m + 50 * n + 104) * pot C := Nat.mul_le_mul_left _ hpot
+    rw [Nat.mul_succ] at hmul
+    rw [e1, e2]
+    simp only [size_condLt, size_var, size_lit]
+    omega
+  obtain ⟨τ', K, hrun, hI', hfalse, hpay⟩ :=
+    Run.while_pot (b := Cond.lt (.var "mode") (.lit 2)) (c := outerBody)
+      (fun τ => ∃ C, Rep n m k O T C τ ∧ Inv G k C ∧ τ.inp = σ.inp ∧ τ.out = σ.out)
+      (fun τ => (100 * m + 50 * n + 104) *
+        potN (τ.vars "mode") (τ.vars "bud") (phasesOf τ))
+      (fun _ _ => ⟨_, rfl⟩) hstep ⟨C₀, hRep, hInv, rfl, rfl⟩
+  -- exit: the test is false and `Inv` caps the mode, so the mode is `2`
+  obtain ⟨C', hRep', hInv', hinp', hout'⟩ := hI'
+  have hmd' : τ'.vars "mode" = C'.mode := hRep'.2.2.2.1
+  have hmode' : C'.mode = 2 := by
+    simp only [Cond.eval, Expr.eval, Option.bind_some, Option.map_some,
+      Option.some.injEq, decide_eq_false_iff_not, Nat.not_lt, hmd'] at hfalse
+    have := hInv'.1
+    omega
+  have hlen₀ : C₀.frames.length ≤ k := by have := hInv.2.1; omega
+  have hΦ₀ := potN_eq hRep hlen₀
+  refine ⟨C', τ', K, hrun, hRep', hInv', hmode', hinp', hout', ?_⟩
+  simp only [size_condLt, size_var, size_lit, hΦ₀] at hpay
+  omega
+
 end Lax11Proofs.VC
