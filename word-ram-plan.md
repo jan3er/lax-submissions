@@ -157,7 +157,14 @@ build green) and commits before the next phase starts.
   (old names live as simp-abbrevs); Labels.lean correctly left to the CC
   example. Word-length hypothesis bundled as `Layout.FitsWords B w`
   (span covers `temps + |scalars| + |arrays| * B`).
-- [ ] Phase 2b reasoning layer + transfer + smoke
+- [x] Phase 2b reasoning layer + transfer + smoke — `Run` over `BigStepB`
+  (drop-in port of the Lax11 rules), six `evalB` iff-simp lemmas make bound
+  side conditions `simp; omega`-dischargeable; `Solves` bundle +
+  `computesInTime_of_solves` conclude concept-level `ComputesInTime`
+  (`B` is a function of the input; time separated by `L.const * K ≤ T`);
+  three smoke programs green incl. mul/shiftl. Note for downstream: word
+  hypothesis goes against `max B (L.span B)` (`fitsWords_of_max_le`).
+- [ ] Phase 3 CC vertical slice (concepts + proofs)
 - [ ] Phase 3 CC port
 - [ ] Phase 4 VC port
 - [ ] Phase 5 Courcelle port
