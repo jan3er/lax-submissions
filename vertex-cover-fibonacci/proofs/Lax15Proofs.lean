@@ -1,4 +1,5 @@
 import Lax15Proofs.Config
+import Lax15Proofs.Phases
 import Lax15Proofs.Program
 import Lax15Proofs.Residual
 import Lax15Proofs.Repeats
