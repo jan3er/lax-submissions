@@ -1,5 +1,5 @@
 import Lax5.MonadicDependence
-import Lax5.NeighborhoodComplexity
+import Lax12.NeighborhoodComplexity
 
 /-!
 ---
@@ -18,14 +18,17 @@ Dependent Graph Classes* (2026).
 # Formalization notes
 
 The hypothesis is the transduction-based definition of monadic
-dependence; the conclusion is the shared predicate `HasAlmostLinearNC`
-of the neighborhood complexity concept, so this statement and the
-nowhere dense counting statement read uniformly.
+dependence, the subject of this submission; the conclusion is the
+predicate `HasAlmostLinearNC` of the *Sparsity Lectures* submission
+(Lax12), where neighborhood complexity is defined and endorsed. Stating
+the theorem over that predicate is what makes it directly comparable to
+the nowhere dense counting statement there: the same bound, under a
+strictly weaker hypothesis.
 -/
 
 namespace Lax5.AlmostLinearNC
 
-open Lax5.GraphClasses Lax5.MonadicDependence Lax5.NeighborhoodComplexity
+open Lax12.GraphClasses Lax12.NeighborhoodComplexity Lax5.MonadicDependence
 
 /-- Monadically dependent graph classes have almost linear neighborhood
 complexity. -/

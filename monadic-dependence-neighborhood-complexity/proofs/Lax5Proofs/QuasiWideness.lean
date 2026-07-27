@@ -1,4 +1,3 @@
-import Lax5.NowhereDenseClasses
 import Lax12.NowhereDenseUQW
 import Mathlib.Data.Set.Card
 
@@ -6,53 +5,16 @@ import Mathlib.Data.Set.Card
 Uniform quasi-wideness in the shape the Adler–Adler argument consumes.
 Nothing is proved here: uniform quasi-wideness of a nowhere dense class is
 *assumed* from the `sparsity-lectures` submission
-(`Lax12.NowhereDenseUQW.uniformlyQuasiWide_of_nowhereDense`), and this file
-only transports it across the nominal duplication of the two submissions'
-definitions — the shallow-minor models have literally the same fields, so
-the transport is a field-for-field repacking, and the `Set`-valued
-conclusion is converted to the `Finset` form the caller uses.
+(`Lax12.NowhereDenseUQW.uniformlyQuasiWide_of_nowhereDense`), whose
+nowhere-denseness definition is the one this submission's concepts are
+stated over as well.  All this file does is convert the `Set`-valued
+conclusion to the `Finset` form the caller uses.
 -/
 
 namespace Lax5Proofs.QuasiWideness
 
-open Lax5.GraphClasses
+open Lax12.GraphClasses
 open Lax12.UniformQuasiWideness
-
-/-- Repack a shallow-minor model of the `sparsity-lectures` submission as
-the identically shaped model of this submission. -/
-def shallowMinorModel_lax5 {V W : Type*} {r : ℕ} {H : SimpleGraph W}
-    {G : SimpleGraph V} (M : Lax12.NowhereDenseClasses.ShallowMinorModel r H G) :
-    Lax5.NowhereDenseClasses.ShallowMinorModel r H G where
-  branch := M.branch
-  center := M.center
-  center_mem := M.center_mem
-  disjoint := M.disjoint
-  radius_le := M.radius_le
-  adj := M.adj
-
-/-- Repack a shallow-minor model of this submission as the identically
-shaped model of the `sparsity-lectures` submission. -/
-def shallowMinorModel_lax12 {V W : Type*} {r : ℕ} {H : SimpleGraph W}
-    {G : SimpleGraph V} (M : Lax5.NowhereDenseClasses.ShallowMinorModel r H G) :
-    Lax12.NowhereDenseClasses.ShallowMinorModel r H G where
-  branch := M.branch
-  center := M.center
-  center_mem := M.center_mem
-  disjoint := M.disjoint
-  radius_le := M.radius_le
-  adj := M.adj
-
-/-- Nowhere denseness in this submission's sense implies nowhere denseness
-in the sense of the `sparsity-lectures` submission (in fact the two are the
-same condition, read off two nominally distinct copies of one structure). -/
-theorem nowhereDense_lax12_of_lax5 (C : GraphClass)
-    (h : Lax5.NowhereDenseClasses.NowhereDense C) :
-    Lax12.NowhereDenseClasses.NowhereDense C := by
-  intro r
-  obtain ⟨t, ht⟩ := h r
-  refine ⟨t, fun n G hG hminor => ?_⟩
-  obtain ⟨M⟩ := hminor
-  exact ht n G hG ⟨shallowMinorModel_lax5 M⟩
 
 /-- Uniform quasi-wideness of a nowhere dense class, specialized to the
 submitted members: for every radius `r` there are a threshold function
@@ -60,8 +22,8 @@ submitted members: for every radius `r` there are a threshold function
 `N m` in a member contains, after deleting a set `S` of at most `s`
 vertices, a subset `B` of size at least `m` that is pairwise more than
 `r` apart in `G − S`. -/
-theorem uqw_of_nowhereDense (C : Lax5.GraphClasses.GraphClass)
-    (h : Lax5.NowhereDenseClasses.NowhereDense C) (r : ℕ) :
+theorem uqw_of_nowhereDense (C : GraphClass)
+    (h : Lax12.NowhereDenseClasses.NowhereDense C) (r : ℕ) :
     ∃ (N : ℕ → ℕ) (s : ℕ),
       ∀ (m n : ℕ) (G : SimpleGraph (Fin n)), C n G →
         ∀ A : Finset (Fin n), N m ≤ A.card →
@@ -70,8 +32,7 @@ theorem uqw_of_nowhereDense (C : Lax5.GraphClasses.GraphClass)
             DistIndependent (deleteVerts G ↑S) r ↑B := by
   classical
   obtain ⟨N, s, huqw⟩ :=
-    Lax12.NowhereDenseUQW.uniformlyQuasiWide_of_nowhereDense C
-      (nowhereDense_lax12_of_lax5 C h) r
+    Lax12.NowhereDenseUQW.uniformlyQuasiWide_of_nowhereDense C h r
   refine ⟨N, s, ?_⟩
   intro m n G hG A hA
   obtain ⟨S, B, hScard, hBsub, hBcard, hBind⟩ :=

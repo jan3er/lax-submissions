@@ -2048,3 +2048,143 @@ bibEntry was added alongside the required EGKKPRS one, because the
 attribution names it. (3) The proof module is named `NowhereDenseNC.lean`
 rather than `Corollary6b.lean`, matching Lax12Proofs' concept-mirroring
 naming.
+
+### P6-B log
+
+Jan's decision, executed: "neighborhood complexity fully belongs to
+sparsity, and mondep builds upon that". Lax5's duplicated sparsity
+concepts are gone and its remaining concepts are stated over Lax12's
+definitions, imported cross-submission — the Lax2-requires-Lax1 pattern,
+now applied at the *concept* level. This overrides the P6-A log's closing
+recommendation to keep a duplicate `Lax5/NeighborhoodComplexity.lean`:
+`Lax5-concepts` now requires `Lax12-concepts`, and there is no
+duplication left anywhere in the submission.
+
+#### Dependency wiring
+
+`concepts/lakefile.toml` gained its first non-mathlib require —
+`name = "Lax12"`, `rev = d4dd676639ed202c8dd966194bfe6588ca2e9b84`,
+`subDir = "sparsity-lectures/concepts"` — placed after the `[[lean_lib]]`
+block, as in `twin-width-mixed-minor-number/concepts/lakefile.toml`.
+`proofs/lakefile.toml` repinned `Lax12` from `3767b962` to the same
+`d4dd6766`; the `Lax14` pin (`4973144e`, `finite-ramsey/concepts`) is
+unchanged. Both gitignored `lake-manifest.json` files were deleted before
+the first build; `lake update` was never run and the mathlib pin is
+untouched.
+
+#### Final concept surface: seven units
+
+Four definitions:
+
+| module | contents |
+| --- | --- |
+| `Lax5/GraphClasses.lean` | retitled *Weakly sparse graph classes*; own `GraphClass` abbrev dropped in favour of `Lax12.GraphClasses`, keeps `allGraphs` and `WeaklySparse` |
+| `Lax5/Transductions.lean` | unchanged |
+| `Lax5/GraphTransductions.lean` | unchanged but for `open Lax12.GraphClasses` |
+| `Lax5/MonadicDependence.lean` | unchanged but for `open Lax12.GraphClasses Lax5.GraphClasses` |
+
+Three theorems, all with unchanged axiom names and unchanged quantifier
+structure — only the (definitionally identical) definitions now come from
+Lax12:
+
+| module | statement |
+| --- | --- |
+| `Lax5/WeaklySparseDependent.lean` | `nowhereDense_of_weaklySparse_of_monadicallyDependent`, concluding `Lax12.NowhereDenseClasses.NowhereDense` |
+| `Lax5/AlmostLinearNC.lean` | `hasAlmostLinearNC_of_monadicallyDependent`, concluding `Lax12.NeighborhoodComplexity.HasAlmostLinearNC` |
+| `Lax5/AdlerAdler.lean` | `monadicallyDependent_of_nowhereDense`, hypothesis `Lax12.NowhereDenseClasses.NowhereDense` |
+
+Deleted: `Lax5/NowhereDenseClasses.lean`, `Lax5/WeakColoring.lean`,
+`Lax5/NowhereDenseWcol.lean`, `Lax5/NeighborhoodComplexity.lean`,
+`Lax5/NowhereDenseNC.lean`, and their five `Lax5.lean` import lines.
+Every remaining module's formalization notes now say which definitions
+are Lax12's and that they are endorsed there.
+
+#### Proof package
+
+Deleted: `Lax5Proofs/Corollary6b.lean` and
+`Lax5Proofs/NowhereDenseNeighborhoods.lean` (moved to Lax12 in P6-A) and
+`Lax5Proofs/NowhereDenseWcol.lean` (its conclusion statement no longer
+exists in Lax5; Lax12's stands). `Lax5Proofs/QuasiWideness.lean` lost the
+whole Lax5↔Lax12 `ShallowMinorModel` repacking — `shallowMinorModel_lax5`,
+`shallowMinorModel_lax12`, `nowhereDense_lax12_of_lax5` — because
+`AdlerAdler`'s hypothesis *is* Lax12's `NowhereDense` now; what is left
+(90 → 50 lines) is only the `Set` → `Finset` reshaping of the assumed
+quasi-wideness conclusion. Retargeted namespaces in `AdlerAdler.lean`,
+`Corollary6.lean`, `Corollary6a.lean`, `CrossingTransduction.lean`,
+`Lemma21.lean`, `SparsGraphs.lean`, `Theorem2.lean`. `Corollary6.lean`
+now composes `Lax12.NowhereDenseNC.hasAlmostLinearNC_of_nowhereDense` with
+`Lax5.WeaklySparseDependent.nowhereDense_of_weaklySparse_of_monadicallyDependent`.
+
+#### Verified assumption sets
+
+`#print axioms` via `lake env lean`, background axioms (`propext`,
+`Classical.choice`, `Quot.sound`) elided. Each computed set equals the
+declared `assumptions:` block exactly, and each equals the set the brief
+predicted — no drift.
+
+| proof | computed = declared |
+| --- | --- |
+| `Lax5Proofs.AdlerAdler.monadicallyDependent_of_nowhereDense` | `Lax12.NowhereDenseUQW.uniformlyQuasiWide_of_nowhereDense` |
+| `Lax5Proofs.Corollary6a.nowhereDense_of_weaklySparse_of_monadicallyDependent` | `Lax14.MulticolorRamsey.exists_monochromatic_set`, `Lax14.TupleRamsey.exists_orderType_homogeneous` |
+| `Lax5Proofs.Theorem2.hasAlmostLinearNC_of_monadicallyDependent` | `Lax12.NowhereDenseNC.hasAlmostLinearNC_of_nowhereDense`, `Lax5.WeaklySparseDependent.nowhereDense_of_weaklySparse_of_monadicallyDependent` |
+
+The resulting network:
+
+    Lax14.MulticolorRamsey.exists_monochromatic_set  ─┐
+    Lax14.TupleRamsey.exists_orderType_homogeneous   ─┴─▶ Lax5.WeaklySparseDependent.nd_of_ws_md ─┐
+                                                                                                 │
+    Lax12.NowhereDenseNC.nc_of_nd ───────────────────────────────────────────────────────────────┴─▶ Lax5.AlmostLinearNC.nc_of_md
+
+    Lax12.NowhereDenseUQW.uqw_of_nd ─▶ Lax5.AdlerAdler.md_of_nd
+
+#### Line-count delta
+
+| | files | lines |
+| --- | --- | --- |
+| concepts before (HEAD `eb9925a`) | 13 | 594 |
+| concepts after | 8 | 342 |
+| proofs before | 27 | 12602 |
+| proofs after | 24 | 11295 |
+| **delta** | **−8** | **−1559** |
+
+#### Build status
+
+`lake build` green in `monadic-dependence-neighborhood-complexity/concepts/`
+(2048 jobs; the first build fetched Lax12 at `d4dd6766`) and in
+`.../proofs/` (2783 jobs). `lax build monadic-dependence-neighborhood-complexity`
+(no `--replay`, per the RAM constraint) **OK — zero violations**; the only
+warnings are the three expected draft-dependency ones (Lax12 in both
+lakefiles, Lax14 in the proofs lakefile) plus pre-existing Lean style
+linter warnings. `build-output.json` records 7 concepts and 3 proofs with
+the assumption sets above. Nothing was committed or submitted.
+
+#### Deviations
+
+1. **`Lax5Proofs/Corollary6a.lean` keeps fully qualified
+   `Lax12.GraphClasses.GraphClass`** rather than opening the namespace:
+   it also opens `Lax5Proofs.ShallowMinors`, which declares its own
+   type-polymorphic `GraphClass`, and an `open` makes the term ambiguous.
+   Same reason the file used the qualified `Lax5.GraphClasses.GraphClass`
+   before.
+2. **`Lax5/GraphClasses.lean` was retitled** *Graph classes* → *Weakly
+   sparse graph classes*: with the `GraphClass` abbrev gone the module is
+   the weak-sparseness concept, and the old title would have claimed a
+   notion it no longer defines. Its description and formalization notes
+   were rewritten accordingly.
+3. **`README.md`'s Lax5 blurb was updated** (twelve concepts / five
+   proofs → seven / three, and "built on the Lax12 draft"), closing one of
+   the three P6-A caveats. The other two — `Corollary6.lean`'s retarget
+   and the non-deletability of `Lax5/NeighborhoodComplexity.lean` — are
+   handled above; the second is moot under the concept-level require.
+4. **`manifest.yaml` is unchanged.** No bibEntry went stale: the
+   `pilipczuk-sparsity-notes` entry is still cited by the abstract, which
+   names the lecture notes as what the upstream Lax12 submission
+   formalizes.
+5. **`abstract.md` rewritten**, opening with the sparsity framing (the
+   theorem extends a nowhere dense bound to a model-theoretic family) and
+   stating outright that the submission builds on Lax12 and imports its
+   graph-class, nowhere-denseness and neighborhood-complexity concepts.
+   The old paragraph about "deliberate nominal duplication ... paid for by
+   transports that are field-for-field repackings" is gone: there is no
+   duplication and no transport left on the Lax12 side. Lax14 is still
+   described as assumed at the statement level.

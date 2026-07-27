@@ -42,7 +42,7 @@ open Lax5Proofs.Subdivision
 /-! ### Encoding bridges -/
 
 /-- The type-polymorphic closure of a submitted class under graph copies. -/
-private def copyClosure (C : Lax5.GraphClasses.GraphClass) :
+private def copyClosure (C : Lax12.GraphClasses.GraphClass) :
     Lax5Proofs.ShallowMinors.GraphClass :=
   fun {_} _ _ H =>
     ∃ (n : ℕ) (G : SimpleGraph (Fin n)), C n G ∧ H ⊑ G
@@ -51,7 +51,7 @@ private def copyClosure (C : Lax5.GraphClasses.GraphClass) :
 walks inside branch sets are replaced by their bypass paths. -/
 private theorem isShallowMinor_of_shallowMinorModel {n t r : ℕ}
     {G : SimpleGraph (Fin n)}
-    (M : Lax5.NowhereDenseClasses.ShallowMinorModel r
+    (M : Lax12.NowhereDenseClasses.ShallowMinorModel r
       (⊤ : SimpleGraph (Fin t)) G) :
     IsShallowMinor (SimpleGraph.completeGraph (Fin t)) G r := by
   refine ⟨{
@@ -71,9 +71,9 @@ private theorem isShallowMinor_of_shallowMinorModel {n t r : ℕ}
 /-- Catalog nowhere-denseness of the copy closure transfers back to the
 submitted shallow-minor formulation. -/
 private theorem nowhereDense_of_isNowhereDense_copyClosure
-    (C : Lax5.GraphClasses.GraphClass)
+    (C : Lax12.GraphClasses.GraphClass)
     (h : IsNowhereDense (copyClosure C)) :
-    Lax5.NowhereDenseClasses.NowhereDense C := by
+    Lax12.NowhereDenseClasses.NowhereDense C := by
   intro r
   obtain ⟨t, ht⟩ := h r
   refine ⟨t + 1, ?_⟩
@@ -309,9 +309,9 @@ monochromatic-subset extraction inside the nowhere-dense bridge is the
 multicolour Ramsey statement, and the order-type homogeneity behind
 Lemma 13.8 is the tuple Ramsey statement. -/
 theorem nowhereDense_of_weaklySparse_of_monadicallyDependent
-    (C : Lax5.GraphClasses.GraphClass) (hs : WeaklySparse C)
+    (C : Lax12.GraphClasses.GraphClass) (hs : WeaklySparse C)
     (hd : MonadicallyDependent C) :
-    Lax5.NowhereDenseClasses.NowhereDense C := by
+    Lax12.NowhereDenseClasses.NowhereDense C := by
   obtain ⟨kWS, hWS⟩ := hs
   by_contra hNotND
   -- Cross the encoding bridge: the copy closure is not locally nowhere

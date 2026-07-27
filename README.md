@@ -21,15 +21,19 @@ Submission directories currently in this repository:
   directions). Depends on the Lax1 draft.
 - `monadic-dependence-neighborhood-complexity/` — **Lax5**: monadically
   dependent graph classes have almost linear neighborhood complexity. Its
-  twelve concepts and five proofs also formalize the weakly sparse
-  equivalence between monadic dependence and nowhere denseness. Depends
-  on the Lax12 and Lax14 drafts, whose statements its proofs assume.
+  seven concepts and three proofs also formalize the weakly sparse
+  equivalence between monadic dependence and nowhere denseness. Built on
+  the Lax12 draft — its concepts state the theorems over Lax12's graph
+  class, nowhere denseness and neighborhood complexity — and depends on
+  the Lax14 draft, whose statements its proofs assume.
 - `sparsity-lectures/` — **Lax12**: nowhere denseness, uniform
-  quasi-wideness, shallow-minor density, and the generalized coloring
-  numbers, in the statement forms of the Pilipczuk–Pilipczuk sparsity
-  lecture notes (thirteen concepts; the headline weak-coloring theorem
-  is concluded by a glue proof assuming the four chain statements).
-  Depends on the Lax14 draft.
+  quasi-wideness, shallow-minor density, the generalized coloring
+  numbers, and neighborhood complexity, in the statement forms of the
+  Pilipczuk–Pilipczuk sparsity lecture notes (fifteen concepts; the
+  headline weak-coloring theorem is concluded by a glue proof assuming
+  the four chain statements, and the almost-linear neighborhood
+  complexity of nowhere dense classes assumes it in turn). Depends on
+  the Lax14 draft.
 - `finite-ramsey/` — **Lax14**: finite Ramsey theorems for pairs and
   tuples — multicolor Ramsey, the two-color clique-or-independent-set
   form (assuming the multicolor statement), and Erdős–Rado tuple Ramsey

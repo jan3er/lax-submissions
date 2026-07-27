@@ -26,7 +26,7 @@ relation on graph classes.
 
 namespace Lax5.GraphTransductions
 
-open FirstOrder Lax5.GraphClasses
+open FirstOrder Lax12.GraphClasses
 
 /-- The members of a graph class, as structures of the language of
 graphs: adjacency interprets the binary relation. -/

@@ -1,5 +1,5 @@
 import Lax5.MonadicDependence
-import Lax5.NeighborhoodComplexity
+import Lax12.NeighborhoodComplexity
 import Lax5Proofs.SparsGraphs
 import Lax5Proofs.Asymptotics
 import Mathlib.Combinatorics.SetFamily.Shatter
@@ -35,7 +35,8 @@ singleton `A` a twin-free family has at most `2^1` traces.
 namespace Lax5Proofs.Lemma21
 
 open FirstOrder Lax5.Transductions
-open Lax5.GraphClasses Lax5.MonadicDependence Lax5.NeighborhoodComplexity
+open Lax12.GraphClasses Lax12.NeighborhoodComplexity
+open Lax5.GraphClasses Lax5.MonadicDependence
 
 /-- Adjacency formula of `vcWitnessTransduction`. -/
 noncomputable def vcWitnessAdjFormula :
