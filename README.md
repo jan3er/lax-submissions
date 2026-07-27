@@ -22,7 +22,18 @@ Submission directories currently in this repository:
 - `monadic-dependence-neighborhood-complexity/` — **Lax5**: monadically
   dependent graph classes have almost linear neighborhood complexity. Its
   twelve concepts and five proofs also formalize the weakly sparse
-  equivalence between monadic dependence and nowhere denseness.
+  equivalence between monadic dependence and nowhere denseness. Depends
+  on the Lax12 and Lax14 drafts, whose statements its proofs assume.
+- `sparsity-lectures/` — **Lax12**: nowhere denseness, uniform
+  quasi-wideness, shallow-minor density, and the generalized coloring
+  numbers, in the statement forms of the Pilipczuk–Pilipczuk sparsity
+  lecture notes (thirteen concepts; the headline weak-coloring theorem
+  is concluded by a glue proof assuming the four chain statements).
+  Depends on the Lax14 draft.
+- `finite-ramsey/` — **Lax14**: finite Ramsey theorems for pairs and
+  tuples — multicolor Ramsey, the two-color clique-or-independent-set
+  form (assuming the multicolor statement), and Erdős–Rado tuple Ramsey
+  in order-type form.
 - `ram-linear-time/` — **Lax11**: algorithmic experiments on a RAM — a
   word-RAM surface with linear-time claims for connected components,
   Courcelle–Makowsky–Rotics model checking on bounded cliquewidth, and
