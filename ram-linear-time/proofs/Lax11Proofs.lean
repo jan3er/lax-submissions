@@ -20,3 +20,4 @@ import Lax11Proofs.MsoTypes
 import Lax11Proofs.Mso
 import Lax11Proofs.MsoAdequacy
 import Lax11Proofs.MsoComposition
+import Lax11Proofs.TreeDecomp
