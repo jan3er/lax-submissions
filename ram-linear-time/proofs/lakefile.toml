@@ -14,5 +14,15 @@ rev = "c5ea00351c28e24afc9f0f84379aa41082b1188f"
 name = "Lax11"
 path = "../concepts"
 
+# DEV PIN — flip to git rev before submit (phase 6)
+[[require]]
+name = "Lax13"
+path = "../../word-ram/concepts"
+
+# DEV PIN — flip to git rev before submit (phase 6)
+[[require]]
+name = "Lax13Proofs"
+path = "../../word-ram/proofs"
+
 [[lean_lib]]
 name = "Lax11Proofs"

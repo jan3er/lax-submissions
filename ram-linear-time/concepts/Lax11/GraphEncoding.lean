@@ -5,9 +5,9 @@ import Mathlib.Combinatorics.SimpleGraph.Basic
 title: Compressed sparse row encoding of a graph
 type: definition
 ---
-A graph is handed to a random access machine as a word of numbers in
-compressed sparse row form, the adjacency-array format every textbook
-assumes: the number *n* of vertices, the number *m* of edges, then
+A graph is handed to a word random access machine as a word of numbers
+in compressed sparse row form, the adjacency-array format every
+textbook assumes: the number *n* of vertices, the number *m* of edges, then
 *n+1* offsets, then the target array. The target array lists, for each
 vertex in turn, the neighbors of that vertex; the offsets say where
 each vertex's block of neighbors begins, the first offset being 0 and
@@ -38,6 +38,15 @@ the length condition pins down the word completely, so this default
 value is never reached at any position the other conditions constrain.
 The conditions are bundled as a structure so that each one is a named
 obligation a reader can check off separately.
+
+Nothing here mentions the word length of the machine the encoding is
+handed to. It does not have to: every entry of an encoding is a vertex
+number, an offset into the target array, or one of the two header
+numbers, and each of those is smaller than the length of the word
+itself, so an encoding that a machine can address at all is one whose
+entries fit into that machine's words. The condition that it does fit
+belongs to the claims made about programs reading the encoding, and is
+stated there, once, as an explicit inequality against `2 ^ w`.
 -/
 
 namespace Lax11.GraphEncoding

@@ -1,5 +1,5 @@
 import Lax11.ConnectedComponents
-import Lax11Proofs.Reasoning
+import Lax13Proofs.Reasoning
 
 /-!
 The driver: connected components, as an IMP+ program.
@@ -31,8 +31,8 @@ express, and why the while rule takes a potential.
 
 namespace Lax11Proofs.CC
 
-open Lax11.Ram Lax11.RamComputes Lax11.GraphEncoding Lax11.ConnectedComponents
-open Lax11Proofs.Imp Lax11Proofs.Compile Lax11Proofs.Reasoning
+open Lax13.Ram Lax13.RamComputes Lax11.GraphEncoding Lax11.ConnectedComponents
+open Lax13Proofs.Imp Lax13Proofs.Compile Lax13Proofs.Reasoning
 
 /-! ### The program -/
 
@@ -134,19 +134,21 @@ The compiler was checked by evaluation before anything was proved,
 which is how two bugs were found at P1. `runOut` runs the machine to a
 halt and reports the output tape and the number of steps; the graphs
 below are given in the concept's encoding, and the outputs are the
-least-vertex labels. -/
+least-vertex labels. The word length is fixed at sixteen, which is more
+than these graphs need; the step counts do not depend on it. -/
 
-/-- Run a machine program to a halt within `f` steps, reporting the
-output tape and the number of steps taken. -/
-def runOut : ℕ → Program → State → ℕ → Option (List ℕ × ℕ)
+/-- Run a machine program at word length `w` to a halt within `f`
+steps, reporting the output tape and the number of steps taken. -/
+def runOut (w : ℕ) : ℕ → Program → State → ℕ → Option (List ℕ × ℕ)
   | 0, _, _, _ => none
   | f + 1, p, s, k =>
-      match step p s with
+      match step w p s with
       | none => some (s.out, k)
-      | some s' => runOut f p s' (k + 1)
+      | some s' => runOut w f p s' (k + 1)
 
-/-- Run `ccProgram` on an encoded graph. -/
-def test (x : List ℕ) : Option (List ℕ × ℕ) := runOut 100000 ccProgram (initState x) 0
+/-- Run `ccProgram` on an encoded graph, at a word length that holds
+every number these graphs produce. -/
+def test (x : List ℕ) : Option (List ℕ × ℕ) := runOut 16 100000 ccProgram (initState x) 0
 
 -- no vertices
 #guard test [0, 0, 0] = some ([], 97)

@@ -164,7 +164,16 @@ build green) and commits before the next phase starts.
   (`B` is a function of the input; time separated by `L.const * K ≤ T`);
   three smoke programs green incl. mul/shiftl. Note for downstream: word
   hypothesis goes against `max B (L.span B)` (`fitsWords_of_max_le`).
-- [ ] Phase 3 CC vertical slice (concepts + proofs)
+- [x] Phase 3 CC vertical slice — Lax11 Ram/RamComputes deleted; GraphEncoding
+  + ConnectedComponents rewritten over Lax13 (statement: fitting condition is
+  a conjunct in `D`, since a fixed graph has encodings of every length and an
+  arrow form would be vacuous — accepted deviation; one constant 2604 serves
+  time and word bound; `B x = x.length` via new `mem_lt_length`); CC proof
+  stack ported (8 modules), roots trimmed, dev path-requires wired. Orchestrator
+  fixed ≤-vs-word prose imprecision in three spots. Both builds green,
+  lean_verify background-only.
+- [ ] Phase 4 VC vertical slice + kit polish (evalB cond intro lemmas,
+  size_add-family simp abbrevs)
 - [ ] Phase 3 CC port
 - [ ] Phase 4 VC port
 - [ ] Phase 5 Courcelle port

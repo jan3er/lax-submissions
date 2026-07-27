@@ -166,6 +166,33 @@ theorem slot_of_adjn (hx : EncodesGraph x n G) {a b : ℕ} (h : Adjn G a b) :
   obtain ⟨ha, hb, hab⟩ := h
   exact (adj_iff' hx ha hb).1 hab
 
+/-- Every entry of an encoding is smaller than the encoding itself is
+long. The entries are the two header numbers, offsets into the target
+array and vertex numbers, and the length of the word is `3 + n + 2m`,
+which exceeds all three. This is what lets one quantity — the length of
+the input — bound every number the algorithm ever holds, so that the
+word-length hypothesis of the statement has to mention nothing but that
+length. -/
+theorem mem_lt_length (hx : EncodesGraph x n G) {v : ℕ} (hv : v ∈ x) : v < x.length := by
+  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.1 hv
+  have hlen := hx.length_eq
+  rw [show x[i] = x.getD i 0 from by
+    simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi]]
+  rcases Nat.lt_or_ge i 2 with h2 | h2
+  · interval_cases i
+    · have hv : x.getD 0 0 = n := hx.vertexCount_eq
+      omega
+    · have hm : x.getD 1 0 = edgeCount x := rfl
+      omega
+  · rcases Nat.lt_or_ge i (3 + n) with h3 | h3
+    · have hoff : x.getD i 0 = offset x (i - 2) := by rw [offset]; congr 1; omega
+      have := offset_le hx (i := i - 2) (by omega)
+      omega
+    · have htgt : x.getD i 0 = target x (i - (3 + n)) := by
+        rw [target, hx.vertexCount_eq]; congr 1; omega
+      have := hx.target_lt (i - (3 + n)) (by omega)
+      omega
+
 /-! ### How much of the target array a set of blocks takes up
 
 The cost of the search is paid out of the length of the target array,

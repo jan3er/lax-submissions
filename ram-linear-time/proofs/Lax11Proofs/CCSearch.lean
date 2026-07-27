@@ -25,14 +25,23 @@ The queue is never reset, so `Base` speaks about all of it and the
 searches are told apart only by `Live.cur`, the fact that the part
 still to be expanded belongs to the current search. That is what buys
 the cost argument its global budget.
+
+Two numbers bound everything the search produces: `n`, which every
+vertex, label and queue pointer stays below, and `2m`, which every
+offset, scan pointer and slot counter stays below. So the value bound
+of the bounded semantics enters as the two hypotheses `n < B` and
+`2 * m < B` and adds nothing to the invariants — with one exception,
+the slot counter, whose bound is the amortization argument itself and
+is therefore passed in as `sc₀ + deg x v ≤ 2 * m` where the scan needs
+it.
 -/
 
 namespace Lax11Proofs.CC
 
-open Lax11.Ram Lax11.GraphEncoding Lax11.ConnectedComponents
-open Lax11Proofs.Imp Lax11Proofs.Compile Lax11Proofs.Reasoning
+open Lax13.Ram Lax11.GraphEncoding Lax11.ConnectedComponents
+open Lax13Proofs.Imp Lax13Proofs.Compile Lax13Proofs.Reasoning
 
-variable {x : List ℕ} {n m u head tail : ℕ} {G : SimpleGraph (Fin n)} {O T L Q : ℕ → ℕ}
+variable {x : List ℕ} {B n m u head tail : ℕ} {G : SimpleGraph (Fin n)} {O T L Q : ℕ → ℕ}
 
 /-! ### What holds throughout the run -/
 
@@ -56,6 +65,11 @@ structure Base (x : List ℕ) (n : ℕ) (G : SimpleGraph (Fin n)) (L Q : ℕ →
   neighbours carry that vertex's own label. -/
   exp : ∀ i < head, ∀ j, offset x (Q i) ≤ j → j < offset x (Q i + 1) →
     L (target x j) = L (Q i)
+
+/-- Every entry of the label array is a vertex or the marker, so it is
+at most `n`: the one bound the search needs of a label. -/
+theorem Base.lab_le (hB : Base x n G L Q head tail) {w : ℕ} (hw : w < n) : L w ≤ n :=
+  (hB.lab w hw).elim (fun h => h.le) (fun h => le_of_lt (h ▸ lbl_lt hw))
 
 /-- What holds during a search from the root `u`. -/
 structure Live (x : List ℕ) (n u : ℕ) (G : SimpleGraph (Fin n)) (L Q : ℕ → ℕ)
@@ -135,9 +149,10 @@ def ScanInv (x : List ℕ) (n m u v head sc₀ : ℕ) (G : SimpleGraph (Fin n))
 that vertex is labelled and enqueued. -/
 theorem scanBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     (hT : ∀ j < 2 * m, T j = target x j) (hu : u < n) {v head sc₀ : ℕ} (hv : v < n)
+    (hnB : n < B) (hmB : 2 * m < B) (hsc₀ : sc₀ + deg x v ≤ 2 * m)
     {Q₀ : ℕ → ℕ} {τ : Env} (hI : ScanInv x n m u v head sc₀ G O T Q₀ τ)
-    (hcond : (Cond.lt (.var "j") (.var "jend")).eval τ = some true) :
-    ∃ τ', Run scanBody τ τ' 26 ∧ ScanInv x n m u v head sc₀ G O T Q₀ τ' ∧
+    (hcond : (Cond.lt (.var "j") (.var "jend")).evalB B τ = some true) :
+    ∃ τ', Run B scanBody τ τ' 26 ∧ ScanInv x n m u v head sc₀ G O T Q₀ τ' ∧
       (offset x (v + 1) - τ'.vars "j") < (offset x (v + 1) - τ.vars "j") := by
   obtain ⟨L, Q, ⟨hn, hmm, hup, hoff, htgt, hlab, hq⟩, hL, hhead, hht, hqv, hvv, hje,
     hj₁, hj₂, hsc, hscan, hq₀⟩ := hI
@@ -145,6 +160,8 @@ theorem scanBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
   have hjlt : τ.vars "j" < offset x (v + 1) := by simp [hje] at hcond; omega
   have h2m : offset x (v + 1) ≤ 2 * m := hm ▸ offset_le hx (by omega)
   have hjm : τ.vars "j" < 2 * m := by omega
+  have hdegv : deg x v = offset x (v + 1) - offset x v := rfl
+  have hscB : τ.vars "sc" + 1 < B := by omega
   obtain ⟨w, hw⟩ : ∃ w, target x (τ.vars "j") = w := ⟨_, rfl⟩
   have hwn : w < n := hw ▸ target_lt' hx hv hjlt
   have hadj : Adjn G v w := hw ▸ adjn_of_slot hx hv hj₁ hjlt
@@ -154,13 +171,13 @@ theorem scanBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     omega
   have hlw : lbl G w = u := by
     have := lbl_eq_of_rch (Rch.of_adjn hadj); omega
-  have hteval : (Expr.get "tgt" (.var "j")).eval τ = some w := by
-    simp [htgt, getElem?_arrOf T hjm, hT _ hjm, hw]
+  have hteval : (Expr.get "tgt" (.var "j")).evalB B τ = some w := by
+    simp [htgt, getElem?_arrOf T hjm, hT _ hjm, hw]; omega
   by_cases hnew : L w = n
   · -- unlabelled: label it and enqueue it
     have htail : τ.vars "tail" < n := hB.tail_lt hwn hnew
-    have hceval : (Cond.eq (.get "lab" (.var "w")) (.var "n")).eval (τ.setVar "w" w)
-        = some true := by simp [hlab, getElem?_arrOf L hwn, hn, hnew]
+    have hceval : (Cond.eq (.get "lab" (.var "w")) (.var "n")).evalB B (τ.setVar "w" w)
+        = some true := by simp [hlab, getElem?_arrOf L hwn, hn, hnew]; omega
     have hnotexp : ∀ i < head, ∀ j, offset x (Q i) ≤ j → j < offset x (Q i + 1) →
         target x j ≠ w := by
       intro i hi j hj₁' hj₂' hjw
@@ -172,12 +189,14 @@ theorem scanBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
       exact (hB.qmem p hp).2 (by rw [hpw, hnew])
     refine ⟨_, (Run.seq (Run.assign (v := w) hteval)
       (Run.seq (Run.ite_true hceval
-        (Run.seq (Run.store (idx := w) (v := u) (by simp) (by simp [hup]) (by simp [hlab, hwn]))
+        (Run.seq (Run.store (idx := w) (v := u) (by simp; omega) (by simp [hup]; omega)
+            (by simp [hlab, hwn]))
           (Run.seq (Run.store (idx := τ.vars "tail") (v := w)
-              (by simp) (by simp) (by simp [hq, htail]))
-            (Run.assign (v := τ.vars "tail" + 1) (by simp)))))
-        (Run.seq (Run.assign (v := τ.vars "sc" + 1) (by simp))
-          (Run.assign (v := τ.vars "j" + 1) (by simp))))).mono (by simp), ?_, by simp; omega⟩
+              (by simp; omega) (by simp; omega) (by simp [hq, htail]))
+            (Run.assign (v := τ.vars "tail" + 1) (by simp; omega)))))
+        (Run.seq (Run.assign (v := τ.vars "sc" + 1) (by simp; omega))
+          (Run.assign (v := τ.vars "j" + 1) (by simp; omega))))).mono (by simp), ?_,
+      by simp; omega⟩
     refine ⟨fun z => if z = w then u else L z, fun i => if i = τ.vars "tail" then w else Q i,
       ⟨by simp [hn], by simp [hmm], by simp [hup], by simp [hoff], by simp [htgt],
         by simp [hlab, set_arrOf], by simp [hq, set_arrOf]⟩, ?_,
@@ -259,13 +278,14 @@ theorem scanBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
   · -- already labelled, and by this search
     have hLw : L w = u := by
       have := (hB.lab w hwn).resolve_left hnew; omega
-    have hceval : (Cond.eq (.get "lab" (.var "w")) (.var "n")).eval (τ.setVar "w" w)
+    have hceval : (Cond.eq (.get "lab" (.var "w")) (.var "n")).evalB B (τ.setVar "w" w)
         = some false := by
       simp [hlab, getElem?_arrOf L hwn, hn, hLw]; omega
     refine ⟨_, (Run.seq (Run.assign (v := w) hteval)
       (Run.seq (Run.ite_false hceval Run.skip)
-        (Run.seq (Run.assign (v := τ.vars "sc" + 1) (by simp))
-          (Run.assign (v := τ.vars "j" + 1) (by simp))))).mono (by simp), ?_, by simp; omega⟩
+        (Run.seq (Run.assign (v := τ.vars "sc" + 1) (by simp; omega))
+          (Run.assign (v := τ.vars "j" + 1) (by simp; omega))))).mono (by simp), ?_,
+      by simp; omega⟩
     refine ⟨L, Q, ⟨by simp [hn], by simp [hmm], by simp [hup], by simp [hoff], by simp [htgt],
       by simp [hlab], by simp [hq]⟩, by simpa using hL, by simp [hhead], by simp [hht],
       hqv, by simp [hvv], by simp [hje], by simp; omega, by simp; omega,
@@ -280,14 +300,19 @@ theorem scanBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
 /-- The whole block of `v`, scanned. -/
 theorem scan_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     (hT : ∀ j < 2 * m, T j = target x j) (hu : u < n) {v head sc₀ : ℕ} (hv : v < n)
+    (hnB : n < B) (hmB : 2 * m < B) (hsc₀ : sc₀ + deg x v ≤ 2 * m)
     {Q₀ : ℕ → ℕ} {τ : Env} (hI : ScanInv x n m u v head sc₀ G O T Q₀ τ)
     (hjs : τ.vars "j" = offset x v) :
-    ∃ τ', Run (.while (.lt (.var "j") (.var "jend")) scanBody) τ τ' (30 * deg x v + 4) ∧
+    ∃ τ', Run B (.while (.lt (.var "j") (.var "jend")) scanBody) τ τ' (30 * deg x v + 4) ∧
       ScanInv x n m u v head sc₀ G O T Q₀ τ' ∧ τ'.vars "j" = offset x (v + 1) := by
+  have h2m : offset x (v + 1) ≤ 2 * m := hm ▸ offset_le hx (by omega)
   obtain ⟨τ', hrun, hI', hfalse⟩ :=
-    Run.while_count (b := Cond.lt (.var "j") (.var "jend")) (c := scanBody)
+    Run.while_count (B := B) (b := Cond.lt (.var "j") (.var "jend")) (c := scanBody)
       (ScanInv x n m u v head sc₀ G O T Q₀) (fun σ => offset x (v + 1) - σ.vars "j") 26
-      (fun _ _ => ⟨_, rfl⟩) (fun σ h hc => scanBody_run hx hm hT hu hv h hc) hI
+      (fun σ hσ => ⟨decide (σ.vars "j" < σ.vars "jend"), by
+        obtain ⟨-, -, -, -, -, -, -, -, hje, -, hjle, -⟩ := hσ
+        simp [hje]; omega⟩)
+      (fun σ h hc => scanBody_run hx hm hT hu hv hnB hmB hsc₀ h hc) hI
   obtain ⟨L₁, Q₁, h₃, h₄, h₅, h₆, h₇, h₈, hje, h₁₀, hjle, h₁₂, h₁₃, h₁₄⟩ := hI'
   have hj : τ'.vars "j" = offset x (v + 1) := by
     simp [hje] at hfalse; omega
@@ -298,11 +323,12 @@ theorem scan_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
 thirty per slot of that block and nineteen besides. -/
 theorem expandBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     (hO : ∀ i ≤ n, O i = offset x i) (hT : ∀ j < 2 * m, T j = target x j) (hu : u < n)
+    (hnB : n < B) (hmB : 2 * m < B)
     {τ : Env} (hSE : SearchEnv n m u O T L Q τ)
     (hL : Live x n u G L Q (τ.vars "head") (τ.vars "tail"))
     (hht : τ.vars "head" < τ.vars "tail")
     (hsc : τ.vars "sc" = ∑ i ∈ Finset.range (τ.vars "head"), deg x (Q i)) :
-    ∃ (τ' : Env) (L' Q' : ℕ → ℕ) (K : ℕ), Run expandBody τ τ' K ∧
+    ∃ (τ' : Env) (L' Q' : ℕ → ℕ) (K : ℕ), Run B expandBody τ τ' K ∧
       SearchEnv n m u O T L' Q' τ' ∧
       Live x n u G L' Q' (τ'.vars "head") (τ'.vars "tail") ∧
       τ'.vars "head" = τ.vars "head" + 1 ∧
@@ -315,14 +341,26 @@ theorem expandBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
   obtain ⟨v, hvdef⟩ : ∃ v, Q (τ.vars "head") = v := ⟨_, rfl⟩
   rw [hvdef]
   have hvn : v < n := hvdef ▸ (hB.qmem _ hht).1
+  have htln := hB.tl
+  -- the block of the vertex just dequeued is paid for out of the target array
+  have hsum : τ.vars "sc" + deg x v ≤ 2 * m := by
+    have hstep : ∑ i ∈ Finset.range (τ.vars "head" + 1), deg x (Q i) ≤ 2 * m := by
+      rw [← hm]
+      exact sum_deg_queue hx (fun i hi => (hB.qmem i (by omega)).1)
+        (fun i hi j hj h => hB.qinj i (by omega) j (by omega) h)
+    rw [Finset.sum_range_succ, hvdef] at hstep
+    omega
+  have hoffv : offset x v ≤ 2 * m := hm ▸ offset_le hx (by omega)
+  have hoffv' : offset x (v + 1) ≤ 2 * m := hm ▸ offset_le hx (by omega)
   -- read the vertex, its block start and its block end
-  have e₁ : (Expr.get "q" (.var "head")).eval τ = some v := by
-    simp [hq, getElem?_arrOf Q hheadn, hvdef]
-  have e₂ : (Expr.get "off" (.var "v")).eval (τ.setVar "v" v) = some (offset x v) := by
-    simp [hoff, getElem?_arrOf O (show v < n + 1 by omega), hO v (by omega)]
-  have e₃ : (Expr.get "off" (.add (.var "v") (.lit 1))).eval
+  have e₁ : (Expr.get "q" (.var "head")).evalB B τ = some v := by
+    simp [hq, getElem?_arrOf Q hheadn, hvdef]; omega
+  have e₂ : (Expr.get "off" (.var "v")).evalB B (τ.setVar "v" v) = some (offset x v) := by
+    simp [hoff, getElem?_arrOf O (show v < n + 1 by omega), hO v (by omega)]; omega
+  have e₃ : (Expr.get "off" (.add (.var "v") (.lit 1))).evalB B
       ((τ.setVar "v" v).setVar "j" (offset x v)) = some (offset x (v + 1)) := by
     simp [hoff, getElem?_arrOf O (show v + 1 < n + 1 by omega), hO (v + 1) (by omega)]
+    omega
   -- the scan
   have hI₃ : ScanInv x n m u v (τ.vars "head") (τ.vars "sc") G O T Q
       (((τ.setVar "v" v).setVar "j" (offset x v)).setVar "jend" (offset x (v + 1))) :=
@@ -331,14 +369,16 @@ theorem expandBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
       hvdef, by simp, by simp, by simp,
       by simpa using offset_mono' hx (Nat.le_succ v) (show v + 1 ≤ n by omega),
       by simp, by intro j' h₁ h₂; simp at h₂; omega, fun i _ => rfl⟩
-  obtain ⟨τ₄, hscan, hI₄, hj₄⟩ := scan_run hx hm hT hu hvn hI₃ (by simp)
+  obtain ⟨τ₄, hscan, hI₄, hj₄⟩ := scan_run hx hm hT hu hvn hnB hmB hsum hI₃ (by simp)
   obtain ⟨L', Q', ⟨hn', hmm', hup', hoff', htgt', hlab', hq'⟩, hL', hhead', hht', hqv',
     hvv', hje', hjge', hjle', hsc', hscanned, hq₀'⟩ := hI₄
+  have hht'' : τ.vars "head" + 1 ≤ τ₄.vars "tail" := by omega
+  have htl' := hL'.base.tl
   refine ⟨τ₄.setVar "head" (τ.vars "head" + 1), L', Q', _,
     Run.seq (Run.assign (v := v) e₁)
       (Run.seq (Run.assign (v := offset x v) e₂)
         (Run.seq (Run.assign (v := offset x (v + 1)) e₃)
-          (Run.seq hscan (Run.assign (v := τ.vars "head" + 1) (by simp [hhead']))))),
+          (Run.seq hscan (Run.assign (v := τ.vars "head" + 1) (by simp [hhead']; omega))))),
     ⟨by simp [hn'], by simp [hmm'], by simp [hup'], by simp [hoff'], by simp [htgt'],
       by simp [hlab'], by simp [hq']⟩, ?_, by simp, ?_, ?_, by simp; omega⟩
   · -- the search is live one step further along
@@ -382,18 +422,19 @@ so is paid out of the potential — including the scans, whose cost no
 constant per turn of the loop could bound. -/
 theorem drain_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     (hO : ∀ i ≤ n, O i = offset x i) (hT : ∀ j < 2 * m, T j = target x j) (hu : u < n)
+    (hnB : n < B) (hmB : 2 * m < B)
     {τ : Env} (hI : DrainInv x n m u G O T τ) :
-    ∃ (τ' : Env) (K : ℕ), Run drain τ τ' K ∧ DrainInv x n m u G O T τ' ∧
+    ∃ (τ' : Env) (K : ℕ), Run B drain τ τ' K ∧ DrainInv x n m u G O T τ' ∧
       τ'.vars "head" = τ'.vars "tail" ∧ K + Pot n m τ' ≤ Pot n m τ + 4 := by
   have hstep : ∀ σ : Env, DrainInv x n m u G O T σ →
-      (Cond.lt (.var "head") (.var "tail")).eval σ = some true →
-      ∃ σ' K, Run expandBody σ σ' K ∧ DrainInv x n m u G O T σ' ∧
+      (Cond.lt (.var "head") (.var "tail")).evalB B σ = some true →
+      ∃ σ' K, Run B expandBody σ σ' K ∧ DrainInv x n m u G O T σ' ∧
         1 + (Cond.lt (Expr.var "head") (Expr.var "tail")).size + K + Pot n m σ' ≤ Pot n m σ := by
     intro σ hσ hc
     obtain ⟨L₁, Q₁, hSE, hLive, hsum⟩ := hσ
     have hht : σ.vars "head" < σ.vars "tail" := by simp at hc; omega
     obtain ⟨σ', L₂, Q₂, K, hrun, hSE', hLive', hhead', hsum', hsc', hK⟩ :=
-      expandBody_run hx hm hO hT hu hSE hLive hht hsum
+      expandBody_run hx hm hO hT hu hnB hmB hSE hLive hht hsum
     refine ⟨σ', K, hrun, ⟨L₂, Q₂, hSE', hLive', hsum'⟩, ?_⟩
     have hhd := hLive'.base.hd
     have h2m : σ'.vars "sc" ≤ 2 * m := by
@@ -406,8 +447,14 @@ theorem drain_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     simp only [Pot, size_condLt, size_var]
     omega
   obtain ⟨τ', K, hrun, hI', hfalse, hpay⟩ :=
-    Run.while_pot (b := Cond.lt (.var "head") (.var "tail")) (c := expandBody)
-      (DrainInv x n m u G O T) (Pot n m) (fun _ _ => ⟨_, rfl⟩) hstep hI
+    Run.while_pot (B := B) (b := Cond.lt (.var "head") (.var "tail")) (c := expandBody)
+      (DrainInv x n m u G O T) (Pot n m)
+      (fun σ hσ => ⟨decide (σ.vars "head" < σ.vars "tail"), by
+        obtain ⟨L', Q', -, hLive, -⟩ := hσ
+        have hhd := hLive.base.hd
+        have htl := hLive.base.tl
+        simp; omega⟩)
+      hstep hI
   obtain ⟨L₁, Q₁, hSE₁, hL₁, hsum₁⟩ := hI'
   have hhd := hL₁.base.hd
   exact ⟨τ', K, hrun, ⟨L₁, Q₁, hSE₁, hL₁, hsum₁⟩, by simp at hfalse; omega,
