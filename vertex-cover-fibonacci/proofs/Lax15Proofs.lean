@@ -1,1 +1,2 @@
-import Lax15Proofs.Basic
+import Lax15Proofs.Residual
+import Lax15Proofs.Repeats
