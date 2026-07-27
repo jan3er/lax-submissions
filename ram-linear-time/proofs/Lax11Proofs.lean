@@ -16,3 +16,4 @@ import Lax11Proofs.CCMain
 import Lax11Proofs.TreeFold
 import Lax11Proofs.TreeFoldRun
 import Lax11Proofs.TreeFoldMain
+import Lax11Proofs.MsoTypes
