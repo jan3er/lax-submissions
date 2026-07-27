@@ -1,0 +1,29 @@
+specVersion: "1"
+id: Lax15
+leanVersion: "v4.30.0"
+mathlibVersion: "c5ea00351c28e24afc9f0f84379aa41082b1188f"
+title: Vertex Cover in Fibonacci Time
+authors:
+  - name: Jan Dreier
+  - name: Claude Fable 5 (Anthropic)
+bibEntries:
+  - |
+    @book{CyganEtAl2015,
+      author    = {Cygan, Marek and Fomin, Fedor V. and Kowalik,
+                   {\L}ukasz and Lokshtanov, Daniel and Marx, D{\'a}niel
+                   and Pilipczuk, Marcin and Pilipczuk, Micha{\l} and
+                   Saurabh, Saket},
+      title     = {Parameterized Algorithms},
+      publisher = {Springer},
+      year      = {2015},
+      doi       = {10.1007/978-3-319-21275-3}
+    }
+  - |
+    @book{DowneyFellows1999,
+      author    = {Downey, Rodney G. and Fellows, Michael R.},
+      title     = {Parameterized Complexity},
+      publisher = {Springer},
+      series    = {Monographs in Computer Science},
+      year      = {1999},
+      doi       = {10.1007/978-1-4612-0515-9}
+    }
