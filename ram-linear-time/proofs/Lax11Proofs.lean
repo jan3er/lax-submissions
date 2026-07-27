@@ -27,3 +27,8 @@ import Lax11Proofs.MsoTable
 import Lax11Proofs.CourcelleSmoke
 import Lax11Proofs.CourcelleDriver
 import Lax11Proofs.CourcelleMain
+import Lax11Proofs.VCSpec
+import Lax11Proofs.VC
+import Lax11Proofs.VCScan
+import Lax11Proofs.VCLoop
+import Lax11Proofs.VCMain
