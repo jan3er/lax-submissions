@@ -6,11 +6,10 @@ $x$ of natural numbers, the machine halts within $c(|x|+1)$ steps having
 labelled every vertex by the least vertex of its connected component.
 The second is Courcelle's theorem in the Courcelle–Makowsky–Rotics form:
 for every sentence of monadic second-order logic and every width bound
-$k$ there are one program and one constant such that, given any graph in
-compressed sparse row form followed by a $k$-expression that evaluates
-to it, the machine halts within a constant multiple of the length of the
-input, having written $1$ if the sentence holds in the graph and $0$ if
-it does not.
+$k$ there are one program and one constant $c$ such that, given any
+graph in compressed sparse row form followed by a $k$-expression that
+evaluates to it, the machine halts within $c(|x|+1)$ steps having
+written $1$ if the sentence holds in the graph and $0$ if it does not.
 
 Its purpose is to put running-time claims about concrete algorithms
 within reach of the archive, so the machine model carries the whole
@@ -19,10 +18,10 @@ Five definitions: the machine itself — an accumulator, an unbounded
 memory of natural-number cells, direct and indirect addressing, input
 and output tapes, and the instruction set of Aho, Hopcroft and Ullman
 without multiplication and division, so that the unit-cost measure is
-the honest one; what it means
-for a program to compute a function of words within a time bound, the
-running time being the machine's own step count rather than an
-annotation carried alongside the program; the compressed sparse row
+the honest one; what it means for a program to compute a function of
+words within a time bound, the running time being the machine's own step
+count rather than an annotation carried alongside the program; the
+compressed sparse row
 encoding of a graph, in the dumb form in which an algorithm actually
 receives it, with nothing precomputed, no sortedness assumed and
 repetitions permitted; monadic second-order logic on graphs, with
@@ -94,5 +93,6 @@ driver. Its constant is a tower in the sentence and the width, because
 the table is, and it is never estimated; but the tower is paid once,
 before the input is read, and the input-dependent part of the cost is a
 fixed number of steps per entry. The $k$-expression is input rather than
-something the program computes, and the formalization notes accompanying
-this submission say plainly what that leaves open.
+something the program computes; the formalization notes on the theorem
+say plainly what that leaves open, as they do for everything else the
+statement decides rather than proves.
