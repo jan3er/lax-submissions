@@ -252,6 +252,36 @@ def Com.Ok (L : Layout) : Com → Prop
   | .read x => x ∈ L.scalars
   | .write e => Expr.Ok L e 0 ∧ 0 < L.temps
 
+/-! ### The equations of `Ok`
+
+A definition written by pattern matching gets its equation lemmas —
+and, with them, the `splitter` of its match — only when something first
+asks for them, and they are created *in the module that asks*. Checking
+a concrete program against `Ok` is `simp [Com.Ok, Cond.Ok, Expr.Ok]`,
+and every consumer of this kit does it, so without the three lemmas
+below the first consumer creates the equations; a consumer in another
+package then holds declarations named under `Lax13Proofs`, which the
+archive's namespace rule rejects. Asking here, where the definitions
+live, is enough: a later `simp [Com.Ok]` anywhere finds the equations
+among its imports and creates nothing.
+
+The splitters carry the names `compileExpr.match_1` and `size.match_1`
+rather than `Expr.Ok`'s and `Com.Ok`'s, because Lean shares one matcher
+between all matches of the same shape and those two came first.
+
+The statements themselves are the trivial cases of `Ok`, which is all
+that is wanted from them; only the `simp` in the proof matters. -/
+
+theorem Expr.ok_lit (L : Layout) (n d : ℕ) : Expr.Ok L (.lit n) d := by
+  simp [Expr.Ok]
+
+theorem Cond.ok_iff (L : Layout) (b : Cond) (d : ℕ) :
+    Cond.Ok L b d ↔ Expr.Ok L (condExpr b) d := by
+  simp [Cond.Ok]
+
+theorem Com.ok_skip (L : Layout) : Com.Ok L .skip := by
+  simp [Com.Ok]
+
 /-! ### Code lengths
 
 Block lengths are what the absolute jump targets are computed from, so

@@ -450,6 +450,20 @@ def _root_.Lax13Proofs.Imp.Com.NoWrite : Com → Prop
   | .ite _ c d => c.NoWrite ∧ d.NoWrite
   | .while _ c => c.NoWrite
 
+/-- `skip` contains no `write`.
+
+The statement is the trivial case and is not what the lemma is for: the
+`simp` in its proof creates the equation lemmas of `NoWrite` — and the
+splitter of its match — *in this package*. They are created on first
+use, in the module that uses them, and the use is `simp [Com.NoWrite]`
+in whatever algorithm proof invokes `BigStep.out_eq`; done there, in
+another package, it leaves that package holding declarations named
+under `Lax13Proofs`, which the archive's namespace rule rejects. Asking
+here is enough: every later `simp [Com.NoWrite]` finds the equations
+among its imports and creates nothing. -/
+theorem _root_.Lax13Proofs.Imp.Com.noWrite_skip : Com.skip.NoWrite := by
+  simp [Com.NoWrite]
+
 /-- A command that contains no `write` leaves the output tape alone. -/
 theorem _root_.Lax13Proofs.Imp.BigStep.out_eq {c : Com} {σ σ' : Env} {k : ℕ}
     (h : BigStep c σ σ' k) : c.NoWrite → σ'.out = σ.out := by
