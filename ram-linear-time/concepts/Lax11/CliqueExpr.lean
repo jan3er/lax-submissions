@@ -117,20 +117,16 @@ def graph : Expr n k → SimpleGraph (Fin n)
 /-- The evaluated graph has a decidable adjacency relation, by the same
 structural recursion. -/
 instance decidableAdj : ∀ e : Expr n k, DecidableRel (graph e).Adj
-  | .leaf _ _ => fun u v => show Decidable ((⊥ : SimpleGraph (Fin n)).Adj u v) from
-      inferInstance
-  | .union e₁ e₂ => fun u v => by
-      letI := decidableAdj e₁
-      letI := decidableAdj e₂
-      exact show Decidable ((graph e₁ ⊔ graph e₂).Adj u v) from inferInstance
-  | .addEdges i j e => fun u v => by
-      letI := decidableAdj e
-      exact show Decidable
-        ((graph e ⊔ SimpleGraph.fromRel fun u v => u ∈ cls e i ∧ v ∈ cls e j).Adj u v) from
-        inferInstance
-  | .relabel _ _ e => fun u v => by
-      letI := decidableAdj e
-      exact show Decidable ((graph e).Adj u v) from inferInstance
+  | .leaf _ _ => inferInstanceAs (DecidableRel (⊥ : SimpleGraph (Fin n)).Adj)
+  | .union e₁ e₂ =>
+      have := decidableAdj e₁
+      have := decidableAdj e₂
+      inferInstanceAs (DecidableRel (graph e₁ ⊔ graph e₂).Adj)
+  | .addEdges i j e =>
+      have := decidableAdj e
+      inferInstanceAs (DecidableRel
+        (graph e ⊔ SimpleGraph.fromRel fun u v => u ∈ cls e i ∧ v ∈ cls e j).Adj)
+  | .relabel _ _ e => decidableAdj e
 
 /-- Well-formedness of the operations: `addEdges` joins two *different*
 classes, the standard restriction on `η`. -/
@@ -181,26 +177,21 @@ def Op.code : Op k → ℕ
 /-- The size of the operation alphabet. -/
 def opCard (k : ℕ) : ℕ := 1 + k + 2 * (k * k)
 
-private theorem div_lt_sq {c k : ℕ} (h : c < k * k) : c / k < k :=
-  Nat.div_lt_of_lt_mul h
-
-private theorem pos_of_lt_sq {c k : ℕ} (h : c < k * k) : 0 < k := by
-  rcases Nat.eq_zero_or_pos k with rfl | hk
-  · exact absurd h (by simp)
-  · exact hk
-
-private theorem mod_lt_sq {c k : ℕ} (h : c < k * k) : c % k < k :=
-  Nat.mod_lt _ (pos_of_lt_sq h)
-
 /-- The inverse of `Op.code`, total by sending every number that names
-no operation to `union`. -/
+no operation to `union`. A code in one of the two `k²` blocks is read in
+base `k`; that its digits are labels is `Nat.div_lt_of_lt_mul` and
+`Nat.mod_lt`, the latter needing `0 < k`, which the block itself
+supplies since no number is below `k²` when `k` is zero. -/
 def Op.decode (k c : ℕ) : Op k :=
   if c = 0 then .union
   else if h : c - 1 < k then .leaf ⟨c - 1, h⟩
   else if h : c - 1 - k < k * k then
-    .eta ⟨(c - 1 - k) / k, div_lt_sq h⟩ ⟨(c - 1 - k) % k, mod_lt_sq h⟩
+    have hk : 0 < k := Nat.pos_of_ne_zero (by rintro rfl; simp at h)
+    .eta ⟨(c - 1 - k) / k, Nat.div_lt_of_lt_mul h⟩ ⟨(c - 1 - k) % k, Nat.mod_lt _ hk⟩
   else if h : c - 1 - k - k * k < k * k then
-    .rho ⟨(c - 1 - k - k * k) / k, div_lt_sq h⟩ ⟨(c - 1 - k - k * k) % k, mod_lt_sq h⟩
+    have hk : 0 < k := Nat.pos_of_ne_zero (by rintro rfl; simp at h)
+    .rho ⟨(c - 1 - k - k * k) / k, Nat.div_lt_of_lt_mul h⟩
+      ⟨(c - 1 - k - k * k) % k, Nat.mod_lt _ hk⟩
   else .union
 
 end Lax11.CliqueExpr
