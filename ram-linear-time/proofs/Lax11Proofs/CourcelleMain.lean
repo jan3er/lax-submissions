@@ -1,5 +1,6 @@
 import Lax11.Courcelle
 import Lax11Proofs.CourcelleDriver
+import Lax13Proofs.Transfer
 
 /-!
 Courcelle's theorem, cashed in at the concept surface.
@@ -9,10 +10,10 @@ the two header reads, the four read loops, the four table prologues,
 the seed pass, the sweep and the accept write — each handed the frame
 conditions of the ones before it, which is the same assembly the
 connected-components driver and the fold schema were closed with.
-Second the resulting `Run` is handed to `computesInTime_of_run`, which
-discharges the compiler, the layout invariant and the machine in one
-step, and the accept bit is turned into the sentence by
-`MsoTable.acceptVal_val`.
+Second the resulting `Run` is bundled as the pipeline's `Solves`
+predicate and handed to `computesInTime_of_solves`, which discharges the
+compiler, the layout invariant and the machine in one step; the accept
+bit is turned into the sentence by `MsoTable.acceptVal_val`.
 
 The constant is a monster and is meant to be. It is `46` machine steps
 per unit of IMP+ cost — nine arrays make one index computation eleven
@@ -22,12 +23,18 @@ tower in the sentence and the width lives: the table has one row and
 one column per `q`-type of a `k`-labelled region, so it is a constant of
 `φ` and `k` alone, paid before the input is looked at, and the
 quantifier order of the statement is what makes that legitimate.
+
+The word length is dealt with in the same step and in the same place.
+The bound the driver runs under is the length of the input word, its
+largest entry, and the size of the tables; the same constant that pays
+for the time pays for that too, which is why the statement carries one
+constant and not two.
 -/
 
 namespace Lax11Proofs.Courcelle
 
-open Lax11.Ram Lax11.RamComputes Lax11.GraphEncoding Lax11.Mso Lax11.CliqueExpr
-open Lax11Proofs.Imp Lax11Proofs.Compile Lax11Proofs.Reasoning
+open Lax13.Ram Lax13.RamComputes Lax11.GraphEncoding Lax11.Mso Lax11.CliqueExpr
+open Lax13Proofs.Imp Lax13Proofs.Compile Lax13Proofs.Reasoning Lax13Proofs.Transfer
 open Lax11Proofs.TreeFold Lax11Proofs.MsoTypes Lax11Proofs.MsoTable
 open Lax11Proofs.CC (readLoop readLoop_run)
 open Lax11.InstanceEncoding (EncodesModelCheckingInstance)
@@ -43,58 +50,96 @@ fixed overhead. A constant of the table, paid before the input is
 looked at. -/
 def driverCost (T : Table) : ℕ := 3 * (T.L + T.V + T.V * T.V + T.V) + 60
 
+/-- How wide the table alone asks the word to be: one number per label,
+and one per cell of the square combination table. -/
+def tableSpan (T : Table) : ℕ := T.L + T.V * T.V
+
+/-- Materializing the table costs at least three units per number the
+table makes the machine hold. The two constants are related because both
+count the table's entries, which is why one constant serves the time
+bound and the word-length hypothesis together. -/
+theorem tableSpan_le_driverCost (T : Table) : 3 * tableSpan T + 60 ≤ driverCost T := by
+  simp only [tableSpan, driverCost]
+  omega
+
+/-- The bound the driver runs under on the word `x`: the length of the
+word, its largest entry, and the size of the tables. Everything the run
+produces is below one of the three — a count of entries, an entry, a
+label or a cell of the square table. -/
+def driverBound (T : Table) (x : List ℕ) : ℕ := x.length + maxEntry x + tableSpan T + 1
+
+theorem table_fits (T : Table) (x : List ℕ) : T.Fits (driverBound T x) :=
+  ⟨by simp only [driverBound, tableSpan]; omega, by simp only [driverBound, tableSpan]; omega⟩
+
 /-- **The driver, run.** On a word laid out as an instance word is —
 two header entries, the rest of the graph block, the node count, and
 three arrays of one entry per node — the driver writes the accepting-set
 entry of the fold's value at the root, and the cost is linear in the
 length of the word plus the tables' fixed price. -/
-theorem driverCom_run {T : Table} (hT : T.Wf) {acp : ℕ → ℕ}
+theorem driverCom_run {B : ℕ} {T : Table} (hT : T.Wf) (hTB : T.Fits B) {acp : ℕ → ℕ}
     {x : List ℕ} {n m N : ℕ} {gr tr : List ℕ}
     (hx : x = n :: m :: (gr ++ N :: tr))
     (hgr : gr.length = n + 1 + (m + m)) (htr : tr.length = 3 * N) (hN : 1 ≤ N)
     (hpar : ∀ i, i + 1 < N → i < tr.getD i 0 ∧ tr.getD i 0 < N)
     (hlab : ∀ i < N, tr.getD (N + i) 0 < T.L)
-    (hlt : val T (fun i => tr.getD i 0) (fun i => tr.getD (N + i) 0) (N - 1) < T.V) :
-    ∃ (σ' : Env) (K : ℕ), Run (driverCom T acp) (initEnv (driverExt T n m N) x) σ' K ∧
+    (hlt : val T (fun i => tr.getD i 0) (fun i => tr.getD (N + i) 0) (N - 1) < T.V)
+    (hxB : ∀ v ∈ x, v < B) (hlenB : x.length < B) (hacpB : ∀ a < T.V, acp a < B) :
+    ∃ (σ' : Env) (K : ℕ), Run B (driverCom T acp) (initEnv (driverExt T n m N) x) σ' K ∧
       σ'.out = [acp (val T (fun i => tr.getD i 0) (fun i => tr.getD (N + i) 0) (N - 1))] ∧
       K ≤ 100 * (x.length + 1) + driverCost T := by
   have hxlen : x.length = 3 + gr.length + 3 * N := by rw [hx]; simp; omega
   set par : ℕ → ℕ := fun i => tr.getD i 0 with hpardef
   set lab : ℕ → ℕ := fun i => tr.getD (N + i) 0 with hlabdef
+  -- what the bound covers
+  have hNB : N < B := by omega
+  have hgrB : gr.length < B := by omega
+  have hnB : n < B := hxB n (by rw [hx]; exact List.mem_cons_self ..)
+  have hmB : m < B := hxB m (by rw [hx]; exact List.mem_cons_of_mem _ (List.mem_cons_self ..))
+  have h1B : 1 < B := by omega
+  have hgrmem : ∀ v ∈ gr, v < B := fun v hv =>
+    hxB v (by rw [hx]; exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+      (List.mem_append_left _ hv)))
+  have htrmem : ∀ v ∈ tr, v < B := fun v hv =>
+    hxB v (by rw [hx]; exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+      (List.mem_append_right _ (List.mem_cons_of_mem _ hv))))
+  have hVB := hTB.value_le
+  have hLB := hTB.label_le
+  have hsqB := hTB.square_le
   -- the header
   set σ₀ : Env := initEnv (driverExt T n m N) x with hσ₀
   have hσ₀arr : ∀ a, σ₀.arrs a = List.replicate (driverExt T n m N a) 0 := fun a => by
     rw [hσ₀]; rfl
   set σ₁ : Env := { σ₀.setVar "n" n with inp := m :: (gr ++ N :: tr) } with hσ₁
-  have r₁ : Run (.read "n") σ₀ σ₁ 1 := Run.read (by rw [hσ₀]; simpa [initEnv] using hx)
+  have r₁ : Run B (.read "n") σ₀ σ₁ 1 := Run.read (by rw [hσ₀]; simpa [initEnv] using hx)
   set σ₂ : Env := { σ₁.setVar "m" m with inp := gr ++ N :: tr } with hσ₂
-  have r₂ : Run (.read "m") σ₁ σ₂ 1 := Run.read (by rw [hσ₁])
+  have r₂ : Run B (.read "m") σ₁ σ₂ 1 := Run.read (by rw [hσ₁])
   set σ₃ : Env := σ₂.setVar "len" (n + 1 + (m + m)) with hσ₃
-  have r₃ : Run (.assign "len" (.add (.add (.var "n") (.lit 1)) (.add (.var "m") (.var "m"))))
+  have r₃ : Run B (.assign "len" (.add (.add (.var "n") (.lit 1)) (.add (.var "m") (.var "m"))))
       σ₂ σ₃ 8 :=
-    (Run.assign (v := n + 1 + (m + m)) (by rw [hσ₂, hσ₁]; simp)).mono (by simp [Expr.size])
+    (Run.assign (v := n + 1 + (m + m)) (by rw [hσ₂, hσ₁]; simp; omega)).mono (by simp)
   have hσ₃arr : ∀ a, σ₃.arrs a = List.replicate (driverExt T n m N a) 0 := fun a => by
     rw [hσ₃, hσ₂, hσ₁]; simpa using hσ₀arr a
   -- the graph block, read and discarded
   obtain ⟨σ₄, _, r₄, _, _, harr₄, hinp₄, hout₄, hvar₄⟩ :=
-    readLoop_run (a := "csr") (lim := "len") (by decide) (by decide) (σ := σ₃)
+    readLoop_run (B := B) (a := "csr") (lim := "len") (by decide) (by decide) (σ := σ₃)
       (g := fun _ => 0) (k := gr.length) (ys := gr) (rest := N :: tr)
       (by rw [hσ₃arr "csr"]; simp [driverExt, hgr, replicate_eq_arrOf])
-      (by rw [hσ₃]; simp [hgr]) rfl (by rw [hσ₃, hσ₂]; simp)
+      (by rw [hσ₃]; simp [hgr]) rfl (by rw [hσ₃, hσ₂]; simp) hgrB hgrmem
   have hA₄ : ∀ a, a ≠ "csr" → σ₄.arrs a = List.replicate (driverExt T n m N a) 0 :=
     fun a ha => by rw [harr₄ a ha, hσ₃arr a]
   -- the node count
   set σ₅ : Env := { σ₄.setVar "N" N with inp := tr } with hσ₅
-  have r₅ : Run (.read "N") σ₄ σ₅ 1 := Run.read (by rw [hinp₄])
+  have r₅ : Run B (.read "N") σ₄ σ₅ 1 := Run.read (by rw [hinp₄])
   have hA₅ : ∀ a, a ≠ "csr" → σ₅.arrs a = List.replicate (driverExt T n m N a) 0 :=
     fun a ha => by rw [hσ₅]; simpa using hA₄ a ha
   have hN₅ : σ₅.vars "N" = N := by rw [hσ₅]; simp
   -- the parents
   obtain ⟨σ₆, p₆, r₆, hpar₆, hp₆, harr₆, hinp₆, hout₆, hvar₆⟩ :=
-    readLoop_run (a := "par") (lim := "N") (by decide) (by decide) (σ := σ₅)
+    readLoop_run (B := B) (a := "par") (lim := "N") (by decide) (by decide) (σ := σ₅)
       (g := fun _ => 0) (k := N) (ys := tr.take N) (rest := tr.drop N)
       (by rw [hA₅ "par" (by decide)]; simp [driverExt, replicate_eq_arrOf])
-      hN₅ (by simp; omega) (by rw [hσ₅]; simp)
+      hN₅ (by simp; omega) (by rw [hσ₅]; simp) hNB
+      (fun v hv => htrmem v (List.mem_of_mem_take hv))
   have hpararr₆ : σ₆.arrs "par" = arrOf N par := by
     rw [hpar₆]
     exact arrOf_congr fun i hi => by rw [hp₆ i hi, getD_take hi, hpardef]
@@ -103,10 +148,11 @@ theorem driverCom_run {T : Table} (hT : T.Wf) {acp : ℕ → ℕ}
   have hN₆ : σ₆.vars "N" = N := by rw [hvar₆ "N" (by decide) (by decide), hN₅]
   -- the op codes
   obtain ⟨σ₇, l₇, r₇, hlab₇, hl₇, harr₇, hinp₇, hout₇, hvar₇⟩ :=
-    readLoop_run (a := "lab") (lim := "N") (by decide) (by decide) (σ := σ₆)
+    readLoop_run (B := B) (a := "lab") (lim := "N") (by decide) (by decide) (σ := σ₆)
       (g := fun _ => 0) (k := N) (ys := (tr.drop N).take N) (rest := (tr.drop N).drop N)
       (by rw [hA₆ "lab" (by decide) (by decide)]; simp [driverExt, replicate_eq_arrOf])
-      hN₆ (by simp; omega) (by rw [hinp₆]; simp)
+      hN₆ (by simp; omega) (by rw [hinp₆]; simp) hNB
+      (fun v hv => htrmem v (List.mem_of_mem_drop (List.mem_of_mem_take hv)))
   have hlabarr₇ : σ₇.arrs "lab" = arrOf N lab := by
     rw [hlab₇]
     exact arrOf_congr fun i hi => by
@@ -119,11 +165,12 @@ theorem driverCom_run {T : Table} (hT : T.Wf) {acp : ℕ → ℕ}
     rw [harr₇ "par" (by decide), hpararr₆]
   -- the vertex names, read and discarded
   obtain ⟨σ₈, _, r₈, _, _, harr₈, hinp₈, hout₈, hvar₈⟩ :=
-    readLoop_run (a := "ids") (lim := "N") (by decide) (by decide) (σ := σ₇)
+    readLoop_run (B := B) (a := "ids") (lim := "N") (by decide) (by decide) (σ := σ₇)
       (g := fun _ => 0) (k := N) (ys := (tr.drop N).drop N) (rest := [])
       (by rw [hA₇ "ids" (by decide) (by decide) (by decide)];
           simp [driverExt, replicate_eq_arrOf])
-      hN₇ (by simp; omega) (by rw [hinp₇]; simp)
+      hN₇ (by simp; omega) (by rw [hinp₇]; simp) hNB
+      (fun v hv => htrmem v (List.mem_of_mem_drop (List.mem_of_mem_drop hv)))
   have hA₈ : ∀ a, a ≠ "csr" → a ≠ "par" → a ≠ "lab" → a ≠ "ids" →
       σ₈.arrs a = List.replicate (driverExt T n m N a) 0 :=
     fun a h1 h2 h3 h4 => by rw [harr₈ a h4, hA₇ a h1 h2 h3]
@@ -134,25 +181,40 @@ theorem driverCom_run {T : Table} (hT : T.Wf) {acp : ℕ → ℕ}
     rw [harr₈ "lab" (by decide), hlabarr₇]
   -- the four tables, materialized
   obtain ⟨σ₉, r₉, hini₉, harr₉, hvar₉, hinp₉, hout₉⟩ :=
-    stores_arrOf_run (a := "ini") (n := T.L) (σ := σ₈) (f := fun _ => 0) (h := T.init)
+    stores_arrOf_run (B := B) (a := "ini") (n := T.L) (σ := σ₈) (f := fun _ => 0) (h := T.init)
       (by rw [hA₈ "ini" (by decide) (by decide) (by decide) (by decide)]
           simp [driverExt, replicate_eq_arrOf])
+      hLB (fun l hl => lt_of_lt_of_le (hT.init_lt l hl) hVB)
   obtain ⟨σ₁₀, r₁₀, hrow₁₀, harr₁₀, hvar₁₀, hinp₁₀, hout₁₀⟩ :=
-    stores_arrOf_run (a := "row") (n := T.V) (σ := σ₉) (f := fun _ => 0)
+    stores_arrOf_run (B := B) (a := "row") (n := T.V) (σ := σ₉) (f := fun _ => 0)
       (h := fun a => a * T.V)
       (by rw [harr₉ "row" (by decide), hA₈ "row" (by decide) (by decide) (by decide) (by decide)]
           simp [driverExt, replicate_eq_arrOf])
+      hVB (fun a ha => by
+        show a * T.V < B
+        have hstep : (a + 1) * T.V ≤ T.V * T.V := Nat.mul_le_mul_right _ (by omega)
+        rw [Nat.add_mul, Nat.one_mul] at hstep
+        omega)
   obtain ⟨σ₁₁, r₁₁, htab₁₁, harr₁₁, hvar₁₁, hinp₁₁, hout₁₁⟩ :=
-    stores_arrOf_run (a := "tab") (n := T.V * T.V) (σ := σ₁₀) (f := fun _ => 0)
+    stores_arrOf_run (B := B) (a := "tab") (n := T.V * T.V) (σ := σ₁₀) (f := fun _ => 0)
       (h := fun k => T.step (k / T.V) (k % T.V))
       (by rw [harr₁₀ "tab" (by decide), harr₉ "tab" (by decide),
             hA₈ "tab" (by decide) (by decide) (by decide) (by decide)]
           simp [driverExt, replicate_eq_arrOf])
+      hsqB (fun j hj => by
+        have hV : 0 < T.V := by
+          rcases Nat.eq_zero_or_pos T.V with h0 | h0
+          · rw [h0] at hj; simp at hj
+          · exact h0
+        exact lt_of_lt_of_le
+          (hT.step_lt _ (Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm]; exact hj)) _
+            (Nat.mod_lt _ hV)) hVB)
   obtain ⟨σ₁₂, r₁₂, hacp₁₂, harr₁₂, hvar₁₂, hinp₁₂, hout₁₂⟩ :=
-    stores_arrOf_run (a := "acp") (n := T.V) (σ := σ₁₁) (f := fun _ => 0) (h := acp)
+    stores_arrOf_run (B := B) (a := "acp") (n := T.V) (σ := σ₁₁) (f := fun _ => 0) (h := acp)
       (by rw [harr₁₁ "acp" (by decide), harr₁₀ "acp" (by decide), harr₉ "acp" (by decide),
             hA₈ "acp" (by decide) (by decide) (by decide) (by decide)]
           simp [driverExt, replicate_eq_arrOf])
+      hVB hacpB
   -- what the seeding phase starts from
   have hacc₁₂ : σ₁₂.arrs "acc" = arrOf N (fun _ => 0) := by
     rw [harr₁₂ "acc" (by decide), harr₁₁ "acc" (by decide), harr₁₀ "acc" (by decide),
@@ -179,27 +241,33 @@ theorem driverCom_run {T : Table} (hT : T.Wf) {acp : ℕ → ℕ}
     rw [hout₁₂, hout₁₁, hout₁₀, hout₉, hout₈, hout₇, hout₆, hout₅, hout₄, hout₃, hout₀]
   -- the seeds
   obtain ⟨σ₁₃, r₁₃, hacc₁₃, harr₁₃, hinp₁₃, hout₁₃, hvar₁₃⟩ :=
-    seedLoop_run (T := T) (lab := lab) (N := N) (σ := σ₁₂) (f := fun _ => 0)
-      hacc₁₂ hlabarr₁₂ hini₁₂ hN₁₂ hlab
+    seedLoop_run (B := B) (T := T) hT hTB (lab := lab) (N := N) (σ := σ₁₂) (f := fun _ => 0)
+      hacc₁₂ hlabarr₁₂ hini₁₂ hN₁₂ hlab hNB
   -- the sweep
   obtain ⟨σ₁₄, r₁₄, hacc₁₄, harr₁₄, hinp₁₄, hout₁₄, hvar₁₄⟩ :=
-    pushLoop_run (T := T) hT (par := par) (lab := lab) (N := N) (σ := σ₁₃) hacc₁₃
+    pushLoop_run (B := B) (T := T) hT hTB (par := par) (lab := lab) (N := N) (σ := σ₁₃) hacc₁₃
       (by rw [harr₁₃ "par" (by decide), hpararr₁₂])
       (by rw [harr₁₃ "row" (by decide), hrow₁₂])
       (by rw [harr₁₃ "tab" (by decide), htab₁₂])
-      (by rw [hvar₁₃ "N" (by decide), hN₁₂]) hN hpar hlab
+      (by rw [hvar₁₃ "N" (by decide), hN₁₂]) hN hpar hlab hNB
   -- the accept bit, written out
   have hN₁₄ : σ₁₄.vars "N" = N := by
     rw [hvar₁₄ "N" (by decide) (by decide), hvar₁₃ "N" (by decide), hN₁₂]
   have hacp₁₄ : σ₁₄.arrs "acp" = arrOf T.V acp := by
     rw [harr₁₄ "acp" (by decide), harr₁₃ "acp" (by decide), hacp₁₂]
-  have heval : (Expr.get "acp" (.get "acc" (.sub (.var "N") (.lit 1)))).eval σ₁₄ =
-      some (acp (val T par lab (N - 1))) := by
-    simp [hacc₁₄, hacp₁₄, hN₁₄, getElem?_arrOf _ (show N - 1 < N by omega),
-      getElem?_arrOf _ hlt]
-  have r₁₅ : Run (.write (.get "acp" (.get "acc" (.sub (.var "N") (.lit 1))))) σ₁₄
+  have hidxeval : (Expr.sub (.var "N") (.lit 1)).evalB B σ₁₄ = some (N - 1) := by
+    have h := evalB_bin (op := .sub) (evalB_var (show σ₁₄.vars "N" < B by rw [hN₁₄]; omega))
+      (evalB_lit (show (1 : ℕ) < B by omega)) (by simp [hN₁₄]; omega)
+    simpa [hN₁₄] using h
+  have heval : (Expr.get "acp" (.get "acc" (.sub (.var "N") (.lit 1)))).evalB B σ₁₄ =
+      some (acp (val T par lab (N - 1))) :=
+    evalB_get
+      (evalB_get hidxeval (by rw [hacc₁₄]; exact getElem?_arrOf _ (show N - 1 < N by omega))
+        (lt_of_lt_of_le hlt hVB))
+      (by rw [hacp₁₄]; exact getElem?_arrOf _ hlt) (hacpB _ hlt)
+  have r₁₅ : Run B (.write (.get "acp" (.get "acc" (.sub (.var "N") (.lit 1))))) σ₁₄
       { σ₁₄ with out := σ₁₄.out ++ [acp (val T par lab (N - 1))] } 6 :=
-    (Run.write heval).mono (by simp [Expr.size])
+    (Run.write heval).mono (by simp)
   -- the phases in a row
   refine ⟨_, _, Run.seq r₁ <| Run.seq r₂ <| Run.seq r₃ <| Run.seq r₄ <| Run.seq r₅ <|
       Run.seq r₆ <| Run.seq r₇ <| Run.seq r₈ <| Run.seq r₉ <| Run.seq r₁₀ <|
@@ -225,17 +293,70 @@ that the sentence holds in, `0` everywhere else. -/
 noncomputable def acpArr (q k : ℕ) (φ : MSO 0 0) (a : ℕ) : ℕ :=
   if acceptVal q k φ a then 1 else 0
 
+theorem acpArr_lt_two {q k : ℕ} {φ : MSO 0 0} (a : ℕ) : acpArr q k φ a < 2 := by
+  rw [acpArr]; split <;> omega
+
+open Classical in
+/-- What the pipeline asks of the driver: on every admissible input it
+decides the sentence, at a cost of a hundred per entry of the input word
+plus the tables' fixed price, with every value it produces below the
+length of the word, its largest entry and the size of the tables. -/
+theorem driverCom_solves (φ : MSO 0 0) (k n : ℕ) (G : SimpleGraph (Fin n)) (w : ℕ) :
+    Solves layout (driverCom (table (rank φ) k) (acpArr (rank φ) k φ))
+      {x | EncodesModelCheckingInstance x n G k ∧
+        ∀ v ∈ x, 46 * (100 + driverCost (table (rank φ) k)) * (x.length + v + 1) ≤ 2 ^ w}
+      (fun _ => if Sat G Fin.elim0 Fin.elim0 φ then [1] else [0])
+      (driverBound (table (rank φ) k))
+      (fun x => 100 * (x.length + 1) + driverCost (table (rank φ) k)) where
+  ok := driverCom_ok _ _
+  inp := fun x _ v hv => by
+    have := le_maxEntry hv
+    simp only [driverBound]
+    omega
+  run := by
+    rintro x ⟨hx, -⟩
+    set q := rank φ with hq
+    set T := table q k with hTdef
+    set B := driverBound T x with hBdef
+    obtain ⟨m, N, gr, tr, e, hxeq, hgr, htr, hN, hNx, hgrx, hpar, hlab, hvf, henc⟩ :=
+      instance_tape hx
+    -- the root's value is the number of the root's type
+    have hroot : val T (fun i => tr.getD i 0) (fun i => tr.getD (N + i) 0) (N - 1) =
+        enc (Val.done (typeOf q e)) :=
+      val_eq_typeOf q e (ValidFor.toValid hvf) (N - 1) henc
+    have hlt : val T (fun i => tr.getD i 0) (fun i => tr.getD (N + i) 0) (N - 1) < T.V := by
+      rw [hroot]; exact enc_lt _
+    have hxlen : x.length = 3 + gr.length + 3 * N := by rw [hxeq]; simp; omega
+    have hxB : ∀ v ∈ x, v < B := fun v hv => by
+      have := le_maxEntry hv; simp only [hBdef, driverBound]; omega
+    have hlenB : x.length < B := by simp only [hBdef, driverBound]; omega
+    obtain ⟨σ', K, hrun, hout, hK⟩ :=
+      driverCom_run (B := B) (T := T) (table_wf q k) (table_fits T x)
+        (acp := acpArr q k φ) hxeq hgr htr hN hpar hlab hlt hxB hlenB
+        (fun a _ => lt_of_lt_of_le (acpArr_lt_two a) (by simp only [hBdef, driverBound]; omega))
+    refine ⟨driverExt T n m N, σ', hrun.mono hK, ?_⟩
+    rw [hout, acpArr]
+    by_cases hs : Sat G Fin.elim0 Fin.elim0 φ
+    · rw [if_pos hs, if_pos ((acceptVal_val q φ (le_of_eq hq.symm) hvf henc).mpr hs)]
+    · rw [if_neg hs]
+      have hnot : ¬ (acceptVal q k φ
+          (val T (fun i => tr.getD i 0) (fun i => tr.getD (N + i) 0) (N - 1)) = true) :=
+        fun h => hs ((acceptVal_val q φ (le_of_eq hq.symm) hvf henc).mp h)
+      rw [if_neg hnot]
+
 open Classical in
 /--
 ---
 conclusion: Lax11.Courcelle.exists_linearTime_program_modelChecking
 ---
-Model checking monadic second-order logic is linear time on a random
-access machine for graphs presented together with a `k`-expression: for
-every sentence and every width bound there is one program which, on a
-compressed sparse row block followed by a `k`-expression that evaluates
-to it, writes `1` if the sentence holds in the graph and `0` if it does
-not, within a constant multiple of the length of the input.
+Model checking monadic second-order logic is linear time on a word
+random access machine for graphs presented together with a
+`k`-expression: for every sentence and every width bound there is one
+program which, on a compressed sparse row block followed by a
+`k`-expression that evaluates to it, writes `1` if the sentence holds in
+the graph and `0` if it does not, within a constant multiple of the
+length of the input, at every word length at which that constant
+multiple of the length and of each entry of the input fits into a word.
 
 # Proof strategy
 
@@ -264,7 +385,7 @@ schema's own, the four tables are materialized by
 The epilogue is one `write` of `acp[acc[N-1]]`, which is in range
 because the root's value is the number of a type.
 
-`computesInTime_of_run` discharges the compiler, the layout invariant
+`computesInTime_of_solves` discharges the compiler, the layout invariant
 and the machine, charging `layout.const = 46` machine steps per unit of
 IMP+ cost. The array extents are chosen per input, as that lemma allows.
 
@@ -289,6 +410,48 @@ of array accesses whatever the size of the alphabet. What it does not
 claim is any bound on it. None is computed anywhere in the development,
 and the absence is deliberate rather than an oversight — every known
 proof of Courcelle's theorem makes the dependence non-elementary.
+
+# Where the word length is paid for
+
+The machine truncates every value modulo `2 ^ w`, so the run on the
+machine is the run in the unbounded semantics only as long as nothing
+the program computes reaches `2 ^ w`. The bound the driver is proved
+under is `driverBound`: the length of the input word, plus its largest
+entry, plus the size of the tables. All three summands are needed and
+none of them is loose.
+
+*The length.* Every count the program keeps — the number of nodes, the
+length of the graph block, the loop counters, the offsets into the four
+arrays of the expression block — is a count of entries of the word.
+
+*The largest entry.* Most entries of an instance are small: vertex
+numbers, offsets and node numbers are below the length of the word, and
+an operation code is below the number of operations at width `k`, which
+the tables' size already covers. Two families are not, because the
+encoding deliberately does not constrain them — the parent entry of the
+root, which nothing points through, and
+the vertex name at a node whose operation creates no vertex. The machine
+reads its whole tape whatever it does with it, so those entries pass
+through the accumulator and have to be words; there is nothing to prove
+about them and nothing to be gained by pretending they are small, so the
+bound names the largest entry and the statement's fitting condition
+supplies it. That is the only reason the condition quantifies over the
+entries of the word rather than over its length alone.
+
+*The tables.* A label indexes the array of seeds and a cell of the
+square combination table is indexed by two values at once, so `T.L` and
+`T.V * T.V` are numbers the machine holds. This is the one place where
+the size of the type alphabet — the tower — reaches the word length
+rather than only the constant, and it is honest that it does: a machine
+whose words cannot number the types cannot run the table. It costs the
+statement nothing, because the constant is chosen after the sentence and
+the width bound, and `tableSpan_le_driverCost` says the constant that
+pays for materializing the table already pays for holding its indices.
+
+So the compiled program needs `11 + 9 * driverBound` cells to be words,
+and the statement's hypothesis — that
+`46 * (100 + driverCost) * (|x| + v + 1)` is a word for every entry `v`
+— gives that at the largest entry, with a margin nobody has to compute.
 
 # Formalization notes
 
@@ -352,20 +515,21 @@ generator applied to a computable table produces a program that runs.
 The table's content is carried by proof; the program text around it is
 carried by evaluation.
 
-*The machine has addition and subtraction only.* `Lax11.Ram` is the
-instruction set of Aho, Hopcroft and Ullman without multiplication and
-division, and under a unit-cost measure that matters: unit-cost
-multiplication is the standard way a linear-time claim on a random
-access machine becomes an artifact of the model. The fold indexes a
-two-dimensional table, which is where a multiplication would naturally
-appear — the entry for `a` and `b` sits at `a·V + b`. Instead the row
-bases `a·V` are themselves materialized, once, in the prologue, as the
-array `row`, and a lookup is `tab[row[a] + b]`: two array reads and an
-addition. The prologue that fills `row` is a sequence of stores whose
-length is the table's size, a constant fixed before the input is read.
-So no multiplication occurs anywhere in the compiled program, and the
-claim survives a strict reading of the model rather than depending on a
-generous one.
+*The multiplication instruction is never used.* The machine of
+`Lax13.Ram` has one, and under a unit-cost measure a linear-time claim
+that leans on it is at risk of being an artifact of the model. The fold
+indexes a two-dimensional table, which is where a multiplication would
+naturally appear — the entry for `a` and `b` sits at `a·V + b`. Instead
+the row bases `a·V` are themselves materialized, once, in the prologue,
+as the array `row`, and a lookup is `tab[row[a] + b]`: two array reads
+and an addition. The prologue that fills `row` is a sequence of stores
+whose length is the table's size, a constant fixed before the input is
+read. So the compiled program contains no multiplication anywhere —
+`CourcelleDriver.lean` checks that by filtering the generated
+instruction list, since it is a property of the program text and the
+program text is the same for every table — and the claim survives the
+strictest reading of the cost model, the one that would charge for a
+product of two words, rather than depending on a generous one.
 
 *The machine-versus-model check runs a stand-in table.* House
 discipline in this submission is that every program is run — by `#eval`
@@ -427,41 +591,45 @@ program is the textbook bottom-up fold.
 -/
 theorem exists_linearTime_program_modelChecking :
     ∀ (φ : MSO 0 0) (k : ℕ),
-      ∃ (p : Program) (c : ℕ), ∀ (n : ℕ) (G : SimpleGraph (Fin n)),
-        ComputesInTime p {x | EncodesModelCheckingInstance x n G k}
+      ∃ (p : Program) (c : ℕ), ∀ (n : ℕ) (G : SimpleGraph (Fin n)) (w : ℕ),
+        ComputesInTime w p
+          {x | EncodesModelCheckingInstance x n G k ∧
+            ∀ v ∈ x, c * (x.length + v + 1) ≤ 2 ^ w}
           (fun _ => if Sat G Fin.elim0 Fin.elim0 φ then [1] else [0])
           (fun x => c * (x.length + 1)) := by
   intro φ k
-  set q := rank φ with hq
-  refine ⟨driverProgram (table q k) (acpArr q k φ),
-    46 * (100 + driverCost (table q k)), fun n G => computesInTime_of_run (driverCom_ok _ _) ?_⟩
-  intro x hx
-  obtain ⟨m, N, gr, tr, e, hxeq, hgr, htr, hN, _, _, hpar, hlab, hvf, henc⟩ :=
-    instance_tape hx
-  -- the root's value is the number of the root's type
-  have hroot : val (table q k) (fun i => tr.getD i 0) (fun i => tr.getD (N + i) 0) (N - 1) =
-      enc (Val.done (typeOf q e)) :=
-    val_eq_typeOf q e (ValidFor.toValid hvf) (N - 1) henc
-  have hlt : val (table q k) (fun i => tr.getD i 0) (fun i => tr.getD (N + i) 0) (N - 1)
-      < (table q k).V := by rw [hroot]; exact enc_lt _
-  obtain ⟨σ', K, hrun, hout, hK⟩ :=
-    driverCom_run (T := table q k) (table_wf q k) (acp := acpArr q k φ)
-      hxeq hgr htr hN hpar hlab hlt
-  refine ⟨driverExt (table q k) n m N, σ', K, hrun, ?_, ?_⟩
-  · rw [hout, acpArr]
-    by_cases hs : Sat G Fin.elim0 Fin.elim0 φ
-    · rw [if_pos hs, if_pos ((acceptVal_val q φ (le_of_eq hq.symm) hvf henc).mpr hs)]
-    · rw [if_neg hs]
-      have : ¬ (acceptVal q k φ
-          (val (table q k) (fun i => tr.getD i 0) (fun i => tr.getD (N + i) 0) (N - 1)) = true) :=
-        fun h => hs ((acceptVal_val q φ (le_of_eq hq.symm) hvf henc).mp h)
-      rw [if_neg this]
-  · have h₁ : driverCost (table q k) ≤ driverCost (table q k) * (x.length + 1) :=
-      Nat.le_mul_of_pos_right _ (by omega)
-    have h₂ : K ≤ (100 + driverCost (table q k)) * (x.length + 1) := by
-      rw [Nat.add_mul]; omega
-    calc layout.const * K = 46 * K := by rw [const_eq]
-      _ ≤ 46 * ((100 + driverCost (table q k)) * (x.length + 1)) := Nat.mul_le_mul_left _ h₂
-      _ = 46 * (100 + driverCost (table q k)) * (x.length + 1) := by rw [Nat.mul_assoc]
+  refine ⟨driverProgram (table (rank φ) k) (acpArr (rank φ) k φ),
+    46 * (100 + driverCost (table (rank φ) k)), fun n G w =>
+      computesInTime_of_solves (driverCom_solves φ k n G w) ?_ ?_⟩
+  · rintro x ⟨hx, hw⟩
+    set T := table (rank φ) k with hTdef
+    set c := 46 * (100 + driverCost T) with hc
+    -- the word has to hold the bound and the cells the layout addresses
+    have hne : x ≠ [] := by
+      obtain ⟨_, _, _, _, _, hxeq, _⟩ := instance_tape hx
+      rw [hxeq]; simp
+    have hlen1 : 1 ≤ x.length := List.length_pos_of_ne_nil hne
+    have hmax := hw _ (maxEntry_mem hne)
+    have hcost := tableSpan_le_driverCost T
+    have hS : 1 ≤ x.length + maxEntry x + 1 := by omega
+    have hdist : c * (x.length + maxEntry x + 1) =
+        9 * (x.length + maxEntry x + 1) + (c - 9) * (x.length + maxEntry x + 1) := by
+      rw [← Nat.add_mul, show 9 + (c - 9) = c from by omega]
+    have hslack : (c - 9) * 1 ≤ (c - 9) * (x.length + maxEntry x + 1) :=
+      Nat.mul_le_mul_left _ hS
+    refine fitsWords_of_max_le (by simp only [driverBound]; omega) ?_
+    simp only [Layout.span, layout, driverBound, List.length_cons, List.length_nil]
+    omega
+  · rintro x -
+    rw [const_eq]
+    set T := table (rank φ) k with hTdef
+    calc 46 * (100 * (x.length + 1) + driverCost T)
+        ≤ 46 * ((100 + driverCost T) * (x.length + 1)) := by
+          refine Nat.mul_le_mul_left _ ?_
+          have h₁ : driverCost T ≤ driverCost T * (x.length + 1) :=
+            Nat.le_mul_of_pos_right _ (by omega)
+          rw [Nat.add_mul]
+          omega
+      _ = 46 * (100 + driverCost T) * (x.length + 1) := by rw [Nat.mul_assoc]
 
 end Lax11Proofs.Courcelle

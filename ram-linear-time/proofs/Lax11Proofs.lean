@@ -11,3 +11,17 @@ import Lax11Proofs.VC
 import Lax11Proofs.VCScan
 import Lax11Proofs.VCLoop
 import Lax11Proofs.VCMain
+import Lax11Proofs.CliqueExpr
+import Lax11Proofs.CourcelleSmoke
+import Lax11Proofs.MsoTypes
+import Lax11Proofs.Mso
+import Lax11Proofs.MsoAdequacy
+import Lax11Proofs.MsoComposition
+import Lax11Proofs.MsoCliqueOps
+import Lax11Proofs.TreeDecomp
+import Lax11Proofs.TreeFold
+import Lax11Proofs.TreeFoldRun
+import Lax11Proofs.TreeFoldMain
+import Lax11Proofs.MsoTable
+import Lax11Proofs.CourcelleDriver
+import Lax11Proofs.CourcelleMain

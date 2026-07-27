@@ -39,7 +39,7 @@ per-node work is two array reads.
 
 namespace Lax11Proofs.TreeFold
 
-open Lax11.Ram Lax11Proofs.Imp Lax11Proofs.Compile Lax11Proofs.Reasoning
+open Lax13.Ram Lax13Proofs.Imp Lax13Proofs.Compile Lax13Proofs.Reasoning
 open Lax11Proofs.CC (readLoop)
 
 /-! ### The table
@@ -70,6 +70,28 @@ structure Table.Wf (T : Table) : Prop where
   init_lt : ∀ l < T.L, T.init l < T.V
   /-- Combinations of values are values. -/
   step_lt : ∀ a < T.V, ∀ b < T.V, T.step a b < T.V
+
+/-- A bound admits a table when every number the materialized table
+makes the machine hold is below it. There are two: a label, which
+indexes the array of seeds, and a cell of the square combination table,
+which is indexed by two values at once. Everything else the fold
+produces is a value, and values are below `V ≤ V * V`. This is the only
+way the size of the table enters the word-length hypothesis of a
+program built on the schema — the *cost* of materializing it enters
+separately, through the constant. -/
+structure Table.Fits (T : Table) (B : ℕ) : Prop where
+  /-- Labels are below the bound. -/
+  label_le : T.L ≤ B
+  /-- Every cell of the square combination table is below the bound. -/
+  square_le : T.V * T.V ≤ B
+
+/-- Values are below the bound, since a value is at most a cell index of
+the square table. -/
+theorem Table.Fits.value_le {T : Table} {B : ℕ} (h : T.Fits B) : T.V ≤ B := by
+  have hsq := h.square_le
+  rcases Nat.eq_zero_or_pos T.V with h0 | h0
+  · omega
+  · exact le_trans (Nat.le_mul_of_pos_left _ h0) hsq
 
 /-! ### The pure model
 
@@ -345,14 +367,14 @@ and reports the output tape and the number of steps; it is the same
 three lines as in `CC.lean`, kept here so that this file depends on
 nothing of the connected-components driver but its read loop. -/
 
-/-- Run a machine program to a halt within `f` steps, reporting the
-output tape and the number of steps taken. -/
-def runOut : ℕ → Program → State → ℕ → Option (List ℕ × ℕ)
+/-- Run a machine program at word length `w` to a halt within `f` steps,
+reporting the output tape and the number of steps taken. -/
+def runOut (w : ℕ) : ℕ → Program → State → ℕ → Option (List ℕ × ℕ)
   | 0, _, _, _ => none
   | f + 1, p, s, k =>
-      match step p s with
+      match step w p s with
       | none => some (s.out, k)
-      | some s' => runOut f p s' (k + 1)
+      | some s' => runOut w f p s' (k + 1)
 
 /-- The instance word of a tree given by two lists. -/
 def encTree (parL labL : List ℕ) : List ℕ := parL.length :: (parL ++ labL)
@@ -361,9 +383,10 @@ def encTree (parL labL : List ℕ) : List ℕ := parL.length :: (parL ++ labL)
 def modelOut (T : Table) (parL labL : List ℕ) : List ℕ :=
   [val T (fun i => parL.getD i 0) (fun i => labL.getD i 0) (parL.length - 1)]
 
-/-- What the machine says the output is. -/
+/-- What the machine says the output is, at a word length that holds
+every number these trees and tables produce. -/
 def machineOut (T : Table) (parL labL : List ℕ) : Option (List ℕ) :=
-  (runOut 300000 (foldProgram T) (initState (encTree parL labL)) 0).map Prod.fst
+  (runOut 16 300000 (foldProgram T) (initState (encTree parL labL)) 0).map Prod.fst
 
 /-- Subtree label sums, modulo three: commutative, so it checks the
 arithmetic and the tree walk but not the order of the children. -/

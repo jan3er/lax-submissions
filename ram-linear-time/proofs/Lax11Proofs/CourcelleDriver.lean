@@ -47,8 +47,8 @@ the plumbing has to be tested against one that can.
 
 namespace Lax11Proofs.Courcelle
 
-open Lax11.Ram Lax11.RamComputes Lax11.GraphEncoding Lax11.Mso Lax11.CliqueExpr
-open Lax11Proofs.Imp Lax11Proofs.Compile Lax11Proofs.Reasoning
+open Lax13.Ram Lax13.RamComputes Lax11.GraphEncoding Lax11.Mso Lax11.CliqueExpr
+open Lax13Proofs.Imp Lax13Proofs.Compile Lax13Proofs.Reasoning
 open Lax11Proofs.TreeFold Lax11Proofs.MsoTable
 open Lax11Proofs.CC (readLoop)
 open Lax11.InstanceEncoding (nodeCount parent opCode vertexName EncodesExprTree EncodesExpr
@@ -281,9 +281,10 @@ def acpEdge (v : ℕ) : ℕ := if v < 8 ∧ b2 v = 1 then 1 else 0
 /-- The accepting set of its negation. -/
 def acpNoEdge (v : ℕ) : ℕ := if v < 8 ∧ b2 v = 0 then 1 else 0
 
-/-- Run the driver on a word. -/
+/-- Run the driver on a word, at a word length that holds every number
+the stand-in table and this instance produce. -/
 def runDriver (T : Table) (acp : ℕ → ℕ) (x : List ℕ) : Option (List ℕ) :=
-  (runOut 2000000 (driverProgram T acp) (initState x) 0).map Prod.fst
+  (runOut 16 2000000 (driverProgram T acp) (initState x) 0).map Prod.fst
 
 -- the model is the model *of that word*: the parent and op-code arrays
 -- the driver reads out of the expression block are the ones `MsoTable`'s
@@ -306,5 +307,27 @@ def runDriver (T : Table) (acp : ℕ → ℕ) (x : List ℕ) : Option (List ℕ)
   some [acpNoEdge (val edgeTable pathPar pathLab 6)]
 #guard runDriver edgeTable acpEdge CourcelleSmoke.instanceWord = some [1]
 #guard runDriver edgeTable acpNoEdge CourcelleSmoke.instanceWord = some [0]
+
+/-! ### No multiplication anywhere in the compiled program
+
+The fold indexes a square table, which is where a multiplication would
+naturally appear, and a linear-time claim on a unit-cost machine that
+leans on unit-cost multiplication is at risk of being an artifact of the
+model. The row bases are materialized instead, so the program is
+addition, subtraction and control only. That is a property of the
+program text, and the program text is the same for every table — only
+the lengths of the four store prologues depend on it — so it is checked
+here by evaluation rather than asserted in an annotation. -/
+
+/-- The instructions whose unit cost a strict reading of the model would
+object to. -/
+def isWideInstr : Instr → Bool
+  | .mul _ => true
+  | .div _ => true
+  | .shiftl _ => true
+  | .shiftr _ => true
+  | _ => false
+
+#guard ((driverProgram edgeTable acpEdge).filter isWideInstr).isEmpty
 
 end Lax11Proofs.Courcelle

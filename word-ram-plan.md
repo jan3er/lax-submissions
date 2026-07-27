@@ -181,7 +181,22 @@ build green) and commits before the next phase starts.
   VC proof stack ported; InstanceEncoding correctly deferred to Phase 5
   (it imports CliqueExpr). Orchestrator tightened two axiom-docstring
   imprecisions. All three packages green.
-- [ ] Phase 5 Courcelle vertical slice
+- [x] Phase 5 Courcelle vertical slice — Courcelle.lean rewritten (∀ φ k
+  before ∃ p c preserved; fitting conjunct is PER-ENTRY,
+  `∀ v ∈ x, c * (|x| + v + 1) ≤ 2 ^ w`, because the instance format
+  deliberately leaves the root-parent slot and non-leaf vertex names
+  unconstrained and the machine must read them as words). Mso/CliqueExpr/
+  InstanceEncoding concepts untouched (no machine content). Nine proof
+  files verbatim ports; TreeFold*/Courcelle* reworked onto the kit;
+  constant unchanged `46 * (100 + driverCost)`; new machine-checked
+  `#guard`: the compiled driver contains no mul/div/shift. SumSmoke and
+  the five stale old-kit files deleted. All packages green, lean_verify
+  background-only, defeq checked both directions.
+  **JAN-FLAG:** the per-entry conjunct could be traded for plain
+  `c * (|x| + 1) ≤ 2 ^ w` by constraining those two entry families in
+  InstanceEncoding (smaller admissible set, tidier statement). Kept loose
+  per the GraphEncoding philosophy ("fewer conditions strengthen claims").
+- [ ] Phase 6 plumbing + drafts submitted
 - [ ] Phase 3 CC port
 - [ ] Phase 4 VC port
 - [ ] Phase 5 Courcelle port

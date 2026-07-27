@@ -9,14 +9,17 @@ submission page.
   unformalized conversion from treewidth; the expression as a
   certificate, with the whole word read but only two of its arrays
   used; the noncomputable type table and the existential-over-programs
-  shape of the statement; the machine's add-and-subtract-only
-  instruction set and the strength-reduced table indexing; the `#eval`
-  stand-in table and what it does and does not establish; the constant
-  as a tower that is never estimated; `TreeDecomp.lean` kept as theory
-  that no longer feeds the theorem; and the one device on the trust
-  surface that is not textbook — are in the conclusion annotation of
+  shape of the statement; the strength-reduced table indexing, which
+  keeps multiplication out of the compiled program altogether; the
+  `#eval` stand-in table and what it does and does not establish; the
+  constant as a tower that is never estimated; the three things the
+  word length has to hold, the size of the table among them;
+  `TreeDecomp.lean` kept as theory that no longer feeds the theorem;
+  and the one device on the trust surface that is not textbook — are in
+  the conclusion annotation of
   `proofs/Lax11Proofs/CourcelleMain.lean`, under
-  `# Where the constant comes from` and `# Formalization notes`.
+  `# Where the constant comes from`, `# Where the word length is paid
+  for` and `# Formalization notes`.
 - **The definitions' items** are in the `# Formalization notes` section
   of each concept file: the MSO₁ scope and the de Bruijn family in
   `concepts/Lax11/Mso.lean`; global vertex names, label classes as
@@ -25,12 +28,16 @@ submission page.
   vertex-name array and the children-before-parents numbering in
   `concepts/Lax11/InstanceEncoding.lean`. The statement's own items —
   the expression as input rather than something the program computes,
-  and the order of the quantifiers — are in the `# Formalization notes`
-  of `concepts/Lax11/Courcelle.lean`.
+  the order of the quantifiers, and why the fitting condition
+  quantifies over the entries of the word rather than over its length
+  alone — are in the `# Formalization notes` of
+  `concepts/Lax11/Courcelle.lean`.
 - **The connected-components theorem's** items are in the conclusion
-  annotation of `proofs/Lax11Proofs/CCMain.lean`, and the machine,
-  the cost model and the graph encoding carry their own notes in
-  `concepts/Lax11/`.
+  annotation of `proofs/Lax11Proofs/CCMain.lean`, and the graph
+  encoding carries its own notes in `concepts/Lax11/`. The machine
+  itself and the timed-computation predicate are not this submission's
+  concepts at all: they are the word RAM of `Lax13`, and their notes
+  are there.
 - **The vertex cover theorem's** items are in two places. The
   statement's — the parameter dependence written into the bound rather
   than quantified away, the program and constant uniform in the
