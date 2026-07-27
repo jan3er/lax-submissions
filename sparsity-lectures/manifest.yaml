@@ -1,0 +1,16 @@
+specVersion: "1"
+id: Lax12
+leanVersion: "v4.30.0"
+mathlibVersion: "c5ea00351c28e24afc9f0f84379aa41082b1188f"
+title: "Sparsity Lectures: Nowhere Denseness, Quasi-Wideness, and Generalized Coloring Numbers"
+authors: []
+bibEntries:
+  - |
+    @misc{PilipczukPilipczukSiebertz2019,
+      author       = {Pilipczuk, Micha{\l} and Pilipczuk, Marcin and Siebertz,
+                      Sebastian},
+      title        = {Sparsity},
+      year         = {2019},
+      note         = {Lecture notes, University of Warsaw},
+      howpublished = {https://www.mimuw.edu.pl/~mp248287/sparsity2/}
+    }

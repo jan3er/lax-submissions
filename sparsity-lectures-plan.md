@@ -1387,3 +1387,63 @@ end; resubmit as draft. Lax1 and Lax2 are untouched — nothing pins Lax5.
   wcol) with no statement joining them. Recommendation: leave it — they
   are genuinely separate results of the notes, and inventing a
   conjunction would violate the no-`∧` rule.
+
+### P1 log
+
+**Allocated id: `Lax12`** (`lax init sparsity-lectures`, CLI 0.1.8). Every
+`LaxS` of the design is `Lax12`, every `LaxSProofs` is `Lax12Proofs`;
+directory stays `sparsity-lectures/`.
+
+Written: `concepts/Lax12/{GraphClasses, NowhereDenseClasses,
+ShallowMinorDensity, ColoringNumbers, Admissibility, UniformQuasiWideness,
+NowhereDenseUQW, NowhereDenseDensity, AdmissibilityBound,
+StrongColoringBound, WeakColoringBound, NowhereDenseWcol}.lean`, root
+`concepts/Lax12.lean` (twelve import lines, nothing else), `abstract.md`,
+`manifest.yaml` (title as chosen by Jan's brief, one bibEntry for the
+lecture notes, `authors: []` as scaffolded).
+
+**Deviations from the design drafts: none.** Every module compiles exactly
+as drafted in Design section (a), modulo the `LaxS` → `Lax12` rename. In
+particular the `deleteVerts` `loopless := ⟨fun v h => G.loopless.irrefl v h.1⟩`
+term is correct as drafted (`SimpleGraph.loopless` has type `Std.Irrefl Adj`
+at this pin, a class with an `irrefl` field — not a bare `Irreflexive`, so
+the anonymous constructor is required and `G.loopless v h.1` does *not*
+typecheck). No import path needed adjusting; no statement, docstring or
+name was touched.
+
+Verified textual identity against Lax5, as required for the P4 transport:
+
+- `Lax5/NowhereDenseClasses.lean` vs `Lax12/NowhereDenseClasses.lean`:
+  `diff` after `s/Lax5/Lax12/g` is empty — identical file.
+- `wreach`, `wcol`, `HasSubpolynomialWcol` in `Lax12/ColoringNumbers.lean`
+  are byte-identical (docstring included) to their `Lax5/WeakColoring.lean`
+  counterparts; `GraphClass` is the same `abbrev`, so the transport is
+  definitional.
+- `Lax12.NowhereDenseWcol.hasSubpolynomialWcol_of_nowhereDense` has the
+  same shape as the Lax5 axiom of the same name.
+
+Build status: `lake build` in `sparsity-lectures/concepts/` green (2005
+jobs); `lax build sparsity-lectures` green end to end — no rule violations
+reported (the proof package is still the empty scaffold). Self-check: zero
+`sorry`, zero `Classical`, zero theorems/lemmas/examples in the concept
+package; one `axiom` in each of the six theorem-concepts, zero in each of
+the six definition-concepts; `title`/`type` frontmatter and a
+`# Formalization notes` section in all twelve module docstrings; every
+declaration and structure field docstringed; `autoImplicit = false` from
+the scaffold's lakefile.
+
+Notes for P2:
+
+- Package/lib names are `Lax12` and `Lax12Proofs`; `proofs/lakefile.toml`
+  already requires `../concepts` by path.
+- The concept-side names the glue proof must conclude/assume are
+  `Lax12.NowhereDenseWcol.hasSubpolynomialWcol_of_nowhereDense` assuming
+  `Lax12.NowhereDenseDensity.hasSubpolynomialDensity_of_nowhereDense`,
+  `Lax12.AdmissibilityBound.adm_le_of_hasDensityAtMost`,
+  `Lax12.StrongColoringBound.scol_le_of_adm`,
+  `Lax12.WeakColoringBound.wcol_le_of_scol`.
+- `Lax12.UniformQuasiWideness.{DistIndependent, deleteVerts}` are
+  `{V : Type*}`-polymorphic `Set`-based defs, so the ported step-reduction
+  modules can `open` them directly instead of carrying copies (design (b)).
+- Nothing was committed; `git status` shows `sparsity-lectures/` untracked
+  and Jan's unrelated WIP still unstaged.
