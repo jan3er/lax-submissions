@@ -1,4 +1,5 @@
-import Lax5.NowhereDenseWcol
+import Lax5.NowhereDenseClasses
+import Lax5.WeakColoring
 import Mathlib.Combinatorics.SimpleGraph.Walk.Basic
 import Mathlib.Combinatorics.SetFamily.Shatter
 import Mathlib.Data.Finset.Sort
@@ -17,7 +18,7 @@ namespace Lax5Proofs.NowhereDenseNeighborhoods
 open scoped SimpleGraph
 open Lax5.GraphClasses
 open Lax5.NowhereDenseClasses
-open Lax5.NowhereDenseWcol
+open Lax5.WeakColoring
 
 /-- A (not necessarily induced) copy of `K_{t,t}` in `G`, represented by
 injective maps for its two disjoint sides. -/

@@ -15,7 +15,7 @@ localization, and final exponent rescaling explicitly.
 namespace Lax5Proofs.Corollary6b
 
 open Lax5.GraphClasses Lax5.NeighborhoodComplexity Lax5.NowhereDenseClasses
-open Lax5.NowhereDenseWcol
+open Lax5.WeakColoring
 open Lax5Proofs.NowhereDenseNeighborhoods
 
 /-- The set-valued definition of `traceCount` agrees with the finite trace

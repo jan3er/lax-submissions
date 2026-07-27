@@ -14,7 +14,7 @@ namespace Lax5Proofs.NowhereDenseWcol
 
 open scoped SimpleGraph
 open Lax5.GraphClasses
-open Lax5.NowhereDenseWcol
+open Lax5.WeakColoring
 open Lax5.NowhereDenseClasses
 open Lax5Proofs.Source.Catalog.SparsityLectures.Preliminaries
 open Lax5Proofs.Source.Catalog.SparsityLectures.ColoringNumbers
@@ -102,7 +102,7 @@ path-based weak reachability for the corresponding rank permutation. -/
 private theorem wreach_subset_WReach {m : ℕ} (ord : LinearOrder (Fin m))
     (H : SimpleGraph (Fin m)) (r : ℕ) (v : Fin m) :
     letI := ord
-    Lax5.NowhereDenseWcol.wreach H (rankPerm ord) r v ⊆ WReach H r v := by
+    Lax5.WeakColoring.wreach H (rankPerm ord) r v ⊆ WReach H r v := by
   letI := ord
   intro u hu
   rcases hu with ⟨w, hwLen, hwMin⟩
@@ -141,13 +141,13 @@ weak coloring number for any fixed linear order. -/
 private theorem submitted_wcol_le_catalog {m : ℕ} (ord : LinearOrder (Fin m))
     (H : SimpleGraph (Fin m)) (r : ℕ) :
     letI := ord
-    Lax5.NowhereDenseWcol.wcol H r ≤
+    Lax5.WeakColoring.wcol H r ≤
       Lax5Proofs.Source.Catalog.SparsityLectures.ColoringNumbers.wcol H r := by
   letI := ord
   apply Nat.sInf_le
   refine ⟨rankPerm ord, fun v => ?_⟩
   calc
-    (Lax5.NowhereDenseWcol.wreach H (rankPerm ord) r v).ncard
+    (Lax5.WeakColoring.wreach H (rankPerm ord) r v).ncard
         ≤ (WReach H r v).ncard :=
       Set.ncard_le_ncard (wreach_subset_WReach ord H r v)
     _ ≤ Lax5Proofs.Source.Catalog.SparsityLectures.ColoringNumbers.wcol H r := by
@@ -177,7 +177,7 @@ Pilipczuk, Pilipczuk, and Siebertz.
 theorem hasSubpolynomialWcol_of_nowhereDense
     (C : Lax5.GraphClasses.GraphClass)
     (hC : Lax5.NowhereDenseClasses.NowhereDense C) :
-    Lax5.NowhereDenseWcol.HasSubpolynomialWcol C := by
+    Lax5.WeakColoring.HasSubpolynomialWcol C := by
   intro r ε hε
   obtain ⟨c, _, hc⟩ :=
     Lax5Proofs.Source.Catalog.SparsityLectures.NDSubpolynomialWcol.nd_subpolynomial_wcol
@@ -187,7 +187,7 @@ theorem hasSubpolynomialWcol_of_nowhereDense
   obtain ⟨ord, hord⟩ := hc H ⟨n, G, hCG, hHG⟩
   letI := ord
   calc
-    (Lax5.NowhereDenseWcol.wcol H r : ℝ)
+    (Lax5.WeakColoring.wcol H r : ℝ)
         ≤ (Lax5Proofs.Source.Catalog.SparsityLectures.ColoringNumbers.wcol H r : ℝ) :=
       by exact_mod_cast submitted_wcol_le_catalog ord H r
     _ ≤ c * (m : ℝ) ^ ε := by simpa using hord

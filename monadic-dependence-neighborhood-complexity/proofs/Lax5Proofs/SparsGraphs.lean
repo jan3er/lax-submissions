@@ -24,7 +24,6 @@ namespace Lax5Proofs
 
 open FirstOrder Lax5.Transductions Lax5.GraphClasses
 open Lax5.MonadicDependence Lax5.NeighborhoodComplexity
-open Lax5.WeaklySparseDependent
 open scoped SimpleGraph
 
 variable {n : ℕ} {G : SimpleGraph (Fin n)} {A B : Finset (Fin n)} {k : ℕ}

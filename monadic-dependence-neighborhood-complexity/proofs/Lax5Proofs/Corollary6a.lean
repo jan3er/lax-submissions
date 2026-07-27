@@ -32,7 +32,7 @@ by an honest transduction):
 namespace Lax5Proofs.Corollary6a
 
 open scoped SimpleGraph
-open Lax5.GraphClasses Lax5.MonadicDependence Lax5.WeaklySparseDependent
+open Lax5.GraphClasses Lax5.MonadicDependence
 open Lax5Proofs.Source.Catalog.SparsityLectures.ShallowMinor
 open Lax5Proofs.Source.Catalog.SparsityLectures.NowhereDense
 open Lax5Proofs.NowhereDenseBridge

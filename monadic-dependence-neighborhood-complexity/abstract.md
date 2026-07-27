@@ -5,14 +5,16 @@ graphs has almost linear neighborhood complexity — for every $\varepsilon >
 0$ there is a $c$ such that every member $G$ and every nonempty vertex
 subset $A$ satisfy $|\{N(v) \cap A : v \in V(G)\}| \le c\,|A|^{1+\varepsilon}$.
 
-The concept surface has eleven review units. Six definitions: graph classes on
-the canonical vertex types; non-copying first-order transductions between
+The concept surface has twelve review units. Seven definitions: graph classes
+on the canonical vertex types, together with weak sparseness; non-copying
+first-order transductions between
 classes of arbitrary relational structures (a domain formula and one
 formula per target relation symbol, over a monadic color expansion); graph
 transductions as the special case over the language of graphs; monadic
 dependence (the class does not transduce all graphs); neighborhood
-complexity, with the shared bound predicate $|A|^{1+o(1)}$; and nowhere
-denseness via shallow-minor models. Five theorems: weakly sparse
+complexity, with the shared bound predicate $|A|^{1+o(1)}$; nowhere
+denseness via shallow-minor models; and weak coloring numbers, with the
+shared subpolynomial bound predicate. Five theorems: weakly sparse
 monadically dependent classes are nowhere dense; nowhere dense classes have
 subpolynomial weak coloring numbers, uniformly over subgraphs of members;
 nowhere dense classes have almost linear neighborhood complexity; the

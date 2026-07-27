@@ -12,7 +12,7 @@ terminal-sparsification step (Lemma 24) of the Appendix-A machinery.
 namespace Lax5Proofs.Corollary6
 
 open Lax5 Lax5.GraphClasses Lax5.MonadicDependence
-  Lax5.NeighborhoodComplexity Lax5.WeaklySparseDependent
+  Lax5.NeighborhoodComplexity
 
 /-- Corollary 6: weakly sparse monadically dependent classes have
 almost linear neighborhood complexity. -/

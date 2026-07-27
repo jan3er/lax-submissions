@@ -4,6 +4,7 @@ import Lax5.GraphTransductions
 import Lax5.MonadicDependence
 import Lax5.NeighborhoodComplexity
 import Lax5.NowhereDenseClasses
+import Lax5.WeakColoring
 import Lax5.WeaklySparseDependent
 import Lax5.NowhereDenseWcol
 import Lax5.NowhereDenseNC

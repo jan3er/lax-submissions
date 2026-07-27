@@ -1,36 +1,28 @@
+import Lax5.GraphClasses
 import Lax5.MonadicDependence
 import Lax5.NowhereDenseClasses
-import Mathlib.Combinatorics.SimpleGraph.Copy
 
 /-!
 ---
 title: Weakly sparse monadically dependent classes are nowhere dense
 type: theorem
 ---
-A graph class is weakly sparse if some complete bipartite graph
-K_{t,t} occurs in no member as a subgraph. Every weakly sparse
-monadically dependent graph class is nowhere dense.
+Every weakly sparse monadically dependent graph class is nowhere dense.
+Together with the statement that nowhere dense classes are monadically
+dependent, this carries the classical equivalence: on weakly sparse
+classes, monadic dependence and nowhere denseness coincide.
 
 # Formalization notes
 
-Subgraph containment is mathlib's `⊑` (an injective homomorphism of
-`completeBipartiteGraph (Fin t) (Fin t)` into the member). The value
-`t = 0` does not trivialize weak sparseness: the empty graph is
-contained in every graph, so `¬ K_{0,0} ⊑ G` never holds and no side
-condition on `t` is needed. `WeaklySparse` is defined here rather than
-in the graph classes concept because this statement is its only use.
+The hypotheses are the weak sparseness predicate of the graph classes
+concept and the transduction-based definition of monadic dependence;
+the conclusion is the shallow-minor definition of the nowhere dense
+concept.
 -/
 
 namespace Lax5.WeaklySparseDependent
 
-open scoped SimpleGraph
 open Lax5.GraphClasses Lax5.MonadicDependence Lax5.NowhereDenseClasses
-
-/-- A graph class is weakly sparse if some complete bipartite graph
-`K_{t,t}` occurs in no member as a subgraph. -/
-def WeaklySparse (C : GraphClass) : Prop :=
-  ∃ t : ℕ, ∀ (n : ℕ) (G : SimpleGraph (Fin n)), C n G →
-    ¬ completeBipartiteGraph (Fin t) (Fin t) ⊑ G
 
 /-- Every weakly sparse monadically dependent graph class is nowhere
 dense. -/
