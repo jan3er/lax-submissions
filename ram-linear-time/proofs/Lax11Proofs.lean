@@ -19,3 +19,4 @@ import Lax11Proofs.TreeFoldMain
 import Lax11Proofs.MsoTypes
 import Lax11Proofs.Mso
 import Lax11Proofs.MsoAdequacy
+import Lax11Proofs.MsoComposition
