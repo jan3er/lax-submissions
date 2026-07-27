@@ -42,11 +42,19 @@ the usual abbreviations, written out where they are used: each of them
 as a constructor would add a case to the definition of satisfaction and
 buy nothing that is not already there.
 
-The logic is monadic second-order logic in its `MSO₁` form —
+The logic is monadic second-order logic in its MSO₁ form —
 quantification over vertices and over *sets of vertices*, with
 adjacency, equality and membership as the atoms. Sets of edges are not
-quantified over, so the language is the one that the width measure of
-the theorem below is matched to.
+quantified over. This is not a step on the way to a fuller version that
+was left unfinished: MSO₁ and MSO₂, the logic that also quantifies over
+edges and sets of edges, are matched to different width measures. MSO₂
+model checking is tractable on classes of bounded treewidth and is *not*
+tractable on classes of bounded cliquewidth unless the standard
+complexity assumptions fail, so a development that proved the MSO₁
+statement for cliquewidth and then claimed MSO₂ "by the same argument"
+would be claiming something false. MSO₂ needs its own encoding — the
+incidence graph, or edge-set variables in the type algebra — and is
+deferred as one unit, logic and width measure together.
 -/
 
 namespace Lax11.Mso

@@ -57,6 +57,17 @@ against the first block what the certificate claims. Its presence costs
 nothing: it is one number per node, so it only lengthens the input, and
 the bound is linear in that length.
 
+Children are numbered before their parents, so the root is the last
+node. That is what lets a machine evaluate the expression in a single
+left-to-right sweep, with no recursion, no stack and no second pass, and
+it is where the linear bound comes from. It restricts the *encoding*,
+not the class of graphs: every rooted tree admits such a numbering —
+any postorder is one — and one can be produced from an arbitrary
+numbering by a sort, which this format simply asks the writer of the
+input to have done. An encoding that accepted arbitrary parent arrays
+would be the same theorem about graphs at the price of a renumbering
+pass inside the program.
+
 The order of the quantifiers is the content of the theorem: the
 sentence and the width bound come first, then the program and the
 constant, then the graph. So one program serves all graphs of

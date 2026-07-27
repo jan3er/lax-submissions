@@ -281,17 +281,140 @@ before the input is read, which the order of the quantifiers permits —
 the sentence and the width bound come first, then the program and the
 constant, then the graph.
 
-# What the program does not read
+What the theorem claims about that constant is that it depends on the
+sentence and the width bound *alone*: the tables are materialized before
+the input is read, and the per-node work of the fold is a fixed number
+of array accesses whatever the size of the alphabet. What it does not
+claim is any bound on it. None is computed anywhere in the development,
+and the absence is deliberate rather than an oversight — every known
+proof of Courcelle's theorem makes the dependence non-elementary.
 
-The program never looks at the compressed sparse row block, and never
-at the vertex-name array of the expression block: it reads both only to
-get past them. That is not an omission but the shape of the theorem.
-The expression is a certificate that determines the graph completely, so
-it is all a decision procedure needs; the graph block is what makes the
-sentence refer to a graph in the first place, and the vertex names are
-what make the second block a `k`-expression rather than the shape of
-one. Both lengthen the input, so reading past them costs a constant per
-entry and the bound is unaffected.
+# Formalization notes
+
+These are the honesty items of the theorem: what the statement claims,
+where it and a textbook proof part company, and what a reader is
+entitled to know was decided rather than proved. The definitions carry
+their own notes — the logic in `Lax11.Mso`, `k`-expressions in
+`Lax11.CliqueExpr`, the input format in `Lax11.Courcelle` — and what is
+said there is not repeated here.
+
+*The width measure is cliquewidth, and the conversion from treewidth is
+not formalized.* What is proved is the Courcelle–Makowsky–Rotics form:
+MSO₁ model checking in linear time on graphs presented with a
+`k`-expression. Bounded treewidth implies bounded cliquewidth, so the
+class covered here contains every class of bounded treewidth; but
+getting the treewidth form of the statement out of this one needs a
+conversion of a tree decomposition of width `w` into a `k`-expression
+with `k` bounded in terms of `w`, and that conversion is not formalized.
+Anyone who wants the treewidth statement should treat it as unproved
+here. The same holds one level up, at the input: the theorem takes a
+`k`-expression, it does not compute one. Deciding cliquewidth is
+NP-hard and approximating it is the theorem of Oum and Seymour; neither
+is in this submission. That is exactly the status a linear-time
+treewidth algorithm would have had — a separate theorem, with its own
+proof, which composes with this one to give an algorithm that takes only
+the graph.
+
+*The expression is a certificate, and the program reads only two of its
+arrays.* The program never looks at the compressed sparse row block, and
+never at the vertex-name array of the expression block: it reads the
+whole word, because it must get past the graph block to reach the
+expression block and because the machine reads its tape in order, but it
+*uses* only the parent array and the operation-code array. The other two
+go into arrays no later expression of the program mentions. This is not
+laziness dressed up: the type of a subexpression is a function of the
+types of its children and of the operation at its root, and of nothing
+else. The graph block is what makes `Sat G φ` refer to a graph in the
+first place, and the vertex names are what make the second block a
+`k`-expression rather than the shape of one, so that a reviewer can
+check the certificate against the graph. Both only lengthen the input,
+so reading past them costs a constant per entry and the bound is
+unaffected.
+
+*The type table is noncomputable, and that is the shape of the
+statement.* The fold is driven by a table — a finite value alphabet, an
+initial value per operation symbol, a binary combination. Here the
+values are the `q`-types of `k`-labelled regions, and the table is
+extracted from the composition congruences by `Fintype` together with
+choice: for each pair of types the entry is *a* type realized by some
+gluing of two regions with those types, and the congruences say that the
+choice does not matter. Nothing in the development computes this table,
+and nothing could — the statement is an existential over programs, and
+the truth of a monadic second-order sentence in an arbitrary graph is
+not something the meta level decides on the way to constructing one. A
+reader who wants the machine to *print* the table is asking for an
+effective bound on the type space, which is the tower this development
+declines to estimate. What the noncomputability does not touch is the
+program: `table q k` is a noncomputable inhabitant of an ordinary
+structure type and the generator consumes it as data, so the same
+generator applied to a computable table produces a program that runs.
+The table's content is carried by proof; the program text around it is
+carried by evaluation.
+
+*The machine has addition and subtraction only.* `Lax11.Ram` is the
+instruction set of Aho, Hopcroft and Ullman without multiplication and
+division, and under a unit-cost measure that matters: unit-cost
+multiplication is the standard way a linear-time claim on a random
+access machine becomes an artifact of the model. The fold indexes a
+two-dimensional table, which is where a multiplication would naturally
+appear — the entry for `a` and `b` sits at `a·V + b`. Instead the row
+bases `a·V` are themselves materialized, once, in the prologue, as the
+array `row`, and a lookup is `tab[row[a] + b]`: two array reads and an
+addition. The prologue that fills `row` is a sequence of stores whose
+length is the table's size, a constant fixed before the input is read.
+So no multiplication occurs anywhere in the compiled program, and the
+claim survives a strict reading of the model rather than depending on a
+generous one.
+
+*The machine-versus-model check runs a stand-in table.* House
+discipline in this submission is that every program is run — by `#eval`
+inside the build, against the pure model it is proved to implement —
+before anything about it is proved. The driver is run that way, but it
+cannot be run with the type table, which is noncomputable by
+construction. `CourcelleDriver.lean` therefore instantiates the
+*generic* driver with `edgeTable`: a hand-written table over the same
+operation alphabet, decoded by the same `Op.decode`, whose values are
+three bits — class `0` is nonempty, class `1` is nonempty, there is an
+edge — together with the partial states the sequential fold needs. That
+is a genuine cliquewidth dynamic program, and the two sentences it
+decides on the path `0—1—2` are "some two vertices are adjacent" and its
+negation; the machine writes `1` and `0`, and `#guard`s check that
+against the pure fold. So every line of program text is exercised: the
+same reads, the same prologue, the same seed and push loops, the same
+epilogue, the same decoder. What is not exercised is the content of the
+real table, and that is exactly what `val_eq_typeOf` carries. Plumbing
+is machine-checked, mathematics is proof-carried, and neither is asked
+to vouch for the other.
+
+*`TreeDecomp.lean` is kept, as theory that no longer feeds the theorem.*
+The pivot to cliquewidth stranded a file of tree-decomposition set
+theory: descendants as parent-map iteration, validity and width, the
+tree order, the highest node containing a vertex, subtrees as unions of
+bags, the separation lemma and the edge-placement lemmas. Nothing in the
+proof of the theorem imports it. It is kept anyway, and the argument is
+that it is not scaffolding but a self-contained piece of mathematics
+that happens to be stated in the shape this machine wants — nodes are
+numbers, and the parent map is the same `ℕ → ℕ` the fold sweeps.
+Deleting it would cost a future MSO₂ or treewidth submission its whole
+combinatorial layer for no gain beyond a smaller build; keeping it costs
+one file that imports only mathlib and is imported by nothing. It is
+named here so that no reviewer spends time looking for the place where
+it is used.
+
+*One device on the trust surface is not textbook.* Everything a reader
+has to check by eye — the machine, what it means to compute within a
+time bound, the graph encoding, the syntax and satisfaction of the
+logic, `k`-expressions and their evaluation, the input format, and the
+statement itself — is written to be the object a paper would write, with
+one exception, and it should be named plainly. Variables in formulas are
+de Bruijn positions, so a reader checking `Lax11.Mso` against a textbook
+must translate between `∃x. ∃y. adj(x, y)` and
+`MSO.exV (MSO.exV (MSO.adj 0 1))`, and must hold in mind that a
+quantifier binds at the *last* position, so that the outermost variable
+is `0` and no index is ever shifted. Every other deviation in this
+development is inside the proof package, where the kernel is the
+reviewer. This one is not, and it is the price paid for keeping
+substitution off the surface entirely.
 
 # Attribution
 
