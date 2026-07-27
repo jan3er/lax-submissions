@@ -1,0 +1,52 @@
+specVersion: "1"
+id: Lax13
+leanVersion: "v4.30.0"
+mathlibVersion: "c5ea00351c28e24afc9f0f84379aa41082b1188f"
+title: The Word RAM
+authors:
+  - name: Jan Dreier
+bibEntries:
+  - |
+    @book{AhoHopcroftUllman1974,
+      author    = {Aho, Alfred V. and Hopcroft, John E. and Ullman,
+                   Jeffrey D.},
+      title     = {The Design and Analysis of Computer Algorithms},
+      publisher = {Addison-Wesley},
+      year      = {1974}
+    }
+  - |
+    @article{CookReckhow1973,
+      author  = {Cook, Stephen A. and Reckhow, Robert A.},
+      title   = {Time bounded random access machines},
+      journal = {Journal of Computer and System Sciences},
+      volume  = {7},
+      number  = {4},
+      pages   = {354--375},
+      year    = {1973},
+      doi     = {10.1016/S0022-0000(73)80029-7}
+    }
+  - |
+    @inproceedings{Hagerup1998,
+      author    = {Hagerup, Torben},
+      title     = {Sorting and searching on the word {RAM}},
+      booktitle = {STACS 98: 15th Annual Symposium on Theoretical
+                   Aspects of Computer Science},
+      series    = {Lecture Notes in Computer Science},
+      volume    = {1373},
+      pages     = {366--398},
+      publisher = {Springer},
+      year      = {1998},
+      doi       = {10.1007/BFb0028575}
+    }
+  - |
+    @article{FredmanWillard1993,
+      author  = {Fredman, Michael L. and Willard, Dan E.},
+      title   = {Surpassing the information theoretic bound with
+                 fusion trees},
+      journal = {Journal of Computer and System Sciences},
+      volume  = {47},
+      number  = {3},
+      pages   = {424--436},
+      year    = {1993},
+      doi     = {10.1016/0022-0000(93)90040-4}
+    }
