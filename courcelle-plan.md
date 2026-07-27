@@ -61,8 +61,12 @@ axiom courcelle :
   layer of the type algebra. Rationale: halves the surface and the
   atomic case work, and MSO₁ on the incidence graph *is* MSO₂ when we
   want it.
-- **C2 (logic representation)** Deep embedding, **de Bruijn indices,
-  environment semantics**. Two sorts of variables (vertex, set), one
+- **C2 (logic representation; rev 4 refinement)** Deep embedding,
+  **well-scoped de Bruijn** — an indexed family `MSO r s` (free
+  vertex/set variables in `Fin r` / `Fin s`), so `Sat` is total over
+  two environments, there is no `Closed` predicate and no defaulting
+  junk on the trust surface, and the indices line up with `T q r s`
+  in the adequacy induction. The C0 axiom quantifies over `MSO 0 0`. Two sorts of variables (vertex, set), one
   `inductive MSO`: atoms `adj i j`, `eq i j`, `mem i X`; connectives
   `not`, `and`; quantifiers `exV`, `exS`; nothing else (∨, →, ∀ are
   abbreviations in proofs, not constructors — smaller trusted
@@ -91,13 +95,18 @@ axiom courcelle :
      `typ q` (induction on the formula).
   2. *Forget*: the type of a reduct (dropping a mark) is a function
      of the type of the expansion (induction on q).
-  3. *Composition* (the make-or-break): for structures `X`, `Y`
-     overlapping exactly in a shared set of marked vertices, with no
-     edges between `X∖Y` and `Y∖X`,
-     `typ q (X ∪ Y) = F q (typ q X) (typ q Y) (overlap pattern)`,
-     with `F` defined by the same recursion (a vertex/set move in the
-     union splits into a move in `X` and a move in `Y`; for sets,
-     `S ↦ (S ∩ X, S ∩ Y)`).
+  3. *Composition* (the make-or-break; rev 4 form): a **cross-ambient
+     congruence** — for `X₁,Y₁ ⊆ G₁` and `X₂,Y₂ ⊆ G₂`, each pair
+     overlapping exactly in marked vertices with the same overlap
+     pattern and no edges between `Xᵢ∖Yᵢ` and `Yᵢ∖Xᵢ`:
+     `typ X₁ = typ X₂ → typ Y₁ = typ Y₂ →
+      typ (X₁∪Y₁) = typ (X₂∪Y₂)`
+     (a vertex/set move in the union splits into a move per side; for
+     sets, `S ↦ (S ∩ X, S ∩ Y)`). No function `F` is ever defined:
+     the finite table is *extracted* from the congruence by
+     `Fintype` + choice (pick representatives per realized type),
+     which is C5 doing its job — the congruence is the theorem, the
+     table is bookkeeping.
   Rationale: this is game-free (no strategy plumbing), syntax-free
   (finiteness needs no formula normal forms), and it is the same
   proof culture as Lax5's `LocalTypes`/`EFAgreement` — that code is
