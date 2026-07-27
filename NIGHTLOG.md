@@ -1279,3 +1279,137 @@ verbatim into `CourcelleMain.lean`'s conclusion annotation if he
 wants it rendered, which would touch a committed proofs file — his
 call; (3) TreeDecomp.lean kept as bonus theory per the M12 gate note,
 argued in notes.md item 10.
+
+**Orchestrator — 2026-07-28: cleanup pass (Jan's request, in
+session).** Scope: improve the submission as reviewers see it.
+Targets, in priority order: (1) surface code polish in the three
+Courcelle concept files (decidableAdj boilerplate, Op.decode's three
+private lemmas, optionally the redundant ∃ N in EncodesInstance) —
+semantic-preserving, ripple proof work sanctioned; (2) the ledger
+moves to where it renders — theorem-adjacent items into
+CourcelleMain.lean's conclusion annotation, definition-adjacent items
+reconciled with the concept docstrings, notes.md deduplicated or
+dissolved; (3) warning-free build (the nine unusedSimpArgs); (4)
+abstract/manifest editorial pass. The four ORIGINAL concept files
+stay frozen (already polished at the RAM-stack wrap-up) — defects
+are logged, not fixed. Invariants: the theorem statement must not
+change semantically; both packages + `lax build` + `--replay` green
+and the no-drift check intact after every commit.
+
+## Session 18 — 2026-07-28 ~12:40 UTC
+Milestone: the cleanup pass (Jan's request) — all four priorities done
+Commits: 4908f3f "Courcelle cleanup: the surface, tightened";
+a7d362a "Courcelle cleanup: the node count is read, not quantified";
+6cf4f10 "Courcelle cleanup: the ledger moves to where it renders";
+27f1a04 "Lax11: the build is warning-free";
+8b78af1 "Lax11: the abstract, corrected"
+State: Both packages green after every commit, **zero warnings anywhere**
+(the nine pre-existing `unusedSimpArgs` are gone), `lax build
+ram-linear-time` OK, `--replay` OK, `#print axioms` on the theorem still
+propext/Classical.choice/Quot.sound, and session 16's no-drift `example`
+(`Lax11.Courcelle.exists_… = Lax11Proofs.Courcelle.exists_… := rfl`,
+run in scratch, not committed) still elaborates. `EncodesGraph`,
+`Ram.lean`, `RamComputes.lean`, `ConnectedComponents.lean` untouched;
+no defect found in them to log.
+
+*(1a) `decidableAdj`, 15 lines → 11.* The four `letI` + `show … from
+inferInstance` cases become `inferInstanceAs` applied to the unfolded
+graph, with `have := decidableAdj eᵢ` supplying the recursive instances
+— term-mode `have` of a class type does register as a local instance,
+so the tactic block was pure ceremony. The `relabel` case is now just
+`decidableAdj e`: `graph (.relabel _ _ e)` is `graph e` by definition,
+so no coercion is needed at all. Still an instance, still structural
+recursion, still no `Classical.dec`.
+
+*(1b) `Op.decode`, three private theorems → zero.* `div_lt_sq` was
+`Nat.div_lt_of_lt_mul` verbatim and is inlined; `pos_of_lt_sq` and
+`mod_lt_sq` collapse into `Nat.mod_lt _ hk` with
+`hk : 0 < k := Nat.pos_of_ne_zero (by rintro rfl; simp at h)` as a
+`have` inside the two `k²` branches — the block condition `c < k * k`
+already refutes `k = 0`. Two extra lines in the body, no private name on
+the surface, and a docstring sentence naming the two arithmetic facts so
+a reader is not left to reconstruct them. **`CliqueExpr.lean` 206 → 197
+lines. Zero proofs-side ripple**: `Op.decode_code` and `Op.code_lt` in
+`MsoTable.lean` compiled untouched, the `have` beta-reduces under the
+`simp only [… , dif_pos hp]` they already used.
+
+*(1c) The `∃ N` is gone — done, the ripple was 12 lines.*
+`EncodesExprTree t k` (was `t N k`) drops the `nodeCount_eq` field and
+states its four clauses about `nodeCount t` directly; `EncodesInstance`
+loses one existential and roots the expression at `nodeCount t - 1`.
+`Courcelle.lean` 154 → 164 lines (the growth is the new ledger
+paragraph, see (2); the definitions shrank by 4). Proofs side:
+`instance_tape` now names `N` by casing the block (`cases t with | cons
+c tr => exact ⟨c, tr, rfl⟩`) instead of by hypothesis, with one
+`have hN : nodeCount (N :: tr) = N := rfl` doing the work the
+`nodeCount_eq` field used to; every other line of the ~45-line proof is
+unchanged, because `nodeCount (N :: tr)` is `N` by `rfl` and the field
+projections typecheck by defeq. `CourcelleSmoke.lean` drops the field
+and the `7`, and two `interval_cases` needed their bound restated
+(`have hi' : i < 7 := hi`) since `omega` will not unfold `nodeCount`.
+The theorem's statement is semantically unchanged: the same words are
+admitted, since the old `N` was pinned to `nodeCount t` by the field
+that is now gone.
+
+*(2) The ledger renders.* `CourcelleMain.lean`'s conclusion annotation
+343 → 466 lines: the old `# What the program does not read` section is
+absorbed into a new `# Formalization notes` section carrying seven
+argued items in the house's italic-lead-in shape — the cliquewidth pivot
+with the unformalized tw→cw conversion and Oum–Seymour, the certificate
+and the two arrays the program actually uses, the noncomputable table
+and the ∃-program shape, the add-and-subtract-only machine with the
+strength-reduced `row` indexing, the `#eval` stand-in table and exactly
+what it does and does not establish, `TreeDecomp.lean` kept with the
+argument, and the one non-textbook device on the trust surface. The
+tower item stayed in `# Where the constant comes from`, which already
+said most of it, and gained the closing paragraph on what is and is not
+claimed — one home per item, no duplication. Definition-shaped items
+went to the concept files per the rule that the concept wins: the MSO₁
+scope with the "MSO₂ by the same argument would be false" argument joins
+the de Bruijn note in `Mso.lean` (100 → 108), children-before-parents
+joins the input-format notes in `Courcelle.lean`. Verified in
+`build-output.json`: the theorem's `sections` now list `Proof strategy`,
+`Where the constant comes from`, `Formalization notes`, `Attribution`.
+`notes.md` 250 → 30 lines, kept as a **map** rather than deleted: it is
+not rendered, but anyone reading the directory or the tarball can find
+each item from it in one hop, and that costs thirty lines.
+
+*(3) Warning-free.* Nine `unusedSimpArgs`: two `List` lemmas in
+`Reasoning.getElem?_arrOf`, four in `CCPhases.readLoop_run` (a whole
+`[hi, ht, hl]` on the second component, and an `hy1` passed twice), one
+in `CCPhases.initLab_run`, two `hm`s in `CCSweep.outerBody_run`. Only
+simp argument lists changed; no proof changed shape and both packages
+now build with no output at all.
+
+*(4) Abstract and manifest.* The manifest is accurate against the final
+state — title, both bib blocks, seven concepts and two theorems all
+check out — and is unchanged. The abstract got two substantive fixes:
+the second theorem's bound is now stated as `c(|x|+1)` like the first
+instead of "a constant multiple of the length of the input", and the
+closing sentence points at the formalization notes *on the theorem*
+rather than at a file beside the submission, which no longer holds them.
+Nothing else was touched: at 1045 words it is three times the longest
+sibling abstract, but the submission is a tower, two theorems and seven
+concepts, and every paragraph is carrying a distinct load — trimming it
+would have been style churn against Jan's own text.
+Next: nothing in the plan. Outward-facing and Jan's: `lax submit`.
+Decisions: (1) **`notes.md` survives as a pointer, not a deletion.** The
+brief left it to me. The ledger is now where the archive renders it, so
+the file has no reviewer-facing job; but the repository is also read
+directly, and a thirty-line map is cheaper than a reader grepping seven
+files for where the honesty items went. Delete it if you disagree —
+nothing imports it and `lax build` ignores it.
+(2) **The MSO₁/MSO₂ item went to `Mso.lean`, not to the theorem.** It
+reads as a scope claim about the theorem, but the argument it makes is
+about which logic `Lax11.Mso` *is* and why the missing constructors are
+missing, which is a question a reviewer asks while reading that
+definition. The theorem's notes name MSO₁ in the cliquewidth item and do
+not re-argue it.
+(3) **Editing three concept files was sanctioned and used in full** —
+`CliqueExpr.lean` (code + docstring), `Courcelle.lean` (code +
+docstring), `Mso.lean` (docstring only; its code has no defect). The
+four original concept files were not opened.
+(4) The `have`-inside-a-`def` idiom in `Op.decode` is new to this
+surface. It survives `simp only [Op.decode, …, dif_pos h]` unharmed, but
+it is worth knowing that a future `decide`-heavy proof about `decode`
+would see a beta-redex where it used to see a `Fin.mk`.
