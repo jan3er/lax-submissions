@@ -15,12 +15,19 @@ Submission directories currently in this repository:
   exponential in treewidth (three concepts: treewidth, twin-width, and the
   separation theorem).
 - `twin-width-mixed-minor-number/` — **Lax2**: twin-width and mixed minor
-  number are functionally equivalent (two concepts: mixed minor number and
-  the equivalence theorem). Depends on the Lax1 draft.
+  number are functionally equivalent (five concepts: mixed minor number,
+  the graph-parameter signature, one theorem-concept per direction, and
+  the headline equivalence, concluded by a glue proof assuming the two
+  directions). Depends on the Lax1 draft.
 - `monadic-dependence-neighborhood-complexity/` — **Lax5**: monadically
   dependent graph classes have almost linear neighborhood complexity. Its
-  eleven concepts and five proofs also formalize the weakly sparse
+  twelve concepts and five proofs also formalize the weakly sparse
   equivalence between monadic dependence and nowhere denseness.
+- `ram-linear-time/` — **Lax11**: algorithmic experiments on a RAM — a
+  word-RAM surface with linear-time claims for connected components,
+  Courcelle–Makowsky–Rotics model checking on bounded cliquewidth, and
+  the 2^k vertex-cover FPT bound, discharged via a verified IMP+
+  compiler.
 
 These submissions are the reference implementations of everything below. When in
 doubt, open them and imitate. The normative rule set is the Lax spec
@@ -144,7 +151,7 @@ Proof annotation:
 
     /--
     ---
-    conclusion: Lax1.ExponentialSeparation.twin_width_can_be_exponential_in_treewidth
+    conclusion: Lax1.ExponentialSeparation.exists_treewidth_le_and_two_pow_lt_twinWidth
     ---
     One-paragraph summary of what is proved.
 
@@ -207,7 +214,7 @@ reader knows the convention is never actually exercised.
 canonical carriers — `∃ n, ∃ G : SimpleGraph (Fin n), …` — not over
 arbitrary types with existentially bundled instances. When two parameters
 must share a signature so a theorem can apply to both *directly*, make the
-signature an `abbrev` (see `GraphParam` in `Lax1`): the statement then
+signature an `abbrev` (see `GraphParam` in `Lax2/GraphParameters.lean`): the statement then
 mentions `twinWidth` and `mixedMinorNumber` themselves, with no
 eta-expanded wrapper lambdas a reviewer would have to unfold.
 
@@ -217,6 +224,30 @@ sitting a reviewer can hold in their head. Do not pack unrelated
 definitions into one module, and do not shred one definition across many.
 A definition-concept carries the complete definition of one notion; a
 theorem-concept states one result over imported definition-concepts.
+
+**One axiom per concept module — zero for definition-concepts.** The
+statement is the unit the archive prices, proves, and lets others assume;
+a module with two axioms is two claims wearing one endorsement. The
+archive enforces this rule; this repository is its reference
+implementation.
+
+**Definitions cannot move later, so place them now.** Concept ids are
+permanent dependency targets and definitional identity is nominal — a
+later, textually identical copy elsewhere is a *different term*. A def
+may stay inside a theorem-concept only when it is the claim-local object
+the statement is about (`ccLabels` in Lax11's `ConnectedComponents`
+defines the labeling the claim computes). Any notion that could plausibly
+appear in a second statement goes in a definition-concept *now*, or every
+future statement about it must import a theorem it does not use. When in
+doubt, hoist.
+
+**Never `∧` independently provable claims into one axiom.** Each
+direction has its own literature proof and deserves its own statement,
+bounty, and downstream availability — split into sibling theorem-concepts
+and, if the conjunction itself is the headline, add a glue proof
+concluding it with the two directions as assumptions (see Lax2). An `∃`
+whose body is a conjunction describing one witness (Lax1's separation) is
+one claim, not a splittable conjunction.
 
 **Docstring every declaration.** Each `def`, `structure`, field, and
 `axiom` in a concept gets a one- or two-sentence docstring saying what it
