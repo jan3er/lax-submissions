@@ -21,3 +21,4 @@ import Lax11Proofs.Mso
 import Lax11Proofs.MsoAdequacy
 import Lax11Proofs.MsoComposition
 import Lax11Proofs.TreeDecomp
+import Lax11Proofs.CliqueExpr
