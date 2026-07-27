@@ -43,6 +43,16 @@ Submission directories currently in this repository:
   Courcelle–Makowsky–Rotics model checking on bounded cliquewidth, and
   the 2^k vertex-cover FPT bound, discharged via a verified IMP+
   compiler.
+- `vertex-cover-fibonacci/` — **Lax15**: vertex cover is decided on the
+  word RAM within `c · fib(k+2) · (|x|+1)` steps (one theorem concept,
+  proved in the same submission). The base of the exponential drops from
+  2 to the golden ratio by branching on a vertex of residual degree at
+  least two rather than on an edge. Builds on the Lax11 draft — the graph
+  encoding and instance format are imported, so the admissible set is
+  character for character that submission's and the two bounds are claims
+  about the same inputs, this one sharpening the 2^k rung rather than
+  replacing it — and on Lax13's word RAM, whose machine, compiler and
+  loop rule carry the proof.
 
 These submissions are the reference implementations of everything below. When in
 doubt, open them and imitate. The normative rule set is the Lax spec
