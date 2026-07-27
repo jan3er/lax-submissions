@@ -150,7 +150,14 @@ build green) and commits before the next phase starts.
   abstract written and reviewed line-by-line (one notes fix: literal
   non-reduction also differs for `sub`, not only div/shifts); `lake build`
   and `lax build` green.
-- [ ] Phase 2 pipeline kit
+- [x] Phase 2a pipeline semantic core — Machine/Imp/Bounds/Compile/Simulation
+  in Lax13Proofs (1932 lines); `BigStepB` threads cost + value bound through
+  one derivation; `compileProgram_runsTo` proved, constant `3*idxLen + 13`,
+  additive 0; build + lean_verify clean. Expr collapsed to one `bin` node
+  (old names live as simp-abbrevs); Labels.lean correctly left to the CC
+  example. Word-length hypothesis bundled as `Layout.FitsWords B w`
+  (span covers `temps + |scalars| + |arrays| * B`).
+- [ ] Phase 2b reasoning layer + transfer + smoke
 - [ ] Phase 3 CC port
 - [ ] Phase 4 VC port
 - [ ] Phase 5 Courcelle port
