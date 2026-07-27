@@ -25,3 +25,4 @@ import Lax11Proofs.CliqueExpr
 import Lax11Proofs.MsoCliqueOps
 import Lax11Proofs.MsoTable
 import Lax11Proofs.CourcelleSmoke
+import Lax11Proofs.CourcelleDriver
