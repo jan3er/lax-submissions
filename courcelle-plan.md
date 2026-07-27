@@ -1,250 +1,240 @@
-# Courcelle plan (rev 2 — single-submission; decisions taken under Jan's delegation 2026-07-27)
+# Courcelle plan (rev 5 — the cliquewidth pivot; Jan's call, 2026-07-27 day)
 
-Rev 2 (Jan's last instruction before signing off): **everything goes
-into Lax11 itself** — no new submission, no `lax init`. C8 and C10
-are superseded accordingly; nothing is blocked on Jan anymore, and
-steps 5–7 proceed under the standing delegation, gated by the step-2
-checkpoint.
+Rev 5 (Jan, in session): **the width parameter is cliquewidth, not
+treewidth** — the theorem becomes Courcelle–Makowsky–Rotics (MSO₁
+model checking is linear-time on graphs given with a k-expression).
+Jan's observation, confirmed by the orchestrator against the code as
+built: the entire shared-boundary FV machinery — marks-as-bags,
+overlap patterns, canonical bag ordering, forgets in the fold, and the
+C7a four-phase label pass — existed to serve gluing along a shared
+boundary, and disjoint union eliminates all of it. Decisions C11–C14
+below record the pivot; C4, C6, C7/C7a are superseded. C1–C3, C5,
+C8–C10 stand. Rev 2's frame (everything in Lax11, single submission)
+is unchanged.
 
-Status (2026-07-27, night): written by the Fable orchestrator under
-Jan's explicit "no approval needed" delegation; the C-decisions below
-are therefore *settled* the way D9–D12 were, revisable only the way
-D16 was — by contact with the material, argued in a rev bump. The
-Opus relay executes against this plan; `courcelle-night-brief.md` maps
-it to overnight milestones.
+Rev history: rev 2 single-submission; rev 3 added C7a (now moot); rev
+4 refined C2 (well-scoped `MSO r s`, axiom over `MSO 0 0`) and C3.3
+(cross-ambient congruence, table by choice) — both refinements stand
+and are load-bearing below.
 
-Goal: **Courcelle's theorem on the Lax11 RAM** — for every MSO
-sentence and every width bound, model checking on graphs given with a
-tree decomposition of that width is linear time. This is the endgame
-the RAM stack was built for; Lax11 (complete, submit-ready) supplies
-the machine, the compiler, the reasoning kit, and the CC driver's
-proof patterns.
+Goal: **Courcelle's theorem (Courcelle–Makowsky–Rotics form) on the
+Lax11 RAM** — for every MSO₁ sentence and every width bound k, model
+checking on graphs given with a k-expression is linear time. Lax11
+supplies the machine, the compiler, the reasoning kit, and — after the
+pivot — the *already verified* generic tree-fold program.
 
-Honest scale estimate up front: this is 5–10× Lax11. Unlike Lax11,
-one component (the composition lemma, step Q1) carries genuine
-research-*engineering* risk — not "is it true" but "how much quotient
-and normal-form pain". The plan is shaped so that component is built
-and measured first at small rank before anything depends on it.
-
-## The statement (C0 target)
+## The statement (C0 target, rev 5 form)
 
 ```lean
-/-- Courcelle's theorem: MSO model checking is linear-time on the RAM,
-for graphs presented with a tree decomposition of bounded width. -/
+/-- Courcelle's theorem (Courcelle–Makowsky–Rotics): MSO model checking
+is linear-time on the RAM, for graphs presented with a k-expression
+(cliquewidth ≤ k). -/
 axiom courcelle :
-    ∀ (φ : MSO) (hφ : φ.Closed) (k : ℕ),
+    ∀ (φ : MSO 0 0) (k : ℕ),
     ∃ (p : Program) (c : ℕ), ∀ (n : ℕ) (G : SimpleGraph (Fin n)),
       ComputesInTime p {x | EncodesInstance x n G k}
         (fun _ => if Sat G φ then [1] else [0])
         (fun x => c * (x.length + 1))
 ```
 
-- Quantifier order is the theorem: `p` and `c` come after `φ` and `k`,
-  before the graph — **non-uniform in the sentence and the width**,
-  which is the textbook Courcelle (the constant is allowed to be a
-  tower in `|φ|` and `k`; we never estimate it).
-- `EncodesInstance x n G k`: `x` encodes `G` (CSR, Lax11's
-  `EncodesGraph` reused) **followed by a rooted tree decomposition of
-  `G` of width ≤ k** (C6). The decomposition is *input*: Bodlaender's
-  linear-time algorithm is a separate future submission, and the
-  formalization notes must say so plainly — the theorem as stated is
-  the standard "given a decomposition" form, and it is what every
-  textbook proves first.
+- Quantifier order unchanged: `p` and `c` after `φ` and `k`, before
+  the graph — non-uniform in sentence and width, constant may be a
+  tower, never estimated.
+- `EncodesInstance x n G k`: `x` encodes `G` (CSR, `EncodesGraph`
+  reused) **followed by a k-expression that evaluates to `G`** (C14).
+  The expression is *input*, exactly as the decomposition was:
+  computing a k-expression (cliquewidth approximation à la
+  Oum–Seymour) is a separate future submission — ledger item, same
+  status Bodlaender had.
 - Output `[1]`/`[0]` on the output tape (C9).
+- Honesty item the pivot adds: MSO₁ + cliquewidth *covers* MSO₁ +
+  treewidth (bounded tw ⟹ bounded cw), but deriving the treewidth
+  form needs a decomposition→expression conversion we do not
+  formalize. The ledger says so plainly. In exchange the pairing is
+  now the canonical one — MSO₁ is *the* logic of cliquewidth, and the
+  C1 scope decision and the width parameter finally agree; MSO₂ +
+  treewidth is the other canonical pair and is deferred as one unit.
 
 ## Decision record
 
-- **C1 (scope)** MSO₁ — adjacency signature, quantification over
-  vertices and vertex *sets*. MSO₂ (edge-set quantification /
-  incidence encoding) is a later concept with its own submission;
-  everything below is built so the change is confined to the atomic
-  layer of the type algebra. Rationale: halves the surface and the
-  atomic case work, and MSO₁ on the incidence graph *is* MSO₂ when we
-  want it.
-- **C2 (logic representation; rev 4 refinement)** Deep embedding,
-  **well-scoped de Bruijn** — an indexed family `MSO r s` (free
-  vertex/set variables in `Fin r` / `Fin s`), so `Sat` is total over
-  two environments, there is no `Closed` predicate and no defaulting
-  junk on the trust surface, and the indices line up with `T q r s`
-  in the adequacy induction. The C0 axiom quantifies over `MSO 0 0`. Two sorts of variables (vertex, set), one
-  `inductive MSO`: atoms `adj i j`, `eq i j`, `mem i X`; connectives
-  `not`, `and`; quantifiers `exV`, `exS`; nothing else (∨, →, ∀ are
-  abbreviations in proofs, not constructors — smaller trusted
-  recursion). `Sat` is a ~15-line recursion over two environment
-  functions `Fin r → Fin n` and `Fin s → Set (Fin n)` — **no
-  substitution machinery anywhere**, which is the entire point: the
-  semantics is the new trust object (the analogue of `Instr.effect`)
-  and must be auditable in one sitting. `rank φ` counts both
-  quantifier kinds. Honesty note: de Bruijn is the one non-textbook
-  device on the surface; the ledger argues it (named syntax needs
-  capture-avoiding substitution *in the trusted surface*, which is a
-  far worse audit object than indices).
-- **C3 (proof route)** **No tree automata, no Hintikka/normal-form
-  syntax.** The engine is the *abstract type algebra*: define, by
-  recursion on rank, the finite set of q-types of boundaried
-  structures and the type function —
+- **C1 (scope)** MSO₁ — unchanged, and strengthened by the pivot:
+  MSO₁ is exactly the logic preserved by cliquewidth operations. MSO₂
+  remains a later submission (incidence encoding, treewidth pairing).
+- **C2 (logic representation; rev 4)** Unchanged. Well-scoped de
+  Bruijn family `MSO r s`, atoms `adj`/`eq`/`mem`, connectives
+  `not`/`and`, quantifiers `exV`/`exS`; `Sat` a ~15-line recursion
+  over two environments; axiom over `MSO 0 0`; no substitution
+  machinery. As built in `Mso.lean` (M4/M5) — the surface copy at the
+  freeze remains verbatim.
+- **C3 (proof route)** Unchanged and already executed: the abstract
+  type algebra `T q r s` / `typ` (M4), adequacy (M5), and the
+  cross-ambient congruence `typ_union_congr` (M6, general q, gate
+  green). The pivot does not touch this engine; it changes which
+  *instances* of it downstream consumes. The mark lemmas (M5) and the
+  concatenated form `typ_append_congr` become internal artifacts —
+  they underpin the proofs as built and stay, but no new work
+  consumes them.
+- **C4 (superseded by C12/C13)** No bag gluing, no sequential
+  glue-and-forget over children. The composition structure of the
+  proof is now the k-expression's own tree: binary disjoint union,
+  unary edge-addition and relabel.
+- **C5 (noncomputable table)** Unchanged, and cheaper: the table is
+  extracted by `Fintype` + choice from the C13 congruences exactly as
+  before; there are now four small tables (one per op family) instead
+  of one glue table indexed by overlap patterns.
+- **C6 (superseded by C14)** — the instance encoding now carries a
+  k-expression tree, in M1's `EncodesTree` format.
+- **C7/C7a (superseded, deleted with relief)** No label pass, no
+  top-node computation, no edge discovery, no top-down propagation,
+  no overlap-pattern scanning. The per-node symbol of the fold is the
+  op code, present verbatim in the input. This deletes the single
+  hairiest remaining program component of rev 4.
+- **C8 (single submission)** Unchanged — everything in Lax11,
+  existing concept files frozen, Courcelle surface added at the
+  freeze step.
+- **C9** Unchanged — `[1]`/`[0]` by membership of the root value in
+  the accepting set.
+- **C10** Moot as before (same package, direct imports).
 
-  ```
-  T 0 r s       := atomic diagrams on r marked vertices, s sets   (finite)
-  T (q+1) r s   := T 0 r s × Set (T q (r+1) s) × Set (T q r (s+1))
-  typ (q+1) A   := (typ 0 A, {typ q (A, +v) | v}, {typ q (A, +S) | S})
-  ```
+- **C11 (rev 5: the pivot itself)** Width parameter = cliquewidth;
+  theorem = Courcelle–Makowsky–Rotics. What it buys, measured against
+  the code as built (session-10/11 logs):
+  (a) the outer statements have **no marks at all** — `r = 0`
+  everywhere; labels are set parameters (C12), so the mark pool,
+  overlap patterns and canonical bag order never appear;
+  (b) binary composition is `typ_union_congr` **at the empty pool**
+  (`c = 0`): empty overlap, no-cross-edges = disjointness — already
+  proved, eleven hypotheses collapse to two;
+  (c) the fold program is the *already verified* Q3 schema with no
+  label pass (C14) — Q6 shrinks from the biggest remaining milestone
+  to an instantiation;
+  (d) no forgets in the induction — the expression tree is the proof
+  tree.
+  What it costs: `TreeDecomp.lean` (M7, 574 lines) idles — it stays
+  in the build untouched, disposition (keep as bonus theory for the
+  future treewidth submission, or prune) is a wrap-up decision; the
+  C0 statement changes as above; three new unary-op congruences must
+  be proved (C13), each strictly easier than the proved
+  `typ_union_congr`.
+- **C12 (k-expressions, the object)** One inductive type `Expr n k`:
+  `leaf (v : Fin n) (ℓ : Fin k)` — vertex `v` created with label `ℓ`;
+  `union e₁ e₂` (⊕); `addEdges (i j : Fin k) e` (η, `i ≠ j`);
+  `relabel (i j : Fin k) e` (ρ, i→j). **Vertices are globally named
+  by leaves** — the ambient-subset trick survives the pivot: the
+  vertex set of a node is a `Set (Fin n)` (its leaves' ids), no
+  quotients, no isomorphisms. What *does* vary along the tree is the
+  graph (η adds edges), so statements are cross-graph — which is
+  already the house style (`typ_union_congr` is cross-ambient).
+  Evaluator by structural recursion: `eval e = (X, H, lab)` — vertex
+  set, graph (edges within `X`), label classes `Fin k → Set (Fin n)`
+  partitioning `X`. Validity: leaf ids distinct (this yields
+  disjointness at every ⊕ node); at the root `X = univ` and `H = G`.
+  **Labels are set parameters**: a k-labeled graph is an ambient
+  subset plus a set assignment `Fin s = Fin k` — `typ q` with
+  `r = 0, s = k`, the *existing* `T`/`typ` unchanged. `T q 0 k` is
+  the type space; marks exist only inside the recursion.
+- **C13 (the op congruences — the new FV inventory)** Four lemmas,
+  all q-inductions with identity vertex sets (no re-indexing, no
+  Glue), each bounded above in difficulty by the proved union
+  congruence:
+  1. *Disjoint union*: instance of `typ_union_congr` at `c = 0`.
+     Already proved; write the instance and move on.
+  2. *`typ_addEdges`* (η): cross-graph, same `X`, same sets; `G'`
+     adjacency = `G` adjacency ∨ (endpoints in classes i,j resp.),
+     restricted to distinct vertices. Rank 0: the new atomic diagram
+     is a function of the old, because `mem` atoms of the label
+     parameters are *in* the diagram. Moves: identical. This is the
+     only new lemma with meat, and it is a same-set induction.
+  3. *`typ_setRemap`*: new set assignment where each new parameter is
+     the union of a chosen subfamily of the old ones
+     (`f : Fin s' → Finset (Fin s)`, `A' j = ⋃ i ∈ f j, A i`).
+     Rank 0: `mem` of a union of parameters is determined by the
+     `mem` atoms. Instances: relabel ρ (merge two classes, empty one)
+     and the root's forget-all (`s' = 0`), which is what lets
+     adequacy consume the root type at `s = 0` for the sentence.
+  4. *Singleton*: the typ of a one-vertex subset with a given
+     label-membership pattern is independent of the ambient graph and
+     of which vertex it is. Base of the main induction; small.
+  Possibly needed as plumbing: `typ` depends only on edges within `X`
+  (to move between a node's evaluated graph and its parent's). Check
+  whether M4's development already gives it; if not it is the same
+  cheap induction.
+- **C14 (table, encoding, program)** Fold alphabet: op codes for
+  fixed k — `1 + k + 2·k·(k−1)`-ish symbols, canonically numbered;
+  this is the `lab` array of M1's `EncodesTree`, **present verbatim
+  in the input**. Value alphabet: `T q 0 k` indices (Fintype
+  enumeration) ⊎ op-tagged partial states — exactly the
+  "carry the label inside the value" device TreeFold.lean was built
+  with (its header says so); ⊕ needs one partial state ("left child
+  absorbed"), unary ops apply on the second `step`. Table by
+  `Fintype` + choice per C5, correct via the C13 congruences.
+  Encoding: CSR graph block (unchanged), then the expression tree in
+  `EncodesTree` format (parent array with children-before-parent,
+  root `N−1`, op-code array), plus a per-node vertex-id array
+  (meaningful at leaves — the explicit certificate; the *program
+  never reads it*, only `EncodesInstance`'s validity clause does).
+  Note for the ledger: the program reads only the expression block —
+  the CSR block is consumed by the *statement* (it defines `G`), and
+  the expression is a certificate that determines `G`. The remaining
+  program work beyond Q3-as-built: the accept-bit epilogue (root
+  value ∈ accepting set → write `[1]`/`[0]`, C9) and the
+  `EncodesInstance` plumbing of the two blocks.
 
-  with `Fintype` by induction. Three theorems make it an engine:
-  1. *Adequacy*: a rank-≤q formula's truth depends only on
-     `typ q` (induction on the formula).
-  2. *Forget*: the type of a reduct (dropping a mark) is a function
-     of the type of the expansion (induction on q).
-  3. *Composition* (the make-or-break; rev 4 form): a **cross-ambient
-     congruence** — for `X₁,Y₁ ⊆ G₁` and `X₂,Y₂ ⊆ G₂`, each pair
-     overlapping exactly in marked vertices with the same overlap
-     pattern and no edges between `Xᵢ∖Yᵢ` and `Yᵢ∖Xᵢ`:
-     `typ X₁ = typ X₂ → typ Y₁ = typ Y₂ →
-      typ (X₁∪Y₁) = typ (X₂∪Y₂)`
-     (a vertex/set move in the union splits into a move per side; for
-     sets, `S ↦ (S ∩ X, S ∩ Y)`). No function `F` is ever defined:
-     the finite table is *extracted* from the congruence by
-     `Fintype` + choice (pick representatives per realized type),
-     which is C5 doing its job — the congruence is the theorem, the
-     table is bookkeeping.
-  Rationale: this is game-free (no strategy plumbing), syntax-free
-  (finiteness needs no formula normal forms), and it is the same
-  proof culture as Lax5's `LocalTypes`/`EFAgreement` — that code is
-  FO and not literally reusable, but the team has built exactly this
-  shape before. Automata would add a translation layer and buy
-  nothing; Hintikka formulas would put syntax back into the induction.
-- **C4 (decomposition math)** Bags `Fin N → Finset (Fin n)`, rooted
-  by a parent function. Children are folded **sequentially**: the
-  accumulated structure at node `t` after `j` children is
-  glue-of-bag-and-first-`j`-subtrees, and each step is one binary
-  composition (C3.3) followed by forgets (C3.2) of the child's
-  non-shared bag vertices. No "nice decompositions", no
-  introduce/forget/join normalization — the sequential fold does the
-  same job with zero preprocessing to verify. The decomposition facts
-  needed: edge coverage, coherence (connectivity of occurrence sets),
-  and the separation lemma (no edges between a subtree's interior and
-  its exterior; subtree interiors of siblings are disjoint). Mathlib
-  status per first survey: nothing usable — we define tree
-  decompositions on the surface (they are part of the *statement*).
-- **C5 (the table is allowed to be noncomputable)** The theorem is
-  `∃ p : Program`. The transition table — composition `F` and the
-  accepting set of root types, restricted to the finitely many types
-  realizable at width k — is finite *data*, and Lean may produce it
-  by classical choice; the *program* is generated from that data
-  (types numbered by an enumeration of the Fintype, table
-  materialized into an array by a generated prologue of stores, then
-  lookups are arithmetic indexing). Nothing requires deciding MSO
-  truth by computation at the meta level. This kills the single most
-  expensive part of every executable-flavored Courcelle: we never
-  prove the table *computable*, only that it *exists and is correct*.
-- **C6 (instance encoding)** After the CSR graph block: `N`, then for
-  each decomposition node its parent index, then bag sizes/offsets,
-  then bag contents (CSR-style two-array layout, reusing the offset
-  pattern). Validity predicate `EncodesInstance` includes
-  **children-before-parent numbering** (`parent i > i`, root `N−1`).
-  Honesty: a rooted decomposition always admits such a numbering, so
-  the hypothesis costs no generality — argued in the ledger next to
-  the CSR dumbness argument. (Computing the order in-program via the
-  CC BFS pattern is a possible later hardening, noted, not planned.)
-- **C7 (phase-2 program shape)** One pass over nodes `0..N−1`
-  (children first by C6). Per node: compute its bag's atomic data and
-  overlap patterns with already-folded children by scanning the bag
-  arrays (`O(k²)` per comparison, `k` fixed — constants may depend on
-  k per C1's non-uniformity), then repeated table lookups. Cost by
-  the CC-style global potential ("nodes left + bag-slots left +
-  child-slots left"). This is the **P4 tree-fold schema**,
-  generic over any table — built and verified *before* the type
-  algebra exists, against an abstract table, in Lax11's proof package.
+## Steps (rev 5)
 
-  **C7a (rev 3, orchestrator, after M1): the bag-edge pitfall.**
-  The per-node label needs the bag's internal adjacency pattern, and
-  computing it naively (per bag vertex, scan its CSR block) costs
-  `Σ_t Σ_{u∈B_t} deg u` — *not* linear (a hub vertex can sit in
-  every bag). The linear method, four phases in the label pass:
-  (a) compute each vertex's **top node** `top v` (highest node whose
-  bag contains `v`; unique because occurrence sets are connected —
-  coherence); (b) at `top v`, mark the bag and scan `v`'s CSR block
-  once — total `O(Σ|B_t|·k + m)`; this finds every edge at the top
-  node of its own occurrence set, by the lemma: *for an edge `uv`,
-  the set of nodes whose bag contains both is connected with root
-  `top u` or `top v` (the lower of the two)*; (c) propagate
-  **top-down** (indices `N−1` down to `0`, the opposite direction of
-  the fold): `edges(B_c) = edges discovered at c ∪ edges(B_parent)
-  restricted to B_c` — sound by the lemma: *an edge in `B_c` with
-  top ≠ c is also in `B_{parent c}`*; `O(k²)` per node;
-  (d) child/parent overlap patterns by bag marking, `O(k²)` per node.
-  Q2 owes the two italicized coherence lemmas; Q6 implements the four
-  phases. Nothing else in the plan changes.
-- **C8 (rev 2: single submission)** Everything lands in **Lax11**
-  (`ram-linear-time/`), per Jan's instruction. Q1/Q2/Q3 are
-  `Lax11Proofs` files permanently (no migration, ever). At step 5 the
-  Courcelle surface is *added* to `concepts/Lax11/` as new files
-  (`Mso.lean`, `TreeDecomposition.lean`, `Courcelle.lean`); the four
-  existing concept files stay frozen verbatim — the submission grows,
-  its existing endorsement surface never changes. Abstract and
-  manifest are extended at step 7. Any split into separate
-  submissions is Jan's future call, explicitly out of scope.
-- **C9** Output `[1]`/`[0]`, decided by membership of the root type
-  in the accepting set.
-- **C10 (moot in rev 2)** Same package, direct imports — the
-  Courcelle concepts import `Lax11.Ram`, `Lax11.RamComputes`,
-  `Lax11.GraphEncoding` directly. Nothing is blocked on Jan.
+Done and standing: **Q3** (M1–M3, the generic fold — now consumed
+verbatim), **Q1** (M4–M6, type algebra + adequacy + the congruence —
+consumed through its empty-pool instance). Sunk: **Q2a** (M7,
+TreeDecomp.lean — idles untouched). Remaining:
 
-## Steps
-
-1. **Q3 — the tree-fold schema** (overnight, running): encoding of a
-   parent-pointer tree with per-node data, generic table-driven
-   bottom-up fold as an IMP+ program, `#eval`-checked, then the `Run`
-   lemma with a linear bound. Checkpoint: the schema's statement is
-   clean enough that "instantiate table := type table" is plausibly a
-   plug-in, and per-node cost is visibly `O(k)`-shaped.
-2. **Q1a — type algebra, small rank** (the make-or-break, measured
-   early): `T`/`typ`/`Fintype`, adequacy, forget, and the
-   composition lemma **at q ≤ 1 fully worked**, on boundaried graph
-   structures. Checkpoint: lines-per-obligation at q ≤ 1 decides
-   whether the general induction is a grind or a redesign; report in
-   the style of the step-3/step-5 checkpoints of the RAM plan.
-3. **Q1b — general composition** by induction on q, plus the
-   realizable-at-width-k finite restriction of the table.
-4. **Q2 — decomposition math**: separation lemma, the abstract
-   bottom-up fold as a pure Lean recursion, its correctness
-   (root type determines `Sat G φ` via adequacy).
-5. **C0 freeze**: write the surface as new files in
-   `concepts/Lax11/` (MSO, TreeDecomposition, EncodesInstance, the
-   axiom — existing concept files untouched), smoke tests in proofs
-   (Sat on two-vertex graphs, a hand-checked width-1 decomposition
-   of a path). Under the standing delegation this needs no external
-   input; it is gated on the step-2 checkpoint being green, because
-   the surface's `Sat` must be verbatim the `Sat` that Q1's adequacy
-   induction proved tractable.
-6. **Driver**: instantiate Q3's schema with Q1's table, the per-node
-   bag/overlap scanning program, assemble phases CC-style, discharge
+4. **Q4 — the cliquewidth mathematics.**
+   a. `Expr`, `eval`, validity, the structural lemmas (leaf-set =
+      vertex set, label classes partition it, edges within `X`,
+      disjointness at ⊕ from leaf-injectivity), smoke `#eval`s on a
+      hand k-expression (path 0—1—2 at k = 2).
+   b. The C13 congruences.
+   c. The table by choice; `typeOf e := typ q (eval e)` with label
+      classes as the set parameters; the main induction — structural
+      on `Expr`, one case per constructor, each case one C13 lemma;
+      corollary at the root: the value determines `Sat G φ`
+      (set-forget + adequacy + `X = univ` + `H = G`).
+      **Checkpoint** (gates the freeze): lines per case, and whether
+      the cross-graph plumbing stayed cheap.
+5. **C0 freeze**: new files in `concepts/Lax11/` — `Mso.lean`
+   (verbatim copy from proofs, as rev 4 planned), `CliqueExpr.lean`
+   (`Expr`, `eval`, validity — the new trust object; must be
+   auditable in one sitting, target ~40 lines of definitions),
+   `Courcelle.lean` (`EncodesInstance`, the rev-5 axiom). Existing
+   four concept files frozen verbatim. Smoke tests proofs-side (Sat
+   on two-vertex graphs; the path k-expression hand-checked).
+6. **Q6 — the driver, shrunk**: instantiate `foldProgram` with the
+   C14 table, reuse M3's read-phases against the new two-block
+   encoding, add the accept epilogue, compose the `Run`, discharge
    the axiom, audit.
-7. **Wrap-up**: notes/honesty ledger (C1 MSO₁, C2 de Bruijn, C5
-   noncomputable table, C6 ordering hypothesis, Bodlaender out of
-   scope), abstracts, split per C8.
+7. **Q7 — wrap-up**: `#print axioms`, `lax build --replay`; ledger
+   (C1, C2 de Bruijn, C5, C11 pivot + unformalized tw→cw conversion,
+   expression-as-input, program-ignores-CSR, children-before-parent
+   ordering, TreeDecomp disposition); abstract + manifest; final
+   plan rev.
 
-Order rationale: Q3 first because it is riskless and warm (CC
-patterns fresh); Q1a immediately after because it is the *only*
-component that could force a redesign and must be measured before
-Q2/Q6 build on it; the surface freezes *last among the math* (step 5)
-because — unlike Lax11, where the machine was the trust object and
-could freeze first — here the trust object (MSO semantics) is also
-the induction target of Q1, and freezing it before the q ≤ 1
-checkpoint would repeat the D3 mistake (frozen convention, compiler
-later proves it unworkable) at 10× the cost.
+Order rationale: Q4 is now the only mathematics left and its riskiest
+piece (η congruence) is bounded by an already-proved harder lemma;
+the freeze stays after the Q4c checkpoint for the same D3-shaped
+reason as before (the surface's `Expr`/`eval` must be verbatim what
+the induction proved tractable).
 
-## Feasibility judgment
+## Feasibility judgment (rev 5)
 
-Q3: no risk, CC-shaped. Q2: standard graph theory, volume ≈ CCGraph.
-Q1 adequacy/forget: textbook inductions. **Q1 composition: the one
-hard object** — the induction is standard on paper (Feferman–Vaught
-for gluing over a shared boundary), but the Lean cost of "structure =
-graph + marks + set assignment, glued along an overlap pattern" is
-unmeasured; that is exactly what step 2's checkpoint measures at
-q ≤ 1 before anything is committed to it. Driver: bigger than CC's
-but pattern-identical. Prior art to survey when convenient (not
-blocking): no complete mechanization of Courcelle is known to this
-plan; Traytel's MSO-on-words work (Isabelle) is the nearest relative
-and took the automaton route we rejected — cite both facts in the
-notes when confirmed.
+Q4a: definitions + structural recursion, no risk. Q4b: three
+q-inductions with identity moves — the session-10 checkpoint measured
+the hypothesis-plumbing cost of the *eleven*-hypothesis cross-ambient
+congruence at 580 lines with the real cost in restating hypotheses;
+these have two or three hypotheses each. Q4c: structural induction,
+one lemma per case. Q6: instantiation of verified components; the
+only new program text is the epilogue. The research-engineering risk
+the rev-2 plan carried (composition) was retired at session 10; the
+pivot removes the largest remaining *volume* items (C7a label pass,
+bag/overlap scanning, M8's canonical-order bookkeeping). Prior-art
+note unchanged: no complete mechanization of Courcelle known to this
+plan (in either width parameter); Traytel's MSO-on-words is the
+nearest relative, automaton route, cite when confirmed.
