@@ -13,6 +13,9 @@ open Lax5.GraphClasses Lax5.MonadicDependence Lax5.NeighborhoodComplexity
 /--
 ---
 conclusion: Lax5.AlmostLinearNC.hasAlmostLinearNC_of_monadicallyDependent
+assumptions:
+  - Lax5.NowhereDenseNC.hasAlmostLinearNC_of_nowhereDense
+  - Lax5.WeaklySparseDependent.nowhereDense_of_weaklySparse_of_monadicallyDependent
 ---
 Monadically dependent graph classes have almost linear neighborhood
 complexity: Theorem 2 of DMMPT26.
@@ -24,7 +27,9 @@ Choose one representative vertex per realized neighborhood trace on
 semi-induced form of Lemma 21 bounds their number — which is exactly
 `traceCount G A` — by c · |A|^(1+ε). The paper's reduction to a
 monadically dependent class of twin-free bipartite graphs lives inside
-the proof of Lemma 21.
+the proof of Lemma 21, whose terminal-sparsification step composes the
+two assumed statements of this submission (Corollary 6a and Corollary 6b)
+rather than containing their proofs.
 
 # Attribution
 

@@ -34,7 +34,7 @@ namespace Lax5Proofs.AdlerAdler
 
 open FirstOrder Lax5.Transductions Lax5.GraphClasses
 open Lax5Proofs.LocalTypes Lax5Proofs.EFAgreement Lax5Proofs.BallSwap
-open Lax5Proofs.Source.Catalog.SparsityLectures.UniformQuasiWideness
+open Lax12.UniformQuasiWideness
 
 /-! ### Powerset graphs -/
 
@@ -72,8 +72,20 @@ lemma powFin_adj (d : ℕ) (sb : Fin d → Bool) (i : Fin d) :
 /--
 ---
 conclusion: Lax5.AdlerAdler.monadicallyDependent_of_nowhereDense
+assumptions:
+  - Lax12.NowhereDenseUQW.uniformlyQuasiWide_of_nowhereDense
 ---
 Nowhere dense graph classes are monadically dependent (Adler–Adler).
+
+# Proof strategy
+
+The quasi-wideness input is no longer reproved here: uniform
+quasi-wideness of a nowhere dense class is assumed from the
+`sparsity-lectures` submission and transported across the nominal
+duplication of the shallow-minor and distance-independence definitions by
+`Lax5Proofs.QuasiWideness`.  Everything below it — shattering, local
+types, ball swapping and the pigeonhole — is proved here, as sketched in
+the module docstring.
 -/
 theorem monadicallyDependent_of_nowhereDense
     (C : Lax5.GraphClasses.GraphClass)

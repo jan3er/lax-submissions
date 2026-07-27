@@ -1,11 +1,21 @@
 import Mathlib.Combinatorics.SimpleGraph.Walk.Basic
 import Mathlib.Combinatorics.SimpleGraph.Paths
 import Mathlib.Data.Sym.Sym2
-import Lax5Proofs.Source.Catalog.SparsityLectures.ShallowMinor.Full
+import Lax5Proofs.ShallowMinors
 
-namespace Lax5Proofs.Source.Catalog.SparsityLectures.ShallowTopologicalMinor
+/-!
+Shallow topological minor models in the idiom of the ported sparsity
+development: branch vertices plus routed paths indexed by the edge set,
+and the conversion of a depth-`d` topological minor into a depth-`d`
+minor.  Re-homed verbatim from the catalog module
+`ShallowTopologicalMinor`, whose own development now lives in the
+`sparsity-lectures` submission; the only consumer left here is
+`Lax5Proofs.NowhereDenseBridge`.
+-/
 
-open Lax5Proofs.Source.Catalog.SparsityLectures.ShallowMinor
+namespace Lax5Proofs.TopologicalMinors
+
+open Lax5Proofs.ShallowMinors
 
 /-- A depth-`d` topological minor model of `H` in `G`.
 
@@ -398,4 +408,4 @@ theorem shallowTopologicalMinor_toShallowMinor
   rintro ⟨m⟩
   exact ⟨m.toShallowMinorModel⟩
 
-end Lax5Proofs.Source.Catalog.SparsityLectures.ShallowTopologicalMinor
+end Lax5Proofs.TopologicalMinors

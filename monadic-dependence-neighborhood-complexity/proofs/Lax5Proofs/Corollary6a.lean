@@ -33,8 +33,7 @@ namespace Lax5Proofs.Corollary6a
 
 open scoped SimpleGraph
 open Lax5.GraphClasses Lax5.MonadicDependence
-open Lax5Proofs.Source.Catalog.SparsityLectures.ShallowMinor
-open Lax5Proofs.Source.Catalog.SparsityLectures.NowhereDense
+open Lax5Proofs.ShallowMinors
 open Lax5Proofs.NowhereDenseBridge
 open Lax5Proofs.SubdividedBicliqueRamsey
 open Lax5Proofs.CrossingTransduction
@@ -44,7 +43,7 @@ open Lax5Proofs.Subdivision
 
 /-- The type-polymorphic closure of a submitted class under graph copies. -/
 private def copyClosure (C : Lax5.GraphClasses.GraphClass) :
-    Lax5Proofs.Source.Catalog.SparsityLectures.Preliminaries.GraphClass :=
+    Lax5Proofs.ShallowMinors.GraphClass :=
   fun {_} _ _ H =>
     ∃ (n : ℕ) (G : SimpleGraph (Fin n)), C n G ∧ H ⊑ G
 
@@ -293,11 +292,22 @@ private lemma subdividedBiclique_isIndContained_of_le {k m r : ℕ} (h : k ≤ m
 /--
 ---
 conclusion: Lax5.WeaklySparseDependent.nowhereDense_of_weaklySparse_of_monadicallyDependent
+assumptions:
+  - Lax14.MulticolorRamsey.exists_monochromatic_set
+  - Lax14.TupleRamsey.exists_orderType_homogeneous
 ---
 Corollary 6a of DMMPT26 (Mählmann Lemma 13.7): every weakly sparse
 monadically dependent graph class is nowhere dense.  This proves the
 statement of the concept axiom
-`Lax5.WeaklySparseDependent.nowhereDense_of_weaklySparse_of_monadicallyDependent`. -/
+`Lax5.WeaklySparseDependent.nowhereDense_of_weaklySparse_of_monadicallyDependent`.
+
+# Proof strategy
+
+As sketched in the module docstring.  The two Ramsey inputs are assumed
+from the `finite-ramsey` submission rather than reproved: the
+monochromatic-subset extraction inside the nowhere-dense bridge is the
+multicolour Ramsey statement, and the order-type homogeneity behind
+Lemma 13.8 is the tuple Ramsey statement. -/
 theorem nowhereDense_of_weaklySparse_of_monadicallyDependent
     (C : Lax5.GraphClasses.GraphClass) (hs : WeaklySparse C)
     (hd : MonadicallyDependent C) :

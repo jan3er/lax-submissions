@@ -1,9 +1,7 @@
 import Lax5Proofs.Ramsey
 import Lax5Proofs.Subdivision
-import Lax5Proofs.Source.Catalog.SparsityLectures.Preliminaries.Full
-import Lax5Proofs.Source.Catalog.SparsityLectures.NowhereDense.Full
-import Lax5Proofs.Source.Catalog.SparsityLectures.ShallowMinor.Full
-import Lax5Proofs.Source.Catalog.SparsityLectures.ShallowTopologicalMinor.Full
+import Lax5Proofs.ShallowMinors
+import Lax5Proofs.TopologicalMinors
 import Mathlib.Combinatorics.Pigeonhole
 import Mathlib.Data.Finset.Sort
 
@@ -20,10 +18,8 @@ principal branch sets through a private helper branch set (see the
 
 namespace Lax5Proofs.NowhereDenseBridge
 
-open Lax5Proofs.Source.Catalog.SparsityLectures.Preliminaries
-open Lax5Proofs.Source.Catalog.SparsityLectures.NowhereDense
-open Lax5Proofs.Source.Catalog.SparsityLectures.ShallowMinor
-open Lax5Proofs.Source.Catalog.SparsityLectures.ShallowTopologicalMinor
+open Lax5Proofs.ShallowMinors
+open Lax5Proofs.TopologicalMinors
 open Lax5Proofs.Subdivision
 
 /-- A graph class `𝓒` is *locally nowhere dense* (Mählmann Def. 13.1,

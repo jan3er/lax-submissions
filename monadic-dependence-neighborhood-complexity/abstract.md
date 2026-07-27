@@ -34,6 +34,24 @@ types of decorated balls and a ball-swap back-and-forth system in place
 of Gaifman's theorem. A transduction of all graphs would shatter
 arbitrarily large sets; quasi-wide scattering, a local-type pigeonhole,
 and the swap lemma refute this. With that, all five theorem concepts are
-proved, and every one reports only Lean's standard logical axioms — the
-surface carries the full classical equivalence that on weakly sparse
-classes, monadic dependence and nowhere denseness coincide.
+proved — the surface carries the full classical equivalence that on weakly
+sparse classes, monadic dependence and nowhere denseness coincide.
+
+The proofs do not contain the classical sparsity and Ramsey material they
+rest on; they *assume* it, from two upstream submissions, so that the
+dependency is visible in the archive's proof network. Uniform
+quasi-wideness and subpolynomial weak coloring numbers of nowhere dense
+classes are assumed from the *Sparsity Lectures* submission (Lax12),
+which formalizes the lecture notes of Pilipczuk, Pilipczuk and Siebertz;
+Ramsey's theorem for colourings of pairs and its order-type form for
+tuples are assumed from the *Finite Ramsey* submission (Lax14). Both
+submissions state those notions over their own, textually identical
+copies of the shallow-minor and weak-coloring definitions — a deliberate
+nominal duplication, kept so that no dependency cycle can form between
+the concept packages, and paid for by transports that are field-for-field
+repackings and definitional unfoldings. Inside this submission the same
+discipline applies: the headline theorem assumes Corollary 6a and
+Corollary 6b instead of importing their proofs, and Corollary 6b assumes
+the coloring-number statement instead of importing its proof. What each
+proof reports beyond Lean's standard logical axioms is exactly the list
+in its `assumptions` block.

@@ -1715,3 +1715,223 @@ form. Nothing else in the rule set is outstanding.
   signature).
 - Nothing was committed; `sparsity-lectures/proofs/Lax12Proofs/` is
   untracked and Jan's unrelated WIP is still unstaged.
+
+### P4 log
+
+Executed by the implementation agent. The Lax5 reroute of Design section
+(d), amended by §5B of `ramsey-fundamentals-plan.md`, is complete;
+`lake build` in `monadic-dependence-neighborhood-complexity/proofs/` is
+green (2791 jobs, no errors, no `sorry`; only pre-existing style linter
+warnings). Nothing was committed or submitted.
+
+#### Dependency wiring
+
+`proofs/lakefile.toml` gained two git requires, both at the pushed commit
+`1e0d4822f19e09f8003811db1c8a7d89bc87990e` of this repository:
+`name = "Lax12"`, `subDir = "sparsity-lectures/concepts"` and
+`name = "Lax14"`, `subDir = "finite-ramsey/concepts"`. As in P2, the
+generated (gitignored) `proofs/lake-manifest.json` had to be deleted
+before the first `lake build`; `lake update` was never run and the mathlib
+pin is unchanged. `concepts/` was not touched.
+
+#### The proof network, as verified
+
+`#print axioms` on all five frontmattered proofs, background axioms
+(`propext`, `Classical.choice`, `Quot.sound`) elided. Every computed set
+equals the declared `assumptions:` block exactly.
+
+| proof | computed = declared assumptions |
+| --- | --- |
+| `Lax5Proofs.AdlerAdler.monadicallyDependent_of_nowhereDense` | `Lax12.NowhereDenseUQW.uniformlyQuasiWide_of_nowhereDense` |
+| `Lax5Proofs.NowhereDenseWcol.hasSubpolynomialWcol_of_nowhereDense` | `Lax12.NowhereDenseWcol.hasSubpolynomialWcol_of_nowhereDense` |
+| `Lax5Proofs.Corollary6a.nowhereDense_of_weaklySparse_of_monadicallyDependent` | `Lax14.MulticolorRamsey.exists_monochromatic_set`, `Lax14.TupleRamsey.exists_orderType_homogeneous` |
+| `Lax5Proofs.Corollary6b.hasAlmostLinearNC_of_nowhereDense` | `Lax5.NowhereDenseWcol.hasSubpolynomialWcol_of_nowhereDense` |
+| `Lax5Proofs.Theorem2.hasAlmostLinearNC_of_monadicallyDependent` | `Lax5.NowhereDenseNC.hasAlmostLinearNC_of_nowhereDense`, `Lax5.WeaklySparseDependent.nowhereDense_of_weaklySparse_of_monadicallyDependent` |
+
+Design (d)'s prediction for `Theorem2` held exactly: after the
+`Corollary6.lean` rewiring its set is the two Lax5 statements and nothing
+else — no Lax12 or Lax14 statement leaks through, because the composition
+now goes through the statements rather than through `Corollary6a`'s and
+`Corollary6b`'s proofs. Resulting network:
+
+    Lax14.MulticolorRamsey.exists_monochromatic_set  ─┐
+    Lax14.TupleRamsey.exists_orderType_homogeneous   ─┴─▶ Lax5.WeaklySparseDependent.nd_of_ws_md ─┐
+                                                                                                 │
+    Lax12.NowhereDenseWcol.wcol_of_nd ─▶ Lax5.NowhereDenseWcol.wcol_of_nd                         │
+                                          └─▶ Lax5.NowhereDenseNC.nc_of_nd ──────────────────────┴─▶ Lax5.AlmostLinearNC.nc_of_md
+
+    Lax12.NowhereDenseUQW.uqw_of_nd ─▶ Lax5.AdlerAdler.md_of_nd        (the Adler–Adler direction, separate)
+
+#### The spec's `assumptions:` convention
+
+Determined from `lax spec` (sections *Proofs* and *Annotations*), not
+guessed:
+
+- A proof's **assumptions are the statements in its axiom set**
+  (`#print axioms`) — the *full transitive* set as the kernel reports it,
+  not a hand-picked subset and not only the directly-cited ones.
+- The `assumptions:` key is **optional**, and when present it "must equal
+  the computed assumption set — a redundant sanity check for authors, not
+  an input". So it is all-or-nothing per proof: list the whole computed
+  set or omit the block.
+- Independently, **axiom hygiene**: every axiom occurring anywhere in the
+  proof package must be a background axiom or a statement of a *directly
+  required* concept package. Transitively reachable packages do not
+  qualify — which is exactly why Lax5-proofs must require both Lax12 and
+  Lax14 itself even though Lax12-proofs already requires Lax14.
+- Consequence for Design (d)'s open worry: the convention is transitive,
+  so had `Corollary6.lean` kept importing the two proofs, `Theorem2`'s
+  block would have had to list the Lax12 and Lax14 statements as well.
+  The statement-level composition is what keeps the headline's block down
+  to the two Lax5 statements — the same reason the rewiring was proposed.
+
+#### Line-count delta of the Lax5 proof package
+
+| | files | lines |
+| --- | --- | --- |
+| before (HEAD `1e0d482`) | 46 | 20571 |
+| after | 27 | 12602 |
+| delta | −19 | **−7969** |
+
+Where it went: `Lax5Proofs/Source/` (20 files, 7049 lines) and
+`BipartiteRamsey.lean` (737) deleted; `Ramsey.lean` 239 → 56,
+`TupleRamsey.lean` 646 → 337, `NowhereDenseWcol.lean` 197 → 49,
+`QuasiWideness.lean` 116 → 90, root 45 → 26; re-homed
+`ShallowMinors.lean` (60) and `TopologicalMinors.lean` (411) added;
+`Corollary6.lean` 25 → 28, and small frontmatter/docstring growth in
+`Corollary6a.lean`, `Corollary6b.lean`, `AdlerAdler.lean`, `Theorem2.lean`.
+`NowhereDenseBridge.lean` (1442 → 1438, purely the shorter import/open
+block) and `SubdividedBicliqueRamsey.lean` (2451, untouched) needed no
+proof edits, exactly as §5B promised.
+
+#### `lax build monadic-dependence-neighborhood-complexity --replay`
+
+Fails with exactly the two expected, Jan-gated violations, both at the
+resolution stage:
+
+    [resolution] proofs/lakefile.toml: require "Lax12" does not name a
+    submission with content
+    [resolution] proofs/lakefile.toml: require "Lax14" does not name a
+    submission with content
+
+`~/.lax/db/Lax12/record.json` and `~/.lax/db/Lax14/record.json` are both
+in state `init`: neither submission has been submitted, so neither has a
+record triple a pin can validate. Layout, license, abstract and manifest
+checks pass (they run before the short-circuit — in particular the new
+`manifest.yaml` bibEntry is validated). Unlike P2 this log does **not**
+contain a separate clean run of the post-resolution rule set: reproducing
+P2's trick would mean restoring the deleted 7k-line catalog port, and
+patching the local database instead was declined by the sandbox. The
+rules downstream of resolution were therefore checked by hand:
+`assumptions:` blocks against `#print axioms` (table above), root module
+shape (26 import lines, no declarations, no module docstring, one line
+per module of the package), namespace prefix `Lax5Proofs` on every new
+declaration, imports restricted to the own package / mathlib / `Lax5` /
+`Lax12` / `Lax14`, frontmatter written in the same shape as Lax12's
+already-validated `NowhereDenseUQW.lean`, and no generated file tracked.
+
+#### Deviations from Design (d) and §5B
+
+1. **`ShallowMinors.lean` is 60 lines, not the Lax12 file.** Design (d)
+   sizes it at ~62 lines (`Preliminaries` + `ShallowMinor` +
+   `NowhereDense`), and that is what was written — copied from the
+   deleted catalog modules, not from `Lax12Proofs/ShallowMinors.lean`,
+   which is 230 lines because it also absorbs `ShallowMinorComposition`.
+   Lax5 has no consumer of the composition lemmas, so they stayed out.
+   `TopologicalMinors.lean` (411 lines) *is* the catalog file verbatim
+   with the namespace rewritten, plus a module docstring; its body is
+   byte-identical to `Lax12Proofs/TopologicalMinors.lean` (verified by
+   diff after normalizing the two namespaces).
+2. **`Lax5Proofs/Ramsey.lean` keeps only `multicolor_ramsey`**, as §5B
+   prescribes, and the derivation is `Lax12Proofs/Ramsey.lean`'s bridge
+   verbatim (same signature, same body) with the concept import
+   retargeted. `ramsey` and `compl_induce_eq` are gone; grep confirmed
+   before deleting that their only consumers were the deleted
+   `NDImpliesUQW/Full.lean` and `BipartiteRamsey.lean`.
+3. **The `otp` ⇒ `orderType` correspondence was re-derived locally**, as
+   the P1/P2 hand-off note requires (the Lax14 proof-package lemma is not
+   importable). It is
+   `Lax5Proofs.TupleRamsey.orderTypeProp_eq_of_orderType_eq`, 19 lines,
+   stated over an arbitrary `LinearOrder` like the Lax14 original; only
+   the ⇒ direction is needed.
+4. **`tuple_ramsey`'s factoring function is rebuilt by choice over
+   tuples, not over shapes.** §5B sketches
+   `f ot := if h : ∃ a, (∀ i, a i ∈ I) ∧ otp a = ot then c (choose h) else ⟨0, hk⟩`
+   as the "simpler route" and that is what was used, so the whole shape
+   machinery (`Shape`, `factorThroughShape`, `decomposeTuple`,
+   `shapeRamseyFamily`, `strictMonoRamseyFinset`, `buildChain`,
+   `chainBound`, `tupleRamseyAtSize`) disappeared with the Erdős–Rado
+   core. `existsMonotoneUnbounded` and the property `P` are reused
+   verbatim, as promised, so `bipartite_tuple_ramsey` and
+   `SubdividedBicliqueRamsey.lean` are untouched. Result: 337 lines
+   against the budgeted ~250, the difference being that
+   `existsMonotoneUnbounded` (52 lines) and `glueLT` /
+   `orderType_append_of_lt` (38 lines) are larger than §5B's estimate
+   assumed.
+5. **The shallow-minor repacking lives in `QuasiWideness.lean`** and
+   `NowhereDenseWcol.lean` imports it, as Design (d) allows ("put the
+   repacking in one of the two and import it"). Both directions are
+   provided (`shallowMinorModel_lax5`, `shallowMinorModel_lax12`) though
+   only the first is currently used; the second costs six lines and is
+   the obvious companion.
+6. **`NowhereDenseWcol.lean` is a term proof, 49 lines including
+   frontmatter**, against Design (d)'s ~35. The conclusion transport is
+   literally definitional — `exact` on the Lax12 statement applied to the
+   repacked hypothesis — confirming the P1 log's byte-identity claim for
+   `wreach`, `wcol` and `HasSubpolynomialWcol`; the extra lines are the
+   `# Proof strategy` and `# Attribution` sections the checklist wants.
+7. **`Corollary6a.lean` gained a `# Proof strategy` section** alongside
+   its `assumptions:` block; Design (d) said "no `assumptions:`", which
+   §5B of `ramsey-fundamentals-plan.md` supersedes — the file's closure
+   now reaches the two Lax14 statements through `NowhereDenseBridge` and
+   `SubdividedBicliqueRamsey`, and the computed set confirms exactly the
+   two §5B predicted.
+8. **`abstract.md` gained a fourth paragraph** rather than an edit to the
+   third: it names both upstream submissions, the visible internal
+   network (Theorem 2 assuming Corollaries 6a/6b, 6b assuming the
+   coloring-number statement), and the deliberate nominal duplication of
+   the definitions. The old sentence claiming every proof "reports only
+   Lean's standard logical axioms" was removed — it is no longer true and
+   is exactly what the reroute is for. `manifest.yaml` gained the
+   sparsity-notes bibEntry copied verbatim from
+   `sparsity-lectures/manifest.yaml`; no other key changed.
+
+#### Runbook for Jan: submit and repin, in this order
+
+Everything below assumes the three submission directories are committed
+and pushed. Lax1 and Lax2 are untouched throughout, and nothing pins Lax5.
+
+1. **Lax14 (`finite-ramsey`) first** — it has no requires beyond mathlib,
+   so nothing gates it.
+   `lax build finite-ramsey --replay` (expect OK), `lax submit finite-ramsey`,
+   then `lax pull-db`. Read the new triple from
+   `~/.lax/db/Lax14/record.json` (`source.repository`, `source.commit`,
+   `source.folder`).
+2. **Repin Lax14 in its two dependents** if that commit differs from what
+   they currently pin:
+   - `sparsity-lectures/proofs/lakefile.toml`, require `Lax14` (currently
+     `rev = 9a996781305678aa3bea6e0dd81e8a3cad7d752f`);
+   - `monadic-dependence-neighborhood-complexity/proofs/lakefile.toml`,
+     require `Lax14` (currently `rev = 1e0d4822…`).
+   After any lakefile edit, delete the package's gitignored
+   `proofs/lake-manifest.json` before the next `lake build`.
+3. **Lax12 (`sparsity-lectures`) second.** `lax build sparsity-lectures --replay`
+   (now expected OK — its only outstanding violation was the Lax14 pin),
+   commit, push, `lax submit sparsity-lectures`, `lax pull-db`. Read the
+   new triple from `~/.lax/db/Lax12/record.json`.
+4. **Repin Lax12 in Lax5**: `monadic-dependence-neighborhood-complexity/proofs/lakefile.toml`,
+   require `Lax12` (currently `rev = 1e0d4822…`), then delete
+   `proofs/lake-manifest.json` and `lake build`.
+5. **Lax5 last.** `lax build monadic-dependence-neighborhood-complexity --replay`
+   (now expected OK), commit, push,
+   `lax submit monadic-dependence-neighborhood-complexity` — a re-draft,
+   the same submission id.
+6. Optional freeze, per `ramsey-fundamentals-plan.md` Q5: once all three
+   are green, register Lax14 (and then Lax12) at the *same* commit, so the
+   triples never move again and the pins can never break. Registration
+   admits only registered dependencies, so it must go bottom-up:
+   Lax14, then Lax12, then Lax5.
+
+Note the coupling: each `lax submit` of an upstream moves its record
+triple, so steps 2 and 4 are not optional bookkeeping — a stale pin fails
+the dependent's resolution stage with exactly the message quoted above.

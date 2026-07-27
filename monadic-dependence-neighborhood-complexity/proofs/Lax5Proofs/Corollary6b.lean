@@ -1,5 +1,5 @@
 import Lax5.NowhereDenseNC
-import Lax5Proofs.NowhereDenseWcol
+import Lax5.NowhereDenseWcol
 import Lax5Proofs.NowhereDenseNeighborhoods
 
 /-!
@@ -7,9 +7,11 @@ Corollary 6b at radius 1: nowhere dense classes have almost linear
 neighborhood complexity. Top of the sparsity chain surveyed in
 `pipeline.md` §3a.
 
-The proof imports the completed subpolynomial weak-coloring-number chain,
-then carries out the radius-one trace counting, polynomial witness
-localization, and final exponent rescaling explicitly.
+The subpolynomial weak-coloring-number bound is *assumed*, as the
+statement of this submission's own concept `Lax5.NowhereDenseWcol`, rather
+than imported as a proof; what is carried out here is the radius-one trace
+counting, the polynomial witness localization, and the final exponent
+rescaling.
 -/
 
 namespace Lax5Proofs.Corollary6b
@@ -53,6 +55,8 @@ private theorem traceCount_coe_finset {n : ℕ} (G : SimpleGraph (Fin n))
 /--
 ---
 conclusion: Lax5.NowhereDenseNC.hasAlmostLinearNC_of_nowhereDense
+assumptions:
+  - Lax5.NowhereDenseWcol.hasSubpolynomialWcol_of_nowhereDense
 ---
 Nowhere dense graph classes have almost linear neighborhood complexity:
 the radius-1 case of the theorem of Eickmeyer, Giannopoulou, Kreutzer,
@@ -66,7 +70,8 @@ have VC dimension O(t + log t); Dvořák's densification bounds the
 depth-1 grad by f(ε)·n^ε, which bounds the weak 2-coloring number;
 counting neighborhood traces along a weak coloring order then yields
 |A| · n^ε traces, and localization to a polynomially small witness set
-rescales this to c · |A|^(1+ε).
+rescales this to c · |A|^(1+ε).  The weak-coloring input is the assumed
+statement `Lax5.NowhereDenseWcol.hasSubpolynomialWcol_of_nowhereDense`.
 
 # Attribution
 
@@ -87,7 +92,7 @@ theorem hasAlmostLinearNC_of_nowhereDense (C : GraphClass)
     dsimp [δ]
     positivity
   obtain ⟨cw, hcw⟩ :=
-    Lax5Proofs.NowhereDenseWcol.hasSubpolynomialWcol_of_nowhereDense C h 2 δ hδ
+    Lax5.NowhereDenseWcol.hasSubpolynomialWcol_of_nowhereDense C h 2 δ hδ
   let cw' : ℝ := max cw 0
   let K : ℕ := 3 * t + 1
   let L : ℕ := 1 + K + K ^ 2

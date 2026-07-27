@@ -37,6 +37,16 @@ bibEntries:
       archivePrefix = {arXiv}
     }
   - |
+    @misc{pilipczuk-sparsity-notes,
+      author = {Marcin Pilipczuk and Micha{\l} Pilipczuk},
+      title  = {Sparsity --- lecture notes for the course ``Sparsity'', winter term 2019/20},
+      year   = {2020},
+      note   = {University of Warsaw, Faculty of Mathematics, Informatics and Mechanics.
+                Chapter~1 compiled 2020-01-24; Chapter~2 compiled 2019-11-22;
+                Chapter~4 compiled 2019-12-12},
+      url    = {https://www.mimuw.edu.pl/~mp248287/sparsity2/}
+    }
+  - |
     @article{AdlerAdler2014,
       author  = {Adler, Hans and Adler, Isolde},
       title   = {Interpreting nowhere dense graph classes as a classical
