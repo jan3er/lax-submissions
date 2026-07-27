@@ -1,6 +1,7 @@
 import Lax12.GraphClasses
 import Lax12.NowhereDenseClasses
 import Lax12.ShallowMinorDensity
+import Lax12.ShallowTopologicalMinors
 import Lax12.ColoringNumbers
 import Lax12.Admissibility
 import Lax12.UniformQuasiWideness

@@ -12,6 +12,10 @@ such that in every member, every vertex set of size at least *N*(*m*)
 contains a distance-*r* independent subset of size at least *m* after
 deleting at most *s* vertices.
 
+This is Lemma 3.4 of Chapter 4 of the source lecture notes (2019/20
+edition), the hard direction of their Theorem 3.2, which states that a
+graph class is uniformly quasi-wide if and only if it is nowhere dense.
+
 # Formalization notes
 
 Hypothesis and conclusion are the shared predicates of the two imported

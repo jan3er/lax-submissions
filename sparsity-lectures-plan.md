@@ -148,7 +148,12 @@ Output of Phase P0. `LaxS` is the placeholder id; `lax init` fixes it.
 
 ### Delegated decisions, decided
 
-**(1) Shallow topological minors do *not* earn a definition-concept.** The
+**(1) Shallow topological minors do *not* earn a definition-concept.**
+**[Reversed in P1.5 on Jan's directive "use that form" — the surface now
+carries `Lax12/ShallowTopologicalMinors.lean` and the admissibility bound
+is stated in the notes' topological form; see the P1.5 log and the updated
+`AdmissibilityBound` draft in section (a). The rationale below is kept as
+the record of what was traded away.]** The
 admissibility bound is stated over ordinary shallow minors:
 
     HasDensityAtMost G r d → adm G r ≤ 1 + 6 * r * d ^ 3
@@ -224,19 +229,22 @@ is proved by a glue proof with
 
     assumptions:
       - LaxS.NowhereDenseDensity.hasSubpolynomialDensity_of_nowhereDense
-      - LaxS.AdmissibilityBound.adm_le_of_hasDensityAtMost
+      - LaxS.AdmissibilityBound.adm_le_of_hasTopologicalDensityAtMost
       - LaxS.StrongColoringBound.scol_le_of_adm
       - LaxS.WeakColoringBound.wcol_le_of_scol
 
-and nothing else (the subgraph-closure lemma and the "a shallow minor has
-no more vertices than its host" lemma are axiom-free helpers). This
+and nothing else (the subgraph-closure lemma, the "a shallow minor has
+no more vertices than its host" lemma, the P1.5 addition "a depth-`r`
+topological minor is a depth-`r` minor", and the monotonicity of `adm`
+in the radius are axiom-free helpers). This
 reproduces `NDSubpolynomialWcol/Full.lean` step for step; see
 "Verification of the composition" below.
 
 ### (a) Concept modules, in full
 
-Six definition-concepts, six theorem-concepts. `LaxS.lean` imports them in
-this order.
+Seven definition-concepts (six as drafted in P0, plus
+`ShallowTopologicalMinors` added in P1.5), six theorem-concepts.
+`LaxS.lean` imports them in this order.
 
 #### `concepts/LaxS/GraphClasses.lean`
 
@@ -416,6 +424,44 @@ def HasSubpolynomialDensity (C : GraphClass) : Prop :=
 
 end LaxS.ShallowMinorDensity
 ```
+
+#### `concepts/LaxS/ShallowTopologicalMinors.lean`
+
+Added in P1.5 (reversing decision (1)); the authoritative text is
+`sparsity-lectures/concepts/Lax12/ShallowTopologicalMinors.lean`. It
+states Definitions 2.15 and 2.16 of Chapter 1 of the notes, in the
+flagship idiom — a `Prop`-valued six-field structure, no `Sym2`, no
+decidability instances, zero axioms:
+
+```lean
+structure ShallowTopologicalMinorModel {V W : Type*} (r : ℕ) (H : SimpleGraph W)
+    (G : SimpleGraph V) where
+  principal : W → V
+  principal_inj : Function.Injective principal
+  walk : ∀ (u v : W), H.Adj u v → G.Walk (principal u) (principal v)
+  length_le : ∀ (u v : W) (h : H.Adj u v), (walk u v h).length ≤ 2 * r + 1
+  principal_eq : ∀ (u v : W) (h : H.Adj u v) (w : W),
+    principal w ∈ (walk u v h).support → w = u ∨ w = v
+  disjoint : ∀ (u v : W) (h : H.Adj u v) (u' v' : W) (h' : H.Adj u' v') (x : V),
+    x ∈ (walk u v h).support → x ∈ (walk u' v' h').support →
+      x ∉ Set.range principal → (u = u' ∧ v = v') ∨ (u = v' ∧ v = u')
+
+def HasShallowTopologicalMinor {V W : Type*} (G : SimpleGraph V) (r : ℕ)
+    (H : SimpleGraph W) : Prop :=
+  Nonempty (ShallowTopologicalMinorModel r H G)
+
+def HasTopologicalDensityAtMost {n : ℕ} (G : SimpleGraph (Fin n)) (r d : ℕ) : Prop :=
+  ∀ (m : ℕ) (H : SimpleGraph (Fin m)), HasShallowTopologicalMinor G r H →
+    H.edgeSet.ncard ≤ d * m
+```
+
+Connecting walks are indexed by adjacent *pairs* rather than by the edge
+set, which is what keeps `Sym2` off the surface; both orientations of an
+edge carry a walk and the two are not tied to each other, because
+`disjoint` concludes that the two edges agree and therefore never fires
+on one edge's two orientations. `HasTopologicalDensityAtMost` mirrors
+`ShallowMinorDensity.HasDensityAtMost` clause for clause; no numeric ∇̃
+is introduced, for the reason given there.
 
 #### `concepts/LaxS/ColoringNumbers.lean`
 
@@ -790,47 +836,42 @@ the catalog bound gives `< m ^ (1+ε) ≤ c · m ^ (1+ε)`; for `1 ≤ m < N`,
 
 #### `concepts/LaxS/AdmissibilityBound.lean`
 
+Restated in P1.5 to the notes' Lemma 3.2 form (Chapter 2, 2019/20
+edition), index-shifted by one so that no truncated `ℕ` subtraction
+enters a concept statement.
+
 ```lean
 import LaxS.Admissibility
-import LaxS.ShallowMinorDensity
+import LaxS.ShallowTopologicalMinors
 
 /-!
 ---
-title: Admissibility is bounded by shallow-minor density
+title: Admissibility is bounded by topological shallow-minor density
 type: theorem
 ---
-If every depth-*r* minor of a graph *G* has at most *d* · |V| edges,
-then the *r*-admissibility of *G* is at most 1 + 6 · *r* · *d*³. This is
-the workhorse behind every bound of a generalized coloring number by an
-edge-density bound: sparse shallow minors force an ordering in which no
-vertex reaches many predecessors along disjoint short paths.
+If every depth-*r* topological minor of a graph *G* has at most
+*d* · |V| edges, then the (*r*+1)-admissibility of *G* is at most
+1 + 6 · (*r*+1) · *d*³. …
+
+The source lecture notes state this as Lemma 3.2 of Chapter 2 (2019/20
+edition): adm_*r*(*G*) ≤ 1 + 6*r*⌈∇̃_{*r*−1}(*G*)⌉³.
 
 # Formalization notes
 
-Hypothesis and conclusion are the predicates of the two imported
-definition concepts, at the same depth `r`. The literature proof
-establishes the sharper statement in which the hypothesis constrains
-only the depth-(*r*−1) *topological* minors of *G*; the form stated here
-follows, because every shallow topological minor is a shallow minor and
-every depth-(*r*−1) minor is a depth-*r* minor, so the hypothesis here
-is the stronger one. Stating it this way keeps shallow topological
-minors — an edge-indexed family of routed paths — out of the endorsement
-surface and avoids truncated natural subtraction in a hypothesis, at the
-cost of the sharper depth index.
-
-The constant is stated exactly as in the source: `1 + 6 · r · d ^ 3`,
-with the leading `1` the vertex `v` itself that admissibility counts.
+… the shifted form ranges over exactly the instances *r* ≥ 1 of the
+notes' form, which are all of its instances with a defined hypothesis;
+`d` plays the notes' ⌈∇̃_{*r*−1}(*G*)⌉. …
 -/
 
 namespace LaxS.AdmissibilityBound
 
-open LaxS.Admissibility LaxS.ShallowMinorDensity
+open LaxS.Admissibility LaxS.ShallowTopologicalMinors
 
-/-- A depth-`r` edge-density bound `d` for `G` bounds the
-`r`-admissibility of `G` by `1 + 6 · r · d ^ 3`. -/
-axiom adm_le_of_hasDensityAtMost {n : ℕ} (G : SimpleGraph (Fin n))
-    (r d : ℕ) (h : HasDensityAtMost G r d) :
-    adm G r ≤ 1 + 6 * r * d ^ 3
+/-- A depth-`r` topological edge-density bound `d` for `G` bounds the
+`(r+1)`-admissibility of `G` by `1 + 6 · (r+1) · d ^ 3`. -/
+axiom adm_le_of_hasTopologicalDensityAtMost {n : ℕ} (G : SimpleGraph (Fin n))
+    (r d : ℕ) (h : HasTopologicalDensityAtMost G r d) :
+    adm G (r + 1) ≤ 1 + 6 * (r + 1) * d ^ 3
 
 end LaxS.AdmissibilityBound
 ```
@@ -842,13 +883,22 @@ Discharged by
         IsShallowTopologicalMinor H G (r - 1) → H.edgeFinset.card ≤ d * Fintype.card W) :
       ∃ (ord : LinearOrder V), letI := ord; adm G r ≤ 1 + 6 * r * d ^ 3
 
-(`AdmBoundByTopGrad/Full.lean:1456`). Quantifier map: `hd` is supplied
-from `HasDensityAtMost G r d` by `shallowTopologicalMinor_toShallowMinor`
-(depth `r - 1` topological minor ⇒ depth `r - 1` minor ⇒ depth `r` minor
-by `isShallowMinor_mono`), transporting `H : SimpleGraph W` to
-`SimpleGraph (Fin (Fintype.card W))`. The conclusion's `∃ ord` becomes
-the concept's `∃ π` in `HasAdmAtMost` via `rankPerm`, and `adm G r`
-(`sInf`) is then bounded by `Nat.sInf_le`.
+(`AdmBoundByTopGrad/Full.lean:1456`), now at `r := r + 1`, where
+`(r + 1) - 1` reduces to `r` definitionally: the catalog theorem and the
+concept statement have the *same* content, so the bridge only has to
+translate idioms. Quantifier map: `hd` is supplied from
+`HasTopologicalDensityAtMost G r d` by repacking the catalog's
+`ShallowTopologicalMinorModel` (edge-indexed routed paths, `Sym2`
+plumbing) into the concept's pair-indexed walk model and back —
+`walk u v h` for one orientation, its reverse for the other — and
+transporting `H : SimpleGraph W` to `SimpleGraph (Fin (Fintype.card W))`.
+The conclusion's `∃ ord` becomes the concept's `∃ π` in `HasAdmAtMost`
+via `rankPerm`, and `adm G (r + 1)` (`sInf`) is then bounded by
+`Nat.sInf_le`. The shallow-minor weakening that the P0 draft needed
+(`shallowTopologicalMinor_toShallowMinor` plus depth monotonicity) is no
+longer part of this discharge; it moves to the headline glue, which is
+the only place that has to convert an ordinary-minor density bound into
+a topological one.
 
 #### `concepts/LaxS/StrongColoringBound.lean`
 
@@ -1006,7 +1056,7 @@ reproduce; step by step, with the LaxS glue on the right.
 | `obtain ⟨N, hN⟩ := nd_subpolynomial_density C hC (r-1) ε₁` | `obtain ⟨c₁, hc₁⟩ := hasSubpolynomialDensity_of_nowhereDense (subgraphClosure C) _ r ε₁`; set `c₁' := max c₁ 0` |
 | `d := ⌈n^ε₁⌉₊ + N` | `d := ⌈c₁' * (m:ℝ)^ε₁⌉₊` |
 | `hd_bound` by case split on `N ≤ m` (large: density bound, `card_le_of_isShallowTopologicalMinor`; small: `edges ≤ m²`) | one case: `edges K ≤ c₁' · k^(1+ε₁) = c₁' · k · k^ε₁ ≤ c₁' · k · m^ε₁ ≤ d · k`, using `k ≤ m` for shallow minors. The threshold case split disappears with the constant-form density predicate |
-| `obtain ⟨ord, hadm⟩ := adm_le_of_topGrad_bound G r d hd_bound` | `have hadm := adm_le_of_hasDensityAtMost H r d hd_bound` (no ordering escapes; `adm` is already the minimum) |
+| `obtain ⟨ord, hadm⟩ := adm_le_of_topGrad_bound G r d hd_bound` | `have hadm := adm_le_of_hasTopologicalDensityAtMost H r d hd_top` (no ordering escapes; `adm` is already the minimum), where `hd_top : HasTopologicalDensityAtMost H r d` comes from `hd_bound : HasDensityAtMost H r d` by the axiom-free helper "a depth-`r` topological minor is a depth-`r` minor" (`MinorBridge`, P1.5); the conclusion arrives at radius `r + 1`, and `adm H r ≤ adm H (r + 1)` — every admissible family at radius `r` is one at radius `r + 1` — brings it back to the radius the headline needs, avoiding a case split on `r = 0` |
 | `hwcol := wcol_le_of_adm G r` | `scol_le_of_adm H r` then `wcol_le_of_scol H r`, composed by the same three lines that `ColoringNumberEquivalence.wcol_le_of_adm` runs: `hsub : scol - 1 ≤ (adm - 1)^r` by `Nat.sub_le_iff_le_add`, then `Nat.pow_le_pow_left` and `← Nat.pow_mul` |
 | `hnat_bound : wcol ≤ 1 + r·(6·r·d³)^(r²)` | identical |
 | `hd_le : d ≤ (N+2)·n^ε₁`, `hexp : ε₁·3r² ≤ ε`, `hd_pow`, `hrpow_le`, final `calc` | identical with `(c₁' + 1)` in place of `(N + 2)` and `m` in place of `n`; `n = 0` case becomes `m = 0`, where `wcol H r = 0` |
@@ -1074,7 +1124,18 @@ This is where today's Lax5 bridge code lands, retargeted.
     disjoint and nonempty), replacing the catalog's
     `card_le_of_isShallowTopologicalMinor`;
   - **new**: `nowhereDense_subgraphClosure` at the concept level, for the
-    glue proof.
+    glue proof;
+  - **new (P1.5)**: `hasTopologicalDensityAtMost_of_hasDensityAtMost` —
+    a depth-`r` topological minor is a depth-`r` minor (take as branch
+    sets the principal vertices together with the interiors of the
+    connecting walks; radius at most `r` because a walk of length at
+    most `2r+1` splits into two halves of length at most `r`), so an
+    ordinary-minor density bound yields the topological one. Axiom-free,
+    consumed by the headline glue — this is the P1.5 replacement for the
+    weakening that used to sit inside the admissibility concept;
+  - **new (P1.5)**: the two-way repacking of the concept's pair-indexed
+    `ShallowTopologicalMinorModel` against the catalog's edge-indexed
+    one (`Sym2.Mem.other`, `edgeTail`), for the admissibility discharge.
 - `LaxSProofs/OrderBridge.lean` — seeded by the ordering half of
   `Lax5Proofs/NowhereDenseWcol.lean`:
   - `OrderedCopy`, `orderedCopyEquiv`, `rankPerm` — verbatim;
@@ -1088,7 +1149,11 @@ This is where today's Lax5 bridge code lands, retargeted.
   - **new**: `AdmFamily ↔ IsAdmFamily` both ways (bypass in one
     direction, inclusion in the other) and the resulting
     `adm`-vs-`admVertex`/`adm` inequalities, including `j < Fintype.card V`
-    so that the catalog's `Finset.sup (range (card V))` sees the family.
+    so that the catalog's `Finset.sup (range (card V))` sees the family;
+  - **new (P1.5)**: `adm G r ≤ adm G (r + 1)` — an admissible family at
+    radius `r` is one at radius `r + 1`, so `HasAdmAtMost` is
+    antitone in the radius — used by the glue to consume the
+    index-shifted admissibility bound at every radius.
 
 **New: frontmattered proofs** (one per statement).
 
@@ -1097,9 +1162,10 @@ This is where today's Lax5 bridge code lands, retargeted.
   `Finset`→`Set` repackaging added.
 - `LaxSProofs/NowhereDenseDensity.lean` → `…hasSubpolynomialDensity_of_nowhereDense`.
   Body: new (threshold→constant, carrier canonicalization).
-- `LaxSProofs/AdmissibilityBound.lean` → `…adm_le_of_hasDensityAtMost`.
-  Body: new but short (topological⇒shallow minor, depth monotonicity,
-  `rankPerm`, `Nat.sInf_le`).
+- `LaxSProofs/AdmissibilityBound.lean` →
+  `…adm_le_of_hasTopologicalDensityAtMost`. Body: near-verbatim
+  `adm_le_of_topGrad_bound` at `r := r + 1` — model repacking,
+  `rankPerm`, `Nat.sInf_le`; no weakening step any more.
 - `LaxSProofs/StrongColoringBound.lean` → `…scol_le_of_adm`.
 - `LaxSProofs/WeakColoringBound.lean` → `…wcol_le_of_scol`.
 - `LaxSProofs/NowhereDenseWcol.lean` → `…hasSubpolynomialWcol_of_nowhereDense`,
@@ -1183,8 +1249,11 @@ This is the resolution of the "`BipartiteRamsey.lean`'s use of catalog
 `ShallowTopologicalMinor`" question in the plan, and it is aligned with
 decision (1): the file leaves Lax5 entirely, so there is nothing to
 retarget there; the remaining Lax5 consumer of topological minors is
-`NowhereDenseBridge`, served by a local copy rather than a LaxS concept —
-consistent with not making topological minors a concept anywhere.
+`NowhereDenseBridge`, served by a local copy of the catalog development
+rather than by the LaxS concept. That is unchanged by the P1.5 reversal of
+decision (1): the LaxS concept exists on the endorsement surface, but
+`NowhereDenseBridge` is a 1442-line proof stated in the catalog idiom and
+has no reason to be retargeted to it.
 
 #### `proofs/lakefile.toml`
 
@@ -1359,13 +1428,14 @@ end; resubmit as draft. Lax1 and Lax2 are untouched — nothing pins Lax5.
 
 ### (e) Open questions for Jan
 
-- **Sharpness of the admissibility statement.** LaxS states
+- **Sharpness of the admissibility statement.** ~~LaxS states
   `HasDensityAtMost G r d → adm G r ≤ 1 + 6·r·d³`; the source proves the
-  sharper `∇̃_{r-1}`-topological form. Recommendation: keep the stated
-  form — the sharper one costs a `ShallowTopologicalMinorModel`
-  definition-concept with eight fields of `Sym2` plumbing and buys nothing
-  downstream. Say the word and P1 adds the concept and the sharp
-  statement instead.
+  sharper `∇̃_{r-1}`-topological form.~~ **Answered by Jan ("use that
+  form") and executed in P1.5:** the sharp topological form is what the
+  surface states, over a new definition-concept
+  `ShallowTopologicalMinors` whose model has six fields and no `Sym2`
+  plumbing, with the radius index shifted by one to avoid truncated
+  subtraction.
 - **Should `adm_r ≤ scol_r ≤ wcol_r` (Prop. 2.4) get concepts?** Both are
   already proved in `ColoringNumberOrdering/Full.lean` and would be two
   cheap theorem-concepts completing the "functionally equivalent
@@ -1447,3 +1517,57 @@ Notes for P2:
   modules can `open` them directly instead of carrying copies (design (b)).
 - Nothing was committed; `git status` shows `sparsity-lectures/` untracked
   and Jan's unrelated WIP still unstaged.
+
+### P1.5 log
+
+Jan's directive "use that form" — measured against
+`references/sparsity-lectures/form-check.md`, which checks every concept
+against the actual notes — reverses P0 decision (1) and puts the
+admissibility bound into the notes' Lemma 3.2 shape. Written:
+`concepts/Lax12/ShallowTopologicalMinors.lean`, a seventh
+definition-concept stating Definitions 2.15/2.16 of Chapter 1 (depth-*r*
+topological minor as an injective choice of principal vertices plus
+connecting walks of length at most `2r+1` that avoid all principal
+vertices except their own endpoints and meet each other only in
+principal vertices, plus the per-graph predicate
+`HasTopologicalDensityAtMost`, zero axioms). Restated:
+`AdmissibilityBound` now declares
+`adm_le_of_hasTopologicalDensityAtMost : HasTopologicalDensityAtMost G r d → adm G (r+1) ≤ 1 + 6*(r+1)*d^3`,
+verbatim the notes' `adm_r ≤ 1 + 6r⌈∇̃_{r−1}⌉³` at `r := r+1` and
+verbatim the content of the catalog theorem `adm_le_of_topGrad_bound`,
+so the P2 discharge is now idiom translation with no weakening step; the
+weakening it used to perform (topological ⇒ ordinary minor) moves to the
+headline glue as an axiom-free `MinorBridge` helper, alongside the
+`adm G r ≤ adm G (r+1)` monotonicity the shifted index calls for.
+Docstrings: attribution in `NowhereDenseDensity` no longer claims the
+theorem for Nešetřil–Ossona de Mendez (the notes credit the presented
+proof to Dvořák and state Theorem 3.1 of Chapter 1 in threshold form);
+`NowhereDenseWcol` records that the notes' Theorem 3.4 of Chapter 2
+quantifies over members only and why the subgraph-uniform form here is
+equivalent; every concept corresponding to a numbered item of the notes
+now cites that number, its chapter, and the 2019/20 edition. Consistency:
+root module, `abstract.md` (thirteen review units, seven definitions, the
+topological admissibility statement, the index shift), `manifest.yaml`
+(bibEntry replaced by the form-check's, the 2019/20 edition with its
+per-chapter compilation dates), and this plan's Design section (a), (b),
+(d) and (e). Superseding the P1 log: the concept-side name the P2 glue
+assumes is `Lax12.AdmissibilityBound.adm_le_of_hasTopologicalDensityAtMost`,
+and the module docstrings of `NowhereDenseClasses` and `ColoringNumbers`
+now carry an extra source-citation paragraph, so the files are no longer
+byte-identical to their Lax5 counterparts — the *declarations*, on which
+the P4 transport rests, still are.
+
+Encoding call for the new concept: connecting walks are indexed by
+adjacent pairs `(u, v)` rather than by `Sym2` edges, so both orientations
+of an edge carry a walk; the disjointness field concludes that the two
+edges agree, hence never fires on one edge's two orientations and forces
+no relation between them, while for genuinely distinct edges it gives
+exactly the notes' internal disjointness. Six fields, `Prop`-valued, no
+`Sym2`, no `DecidableEq`/`Fintype`, walks rather than paths as everywhere
+in this submission.
+
+Build status: `lake build` in `sparsity-lectures/concepts/` green (2006
+jobs, zero errors, zero warnings); `lax build sparsity-lectures` green
+with no rule violations. Zero `sorry`, zero `Classical`, one axiom in
+each of the six theorem-concepts, zero in each of the seven
+definition-concepts. Nothing committed.

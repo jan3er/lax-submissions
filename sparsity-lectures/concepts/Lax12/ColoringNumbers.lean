@@ -22,6 +22,12 @@ has subpolynomial weak coloring numbers if for every radius *r* and
 every ε > 0 there is a constant *c* such that every subgraph *H* of a
 member, on *m* vertices, satisfies wcol_r(*H*) ≤ *c* · *m*^ε.
 
+Weak and strong reachability are Definition 2.1, and the two coloring
+numbers Definition 2.3, of Chapter 2 of the source lecture notes
+(2019/20 edition), which write scol_*r* where the earlier 2017/18
+edition writes col_*r*. The subpolynomial bound is the conclusion of
+Theorem 3.4 of that chapter.
+
 # Formalization notes
 
 An ordering of the vertices is a permutation `π` of `Fin m` assigning

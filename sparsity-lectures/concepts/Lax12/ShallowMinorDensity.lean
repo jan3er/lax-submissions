@@ -15,6 +15,11 @@ constant *c* such that every depth-*r* minor *H* of a member, on *m*
 vertices, has at most *c* · *m*^(1+ε) edges: shallow-minor edge counts
 *m*^(1+o(1)).
 
+Definition 2.4 of Chapter 1 of the source lecture notes (2019/20
+edition) defines the grad ∇_*r*(*G*) as the supremum of |E(H)|/|V(H)|
+over the depth-*r* minors *H* of *G*, so the per-graph predicate here
+says ∇_*r*(*G*) ≤ *d*.
+
 # Formalization notes
 
 Both predicates are stated over the shallow-minor relation of the

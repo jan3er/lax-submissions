@@ -10,6 +10,11 @@ The weak *r*-coloring number of a graph is at most
 number. With the trivial bound scol_r ≤ wcol_r this says that the two
 generalized coloring numbers are functionally equivalent parameters.
 
+This is Lemma 2.6 of Chapter 2 of the source lecture notes (2019/20
+edition), which state it for a fixed vertex ordering; composed with
+their Lemma 2.5 it gives their Corollary 2.7,
+wcol_r ≤ 1 + *r*(adm_r − 1)^(*r*²).
+
 # Formalization notes
 
 Both parameters are the minima over vertex orderings defined in the

@@ -16,6 +16,11 @@ vertex of *G* carries an admissible family of size *k*. Counting *v*
 itself is the usual convention: it makes admissibility at least 1 and at
 most the strong *r*-coloring number.
 
+This is Definition 2.2 of Chapter 2 of the source lecture notes (2019/20
+edition), minimized over vertex orderings as in their Definition 2.3;
+the notes give the same rationale for the +1, namely consistency with
+the reachability sets, which contain the vertex itself.
+
 # Formalization notes
 
 The ordering is a permutation `π` of `Fin n`, as in the coloring-number

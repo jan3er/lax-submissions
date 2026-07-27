@@ -15,6 +15,10 @@ every vertex set *A* of size at least *N*(*m*) contains a distance-*r*
 independent subset of size at least *m* of *G* − *S*, for some set *S*
 of at most *s* vertices.
 
+This is Definition 3.1 of Chapter 4 of the source lecture notes (2019/20
+edition), where the constants *s* are called the margins and the
+functions *N* the wideness functions.
+
 # Formalization notes
 
 Distance is stated with walks: two vertices are at distance more than

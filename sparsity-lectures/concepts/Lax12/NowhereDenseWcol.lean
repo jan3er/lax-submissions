@@ -11,13 +11,22 @@ numbers: for every radius *r* and every ε > 0 there is a constant *c*
 such that every subgraph *H* of a member, on *m* vertices, satisfies
 wcol_r(*H*) ≤ *c* · *m*^ε.
 
+This is Theorem 3.4 of Chapter 2 of the source lecture notes (2019/20
+edition).
+
 # Formalization notes
 
 The hypothesis is the shallow-minor definition of the nowhere dense
 concept; the conclusion is the shared predicate `HasSubpolynomialWcol`
-of the coloring-number concept. Since nowhere denseness survives taking
-subgraphs, the uniformity of that predicate over subgraph copies of
-members loses nothing here. This is the headline of the submission and
+of the coloring-number concept. The notes state the bound for the
+members of the class only, whereas the predicate used here demands it
+uniformly for all subgraphs of members; the two are equivalent, because
+the subgraphs of the members of a nowhere dense class again form a
+nowhere dense class, and the subgraph-uniform form is what downstream
+localization arguments consume. It is also the form of the identically
+named predicate in the neighborhood-complexity submission, so the
+statement transports there definitionally. This is the headline of the
+submission and
 is the composition of the four preceding theorem concepts: subpolynomial
 shallow-minor density, the admissibility bound, and the two links of the
 coloring-number chain.

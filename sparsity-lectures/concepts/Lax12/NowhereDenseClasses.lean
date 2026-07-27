@@ -12,6 +12,12 @@ disjoint connected subgraphs of radius at most *r*. A graph class is
 nowhere dense if for every depth *r* there is a *t* such that no member
 has the complete graph on *t* vertices as a depth-*r* minor.
 
+The source lecture notes give these as Definitions 2.3 and 2.6 of
+Chapter 1 (2019/20 edition), writing *H* ⪯_*r* *G* for the depth-*r*
+minor relation. Nowhere denseness is stated there as ω_*r*(*C*) < ∞ for
+every *r*, with the excluded-clique form used here spelled out
+immediately after as an equivalent.
+
 # Formalization notes
 
 A depth-`r` minor is witnessed by a `ShallowMinorModel`: pairwise

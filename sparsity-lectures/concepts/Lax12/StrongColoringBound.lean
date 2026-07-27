@@ -11,6 +11,10 @@ The strong *r*-coloring number of a graph is at most
 the trivial bound adm_r ≤ scol_r this says that admissibility and the
 strong coloring number are functionally equivalent parameters.
 
+This is Lemma 2.5 of Chapter 2 of the source lecture notes (2019/20
+edition), which state it for a fixed vertex ordering; the two bounds
+combine in their Corollary 2.7 to wcol_r ≤ 1 + *r*(adm_r − 1)^(*r*²).
+
 # Formalization notes
 
 Both parameters are the minima over vertex orderings defined in the
