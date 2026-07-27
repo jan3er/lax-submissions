@@ -309,9 +309,9 @@ theorem scan_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
   obtain ⟨τ', hrun, hI', hfalse⟩ :=
     Run.while_count (B := B) (b := Cond.lt (.var "j") (.var "jend")) (c := scanBody)
       (ScanInv x n m u v head sc₀ G O T Q₀) (fun σ => offset x (v + 1) - σ.vars "j") 26
-      (fun σ hσ => ⟨decide (σ.vars "j" < σ.vars "jend"), by
+      (fun σ hσ => by
         obtain ⟨-, -, -, -, -, -, -, -, hje, -, hjle, -⟩ := hσ
-        simp [hje]; omega⟩)
+        exact evalB_condLt_vars (by omega) (by omega))
       (fun σ h hc => scanBody_run hx hm hT hu hv hnB hmB hsc₀ h hc) hI
   obtain ⟨L₁, Q₁, h₃, h₄, h₅, h₆, h₇, h₈, hje, h₁₀, hjle, h₁₂, h₁₃, h₁₄⟩ := hI'
   have hj : τ'.vars "j" = offset x (v + 1) := by
@@ -449,11 +449,11 @@ theorem drain_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
   obtain ⟨τ', K, hrun, hI', hfalse, hpay⟩ :=
     Run.while_pot (B := B) (b := Cond.lt (.var "head") (.var "tail")) (c := expandBody)
       (DrainInv x n m u G O T) (Pot n m)
-      (fun σ hσ => ⟨decide (σ.vars "head" < σ.vars "tail"), by
+      (fun σ hσ => by
         obtain ⟨L', Q', -, hLive, -⟩ := hσ
         have hhd := hLive.base.hd
         have htl := hLive.base.tl
-        simp; omega⟩)
+        exact evalB_condLt_vars (by omega) (by omega))
       hstep hI
   obtain ⟨L₁, Q₁, hSE₁, hL₁, hsum₁⟩ := hI'
   have hhd := hL₁.base.hd

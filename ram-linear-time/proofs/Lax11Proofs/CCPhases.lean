@@ -89,8 +89,9 @@ theorem readLoop_run {B : ℕ} {a lim : String} (hi : lim ≠ "i") (ht : lim ≠
   obtain ⟨σ', hrun, ⟨hle', hl', hinp'', ⟨g', hg', hgv⟩, hb', hout', hy'⟩, hfalse⟩ :=
     Run.while_count (B := B) (b := Cond.lt (.var "i") (.var lim))
       (ReadInv a lim σ k ys rest) (fun τ => k - τ.vars "i") 8
-      (fun τ hτ => ⟨decide (τ.vars "i" < τ.vars lim), by
-        obtain ⟨hle, hl, -⟩ := hτ; simp [hl]; omega⟩) hstep
+      (fun τ hτ => by
+        obtain ⟨hle, hl, -⟩ := hτ
+        exact evalB_condLt_vars (by omega) (by omega)) hstep
       (σ := σ.setVar "i" 0)
       ⟨by simp, by simp [hi, hlim], by simp [hinp], ⟨g, by simp [harr], by simp⟩,
         by simp, by simp, by intro y hy1 _; simp [hy1]⟩
@@ -141,8 +142,9 @@ theorem initLab_run {B : ℕ} {σ : Env} {g : ℕ → ℕ} {n : ℕ}
   obtain ⟨σ', hrun, ⟨hle', hnn', ⟨g', hg', hgv⟩, hb', hout', hinp', hy'⟩, hfalse⟩ :=
     Run.while_count (B := B) (b := Cond.lt (.var "i") (.var "n"))
       (InitInv σ n) (fun τ => n - τ.vars "i") 7
-      (fun τ hτ => ⟨decide (τ.vars "i" < τ.vars "n"), by
-        obtain ⟨hle, hnn, -⟩ := hτ; simp [hnn]; omega⟩) hstep
+      (fun τ hτ => by
+        obtain ⟨hle, hnn, -⟩ := hτ
+        exact evalB_condLt_vars (by omega) (by omega)) hstep
       (σ := σ.setVar "i" 0)
       ⟨by simp, by simp [hn], ⟨g, by simp [harr], by simp⟩, by simp, by simp, by simp,
         by intro y hy1; simp [hy1]⟩
@@ -184,8 +186,9 @@ theorem writeLoop_run {B : ℕ} {σ : Env} {g : ℕ → ℕ} {n : ℕ}
   obtain ⟨σ', hrun, ⟨hle', hnn', ha', hinp', hout', hy'⟩, hfalse⟩ :=
     Run.while_count (B := B) (b := Cond.lt (.var "i") (.var "n"))
       (WriteInv σ n g) (fun τ => n - τ.vars "i") 7
-      (fun τ hτ => ⟨decide (τ.vars "i" < τ.vars "n"), by
-        obtain ⟨hle, hnn, -⟩ := hτ; simp [hnn]; omega⟩) hstep
+      (fun τ hτ => by
+        obtain ⟨hle, hnn, -⟩ := hτ
+        exact evalB_condLt_vars (by omega) (by omega)) hstep
       (σ := σ.setVar "i" 0)
       ⟨by simp, by simp [hn], by simp, by simp, by simp, by intro y hy1; simp [hy1]⟩
   have hik : σ'.vars "i" = n := by simp [hnn'] at hfalse; omega

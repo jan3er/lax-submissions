@@ -192,17 +192,93 @@ the program. -/
   · rintro ⟨m, hm, n, hn, rfl⟩; exact ⟨m, n, hm, hn, rfl⟩
   · rintro ⟨m, n, hm, hn, rfl⟩; exact ⟨m, hm, n, hn, rfl⟩
 
+/-! ### Introducing a bounded evaluation
+
+The lemmas above are what `simp` needs; these are what `exact` needs.
+The side condition of a rule is `e.evalB B σ = some v` with `v` already
+named by the caller, and the side condition of the loop rule is the
+weaker `∃ v, b.evalB B σ = some v` — a condition whose two operands
+have values has one too, whichever it is. Stated as introduction rules
+these are discharged by naming the value of each subexpression and its
+bound, which is what a caller has in hand, instead of by first guessing
+the truth value of the condition and then unfolding it again. -/
+
+theorem evalB_lit {B n : ℕ} {σ : Env} (h : n < B) : (Expr.lit n).evalB B σ = some n :=
+  fit_self h
+
+theorem evalB_var {B : ℕ} {x : String} {σ : Env} (h : σ.vars x < B) :
+    (Expr.var x).evalB B σ = some (σ.vars x) := fit_self h
+
+theorem evalB_get {B : ℕ} {a : String} {i : Expr} {σ : Env} {k v : ℕ}
+    (hi : i.evalB B σ = some k) (hk : (σ.arrs a)[k]? = some v) (hv : v < B) :
+    (Expr.get a i).evalB B σ = some v := by
+  rw [Expr.evalB, hi, Option.bind_some, hk, Option.bind_some, fit_self hv]
+
+theorem evalB_bin {B : ℕ} {op : Bop} {e f : Expr} {σ : Env} {m n : ℕ}
+    (he : e.evalB B σ = some m) (hf : f.evalB B σ = some n) (h : op.apply m n < B) :
+    (Expr.bin op e f).evalB B σ = some (op.apply m n) := by
+  rw [Expr.evalB, he, Option.bind_some, hf, Option.bind_some, fit_self h]
+
+theorem evalB_condEq {B : ℕ} {e f : Expr} {σ : Env} {m n : ℕ}
+    (he : e.evalB B σ = some m) (hf : f.evalB B σ = some n) :
+    (Cond.eq e f).evalB B σ = some (m == n) := by
+  rw [Cond.evalB, he, Option.bind_some, hf, Option.map_some]
+
+theorem evalB_condLt {B : ℕ} {e f : Expr} {σ : Env} {m n : ℕ}
+    (he : e.evalB B σ = some m) (hf : f.evalB B σ = some n) :
+    (Cond.lt e f).evalB B σ = some (decide (m < n)) := by
+  rw [Cond.evalB, he, Option.bind_some, hf, Option.map_some]
+
+/-- The `hdef` obligation of the loop rule for an equality test, with
+the truth value characterized: the caller supplies the two operands and
+gets back both that the condition evaluates and what its value means. -/
+theorem evalB_condEq_isSome {B : ℕ} {e f : Expr} {σ : Env} {m n : ℕ}
+    (he : e.evalB B σ = some m) (hf : f.evalB B σ = some n) :
+    ∃ v, (Cond.eq e f).evalB B σ = some v ∧ (v = true ↔ m = n) :=
+  ⟨_, evalB_condEq he hf, by simp⟩
+
+/-- The `hdef` obligation of the loop rule for an order test, with the
+truth value characterized. -/
+theorem evalB_condLt_isSome {B : ℕ} {e f : Expr} {σ : Env} {m n : ℕ}
+    (he : e.evalB B σ = some m) (hf : f.evalB B σ = some n) :
+    ∃ v, (Cond.lt e f).evalB B σ = some v ∧ (v = true ↔ m < n) :=
+  ⟨_, evalB_condLt he hf, by simp⟩
+
+/-- The `hdef` obligation for the commonest loop condition of all, two
+scalars compared: nothing is asked but that both are below the bound. -/
+theorem evalB_condLt_vars {B : ℕ} {x y : String} {σ : Env}
+    (hx : σ.vars x < B) (hy : σ.vars y < B) :
+    ∃ v, (Cond.lt (.var x) (.var y)).evalB B σ = some v :=
+  ⟨_, evalB_condLt (evalB_var hx) (evalB_var hy)⟩
+
+/-- The `hdef` obligation for a scalar compared against a literal. -/
+theorem evalB_condLt_var_lit {B : ℕ} {x : String} {n : ℕ} {σ : Env}
+    (hx : σ.vars x < B) (hn : n < B) :
+    ∃ v, (Cond.lt (.var x) (.lit n)).evalB B σ = some v :=
+  ⟨_, evalB_condLt (evalB_var hx) (evalB_lit hn)⟩
+
 /-! ### Counting the size of concrete syntax
 
 An algorithm proof should never be told what a concrete expression
 costs; with these the cost of a straight-line block is arithmetic on
-numerals. -/
+numerals. The nine named operators get a lemma each alongside the one
+for `bin`, so that a cost computation on a program written with the
+abbreviations is simplified by lemmas carrying the same names. -/
 
 @[simp] theorem size_lit (n : ℕ) : (Expr.lit n).size = 1 := rfl
 @[simp] theorem size_var (x : String) : (Expr.var x).size = 1 := rfl
 @[simp] theorem size_get (a : String) (i : Expr) : (Expr.get a i).size = i.size + 1 := rfl
 @[simp] theorem size_bin (op : Bop) (e f : Expr) :
     (Expr.bin op e f).size = e.size + f.size + 1 := rfl
+@[simp] theorem size_add (e f : Expr) : (Expr.add e f).size = e.size + f.size + 1 := rfl
+@[simp] theorem size_sub (e f : Expr) : (Expr.sub e f).size = e.size + f.size + 1 := rfl
+@[simp] theorem size_mul (e f : Expr) : (Expr.mul e f).size = e.size + f.size + 1 := rfl
+@[simp] theorem size_div (e f : Expr) : (Expr.div e f).size = e.size + f.size + 1 := rfl
+@[simp] theorem size_and (e f : Expr) : (Expr.and e f).size = e.size + f.size + 1 := rfl
+@[simp] theorem size_or (e f : Expr) : (Expr.or e f).size = e.size + f.size + 1 := rfl
+@[simp] theorem size_xor (e f : Expr) : (Expr.xor e f).size = e.size + f.size + 1 := rfl
+@[simp] theorem size_shiftl (e f : Expr) : (Expr.shiftl e f).size = e.size + f.size + 1 := rfl
+@[simp] theorem size_shiftr (e f : Expr) : (Expr.shiftr e f).size = e.size + f.size + 1 := rfl
 @[simp] theorem size_condEq (e f : Expr) : (Cond.eq e f).size = e.size + f.size + 1 := rfl
 @[simp] theorem size_condLt (e f : Expr) : (Cond.lt e f).size = e.size + f.size + 1 := rfl
 

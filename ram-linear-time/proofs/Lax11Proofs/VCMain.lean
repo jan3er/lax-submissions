@@ -1,5 +1,6 @@
 import Lax11Proofs.VCLoop
 import Lax11Proofs.CCSweep
+import Lax13Proofs.Transfer
 
 /-!
 The second theorem, cashed in at the concept surface.
@@ -11,12 +12,23 @@ and the machine pays thirty-seven steps per unit of IMP+ cost; the run
 itself costs at most nine hundred times `2 ^ k` per entry of the input
 word. The product is the constant of the statement, and no part of it
 was fought over.
+
+The word length is dealt with in the same step and in the same place.
+The value bound the driver runs under is the length of the input word
+plus the parameter — the parameter is an entry of the word, so it has
+to be a word, and the stack indices and budgets are below it, while
+everything else is below the length. The statement's hypothesis, that
+`33300(|x| + k + 1)` is a word, gives that bound and the span of the
+layout at it, `22 + 6(|x| + k)`, with a margin nobody has to compute.
+It is deliberately not the hypothesis that the *running time* is a
+word: `2 ^ k` is a count of steps, not a number the machine ever holds.
 -/
 
 namespace Lax11Proofs.VCMain
 
-open Lax11.Ram Lax11.RamComputes Lax11.GraphEncoding Lax11.VertexCover
-open Lax11Proofs.Imp Lax11Proofs.Compile Lax11Proofs.Reasoning Lax11Proofs.VC
+open Lax13.Ram Lax13.RamComputes Lax11.GraphEncoding Lax11.VertexCover
+open Lax13Proofs.Imp Lax13Proofs.Compile Lax13Proofs.Reasoning Lax13Proofs.Transfer
+open Lax11Proofs.VC
 
 /-- The array extents the driver runs with. -/
 def vcExt (n m k : ℕ) (a : String) : ℕ :=
@@ -28,13 +40,29 @@ arrays make one index computation eight instructions long. -/
 theorem const_eq : layout.const = 37 := by
   simp [Layout.const, Layout.idxLen, layout]
 
+/-- Every entry of an instance word is below the length of the word
+plus the parameter: the graph block's entries are smaller than the
+block is long, and the one remaining entry is the parameter itself. -/
+theorem mem_lt_length_add {x : List ℕ} {n : ℕ} {G : SimpleGraph (Fin n)} {k : ℕ}
+    (hx : EncodesParamInstance x n G k) {v : ℕ} (hv : v ∈ x) : v < x.length + k := by
+  obtain ⟨g, rfl, hg⟩ := hx
+  rcases List.mem_append.1 hv with h | h
+  · have := CC.mem_lt_length hg h
+    simp only [List.length_append, List.length_cons, List.length_nil]
+    omega
+  · simp only [List.mem_cons, List.not_mem_nil, or_false] at h
+    subst h
+    simp only [List.length_append, List.length_cons, List.length_nil]
+    omega
+
 /-- The whole run of the driver on an encoded instance: the answer
-comes out, and the cost is `2 ^ k` times linear in the length of the
-word. Every phase was bounded loosely, and this is the sum of those
-bounds. -/
-theorem vcCom_run {x : List ℕ} {n : ℕ} {G : SimpleGraph (Fin n)} {k m : ℕ}
-    (hx : EncodesParamInstance x n G k) (hm : edgeCount x = m) :
-    ∃ (σ' : Env) (K : ℕ), Run vcCom (initEnv (vcExt n m k) x) σ' K ∧
+comes out, the cost is `2 ^ k` times linear in the length of the word,
+and every value the run produces stays below any bound the length of
+the word and the parameter together stay below. Every phase was bounded
+loosely, and this is the sum of those bounds. -/
+theorem vcCom_run {x : List ℕ} {n : ℕ} {G : SimpleGraph (Fin n)} {k m B : ℕ}
+    (hx : EncodesParamInstance x n G k) (hm : edgeCount x = m) (hB : x.length + k ≤ B) :
+    ∃ (σ' : Env) (K : ℕ), Run B vcCom (initEnv (vcExt n m k) x) σ' K ∧
       σ'.out = [if G.vertexCoverNum ≤ (k : ℕ∞) then 1 else 0] ∧
       K ≤ 900 * 2 ^ k * (x.length + 1) := by
   obtain ⟨g, rfl, hg⟩ := hx
@@ -55,11 +83,25 @@ theorem vcCom_run {x : List ℕ} {n : ℕ} {G : SimpleGraph (Fin n)} {k m : ℕ}
       exact ⟨rest, by rw [ha, hb]⟩
   subst hxr
   have hrest : rest.length = 1 + n + 2 * m := by simp at hglen; omega
+  have hxlen : (n :: m :: rest ++ [k]).length = 4 + n + 2 * m := by simp; omega
+  -- everything the run holds is an entry of the word, a count of them, or below one
+  have h2B : 2 < B := by omega
+  have hnB : n < B := by omega
+  have hmB : 2 * m < B := by omega
+  have hn1B : n + 1 < B := by omega
+  have hkB : k < B := by omega
+  have hrestB : ∀ v ∈ rest, v < B := fun v hv =>
+    lt_of_lt_of_le (CC.mem_lt_length hg (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ hv)))
+      (by simp at hglen ⊢; omega)
   set ys := rest.take (n + 1) with hys_def
   set zs := rest.drop (n + 1) with hzs_def
   have hys : ys.length = n + 1 := by rw [hys_def, List.length_take]; omega
   have hzs : zs.length = 2 * m := by rw [hzs_def, List.length_drop]; omega
   have hsplit : rest = ys ++ zs := (List.take_append_drop _ _).symm
+  have hysB : ∀ v ∈ ys, v < B :=
+    fun v hv => hrestB v (by rw [hys_def] at hv; exact List.mem_of_mem_take hv)
+  have hzsB : ∀ v ∈ zs, v < B :=
+    fun v hv => hrestB v (by rw [hzs_def] at hv; exact List.mem_of_mem_drop hv)
   -- what the two arrays hold once they are read in
   have hyd : ∀ i < n + 1, ys.getD i 0 = offset (n :: m :: rest) i := by
     intro i hi
@@ -76,36 +118,36 @@ theorem vcCom_run {x : List ℕ} {n : ℕ} {G : SimpleGraph (Fin n)} {k m : ℕ}
     inp := m :: (rest ++ [k]) } with hσ₁
   set σ₂ : Env := { σ₁.setVar "m" m with inp := rest ++ [k] } with hσ₂
   set σ₃ : Env := σ₂.setVar "len" (n + 1) with hσ₃
-  have r₁ : Run (.read "n") (initEnv (vcExt n m k) (n :: m :: rest ++ [k])) σ₁ 1 :=
+  have r₁ : Run B (.read "n") (initEnv (vcExt n m k) (n :: m :: rest ++ [k])) σ₁ 1 :=
     Run.read e₁
-  have r₂ : Run (.read "m") σ₁ σ₂ 1 := Run.read rfl
-  have r₃ : Run (.assign "len" (.add (.var "n") (.lit 1))) σ₂ σ₃ 4 :=
-    (Run.assign (v := n + 1) (by simp [hσ₂, hσ₁, initEnv])).mono (by simp)
+  have r₂ : Run B (.read "m") σ₁ σ₂ 1 := Run.read rfl
+  have r₃ : Run B (.assign "len" (.add (.var "n") (.lit 1))) σ₂ σ₃ 4 :=
+    (Run.assign (v := n + 1) (by simp [hσ₂, hσ₁, initEnv]; omega)).mono (by simp)
   -- the offsets
   obtain ⟨σ₄, O, r₄, hoff₄, hO₄, harr₄, hinp₄, hout₄, hvar₄⟩ :=
-    CC.readLoop_run (a := "off") (lim := "len") (by decide) (by decide) (σ := σ₃)
+    CC.readLoop_run (B := B) (a := "off") (lim := "len") (by decide) (by decide) (σ := σ₃)
       (g := fun _ => 0) (k := n + 1) (ys := ys) (rest := zs ++ [k])
       (by simp [hσ₃, hσ₂, hσ₁, initEnv, vcExt, replicate_eq_arrOf])
-      (by simp [hσ₃]) hys (by simp [hσ₃, hσ₂, hsplit])
+      (by simp [hσ₃]) hys (by simp [hσ₃, hσ₂, hsplit]) hn1B hysB
   have hO : ∀ i ≤ n, O i = offset (n :: m :: rest) i := fun i hi => by
     rw [hO₄ i (by omega), hyd i (by omega)]
   -- the targets
   set σ₅ : Env := σ₄.setVar "m2" (2 * m) with hσ₅
-  have r₅ : Run (.assign "m2" (.add (.var "m") (.var "m"))) σ₄ σ₅ 4 :=
+  have r₅ : Run B (.assign "m2" (.add (.var "m") (.var "m"))) σ₄ σ₅ 4 :=
     (Run.assign (v := 2 * m)
-      (by simp [hvar₄ "m" (by decide) (by decide), hσ₃, hσ₂, hσ₁, initEnv, two_mul])).mono
-        (by simp)
+      (by simp [hvar₄ "m" (by decide) (by decide), hσ₃, hσ₂, hσ₁, initEnv, two_mul]
+          omega)).mono (by simp)
   obtain ⟨σ₆, T, r₆, htgt₆, hT₆, harr₆, hinp₆, hout₆, hvar₆⟩ :=
-    CC.readLoop_run (a := "tgt") (lim := "m2") (by decide) (by decide) (σ := σ₅)
+    CC.readLoop_run (B := B) (a := "tgt") (lim := "m2") (by decide) (by decide) (σ := σ₅)
       (g := fun _ => 0) (k := 2 * m) (ys := zs) (rest := [k])
       (by rw [hσ₅, arrs_setVar, harr₄ "tgt" (by decide)]
           simp [hσ₃, hσ₂, hσ₁, initEnv, vcExt, replicate_eq_arrOf])
-      (by simp [hσ₅]) hzs (by simp [hσ₅, hinp₄])
+      (by simp [hσ₅]) hzs (by simp [hσ₅, hinp₄]) hmB hzsB
   have hT : ∀ j < 2 * m, T j = target (n :: m :: rest) j := fun j hj => by
     rw [hT₆ j hj, hzd j hj]
   -- the budget
   set σ₇ : Env := { σ₆.setVar "bud" k with inp := [] } with hσ₇
-  have r₇ : Run (.read "bud") σ₆ σ₇ 1 := Run.read hinp₆
+  have r₇ : Run B (.read "bud") σ₆ σ₇ 1 := Run.read hinp₆
   -- what the search starts from
   have hm2₇ : σ₇.vars "m2" = 2 * m := by
     have h6 := hvar₆ "m2" (by decide) (by decide)
@@ -147,7 +189,7 @@ theorem vcCom_run {x : List ℕ} {n : ℕ} {G : SimpleGraph (Fin n)} {k m : ℕ}
     · intro i hi; simp at hi
   -- the search
   obtain ⟨C', τ', K, r₈, hRep', hInv', hmode', hinp', hout', hpay⟩ :=
-    searchLoop_run hg hmg hO hT hRep (inv_init G k)
+    searchLoop_run hg hmg hO hT h2B hnB hmB hkB hRep (inv_init G k)
   have hK8 : K ≤ 816 * (2 ^ k * (5 + n + 2 * m)) + 4 := by
     refine hpay.trans ?_
     have ha : 100 * m + 50 * n + 104 ≤ 204 * (5 + n + 2 * m) := by omega
@@ -158,8 +200,9 @@ theorem vcCom_run {x : List ℕ} {n : ℕ} {G : SimpleGraph (Fin n)} {k m : ℕ}
       _ = 816 * (2 ^ k * (5 + n + 2 * m)) + 4 := by ring
   -- the answer, written out
   have hansv : τ'.vars "ans" = C'.ans := hRep'.2.2.2.2.2.1
-  have r₉ : Run (.write (.var "ans")) τ' { τ' with out := τ'.out ++ [C'.ans] } 2 :=
-    (Run.write (e := .var "ans") (v := C'.ans) (by simp [hansv])).mono (by simp)
+  have hansle : C'.ans ≤ 1 := (hInv'.2.2.2.2.2 hmode').2
+  have r₉ : Run B (.write (.var "ans")) τ' { τ' with out := τ'.out ++ [C'.ans] } 2 :=
+    (Run.write (e := .var "ans") (v := C'.ans) (by simp [hansv]; omega)).mono (by simp)
   have hansC : C'.ans = if G.vertexCoverNum ≤ (k : ℕ∞) then 1 else 0 :=
     ans_eq hInv' hmode'
   have s₈ := Run.seq (r₈.mono hK8) r₉
@@ -180,6 +223,23 @@ theorem vcCom_run {x : List ℕ} {n : ℕ} {G : SimpleGraph (Fin n)} {k m : ℕ}
     omega
   · simp [hout', hout₇, hansC]
 
+/-- What the pipeline asks of the driver: on every admissible input it
+decides the question, at a cost of `900 · 2 ^ k` per entry of the input
+word, with every value it produces below the length of that word plus
+the parameter. -/
+theorem vcCom_solves (n : ℕ) (G : SimpleGraph (Fin n)) (k w : ℕ) :
+    Solves layout vcCom
+      {x | EncodesParamInstance x n G k ∧ 33300 * (x.length + k + 1) ≤ 2 ^ w}
+      (fun _ => if G.vertexCoverNum ≤ (k : ℕ∞) then [1] else [0])
+      (fun x => x.length + k) (fun x => 900 * 2 ^ k * (x.length + 1)) where
+  ok := vcCom_ok
+  inp := fun _ hx _ hv => mem_lt_length_add hx.1 hv
+  run := fun x hx => by
+    obtain ⟨σ', K, hrun, hout, hK⟩ := vcCom_run hx.1 rfl le_rfl
+    refine ⟨vcExt n (edgeCount x) k, σ', hrun.mono hK, ?_⟩
+    rw [hout]
+    by_cases h : G.vertexCoverNum ≤ (k : ℕ∞) <;> simp [h]
+
 /--
 ---
 conclusion: Lax11.VertexCover.exists_fptTime_program_vertexCover
@@ -188,7 +248,8 @@ Vertex cover is fixed-parameter tractable with the parameter dependence
 written into the bound: `vcProgram` decides, on every graph in
 compressed sparse row form followed by the parameter `k`, whether the
 graph has a vertex cover of at most `k` vertices, within
-`33300 * 2 ^ k * (|x| + 1)` machine steps.
+`33300 * 2 ^ k * (|x| + 1)` machine steps, at every word length at
+which `33300 * (|x| + k + 1)` fits into a word.
 
 # Proof strategy
 
@@ -221,13 +282,37 @@ so a turn of the outer loop costs at most `100m + 50n + 100`. The
 factor `2 ^ k` enters exactly once, as the potential of the initial
 configuration: `pot ⟨[], 0, k, 0⟩ = 4·2 ^ k − 2`.
 
-`computesInTime_of_run` discharges the compiler, the layout invariant
-and the machine in one step, charging `layout.const = 37` machine steps
-per unit of IMP+ cost — six arrays, so one index computation is eight
-instructions. The array extents are chosen per input, as that lemma
-allows: `vcExt n m k` declares `off ↦ n+1`, `tgt ↦ 2m`, `mark ↦ n` and
-the three stack arrays `↦ k`, which is exactly the depth the budget
-permits.
+`computesInTime_of_solves` discharges the compiler, the layout
+invariant and the machine in one step, charging `layout.const = 37`
+machine steps per unit of IMP+ cost — six arrays, so one index
+computation is eight instructions. The array extents are chosen per
+input, as that lemma allows: `vcExt n m k` declares `off ↦ n+1`,
+`tgt ↦ 2m`, `mark ↦ n` and the three stack arrays `↦ k`, which is
+exactly the depth the budget permits.
+
+# Where the word length is paid for
+
+The machine truncates every value modulo `2 ^ w`, so the run on the
+machine is the run in the unbounded semantics only as long as nothing
+the program computes reaches `2 ^ w`. The bound the driver is proved
+under is `|x| + k`: every entry of the graph block is smaller than the
+block is long, every quantity the algorithm keeps of the graph — vertex
+numbers, offsets, the scan pointers — is bounded by `n` or by `2m`,
+hence again by the length, and the two quantities that are not are the
+parameter itself and the stack pointer and budget, which lie between
+`0` and `k`. So the whole run needs the single hypothesis
+`|x| + k ≤ B`, and the compiled program needs in addition that the
+cells the layout addresses are words, which is `22 + 6(|x| + k)`. The
+statement's hypothesis, that `33300(|x| + k + 1)` is a word, gives both
+with room to spare.
+
+What the hypothesis deliberately does *not* say is that the running
+time fits into a word. `2 ^ k` counts steps of the search tree; it is
+not a number the machine ever holds, since both children of a branch
+run at one budget less and the budget is a scalar below `k`. Asking for
+`2 ^ k` to be a word would make the claim vacuous exactly where the
+algorithm is most interesting — a large parameter on an ordinary
+machine — and would be a weaker theorem carrying the same bound.
 
 # What the program is allowed to help itself to
 
@@ -253,18 +338,19 @@ statement: no reduction rules are applied, and nothing here competes
 with the refined analyses that beat it.
 -/
 theorem exists_fptTime_program_vertexCover :
-    ∃ (p : Program) (c : ℕ), ∀ (n : ℕ) (G : SimpleGraph (Fin n)) (k : ℕ),
-      ComputesInTime p {x | EncodesParamInstance x n G k}
+    ∃ (p : Program) (c : ℕ), ∀ (n : ℕ) (G : SimpleGraph (Fin n)) (k w : ℕ),
+      ComputesInTime w p
+        {x | EncodesParamInstance x n G k ∧ c * (x.length + k + 1) ≤ 2 ^ w}
         (fun _ => if G.vertexCoverNum ≤ (k : ℕ∞) then [1] else [0])
         (fun x => c * 2 ^ k * (x.length + 1)) := by
-  refine ⟨vcProgram, 33300, fun n G k => computesInTime_of_run vcCom_ok ?_⟩
-  intro x hx
-  obtain ⟨σ', K, hrun, hout, hK⟩ := vcCom_run hx rfl
-  refine ⟨vcExt n (edgeCount x) k, σ', K, hrun, ?_, ?_⟩
-  · rw [hout]
-    by_cases h : G.vertexCoverNum ≤ (k : ℕ∞) <;> simp [h]
-  · rw [const_eq]
-    calc 37 * K ≤ 37 * (900 * 2 ^ k * (x.length + 1)) := Nat.mul_le_mul_left 37 hK
-      _ = 33300 * 2 ^ k * (x.length + 1) := by ring
+  refine ⟨vcProgram, 33300, fun n G k w =>
+    computesInTime_of_solves (vcCom_solves n G k w) ?_ ?_⟩
+  · rintro x ⟨⟨g, rfl, hg⟩, hw⟩
+    have hglen := hg.length_eq
+    simp only [List.length_append, List.length_cons, List.length_nil] at hw ⊢
+    exact fitsWords_of_max_le (by omega) (by simp [Layout.span, layout]; omega)
+  · rintro x -
+    rw [const_eq]
+    exact le_of_eq (by ring)
 
 end Lax11Proofs.VCMain

@@ -172,8 +172,16 @@ build green) and commits before the next phase starts.
   stack ported (8 modules), roots trimmed, dev path-requires wired. Orchestrator
   fixed ≤-vs-word prose imprecision in three spots. Both builds green,
   lean_verify background-only.
-- [ ] Phase 4 VC vertical slice + kit polish (evalB cond intro lemmas,
-  size_add-family simp abbrevs)
+- [x] Phase 4 VC vertical slice + kit polish — evalB intro/`hdef` lemma
+  family + nine size simp lemmas added to Reasoning (all eight repo loop
+  `hdef`s now one-liners); VertexCover rewritten over Lax13 with honest
+  fitting conjunct `c * (|x| + k + 1) ≤ 2 ^ w` (k linear because the
+  parameter is an input entry and stack extent is k; deliberately NOT
+  2^k-coupled — notes argue it), constant 33300 unchanged, defeq-checked;
+  VC proof stack ported; InstanceEncoding correctly deferred to Phase 5
+  (it imports CliqueExpr). Orchestrator tightened two axiom-docstring
+  imprecisions. All three packages green.
+- [ ] Phase 5 Courcelle vertical slice
 - [ ] Phase 3 CC port
 - [ ] Phase 4 VC port
 - [ ] Phase 5 Courcelle port

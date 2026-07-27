@@ -20,16 +20,22 @@ crosses between the numeric and the pure potential.
 Each body case builds its `Run` by hand, hands the new configuration to
 the matching preservation lemma of `VCSpec`, and pays the loop rule out
 of the matching drop lemma. The descend cases contain the scan; their
-cost is `≤ 100m + 50n + 100`, which is why the loop potential carries
+cost is `≤ 100m + 50n + 96`, which is why the loop potential carries
 the factor `100m + 50n + 104`.
+
+The value bound is four hypotheses and no invariant clause. Beyond what
+the scan needs, the search produces stack indices and budgets, both
+below `k`, and the marks and modes, which are `0`, `1` or `2`; so `2`,
+`n`, `2m` and `k` being words is the whole of it, and in particular the
+`2 ^ k` of the running time is nowhere among the numbers held.
 -/
 
 namespace Lax11Proofs.VC
 
-open Lax11.Ram Lax11.GraphEncoding
-open Lax11Proofs.Imp Lax11Proofs.Compile Lax11Proofs.Reasoning Lax11Proofs.CC
+open Lax13.Ram Lax11.GraphEncoding
+open Lax13Proofs.Imp Lax13Proofs.Compile Lax13Proofs.Reasoning Lax11Proofs.CC
 
-variable {g : List ℕ} {n m k : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
+variable {g : List ℕ} {n m k B : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
 
 /-! ### Representation -/
 
@@ -78,6 +84,14 @@ theorem not_mem_of_indicator_eq {MK : ℕ → ℕ} {fs : List (Frame n)}
   intro hmem
   rw [hMK w hw, if_pos hmem] at h
   exact absurd h one_ne_zero
+
+/-- The indicator array is a word array as soon as `1` is a word: its
+entries are `0` and `1`. -/
+theorem indicator_lt {MK : ℕ → ℕ} {fs : List (Frame n)} (h1B : 1 < B)
+    (hMK : ∀ w (hw : w < n), MK w = if (⟨w, hw⟩ : Fin n) ∈ marked fs then 1 else 0)
+    {w : ℕ} (hw : w < n) : MK w < B := by
+  rw [hMK w hw]
+  split <;> omega
 
 /-! ### The numeric potential -/
 
@@ -148,19 +162,23 @@ invariant and whose potential has dropped, within `100m + 50n + 96`
 steps. -/
 theorem descendBody_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     (hO : ∀ i ≤ n, O i = offset g i) (hT : ∀ j < 2 * m, T j = target g j)
+    (h2B : 2 < B) (hnB : n < B) (hmB : 2 * m < B) (hkB : k < B)
     {C : Config n} {τ : Env} (hRep : Rep n m k O T C τ)
     (hInv : Inv G k C) (hmode : C.mode = 0) :
     ∃ (C' : Config n) (τ' : Env) (K : ℕ),
-      Run descendBody τ τ' K ∧ Rep n m k O T C' τ' ∧ Inv G k C' ∧
+      Run B descendBody τ τ' K ∧ Rep n m k O T C' τ' ∧ Inv G k C' ∧
       pot C' + 1 ≤ pot C ∧ K ≤ 100 * m + 50 * n + 96 ∧
       τ'.inp = τ.inp ∧ τ'.out = τ.out := by
   obtain ⟨hm2, hoff, htgt, hmd, hbud, hans, htop, ⟨MK, hmark, hMK⟩,
     SU, SV, SP, hstkU, hstkV, hstkP, hstk⟩ := hRep
   have hlen : C.bud + C.frames.length = k := hInv.2.1
+  have hbudB : C.bud < B := by omega
+  have hfrlB : C.frames.length < B := by omega
+  have hMKB : ∀ i, i < n → MK i < B := fun i hi => indicator_lt (by omega) hMK hi
   have hpotC : pot C = pot (⟨C.frames, 0, C.bud, C.ans⟩ : Config n) := by
     simp [pot, hmode]
   obtain ⟨σ', hrun, harrs', hinp', hout', hfrm, hdich⟩ :=
-    scan_run hg hm hO hT hm2 hoff htgt hmark
+    scan_run hg hm hO hT (by omega) hnB hmB hMKB hm2 hoff htgt hmark
   have hfm2 : σ'.vars "m2" = 2 * m := by
     rw [hfrm "m2" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
     exact hm2
@@ -186,8 +204,9 @@ theorem descendBody_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
   · -- **Success exit.** Every slot is covered, so the marking is a cover.
     refine ⟨⟨C.frames, 2, C.bud, 1⟩, (σ'.setVar "ans" 1).setVar "mode" 2,
       100 * m + 50 * n + 96, ?_, ?_, ?_, ?_, le_rfl, by simp [hinp'], by simp [hout']⟩
-    · refine (Run.seq hrun (Run.ite_true (by simp [hf0])
-        (Run.seq (Run.assign (v := 1) (by simp)) (Run.assign (v := 2) (by simp))))).mono ?_
+    · refine (Run.seq hrun (Run.ite_true (by simp [hf0]; omega)
+        (Run.seq (Run.assign (v := 1) (by simp; omega))
+          (Run.assign (v := 2) (by simp; omega))))).mono ?_
       simp
     · exact ⟨by simp [hfm2], by simp [hoff'], by simp [htgt'], by simp, by simp [hfbud],
         by simp, by simp [hftop], ⟨MK, by simp [hmark'], hMK⟩,
@@ -203,8 +222,9 @@ theorem descendBody_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     · -- **Stuck.** An uncovered edge and no budget: the branch is dead.
       refine ⟨⟨C.frames, 1, C.bud, C.ans⟩, σ'.setVar "mode" 1,
         100 * m + 50 * n + 96, ?_, ?_, ?_, ?_, le_rfl, by simp [hinp'], by simp [hout']⟩
-      · refine (Run.seq hrun (Run.ite_false (by simp [hf1])
-          (Run.ite_true (by simp [hfbud, hb]) (Run.assign (v := 1) (by simp))))).mono ?_
+      · refine (Run.seq hrun (Run.ite_false (by simp [hf1]; omega)
+          (Run.ite_true (by simp [hfbud, hb]; omega)
+            (Run.assign (v := 1) (by simp; omega))))).mono ?_
         simp
       · exact ⟨by simp [hfm2], by simp [hoff'], by simp [htgt'], by simp, by simp [hfbud],
           by simp [hfans], by simp [hftop], ⟨MK, by simp [hmark'], hMK⟩,
@@ -222,18 +242,21 @@ theorem descendBody_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
             "mark" (σ'.vars "eu") 1).setVar "top" (C.frames.length + 1)).setVar
             "bud" (C.bud - 1),
         100 * m + 50 * n + 96, ?_, ?_, ?_, ?_, le_rfl, by simp [hinp'], by simp [hout']⟩
-      · refine (Run.seq hrun (Run.ite_false (by simp [hf1])
-          (Run.ite_false (by simp [hfbud, hb])
+      · refine (Run.seq hrun (Run.ite_false (by simp [hf1]; omega)
+          (Run.ite_false (by simp [hfbud, hb]; omega)
             (Run.seq (Run.store (idx := C.frames.length) (v := σ'.vars "eu")
-                (by simp [hftop]) (by simp) (by simpa [hstkU'] using hfk))
+                (by simp [hftop]; omega) (by simp; omega) (by simpa [hstkU'] using hfk))
               (Run.seq (Run.store (idx := C.frames.length) (v := σ'.vars "ev")
-                  (by simp [hftop]) (by simp) (by simpa [hstkV'] using hfk))
+                  (by simp [hftop]; omega) (by simp; omega) (by simpa [hstkV'] using hfk))
                 (Run.seq (Run.store (idx := C.frames.length) (v := 0)
-                    (by simp [hftop]) (by simp) (by simpa [hstkP'] using hfk))
+                    (by simp [hftop]; omega) (by simp; omega)
+                    (by simpa [hstkP'] using hfk))
                   (Run.seq (Run.store (idx := σ'.vars "eu") (v := 1)
-                      (by simp) (by simp) (by simpa [hmark'] using heu'))
-                    (Run.seq (Run.assign (v := C.frames.length + 1) (by simp [hftop]))
-                      (Run.assign (v := C.bud - 1) (by simp [hfbud])))))))))).mono ?_
+                      (by simp; omega) (by simp; omega) (by simpa [hmark'] using heu'))
+                    (Run.seq (Run.assign (v := C.frames.length + 1)
+                        (by simp [hftop]; omega))
+                      (Run.assign (v := C.bud - 1)
+                        (by simp [hfbud]; omega)))))))))).mono ?_
         simp
       · refine ⟨by simp [hfm2], by simp [hoff'], by simp [htgt'],
           by simp [hfmd, hmode], by simp, by simp [hfans], by simp,
@@ -271,17 +294,19 @@ theorem descendBody_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
 /-- **Backtrack.** From a represented state in mode `1`, the backtrack
 body reaches a represented state whose configuration still satisfies the
 invariant and whose potential has dropped, in constant time. -/
-theorem backtrackBody_run
+theorem backtrackBody_run (h2B : 2 < B) (hnB : n < B) (hkB : k < B)
     {C : Config n} {τ : Env} (hRep : Rep n m k O T C τ)
     (hInv : Inv G k C) (hmode : C.mode = 1) :
     ∃ (C' : Config n) (τ' : Env) (K : ℕ),
-      Run backtrackBody τ τ' K ∧ Rep n m k O T C' τ' ∧ Inv G k C' ∧
+      Run B backtrackBody τ τ' K ∧ Rep n m k O T C' τ' ∧ Inv G k C' ∧
       pot C' + 1 ≤ pot C ∧ K ≤ 96 ∧
       τ'.inp = τ.inp ∧ τ'.out = τ.out := by
   obtain ⟨hm2, hoff, htgt, hmd, hbud, hans, htop, ⟨MK, hmark, hMK⟩,
     SU, SV, SP, hstkU, hstkV, hstkP, hstk⟩ := hRep
   have hlen : C.bud + C.frames.length = k := hInv.2.1
   have hheal : Healthy C.frames := hInv.2.2.1
+  have hbudB : C.bud < B := by omega
+  have hfrlB : C.frames.length < B := by omega
   have hpotC : pot C = pot (⟨C.frames, 1, C.bud, C.ans⟩ : Config n) := by
     simp [pot, hmode]
   rcases hfrs : C.frames with _ | ⟨f, fs⟩
@@ -289,8 +314,9 @@ theorem backtrackBody_run
     rw [hfrs] at htop
     refine ⟨⟨C.frames, 2, C.bud, 0⟩, (τ.setVar "ans" 0).setVar "mode" 2, 96,
       ?_, ?_, ?_, ?_, le_rfl, by simp, by simp⟩
-    · refine (Run.ite_true (by simp [htop])
-        (Run.seq (Run.assign (v := 0) (by simp)) (Run.assign (v := 2) (by simp)))).mono ?_
+    · refine (Run.ite_true (by simp [htop]; omega)
+        (Run.seq (Run.assign (v := 0) (by simp; omega))
+          (Run.assign (v := 2) (by simp; omega)))).mono ?_
       simp
     · exact ⟨by simp [hm2], by simp [hoff], by simp [htgt], by simp, by simp [hbud],
         by simp, by simp [htop, hfrs], ⟨MK, by simp [hmark], hMK⟩,
@@ -301,16 +327,22 @@ theorem backtrackBody_run
     simp only [hfrs] at hstk
     obtain ⟨u, v, ph⟩ := f
     have hfl : fs.length < k := by simp at hlen; omega
+    have huB : (u : ℕ) < B := by have := u.isLt; omega
+    have hvB : (v : ℕ) < B := by have := v.isLt; omega
     have htop' : τ.vars "top" = fs.length + 1 := by simpa using htop
     obtain ⟨hSU, hSV, hSP⟩ := hstk fs.length (by simp)
     rw [reverse_getElem_top] at hSU hSV hSP
-    have hcpu : (Expr.get "stkU" (.sub (.var "top") (.lit 1))).eval τ = some (u : ℕ) := by
+    have hcpu : (Expr.get "stkU" (.sub (.var "top") (.lit 1))).evalB B τ
+        = some (u : ℕ) := by
       simp [htop', hstkU, getElem?_arrOf SU hfl, hSU]
-    have hcpv : (Expr.get "stkV" (.sub (.var "top") (.lit 1))).eval
+      omega
+    have hcpv : (Expr.get "stkV" (.sub (.var "top") (.lit 1))).evalB B
         (τ.setVar "pu" (u : ℕ)) = some (v : ℕ) := by
       simp [htop', hstkV, getElem?_arrOf SV hfl, hSV]
-    have htopf : (Cond.eq (Expr.var "top") (.lit 0)).eval τ = some false := by
+      omega
+    have htopf : (Cond.eq (Expr.var "top") (.lit 0)).evalB B τ = some false := by
       simp [htop']
+      omega
     cases ph
     · -- **Flip.** The top frame's stored branch becomes the active one.
       refine ⟨⟨Frame.mk u v true :: fs, 0, C.bud, C.ans⟩,
@@ -319,14 +351,16 @@ theorem backtrackBody_run
         96, ?_, ?_, ?_, ?_, le_rfl, by simp, by simp⟩
       · refine (Run.ite_false htopf (Run.seq (Run.assign (v := (u : ℕ)) hcpu)
           (Run.seq (Run.assign (v := (v : ℕ)) hcpv)
-            (Run.ite_true (by simp [htop', hstkP, getElem?_arrOf SP hfl, hSP])
-              (Run.seq (Run.store (idx := (u : ℕ)) (v := 0) (by simp) (by simp)
-                  (by simp [hmark]))
-                (Run.seq (Run.store (idx := (v : ℕ)) (v := 1) (by simp) (by simp)
-                    (by simp [hmark]))
-                  (Run.seq (Run.store (idx := fs.length) (v := 1) (by simp [htop'])
-                      (by simp) (by simpa [hstkP] using hfl))
-                    (Run.assign (v := 0) (by simp))))))))).mono ?_
+            (Run.ite_true (by
+                simp [htop', hstkP, getElem?_arrOf SP hfl, hSP]; omega)
+              (Run.seq (Run.store (idx := (u : ℕ)) (v := 0) (by simp; omega)
+                  (by simp; omega) (by simp [hmark]))
+                (Run.seq (Run.store (idx := (v : ℕ)) (v := 1) (by simp; omega)
+                    (by simp; omega) (by simp [hmark]))
+                  (Run.seq (Run.store (idx := fs.length) (v := 1)
+                      (by simp [htop']; omega) (by simp; omega)
+                      (by simpa [hstkP] using hfl))
+                    (Run.assign (v := 0) (by simp; omega))))))))).mono ?_
         simp
       · refine ⟨by simp [hm2], by simp [hoff], by simp [htgt], by simp, by simp [hbud],
           by simp [hans], by simp [htop'], ⟨fun w => if w = (v : ℕ) then 1 else
@@ -369,11 +403,12 @@ theorem backtrackBody_run
         96, ?_, ?_, ?_, ?_, le_rfl, by simp, by simp⟩
       · refine (Run.ite_false htopf (Run.seq (Run.assign (v := (u : ℕ)) hcpu)
           (Run.seq (Run.assign (v := (v : ℕ)) hcpv)
-            (Run.ite_false (by simp [htop', hstkP, getElem?_arrOf SP hfl, hSP])
-              (Run.seq (Run.store (idx := (v : ℕ)) (v := 0) (by simp) (by simp)
-                  (by simp [hmark]))
-                (Run.seq (Run.assign (v := C.bud + 1) (by simp [hbud]))
-                  (Run.assign (v := fs.length) (by simp [htop'])))))))).mono ?_
+            (Run.ite_false (by
+                simp [htop', hstkP, getElem?_arrOf SP hfl, hSP]; omega)
+              (Run.seq (Run.store (idx := (v : ℕ)) (v := 0) (by simp; omega)
+                  (by simp; omega) (by simp [hmark]))
+                (Run.seq (Run.assign (v := C.bud + 1) (by simp [hbud]; omega))
+                  (Run.assign (v := fs.length) (by simp [htop']; omega)))))))).mono ?_
         simp
       · refine ⟨by simp [hm2], by simp [hoff], by simp [htgt], by simp [hmd, hmode],
           by simp, by simp [hans], by simp,
@@ -403,25 +438,26 @@ invariant survives, the potential drops, and the cost is bounded by the
 descend case. -/
 theorem outerBody_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     (hO : ∀ i ≤ n, O i = offset g i) (hT : ∀ j < 2 * m, T j = target g j)
+    (h2B : 2 < B) (hnB : n < B) (hmB : 2 * m < B) (hkB : k < B)
     {C : Config n} {τ : Env} (hRep : Rep n m k O T C τ)
     (hInv : Inv G k C) (hmode : C.mode < 2) :
     ∃ (C' : Config n) (τ' : Env) (K : ℕ),
-      Run outerBody τ τ' K ∧ Rep n m k O T C' τ' ∧ Inv G k C' ∧
+      Run B outerBody τ τ' K ∧ Rep n m k O T C' τ' ∧ Inv G k C' ∧
       pot C' + 1 ≤ pot C ∧ K ≤ 100 * m + 50 * n + 100 ∧
       τ'.inp = τ.inp ∧ τ'.out = τ.out := by
   have hmd : τ.vars "mode" = C.mode := hRep.2.2.2.1
   by_cases h0 : C.mode = 0
   · obtain ⟨C', τ', K, hrun, hRep', hInv', hpot, hK, hi, ho⟩ :=
-      descendBody_run hg hm hO hT hRep hInv h0
+      descendBody_run hg hm hO hT h2B hnB hmB hkB hRep hInv h0
     refine ⟨C', τ', 1 + (Cond.eq (Expr.var "mode") (Expr.lit 0)).size + K,
-      Run.ite_true (by simp [hmd, h0]) hrun, hRep', hInv', hpot, ?_, hi, ho⟩
+      Run.ite_true (by simp [hmd, h0]; omega) hrun, hRep', hInv', hpot, ?_, hi, ho⟩
     simp only [size_condEq, size_var, size_lit]
     omega
   · have h1 : C.mode = 1 := by omega
     obtain ⟨C', τ', K, hrun, hRep', hInv', hpot, hK, hi, ho⟩ :=
-      backtrackBody_run hRep hInv h1
+      backtrackBody_run h2B hnB hkB hRep hInv h1
     refine ⟨C', τ', 1 + (Cond.eq (Expr.var "mode") (Expr.lit 0)).size + K,
-      Run.ite_false (by simp [hmd, h1]) hrun, hRep', hInv', hpot, ?_, hi, ho⟩
+      Run.ite_false (by simp [hmd, h1]; omega) hrun, hRep', hInv', hpot, ?_, hi, ho⟩
     simp only [size_condEq, size_var, size_lit]
     omega
 
@@ -439,17 +475,26 @@ invariant, the outer loop reaches a represented, invariant state in
 mode `2`, in at most `(100m + 50n + 104) · pot C₀ + 4` steps. -/
 theorem searchLoop_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     (hO : ∀ i ≤ n, O i = offset g i) (hT : ∀ j < 2 * m, T j = target g j)
+    (h2B : 2 < B) (hnB : n < B) (hmB : 2 * m < B) (hkB : k < B)
     {C₀ : Config n} {σ : Env} (hRep : Rep n m k O T C₀ σ) (hInv : Inv G k C₀) :
     ∃ (C' : Config n) (τ' : Env) (K : ℕ),
-      Run (.while (.lt (.var "mode") (.lit 2)) outerBody) σ τ' K ∧
+      Run B (.while (.lt (.var "mode") (.lit 2)) outerBody) σ τ' K ∧
       Rep n m k O T C' τ' ∧ Inv G k C' ∧ C'.mode = 2 ∧
       τ'.inp = σ.inp ∧ τ'.out = σ.out ∧
       K ≤ (100 * m + 50 * n + 104) * pot C₀ + 4 := by
+  -- the test always evaluates: the mode is at most `2`, and `2` is a word
+  have hdef : ∀ τ : Env,
+      (∃ C, Rep n m k O T C τ ∧ Inv G k C ∧ τ.inp = σ.inp ∧ τ.out = σ.out) →
+      ∃ v, (Cond.lt (.var "mode") (.lit 2)).evalB B τ = some v := by
+    rintro τ ⟨C, hRepC, hInvC, -, -⟩
+    have hmd : τ.vars "mode" = C.mode := hRepC.2.2.2.1
+    have := hInvC.1
+    exact evalB_condLt_var_lit (by omega) (by omega)
   -- a turn: the body runs, the invariant survives, the potential pays
   have hstep : ∀ τ : Env,
       (∃ C, Rep n m k O T C τ ∧ Inv G k C ∧ τ.inp = σ.inp ∧ τ.out = σ.out) →
-      (Cond.lt (.var "mode") (.lit 2)).eval τ = some true →
-      ∃ τ'' K, Run outerBody τ τ'' K ∧
+      (Cond.lt (.var "mode") (.lit 2)).evalB B τ = some true →
+      ∃ τ'' K, Run B outerBody τ τ'' K ∧
         (∃ C, Rep n m k O T C τ'' ∧ Inv G k C ∧ τ''.inp = σ.inp ∧ τ''.out = σ.out) ∧
         1 + (Cond.lt (Expr.var "mode") (Expr.lit 2)).size + K +
             (100 * m + 50 * n + 104) *
@@ -457,14 +502,15 @@ theorem searchLoop_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
           (100 * m + 50 * n + 104) *
             potN (τ.vars "mode") (τ.vars "bud") (phasesOf τ) := by
     rintro τ ⟨C, hRepC, hInvC, hinp, hout⟩ hc
+    have hc' := Cond.eval_of_evalB hc
     have hlen : C.bud + C.frames.length = k := hInvC.2.1
     have hmd : τ.vars "mode" = C.mode := hRepC.2.2.2.1
     have hmode : C.mode < 2 := by
       simp only [Cond.eval, Expr.eval, Option.bind_some, Option.map_some,
-        Option.some.injEq, decide_eq_true_eq, hmd] at hc
-      exact hc
+        Option.some.injEq, decide_eq_true_eq, hmd] at hc'
+      exact hc'
     obtain ⟨C', τ'', K, hrunb, hRep', hInv', hpot, hK, hi, ho⟩ :=
-      outerBody_run hg hm hO hT hRepC hInvC hmode
+      outerBody_run hg hm hO hT h2B hnB hmB hkB hRepC hInvC hmode
     refine ⟨τ'', K, hrunb, ⟨C', hRep', hInv', by rw [hi, hinp], by rw [ho, hout]⟩, ?_⟩
     have hlen' : C'.bud + C'.frames.length = k := hInv'.2.1
     have e1 := potN_eq hRep' (show C'.frames.length ≤ k by omega)
@@ -476,17 +522,18 @@ theorem searchLoop_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     simp only [size_condLt, size_var, size_lit]
     omega
   obtain ⟨τ', K, hrun, hI', hfalse, hpay⟩ :=
-    Run.while_pot (b := Cond.lt (.var "mode") (.lit 2)) (c := outerBody)
+    Run.while_pot (B := B) (b := Cond.lt (.var "mode") (.lit 2)) (c := outerBody)
       (fun τ => ∃ C, Rep n m k O T C τ ∧ Inv G k C ∧ τ.inp = σ.inp ∧ τ.out = σ.out)
       (fun τ => (100 * m + 50 * n + 104) *
         potN (τ.vars "mode") (τ.vars "bud") (phasesOf τ))
-      (fun _ _ => ⟨_, rfl⟩) hstep ⟨C₀, hRep, hInv, rfl, rfl⟩
+      hdef hstep ⟨C₀, hRep, hInv, rfl, rfl⟩
   -- exit: the test is false and `Inv` caps the mode, so the mode is `2`
   obtain ⟨C', hRep', hInv', hinp', hout'⟩ := hI'
+  have hfalse' := Cond.eval_of_evalB hfalse
   have hmd' : τ'.vars "mode" = C'.mode := hRep'.2.2.2.1
   have hmode' : C'.mode = 2 := by
     simp only [Cond.eval, Expr.eval, Option.bind_some, Option.map_some,
-      Option.some.injEq, decide_eq_false_iff_not, Nat.not_lt, hmd'] at hfalse
+      Option.some.injEq, decide_eq_false_iff_not, Nat.not_lt, hmd'] at hfalse'
     have := hInv'.1
     omega
   have hlen₀ : C₀.frames.length ≤ k := by have := hInv.2.1; omega

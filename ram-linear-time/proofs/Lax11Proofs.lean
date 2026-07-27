@@ -6,3 +6,8 @@ import Lax11Proofs.CCPhases
 import Lax11Proofs.CCSearch
 import Lax11Proofs.CCSweep
 import Lax11Proofs.CCMain
+import Lax11Proofs.VCSpec
+import Lax11Proofs.VC
+import Lax11Proofs.VCScan
+import Lax11Proofs.VCLoop
+import Lax11Proofs.VCMain

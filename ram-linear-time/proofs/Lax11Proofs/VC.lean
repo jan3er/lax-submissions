@@ -29,8 +29,8 @@ is `0`.
 
 namespace Lax11Proofs.VC
 
-open Lax11.Ram Lax11.RamComputes Lax11.GraphEncoding
-open Lax11Proofs.Imp Lax11Proofs.Compile Lax11Proofs.Reasoning Lax11Proofs.CC
+open Lax13.Ram Lax13.RamComputes Lax11.GraphEncoding
+open Lax13Proofs.Imp Lax13Proofs.Compile Lax13Proofs.Reasoning Lax11Proofs.CC
 
 /-! ### The program -/
 
@@ -124,10 +124,13 @@ theorem vcCom_ok : Com.Ok layout vcCom := by
 House discipline: the compiled machine program is run before anything
 is proved about it. The instances below cover both answers at the
 boundary budgets, the `k = 0` cases, the empty graph, and one malformed
-word, which must merely not diverge. -/
+word, which must merely not diverge. The word length is fixed at
+sixteen, which is more than these instances need; the step counts do
+not depend on it. -/
 
-/-- Run `vcProgram` on an encoded instance. -/
-def test (x : List ℕ) : Option (List ℕ × ℕ) := runOut 1000000 vcProgram (initState x) 0
+/-- Run `vcProgram` on an encoded instance, at a word length that holds
+every number these instances produce. -/
+def test (x : List ℕ) : Option (List ℕ × ℕ) := runOut 16 1000000 vcProgram (initState x) 0
 
 -- the triangle: cover number two, so `no` at budgets zero and one, `yes` at two
 #guard test ([3, 3, 0, 2, 4, 6, 1, 2, 0, 2, 0, 1] ++ [0]) = some ([0], 509)

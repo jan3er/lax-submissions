@@ -239,9 +239,9 @@ theorem sweep_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
   obtain ⟨τ', K, hrun, hI', hfalse, hpay⟩ :=
     Run.while_pot (B := B) (b := Cond.lt (.var "u") (.var "n")) (c := outerBody)
       (SweepInv x n m G O T) (SweepPot n m)
-      (fun σ hσ => ⟨decide (σ.vars "u" < σ.vars "n"), by
+      (fun σ hσ => by
         obtain ⟨hn, hmm, hun, -⟩ := hσ
-        simp [hn]; omega⟩)
+        exact evalB_condLt_vars (by omega) (by omega))
       (fun σ hσ hc => outerBody_run hx hm hO hT hnB hmB hσ hc) hI
   obtain ⟨hn', -, hun', -, -, -, L, Q, hlab', -, hB', hdone', -, -⟩ := hI'
   have hun : τ'.vars "u" = n := by simp [hn'] at hfalse; omega
