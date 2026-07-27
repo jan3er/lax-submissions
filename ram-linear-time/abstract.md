@@ -1,30 +1,44 @@
-This submission states, on a textbook random access machine, that the
-connected components of a graph can be computed in linear time: there
-are one program and one constant $c$ such that, given any graph in
-compressed sparse row form as a word $x$ of natural numbers, the machine
-halts within $c(|x|+1)$ steps having labelled every vertex by the least
-vertex of its connected component.
+This submission states two linear-time theorems on a textbook random
+access machine. The first is that the connected components of a graph
+can be computed in linear time: there are one program and one constant
+$c$ such that, given any graph in compressed sparse row form as a word
+$x$ of natural numbers, the machine halts within $c(|x|+1)$ steps having
+labelled every vertex by the least vertex of its connected component.
+The second is Courcelle's theorem in the Courcelle–Makowsky–Rotics form:
+for every sentence of monadic second-order logic and every width bound
+$k$ there are one program and one constant such that, given any graph in
+compressed sparse row form followed by a $k$-expression that evaluates
+to it, the machine halts within a constant multiple of the length of the
+input, having written $1$ if the sentence holds in the graph and $0$ if
+it does not.
 
 Its purpose is to put running-time claims about concrete algorithms
 within reach of the archive, so the machine model carries the whole
-weight of the statement. The concept surface has four review units.
-Three definitions: the machine itself — an accumulator, an unbounded
+weight of the statements. The concept surface has seven review units.
+Five definitions: the machine itself — an accumulator, an unbounded
 memory of natural-number cells, direct and indirect addressing, input
 and output tapes, and the instruction set of Aho, Hopcroft and Ullman
 without multiplication and division, so that the unit-cost measure is
 the honest one; what it means
 for a program to compute a function of words within a time bound, the
 running time being the machine's own step count rather than an
-annotation carried alongside the program; and the compressed sparse row
+annotation carried alongside the program; the compressed sparse row
 encoding of a graph, in the dumb form in which an algorithm actually
 receives it, with nothing precomputed, no sortedness assumed and
-repetitions permitted. One theorem: the linear-time statement itself,
-with the program and the constant quantified ahead of the graph.
+repetitions permitted; monadic second-order logic on graphs, with
+quantification over vertices and over sets of vertices, its variables
+counted rather than named so that satisfaction needs no substitution;
+and $k$-expressions, which build a graph from labelled single vertices
+by disjoint union, edge addition between two label classes, and
+relabelling, together with the numbering of those operations that a
+machine reading an expression is handed. Two theorems: the two
+linear-time statements, in both cases with the program and the constant
+quantified ahead of the graph.
 
-The obligation is discharged in the proof package, through a tower built
-for the purpose. At the bottom is a structured while-language with named
-scalars and arrays which does its own reading and writing and whose
-semantics carries the number of statements executed as a cost; a
+The obligations are discharged in the proof package, through a tower
+built for the purpose. At the bottom is a structured while-language with
+named scalars and arrays which does its own reading and writing and
+whose semantics carries the number of statements executed as a cost; a
 compiler lays its variables out in the machine's memory, lowers control
 flow to jumps and array indexing to indirect addressing, and a
 simulation theorem bounds the machine's step count by a constant
@@ -36,17 +50,49 @@ taking an invariant together with a cost potential, so that termination
 and the running-time bound are a single obligation and amortized
 arguments are direct.
 
-The algorithm is the textbook sweep of breadth-first searches, written
-in that language and verified against a pure model of the search state,
-so that the graph reasoning — a set closed under adjacency contains the
-whole component of any vertex it contains — is done on the graph and
-never on the machine. Its entire cost is one potential: adjacency slots
-not yet scanned, queue capacity not yet used, queue entries not yet
-expanded, vertices not yet swept. Because the potential is global the
-searches are counted together rather than one at a time, which is what
-the amortization needs. The constant that comes out is 2604, where the
-compiled program, run on the small graphs it was tested on, takes about
-a hundred steps per input number. The factor of twenty-five between them
-is deliberate, and so is the slack at every level below: nothing in the
-tower argues for a tight constant, and the statement asks only for some
-constant.
+The components algorithm is the textbook sweep of breadth-first
+searches, written in that language and verified against a pure model of
+the search state, so that the graph reasoning — a set closed under
+adjacency contains the whole component of any vertex it contains — is
+done on the graph and never on the machine. Its entire cost is one
+potential: adjacency slots not yet scanned, queue capacity not yet used,
+queue entries not yet expanded, vertices not yet swept. Because the
+potential is global the searches are counted together rather than one at
+a time, which is what the amortization needs. The constant that comes
+out is 2604, where the compiled program, run on the small graphs it was
+tested on, takes about a hundred steps per input number. The factor of
+twenty-five between them is deliberate, and so is the slack at every
+level below: nothing in the tower argues for a tight constant, and the
+statement asks only for some constant.
+
+Courcelle's theorem is proved the way it is proved on paper, with the
+machine kept out of the mathematics until the mathematics is finished.
+That mathematics is an Ehrenfeucht–Fraïssé type algebra: a finite space
+of types for each quantifier rank, the type of a subset of an ambient
+graph under an assignment of marked vertices and sets, adequacy — equal
+types satisfy the same sentences of that rank — and a composition lemma
+saying that types are preserved when two regions of one graph are glued
+along an overlap that is marked on both sides and crossed by no edge
+outside it. That lemma is proved at every rank and across two different
+ambient graphs at once, which is what lets the four operations of a
+$k$-expression be handled uniformly: disjoint union is the composition
+lemma at the empty overlap, and edge addition, relabelling and vertex
+creation are three inductions of the same shape. From these the value
+table of the fold is extracted by finiteness and choice — nothing
+computes it, and the theorem does not ask anything to.
+
+The program is a generic bottom-up fold, verified once against a table
+it knows nothing about: it reads a tree given by a parent array whose
+children are numbered before their parents, materializes the table into
+memory in a prologue, and makes one left-to-right pass in which each
+node costs a fixed number of array accesses, independent of the size of
+the table — and, since the machine has no multiplication, the row bases
+of the table are themselves an array, so that indexing it is two reads
+and an addition. Instantiating the fold with the type table and adding
+an epilogue that turns the root's value into $1$ or $0$ gives the
+driver. Its constant is a tower in the sentence and the width, because
+the table is, and it is never estimated; but the tower is paid once,
+before the input is read, and the input-dependent part of the cost is a
+fixed number of steps per entry. The $k$-expression is input rather than
+something the program computes, and the formalization notes accompanying
+this submission say plainly what that leaves open.

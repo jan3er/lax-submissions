@@ -1,4 +1,13 @@
-# Courcelle plan (rev 5 — the cliquewidth pivot; Jan's call, 2026-07-27 day)
+# Courcelle plan (rev 6 — closed; all steps done, 2026-07-28)
+
+Rev 6 (wrap-up, session 17): **the plan is complete.** Every step is
+done and the theorem
+`Lax11.Courcelle.exists_linearTime_program_modelChecking` is proved and
+discharged at the concept surface. Nothing below is rewritten — the
+step list is marked with ✅ and a pointer to the `NIGHTLOG.md` block
+that executed it, and a "Final state" section is appended at the end.
+The rev-5 text that follows is the plan as it stood while it was being
+executed, and it is left as the record of what was decided when.
 
 Rev 5 (Jan, in session): **the width parameter is cliquewidth, not
 treewidth** — the theorem becomes Courcelle–Makowsky–Rotics (MSO₁
@@ -180,14 +189,19 @@ axiom courcelle :
   value ∈ accepting set → write `[1]`/`[0]`, C9) and the
   `EncodesInstance` plumbing of the two blocks.
 
-## Steps (rev 5)
+## Steps (rev 5; marked done at rev 6)
 
-Done and standing: **Q3** (M1–M3, the generic fold — now consumed
-verbatim), **Q1** (M4–M6, type algebra + adequacy + the congruence —
-consumed through its empty-pool instance). Sunk: **Q2a** (M7,
-TreeDecomp.lean — idles untouched). Remaining:
+Done and standing: ✅ **Q3** (M1–M3, the generic fold — now consumed
+verbatim; sessions 5–7, checkpoint "Q3 checkpoint: the schema as built"),
+✅ **Q1** (M4–M6, type algebra + adequacy + the congruence — consumed
+through its empty-pool instance; sessions 8–10, checkpoint "Q1a
+checkpoint: the composition lemma as built"). Sunk: ✅ **Q2a** (M7,
+session 11, TreeDecomp.lean — idled untouched, kept at wrap-up, see
+Final state). Remaining, all now done:
 
-4. **Q4 — the cliquewidth mathematics.**
+4. ✅ **Q4 — the cliquewidth mathematics.** a: session 12 (M8), b:
+   session 13 (M9), c: session 14 (M10), checkpoint "Q4c checkpoint:
+   the table and the induction as built".
    a. `Expr`, `eval`, validity, the structural lemmas (leaf-set =
       vertex set, label classes partition it, edges within `X`,
       disjointness at ⊕ from leaf-injectivity), smoke `#eval`s on a
@@ -200,18 +214,21 @@ TreeDecomp.lean — idles untouched). Remaining:
       (set-forget + adequacy + `X = univ` + `H = G`).
       **Checkpoint** (gates the freeze): lines per case, and whether
       the cross-graph plumbing stayed cheap.
-5. **C0 freeze**: new files in `concepts/Lax11/` — `Mso.lean`
+5. ✅ **C0 freeze** (session 15, M11; orchestrator gate "freeze
+   verified" at the end of that block): new files in `concepts/Lax11/` — `Mso.lean`
    (verbatim copy from proofs, as rev 4 planned), `CliqueExpr.lean`
    (`Expr`, `eval`, validity — the new trust object; must be
    auditable in one sitting, target ~40 lines of definitions),
    `Courcelle.lean` (`EncodesInstance`, the rev-5 axiom). Existing
    four concept files frozen verbatim. Smoke tests proofs-side (Sat
    on two-vertex graphs; the path k-expression hand-checked).
-6. **Q6 — the driver, shrunk**: instantiate `foldProgram` with the
+6. ✅ **Q6 — the driver, shrunk** (session 16, M12, commits 25daa9c +
+   20937f6): instantiate `foldProgram` with the
    C14 table, reuse M3's read-phases against the new two-block
    encoding, add the accept epilogue, compose the `Run`, discharge
    the axiom, audit.
-7. **Q7 — wrap-up**: `#print axioms`, `lax build --replay`; ledger
+7. ✅ **Q7 — wrap-up** (session 17, M13; see Final state below):
+   `#print axioms`, `lax build --replay`; ledger
    (C1, C2 de Bruijn, C5, C11 pivot + unformalized tw→cw conversion,
    expression-as-input, program-ignores-CSR, children-before-parent
    ordering, TreeDecomp disposition); abstract + manifest; final
@@ -238,3 +255,50 @@ bag/overlap scanning, M8's canonical-order bookkeeping). Prior-art
 note unchanged: no complete mechanization of Courcelle known to this
 plan (in either width parameter); Traytel's MSO-on-words is the
 nearest relative, automaton route, cite when confirmed.
+
+## Final state (rev 6, session 17)
+
+The theorem is proved. `Lax11.Courcelle.exists_linearTime_program_modelChecking`
+is discharged by `Lax11Proofs.Courcelle.exists_linearTime_program_modelChecking`
+with witness `driverProgram (table (rank φ) k) (acpArr (rank φ) k φ)`
+and constant `46 * (100 + driverCost (table (rank φ) k))`; both
+packages build green (concepts 821 jobs, proofs 2998), `lax build
+ram-linear-time` and `lax build ram-linear-time --replay` are OK, and
+`build-output.json` records the proof with `assumptions: []`. The axiom
+audit is `propext`, `Classical.choice`, `Quot.sound` on the theorem and
+on every spot-checked upstream result (`typ_union_congr`, `satIn_congr`,
+`val_eq_typeOf`, `acceptVal_val`, `sweep_eq_val`), and the older
+`exists_linearTime_program_ccLabels` is unchanged and equally clean.
+
+What the submission contains, by plan step: the machine, the compiler
+and the reasoning kit (the RAM stack, `ram-stack-plan.md` rev 7); the
+connected-components driver (constant 2604); the generic tree-fold
+schema `TreeFold*.lean` with its own theorem
+`exists_linearTime_program_treeFold`; the type algebra `MsoTypes.lean`
+/ `MsoAdequacy.lean` / `MsoComposition.lean` (composition at every
+rank, cross-ambient); `CliqueExpr.lean` and the four op congruences of
+`MsoCliqueOps.lean`; the table and main induction of `MsoTable.lean`;
+the driver `CourcelleDriver.lean` / `CourcelleMain.lean`; and the three
+new concept files `Mso.lean`, `CliqueExpr.lean`, `Courcelle.lean`,
+which with the four originals make a surface of seven review units —
+five definitions and two theorems.
+
+Two dispositions were open at the wrap-up and are now settled.
+`TreeDecomp.lean` (M7, 574 lines) is **kept**: it is self-contained
+mathlib-only tree-decomposition theory, green, imported by nothing, and
+stated in the shape a future MSO₂-and-treewidth submission would want;
+deleting it would cost that submission its combinatorial layer for
+nothing but a smaller build. And the honesty ledger, which under rev 5
+was to be written into concept docstrings, is instead
+`ram-linear-time/notes.md`: the concept surface was fully frozen at
+M11, and the eleven items — MSO₁ scope, de Bruijn on the trust surface,
+the noncomputable table, the cliquewidth pivot with its unformalized
+tw→cw conversion, expression-as-input, the two unread input blocks, the
+children-before-parent numbering, the add/sub-only machine with table
+indexing strength-reduced to the `row` array, the stand-in table in the
+`#eval` checks, the never-estimated tower, and the `TreeDecomp`
+retention — belong together in one document rather than scattered
+across seven.
+
+What remains is outward-facing and Jan's: `lax submit`. Nothing in the
+plan is open.
