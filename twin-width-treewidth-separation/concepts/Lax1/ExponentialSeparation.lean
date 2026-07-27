@@ -21,7 +21,7 @@ namespace Lax1.ExponentialSeparation
 
 /-- For every `k`, some finite graph has treewidth at most `2 * k + 4` and
 twin-width greater than `2 ^ k`. -/
-axiom twin_width_can_be_exponential_in_treewidth (k : ℕ) :
+axiom exists_treewidth_le_and_two_pow_lt_twinWidth (k : ℕ) :
     ∃ n : ℕ, ∃ G : SimpleGraph (Fin n),
       Lax1.Treewidth.treewidth G ≤ 2 * k + 4 ∧
         2 ^ k < Lax1.TwinWidth.twinWidth G

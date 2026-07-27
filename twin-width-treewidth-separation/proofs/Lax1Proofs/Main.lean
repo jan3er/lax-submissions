@@ -715,7 +715,7 @@ def mapIsoContractionSequence {V V' : Type}
 
 /--
 ---
-conclusion: Lax1.ExponentialSeparation.twin_width_can_be_exponential_in_treewidth
+conclusion: Lax1.ExponentialSeparation.exists_treewidth_le_and_two_pow_lt_twinWidth
 ---
 Self-contained proof of the Bonnet–Déprés exponential gap: for every `k`, the
 Bonnet–Déprés graph `BD_k` has treewidth at most `2*k + 4` while its
@@ -734,7 +734,7 @@ vertex type `Fin n`.
 Ported from Édouard Bonnet's formalization of Bonnet–Déprés,
 *Twin-width can be exponential in treewidth* (JCTB 2023).
 -/
-theorem twin_width_can_be_exponential_in_treewidth (k : ℕ) :
+theorem exists_treewidth_le_and_two_pow_lt_twinWidth (k : ℕ) :
     ∃ n : ℕ, ∃ G : SimpleGraph (Fin n),
       Lax1.Treewidth.treewidth G ≤ 2 * k + 4 ∧
         2 ^ k < Lax1.TwinWidth.twinWidth G := by
