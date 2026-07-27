@@ -62,6 +62,15 @@ bibEntries:
       doi     = {10.1007/s002249910009}
     }
   - |
+    @book{DowneyFellows1999,
+      author    = {Downey, Rodney G. and Fellows, Michael R.},
+      title     = {Parameterized Complexity},
+      publisher = {Springer},
+      series    = {Monographs in Computer Science},
+      year      = {1999},
+      doi       = {10.1007/978-1-4612-0515-9}
+    }
+  - |
     @article{OumSeymour2006,
       author  = {Oum, Sang-il and Seymour, Paul},
       title   = {Approximating clique-width and branch-width},
