@@ -133,4 +133,296 @@ theorem potN_eq {C : Config n} {τ : Env} (hRep : Rep n m k O T C τ)
     potN (τ.vars "mode") (τ.vars "bud") (phasesOf τ) = pot C := by
   rw [hRep.2.2.2.1, hRep.2.2.2.2.1, phasesOf_eq hRep hlen, ← pot_eq_potN]
 
+/-! ### The body of the outer loop
+
+Six transitions, three theorems. Descend runs the scan and then either
+exits with `1`, gives up on the branch, or pushes a frame; backtrack
+either exits with `0`, flips the top frame, or pops it. Each case names
+the new configuration, builds its `Run` by hand, re-establishes every
+clause of `Rep`, hands the configuration to the matching preservation
+lemma and pays the loop rule out of the matching drop lemma. -/
+
+/-- **Descend.** From a represented state in mode `0`, the descend body
+reaches a represented state whose configuration still satisfies the
+invariant and whose potential has dropped, within `100m + 50n + 96`
+steps. -/
+theorem descendBody_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
+    (hO : ∀ i ≤ n, O i = offset g i) (hT : ∀ j < 2 * m, T j = target g j)
+    {C : Config n} {τ : Env} (hRep : Rep n m k O T C τ)
+    (hInv : Inv G k C) (hmode : C.mode = 0) :
+    ∃ (C' : Config n) (τ' : Env) (K : ℕ),
+      Run descendBody τ τ' K ∧ Rep n m k O T C' τ' ∧ Inv G k C' ∧
+      pot C' + 1 ≤ pot C ∧ K ≤ 100 * m + 50 * n + 96 ∧
+      τ'.inp = τ.inp ∧ τ'.out = τ.out := by
+  obtain ⟨hm2, hoff, htgt, hmd, hbud, hans, htop, ⟨MK, hmark, hMK⟩,
+    SU, SV, SP, hstkU, hstkV, hstkP, hstk⟩ := hRep
+  have hlen : C.bud + C.frames.length = k := hInv.2.1
+  have hpotC : pot C = pot (⟨C.frames, 0, C.bud, C.ans⟩ : Config n) := by
+    simp [pot, hmode]
+  obtain ⟨σ', hrun, harrs', hinp', hout', hfrm, hdich⟩ :=
+    scan_run hg hm hO hT hm2 hoff htgt hmark
+  have hfm2 : σ'.vars "m2" = 2 * m := by
+    rw [hfrm "m2" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
+    exact hm2
+  have hfmd : σ'.vars "mode" = C.mode := by
+    rw [hfrm "mode" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
+    exact hmd
+  have hfbud : σ'.vars "bud" = C.bud := by
+    rw [hfrm "bud" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
+    exact hbud
+  have hfans : σ'.vars "ans" = C.ans := by
+    rw [hfrm "ans" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
+    exact hans
+  have hftop : σ'.vars "top" = C.frames.length := by
+    rw [hfrm "top" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
+    exact htop
+  have hoff' : σ'.arrs "off" = arrOf (n + 1) O := by rw [harrs']; exact hoff
+  have htgt' : σ'.arrs "tgt" = arrOf (2 * m) T := by rw [harrs']; exact htgt
+  have hmark' : σ'.arrs "mark" = arrOf n MK := by rw [harrs']; exact hmark
+  have hstkU' : σ'.arrs "stkU" = arrOf k SU := by rw [harrs']; exact hstkU
+  have hstkV' : σ'.arrs "stkV" = arrOf k SV := by rw [harrs']; exact hstkV
+  have hstkP' : σ'.arrs "stkP" = arrOf k SP := by rw [harrs']; exact hstkP
+  rcases hdich with ⟨hf0, hcov⟩ | ⟨hf1, heu, hev, hadj, hMKeu, hMKev⟩
+  · -- **Success exit.** Every slot is covered, so the marking is a cover.
+    refine ⟨⟨C.frames, 2, C.bud, 1⟩, (σ'.setVar "ans" 1).setVar "mode" 2,
+      100 * m + 50 * n + 96, ?_, ?_, ?_, ?_, le_rfl, by simp [hinp'], by simp [hout']⟩
+    · refine (Run.seq hrun (Run.ite_true (by simp [hf0])
+        (Run.seq (Run.assign (v := 1) (by simp)) (Run.assign (v := 2) (by simp))))).mono ?_
+      simp
+    · exact ⟨by simp [hfm2], by simp [hoff'], by simp [htgt'], by simp, by simp [hfbud],
+        by simp, by simp [hftop], ⟨MK, by simp [hmark'], hMK⟩,
+        SU, SV, SP, by simp [hstkU'], by simp [hstkV'], by simp [hstkP'], hstk⟩
+    · refine inv_found_cover hInv hmode (isVertexCover_of_slots hg _ ?_)
+      intro o p ho hp h1 h2
+      rcases hcov o p ho h1 h2 with h | h
+      · exact Or.inl (mem_of_indicator_ne hMK ho h)
+      · exact Or.inr (mem_of_indicator_ne hMK hp h)
+    · rw [hpotC]; exact pot_found _ _ _
+  · obtain ⟨heu', hev', hadjuv⟩ := hadj
+    by_cases hb : C.bud = 0
+    · -- **Stuck.** An uncovered edge and no budget: the branch is dead.
+      refine ⟨⟨C.frames, 1, C.bud, C.ans⟩, σ'.setVar "mode" 1,
+        100 * m + 50 * n + 96, ?_, ?_, ?_, ?_, le_rfl, by simp [hinp'], by simp [hout']⟩
+      · refine (Run.seq hrun (Run.ite_false (by simp [hf1])
+          (Run.ite_true (by simp [hfbud, hb]) (Run.assign (v := 1) (by simp))))).mono ?_
+        simp
+      · exact ⟨by simp [hfm2], by simp [hoff'], by simp [htgt'], by simp, by simp [hfbud],
+          by simp [hfans], by simp [hftop], ⟨MK, by simp [hmark'], hMK⟩,
+          SU, SV, SP, by simp [hstkU'], by simp [hstkV'], by simp [hstkP'], hstk⟩
+      · exact inv_stuck hInv hmode hb hadjuv (not_mem_of_indicator_eq hMK heu' hMKeu)
+          (not_mem_of_indicator_eq hMK hev' hMKev)
+      · rw [hpotC, hb]; exact pot_stuck _ _
+    · -- **Push.** An uncovered edge with budget left: commit `eu`.
+      have hbpos : 0 < C.bud := Nat.pos_of_ne_zero hb
+      have hfk : C.frames.length < k := by omega
+      refine ⟨⟨Frame.mk ⟨σ'.vars "eu", heu'⟩ ⟨σ'.vars "ev", hev'⟩ false :: C.frames,
+          0, C.bud - 1, C.ans⟩,
+        (((((σ'.setArr "stkU" C.frames.length (σ'.vars "eu")).setArr "stkV"
+            C.frames.length (σ'.vars "ev")).setArr "stkP" C.frames.length 0).setArr
+            "mark" (σ'.vars "eu") 1).setVar "top" (C.frames.length + 1)).setVar
+            "bud" (C.bud - 1),
+        100 * m + 50 * n + 96, ?_, ?_, ?_, ?_, le_rfl, by simp [hinp'], by simp [hout']⟩
+      · refine (Run.seq hrun (Run.ite_false (by simp [hf1])
+          (Run.ite_false (by simp [hfbud, hb])
+            (Run.seq (Run.store (idx := C.frames.length) (v := σ'.vars "eu")
+                (by simp [hftop]) (by simp) (by simpa [hstkU'] using hfk))
+              (Run.seq (Run.store (idx := C.frames.length) (v := σ'.vars "ev")
+                  (by simp [hftop]) (by simp) (by simpa [hstkV'] using hfk))
+                (Run.seq (Run.store (idx := C.frames.length) (v := 0)
+                    (by simp [hftop]) (by simp) (by simpa [hstkP'] using hfk))
+                  (Run.seq (Run.store (idx := σ'.vars "eu") (v := 1)
+                      (by simp) (by simp) (by simpa [hmark'] using heu'))
+                    (Run.seq (Run.assign (v := C.frames.length + 1) (by simp [hftop]))
+                      (Run.assign (v := C.bud - 1) (by simp [hfbud])))))))))).mono ?_
+        simp
+      · refine ⟨by simp [hfm2], by simp [hoff'], by simp [htgt'],
+          by simp [hfmd, hmode], by simp, by simp [hfans], by simp,
+          ⟨fun w => if w = σ'.vars "eu" then 1 else MK w,
+            by simp [hmark', set_arrOf], ?_⟩,
+          fun i => if i = C.frames.length then σ'.vars "eu" else SU i,
+          fun i => if i = C.frames.length then σ'.vars "ev" else SV i,
+          fun i => if i = C.frames.length then 0 else SP i,
+          by simp [hstkU', set_arrOf], by simp [hstkV', set_arrOf],
+          by simp [hstkP', set_arrOf], ?_⟩
+        · intro w hw
+          simp only [marked_cons, chosen_false, Finset.mem_insert]
+          by_cases hweu : w = σ'.vars "eu"
+          · subst hweu
+            simp
+          · have hne : ¬ ((⟨w, hw⟩ : Fin n) = ⟨σ'.vars "eu", heu'⟩) := by
+              simp only [Fin.mk.injEq]; exact hweu
+            simp only [if_neg hweu, hne, false_or]
+            exact hMK w hw
+        · intro i hi
+          simp only [List.length_cons] at hi
+          rcases Nat.lt_or_ge i C.frames.length with hlt | hge
+          · obtain ⟨h1, h2, h3⟩ := hstk i hlt
+            refine ⟨?_, ?_, ?_⟩ <;>
+              simp only [if_neg (show ¬ i = C.frames.length by omega),
+                reverse_getElem_lt _ hlt]
+            exacts [h1, h2, h3]
+          · have hif : i = C.frames.length := by omega
+            subst hif
+            refine ⟨?_, ?_, ?_⟩ <;> simp
+      · exact inv_push hInv hmode hbpos hadjuv (not_mem_of_indicator_eq hMK heu' hMKeu)
+          (not_mem_of_indicator_eq hMK hev' hMKev)
+      · rw [hpotC]; exact pot_push hbpos _ _ _ _
+
+/-- **Backtrack.** From a represented state in mode `1`, the backtrack
+body reaches a represented state whose configuration still satisfies the
+invariant and whose potential has dropped, in constant time. -/
+theorem backtrackBody_run
+    {C : Config n} {τ : Env} (hRep : Rep n m k O T C τ)
+    (hInv : Inv G k C) (hmode : C.mode = 1) :
+    ∃ (C' : Config n) (τ' : Env) (K : ℕ),
+      Run backtrackBody τ τ' K ∧ Rep n m k O T C' τ' ∧ Inv G k C' ∧
+      pot C' + 1 ≤ pot C ∧ K ≤ 96 ∧
+      τ'.inp = τ.inp ∧ τ'.out = τ.out := by
+  obtain ⟨hm2, hoff, htgt, hmd, hbud, hans, htop, ⟨MK, hmark, hMK⟩,
+    SU, SV, SP, hstkU, hstkV, hstkP, hstk⟩ := hRep
+  have hlen : C.bud + C.frames.length = k := hInv.2.1
+  have hheal : Healthy C.frames := hInv.2.2.1
+  have hpotC : pot C = pot (⟨C.frames, 1, C.bud, C.ans⟩ : Config n) := by
+    simp [pot, hmode]
+  rcases hfrs : C.frames with _ | ⟨f, fs⟩
+  · -- **Failure exit.** The stack is empty and no alternative is left.
+    rw [hfrs] at htop
+    refine ⟨⟨C.frames, 2, C.bud, 0⟩, (τ.setVar "ans" 0).setVar "mode" 2, 96,
+      ?_, ?_, ?_, ?_, le_rfl, by simp, by simp⟩
+    · refine (Run.ite_true (by simp [htop])
+        (Run.seq (Run.assign (v := 0) (by simp)) (Run.assign (v := 2) (by simp)))).mono ?_
+      simp
+    · exact ⟨by simp [hm2], by simp [hoff], by simp [htgt], by simp, by simp [hbud],
+        by simp, by simp [htop, hfrs], ⟨MK, by simp [hmark], hMK⟩,
+        SU, SV, SP, by simp [hstkU], by simp [hstkV], by simp [hstkP], hstk⟩
+    · exact inv_fail hInv hmode hfrs
+    · rw [hpotC]; exact pot_fail _ _ _
+  · rw [hfrs] at hMK htop hlen hheal
+    simp only [hfrs] at hstk
+    obtain ⟨u, v, ph⟩ := f
+    have hfl : fs.length < k := by simp at hlen; omega
+    have htop' : τ.vars "top" = fs.length + 1 := by simpa using htop
+    obtain ⟨hSU, hSV, hSP⟩ := hstk fs.length (by simp)
+    rw [reverse_getElem_top] at hSU hSV hSP
+    have hcpu : (Expr.get "stkU" (.sub (.var "top") (.lit 1))).eval τ = some (u : ℕ) := by
+      simp [htop', hstkU, getElem?_arrOf SU hfl, hSU]
+    have hcpv : (Expr.get "stkV" (.sub (.var "top") (.lit 1))).eval
+        (τ.setVar "pu" (u : ℕ)) = some (v : ℕ) := by
+      simp [htop', hstkV, getElem?_arrOf SV hfl, hSV]
+    have htopf : (Cond.eq (Expr.var "top") (.lit 0)).eval τ = some false := by
+      simp [htop']
+    cases ph
+    · -- **Flip.** The top frame's stored branch becomes the active one.
+      refine ⟨⟨Frame.mk u v true :: fs, 0, C.bud, C.ans⟩,
+        (((((τ.setVar "pu" (u : ℕ)).setVar "pv" (v : ℕ)).setArr "mark" (u : ℕ) 0).setArr
+          "mark" (v : ℕ) 1).setArr "stkP" fs.length 1).setVar "mode" 0,
+        96, ?_, ?_, ?_, ?_, le_rfl, by simp, by simp⟩
+      · refine (Run.ite_false htopf (Run.seq (Run.assign (v := (u : ℕ)) hcpu)
+          (Run.seq (Run.assign (v := (v : ℕ)) hcpv)
+            (Run.ite_true (by simp [htop', hstkP, getElem?_arrOf SP hfl, hSP])
+              (Run.seq (Run.store (idx := (u : ℕ)) (v := 0) (by simp) (by simp)
+                  (by simp [hmark]))
+                (Run.seq (Run.store (idx := (v : ℕ)) (v := 1) (by simp) (by simp)
+                    (by simp [hmark]))
+                  (Run.seq (Run.store (idx := fs.length) (v := 1) (by simp [htop'])
+                      (by simp) (by simpa [hstkP] using hfl))
+                    (Run.assign (v := 0) (by simp))))))))).mono ?_
+        simp
+      · refine ⟨by simp [hm2], by simp [hoff], by simp [htgt], by simp, by simp [hbud],
+          by simp [hans], by simp [htop'], ⟨fun w => if w = (v : ℕ) then 1 else
+            if w = (u : ℕ) then 0 else MK w, by simp [hmark, set_arrOf], ?_⟩,
+          SU, SV, fun i => if i = fs.length then 1 else SP i,
+          by simp [hstkU], by simp [hstkV], by simp [hstkP, set_arrOf], ?_⟩
+        · intro w hw
+          dsimp only
+          simp only [mem_marked_flip hheal ⟨w, hw⟩]
+          by_cases hwv : w = (v : ℕ)
+          · subst hwv
+            simp [Fin.ext_iff]
+          · have h1 : ¬ ((⟨w, hw⟩ : Fin n) = v) := by
+              simp only [Fin.ext_iff]; exact hwv
+            by_cases hwu : w = (u : ℕ)
+            · subst hwu
+              simp [Fin.ext_iff, hwv]
+            · have h2 : (⟨w, hw⟩ : Fin n) ≠ u := by
+                simp only [ne_eq, Fin.ext_iff]; exact hwu
+              simp only [if_neg hwv, if_neg hwu]
+              rw [hMK w hw]
+              simp [h1, h2]
+        · intro i hi
+          simp only [List.length_cons] at hi
+          rcases Nat.lt_or_ge i fs.length with hlt | hge
+          · obtain ⟨h1, h2, h3⟩ := hstk i (by simp; omega)
+            rw [reverse_getElem_lt _ hlt] at h1 h2 h3
+            refine ⟨?_, ?_, ?_⟩ <;>
+              simp only [if_neg (show ¬ i = fs.length by omega), reverse_getElem_lt _ hlt]
+            exacts [h1, h2, h3]
+          · have hif : i = fs.length := by omega
+            subst hif
+            refine ⟨?_, ?_, ?_⟩ <;> simp [hSU, hSV]
+      · exact inv_flip hInv hmode hfrs
+      · rw [hpotC, hfrs]; exact pot_flip _ _ _
+    · -- **Pop.** The top frame is exhausted: its mark and its unit come back.
+      refine ⟨⟨fs, 1, C.bud + 1, C.ans⟩,
+        ((((τ.setVar "pu" (u : ℕ)).setVar "pv" (v : ℕ)).setArr "mark" (v : ℕ) 0).setVar
+          "bud" (C.bud + 1)).setVar "top" fs.length,
+        96, ?_, ?_, ?_, ?_, le_rfl, by simp, by simp⟩
+      · refine (Run.ite_false htopf (Run.seq (Run.assign (v := (u : ℕ)) hcpu)
+          (Run.seq (Run.assign (v := (v : ℕ)) hcpv)
+            (Run.ite_false (by simp [htop', hstkP, getElem?_arrOf SP hfl, hSP])
+              (Run.seq (Run.store (idx := (v : ℕ)) (v := 0) (by simp) (by simp)
+                  (by simp [hmark]))
+                (Run.seq (Run.assign (v := C.bud + 1) (by simp [hbud]))
+                  (Run.assign (v := fs.length) (by simp [htop'])))))))).mono ?_
+        simp
+      · refine ⟨by simp [hm2], by simp [hoff], by simp [htgt], by simp [hmd, hmode],
+          by simp, by simp [hans], by simp,
+          ⟨fun w => if w = (v : ℕ) then 0 else MK w, by simp [hmark, set_arrOf], ?_⟩,
+          SU, SV, SP, by simp [hstkU], by simp [hstkV], by simp [hstkP], ?_⟩
+        · intro w hw
+          dsimp only
+          simp only [mem_marked_pop hheal ⟨w, hw⟩]
+          by_cases hwv : w = (v : ℕ)
+          · subst hwv
+            simp
+          · have h1 : (⟨w, hw⟩ : Fin n) ≠ v := by
+              simp only [ne_eq, Fin.ext_iff]; exact hwv
+            simp only [if_neg hwv]
+            rw [hMK w hw]
+            simp [h1]
+        · intro i hi
+          have hi' : i < fs.length := hi
+          obtain ⟨h1, h2, h3⟩ := hstk i (by simp; omega)
+          rw [reverse_getElem_lt _ hi'] at h1 h2 h3
+          exact ⟨h1, h2, h3⟩
+      · exact inv_pop hInv hmode hfrs
+      · rw [hpotC, hfrs]; exact pot_pop _ _ _
+
+/-- **One turn of the outer loop.** The mode dispatches; either way the
+invariant survives, the potential drops, and the cost is bounded by the
+descend case. -/
+theorem outerBody_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
+    (hO : ∀ i ≤ n, O i = offset g i) (hT : ∀ j < 2 * m, T j = target g j)
+    {C : Config n} {τ : Env} (hRep : Rep n m k O T C τ)
+    (hInv : Inv G k C) (hmode : C.mode < 2) :
+    ∃ (C' : Config n) (τ' : Env) (K : ℕ),
+      Run outerBody τ τ' K ∧ Rep n m k O T C' τ' ∧ Inv G k C' ∧
+      pot C' + 1 ≤ pot C ∧ K ≤ 100 * m + 50 * n + 100 ∧
+      τ'.inp = τ.inp ∧ τ'.out = τ.out := by
+  have hmd : τ.vars "mode" = C.mode := hRep.2.2.2.1
+  by_cases h0 : C.mode = 0
+  · obtain ⟨C', τ', K, hrun, hRep', hInv', hpot, hK, hi, ho⟩ :=
+      descendBody_run hg hm hO hT hRep hInv h0
+    refine ⟨C', τ', 1 + (Cond.eq (Expr.var "mode") (Expr.lit 0)).size + K,
+      Run.ite_true (by simp [hmd, h0]) hrun, hRep', hInv', hpot, ?_, hi, ho⟩
+    simp only [size_condEq, size_var, size_lit]
+    omega
+  · have h1 : C.mode = 1 := by omega
+    obtain ⟨C', τ', K, hrun, hRep', hInv', hpot, hK, hi, ho⟩ :=
+      backtrackBody_run hRep hInv h1
+    refine ⟨C', τ', 1 + (Cond.eq (Expr.var "mode") (Expr.lit 0)).size + K,
+      Run.ite_false (by simp [hmd, h1]) hrun, hRep', hInv', hpot, ?_, hi, ho⟩
+    simp only [size_condEq, size_var, size_lit]
+    omega
+
 end Lax11Proofs.VC
