@@ -1935,3 +1935,12 @@ and pushed. Lax1 and Lax2 are untouched throughout, and nothing pins Lax5.
 Note the coupling: each `lax submit` of an upstream moves its record
 triple, so steps 2 and 4 are not optional bookkeeping — a stale pin fails
 the dependent's resolution stage with exactly the message quoted above.
+
+#### Runbook executed 2026-07-27 (Jan-approved)
+
+All three drafts are on the server: Lax14 @ `4973144e`, Lax12 @
+`3767b96` (Lax14 repinned), Lax5 @ `c9c704a` (Lax12+Lax14 repinned).
+Server build+replay passed for each. Submits ran from a temp clone
+(clean-worktree requirement vs Jan's NIGHTLOG WIP); local `--replay`
+skipped at Jan's request (RAM), the server replay covers it. Step 6
+(bottom-up registration) remains open, Jan's call.
