@@ -1,4 +1,7 @@
+import Lax2Proofs.Bridge
 import Lax2Proofs.Main
+import Lax2Proofs.MixedMinorNumberFromTwinWidth
+import Lax2Proofs.TwinWidthFromMixedMinorNumber
 import Lax2Proofs.Source.TwinWidth.Contraction.Trigraph
 import Lax2Proofs.Source.TwinWidth.Contraction.TwinWidth
 import Lax2Proofs.Source.TwinWidth.Equivalence.FunctionalEquivalence

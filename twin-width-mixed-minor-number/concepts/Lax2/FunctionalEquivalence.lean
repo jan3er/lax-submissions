@@ -1,4 +1,5 @@
 import Lax1.TwinWidth
+import Lax2.GraphParameters
 import Lax2.MixedMinorNumber
 
 /-!
@@ -16,27 +17,20 @@ such that every finite simple graph *G* satisfies both:
 
 # Formalization notes
 
-`GraphParam` is the uniform signature shared by all graph parameters in this
-archive: a natural-valued function of finite simple graphs over `Fintype`
-and `DecidableEq` instances. It is an abbreviation, so the statement applies
-to `Lax1.TwinWidth.twinWidth` and `Lax2.MixedMinorNumber.mixedMinorNumber`
-directly, without wrapper lambdas.
+`FunctionallyEquivalent` and the uniform parameter signature it is stated
+over come from the graph parameters concept; the equivalence applies the
+relation to `Lax1.TwinWidth.twinWidth` and
+`Lax2.MixedMinorNumber.mixedMinorNumber` directly, without wrapper lambdas.
+
+The two directions are also stated on their own, as the sibling concepts
+`TwinWidthFromMixedMinorNumber` and `MixedMinorNumberFromTwinWidth`: each has
+its own literature proof and is usable on its own. This concept is the
+headline claim that both hold at once.
 -/
 
 namespace Lax2.FunctionalEquivalence
 
-/-- A natural-valued parameter of finite simple graphs, in the uniform
-signature shared by all graph parameters in this archive. -/
-abbrev GraphParam :=
-  ∀ {V : Type} [Fintype V] [DecidableEq V], SimpleGraph V → ℕ
-
-/-- Each of two graph parameters is bounded by a numerical function of the
-other. -/
-def FunctionallyEquivalent (p q : GraphParam) : Prop :=
-  (∃ f : ℕ → ℕ, ∀ {V : Type} [Fintype V] [DecidableEq V]
-    (G : SimpleGraph V), p G ≤ f (q G)) ∧
-  (∃ g : ℕ → ℕ, ∀ {V : Type} [Fintype V] [DecidableEq V]
-    (G : SimpleGraph V), q G ≤ g (p G))
+open Lax2.GraphParameters
 
 /-- Twin-width and mixed minor number are functionally equivalent graph
 parameters. -/
