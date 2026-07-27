@@ -103,7 +103,7 @@ def arrOf (n : ℕ) (f : ℕ → ℕ) : List ℕ := (List.range n).map f
 
 @[simp] theorem getElem?_arrOf {n i : ℕ} (f : ℕ → ℕ) (h : i < n) :
     (arrOf n f)[i]? = some (f i) := by
-  simp [arrOf, List.getElem?_map, List.getElem?_range, h]
+  simp [arrOf, h]
 
 /-- An array that has just been created is the constant function: this
 is the shape in which `initEnv` hands its arrays over. -/

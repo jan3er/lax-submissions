@@ -60,7 +60,7 @@ theorem readLoop_run {a lim : String} (hi : lim ≠ "i") (ht : lim ≠ "t")
       (Run.seq (Run.store (idx := τ.vars "i") (v := ys[τ.vars "i"]!)
           (by simp) (by simp) (by simp [hf]; omega))
         (Run.assign (v := τ.vars "i" + 1) (by simp)))).mono (by simp),
-      ⟨by simp; omega, by simp [hi, ht, hl], by simp [hi, ht, hl], ?_, ?_, by simp [hout], ?_⟩, by simp; omega⟩
+      ⟨by simp; omega, by simp [hi, ht, hl], by simp, ?_, ?_, by simp [hout], ?_⟩, by simp; omega⟩
     · refine ⟨fun j => if j = τ.vars "i" then ys[τ.vars "i"]! else f j, by simp [hf, set_arrOf], ?_⟩
       intro j hj
       simp at hj
@@ -85,7 +85,7 @@ theorem readLoop_run {a lim : String} (hi : lim ≠ "i") (ht : lim ≠ "t")
   refine ⟨σ', g', (Run.seq (Run.assign (v := 0) rfl) hrun).mono (by simp; omega),
     hg', hgv, fun b hbne => by simp [hb' b hbne], ?_, by simp [hout'], ?_⟩
   · rw [hinp'', List.drop_eq_nil_of_le (by omega)]; rfl
-  · intro y hy1 hy2; simp [hy' y hy1 hy2, hy1]
+  · intro y hy1 hy2; simp [hy' y hy1 hy2]
 
 /-! ### Clearing the label array -/
 
@@ -133,7 +133,7 @@ theorem initLab_run {σ : Env} {g : ℕ → ℕ} {n : ℕ}
   rw [hik] at hgv
   exact ⟨σ', g', (Run.seq (Run.assign (v := 0) rfl) hrun).mono (by simp; omega),
     hg', hgv, fun b hbne => by simp [hb' b hbne], by simp [hinp'], by simp [hout'],
-    fun y hy1 => by simp [hy' y hy1, hy1]⟩
+    fun y hy1 => by simp [hy' y hy1]⟩
 
 /-! ### Writing the labels out -/
 

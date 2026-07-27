@@ -149,8 +149,8 @@ theorem outerBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
               (by simp) (by simp) (by simp [hq, htail]))
             (Run.seq (Run.assign (v := τ.vars "tail" + 1) (by simp)) hdrun))))
         (Run.assign (v := τ.vars "u" + 1) (by simp [hu₄])), ?_, ?_⟩
-    · refine ⟨by simp [hn₄], by simp [hm₄, hm], by simp; omega, by simp [hoff₄],
-        by simp [htgt₄, hm], by simp [hdhead], L₄, Q₄, by simp [hlab₄], by simp [hq₄],
+    · refine ⟨by simp [hn₄], by simp [hm₄], by simp; omega, by simp [hoff₄],
+        by simp [htgt₄], by simp [hdhead], L₄, Q₄, by simp [hlab₄], by simp [hq₄],
         by simpa using hL₄.base, ?_, ?_, by simpa using hsum₄⟩
       · intro w hw hlw
         simp at hlw
