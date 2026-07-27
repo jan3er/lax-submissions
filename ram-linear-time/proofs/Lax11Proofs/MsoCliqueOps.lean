@@ -529,7 +529,7 @@ variable {n k : ℕ}
 consumes. -/
 theorem Valid.disjoint_coe {e₁ e₂ : Expr n k} (h : Valid (.union e₁ e₂)) :
     Disjoint (verts e₁ : Set (Fin n)) (verts e₂ : Set (Fin n)) :=
-  Finset.disjoint_coe.mpr h.disjoint
+  Finset.disjoint_coe.mpr (Valid.disjoint h)
 
 /-- The evaluated graph of an `η` node is the join of the two label
 classes, read as set parameters — the form `typ_addEdges` consumes. -/
@@ -546,7 +546,7 @@ theorem typ_graph_union_left {q r s : ℕ} {e₁ e₂ : Expr n k} (h : Valid (.u
     typ (graph (.union e₁ e₂)) (verts e₁ : Set (Fin n)) q m A
       = typ (graph e₁) (verts e₁ : Set (Fin n)) q m A := by
   refine typ_sup_of_avoids (fun u hu v _ huv => ?_) hm
-  exact Set.disjoint_left.mp h.disjoint_coe hu (by simpa using (mem_verts_of_adj e₂ huv).1)
+  exact Set.disjoint_left.mp (Valid.disjoint_coe h) hu (by simpa using (mem_verts_of_adj e₂ huv).1)
 
 /-- The same on the right. -/
 theorem typ_graph_union_right {q r s : ℕ} {e₁ e₂ : Expr n k} (h : Valid (.union e₁ e₂))
@@ -556,7 +556,7 @@ theorem typ_graph_union_right {q r s : ℕ} {e₁ e₂ : Expr n k} (h : Valid (.
       = typ (graph e₂) (verts e₂ : Set (Fin n)) q m A := by
   rw [graph_union, sup_comm]
   refine typ_sup_of_avoids (fun u hu v _ huv => ?_) hm
-  exact Set.disjoint_right.mp h.disjoint_coe hu (by simpa using (mem_verts_of_adj e₁ huv).1)
+  exact Set.disjoint_right.mp (Valid.disjoint_coe h) hu (by simpa using (mem_verts_of_adj e₁ huv).1)
 
 /-- The label classes of a `ρ i j` node are the relabelled parameters —
 the form `typ_relabel` consumes. -/
@@ -577,6 +577,6 @@ example : Disjoint
     ((verts (.addEdges 0 1 (.union (.leaf (0 : Fin 3) (0 : Fin 2))
       (.leaf 1 1))) : Finset (Fin 3)) : Set (Fin 3))
     ((verts (.leaf (2 : Fin 3) (0 : Fin 2)) : Finset (Fin 3)) : Set (Fin 3)) :=
-  (Valid.of_addEdges (⟨by decide, by decide⟩ : Valid pathExpr)).disjoint_coe
+  Valid.disjoint_coe (Valid.of_addEdges (⟨by decide, by decide⟩ : Valid pathExpr))
 
 end Lax11Proofs.CliqueExpr

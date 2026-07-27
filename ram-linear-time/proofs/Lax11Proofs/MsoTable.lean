@@ -36,8 +36,9 @@ inhabitants of the value type, so they are counted by `Table.V` and
 op codes are the `lab` array of the instance word — a reader of the
 statement must be able to say which number means `η 0 1` — so `Op.code`
 is a computable formula and `Op.decode` is its computable inverse,
-proved so by `Op.decode_code`. The *value* numbering, which nobody
-writes down, is `Fintype.equivFin` and is noncomputable.
+proved so by `Op.decode_code`. Both live on the endorsement surface,
+with the expression type they number. The *value* numbering, which
+nobody writes down, is `Fintype.equivFin` and is noncomputable.
 
 *The fold is joined to the expression by a relation, not by an array.*
 `EncExpr par lab i e` says "node `i` of the tree `(par, lab)` is the
@@ -61,42 +62,12 @@ One symbol per operation of a `k`-expression, with the leaf's *label*
 inside the symbol and the leaf's vertex name outside it: the type of a
 one-vertex region does not depend on which vertex it is
 (`typ_singleton`), which is why the driver never reads the vertex-id
-array. -/
-
-/-- The operation performed at a node of a `k`-expression tree. -/
-inductive Op (k : ℕ) where
-  /-- Disjoint union. -/
-  | union
-  /-- Create a vertex with label `l`. -/
-  | leaf (l : Fin k)
-  /-- `η i j`: join class `i` to class `j`. -/
-  | eta (i j : Fin k)
-  /-- `ρ i j`: move class `i` into class `j`. -/
-  | rho (i j : Fin k)
-  deriving DecidableEq
-
-/-- The number naming an operation in the instance word. The blocks are
-`union` (one code), the leaves (`k` codes), the joins and the relabels
-(`k²` codes each, the pair `(i, j)` read in base `k`). -/
-def Op.code : Op k → ℕ
-  | .union => 0
-  | .leaf l => 1 + (l : ℕ)
-  | .eta i j => 1 + k + ((i : ℕ) * k + (j : ℕ))
-  | .rho i j => 1 + k + k * k + ((i : ℕ) * k + (j : ℕ))
-
-/-- The size of the operation alphabet: the fold's `Table.L`. -/
-def opCard (k : ℕ) : ℕ := 1 + k + 2 * (k * k)
-
-private theorem div_lt_sq {c k : ℕ} (h : c < k * k) : c / k < k :=
-  Nat.div_lt_of_lt_mul h
-
-private theorem pos_of_lt_sq {c k : ℕ} (h : c < k * k) : 0 < k := by
-  rcases Nat.eq_zero_or_pos k with rfl | hk
-  · exact absurd h (by simp)
-  · exact hk
-
-private theorem mod_lt_sq {c k : ℕ} (h : c < k * k) : c % k < k :=
-  Nat.mod_lt _ (pos_of_lt_sq h)
+array. `Op`, `Op.code`, `Op.decode` and `opCard` are the surface
+definitions of `Lax11.CliqueExpr` (re-exported by
+`Lax11Proofs/CliqueExpr.lean`, so that there is one op-code layout and
+the instance encoding on the surface reads the same numbers the fold
+does); what is proved here is that the codes are a bijection onto an
+initial segment, which is what makes them the fold's labels. -/
 
 /-- A pair of labels read in base `k` is below `k²`. -/
 private theorem pair_lt (i j : Fin k) : (i : ℕ) * k + (j : ℕ) < k * k := by
@@ -105,18 +76,6 @@ private theorem pair_lt (i j : Fin k) : (i : ℕ) * k + (j : ℕ) < k * k := by
   calc (i : ℕ) * k + (j : ℕ) < (i : ℕ) * k + k := by omega
     _ = ((i : ℕ) + 1) * k := by ring
     _ ≤ k * k := Nat.mul_le_mul_right k hi
-
-/-- The inverse of `Op.code`, total by sending every non-code to
-`union`. This is what the table's `init` is defined through, so no
-proof below has to invert the arithmetic more than once. -/
-def Op.decode (k c : ℕ) : Op k :=
-  if c = 0 then .union
-  else if h : c - 1 < k then .leaf ⟨c - 1, h⟩
-  else if h : c - 1 - k < k * k then
-    .eta ⟨(c - 1 - k) / k, div_lt_sq h⟩ ⟨(c - 1 - k) % k, mod_lt_sq h⟩
-  else if h : c - 1 - k - k * k < k * k then
-    .rho ⟨(c - 1 - k - k * k) / k, div_lt_sq h⟩ ⟨(c - 1 - k - k * k) % k, mod_lt_sq h⟩
-  else .union
 
 private theorem div_pair (i j : Fin k) : ((i : ℕ) * k + (j : ℕ)) / k = (i : ℕ) := by
   have hk : 0 < k := Nat.lt_of_le_of_lt (Nat.zero_le _) i.isLt
@@ -128,7 +87,7 @@ theorem Op.decode_code (o : Op k) : Op.decode k o.code = o := by
   | union => rfl
   | leaf l =>
       have hl : (l : ℕ) < k := l.isLt
-      simp only [Op.code, Op.decode, if_neg (show ¬ 1 + (l : ℕ) = 0 by omega),
+      simp only [Op.code_leaf, Op.decode, if_neg (show ¬ 1 + (l : ℕ) = 0 by omega),
         dif_pos (show 1 + (l : ℕ) - 1 < k by omega)]
       simp
   | eta i j =>
@@ -136,7 +95,7 @@ theorem Op.decode_code (o : Op k) : Op.decode k o.code = o := by
       have h0 : ¬ 1 + k + ((i : ℕ) * k + (j : ℕ)) = 0 := by omega
       have h1 : ¬ 1 + k + ((i : ℕ) * k + (j : ℕ)) - 1 < k := by omega
       have h2 : 1 + k + ((i : ℕ) * k + (j : ℕ)) - 1 - k = (i : ℕ) * k + (j : ℕ) := by omega
-      simp only [Op.code, Op.decode, if_neg h0, dif_neg h1, h2, dif_pos hp]
+      simp only [Op.code_eta, Op.decode, if_neg h0, dif_neg h1, h2, dif_pos hp]
       simp [div_pair, Nat.mod_eq_of_lt j.isLt]
   | rho i j =>
       have hp := pair_lt i j
@@ -145,16 +104,16 @@ theorem Op.decode_code (o : Op k) : Op.decode k o.code = o := by
       have h2 : ¬ 1 + k + k * k + ((i : ℕ) * k + (j : ℕ)) - 1 - k < k * k := by omega
       have h3 : 1 + k + k * k + ((i : ℕ) * k + (j : ℕ)) - 1 - k - k * k
           = (i : ℕ) * k + (j : ℕ) := by omega
-      simp only [Op.code, Op.decode, if_neg h0, dif_neg h1, dif_neg h2, h3, dif_pos hp]
+      simp only [Op.code_rho, Op.decode, if_neg h0, dif_neg h1, dif_neg h2, h3, dif_pos hp]
       simp [div_pair, Nat.mod_eq_of_lt j.isLt]
 
 /-- Every code is a label of the table. -/
 theorem Op.code_lt (o : Op k) : o.code < opCard k := by
   cases o with
-  | union => simp [Op.code, opCard]
-  | leaf l => have := l.isLt; simp only [Op.code, opCard]; omega
-  | eta i j => have := pair_lt i j; simp only [Op.code, opCard]; omega
-  | rho i j => have := pair_lt i j; simp only [Op.code, opCard]; omega
+  | union => simp [Op.code_union, opCard_eq]
+  | leaf l => have := l.isLt; simp only [Op.code_leaf, opCard_eq]; omega
+  | eta i j => have := pair_lt i j; simp only [Op.code_eta, opCard_eq]; omega
+  | rho i j => have := pair_lt i j; simp only [Op.code_rho, opCard_eq]; omega
 
 /-! ### The value alphabet
 
@@ -419,7 +378,7 @@ private theorem cls_union_inter_left {e₁ e₂ : Expr n k} (h : Valid (.union e
   constructor
   · rintro ⟨hx | hx, hv⟩
     · exact ⟨hx, hv⟩
-    · exact absurd hv (Finset.disjoint_right.mp h.disjoint (cls_subset_verts e₂ j hx))
+    · exact absurd hv (Finset.disjoint_right.mp (Valid.disjoint h) (cls_subset_verts e₂ j hx))
   · rintro ⟨hx, hv⟩
     exact ⟨Or.inl hx, hv⟩
 
@@ -433,7 +392,7 @@ private theorem cls_union_inter_right {e₁ e₂ : Expr n k} (h : Valid (.union 
   simp only [cls_union, Finset.coe_union, Set.mem_inter_iff, Set.mem_union, Finset.mem_coe]
   constructor
   · rintro ⟨hx | hx, hv⟩
-    · exact absurd hv (Finset.disjoint_left.mp h.disjoint (cls_subset_verts e₁ j hx))
+    · exact absurd hv (Finset.disjoint_left.mp (Valid.disjoint h) (cls_subset_verts e₁ j hx))
     · exact ⟨hx, hv⟩
   · rintro ⟨hx, hv⟩
     exact ⟨Or.inr hx, hv⟩
@@ -452,7 +411,7 @@ theorem typeOf_union (q : ℕ) {e₁ e₂ : Expr n k} (h : Valid (.union e₁ e�
       X := ((verts e₁ : Finset (Fin n)) : Set (Fin n))
       Y := ((verts e₂ : Finset (Fin n)) : Set (Fin n))
       A := A
-      disj := h.disjoint_coe
+      disj := Valid.disjoint_coe h
       sep := sep_union }
   have hL : I.tyL q = typeOf q e₁ := by
     show typ (graph (.union e₁ e₂)) ((verts e₁ : Finset (Fin n)) : Set (Fin n)) q Fin.elim0 A = _
@@ -511,21 +470,21 @@ theorem val_eq_typeOf (q : ℕ) {par lab : ℕ → ℕ} :
       obtain ⟨c₁, c₂, hc, hl, h₁, h₂⟩ := he
       rw [val_eq_foldl, hc]
       simp only [List.foldl_cons, List.foldl_nil, table_init, table_step, hl,
-        ih₁ hv.left c₁ h₁, ih₂ hv.right c₂ h₂, initV, Op.decode_code, dec_enc,
+        ih₁ (Valid.left hv) c₁ h₁, ih₂ (Valid.right hv) c₂ h₂, initV, Op.decode_code, dec_enc,
         stepV_unionEmpty, stepV_unionLeft, typeOf_union q hv]
   | addEdges a b e ih =>
       intro hv i he
       obtain ⟨c, hc, hl, h⟩ := he
       rw [val_eq_foldl, hc]
       simp only [List.foldl_cons, List.foldl_nil, table_init, table_step, hl,
-        ih hv.of_addEdges c h, initV, Op.decode_code, dec_enc, stepV_etaWait,
+        ih (Valid.of_addEdges hv) c h, initV, Op.decode_code, dec_enc, stepV_etaWait,
         typeOf_addEdges]
   | relabel a b e ih =>
       intro hv i he
       obtain ⟨c, hc, hl, h⟩ := he
       rw [val_eq_foldl, hc]
       simp only [List.foldl_cons, List.foldl_nil, table_init, table_step, hl,
-        ih hv.of_relabel c h, initV, Op.decode_code, dec_enc, stepV_rhoWait,
+        ih (Valid.of_relabel hv) c h, initV, Op.decode_code, dec_enc, stepV_rhoWait,
         typeOf_relabel]
 
 /-! ### The root

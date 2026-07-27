@@ -1,3 +1,4 @@
+import Lax11.CliqueExpr
 import Mathlib.Combinatorics.SimpleGraph.Basic
 import Mathlib.Tactic
 
@@ -8,12 +9,15 @@ Cliquewidth replaces treewidth as the width parameter of this
 development (plan decision C11), so the decomposition the program folds
 over is a *`k`-expression*: a term built from labelled single vertices
 by disjoint union, edge addition between two label classes, and
-relabelling. This file is the object itself — the syntax, the evaluator,
-validity, and the handful of structural facts the congruences and the
-main induction consume. No logic, no types, no programs.
+relabelling. The object itself — the syntax, the evaluator, validity,
+and the numbering of the operations — **lives on the endorsement
+surface**, in `concepts/Lax11/CliqueExpr.lean`, and is re-exported here
+under the names the development already uses. What this file adds is
+the handful of structural facts the congruences and the main induction
+consume. No logic, no types, no programs.
 
-Three decisions shape it, all inherited from the ambient-subset style of
-`MsoTypes.lean` and all aimed at keeping the eventual concept surface
+Three decisions shape the surface object, all inherited from the
+ambient-subset style of `MsoTypes.lean` and all aimed at keeping it
 auditable in one sitting (plan C12):
 
 *Vertices are named globally by the leaves.* A leaf carries a vertex
@@ -53,95 +57,32 @@ namespace Lax11Proofs.CliqueExpr
 
 variable {n k : ℕ}
 
-/-- A `k`-expression over the vertex names `Fin n`: a single labelled
-vertex, disjoint union, edge addition between two label classes, or
-relabelling one class into another. -/
-inductive Expr (n k : ℕ) : Type
-  /-- The vertex `v`, carrying label `l`. -/
-  | leaf (v : Fin n) (l : Fin k)
-  /-- Disjoint union `⊕`. -/
-  | union (e₁ e₂ : Expr n k)
-  /-- `η i j`: join every vertex of class `i` to every vertex of class `j`. -/
-  | addEdges (i j : Fin k) (e : Expr n k)
-  /-- `ρ i j`: move class `i` into class `j`. -/
-  | relabel (i j : Fin k) (e : Expr n k)
+/-! ### The object
 
-/-- The vertex names created by the leaves, in order. -/
-def leafIds : Expr n k → List (Fin n)
-  | .leaf v _ => [v]
-  | .union e₁ e₂ => leafIds e₁ ++ leafIds e₂
-  | .addEdges _ _ e => leafIds e
-  | .relabel _ _ e => leafIds e
+The expression type, its four evaluation recursions, the well-formedness
+test and the two validity predicates are the surface definitions of
+`Lax11.CliqueExpr`; the constructors are re-exported too, so that every
+use site below reads as if they were declared here. The decidable
+adjacency instance comes along with `graph` as an instance. -/
 
-/-- The vertex set of an expression. -/
-def verts : Expr n k → Finset (Fin n)
-  | .leaf v _ => {v}
-  | .union e₁ e₂ => verts e₁ ∪ verts e₂
-  | .addEdges _ _ e => verts e
-  | .relabel _ _ e => verts e
+export Lax11.CliqueExpr (Expr Expr.leaf Expr.union Expr.addEdges Expr.relabel
+  leafIds verts cls graph opsOk Valid ValidFor)
 
-/-- The label classes of an expression: `cls e i` is the set of vertices
-of `e` currently carrying label `i`. -/
-def cls : Expr n k → Fin k → Finset (Fin n)
-  | .leaf v l, i => if i = l then {v} else ∅
-  | .union e₁ e₂, i => cls e₁ i ∪ cls e₂ i
-  | .addEdges _ _ e, i => cls e i
-  | .relabel i j e, t => if t = j then cls e i ∪ cls e j else if t = i then ∅ else cls e t
+/-! The numbering of the operations is on the surface too — it is the
+alphabet an expression is written in when it is handed to the machine,
+so it is part of the input format. `MsoTable.lean` proves the two facts
+about it that the fold needs. -/
 
-/-- The graph an expression evaluates to. -/
-def graph : Expr n k → SimpleGraph (Fin n)
-  | .leaf _ _ => ⊥
-  | .union e₁ e₂ => graph e₁ ⊔ graph e₂
-  | .addEdges i j e => graph e ⊔ SimpleGraph.fromRel fun u v => u ∈ cls e i ∧ v ∈ cls e j
-  | .relabel _ _ e => graph e
-
-/-- The evaluated graph has a decidable adjacency relation, by the same
-structural recursion — this is what makes the smoke tests `decide`. -/
-instance decidableAdj : ∀ e : Expr n k, DecidableRel (graph e).Adj
-  | .leaf _ _ => fun u v => show Decidable ((⊥ : SimpleGraph (Fin n)).Adj u v) from
-      inferInstance
-  | .union e₁ e₂ => fun u v => by
-      letI := decidableAdj e₁
-      letI := decidableAdj e₂
-      exact show Decidable ((graph e₁ ⊔ graph e₂).Adj u v) from inferInstance
-  | .addEdges i j e => fun u v => by
-      letI := decidableAdj e
-      exact show Decidable
-        ((graph e ⊔ SimpleGraph.fromRel fun u v => u ∈ cls e i ∧ v ∈ cls e j).Adj u v) from
-        inferInstance
-  | .relabel _ _ e => fun u v => by
-      letI := decidableAdj e
-      exact show Decidable ((graph e).Adj u v) from inferInstance
-
-/-- Well-formedness of the operations: `addEdges` joins two *different*
-classes, the standard restriction on `η`. -/
-def opsOk : Expr n k → Bool
-  | .leaf _ _ => true
-  | .union e₁ e₂ => opsOk e₁ && opsOk e₂
-  | .addEdges i j e => (i != j) && opsOk e
-  | .relabel _ _ e => opsOk e
-
-/-- A valid expression: the leaves create pairwise distinct vertices —
-which is what makes the two sides of every `⊕` disjoint — and the
-operations are well formed. -/
-structure Valid (e : Expr n k) : Prop where
-  /-- No vertex name is created twice. -/
-  nodup : (leafIds e).Nodup
-  /-- Every `addEdges` joins two different classes. -/
-  ops : opsOk e = true
-
-/-- A `k`-expression *for* `G`: valid, and at the root it has created
-every vertex and exactly the edges of `G`. -/
-structure ValidFor (e : Expr n k) (G : SimpleGraph (Fin n)) : Prop extends Valid e where
-  /-- The root creates every vertex. -/
-  verts_eq : verts e = Finset.univ
-  /-- The root evaluates to `G`. -/
-  graph_eq : graph e = G
+export Lax11.CliqueExpr (Op Op.union Op.leaf Op.eta Op.rho Op.code Op.decode opCard)
 
 /-! ### The equations
 
-Named `rfl` lemmas for the four recursions, so that no proof below has
-to `simp` with a definition written by pattern matching. -/
+Named `rfl` lemmas for the four recursions and for the operation codes,
+so that no proof below — or in any file that consumes the surface — has
+to `simp` with a definition written by pattern matching. That is not a
+convenience: unfolding a concept definition by `simp` generates its
+match splitter *in the proof package*, under the concept's namespace,
+which the archive's namespace check rejects. -/
 
 @[simp] theorem leafIds_leaf (v : Fin n) (l : Fin k) :
     leafIds (Expr.leaf v l) = [v] := rfl
@@ -189,6 +130,15 @@ to `simp` with a definition written by pattern matching. -/
     opsOk (.addEdges i j e) = ((i != j) && opsOk e) := rfl
 @[simp] theorem opsOk_relabel (i j : Fin k) (e : Expr n k) :
     opsOk (.relabel i j e) = opsOk e := rfl
+
+@[simp] theorem Op.code_union : (Op.union : Op k).code = 0 := rfl
+@[simp] theorem Op.code_leaf (l : Fin k) : (Op.leaf l).code = 1 + (l : ℕ) := rfl
+@[simp] theorem Op.code_eta (i j : Fin k) :
+    (Op.eta i j).code = 1 + k + ((i : ℕ) * k + (j : ℕ)) := rfl
+@[simp] theorem Op.code_rho (i j : Fin k) :
+    (Op.rho i j).code = 1 + k + k * k + ((i : ℕ) * k + (j : ℕ)) := rfl
+
+theorem opCard_eq (k : ℕ) : opCard k = 1 + k + 2 * (k * k) := rfl
 
 /-! ### The structural facts
 

@@ -1,14 +1,19 @@
+import Lax11.Mso
 import Lax11Proofs.MsoTypes
 
 /-!
 Monadic second-order logic on graphs: the syntax, and the semantics that
 is the new trust object.
 
-This is the *draft* of what plan step 5 will copy out to the endorsement
-surface verbatim, so it is written to be read: seven constructors and a
-fifteen-line recursion, and nothing else. Everything that a formalization
-of MSO usually drags along — substitution, capture avoidance, a `Closed`
+`MSO`, `rank` and `Sat` **live on the endorsement surface**, in
+`concepts/Lax11/Mso.lean`, and are re-exported here under the names the
+development already uses: seven constructors and a fifteen-line
+recursion, and nothing else. Everything that a formalization of MSO
+usually drags along — substitution, capture avoidance, a `Closed`
 predicate, well-formedness side conditions — is absent by construction.
+What this file adds is the machinery the proofs need and the surface
+does not carry: the `rank` equations, the relativized `SatIn`, and the
+bridge between them.
 
 *Well-scoped de Bruijn* (plan decision C2). `MSO r s` is the type of
 formulas with `r` free vertex variables and `s` free set variables, so
@@ -40,44 +45,18 @@ the atoms.
 
 Finally, `SatIn` — satisfaction *relativized to a region* — is the
 workhorse the type algebra actually talks about; `Sat` is the special case
-of the whole graph (`satIn_univ`). The surface will carry `Sat` alone.
+of the whole graph (`satIn_univ`). The surface carries `Sat` alone.
 -/
 
 namespace Lax11Proofs.MsoTypes
 
-/-! ### Syntax -/
+/-! ### Syntax
 
-/-- Formulas of monadic second-order logic over the adjacency signature,
-with `r` free vertex variables and `s` free set variables. Vertex
-variables are `Fin r`, set variables are `Fin s`, and a quantifier binds
-the *new last* index (`Fin.snoc` convention). -/
-inductive MSO : ℕ → ℕ → Type
-  /-- The vertices `i` and `j` are adjacent. -/
-  | adj {r s : ℕ} (i j : Fin r) : MSO r s
-  /-- The vertices `i` and `j` are equal. -/
-  | eq {r s : ℕ} (i j : Fin r) : MSO r s
-  /-- The vertex `i` belongs to the set `X`. -/
-  | mem {r s : ℕ} (i : Fin r) (X : Fin s) : MSO r s
-  /-- Negation. -/
-  | not {r s : ℕ} (φ : MSO r s) : MSO r s
-  /-- Conjunction. -/
-  | and {r s : ℕ} (φ ψ : MSO r s) : MSO r s
-  /-- There is a vertex satisfying `φ`, bound at index `Fin.last r`. -/
-  | exV {r s : ℕ} (φ : MSO (r + 1) s) : MSO r s
-  /-- There is a set of vertices satisfying `φ`, bound at index
-  `Fin.last s`. -/
-  | exS {r s : ℕ} (φ : MSO r (s + 1)) : MSO r s
+The syntax, the quantifier rank and satisfaction are the surface
+definitions of `Lax11.Mso`; the constructors are re-exported too, so
+that every use site below reads as if they were declared here. -/
 
-/-- The quantifier rank: the nesting depth of quantifiers, counting both
-kinds. This is the parameter the type algebra is indexed by. -/
-def rank : {r s : ℕ} → MSO r s → ℕ
-  | _, _, .adj _ _ => 0
-  | _, _, .eq _ _ => 0
-  | _, _, .mem _ _ => 0
-  | _, _, .not φ => rank φ
-  | _, _, .and φ ψ => max (rank φ) (rank ψ)
-  | _, _, .exV φ => rank φ + 1
-  | _, _, .exS φ => rank φ + 1
+export Lax11.Mso (MSO MSO.adj MSO.eq MSO.mem MSO.not MSO.and MSO.exV MSO.exS rank Sat)
 
 @[simp] theorem rank_adj {r s : ℕ} (i j : Fin r) : rank (MSO.adj (s := s) i j) = 0 := rfl
 
@@ -96,24 +75,12 @@ def rank : {r s : ℕ} → MSO r s → ℕ
 
 /-! ### Semantics
 
-The trust object. `Sat G m A φ` says that `φ` holds in the graph `G`
-under the vertex environment `m` and the set environment `A`. Every case
-is one line, no case has a side condition, and the recursion is
-structural in the formula. -/
+The trust object, `Sat G m A φ` — that `φ` holds in the graph `G` under
+the vertex environment `m` and the set environment `A` — is on the
+surface. What is defined here is its relativization to a region, which
+is what the type algebra computes. -/
 
 variable {n : ℕ}
-
-/-- Satisfaction of an MSO formula in the graph `G`, under a vertex
-environment `m` and a set environment `A`. -/
-def Sat (G : SimpleGraph (Fin n)) :
-    {r s : ℕ} → (Fin r → Fin n) → (Fin s → Set (Fin n)) → MSO r s → Prop
-  | _, _, m, _, .adj i j => G.Adj (m i) (m j)
-  | _, _, m, _, .eq i j => m i = m j
-  | _, _, m, A, .mem i X => m i ∈ A X
-  | _, _, m, A, .not φ => ¬ Sat G m A φ
-  | _, _, m, A, .and φ ψ => Sat G m A φ ∧ Sat G m A ψ
-  | _, _, m, A, .exV φ => ∃ v : Fin n, Sat G (Fin.snoc m v) A φ
-  | _, _, m, A, .exS φ => ∃ S : Set (Fin n), Sat G m (Fin.snoc A S) φ
 
 /-- Satisfaction relativized to a region `X`: the atoms are read in the
 ambient graph `G`, but both quantifiers range over `X` only — vertices
