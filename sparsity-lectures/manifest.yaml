@@ -17,3 +17,28 @@ bibEntries:
                 Chapter~4 compiled 2019-12-12},
       url    = {https://www.mimuw.edu.pl/~mp248287/sparsity2/}
     }
+  - |
+    @inproceedings{EickmeyerGiannopoulouKreutzerKwonPilipczukRabinovichSiebertz2017,
+      author    = {Eickmeyer, Kord and Giannopoulou, Archontia C. and
+                   Kreutzer, Stephan and Kwon, O-joung and Pilipczuk,
+                   Micha{\l} and Rabinovich, Roman and Siebertz, Sebastian},
+      title     = {Neighborhood Complexity and Kernelization for Nowhere
+                   Dense Classes of Graphs},
+      booktitle = {Proceedings of the 44th International Colloquium on
+                   Automata, Languages, and Programming (ICALP 2017)},
+      series    = {LIPIcs},
+      volume    = {80},
+      pages     = {63:1--63:14},
+      year      = {2017},
+      doi       = {10.4230/LIPIcs.ICALP.2017.63}
+    }
+  - |
+    @misc{DreierMahlmannMcCartyPilipczukTorunczyk2026,
+      author        = {Dreier, Jan and M{\"a}hlmann, Nikolas and McCarty, Rose
+                       and Pilipczuk, Micha{\l} and Toru{\'n}czyk, Szymon},
+      title         = {Neighborhood Complexity and Radius-1 Merge-Width in
+                       Monadically Dependent Graph Classes},
+      year          = {2026},
+      eprint        = {2607.10941},
+      archivePrefix = {arXiv}
+    }

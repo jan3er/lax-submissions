@@ -5,9 +5,11 @@ import Lax12.ShallowTopologicalMinors
 import Lax12.ColoringNumbers
 import Lax12.Admissibility
 import Lax12.UniformQuasiWideness
+import Lax12.NeighborhoodComplexity
 import Lax12.NowhereDenseUQW
 import Lax12.NowhereDenseDensity
 import Lax12.AdmissibilityBound
 import Lax12.StrongColoringBound
 import Lax12.WeakColoringBound
 import Lax12.NowhereDenseWcol
+import Lax12.NowhereDenseNC

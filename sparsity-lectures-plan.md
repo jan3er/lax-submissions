@@ -1944,3 +1944,107 @@ Server build+replay passed for each. Submits ran from a temp clone
 (clean-worktree requirement vs Jan's NIGHTLOG WIP); local `--replay`
 skipped at Jan's request (RAM), the server replay covers it. Step 6
 (bottom-up registration) remains open, Jan's call.
+
+### P6-A log
+
+Jan's decision: the neighborhood-complexity pair moves from Lax5 to Lax12.
+Framing (Jan, mid-phase): neighborhood complexity is sparsity theory proper
+and the monadic-dependence submission builds on top of it — so Lax12
+presents the pair as part of its own subject, not as an out-of-scope
+inclusion. Factual attribution unchanged: the theorem is the radius-1 case
+of Eickmeyer–Giannopoulou–Kreutzer–Kwon–Pilipczuk–Rabinovich–Siebertz
+(ICALP 2017); the lecture notes discuss neighborhood complexity but cite
+the almost-linear bound as literature.
+
+**Files added to Lax12** (nothing else in the submission was edited except
+the two root modules, `abstract.md`, `manifest.yaml`):
+
+- `sparsity-lectures/concepts/Lax12/NeighborhoodComplexity.lean` —
+  definition-concept, zero axioms. `traceCount` + `HasAlmostLinearNC`,
+  byte-identical to `Lax5/NeighborhoodComplexity.lean` modulo namespace;
+  the formalization notes gained one paragraph tying the class-level
+  predicate to the submission's other asymptotic predicates.
+- `sparsity-lectures/concepts/Lax12/NowhereDenseNC.lean` —
+  theorem-concept, one axiom `hasAlmostLinearNC_of_nowhereDense` (name
+  kept). Description/notes rewritten for the attribution above and to say
+  that only radius 1 is claimed.
+- `sparsity-lectures/proofs/Lax12Proofs/NowhereDenseNeighborhoods.lean` —
+  the 1005-line helper file, renamespaced (`Lax5Proofs` → `Lax12Proofs`,
+  `Lax5.WeakColoring` → `Lax12.ColoringNumbers`, `Lax5.NowhereDenseClasses`
+  / `Lax5.GraphClasses` → their Lax12 twins). No other change; the
+  concept declarations are byte-identical, so this was a pure retarget.
+- `sparsity-lectures/proofs/Lax12Proofs/NowhereDenseNC.lean` — the former
+  `Lax5Proofs/Corollary6b.lean`, renamespaced and renamed to match the
+  concept module; module docstring and `# Attribution` rewritten (EGKKPRS
+  for the statement, DMMPT26's Corollary 6b for the proof route). Proof
+  body unchanged.
+- Root modules: `Lax12.lean` gained `Lax12.NeighborhoodComplexity` (after
+  `UniformQuasiWideness`, last of the definitions) and
+  `Lax12.NowhereDenseNC` (last, after `NowhereDenseWcol`);
+  `Lax12Proofs.lean` gained `Lax12Proofs.NowhereDenseNeighborhoods` and
+  `Lax12Proofs.NowhereDenseNC` at the end.
+- `manifest.yaml`: two new bibEntries — EGKKPRS ICALP 2017 (Lax5's
+  manifest had none, so it was written here) and DMMPT26 (copied verbatim
+  from Lax5's manifest, since the proof route is cited).
+- `abstract.md`: fifteen review units, eight definitions / seven theorems;
+  neighborhood complexity introduced in the opening paragraph as the
+  consequence the weak-coloring chain is aimed at; the closing provenance
+  paragraph now says "except for the neighborhood-complexity theorem, all
+  material is from the lecture notes" and names EGKKPRS + DMMPT26.
+
+**Verified assumption set.** `#print axioms
+Lax12Proofs.NowhereDenseNC.hasAlmostLinearNC_of_nowhereDense` gives
+exactly `propext, Classical.choice, Quot.sound,
+Lax12.NowhereDenseWcol.hasSubpolynomialWcol_of_nowhereDense` — background
+plus the single declared assumption. `build-output.json` records the proof
+with `assumptions: ['Lax12.NowhereDenseWcol.hasSubpolynomialWcol_of_nowhereDense']`
+and 15 concepts.
+
+**Build status.** `lake build` green in `sparsity-lectures/concepts/` and
+`sparsity-lectures/proofs/`; `lax build sparsity-lectures` (no `--replay`,
+per the RAM constraint) OK, zero violations — only the standing warning
+that the Lax14 dependency is a draft.
+
+**Copy vs. move, for the Lax5 phase (P6-B).** The import closure of
+`Corollary6b.lean` inside `Lax5Proofs` is exactly one module,
+`NowhereDenseNeighborhoods.lean`, and that module is imported by nothing
+else in Lax5Proofs (only by `Corollary6b` and the root module). So:
+
+- **MOVE (Lax5 can delete):** `Lax5Proofs/Corollary6b.lean`,
+  `Lax5Proofs/NowhereDenseNeighborhoods.lean`, and their two lines in
+  `Lax5Proofs.lean`. Concepts to delete: `Lax5/NeighborhoodComplexity.lean`
+  — but see the caveat below — and `Lax5/NowhereDenseNC.lean` plus their
+  `Lax5.lean` imports.
+- **COPY (nothing):** no module was shared with the Theorem 2 /
+  Corollary 6a machinery, so nothing had to be duplicated.
+
+Caveats the Lax5 phase must handle (out of scope here, Lax5 was touched
+read-only):
+
+- `Lax5Proofs/Corollary6.lean` (the glue proof for Corollary 6) applies
+  `Lax5.NowhereDenseNC.hasAlmostLinearNC_of_nowhereDense`; after the move
+  it must assume `Lax12.NowhereDenseNC.hasAlmostLinearNC_of_nowhereDense`
+  instead. Its conclusion lives in `Lax5.WeaklySparseDependent`.
+- `Lax5.NeighborhoodComplexity` is *not* freely deletable: `Lax5/
+  AlmostLinearNC.lean` (the submission's headline) and `Lax5Proofs/
+  Lemma21.lean` / `Corollary6.lean` / `SparsGraphs.lean` consume
+  `traceCount` / `HasAlmostLinearNC`. Either Lax5 keeps its own copy of
+  the definition-concept (nominal duplication, as with `GraphClasses` /
+  `NowhereDenseClasses`) or it retargets those to `Lax12.
+  NeighborhoodComplexity`; since `Lax5-proofs` already requires
+  `Lax12-concepts` but `Lax5-concepts` does not, only the proof-side uses
+  can be retargeted without introducing a concept-level pin. Recommended:
+  keep `Lax5/NeighborhoodComplexity.lean`, delete only
+  `Lax5/NowhereDenseNC.lean`, and let `Corollary6.lean` transport across
+  the two definitionally equal predicates (`HasAlmostLinearNC` is `rfl`-
+  equal on both sides — same body, same `GraphClass` abbrev).
+- Lax5's `abstract.md` and the README's Lax5 blurb still advertise the
+  nowhere-dense NC ingredient theorem as Lax5's own.
+
+**Deviations from the brief.** (1) The abstract/docstring framing follows
+Jan's mid-phase correction, not the "downstream consumer / not
+lecture-notes material" wording of the original brief. (2) A DMMPT26
+bibEntry was added alongside the required EGKKPRS one, because the
+attribution names it. (3) The proof module is named `NowhereDenseNC.lean`
+rather than `Corollary6b.lean`, matching Lax12Proofs' concept-mirroring
+naming.

@@ -20,3 +20,5 @@ import Lax12Proofs.AdmissibilityBound
 import Lax12Proofs.StrongColoringBound
 import Lax12Proofs.WeakColoringBound
 import Lax12Proofs.NowhereDenseWcol
+import Lax12Proofs.NowhereDenseNeighborhoods
+import Lax12Proofs.NowhereDenseNC
