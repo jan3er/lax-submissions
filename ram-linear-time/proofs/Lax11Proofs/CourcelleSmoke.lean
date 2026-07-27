@@ -101,15 +101,17 @@ theorem encodesGraph_csrBlock : Lax11.GraphEncoding.EncodesGraph csrBlock 3 path
             | exact ⟨2, by decide⟩ | exact ⟨3, by decide⟩
             | simp_all)
 
-theorem encodesExprTree_exprBlock : EncodesExprTree exprBlock 7 2 where
-  nodeCount_eq := rfl
+theorem encodesExprTree_exprBlock : EncodesExprTree exprBlock 2 where
   pos := by decide
   length_eq := by decide
   parent_gt := by
     intro i hi
-    have hi' : i < 6 := by omega
+    have hi' : i < 6 := by have : i + 1 < 7 := hi; omega
     interval_cases i <;> decide
-  opCode_lt := by intro i hi; interval_cases i <;> decide
+  opCode_lt := by
+    intro i hi
+    have hi' : i < 7 := hi
+    interval_cases i <;> decide
 
 theorem encodesExpr_exprBlock :
     EncodesExpr (parent exprBlock) (opCode exprBlock) (vertexName exprBlock) 6 pathExpr :=
@@ -130,7 +132,7 @@ theorem validFor_pathExpr : ValidFor pathExpr pathG where
 `0—1—2` in compressed sparse row form together with a `2`-expression for
 it. -/
 theorem encodesInstance_instanceWord : EncodesInstance instanceWord 3 pathG 2 :=
-  ⟨csrBlock, exprBlock, 7, pathExpr, rfl, encodesGraph_csrBlock,
+  ⟨csrBlock, exprBlock, pathExpr, rfl, encodesGraph_csrBlock,
     encodesExprTree_exprBlock, encodesExpr_exprBlock, validFor_pathExpr⟩
 
 end Lax11Proofs.CourcelleSmoke

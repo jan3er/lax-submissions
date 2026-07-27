@@ -170,7 +170,7 @@ theorem instance_tape {x : List ℕ} {n k : ℕ} {G : SimpleGraph (Fin n)}
         (∀ i < N, tr.getD (N + i) 0 < opCard k) ∧
         ValidFor e G ∧
         EncExpr (fun i => tr.getD i 0) (fun i => tr.getD (N + i) 0) (N - 1) e := by
-  obtain ⟨g, t, N, e, rfl, hg, ht, he, hvf⟩ := hx
+  obtain ⟨g, t, e, rfl, hg, ht, he, hvf⟩ := hx
   -- the graph block: two header entries, then the offsets and the targets
   obtain ⟨b, gr, rfl⟩ : ∃ b gr, g = n :: b :: gr := by
     cases g with
@@ -187,14 +187,16 @@ theorem instance_tape {x : List ℕ} {n k : ℕ} {G : SimpleGraph (Fin n)}
     simp at hlen
     omega
   -- the expression block: the node count, then three arrays
-  obtain ⟨tr, rfl⟩ : ∃ tr, t = N :: tr := by
+  obtain ⟨N, tr, rfl⟩ : ∃ N tr, t = N :: tr := by
     cases t with
-    | nil => have := ht.length_eq; simp at this; omega
-    | cons c tr =>
-        refine ⟨tr, ?_⟩
-        rw [show c = N from ht.nodeCount_eq]
+    | nil =>
+        have h0 : nodeCount ([] : List ℕ) = 0 := rfl
+        have := ht.length_eq; rw [h0] at this; simp at this
+    | cons c tr => exact ⟨c, tr, rfl⟩
+  -- the node count is the block's first entry, so it is `N` by definition
+  have hN : nodeCount (N :: tr) = N := rfl
   have htrlen : tr.length = 3 * N := by
-    have := ht.length_eq; simp at this; omega
+    have := ht.length_eq; rw [hN] at this; simp at this; omega
   -- the two accessors, as functions of the segment
   have hpar : parent (N :: tr) = fun i => tr.getD i 0 := by
     funext i
@@ -204,8 +206,7 @@ theorem instance_tape {x : List ℕ} {n k : ℕ} {G : SimpleGraph (Fin n)}
   have hlab : opCode (N :: tr) = fun i => tr.getD (N + i) 0 := by
     funext i
     show (N :: tr).getD (1 + nodeCount (N :: tr) + i) 0 = _
-    rw [show nodeCount (N :: tr) = N from ht.nodeCount_eq,
-      show 1 + N + i = (N + i) + 1 from by omega]
+    rw [hN, show 1 + N + i = (N + i) + 1 from by omega]
     rfl
   refine ⟨b, N, gr, tr, e, rfl, hgrlen, htrlen, ht.pos, ?_, ?_, ?_, ?_, hvf, ?_⟩
   · simp; omega

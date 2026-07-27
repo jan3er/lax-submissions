@@ -93,22 +93,21 @@ in increasing order. -/
 def children (par : ℕ → ℕ) (i : ℕ) : List ℕ :=
   (List.range i).filter (fun c => par c == i)
 
-/-- The word `t` is an expression block for a tree on `N` nodes whose
-operations are operations of `k`-expressions. -/
-structure EncodesExprTree (t : List ℕ) (N k : ℕ) : Prop where
-  /-- The block declares `N` nodes. -/
-  nodeCount_eq : nodeCount t = N
+/-- The word `t` is an expression block for a tree whose operations are
+operations of `k`-expressions. The number of nodes is the block's own
+first entry, so it is read off `t` rather than quantified over. -/
+structure EncodesExprTree (t : List ℕ) (k : ℕ) : Prop where
   /-- There is at least one node: an expression has a root. -/
-  pos : 1 ≤ N
+  pos : 1 ≤ nodeCount t
   /-- The block consists of the header entry and three arrays of one
   number per node. -/
-  length_eq : t.length = 1 + 3 * N
+  length_eq : t.length = 1 + 3 * nodeCount t
   /-- Every node but the last has a parent, which is a later node — so
   children are numbered before their parents and the root is the last
   node. -/
-  parent_gt : ∀ i, i + 1 < N → i < parent t i ∧ parent t i < N
+  parent_gt : ∀ i, i + 1 < nodeCount t → i < parent t i ∧ parent t i < nodeCount t
   /-- Every operation entry is the number of an operation. -/
-  opCode_lt : ∀ i < N, opCode t i < opCard k
+  opCode_lt : ∀ i < nodeCount t, opCode t i < opCard k
 
 /-- The node `i` of the tree given by the three arrays is the
 expression `e`: the operation number at `i` is the one of `e`'s
@@ -131,9 +130,9 @@ def EncodesExpr {n k : ℕ} (par lab ids : ℕ → ℕ) : ℕ → Expr n k → P
 followed by an expression block whose arrays describe a valid
 `k`-expression, rooted at its last node, that evaluates to `G`. -/
 def EncodesInstance (x : List ℕ) (n : ℕ) (G : SimpleGraph (Fin n)) (k : ℕ) : Prop :=
-  ∃ (g t : List ℕ) (N : ℕ) (e : Expr n k),
-    x = g ++ t ∧ EncodesGraph g n G ∧ EncodesExprTree t N k ∧
-      EncodesExpr (parent t) (opCode t) (vertexName t) (N - 1) e ∧ ValidFor e G
+  ∃ (g t : List ℕ) (e : Expr n k),
+    x = g ++ t ∧ EncodesGraph g n G ∧ EncodesExprTree t k ∧
+      EncodesExpr (parent t) (opCode t) (vertexName t) (nodeCount t - 1) e ∧ ValidFor e G
 
 open Classical in
 /-- **Courcelle's theorem** (Courcelle–Makowsky–Rotics form): model
