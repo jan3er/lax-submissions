@@ -1,3 +1,4 @@
+import Lax11.Courcelle
 import Lax11Proofs.CourcelleDriver
 
 /-!
@@ -29,7 +30,7 @@ open Lax11.Ram Lax11.RamComputes Lax11.GraphEncoding Lax11.Mso Lax11.CliqueExpr
 open Lax11Proofs.Imp Lax11Proofs.Compile Lax11Proofs.Reasoning
 open Lax11Proofs.TreeFold Lax11Proofs.MsoTypes Lax11Proofs.MsoTable
 open Lax11Proofs.CC (readLoop readLoop_run)
-open Lax11.Courcelle (EncodesInstance)
+open Lax11.InstanceEncoding (EncodesModelCheckingInstance)
 
 /-! ### The run
 
@@ -295,7 +296,7 @@ These are the honesty items of the theorem: what the statement claims,
 where it and a textbook proof part company, and what a reader is
 entitled to know was decided rather than proved. The definitions carry
 their own notes — the logic in `Lax11.Mso`, `k`-expressions in
-`Lax11.CliqueExpr`, the input format in `Lax11.Courcelle` — and what is
+`Lax11.CliqueExpr`, the input format in `Lax11.InstanceEncoding` — and what is
 said there is not repeated here.
 
 *The width measure is cliquewidth, and the conversion from treewidth is
@@ -427,7 +428,7 @@ program is the textbook bottom-up fold.
 theorem exists_linearTime_program_modelChecking :
     ∀ (φ : MSO 0 0) (k : ℕ),
       ∃ (p : Program) (c : ℕ), ∀ (n : ℕ) (G : SimpleGraph (Fin n)),
-        ComputesInTime p {x | EncodesInstance x n G k}
+        ComputesInTime p {x | EncodesModelCheckingInstance x n G k}
           (fun _ => if Sat G Fin.elim0 Fin.elim0 φ then [1] else [0])
           (fun x => c * (x.length + 1)) := by
   intro φ k

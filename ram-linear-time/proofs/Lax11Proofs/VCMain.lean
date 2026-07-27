@@ -33,7 +33,7 @@ comes out, and the cost is `2 ^ k` times linear in the length of the
 word. Every phase was bounded loosely, and this is the sum of those
 bounds. -/
 theorem vcCom_run {x : List ℕ} {n : ℕ} {G : SimpleGraph (Fin n)} {k m : ℕ}
-    (hx : EncodesInstance x n G k) (hm : edgeCount x = m) :
+    (hx : EncodesParamInstance x n G k) (hm : edgeCount x = m) :
     ∃ (σ' : Env) (K : ℕ), Run vcCom (initEnv (vcExt n m k) x) σ' K ∧
       σ'.out = [if G.vertexCoverNum ≤ (k : ℕ∞) then 1 else 0] ∧
       K ≤ 900 * 2 ^ k * (x.length + 1) := by
@@ -254,7 +254,7 @@ with the refined analyses that beat it.
 -/
 theorem exists_fptTime_program_vertexCover :
     ∃ (p : Program) (c : ℕ), ∀ (n : ℕ) (G : SimpleGraph (Fin n)) (k : ℕ),
-      ComputesInTime p {x | EncodesInstance x n G k}
+      ComputesInTime p {x | EncodesParamInstance x n G k}
         (fun _ => if G.vertexCoverNum ≤ (k : ℕ∞) then [1] else [0])
         (fun x => c * 2 ^ k * (x.length + 1)) := by
   refine ⟨vcProgram, 33300, fun n G k => computesInTime_of_run vcCom_ok ?_⟩

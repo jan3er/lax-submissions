@@ -21,9 +21,12 @@ submission page.
   of each concept file: the MSO₁ scope and the de Bruijn family in
   `concepts/Lax11/Mso.lean`; global vertex names, label classes as
   sets, and the totality of the operation decoding in
-  `concepts/Lax11/CliqueExpr.lean`; the expression as input, the
-  certificate clause, the unread vertex-name array and the
-  children-before-parents numbering in `concepts/Lax11/Courcelle.lean`.
+  `concepts/Lax11/CliqueExpr.lean`; the certificate clause, the unread
+  vertex-name array and the children-before-parents numbering in
+  `concepts/Lax11/InstanceEncoding.lean`. The statement's own items —
+  the expression as input rather than something the program computes,
+  and the order of the quantifiers — are in the `# Formalization notes`
+  of `concepts/Lax11/Courcelle.lean`.
 - **The connected-components theorem's** items are in the conclusion
   annotation of `proofs/Lax11Proofs/CCMain.lean`, and the machine,
   the cost model and the graph encoding carry their own notes in

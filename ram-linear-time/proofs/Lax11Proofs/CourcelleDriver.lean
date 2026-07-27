@@ -11,7 +11,7 @@ schema of `TreeFold.lean` reads a parent-pointer tree and computes a
 table's fold over it; `MsoTable.lean` supplies the table, and its
 `acceptVal_val` says the root value decides the sentence. What is left,
 and what this file is, is the *instance word*: the surface encoding of
-`Lax11.Courcelle` presents a compressed sparse row block followed by an
+`Lax11.InstanceEncoding` presents a compressed sparse row block followed by an
 expression block of three arrays, and the schema's own encoding is
 neither of those. So the program here is the schema's program with a
 different front end and a one-instruction epilogue.
@@ -51,8 +51,8 @@ open Lax11.Ram Lax11.RamComputes Lax11.GraphEncoding Lax11.Mso Lax11.CliqueExpr
 open Lax11Proofs.Imp Lax11Proofs.Compile Lax11Proofs.Reasoning
 open Lax11Proofs.TreeFold Lax11Proofs.MsoTable
 open Lax11Proofs.CC (readLoop)
-open Lax11.Courcelle (nodeCount parent opCode vertexName EncodesExprTree EncodesExpr
-  EncodesInstance)
+open Lax11.InstanceEncoding (nodeCount parent opCode vertexName EncodesExprTree EncodesExpr
+  EncodesModelCheckingInstance)
 
 /-! ### The program
 
@@ -116,7 +116,7 @@ def driverExt (T : Table) (n m N : ℕ) (a : String) : ℕ :=
 
 /-! ### The first bridge: the surface relation forgets to the fold's
 
-`Lax11.Courcelle.EncodesExpr` and `MsoTable.EncExpr` are the same
+`Lax11.InstanceEncoding.EncodesExpr` and `MsoTable.EncExpr` are the same
 recursion, except that the surface one also pins the vertex name at
 every leaf — the certificate clause the program has no use for. The
 forgetful direction is a structural induction with nothing in it; the
@@ -125,7 +125,7 @@ even be rewritten. -/
 
 /-- The schema's children and the surface's are the same list. -/
 theorem children_eq (par : ℕ → ℕ) (i : ℕ) :
-    Lax11.Courcelle.children par i = TreeFold.children par i := rfl
+    Lax11.InstanceEncoding.children par i = TreeFold.children par i := rfl
 
 /-- **The surface encoding relation implies the fold's.** -/
 theorem encExpr_of_encodesExpr {n k : ℕ} {par lab ids : ℕ → ℕ} :
@@ -143,7 +143,7 @@ theorem encExpr_of_encodesExpr {n k : ℕ} {par lab ids : ℕ → ℕ} :
 
 The program's view of the word is a list of segments: two header
 numbers, the rest of the graph block, the node count, and then three
-arrays of `N` numbers each. `EncodesInstance` states its clauses through
+arrays of `N` numbers each. `EncodesModelCheckingInstance` states its clauses through
 the accessors `parent`, `opCode`, `vertexName`, which are `List.getD` at
 computed offsets; this lemma turns the whole package into the segments
 and the two functions the fold speaks about. -/
@@ -161,7 +161,7 @@ about an admissible input: the four segments the reads consume, their
 lengths, the two functions the fold folds over, and the expression that
 the second block encodes. -/
 theorem instance_tape {x : List ℕ} {n k : ℕ} {G : SimpleGraph (Fin n)}
-    (hx : EncodesInstance x n G k) :
+    (hx : EncodesModelCheckingInstance x n G k) :
     ∃ (m N : ℕ) (gr tr : List ℕ) (e : Expr n k),
       x = n :: m :: (gr ++ N :: tr) ∧ gr.length = n + 1 + (m + m) ∧
         tr.length = 3 * N ∧ 1 ≤ N ∧ N ≤ x.length ∧

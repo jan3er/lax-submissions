@@ -1,10 +1,13 @@
-import Lax11.Courcelle
+import Lax11.Mso
+import Lax11.InstanceEncoding
 import Lax11Proofs.CliqueExpr
 import Mathlib.Tactic
 
 /-!
 Sanity check for the Courcelle surface: the two definitions the axiom of
-`concepts/Lax11/Courcelle.lean` is stated over are exercised on concrete
+`concepts/Lax11/Courcelle.lean` is stated over — satisfaction from
+`concepts/Lax11/Mso.lean` and the instance encoding from
+`concepts/Lax11/InstanceEncoding.lean` — are exercised on concrete
 objects, so that neither is vacuous and the index arithmetic of the
 instance word is known to line up.
 
@@ -16,7 +19,7 @@ encoding of the path `0—1—2` together with the `2`-expression for it
 from `CliqueExpr.lean`. The word is the compressed sparse row block of
 the path followed by the expression block — the number of nodes, the
 seven parents, the seven operation codes, the seven vertex names — and
-`EncodesInstance` is proved for it, expression and all.
+`EncodesModelCheckingInstance` is proved for it, expression and all.
 
 Nothing here is a proof of a submitted statement; this is a smoke test
 of the concept surface, in the style of `EncodingSanity.lean`.
@@ -24,7 +27,7 @@ of the concept surface, in the style of `EncodingSanity.lean`.
 
 namespace Lax11Proofs.CourcelleSmoke
 
-open Lax11.Mso Lax11.CliqueExpr Lax11.Courcelle Lax11Proofs.CliqueExpr
+open Lax11.Mso Lax11.CliqueExpr Lax11.InstanceEncoding Lax11Proofs.CliqueExpr
 
 /-! ### Satisfaction
 
@@ -131,7 +134,8 @@ theorem validFor_pathExpr : ValidFor pathExpr pathG where
 /-- **The instance encoding is satisfiable**: one word presents the path
 `0—1—2` in compressed sparse row form together with a `2`-expression for
 it. -/
-theorem encodesInstance_instanceWord : EncodesInstance instanceWord 3 pathG 2 :=
+theorem encodesInstance_instanceWord :
+    EncodesModelCheckingInstance instanceWord 3 pathG 2 :=
   ⟨csrBlock, exprBlock, pathExpr, rfl, encodesGraph_csrBlock,
     encodesExprTree_exprBlock, encodesExpr_exprBlock, validFor_pathExpr⟩
 

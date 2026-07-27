@@ -70,7 +70,7 @@ open Lax11.Ram Lax11.RamComputes Lax11.GraphEncoding
 /-- The word `x` presents the graph `G` on `n` vertices together with
 the parameter `k`: a compressed sparse row block encoding `G`, followed
 by the single entry `k`. -/
-def EncodesInstance (x : List ℕ) (n : ℕ) (G : SimpleGraph (Fin n)) (k : ℕ) : Prop :=
+def EncodesParamInstance (x : List ℕ) (n : ℕ) (G : SimpleGraph (Fin n)) (k : ℕ) : Prop :=
   ∃ g, x = g ++ [k] ∧ EncodesGraph g n G
 
 open Classical in
@@ -82,7 +82,7 @@ of the input, having written `1` if the graph has a vertex cover of at
 most `k` vertices and `0` otherwise. -/
 axiom exists_fptTime_program_vertexCover :
     ∃ (p : Program) (c : ℕ), ∀ (n : ℕ) (G : SimpleGraph (Fin n)) (k : ℕ),
-      ComputesInTime p {x | EncodesInstance x n G k}
+      ComputesInTime p {x | EncodesParamInstance x n G k}
         (fun _ => if G.vertexCoverNum ≤ (k : ℕ∞) then [1] else [0])
         (fun x => c * 2 ^ k * (x.length + 1))
 
