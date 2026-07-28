@@ -289,13 +289,17 @@ the target array leaves the configuration represented and every array
 untouched, having decided the branching test at threshold three: either
 no unmarked block names three different unmarked vertices — the
 solver's hypothesis — or `v` names a vertex of residual degree at least
-three, which is what the deeper branch spends its budget on. -/
+three, which is what the deeper branch spends its budget on. The frame
+condition is stated as well as the arrays: the scalars the pass does not
+touch — `"n"` above all, which the solver reads and `Rep` is silent
+about — come out of it unchanged. -/
 theorem descendScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     (hO : ∀ i ≤ n, O i = offset g i) (hT : ∀ p < 2 * m, T p = target g p)
     (h1B : 1 < B) (hnB : n < B) (hmB : 2 * m < B)
     {C : Config n} {τ : Env} (hRep : Rep n m O T C τ) :
     ∃ (τ' : Env) (K : ℕ), Run B descendScan3 τ τ' K ∧ Rep n m O T C τ' ∧
       τ'.arrs = τ.arrs ∧ τ'.inp = τ.inp ∧ τ'.out = τ.out ∧
+      (∀ y, ¬ Scanned3 y → τ'.vars y = τ.vars y) ∧
       ((τ'.vars "found" = 0 ∧ ThinBlocks3 g (marked C.frames)) ∨
         (τ'.vars "found" = 1 ∧ ∃ v : Fin n, (v : ℕ) = τ'.vars "v" ∧
           v ∉ marked C.frames ∧ 3 ≤ resDeg G (marked C.frames) v)) ∧
@@ -789,7 +793,7 @@ theorem descendScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
           (Run.seq (Run.assign (v := 0) (by simp; omega))
             (Run.seq (Run.assign (v := 0) (by simp; omega))
               (Run.seq (Run.assign (v := 0) (by simp; omega)) hrun))))))).mono ?_,
-    ?_, harrs', hinp', hout', ?_, le_rfl⟩
+    ?_, harrs', hinp', hout', hfr', ?_, le_rfl⟩
   · simp only [hσ₀] at hpay
     simp only [size_condLt, size_var, size_lit] at hpay ⊢
     simp only [vars_setVar] at hpay
