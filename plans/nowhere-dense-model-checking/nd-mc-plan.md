@@ -1,4 +1,22 @@
-# Nowhere dense model checking plan (rev 2 — proposed, 2026-07-28)
+# Nowhere dense model checking plan (rev 3 — accepted, 2026-07-28)
+
+Rev 3 (Jan, in session — wrap-up; **the plan is accepted, execution
+starts next session at P0**): two changes. First, the RAM half is
+cross-campaign gated: **P5–P7 do not start until the IMP+ toolkit
+campaign (`plans/word-ram/imp-toolkit-plan.md`) is closed** — its
+remaining P4–P7 (library, pilot retrofit, remaining retrofits, pins)
+are the machinery and the pin discipline this campaign's programs
+stand on. The math core P0–P4 is not gated and proceeds immediately;
+the two campaigns meet at the D12 gate, and if the toolkit closes
+first, the gate never binds. Second, the open questions are closed by
+their recommended defaults so nothing blocks the start: Q1 = claim
+the reserved init slot **Lax3**, folder
+`nowhere-dense-model-checking`; Q2 = the real-ε side-condition bound;
+Q3 = the colored-graph surface; Q4 = the four citable theorems of
+D11. All four are folded into the decision record below and remain
+revisable until the P1 statement freeze, where Jan reviews the actual
+Lean statements — that gate, not this rev, is the surface's point of
+no return.
 
 Rev 2 (Jan, in session): **the splitter isolates instead of removes.**
 Splitter's move deletes the incident edges of its batch W and keeps
@@ -129,9 +147,9 @@ axiom exists_almostLinearTime_program_modelChecking :
   definition, not a re-statement.
 - Time bound: `n^(1+ε)` has no elementary ℕ spelling, so the bound
   function is existential with a real-valued side condition, the same
-  `(m : ℝ) ^ ε` idiom as Lax12's `HasSubpolynomialWcol`. Alternative
-  ℕ-only form `∀ j, ∃ c T, ∀ x, T x ^ j ≤ c * (x.length + 1) ^ (j+1)`
-  recorded as Q2 for Jan.
+  `(m : ℝ) ^ ε` idiom as Lax12's `HasSubpolynomialWcol`. Adopted at
+  rev 3 over the ℕ-only variant
+  `∀ j, ∃ c T, ∀ x, T x ^ j ≤ c * (x.length + 1) ^ (j+1)`.
 - Working lemma behind it (proofs-side): the per-graph promise form —
   ∀ t : ℕ → ℕ, φ, ε, ∃ p c T, ∀ G with
   `∀ r, ¬ HasShallowMinor G r (⊤ : SimpleGraph (Fin (t r)))` — from
@@ -152,8 +170,10 @@ axiom exists_almostLinearTime_program_modelChecking :
   adapted) on top of Lax12's `uniformlyQuasiWide_of_nowhereDense`.
   GKS §5 eliminated by greedy scatter choice; GKS §7 eliminated by
   the locality theorem; GKS's vertex removal eliminated by isolation.
-- **D2 (one submission).** Single new submission (working folder name
-  `nowhere-dense-model-checking`; id: Q1) requiring the Lax12, Lax13,
+- **D2 (one submission).** Single new submission — folder
+  `nowhere-dense-model-checking`, id **Lax3**, the first reserved init
+  slot (rev 3; Lax4 stays free, the natural home for a future
+  merge-width submission) — requiring the Lax12, Lax13,
   Lax11 concept packages. The locality theorem is a citable concept
   *inside* it; a future merge-width submission requires this concept
   package. Registration can only happen after Lax11/12/13 register —
@@ -168,7 +188,7 @@ axiom exists_almostLinearTime_program_modelChecking :
   the same way Lax11's Mso.lean pins MSO₁ and defers MSO₂). Unary
   distance atoms are kept — they cost one easy base case and keep the
   concept faithful. Finite structures only; the paper's ∞ scatter
-  value degenerates. (Q3)
+  value degenerates. (Adopted at rev 3.)
 - **D4 (horizon functions).** Concepts state the theorem for the
   paper's concrete pair ρ⁻ = 9^((k+q+1)q), ρ⁺ = 9^((k+q)(q+1));
   proofs work against an abstract `Horizon` structure bundling the two
@@ -340,8 +360,8 @@ Layer L4 — RAM realization (Lax13 toolkit):
   (expected constant ρ* = ρ⁻(1,q) across levels — verify no growth);
   (e) the formula-table size functions (symbolic only — never
   evaluated on concrete φ). **Gate: Jan reads the design note.**
-- [ ] **P1 — scaffold + L0 concepts** (2–3 sessions). `lax init` /
-  claim id (Q1), lakefile requires (Lax12/Lax13/Lax11 pinned),
+- [ ] **P1 — scaffold + L0 concepts** (2–3 sessions). Claim the Lax3
+  init slot (D2), lakefile requires (Lax12/Lax13/Lax11 pinned),
   worktree-seed wiring. All L0 concept files with house-style
   frontmatter + formalization notes; C0 and the three theorem
   concepts stated as axioms; walk-distance API module proofs-side.
@@ -359,6 +379,13 @@ Layer L4 — RAM realization (Lax13 toolkit):
 - [ ] **P4 — abstract evaluator** (4–7 sessions). L3 items 10–12,
   ending at the math-core checkpoint theorem. **Gate: D12 review —
   frozen statements, re-judged L4 budget.**
+
+**Cross-campaign gate (rev 3): P5–P7 start only once
+`word-ram/imp-toolkit-plan.md` is closed** (its P4 library through P7
+pins). The two campaigns meet at the D12 gate: if the toolkit is
+still open when P4 finishes here, sessions go to the toolkit next,
+not to a premature P5.
+
 - [ ] **P5 — RAM primitives** (3–5 sessions). L4 item 14 as `Lib`
   citizens (Spec + run_vcg consumption; coordinate with the IMP+
   toolkit plan — masked BFS over queue/trail may land there as
@@ -382,7 +409,10 @@ core P0–P4 lands around 15–26 sessions; the RAM half P5–P7 another
 13–20 with the toolkit amortizing the glue and the graph materialized
 once (rev 2: arenas are masks + profiles, never re-extracted). Call
 it **30–48 sessions** end to end, with the D12 gate as the honest
-re-forecast point. What
+re-forecast point. The rev-3 toolkit gate orders work across
+campaigns without adding any: the math core never waits, and the RAM
+half was always going to consume the finished toolkit rather than
+race it. What
 makes it *possible* at all is that four load-bearing walls already
 stand endorsed and proved: nowhere denseness, UQW, subpolynomial wcol,
 subpolynomial density (Lax12), and the machine + verification toolkit
@@ -406,21 +436,22 @@ the locality theorem + splitter + covers as the citable core and
 carrying C0 as an open obligation of the draft — the archive is built
 for exactly that.
 
-## Open questions for Jan
+## Open questions (all closed at rev 3)
 
-- **Q1.** Submission id: claim one of the two reserved init slots
-  (Lax3 / Lax4), or fresh `lax init`? Folder name
-  `nowhere-dense-model-checking` OK?
-- **Q2.** Time-bound form in C0: recommended real-ε side-condition
-  form (matches Lax12's `^ ε` idiom), or the ℕ-only
-  `T^j ≤ c·(len+1)^(j+1)` variant?
-- **Q3.** Locality theorem concept stated over colored graphs (D3) —
-  acceptable as the citable form of 2606.23180, with the
-  specialization spelled out in the formalization notes? (General
-  relational signatures would add a Gaifman-graph layer for no gain
-  toward C0.)
-- **Q4.** Concept surface per D11 (four citable theorems) — confirm,
-  or trim to C0 + locality only?
-- **Q5.** ~~Splitter game form~~ — **resolved by rev 2**: the
-  isolation-form (ℓ,m,r) batch game is the surfaced concept; the
-  removal form appears at most proofs-side for source cross-checks.
+Closed by their recommended defaults at the rev-3 wrap-up; each
+remains revisable until the P1 statement freeze.
+
+- **Q1 → Lax3.** Claim the reserved init slot Lax3, folder
+  `nowhere-dense-model-checking`. Lax4 stays free (natural home for
+  a future merge-width submission).
+- **Q2 → real-ε form.** The side-condition bound
+  `(T x : ℝ) ≤ c * ((x.length : ℝ) + 1) ^ (1 + ε)`, matching Lax12's
+  `^ ε` idiom.
+- **Q3 → colored graphs.** The locality theorem concept is stated
+  over finite colored graphs, the general-signature specialization
+  spelled out in its formalization notes.
+- **Q4 → four citable theorems.** Locality, splitter-game win,
+  sparse covers, headline C0, per D11.
+- **Q5 → isolation game** (resolved at rev 2): the isolation-form
+  (ℓ,m,r) batch game is the surfaced concept; the removal form
+  appears at most proofs-side for source cross-checks.

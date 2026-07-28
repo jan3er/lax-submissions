@@ -2794,3 +2794,16 @@ arena — profile disjuncts are not new-metric guards — so the mutual
 typeTables/sentenceEval shape stays. D1, D8–D11, L2–L4, budgets and
 R2 rewritten in the plan; Q5 resolved (isolation game is the surfaced
 concept); estimate down to 30–48 sessions.
+
+## Nowhere dense MC — plan rev 3: accepted, wrapped for launch — 2026-07-28
+Jan's wrap-up, same session: the plan is accepted; execution starts
+next session at P0 (fetch gks 1311.3899, mw 2502.18065, rploc
+2606.23180 into references/, write the design note, gate with Jan
+before any Lean). Two rev-3 changes: the RAM half P5–P7 is gated on
+the IMP+ toolkit campaign closing — the math core P0–P4 is ungated
+and the two campaigns meet at the D12 gate — and Q1–Q4 are closed by
+their recommended defaults (Lax3 init slot, folder
+nowhere-dense-model-checking, Lax4 left free for a future merge-width
+submission; real-ε side-condition bound; colored-graph locality
+surface; four citable theorems), all revisable until the P1
+statement freeze.
