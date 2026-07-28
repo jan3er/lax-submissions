@@ -20,7 +20,9 @@ import Lax3Proofs.Relativize
 import Lax3Proofs.Reduction
 import Lax3Proofs.Evaluator
 import Lax3Proofs.RamBfs
+import Lax3Proofs.RamBfsPaths
 import Lax3Proofs.OrderedCovers
+import Lax3Proofs.CoverDegree
 import Lax3Proofs.RamElim
 import Lax3Proofs.BotEval
 import Lax3Proofs.SplitterWinOracle
