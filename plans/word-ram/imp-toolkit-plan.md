@@ -309,7 +309,7 @@ registered, `pull-db` broken) is unresolved and untouched by this work.
 
 - [x] **P1 frame rule — done, both acceptance tests passed.**
 - [x] **P2 spec triples — done, acceptance passed.**
-- [ ] P3 `run_step` tactic
+- [x] **P3 `run_vcg` tactic — done, acceptance passed.**
 - [ ] P4 data-structure library
 - [ ] P5 pilot retrofit (Lax11 CC) — **gate: ≤ 40% of 1,655 lines**
 - [ ] P6 remaining retrofits
@@ -482,12 +482,77 @@ The line win is still ahead: P2 pays when phases are *written* in
 `Spec`, not when one composition is retrofitted. What P2 proves is that
 a real pair of phase lemmas fits the interface and composes as a term.
 
+### P3, as built (2026-07-28)
+
+`word-ram/proofs/Lax13Proofs/Tactic.lean` (626 lines including seven
+worked examples), imported from `Lax13Proofs.lean`. Green with zero
+`sorry` across all three packages. Written by an Opus subagent under
+supervision, per the working model.
+
+**The tactic is `run_vcg`, not `run_step`** — it executes a whole
+block and closes the goal, so the planned name would have lied. It
+takes a goal `Spec B P c Q K` *or* the legacy
+`∃ σ' K', Run … ∧ K' ≤ K ∧ Q` shape, walks skip / assign / store /
+seq / ite, splits every `ite` on its arithmetic test (the split
+hypothesis is inaccessible by design — reachable by `simp_all` /
+`omega` / `‹_›`, never by a guessed name), discharges each `< B` and
+array-range obligation with `omega`-then-`simp; omega` where the
+precondition covers it, defers the rest, checks the cost itself, and
+leaves one postcondition goal per control-flow path in that path's
+final environment. `run_vcg [spec₁, …]` steps *over* a named
+sub-program by its `Spec` instead of into it — that is how loops and
+already-proved phases enter a block, and an unhandled `while` /
+`read` / `write` with no matching spec is a clear error, not a goal
+with metavariables.
+
+Both VCF-session-6 hard requirements are honored: the derivation is
+built as a `have` chain via `assert` with consumed runs cleared
+(never one nested term), and no `if_neg (by decide)` inside rewrite
+lists. The helper rules live in `RunStep` — the kit's `Run` rules
+restated with every argument explicit and in fixed order, plus
+per-`Bop` evaluation lemmas so values normalize to `m + n` and four
+`cond_*` lemmas so splits are on `ρ.vars "x" = 0`, not on a `Bool`.
+
+**Deviations from the plan's P3 text, both recorded and accepted.**
+No attribute-registered spec set — the bracket-argument mechanism
+covers the acceptance targets (`recordFound` is simply walked
+through) and the attribute can be added when P4 gives it a customer.
+And the `< B` obligations are deferred individually rather than
+merged into one conjunction — `omega` proves conjunctions natively,
+so the merge bought nothing, and separate goals report better.
+
+**Acceptance — passed.** `countBlock_spec`: 21 proof lines → **2**
+(`run_vcg <;> simp_all` plus a comment). `seenBlock_spec`: 51 → **3**
+(`run_vcg <;> (try simp_all) <;> omega`). Statements byte-for-byte
+unchanged, cost constants 20 and 30 untouched. Elaboration of
+`Phases.lean` is neutral: supervisor-measured 22.1 s wall / 39.0 s
+user before, 20.9 s wall / 39.2 s user after, same machine, same
+method (`lake env lean`). The subagent's ~35 s "before" numbers were
+taken under load; wall time on this machine swings and the
+multi-threaded user time is the steadier figure — take three samples
+before claiming a regression either way. Full
+`vertex-cover-ladder/proofs` build 1 min 52 s against P2's 1 min 55 s.
+
+**For P4.** State `Lib/*` postconditions as `abbrev` — `run_vcg`
+head-normalizes the postcondition goal, so an `abbrev` verdict
+arrives as a disjunction `simp_all` can chew, a `def` arrives opaque.
+`run_vcg [·]` is the seam P4 aims at: each `Lib` operation exported
+as a `Spec` on a named `def push : Com` becomes one step of a
+caller's block, matched by `isDefEq` without unfolding. `Lib/Csr`'s
+amortized scan stays hand-written (loops are content, not
+bookkeeping); the tactic removes the straight-line text around it.
+Metaprogramming notes for whoever touches `Tactic.lean` next:
+`MVarId.changeLocalDecl` renumbers fvars (re-read after), and
+`Lax13Proofs.Imp.Expr` collides with `Lean.Expr`, so the walk writes
+both fully qualified.
+
 ## Handoff notes
 
-The next session picks up at P3, the `run_step` tactic. `Spec.assign` /
-`Spec.seq` / `Spec.ite` are the rules it should be emitting, and
-`Spec.of_exists` is how it can be introduced under an existing phase
-lemma without restating it.
+The next session picks up at P4, the data-structure library
+(`Lax13Proofs/Lib/`). The P3 and P2 as-built notes above carry the
+interface it builds against: operations exported as `Spec`s over
+named `Com` defs, postconditions as `abbrev`, consumed downstream
+through `run_vcg [·]` plus `Spec.seq`/`Spec.frame`.
 Working model, per Jan: **Fable supervises, Opus subagents write the
 Lean.** Concretely — the supervisor holds the plan, decides scope and
 acceptance, runs the builds and commits; each proof-shaped unit (one

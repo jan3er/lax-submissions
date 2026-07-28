@@ -6,5 +6,6 @@ import Lax13Proofs.Simulation
 import Lax13Proofs.Reasoning
 import Lax13Proofs.Frame
 import Lax13Proofs.Spec
+import Lax13Proofs.Tactic
 import Lax13Proofs.Transfer
 import Lax13Proofs.Smoke

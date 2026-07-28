@@ -2737,3 +2737,23 @@ decisions taken, and the timings are in
 `plans/word-ram/imp-toolkit-plan.md`.
 Working model from here, Jan's call mid-session: Fable supervises and
 Opus subagents write the proofs.
+
+## IMP+ toolkit P3 — the `run_vcg` tactic — 2026-07-28
+(P2, the `Spec` triples, landed earlier today; its record is in the
+plan.) `Lax13Proofs/Tactic.lean` lands: `run_vcg` symbolically
+executes a concrete straight-line `Com` against a `Spec` or legacy
+existential goal — walks skip/assign/store/seq/ite, splits each `ite`
+on its arithmetic test, discharges or defers the `< B` obligations,
+checks the cost, and leaves one postcondition goal per path.
+`run_vcg [spec]` steps over a named sub-program (or loop) by its
+specification instead of into it. Written by an Opus subagent per the
+working model; both VCF-session-6 hard requirements (have-chain
+construction, no `if_neg (by decide)` in rewrite lists) honored.
+Acceptance passed: `countBlock_spec` 21 proof lines → 2,
+`seenBlock_spec` 51 → 3, statements byte-for-byte unchanged,
+elaboration of `Phases.lean` neutral (≈21 s wall before and after),
+all three proofs packages green, zero `sorry`. Deviations (renamed
+from `run_step`; bracket-argument specs instead of an attribute set;
+`< B` goals deferred individually) recorded in the plan's P3 as-built
+notes, with the P4 handoff: `Lib` postconditions as `abbrev`,
+operations as `Spec`s consumed through `run_vcg [·]`.

@@ -1,5 +1,6 @@
 import Lax15Proofs.Config
 import Lax15Proofs.Program
+import Lax13Proofs.Tactic
 
 /-!
 The inner loops, run.
@@ -832,26 +833,8 @@ theorem countBlock_spec (h1B : 1 < B) :
     Spec B (fun ρ => ρ.vars "cnted" < B ∧ ρ.vars "u" < B ∧ ρ.vars "w" < B ∧
         (ρ.vars "cnted" = 0 → ρ.vars "u" < ρ.vars "w" → ρ.vars "ro" + 1 < B))
       countBlock CountVerdict 20 := by
-  rintro ρ ⟨hcB, huB, hwB, hroB⟩
-  by_cases hc0 : ρ.vars "cnted" = 0
-  · by_cases hlt : ρ.vars "u" < ρ.vars "w"
-    · have hroB' := hroB hc0 hlt
-      exact ⟨(ρ.setVar "ro" (ρ.vars "ro" + 1)).setVar "cnted" 1,
-        (Run.ite_true ((evalB_condEq (evalB_var hcB) (evalB_lit (by omega))).trans
-            (by simp [hc0]))
-          (Run.ite_true ((evalB_condLt (evalB_var huB) (evalB_var hwB)).trans
-              (by simp [hlt]))
-            (Run.seq (Run.assign (v := ρ.vars "ro" + 1) (by simp; omega))
-              (Run.assign (v := 1) (by simp; omega))))).mono (by simp),
-        Or.inl ⟨hc0, hlt, by simp, by simp⟩⟩
-    · exact ⟨ρ, (Run.ite_true ((evalB_condEq (evalB_var hcB) (evalB_lit (by omega))).trans
-          (by simp [hc0]))
-          (Run.ite_false ((evalB_condLt (evalB_var huB) (evalB_var hwB)).trans
-            (by simp [hlt])) Run.skip)).mono (by simp),
-        Or.inr ⟨fun h => hlt h.2, rfl, rfl⟩⟩
-  · exact ⟨ρ, (Run.ite_false ((evalB_condEq (evalB_var hcB) (evalB_lit (by omega))).trans
-      (by simp [hc0])) Run.skip).mono (by simp),
-      Or.inr ⟨fun h => hc0 h.1, rfl, rfl⟩⟩
+  -- three paths, and on each one the verdict is what the test just decided
+  run_vcg <;> simp_all
 
 /-- **The distinct-target half.** On the block's first unmarked slot it
 records the target in `t1`; on a later one it raises the flag exactly
@@ -860,56 +843,9 @@ theorem seenBlock_spec (h1B : 1 < B) :
     Spec B (fun ρ => ρ.vars "seen" < B ∧ ρ.vars "t1" < B ∧ ρ.vars "w" < B ∧
         ρ.vars "found" < B ∧ ρ.vars "found" ≤ 1 ∧ ρ.vars "u" < B)
       seenBlock SeenVerdict 30 := by
-  have hrec : ∀ σ : Env, σ.vars "found" < B → σ.vars "u" < B →
-      ∃ σ' K, Run B recordFound σ σ' K ∧ K ≤ 15 ∧
-        ((σ.vars "found" = 0 ∧ σ'.vars "found" = 1 ∧ σ'.vars "v" = σ.vars "u") ∨
-          (σ.vars "found" ≠ 0 ∧ σ'.vars "found" = σ.vars "found" ∧
-            σ'.vars "v" = σ.vars "v")) := by
-    intro σ hfσ huσ
-    by_cases hf0 : σ.vars "found" = 0
-    · exact ⟨(σ.setVar "found" 1).setVar "v" (σ.vars "u"), 15,
-        (Run.ite_true ((evalB_condEq (evalB_var hfσ) (evalB_lit (by omega))).trans
-            (by simp [hf0]))
-          (Run.seq (Run.assign (v := 1) (by simp; omega))
-            (Run.assign (v := σ.vars "u") (by simp; omega)))).mono (by simp),
-        le_rfl, Or.inl ⟨hf0, by simp, by simp⟩⟩
-    · exact ⟨σ, 15, (Run.ite_false ((evalB_condEq (evalB_var hfσ) (evalB_lit (by omega))).trans
-        (by simp [hf0])) Run.skip).mono (by simp),
-        le_rfl, Or.inr ⟨hf0, rfl, rfl⟩⟩
-  rintro ρ ⟨hsB, htB, hwB, hfB, hf01, huB⟩
-  by_cases hs0 : ρ.vars "seen" = 0
-  · exact ⟨(ρ.setVar "seen" 1).setVar "t1" (ρ.vars "w"),
-      (Run.ite_true ((evalB_condEq (evalB_var hsB) (evalB_lit (by omega))).trans
-          (by simp [hs0]))
-        (Run.seq (Run.assign (v := 1) (by simp; omega))
-          (Run.assign (v := ρ.vars "w") (by simp; omega)))).mono (by simp),
-      Or.inl ⟨hs0, by simp, by simp, by simp, by simp⟩⟩
-  · by_cases hwt : ρ.vars "w" = ρ.vars "t1"
-    · exact ⟨ρ, (Run.ite_false ((evalB_condEq (evalB_var hsB) (evalB_lit (by omega))).trans
-          (by simp [hs0]))
-          (Run.ite_false ((evalB_condLt (evalB_var hwB) (evalB_var htB)).trans (by simp [hwt]))
-            (Run.ite_false ((evalB_condLt (evalB_var htB) (evalB_var hwB)).trans
-              (by simp [hwt])) Run.skip))).mono (by simp),
-        Or.inr (Or.inl ⟨hs0, hwt, rfl, rfl, rfl, rfl⟩)⟩
-    · obtain ⟨ρ', K, hrun, hK, hcase⟩ := hrec ρ hfB huB
-      have hgoal : ∃ K', Run B (.ite (.lt (.var "w") (.var "t1")) recordFound
-          (.ite (.lt (.var "t1") (.var "w")) recordFound .skip)) ρ ρ' K' ∧ K' ≤ 24 := by
-        rcases Nat.lt_or_ge (ρ.vars "w") (ρ.vars "t1") with h | h
-        · exact ⟨_, Run.ite_true ((evalB_condLt (evalB_var hwB) (evalB_var htB)).trans
-            (by simp [h])) hrun, by simp; omega⟩
-        · exact ⟨_, Run.ite_false ((evalB_condLt (evalB_var hwB) (evalB_var htB)).trans
-              (by simp; omega))
-            (Run.ite_true ((evalB_condLt (evalB_var htB) (evalB_var hwB)).trans
-              (by simp; omega)) hrun), by simp; omega⟩
-      obtain ⟨K', hrun', hK'⟩ := hgoal
-      refine ⟨ρ', (Run.ite_false ((evalB_condEq (evalB_var hsB)
-        (evalB_lit (by omega))).trans (by simp [hs0])) hrun').mono (by simp; omega),
-        Or.inr (Or.inr ?_)⟩
-      have hsu : ρ'.vars "seen" = ρ.vars "seen" := hrun.frame_var "seen" (by decide)
-      have htu : ρ'.vars "t1" = ρ.vars "t1" := hrun.frame_var "t1" (by decide)
-      rcases hcase with ⟨hf0, hf1, hv⟩ | ⟨hf0, hf1, hv⟩
-      · exact ⟨hs0, hwt, hsu, htu, hf1, Or.inl ⟨hf0, hv⟩⟩
-      · exact ⟨hs0, hwt, hsu, htu, by omega, Or.inr ⟨by omega, hv⟩⟩
+  -- six paths: `recordFound` is walked through, not abstracted, so the two
+  -- occurrences cost nothing beyond the branch each of them splits on
+  run_vcg <;> (try simp_all) <;> omega
 
 /-- **A residual slot's two halves, composed.** `countBlock` then
 `seenBlock`, assembled by `Spec.seq` out of the two specifications above
