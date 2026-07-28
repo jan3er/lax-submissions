@@ -3,7 +3,10 @@ import Lax11Proofs.CCSweep
 import Lax13Proofs.Transfer
 
 /-!
-The second theorem, cashed in at the concept surface.
+The bounded search tree, run whole. The statement this file proves is
+no longer a concept of this submission: it is the base rung of the
+vertex cover ladder, *Vertex Cover Below Two to the k*, which requires
+this theorem and cashes it in at its own surface.
 
 The read phase is the components driver's, one `read` longer; the
 search is the loop of `VCLoop`; what is left is the arithmetic. The
@@ -241,9 +244,6 @@ theorem vcCom_solves (n : ℕ) (G : SimpleGraph (Fin n)) (k w : ℕ) :
     by_cases h : G.vertexCoverNum ≤ (k : ℕ∞) <;> simp [h]
 
 /--
----
-conclusion: Lax11.VertexCover.exists_fptTime_program_vertexCover
----
 Vertex cover is fixed-parameter tractable with the parameter dependence
 written into the bound: `vcProgram` decides, on every graph in
 compressed sparse row form followed by the parameter `k`, whether the

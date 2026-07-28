@@ -33,7 +33,7 @@ answer is whether there are at most *k* of them.
 
 This is the same problem, the same machine, the same input format and
 the same shape of statement as *Vertex cover in explicit fixed-parameter
-time* in *Algorithmic Experiments on a Random Access Machine*, with the
+time* of this same submission, with the
 base of the exponential lowered: `fib`(*k*+2) is a fixed multiple of
 φ^*k* with φ = (1+√5)/2 ≈ 1.618. That statement is not withdrawn or
 weakened by this one — it is the textbook bound, proved, and it remains
@@ -59,8 +59,8 @@ tree really does have `fib`(*k*+2) leaves, and that count is what the
 proof produces. It also keeps the surface free of any definition of its
 own: `Nat.fib` is mathlib's, as is the vertex cover number, and the
 encoding of the instance is imported from the earlier submission rather
-than restated, so that the two bounds are claims about literally the
-same inputs. Nothing here asserts that the golden ratio is the best
+than restated, so that the three bounds of this ladder are claims about
+literally the same inputs. Nothing here asserts that the golden ratio is the best
 base — bases below 1.3 are known — and nothing here competes with those
 analyses; the statement asks for what this branching rule gives and no
 more.
@@ -149,8 +149,8 @@ program halts within `c * Nat.fib (k + 2) * (x.length + 1)` steps,
 having written `1` if the graph has a vertex cover of at most `k`
 vertices and `0` otherwise. The instance format is the one of
 `Lax11.VertexCover.EncodesParamInstance`, so this is the same claim as
-that submission's with the base of the exponential lowered from `2` to
-the golden ratio. -/
+this submission's `2 ^ k` one with the base of the exponential lowered
+from `2` to the golden ratio. -/
 axiom exists_fibTime_program_vertexCover :
     ∃ (p : Program) (c : ℕ), ∀ (n : ℕ) (G : SimpleGraph (Fin n)) (k w : ℕ),
       ComputesInTime w p

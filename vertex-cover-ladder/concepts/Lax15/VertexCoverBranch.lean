@@ -41,9 +41,9 @@ left, computed by one breadth-first sweep. That the sum is exactly the
 cover number of a graph of maximum degree two is the one new theorem
 under this statement.
 
-This sharpens *Vertex cover in Fibonacci-of-k time*, which sharpens the
-2^*k* statement of *Algorithmic Experiments on a Random Access Machine*.
-The three are the same problem, the same machine, the same input format
+This sharpens *Vertex cover in Fibonacci-of-k time*, which sharpens
+*Vertex cover in explicit fixed-parameter time* — all three statements
+of this same submission. The three are the same problem, the same machine, the same input format
 and the same shape of statement, with the base of the exponential
 lowered twice: `branchCount`(*k*) ≤ `Nat.fib`(*k*+2) for every *k*, with
 equality exactly at *k* ≤ 2 and strict inequality from *k* = 3 on
@@ -148,9 +148,8 @@ program halts within `c * branchCount k * (x.length + 1)` steps, having
 written `1` if the graph has a vertex cover of at most `k` vertices and
 `0` otherwise. The instance format is the one of
 `Lax11.VertexCover.EncodesParamInstance`, so this is the same claim as
-that submission's, and as this submission's Fibonacci one, with the base
-of the exponential lowered to the real root `β ≈ 1.4656` of
-`x³ = x² + 1`. -/
+this submission's `2 ^ k` and Fibonacci ones, with the base of the
+exponential lowered to the real root `β ≈ 1.4656` of `x³ = x² + 1`. -/
 axiom exists_branchTime_program_vertexCover :
     ∃ (p : Program) (c : ℕ), ∀ (n : ℕ) (G : SimpleGraph (Fin n)) (k w : ℕ),
       ComputesInTime w p

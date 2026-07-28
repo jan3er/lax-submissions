@@ -38,26 +38,30 @@ Submission directories currently in this repository:
   tuples — multicolor Ramsey, the two-color clique-or-independent-set
   form (assuming the multicolor statement), and Erdős–Rado tuple Ramsey
   in order-type form.
-- `ram-linear-time/` — **Lax11**: algorithmic experiments on a RAM — a
-  word-RAM surface with linear-time claims for connected components,
-  Courcelle–Makowsky–Rotics model checking on bounded cliquewidth, and
-  the 2^k vertex-cover FPT bound, discharged via a verified IMP+
-  compiler.
-- `vertex-cover-fibonacci/` — **Lax15**: vertex cover below 2^k — two
-  theorem concepts, each proved in the same submission, and one
-  definition. The first decides vertex cover on the word RAM within
-  `c · fib(k+2) · (|x|+1)` steps, dropping the base of the exponential
-  from 2 to the golden ratio by branching on a vertex of residual degree
-  at least two rather than on an edge; the second, within
-  `c · branchCount k · (|x|+1)` for the surface's own `branchCount` — the
-  leaf count of a `b ↦ (b−1, b−3)` split, base the real root of
-  `x³ = x² + 1` ≈ 1.4656 — by branching only at residual degree three and
-  solving the max-degree-two leaf exactly. Builds on the Lax11 draft —
-  the graph encoding and instance format are imported, so the admissible
-  set is character for character that submission's and all three bounds
-  are claims about the same inputs, each rung sharpening the one below
-  rather than replacing it — and on Lax13's word RAM, whose machine,
-  compiler and loop rule carry both proofs.
+- `ram-linear-time/` — **Lax11**: algorithmic experiments on a RAM —
+  linear-time claims for connected components and
+  Courcelle–Makowsky–Rotics model checking on bounded cliquewidth,
+  discharged via a verified IMP+ compiler on Lax13's word RAM. Also
+  home of the graph encoding, of the parameterized instance format, and
+  of the proof of the vertex-cover ladder's 2^k base rung, whose
+  statement lives in Lax15.
+- `vertex-cover-ladder/` — **Lax15**: the vertex cover ladder — three
+  theorem concepts, all discharged, and one definition. The base rung is
+  the textbook 2^k bounded search tree (stated here, proved in Lax11's
+  proof package and required as proved theorems); the second decides
+  vertex cover on the word RAM within `c · fib(k+2) · (|x|+1)` steps,
+  dropping the base of the exponential from 2 to the golden ratio by
+  branching on a vertex of residual degree at least two rather than on
+  an edge; the third, within `c · branchCount k · (|x|+1)` for the
+  surface's own `branchCount` — the leaf count of a `b ↦ (b−1, b−3)`
+  split, base the real root of `x³ = x² + 1` ≈ 1.4656 — by branching
+  only at residual degree three and solving the max-degree-two leaf
+  exactly. Builds on the Lax11 draft — the graph encoding and instance
+  format are imported, so the admissible set is character for character
+  the same and all three bounds are claims about the same inputs, each
+  rung sharpening the one below rather than replacing it — and on
+  Lax13's word RAM, whose machine, compiler and loop rule carry the
+  proofs.
 
 These submissions are the reference implementations of everything below. When in
 doubt, open them and imitate. The normative rule set is the Lax spec

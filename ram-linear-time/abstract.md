@@ -13,7 +13,7 @@ the bound $c\,2^k(|x|+1)$, and every uniformity claim — over the
 graph, over the parameter, over the word length — is carried by the
 order of the quantifiers.
 
-Three theorems are stated. The first is that the connected components
+Two theorems are stated. The first is that the connected components
 of a graph can be computed in linear time: there are one program and
 one constant $c$ such that, given any graph in compressed sparse row
 form as a word $x$ of natural numbers, the machine halts within
@@ -24,35 +24,29 @@ second-order logic and every width bound $k$ there are one program and
 one constant $c$ such that, given any graph in compressed sparse row
 form followed by a $k$-expression that evaluates to it, the machine
 halts within $c(|x|+1)$ steps having written $1$ if the sentence holds
-in the graph and $0$ if it does not. The third is that vertex cover is
-fixed-parameter tractable, with the parameter dependence written into
-the bound rather than hidden behind an existential: there are one
-program and one constant $c$ such that, given any graph in compressed
-sparse row form followed by the single entry $k$, the machine halts
-within $c\,2^k(|x|+1)$ steps having written $1$ if the graph has a
-vertex cover of at most $k$ vertices and $0$ if it does not — the
-program and the constant quantified ahead of the graph *and* the
-parameter, which is the uniform notion of fixed-parameter
-tractability.
+in the graph and $0$ if it does not.
 
 The machine model carries the whole weight of such statements, and it
 is deliberately not this submission's: the word RAM and the notion of
 computing a function within a time bound are the two concepts of *The
 Word RAM*, argued there once for every submission that states running
-times. The concept surface here has seven review units. Four
+times. The concept surface here has seven review units. Five
 definitions: the compressed sparse row encoding of a graph, in the
 dumb form in which an algorithm actually receives it, with nothing
-precomputed, no sortedness assumed and repetitions permitted; monadic
+precomputed, no sortedness assumed and repetitions permitted; the
+instance format that appends a single parameter entry to that block,
+on which the vertex cover ladder of *Vertex Cover Below Two to the k*
+is stated; monadic
 second-order logic on graphs, with quantification over vertices and
 over sets of vertices, its variables counted rather than named so that
 satisfaction needs no substitution; $k$-expressions, which build a
 graph from labelled single vertices by disjoint union, edge addition
 between two label classes, and relabelling; and the instance encoding
 that hands a graph together with a $k$-expression for it to the
-machine, the numbering of the operations included. Three theorems: the
-three statements above.
+machine, the numbering of the operations included. Two theorems: the
+two statements above.
 
-All three obligations are discharged in the proof package, and the
+Both obligations are discharged in the proof package, and the
 tower they are discharged through is not this submission's either. The
 structured while-language with named scalars and arrays whose
 semantics carries the number of statements executed as a cost, the
@@ -123,23 +117,14 @@ something the program computes; the formalization notes on the theorem
 say plainly what that leaves open, as they do for everything else the
 statement decides rather than proves.
 
-The vertex cover statement is discharged as well, and by the same
-apparatus: the textbook bounded search tree of Downey and Fellows,
-written in the same while-language and costed by the same loop rule.
-The driver marks vertices in an array and keeps the alternatives it
-still owes on a stack, branching on an edge with neither endpoint
-marked, and correctness is a single invariant splitting the answer
-between the marking it has committed to and the frames it has yet to
-try. The cost is again one potential — $4\cdot 2^b-3$ for the subtree
-still to be searched at remaining budget $b$, plus slack for the
-frames — so the whole tree is paid for by one application of the loop
-rule rather than by a recursion, and the factor $2^k$ enters exactly
-once, as the potential of the initial configuration. The constant that comes out is
-33300: thirty-seven machine steps per statement of the compiled
-program, times $900\,2^k(|x|+1)$ statements. No reduction rules are
-applied, and nothing here competes with the refined analyses that beat
-the base 2. The statement joined the surface before it had a proof,
-which is what the archive's decoupling of concepts from proofs is for;
-what is proved and what is merely stated is said plainly, here and in
-the formalization notes, because the submission's value is exactly
-that distinction.
+One more theorem is proved here without being stated here. The proof
+package contains the textbook bounded search tree of Downey and
+Fellows — vertex cover decided within $c\,2^k(|x|+1)$ steps, written in
+the same while-language and costed by the same loop rule, with the
+constant 33300 — but its statement is the base rung of the vertex cover
+ladder and lives on the surface of *Vertex Cover Below Two to the k*,
+the submission that lowers the base of the exponential twice and
+carries all three rungs together. That submission requires this proof
+package and discharges its base rung with the theorem proved here; what
+remains on this surface is the instance format the whole ladder is
+stated on, the graph block with the parameter appended.

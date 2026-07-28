@@ -1,9 +1,10 @@
-This submission states two theorems and proves both: vertex cover is
-decided on the word RAM within $c\,\mathrm{fib}(k+2)\,(|x|+1)$ steps,
-and — with a second program and a second constant — within
-$c\,\mathrm{branchCount}(k)\,(|x|+1)$ steps, where $\mathrm{branchCount}$
-is the leaf count of a search tree that splits a budget $b$ into $b-1$
-and $b-3$. Each statement has the same shape: there are one program and
+This submission is the vertex cover ladder: three theorems, each with
+its own program and its own constant, and all three discharged. Vertex
+cover is decided on the word RAM within $c\,2^k(|x|+1)$ steps — the
+textbook bounded search tree — within $c\,\mathrm{fib}(k+2)\,(|x|+1)$
+steps, and within $c\,\mathrm{branchCount}(k)\,(|x|+1)$ steps, where
+$\mathrm{branchCount}$ is the leaf count of a search tree that splits a
+budget $b$ into $b-1$ and $b-3$. Each statement has the same shape: there are one program and
 one constant $c$ such that, at every word length $w$, given any graph in
 compressed sparse row form followed by the single entry $k$ as a word
 $x$ for which $c(|x|+k+1)$ is at most $2^w$, the machine halts within
@@ -18,14 +19,14 @@ three.
 The machine, the notion of computing a function within a time bound and
 the input format are not this submission's. The first two are the two
 concepts of *The Word RAM*; the third is the instance encoding of
-*Algorithmic Experiments on a Random Access Machine*, whose vertex cover
-theorem is the same statement with $2^k$ in place of the two bounds
-here. Both are required, and the admissible set here is character for
-character that one's, so all three bounds are claims about literally the
+*Algorithmic Experiments on a Random Access Machine*. Both are
+required, and the three statements share one admissible set, character
+for character, so the three bounds are claims about literally the
 same inputs on literally the same machine. They are three rungs of one
 ladder, and each sharpens the one below without unsaying it: the $2^k$
-bound is the textbook analysis, it is proved, and it stays true — what is
-new is that the same problem admits smaller explicit bounds. That is the
+bound is the textbook analysis, it is proved, and it stays true — what
+the rungs above it add is that the same problem admits smaller explicit
+bounds. That is the
 point of writing the parameter dependence into the statement instead of
 hiding it behind an existential over computable functions: improving the
 base is then a change of statement rather than a change of commentary.
@@ -67,16 +68,16 @@ produce. The second is at most the first at every $k$, and strictly
 smaller from $k=3$ on: $1,2,3,4,6,9,13,19,28$ against
 $1,2,3,5,8,13,21,34,55$.
 
-The concept surface is two review units and one definition. mathlib's
-vertex cover number is the answer in both statements, mathlib's
-`Nat.fib` is the first bound, the compressed sparse row encoding and the
+The concept surface is three review units and one definition. mathlib's
+vertex cover number is the answer in all three statements, mathlib's
+`Nat.fib` is the second bound, the compressed sparse row encoding and the
 instance format that appends the parameter to it are the earlier
 submission's, and the machine together with the predicate "this program
 computes this function within this bound at this word length" are the
 word RAM's. The one thing that had to be defined is `branchCount`:
 mathlib names the sequence nowhere, and rounding it up to a clean power
 would have been a weaker theorem wearing a smaller-looking bound. A
-reviewer is asked about two sentences and one four-line recurrence,
+reviewer is asked about three sentences and one four-line recurrence,
 and nothing else. The formalization notes say what the statements decide
 rather than prove: why the fitting condition is an admissibility
 condition on inputs rather than a hypothesis — a graph with an edge has
@@ -87,10 +88,12 @@ instances the theorems are about, and why `branchCount`'s three initial
 values are the exact leaf counts at budgets $0$, $1$ and $2$ rather than
 a convention.
 
-Both obligations are discharged in the same submission: statement and
-proof ship together, unlike the $2^k$ statement, which joined the surface
-before it had a proof. The apparatus is the earlier one, reused rather
-than rebuilt — the structured while-language of *The Word RAM*, its
+All three obligations are discharged. The Fibonacci and
+$\mathrm{branchCount}$ statements ship together with their proofs; the
+base rung's proof is the earlier submission's — the $2^k$ search tree
+was built in *Algorithmic Experiments on a Random Access Machine*, and
+its theorem is required here rather than reproved. The apparatus is
+likewise the earlier one, reused rather than rebuilt — the structured while-language of *The Word RAM*, its
 compiler and simulation theorem, and its loop rule taking an invariant
 together with a cost potential — required as proved theorems that the
 kernel checks like any others, so the axioms remain the three background
@@ -121,15 +124,16 @@ the residual degree, and a test that counts slots rather than comparing
 disjoint edges with every slot doubled it would search a $2^k$ tree on an
 instance the correct program answers without a single branch. The
 smallest witness, a nine-number word encoding one edge, is kept in the
-proof package as a machine-checked standing warning, and both drivers
-compare targets. The constants that come out are 90300 for the Fibonacci
-program ($43$ machine steps per statement of the compiled program, times
-$2100$ statements per $\mathrm{fib}(k+2)$ per input letter) and 318500
-for the branching program ($49\times 6500$; ten arrays rather than eight,
-so one index computation is twelve instructions). Against the $2^k$
-driver's 33300 that is a ladder in both directions: each rung buys a
-smaller base by paying a larger constant, and nothing at any level was
-fought for. On small shared instances the cheaper constant wins — the
+proof package as a machine-checked standing warning, and both improved
+drivers compare targets. The constants that come out are 33300 for the
+$2^k$ program ($37$ machine steps per statement of the compiled
+program, times $900$ statements per $2^k$ per input letter; six
+arrays), 90300 for the Fibonacci program ($43\times 2100$; eight
+arrays) and 318500 for the branching program ($49\times 6500$; ten
+arrays, so one index computation is twelve instructions). That is a
+ladder in both directions: each rung buys a smaller base by paying a
+larger constant, and nothing at any level was fought for. On small
+shared instances the cheaper constant wins — the
 $2^k$ driver beats both on a triangle — and where the base bites the
 order reverses: on the seven-cycle at $k=3$ the Fibonacci program takes
 17937 steps and the branching program 7016, and on five disjoint edges

@@ -3,12 +3,20 @@
 The honesty ledger of this submission is written where the archive
 renders it, next to the object each item is about, and not here. This
 file is for anyone reading the directory rather than the submission
-page: where the two statements live, where their proofs live, and what is
-borrowed from elsewhere.
+page: where the three statements live, where their proofs live, and what
+is borrowed from elsewhere.
 
 ## The statements
 
-- `concepts/Lax15/VertexCover.lean` is the first review unit: one theorem
+- `concepts/Lax15/VertexCoverFpt.lean` is the base rung: one theorem
+  concept, `exists_fptTime_program_vertexCover`, the textbook `2^k`
+  bound, and no definitions. Its `# Formalization notes` carry the items
+  every rung shares, in their original form — the parameter dependence
+  written into the bound, the program and the constant ahead of the
+  parameter and the word length, what the fitting condition has to
+  cover, and why it is a condition on the admissible inputs and not
+  coupled to the running time.
+- `concepts/Lax15/VertexCover.lean` is the second review unit: one theorem
   concept, `exists_fibTime_program_vertexCover`, and no definitions. Its
   `# Formalization notes` carry the statement's items — the parameter
   dependence written into the bound rather than quantified away,
@@ -17,7 +25,7 @@ borrowed from elsewhere.
   the fitting condition has to cover, why it is a condition on the
   admissible inputs rather than a hypothesis, and why it is deliberately
   not coupled to the running time.
-- `concepts/Lax15/VertexCoverBranch.lean` is the second: one theorem
+- `concepts/Lax15/VertexCoverBranch.lean` is the third: one theorem
   concept, `exists_branchTime_program_vertexCover`, with the same shape,
   the same admissible set and the same output, and the bound
   `c * branchCount k * (x.length + 1)`. Its notes carry the items above
@@ -42,6 +50,16 @@ borrowed from elsewhere.
   `Lax11`'s, and the vertex cover number and `Nat.fib` are mathlib's. In
   particular the admissible set is `Lax11`'s, character for character, so
   all three bounds compare directly; the notes on every statement say so.
+
+## The base rung, one module
+
+- `MainFpt.lean` — the `2^k` theorem, cashed in. The conclusion restates
+  the concept's proposition and is discharged by the required theorem
+  `Lax11Proofs.VCMain.exists_fptTime_program_vertexCover`, with the
+  identity check that the two are the same proposition. The driver, the
+  invariant, the potential and the constant 33300 are that submission's
+  and are not restated here; its conclusion annotation carries the short
+  account and points at the full one.
 
 ## The Fibonacci rung, layer by layer
 
@@ -145,9 +163,11 @@ configuration.
   package.
 - From `Lax11Proofs` (*Algorithmic Experiments on a Random Access
   Machine*): the search predicate `Ok`, its bridge to mathlib's vertex
-  cover number, and the read phase of the components driver, which reads
-  the encoding into the offset and target arrays. `Residual.lean` adds a
-  layer on top of `VCSpec` and restates none of it.
+  cover number, the read phase of the components driver, which reads
+  the encoding into the offset and target arrays, and the whole `2^k`
+  driver with its conclusion, which discharges the base rung here.
+  `Residual.lean` adds a layer on top of `VCSpec` and restates none of
+  it.
 - Both are proof-package dependencies pinned at the exact commits of
   those submissions' records. They are proved theorems, checked by the
   kernel like any others, and they add nothing to the axiom set, which is

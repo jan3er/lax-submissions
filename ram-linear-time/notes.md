@@ -38,15 +38,20 @@ submission page.
   itself and the timed-computation predicate are not this submission's
   concepts at all: they are the word RAM of `Lax13`, and their notes
   are there.
-- **The vertex cover theorem's** items are in two places. The
-  statement's — the parameter dependence written into the bound rather
-  than quantified away, the program and constant uniform in the
-  parameter, the parameter as a single entry after the self-delimiting
-  graph block, and the decision problem as the honest scope — are in
-  the `# Formalization notes` of `concepts/Lax11/VertexCover.lean`.
-  The proof's — the budget carried as a scalar rather than a field of
-  the frames, the mark array left uninitialized because fresh memory
-  is zero, and the plain base 2 of a search tree that applies no
-  reduction rules — are in the conclusion annotation of
-  `proofs/Lax11Proofs/VCMain.lean`, under `# What the program is
-  allowed to help itself to` and `# Attribution`.
+- **The vertex cover material** is split between two submissions. The
+  `2^k` statement is the base rung of the ladder in
+  `vertex-cover-ladder/` (*Vertex Cover Below Two to the k*), and its
+  statement-side items — the parameter dependence written into the
+  bound rather than quantified away, the program and constant uniform
+  in the parameter, and the decision problem as the honest scope — are
+  in the `# Formalization notes` of
+  `concepts/Lax15/VertexCoverFpt.lean` there. What stays here is the
+  instance format (`concepts/Lax11/VertexCover.lean`, a definition
+  concept: the parameter as a single entry after the self-delimiting
+  graph block) and the proof, whose items — the budget carried as a
+  scalar rather than a field of the frames, the mark array left
+  uninitialized because fresh memory is zero, and the plain base 2 of a
+  search tree that applies no reduction rules — are in the annotation
+  of `proofs/Lax11Proofs/VCMain.lean`, under `# What the program is
+  allowed to help itself to` and `# Attribution`. The ladder requires
+  that theorem and cashes it in at its own surface.
