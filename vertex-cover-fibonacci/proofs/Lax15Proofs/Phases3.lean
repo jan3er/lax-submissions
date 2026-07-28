@@ -1278,33 +1278,405 @@ theorem resTgts_mono {o : Fin n} {J J' : ℕ} (h : J ≤ J') :
   obtain ⟨h1, p, h2, h3, h4⟩ := mem_resTgts.1 hx
   exact mem_resTgts.2 ⟨h1, p, h2, by omega, h4⟩
 
-/-! #### What is left of the row scan
+/-! #### The row scan itself
 
-`rowScan3_run` — one dequeued vertex, its whole block — is the next
-lemma, and `RowInv3` above is its invariant, stated in the form its
-proof wants. What it has to conclude, and what the drain will consume:
+One dequeued vertex, its whole block. The conclusion hands the drain the
+visited set and the queue grown by `ResNbhd G M u`, and the toggle in
+closed form: with `c` the residual neighbours of `u` above `u` — the
+edges of `u` counted at their smaller endpoint — the cost `s` rises by
+`(c + 1 - tog) / 2` and the toggle becomes `(c + tog) % 2`. That is
+`⌈e/2⌉` accumulated one edge at a time.
 
-    ∃ ρ' VIS' Q' K, Run B (.while (.lt (.var "j") (.var "jend")) solveSlot) ρ ρ' K ∧
-      … frame conditions … ∧
-      Indicator (V ∪ ResNbhd G M u) VIS' ∧ Queue (V ∪ ResNbhd G M u) Q' head (ρ'.vars "tl") ∧
-      ρ'.vars "s" = ρ.vars "s" + (c + 1 - ρ.vars "tog") / 2 ∧
-      ρ'.vars "tog" = (c + ρ.vars "tog") % 2 ∧
-      K ≤ 300 * (offset g ((u : ℕ) + 1) - offset g (u : ℕ)) + 10
+Three facts carry the step: `dedupCount_run` for the slot,
+`resTgts_succ_of_unmarked` / `resTgts_succ_of_marked` for the set of
+recorded targets, and — for the branch where the dedup reports a *third*
+distinct target — `resTgts_mono` together with `resTgts_end`, which put
+three residual targets inside `ResNbhd G M u` and so contradict the
+standing `resDeg ≤ 2`. The cost is stated per block, which is what lets
+the drain amortize it: each vertex is expanded at most once, so the
+blocks summed over a drain are at most `2m`. -/
 
-with `c = ((ResNbhd G M u).filter (fun x => (u : ℕ) < (x : ℕ))).card`, the
-edges of `u` counted at their smaller endpoint. The `(c + 1 - tog) / 2`
-is the halving toggle in closed form: with `e` edges counted since the
-root, `s` has grown by `⌈e/2⌉` and `tog = e % 2`, and adding `c` more
-raises `⌈e/2⌉` by exactly that.
+/-- A one-element finset is the singleton of any of its members. -/
+theorem eq_singleton_of_card_one {s : Finset (Fin n)} {a : Fin n} (hcard : s.card = 1)
+    (ha : a ∈ s) : s = {a} :=
+  (Finset.eq_of_subset_of_card_le (Finset.singleton_subset_iff.2 ha)
+    (by simp [hcard])).symm
 
-Three facts carry the step, and all three are already here:
-`dedupCount_run` for the slot, `resTgts_succ_of_unmarked` /
-`resTgts_succ_of_marked` for the set of recorded targets, and — for the
-branch where the dedup reports a *third* distinct target —
-`resTgts_mono` together with `resTgts_end`, which put three residual
-targets inside `ResNbhd G M u` and so contradict the standing
-`resDeg ≤ 2`. The cost shape is per-block, which is what lets the drain
-amortize: each vertex is expanded at most once, so the blocks summed
-over a drain are at most `2m`. -/
+/-- A two-element finset is the pair of any two distinct members. -/
+theorem eq_pair_of_card_two {s : Finset (Fin n)} {a b : Fin n} (hcard : s.card = 2)
+    (ha : a ∈ s) (hb : b ∈ s) (hab : a ≠ b) : s = {a, b} :=
+  (Finset.eq_of_subset_of_card_le
+    (Finset.insert_subset_iff.2 ⟨ha, Finset.singleton_subset_iff.2 hb⟩)
+    (by rw [hcard, Finset.card_pair hab])).symm
+
+/-- **The solver's row scan.** From the start of the block of a dequeued
+vertex `u` of residual degree at most two, with the per-row registers
+reset, the loop visits and enqueues every residual neighbour of `u` and
+counts the edges of `u` that point upward into the halving toggle. -/
+theorem rowScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
+    (hT : ∀ p < 2 * m, T p = target g p)
+    (h1B : 1 < B) (h2B : 2 < B) (hnB : n < B) (hmB : 2 * m < B)
+    {V : Finset (Fin n)} {u : Fin n} {MK VIS Q : ℕ → ℕ} {head tl : ℕ} {σ : Env}
+    (hdeg : resDeg G M u ≤ 2)
+    (hmark : σ.arrs "mark" = arrOf n MK) (hMK : Indicator M MK)
+    (htgt : σ.arrs "tgt" = arrOf (2 * m) T)
+    (hvis : σ.arrs "vis" = arrOf n VIS) (hVIS : Indicator V VIS)
+    (hq : σ.arrs "q" = arrOf n Q) (hQ : Queue V Q head tl) (htl : σ.vars "tl" = tl)
+    (hu : σ.vars "u" = (u : ℕ)) (hj : σ.vars "j" = offset g (u : ℕ))
+    (hjend : σ.vars "jend" = offset g ((u : ℕ) + 1))
+    (hseen : σ.vars "seen" = 0) (ht1 : σ.vars "t1" = 0) (ht2 : σ.vars "t2" = 0)
+    (htog : σ.vars "tog" ≤ 1) (hsB : σ.vars "s" + 2 < B) :
+    ∃ (τ' : Env) (VIS' Q' : ℕ → ℕ) (K : ℕ),
+      Run B (.while (.lt (.var "j") (.var "jend")) solveSlot) σ τ' K ∧
+      τ'.inp = σ.inp ∧ τ'.out = σ.out ∧
+      (∀ a, a ≠ "vis" → a ≠ "q" → τ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "s" → y ≠ "tog" → y ≠ "tl" → y ≠ "seen" → y ≠ "t1" → y ≠ "t2" →
+        y ≠ "j" → y ≠ "w" → τ'.vars y = σ.vars y) ∧
+      τ'.arrs "vis" = arrOf n VIS' ∧ Indicator (V ∪ ResNbhd G M u) VIS' ∧
+      τ'.arrs "q" = arrOf n Q' ∧ Queue (V ∪ ResNbhd G M u) Q' head (τ'.vars "tl") ∧
+      (∀ i < tl, Q' i = Q i) ∧ tl ≤ τ'.vars "tl" ∧ τ'.vars "tl" ≤ n ∧
+      τ'.vars "s" = σ.vars "s" +
+        (((ResNbhd G M u).filter (fun x : Fin n => (u : ℕ) < (x : ℕ))).card + 1 -
+          σ.vars "tog") / 2 ∧
+      τ'.vars "tog" =
+        (((ResNbhd G M u).filter (fun x : Fin n => (u : ℕ) < (x : ℕ))).card +
+          σ.vars "tog") % 2 ∧
+      K ≤ 300 * (offset g ((u : ℕ) + 1) - offset g (u : ℕ)) + 10 := by
+  classical
+  have hend : offset g ((u : ℕ) + 1) ≤ 2 * m := by
+    have := offset_le hg (show (u : ℕ) + 1 ≤ n from u.2)
+    omega
+  have hstart : offset g (u : ℕ) ≤ offset g ((u : ℕ) + 1) := offset_mono' hg (by omega) u.2
+  have hMKB : ∀ i, i < n → MK i < B := fun i hi => indicator_lt h1B hMK hi
+  -- the recorded targets never outgrow the residual neighbourhood
+  have hsubN : ∀ J, J ≤ offset g ((u : ℕ) + 1) → resTgts g M u J ⊆ ResNbhd G M u := by
+    intro J hJ
+    rw [← resTgts_end (G := G) (M := M) (o := u) hg]
+    exact resTgts_mono hJ
+  have hstep : ∀ ρ, RowInv3 g M V u Q head tl (σ.vars "s") (σ.vars "tog") σ ρ →
+      (Cond.lt (Expr.var "j") (Expr.var "jend")).evalB B ρ = some true →
+      ∃ ρ' K, Run B solveSlot ρ ρ' K ∧
+        RowInv3 g M V u Q head tl (σ.vars "s") (σ.vars "tog") σ ρ' ∧
+        1 + (Cond.lt (Expr.var "j") (Expr.var "jend")).size + K +
+            300 * (offset g ((u : ℕ) + 1) - ρ'.vars "j") ≤
+          300 * (offset g ((u : ℕ) + 1) - ρ.vars "j") := by
+    rintro ρ ⟨hfr, harr, hinp, hout, hlo, hhi, hseen2, ht1n, ht2n, htog1, hsle,
+      hcardρ, hst1, hst2, hsρ, htgρ, VISρ, Qρ, hvisρ, hVISρ, hqρ, hQρ, hQpre,
+      htlge, htln⟩ hcond
+    have hjendρ : ρ.vars "jend" = offset g ((u : ℕ) + 1) := by
+      rw [hfr "jend" (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide) (by decide), hjend]
+    have hjlt : ρ.vars "j" < offset g ((u : ℕ) + 1) := by
+      have := lt_of_condLt_true hcond
+      omega
+    have hj2m : ρ.vars "j" < 2 * m := by omega
+    have huρ : ρ.vars "u" = (u : ℕ) := by
+      rw [hfr "u" (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide) (by decide), hu]
+    have htgtρ : ρ.arrs "tgt" = arrOf (2 * m) T := by
+      rw [harr "tgt" (by decide) (by decide), htgt]
+    have hmarkρ : ρ.arrs "mark" = arrOf n MK := by
+      rw [harr "mark" (by decide) (by decide), hmark]
+    have hwn : target g (ρ.vars "j") < n := target_lt' hg u.2 hjlt
+    obtain ⟨w, hwval⟩ : ∃ w : Fin n, (w : ℕ) = target g (ρ.vars "j") := ⟨⟨_, hwn⟩, rfl⟩
+    have hwlt : (w : ℕ) < n := w.2
+    have hTj : T (ρ.vars "j") = (w : ℕ) := by rw [hwval]; exact hT _ hj2m
+    have hw₁ : (ρ.setVar "w" (w : ℕ)).vars "w" = (w : ℕ) := by simp
+    have r₁ : Run B (.assign "w" (.get "tgt" (.var "j"))) ρ (ρ.setVar "w" (w : ℕ)) 3 :=
+      (Run.assign (v := (w : ℕ)) (evalB_get (k := ρ.vars "j") (evalB_var (by omega))
+        (by rw [htgtρ, getElem?_arrOf T hj2m, hTj]) (by omega))).mono (by simp)
+    have hcm : (Cond.eq (.get "mark" (.var "w")) (.lit 0)).evalB B (ρ.setVar "w" (w : ℕ))
+        = some (MK (w : ℕ) == 0) := by
+      have hev : (Expr.var "w").evalB B (ρ.setVar "w" (w : ℕ)) = some (w : ℕ) := by
+        have := evalB_var (B := B) (x := "w") (σ := ρ.setVar "w" (w : ℕ))
+          (by rw [hw₁]; omega)
+        rwa [hw₁] at this
+      exact evalB_condEq (evalB_get (k := (w : ℕ)) hev
+        (by rw [arrs_setVar, hmarkρ, getElem?_arrOf MK hwlt]) (hMKB _ hwlt))
+        (evalB_lit (by omega))
+    by_cases hMKw : MK (w : ℕ) = 0
+    · -- **an unmarked target**: the dedup decides what the slot does
+      have hwM : w ∉ M := not_mem_of_indicator_eq hMK hwlt hMKw
+      have hwmv : target g (ρ.vars "j") ∉ markedVals M := by
+        rw [← hwval]; simpa using hwM
+      have hres : resTgts g M u (ρ.vars "j" + 1)
+          = insert w (resTgts g M u (ρ.vars "j")) := by
+        rw [resTgts_succ_of_unmarked (o := u) hlo hwn hwmv]
+        congr 1
+        exact Fin.ext hwval.symm
+      obtain ⟨ρ₂, VIS₂, Q₂, V₂, K₂, r₂, hK₂, hinp₂, hout₂, harr₂, hfr₂, hvis₂, hVIS₂,
+          hq₂, hQ₂, hQpre₂, htlge₂, htln₂, htog₂, hseen₂, hcase₂⟩ :=
+        dedupCount_run (B := B) (n := n) (V := V ∪ resTgts g M u (ρ.vars "j"))
+          (VIS := VISρ) (Q := Qρ) (u := u) (w := w) (head := head) (tl := ρ.vars "tl")
+          h1B hnB h2B (by simpa using hvisρ) hVISρ (by simpa using hqρ) hQρ
+          (by simpa using huρ) hw₁ (by simp) (by simp; omega) (by simpa using htog1)
+          (by simpa using hseen2) (by simp; omega) (by simp; omega)
+      have e_seen : (ρ.setVar "w" (w : ℕ)).vars "seen" = ρ.vars "seen" := by simp
+      have e_t1 : (ρ.setVar "w" (w : ℕ)).vars "t1" = ρ.vars "t1" := by simp
+      have e_t2 : (ρ.setVar "w" (w : ℕ)).vars "t2" = ρ.vars "t2" := by simp
+      have e_s : (ρ.setVar "w" (w : ℕ)).vars "s" = ρ.vars "s" := by simp
+      have e_tog : (ρ.setVar "w" (w : ℕ)).vars "tog" = ρ.vars "tog" := by simp
+      rw [e_seen, e_t1, e_t2, e_s, e_tog] at hcase₂
+      have hj₂ : ρ₂.vars "j" = ρ.vars "j" := by
+        rw [hfr₂ "j" (by decide) (by decide) (by decide) (by decide) (by decide)
+          (by decide)]
+        simp
+      have hjnew : (ρ₂.setVar "j" (ρ.vars "j" + 1)).vars "j" = ρ.vars "j" + 1 := by simp
+      have r₃ : Run B (.assign "j" (.add (.var "j") (.lit 1))) ρ₂
+          (ρ₂.setVar "j" (ρ.vars "j" + 1)) 4 :=
+        (Run.assign (v := ρ.vars "j" + 1) (by simp [hj₂]; omega)).mono (by simp)
+      have hrun : Run B solveSlot ρ (ρ₂.setVar "j" (ρ.vars "j" + 1)) 250 :=
+        (Run.seq r₁ (Run.seq (Run.ite_true (by rw [hcm]; simp [hMKw]) r₂) r₃)).mono
+          (by simp; omega)
+      -- the frame conditions, which do not depend on which branch the dedup took
+      have hfrρ' : ∀ y, y ≠ "s" → y ≠ "tog" → y ≠ "tl" → y ≠ "seen" → y ≠ "t1" →
+          y ≠ "t2" → y ≠ "j" → y ≠ "w" →
+          (ρ₂.setVar "j" (ρ.vars "j" + 1)).vars y = σ.vars y := by
+        intro y h1 h2 h3 h4 h5 h6 h7 h8
+        rw [vars_setVar, if_neg h7, hfr₂ y h1 h2 h3 h4 h5 h6, vars_setVar, if_neg h8]
+        exact hfr y h1 h2 h3 h4 h5 h6 h7 h8
+      have harrρ' : ∀ a, a ≠ "vis" → a ≠ "q" →
+          (ρ₂.setVar "j" (ρ.vars "j" + 1)).arrs a = σ.arrs a := by
+        intro a h1 h2
+        rw [arrs_setVar, harr₂ a h1 h2, arrs_setVar]
+        exact harr a h1 h2
+      have hinpρ' : (ρ₂.setVar "j" (ρ.vars "j" + 1)).inp = σ.inp := by
+        rw [inp_setVar, hinp₂, inp_setVar]; exact hinp
+      have houtρ' : (ρ₂.setVar "j" (ρ.vars "j" + 1)).out = σ.out := by
+        rw [out_setVar, hout₂, out_setVar]; exact hout
+      have hQpreρ' : ∀ i < tl, Q₂ i = Q i := by
+        intro i hi
+        rw [hQpre₂ i (by omega), hQpre i hi]
+      rcases hcase₂ with ⟨hV₂, hreg, hcnt⟩ | ⟨hρeq, hV₂, hsne, hrep⟩
+      · -- a target the block has not shown before
+        have hwnot : w ∉ resTgts g M u (ρ.vars "j") := by
+          rcases hreg with ⟨hs0, -, -, -⟩ | ⟨hs1, hne, -, -, -⟩
+          · have hemp : resTgts g M u (ρ.vars "j") = ∅ :=
+              Finset.card_eq_zero.1 (by omega)
+            simp [hemp]
+          · obtain ⟨x, hx, hxv⟩ := hst1 (by omega)
+            rw [eq_singleton_of_card_one (by omega) hx]
+            simp only [Finset.mem_singleton]
+            rintro rfl
+            exact hne hxv
+        have hseennew : ρ₂.vars "seen" = ρ.vars "seen" + 1 := by
+          rcases hreg with ⟨hs0, hs1, -, -⟩ | ⟨hs1, -, hs2, -, -⟩ <;> omega
+        have hcardnew : (resTgts g M u (ρ.vars "j" + 1)).card = ρ₂.vars "seen" := by
+          rw [hres, Finset.card_insert_of_notMem hwnot]
+          omega
+        have hVeq : V ∪ resTgts g M u (ρ.vars "j" + 1) = V₂ := by
+          rw [hV₂, hres, Finset.union_insert]
+        have hfilt : ((resTgts g M u (ρ.vars "j" + 1)).filter
+            (fun x : Fin n => (u : ℕ) < (x : ℕ))).card ≤ 2 := by
+          have := Finset.card_filter_le (resTgts g M u (ρ.vars "j" + 1))
+            (fun x : Fin n => (u : ℕ) < (x : ℕ))
+          omega
+        have hcnt' : ((resTgts g M u (ρ.vars "j" + 1)).filter
+              (fun x : Fin n => (u : ℕ) < (x : ℕ))).card
+            = ((resTgts g M u (ρ.vars "j")).filter
+              (fun x : Fin n => (u : ℕ) < (x : ℕ))).card +
+                (if (u : ℕ) < (w : ℕ) then 1 else 0) := by
+          rw [hres]
+          simp only [Finset.filter_insert]
+          by_cases hlt : (u : ℕ) < (w : ℕ)
+          · rw [if_pos hlt, if_pos hlt, Finset.card_insert_of_notMem
+              (fun hmem => hwnot (Finset.mem_of_mem_filter _ hmem))]
+          · rw [if_neg hlt, if_neg hlt]
+            omega
+        have hsnew : ρ₂.vars "s" = σ.vars "s" +
+              (((resTgts g M u (ρ.vars "j" + 1)).filter
+                (fun x : Fin n => (u : ℕ) < (x : ℕ))).card + 1 - σ.vars "tog") / 2 ∧
+            ρ₂.vars "tog" = (((resTgts g M u (ρ.vars "j" + 1)).filter
+                (fun x : Fin n => (u : ℕ) < (x : ℕ))).card + σ.vars "tog") % 2 := by
+          rw [hcnt']
+          rcases hcnt with ⟨hlt, hz, ha, hb⟩ | ⟨hlt, hz, ha, hb⟩ | ⟨hnlt, ha, hb⟩
+          · rw [if_pos hlt]; omega
+          · rw [if_pos hlt]; omega
+          · rw [if_neg hnlt]; omega
+        refine ⟨ρ₂.setVar "j" (ρ.vars "j" + 1), 250, hrun,
+          ⟨hfrρ', harrρ', hinpρ', houtρ', by rw [hjnew]; omega, by rw [hjnew]; omega,
+            by simpa using hseen₂, ?_, ?_, by simpa using htog₂, ?_,
+            by rw [hjnew]; simpa using hcardnew, ?_, ?_, ?_, ?_,
+            VIS₂, Q₂, by simpa using hvis₂, by rw [hjnew, hVeq]; exact hVIS₂,
+            by simpa using hq₂, by rw [hjnew, hVeq]; simpa using hQ₂,
+            hQpreρ', by simp; omega, by simpa using htln₂⟩, by simp; omega⟩
+        · -- `t1` is a vertex
+          rcases hreg with ⟨-, -, ht1', -⟩ | ⟨-, -, -, ht1', -⟩
+          · rw [vars_setVar, if_neg (by decide), ht1']; omega
+          · rw [vars_setVar, if_neg (by decide), ht1']; omega
+        · -- `t2` is a vertex
+          rcases hreg with ⟨-, -, -, ht2'⟩ | ⟨-, -, -, -, ht2'⟩
+          · rw [vars_setVar, if_neg (by decide), ht2']; omega
+          · rw [vars_setVar, if_neg (by decide), ht2']; omega
+        · -- `s` has not run away
+          rw [vars_setVar, if_neg (show ¬ ("s" = "j") by decide)]
+          omega
+        · -- the first recorded target is still witnessed
+          intro _
+          rcases hreg with ⟨-, -, ht1', -⟩ | ⟨hs1, -, -, ht1', -⟩
+          · exact ⟨w, by rw [hjnew, hres]; exact Finset.mem_insert_self _ _,
+              by rw [vars_setVar, if_neg (by decide), ht1']⟩
+          · obtain ⟨x, hx, hxv⟩ := hst1 (by omega)
+            exact ⟨x, by rw [hjnew]; exact resTgts_mono (by omega) hx,
+              by rw [vars_setVar, if_neg (by decide), ht1', hxv]⟩
+        · -- and so is the second, when there is one
+          intro h2
+          rcases hreg with ⟨-, hs1, -, -⟩ | ⟨hs1, hne, -, ht1', ht2'⟩
+          · rw [vars_setVar, if_neg (by decide)] at h2; omega
+          · refine ⟨⟨w, by rw [hjnew, hres]; exact Finset.mem_insert_self _ _,
+              by rw [vars_setVar, if_neg (by decide), ht2']⟩, ?_⟩
+            rw [vars_setVar, if_neg (by decide), vars_setVar, if_neg (by decide),
+              ht1', ht2']
+            exact fun h => hne h.symm
+        · -- the accumulated cost, in closed form
+          rw [hjnew, vars_setVar, if_neg (show ¬ ("s" = "j") by decide)]
+          exact hsnew.1
+        · -- and the toggle
+          rw [hjnew, vars_setVar, if_neg (show ¬ ("tog" = "j") by decide)]
+          exact hsnew.2
+      · -- a repeat: the set of recorded targets does not move
+        have hres' : resTgts g M u (ρ.vars "j" + 1) = resTgts g M u (ρ.vars "j") := by
+          have hwin : w ∈ resTgts g M u (ρ.vars "j") := by
+            rcases hrep with hw1 | ⟨hs2, hw2⟩ | ⟨hs2, hne1, hne2⟩
+            · obtain ⟨x, hx, hxv⟩ := hst1 (by omega)
+              have : x = w := Fin.ext (by rw [hxv, ← hw1])
+              rwa [this] at hx
+            · obtain ⟨⟨x, hx, hxv⟩, -⟩ := hst2 hs2
+              have : x = w := Fin.ext (by rw [hxv, ← hw2])
+              rwa [this] at hx
+            · exfalso
+              obtain ⟨x1, hx1, hx1v⟩ := hst1 (by omega)
+              obtain ⟨⟨x2, hx2, hx2v⟩, hne12⟩ := hst2 hs2
+              have hx12 : x1 ≠ x2 := fun h => hne12 (by rw [← hx1v, ← hx2v, h])
+              have hpair : resTgts g M u (ρ.vars "j") = {x1, x2} :=
+                eq_pair_of_card_two (by omega) hx1 hx2 hx12
+              have hwnot : w ∉ resTgts g M u (ρ.vars "j") := by
+                rw [hpair]
+                simp only [Finset.mem_insert, Finset.mem_singleton]
+                rintro (rfl | rfl)
+                · exact hne1 hx1v
+                · exact hne2 hx2v
+              have h3 : (resTgts g M u (ρ.vars "j" + 1)).card = 3 := by
+                rw [hres, Finset.card_insert_of_notMem hwnot, hpair,
+                  Finset.card_pair hx12]
+              have hle := Finset.card_le_card (hsubN (ρ.vars "j" + 1) (by omega))
+              rw [h3, ← resDeg_eq_card] at hle
+              omega
+          rw [hres, Finset.insert_eq_self.2 hwin]
+        subst hρeq
+        have hVeq : V ∪ resTgts g M u (ρ.vars "j" + 1)
+            = V ∪ resTgts g M u (ρ.vars "j") := by rw [hres']
+        refine ⟨(ρ.setVar "w" (w : ℕ)).setVar "j" (ρ.vars "j" + 1), 250, hrun,
+          ⟨hfrρ', harrρ', hinpρ', houtρ', by rw [hjnew]; omega, by rw [hjnew]; omega,
+            by simp; omega, by simp; omega, by simp; omega, by simp; omega,
+            by simp; omega, by rw [hjnew, hres']; simp; omega, ?_, ?_, ?_, ?_,
+            VIS₂, Q₂, by simpa using hvis₂,
+            by rw [hjnew, hres']; rw [hV₂] at hVIS₂; exact hVIS₂,
+            by simpa using hq₂,
+            by rw [hjnew, hres']; rw [hV₂] at hQ₂; simpa using hQ₂,
+            hQpreρ', by simp; omega, by simpa using htln₂⟩, by simp; omega⟩
+        · intro h1
+          rw [hjnew, hres']
+          simp only [vars_setVar, if_neg (show ¬ ("t1" = "j") by decide),
+            if_neg (show ¬ ("t1" = "w") by decide)]
+          refine hst1 ?_
+          simpa using h1
+        · intro h2
+          rw [hjnew, hres']
+          simp only [vars_setVar, if_neg (show ¬ ("t1" = "j") by decide),
+            if_neg (show ¬ ("t1" = "w") by decide),
+            if_neg (show ¬ ("t2" = "j") by decide),
+            if_neg (show ¬ ("t2" = "w") by decide)]
+          refine hst2 ?_
+          simpa using h2
+        · rw [hjnew, hres']
+          simpa using hsρ
+        · rw [hjnew, hres']
+          simpa using htgρ
+    · -- **a marked target**: the slot contributes nothing
+      have hwM : w ∈ M := mem_of_indicator_ne hMK hwlt hMKw
+      have hwmv : target g (ρ.vars "j") ∈ markedVals M := by
+        rw [← hwval]; simpa using hwM
+      have hres : resTgts g M u (ρ.vars "j" + 1) = resTgts g M u (ρ.vars "j") :=
+        resTgts_succ_of_marked (o := u) hwmv
+      have hjnew : ((ρ.setVar "w" (w : ℕ)).setVar "j" (ρ.vars "j" + 1)).vars "j"
+          = ρ.vars "j" + 1 := by simp
+      have r₃ : Run B (.assign "j" (.add (.var "j") (.lit 1))) (ρ.setVar "w" (w : ℕ))
+          ((ρ.setVar "w" (w : ℕ)).setVar "j" (ρ.vars "j" + 1)) 4 :=
+        (Run.assign (v := ρ.vars "j" + 1)
+          (evalB_bin (evalB_var (by simp; omega)) (evalB_lit (by omega))
+            (by simp; omega))).mono (by simp)
+      have hrun : Run B solveSlot ρ ((ρ.setVar "w" (w : ℕ)).setVar "j"
+          (ρ.vars "j" + 1)) 250 :=
+        (Run.seq r₁ (Run.seq (Run.ite_false (by rw [hcm]; simp [hMKw]) Run.skip)
+          r₃)).mono (by simp)
+      refine ⟨(ρ.setVar "w" (w : ℕ)).setVar "j" (ρ.vars "j" + 1), 250, hrun,
+        ⟨?_, ?_, by simp [hinp], by simp [hout], by rw [hjnew]; omega,
+          by rw [hjnew]; omega, by simp; omega, by simp; omega, by simp; omega,
+          by simp; omega, by simp; omega, by rw [hjnew, hres]; simp; omega, ?_, ?_,
+          ?_, ?_, VISρ, Qρ, by simpa using hvisρ, by rw [hjnew, hres]; exact hVISρ,
+          by simpa using hqρ, by rw [hjnew, hres]; simpa using hQρ, hQpre,
+          by simp; omega, by simpa using htln⟩, by simp; omega⟩
+      · intro y h1 h2 h3 h4 h5 h6 h7 h8
+        rw [vars_setVar, if_neg h7, vars_setVar, if_neg h8]
+        exact hfr y h1 h2 h3 h4 h5 h6 h7 h8
+      · intro a h1 h2
+        rw [arrs_setVar, arrs_setVar]
+        exact harr a h1 h2
+      · intro h1
+        rw [hjnew, hres]
+        simp only [vars_setVar, if_neg (show ¬ ("t1" = "j") by decide),
+          if_neg (show ¬ ("t1" = "w") by decide)]
+        refine hst1 ?_
+        simpa using h1
+      · intro h2
+        rw [hjnew, hres]
+        simp only [vars_setVar, if_neg (show ¬ ("t1" = "j") by decide),
+          if_neg (show ¬ ("t1" = "w") by decide),
+          if_neg (show ¬ ("t2" = "j") by decide),
+          if_neg (show ¬ ("t2" = "w") by decide)]
+        refine hst2 ?_
+        simpa using h2
+      · rw [hjnew, hres]
+        simpa using hsρ
+      · rw [hjnew, hres]
+        simpa using htgρ
+  obtain ⟨τ', K, hrun, ⟨hfr', harr', hinp', hout', hlo', hhi', hseen2', ht1n', ht2n',
+      htog1', hsle', hcard', hst1', hst2', hs', htg', VIS', Q', hvis', hVIS', hq',
+      hQ', hQpre', htlge', htln'⟩, hfalse, hpay⟩ :=
+    Run.while_pot (B := B) (b := Cond.lt (.var "j") (.var "jend")) (c := solveSlot)
+      (RowInv3 g M V u Q head tl (σ.vars "s") (σ.vars "tog") σ)
+      (fun ρ => 300 * (offset g ((u : ℕ) + 1) - ρ.vars "j"))
+      (fun ρ hρ => by
+        obtain ⟨hfr, -, -, -, -, hhi, -⟩ := hρ
+        refine evalB_condLt_vars (by omega) ?_
+        rw [hfr "jend" (by decide) (by decide) (by decide) (by decide) (by decide)
+          (by decide) (by decide) (by decide), hjend]
+        omega)
+      hstep
+      ⟨fun y _ _ _ _ _ _ _ _ => rfl, fun a _ _ => rfl, rfl, rfl, by omega,
+        by rw [hj]; exact hstart, by omega, by omega, by omega, htog, by omega,
+        by rw [hj, resTgts_start]; simp [hseen],
+        by omega, by omega,
+        by rw [hj, resTgts_start]; simp only [Finset.filter_empty,
+          Finset.card_empty]; omega,
+        by rw [hj, resTgts_start]; simp only [Finset.filter_empty,
+          Finset.card_empty]; omega,
+        VIS, Q, hvis, by rw [hj, resTgts_start]; simpa using hVIS,
+        hq, by rw [hj, resTgts_start, htl]; simpa using hQ,
+        fun i _ => rfl, by omega, by rw [htl]; exact hQ.tl_le⟩
+  have hjend' : τ'.vars "jend" = offset g ((u : ℕ) + 1) := by
+    rw [hfr' "jend" (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide), hjend]
+  have hjeq : τ'.vars "j" = offset g ((u : ℕ) + 1) := by
+    have := le_of_condLt_false hfalse
+    omega
+  rw [hjeq, resTgts_end (G := G) (M := M) (o := u) hg] at hVIS' hQ' hs' htg'
+  refine ⟨τ', VIS', Q', K, hrun, hinp', hout', harr', hfr', hvis', hVIS', hq', hQ',
+    hQpre', htlge', htln', hs', htg', ?_⟩
+  have hΦ : 300 * (offset g ((u : ℕ) + 1) - σ.vars "j")
+      = 300 * (offset g ((u : ℕ) + 1) - offset g (u : ℕ)) := by rw [hj]
+  simp only [size_condLt, size_var] at hpay
+  omega
 
 end Lax15Proofs.VC3
