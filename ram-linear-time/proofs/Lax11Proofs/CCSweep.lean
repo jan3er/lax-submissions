@@ -30,6 +30,7 @@ namespace Lax11Proofs.CC
 
 open Lax13.Ram Lax13.RamComputes Lax11.GraphEncoding Lax11.ConnectedComponents
 open Lax13Proofs.Imp Lax13Proofs.Compile Lax13Proofs.Reasoning Lax11Proofs.Labels
+open Lax13Proofs.Reasoning.Lib
 
 variable {x : List ℕ} {B n m : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
 
@@ -40,7 +41,7 @@ exhausted, every component below `u` is labelled, and no label above
 `u` has been written. -/
 def SweepInv (x : List ℕ) (n m : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
     (τ : Env) : Prop :=
-  τ.vars "n" = n ∧ τ.vars "m" = m ∧ τ.vars "u" ≤ n ∧
+  τ.vars "n" = n ∧ τ.vars "u" ≤ n ∧
   τ.arrs "off" = arrOf (n + 1) O ∧ τ.arrs "tgt" = arrOf (2 * m) T ∧
   τ.vars "head" = τ.vars "tail" ∧
   ∃ L Q, τ.arrs "lab" = arrOf n L ∧ τ.arrs "q" = arrOf n Q ∧
@@ -62,7 +63,7 @@ theorem outerBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     ∃ τ' K, Run B outerBody τ τ' K ∧ SweepInv x n m G O T τ' ∧
       1 + (Cond.lt (Expr.var "u") (Expr.var "n")).size + K + SweepPot n m τ'
         ≤ SweepPot n m τ := by
-  obtain ⟨hn, hmm, hun, hoff, htgt, hht, L, Q, hlab, hq, hB, hdone, hlow, hsum⟩ := hI
+  obtain ⟨hn, hun, hoff, htgt, hht, L, Q, hlab, hq, hB, hdone, hlow, hsum⟩ := hI
   have hu : τ.vars "u" < n := by simp [hn] at hc; omega
   have hhd := hB.hd
   have htl := hB.tl
@@ -76,80 +77,31 @@ theorem outerBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     have htail : τ.vars "tail" < n := hB.tail_lt hu hLu
     have hceval : (Cond.eq (.get "lab" (.var "u")) (.var "n")).evalB B τ = some true := by
       simp [hlab, getElem?_arrOf L hu, hn, hLu]; omega
-    have hQne : ∀ p, p < τ.vars "tail" → Q p ≠ τ.vars "u" := by
-      intro p hp hpu
-      exact (hB.qmem p hp).2 (by rw [hpu, hLu])
-    -- the state the search starts from
+    -- the state the search starts from: the root labelled with itself and
+    -- put on the queue, which is `Base.enqueue`
     have hdrainI : DrainInv x n m (τ.vars "u") G O T
         (((τ.setArr "lab" (τ.vars "u") (τ.vars "u")).setArr "q" (τ.vars "tail")
           (τ.vars "u")).setVar "tail" (τ.vars "tail" + 1)) := by
-      refine ⟨fun z => if z = τ.vars "u" then τ.vars "u" else L z,
-        fun i => if i = τ.vars "tail" then τ.vars "u" else Q i,
-        ⟨by simp [hn], by simp [hmm], by simp, by simp [hoff], by simp [htgt],
-          by simp [hlab, set_arrOf], by simp [hq, set_arrOf]⟩, ?_, ?_⟩
-      · refine ⟨⟨?_, by simp; omega, by simp; omega, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_⟩
-        · intro z hz
-          by_cases hzu : z = τ.vars "u"
-          · exact Or.inr (by simp [hzu, hlu])
-          · simpa [if_neg hzu] using hB.lab z hz
-        · intro i hi
-          simp at hi
-          by_cases hit : i = τ.vars "tail"
-          · simp [hit, hu]; omega
-          · have hi' : i < τ.vars "tail" := by omega
-            rw [if_neg hit, if_neg (hQne i hi')]
-            exact hB.qmem i hi'
-        · intro z hz hlz
-          by_cases hzu : z = τ.vars "u"
-          · exact ⟨τ.vars "tail", by simp, by simp [hzu]⟩
-          · rw [if_neg hzu] at hlz
-            obtain ⟨i, hi, rfl⟩ := hB.qall z hz hlz
-            exact ⟨i, by simp; omega, by simp [if_neg (show i ≠ τ.vars "tail" by omega)]⟩
-        · intro i hi j hj hij
-          simp at hi hj
-          by_cases hit : i = τ.vars "tail" <;> by_cases hjt : j = τ.vars "tail"
-          · omega
-          · rw [if_pos hit, if_neg hjt] at hij
-            exact absurd hij.symm (hQne j (by omega))
-          · rw [if_neg hit, if_pos hjt] at hij
-            exact absurd hij (hQne i (by omega))
-          · rw [if_neg hit, if_neg hjt] at hij
-            exact hB.qinj i (by omega) j (by omega) hij
-        · intro i hi j hj₁ hj₂
-          simp at hi
-          have hit : i ≠ τ.vars "tail" := by omega
-          rw [if_neg hit] at hj₁ hj₂ ⊢
-          have hnotu : target x j ≠ τ.vars "u" := by
-            intro hju
-            have := hB.exp i (by omega) j hj₁ hj₂
-            rw [hju, hLu] at this
-            exact (hB.qmem i (by omega)).2 this.symm
-          rw [if_neg hnotu, if_neg (hQne i (by omega))]
-          exact hB.exp i (by omega) j hj₁ hj₂
-        · intro z hz hlz
-          by_cases hzu : z = τ.vars "u"
-          · simp [hzu]; omega
-          · simpa [if_neg hzu] using hdone z hz hlz
-        · intro z hz hlz
-          by_cases hzu : z = τ.vars "u"
-          · simp [hzu]
-          · rw [if_neg hzu] at hlz ⊢
-            exact le_of_lt (hlow z hz hlz)
-        · simp
-          omega
-        · intro i hi₁ hi₂
-          simp at hi₁ hi₂
-          have hit : i = τ.vars "tail" := by omega
-          simp [hit]
+      refine ⟨upd L (τ.vars "u") (τ.vars "u"), upd Q (τ.vars "tail") (τ.vars "u"),
+        ⟨by simp [hn], by simp, by simp [hoff], by simp [htgt],
+          by simp [hlab, set_arrOf_eq_upd], by simp [hq, set_arrOf_eq_upd]⟩,
+        ⟨by simpa using hB.enqueue hu hLu hlu, fun z hz hlz => ?_, fun z hz hlz => ?_,
+          by simp; omega, fun i hi₁ hi₂ => ?_⟩, ?_⟩
+      · by_cases hzu : z = τ.vars "u"
+        · rw [hzu, upd_self]; omega
+        · rw [upd_of_ne _ hzu]; exact hdone z hz (by simpa using hlz)
+      · by_cases hzu : z = τ.vars "u"
+        · rw [hzu, upd_self]
+        · rw [upd_of_ne _ hzu] at hlz ⊢; exact le_of_lt (hlow z hz hlz)
+      · simp only [vars_setVar, vars_setArr] at hi₁ hi₂
+        rw [show i = τ.vars "tail" by simp at hi₁ hi₂; omega, upd_self, upd_self]
       · show τ.vars "sc" = _
-        simp only [vars_setVar]
         rw [hsum]
-        refine Finset.sum_congr rfl fun i hi => ?_
-        simp at hi
-        rw [if_neg (show i ≠ τ.vars "tail" by omega)]
+        exact Finset.sum_congr rfl fun i hi => by
+          rw [upd_of_ne _ (show i ≠ τ.vars "tail" by simp at hi; omega)]
     obtain ⟨τ₄, K₄, hdrun, hdI, hdhead, hdpay⟩ :=
       drain_run hx hm hO hT hu hnB hmB hdrainI
-    obtain ⟨L₄, Q₄, ⟨hn₄, hm₄, hu₄, hoff₄, htgt₄, hlab₄, hq₄⟩, hL₄, hsum₄⟩ := hdI
+    obtain ⟨L₄, Q₄, ⟨hn₄, hu₄, hoff₄, htgt₄, hlab₄, hq₄⟩, hL₄, hsum₄⟩ := hdI
     have htl₄ := hL₄.base.tl
     refine ⟨τ₄.setVar "u" (τ.vars "u" + 1), _,
       Run.seq (Run.ite_true hceval
@@ -159,7 +111,7 @@ theorem outerBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
               (by simp; omega) (by simp; omega) (by simp [hq, htail]))
             (Run.seq (Run.assign (v := τ.vars "tail" + 1) (by simp; omega)) hdrun))))
         (Run.assign (v := τ.vars "u" + 1) (by simp [hu₄]; omega)), ?_, ?_⟩
-    · refine ⟨by simp [hn₄], by simp [hm₄], by simp; omega, by simp [hoff₄],
+    · refine ⟨by simp [hn₄], by simp; omega, by simp [hoff₄],
         by simp [htgt₄], by simp [hdhead], L₄, Q₄, by simp [hlab₄], by simp [hq₄],
         by simpa using hL₄.base, ?_, ?_, by simpa using hsum₄⟩
       · intro w hw hlw
@@ -196,7 +148,7 @@ theorem outerBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
       Run.seq (Run.ite_false hceval Run.skip)
         (Run.assign (v := τ.vars "u" + 1) (by simp; omega)),
       ?_, ?_⟩
-    · refine ⟨by simp [hn], by simp [hmm], by simp; omega, by simp [hoff], by simp [htgt],
+    · refine ⟨by simp [hn], by simp; omega, by simp [hoff], by simp [htgt],
         by simp [hht], L, Q, by simp [hlab], by simp [hq], by simpa using hB, ?_, ?_,
         by simpa using hsum⟩
       · intro w hw hlw
@@ -240,10 +192,10 @@ theorem sweep_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     Run.while_potential (B := B) (b := Cond.lt (.var "u") (.var "n")) (c := outerBody)
       (SweepInv x n m G O T) (SweepPot n m)
       (fun σ hσ => by
-        obtain ⟨hn, hmm, hun, -⟩ := hσ
+        obtain ⟨hn, hun, -⟩ := hσ
         exact evalB_condLt_vars (by omega) (by omega))
       (fun σ hσ hc => outerBody_run hx hm hO hT hnB hmB hσ hc) hI
-  obtain ⟨hn', -, hun', -, -, -, L, Q, hlab', -, hB', hdone', -, -⟩ := hI'
+  obtain ⟨hn', hun', -, -, -, L, Q, hlab', -, hB', hdone', -, -⟩ := hI'
   have hun : τ'.vars "u" = n := by simp [hn'] at hfalse; omega
   refine ⟨τ', L, K, hrun, hn', hlab', fun w hw => ?_, by simpa using hpay⟩
   exact (hB'.lab w hw).resolve_left (hdone' w hw (by rw [hun]; exact lbl_lt hw))
@@ -376,10 +328,6 @@ theorem ccCom_run (hx : EncodesGraph x n G) (hm : edgeCount x = m) (hB : x.lengt
     rw [r₇.frame_var "n" (by decide), r₆.frame_var "n" (by decide), hσ₅, vars_setVar,
       if_neg (by decide : "n" ≠ "len"), r₄.frame_var "n" (by decide)]
     simp [hσ₃, hσ₂, hσ₁, initEnv]
-  have hm₇ : σ₇.vars "m" = m := by
-    rw [r₇.frame_var "m" (by decide), r₆.frame_var "m" (by decide), hσ₅, vars_setVar,
-      if_neg (by decide : "m" ≠ "len"), r₄.frame_var "m" (by decide)]
-    simp [hσ₃, hσ₂, hσ₁, initEnv]
   have hoff₇ : σ₇.arrs "off" = arrOf (n + 1) O := by
     rw [r₇.frame_arr "off" (by decide), r₆.frame_arr "off" (by decide), hσ₅, arrs_setVar, hoff₄]
   have htgt₇ : σ₇.arrs "tgt" = arrOf (2 * m) T := by
@@ -393,7 +341,7 @@ theorem ccCom_run (hx : EncodesGraph x n G) (hm : edgeCount x = m) (hB : x.lengt
     simp [hσ₃, hσ₂, hσ₁, initEnv]
   -- the sweep
   have hI : SweepInv x n m G O T σ₁₁ := by
-    refine ⟨by simp [hσ₁₁, hn₇], by simp [hσ₁₁, hm₇], by simp [hσ₁₁],
+    refine ⟨by simp [hσ₁₁, hn₇], by simp [hσ₁₁],
       by simp [hσ₁₁, hoff₇], by simp [hσ₁₁, htgt₇], by simp [hσ₁₁],
       L₀, fun _ => 0, by simp [hσ₁₁, hlab₇], by simp [hσ₁₁, hq₇],
       ⟨fun w hw => Or.inl (hL₀ w hw), by simp [hσ₁₁], by simp [hσ₁₁],

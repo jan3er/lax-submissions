@@ -1,5 +1,6 @@
 import Lax11Proofs.CCGraph
 import Lax11Proofs.CCPhases
+import Lax13Proofs.Lib.Csr
 
 /-!
 The search: scanning one block, emptying the queue, and the sweep over
@@ -34,12 +35,22 @@ of the bounded semantics enters as the two hypotheses `n < B` and
 the slot counter, whose bound is the amortization argument itself and
 is therefore passed in as `sc₀ + deg x v ≤ 2 * m` where the scan needs
 it.
+
+Two things here are the kit's rather than this driver's. The body of
+the scan is walked by `run_vcg`, so what is left of `scanBody_run` is
+what the two paths *did*; and the scan itself is `Csr.rowScan_spec`,
+which supplies the loop condition, the exit fact `j = off (v+1)` and
+the cost of thirty a slot. The three reads that open `expandBody` are
+still written out: they are a chain, the index of each being the value
+the one before read, and stating their obligations for the walk costs
+what building their `Run`s costs.
 -/
 
 namespace Lax11Proofs.CC
 
 open Lax13.Ram Lax11.GraphEncoding Lax11.ConnectedComponents
 open Lax13Proofs.Imp Lax13Proofs.Compile Lax13Proofs.Reasoning
+open Lax13Proofs.Reasoning.Lib
 
 variable {x : List ℕ} {B n m u head tail : ℕ} {G : SimpleGraph (Fin n)} {O T L Q : ℕ → ℕ}
 
@@ -114,11 +125,87 @@ theorem Base.rch_labelled (hx : EncodesGraph x n G) (hB : Base x n G L Q tail ta
   rw [← hj₃, hB.exp i hi j hj₁ hj₂]
   exact hc
 
+/-! ### The one change the arrays ever undergo
+
+Labelling an unlabelled vertex with its own label and putting it on the
+back of the queue: that is the whole of what the search writes, and the
+sweep writes it too when it starts a search from a root. So the clauses
+of `Base` and `Live` are re-established here once rather than at each of
+the two sites. -/
+
+/-- Labelling the unlabelled vertex `w` with its own label and enqueuing
+it. The queue clauses survive because `w` was not on the queue — nothing
+unlabelled is — and the expansion clause because nothing already
+expanded can name `w` either. -/
+theorem Base.enqueue (hB : Base x n G L Q head tail) {w : ℕ} (hw : w < n)
+    (hnew : L w = n) (hlw : lbl G w = u) :
+    Base x n G (upd L w u) (upd Q tail w) head (tail + 1) := by
+  have hun : u < n := hlw ▸ lbl_lt hw
+  have htail : tail < n := hB.tail_lt hw hnew
+  have hhd := hB.hd
+  have hQne : ∀ p, p < tail → Q p ≠ w := fun p hp hpw => (hB.qmem p hp).2 (by rw [hpw, hnew])
+  refine ⟨fun z hz => ?_, by omega, by omega, fun i hi => ?_, fun z hz hlz => ?_,
+    fun i hi j hj hij => ?_, fun i hi j hj₁ hj₂ => ?_⟩
+  · by_cases hzw : z = w
+    · exact Or.inr (by rw [hzw, hlw]; simp)
+    · simpa [upd_of_ne _ hzw] using hB.lab z hz
+  · by_cases hit : i = tail
+    · rw [hit, upd_self, upd_self]; exact ⟨hw, by omega⟩
+    · have hi' : i < tail := by omega
+      rw [upd_of_ne _ hit, upd_of_ne _ (hQne i hi')]
+      exact hB.qmem i hi'
+  · by_cases hzw : z = w
+    · exact ⟨tail, by omega, by rw [upd_self, hzw]⟩
+    · rw [upd_of_ne _ hzw] at hlz
+      obtain ⟨i, hi, rfl⟩ := hB.qall z hz hlz
+      exact ⟨i, by omega, upd_of_ne _ (by omega)⟩
+  · by_cases hit : i = tail <;> by_cases hjt : j = tail
+    · omega
+    · rw [hit, upd_self, upd_of_ne _ hjt] at hij
+      exact absurd hij.symm (hQne j (by omega))
+    · rw [hjt, upd_self, upd_of_ne _ hit] at hij
+      exact absurd hij (hQne i (by omega))
+    · rw [upd_of_ne _ hit, upd_of_ne _ hjt] at hij
+      exact hB.qinj i (by omega) j (by omega) hij
+  · have hit : i ≠ tail := by omega
+    rw [upd_of_ne _ hit] at hj₁ hj₂ ⊢
+    have hnotw : target x j ≠ w := fun hjw => by
+      have h₁ := hB.exp i hi j hj₁ hj₂
+      rw [hjw, hnew] at h₁
+      exact (hB.qmem i (by omega)).2 h₁.symm
+    rw [upd_of_ne _ hnotw, upd_of_ne _ (hQne i (by omega))]
+    exact hB.exp i hi j hj₁ hj₂
+
+/-- The same step inside a live search, when the vertex found carries
+the label of the search: the root stays labelled and what is left on the
+queue still belongs to this search, the new entry included. -/
+theorem Live.enqueue (hL : Live x n u G L Q head tail) {w : ℕ} (hw : w < n)
+    (hnew : L w = n) (hlw : lbl G w = u) :
+    Live x n u G (upd L w u) (upd Q tail w) head (tail + 1) := by
+  have hun : u < n := hlw ▸ lbl_lt hw
+  have hQne : ∀ p, p < tail → Q p ≠ w :=
+    fun p hp hpw => (hL.base.qmem p hp).2 (by rw [hpw, hnew])
+  refine ⟨hL.base.enqueue hw hnew hlw, fun z hz hlz => ?_, fun z hz hlz => ?_, ?_,
+    fun i hi₁ hi₂ => ?_⟩
+  · by_cases hzw : z = w
+    · rw [hzw, upd_self]; omega
+    · rw [upd_of_ne _ hzw]; exact hL.done z hz hlz
+  · by_cases hzw : z = w
+    · rw [hzw, upd_self]
+    · rw [upd_of_ne _ hzw] at hlz ⊢; exact hL.low z hz hlz
+  · by_cases huw : u = w
+    · rw [huw, upd_self]; omega
+    · rw [upd_of_ne _ huw]; exact hL.root
+  · by_cases hit : i = tail
+    · rw [hit, upd_self, upd_self]
+    · rw [upd_of_ne _ hit, upd_of_ne _ (hQne i (by omega))]
+      exact hL.cur i hi₁ (by omega)
+
 /-! ### The state of the machine -/
 
 /-- The arrays and the three scalars that a search does not move. -/
 def SearchEnv (n m u : ℕ) (O T L Q : ℕ → ℕ) (τ : Env) : Prop :=
-  τ.vars "n" = n ∧ τ.vars "m" = m ∧ τ.vars "u" = u ∧
+  τ.vars "n" = n ∧ τ.vars "u" = u ∧
   τ.arrs "off" = arrOf (n + 1) O ∧ τ.arrs "tgt" = arrOf (2 * m) T ∧
   τ.arrs "lab" = arrOf n L ∧ τ.arrs "q" = arrOf n Q
 
@@ -145,182 +232,127 @@ def ScanInv (x : List ℕ) (n m u v head sc₀ : ℕ) (G : SimpleGraph (Fin n))
     (∀ j', offset x v ≤ j' → j' < τ.vars "j" → L (target x j') = u) ∧
     (∀ i < head, Q i = Q₀ i)
 
-/-- One slot of the block of `v`: if it names an unlabelled vertex,
-that vertex is labelled and enqueued. -/
+/-- One slot of the block of `v`: if it names an unlabelled vertex, that
+vertex is labelled and enqueued. The block is walked by `run_vcg`; what
+is left is what the two paths *did*, and on the labelling path that is
+`Live.enqueue`. -/
 theorem scanBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     (hT : ∀ j < 2 * m, T j = target x j) (hu : u < n) {v head sc₀ : ℕ} (hv : v < n)
     (hnB : n < B) (hmB : 2 * m < B) (hsc₀ : sc₀ + deg x v ≤ 2 * m)
     {Q₀ : ℕ → ℕ} {τ : Env} (hI : ScanInv x n m u v head sc₀ G O T Q₀ τ)
-    (hcond : (Cond.lt (.var "j") (.var "jend")).evalB B τ = some true) :
-    ∃ τ', Run B scanBody τ τ' 26 ∧ ScanInv x n m u v head sc₀ G O T Q₀ τ' ∧
-      (offset x (v + 1) - τ'.vars "j") < (offset x (v + 1) - τ.vars "j") := by
-  obtain ⟨L, Q, ⟨hn, hmm, hup, hoff, htgt, hlab, hq⟩, hL, hhead, hht, hqv, hvv, hje,
+    (hjlt : τ.vars "j" < offset x (v + 1)) :
+    ∃ τ' K, Run B scanBody τ τ' K ∧ K ≤ 26 ∧
+      ScanInv x n m u v head sc₀ G O T Q₀ τ' ∧ τ'.vars "j" = τ.vars "j" + 1 := by
+  obtain ⟨L, Q, ⟨hn, hup, hoff, htgt, hlab, hq⟩, hL, hhead, hht, hqv, hvv, hje,
     hj₁, hj₂, hsc, hscan, hq₀⟩ := hI
   have hB := hL.base
-  have hjlt : τ.vars "j" < offset x (v + 1) := by simp [hje] at hcond; omega
+  have htl := hB.tl
+  have hhd := hB.hd
   have h2m : offset x (v + 1) ≤ 2 * m := hm ▸ offset_le hx (by omega)
   have hjm : τ.vars "j" < 2 * m := by omega
   have hdegv : deg x v = offset x (v + 1) - offset x v := rfl
-  have hscB : τ.vars "sc" + 1 < B := by omega
+  -- the slot names a neighbour of `v`, and `v` carries the label of this search
   obtain ⟨w, hw⟩ : ∃ w, target x (τ.vars "j") = w := ⟨_, rfl⟩
   have hwn : w < n := hw ▸ target_lt' hx hv hjlt
-  have hadj : Adjn G v w := hw ▸ adjn_of_slot hx hv hj₁ hjlt
   have hLv : L v = u := hqv ▸ hL.cur head le_rfl hht
-  have hlv : lbl G v = u := by
-    have := (hB.lab v hv).resolve_left (by rw [hLv]; omega)
-    omega
   have hlw : lbl G w = u := by
-    have := lbl_eq_of_rch (Rch.of_adjn hadj); omega
-  have hteval : (Expr.get "tgt" (.var "j")).evalB B τ = some w := by
-    simp [htgt, getElem?_arrOf T hjm, hT _ hjm, hw]; omega
-  by_cases hnew : L w = n
-  · -- unlabelled: label it and enqueue it
+    have h₁ := (hB.lab v hv).resolve_left (by rw [hLv]; omega)
+    have h₂ := lbl_eq_of_rch (Rch.of_adjn (hw ▸ adjn_of_slot hx hv hj₁ hjlt))
+    omega
+  -- what the walk owes: the slot read, the label read at what it names,
+  -- and the scalars the block moves
+  have hrj : (τ.arrs "tgt").getD (τ.vars "j") 0 = w := by
+    rw [htgt, getD_arrOf T hjm, hT _ hjm, hw]
+  have hrj' : (τ.arrs "tgt")[τ.vars "j"]?.getD 0 = w := by
+    rw [← List.getD_eq_getElem?_getD]; exact hrj
+  have hvw : (τ.setVar "w" ((τ.arrs "tgt").getD (τ.vars "j") 0)).vars "w"
+      = (τ.arrs "tgt").getD (τ.vars "j") 0 := by simp
+  have hbr : ((τ.setVar "w" ((τ.arrs "tgt").getD (τ.vars "j") 0)).arrs "lab").getD
+      ((τ.setVar "w" ((τ.arrs "tgt").getD (τ.vars "j") 0)).vars "w") 0 = L w := by
+    rw [arrs_setVar, hvw, hrj, hlab, getD_arrOf L hwn]
+  have hbn : (τ.setVar "w" ((τ.arrs "tgt").getD (τ.vars "j") 0)).vars "n" = n := by simp [hn]
+  have hjlen : τ.vars "j" < (τ.arrs "tgt").length := by rw [htgt, length_arrOf]; omega
+  have hwB : (τ.arrs "tgt").getD (τ.vars "j") 0 < B := by rw [hrj]; omega
+  have hwlen : (τ.arrs "tgt").getD (τ.vars "j") 0 < (τ.arrs "lab").length := by
+    rw [hrj, hlab, length_arrOf]; exact hwn
+  have hLwB : L w < B := by have := hB.lab_le hwn; omega
+  have hscB : τ.vars "sc" + 1 < B := by omega
+  have hjB : τ.vars "j" + 1 < B := by omega
+  have hnB' : τ.vars "n" < B := by omega
+  have huB : τ.vars "u" < B := by omega
+  run_vcg
+  · -- the vertex found is unlabelled: it is labelled and enqueued
+    have hnew : L w = n := by omega
     have htail : τ.vars "tail" < n := hB.tail_lt hwn hnew
-    have hceval : (Cond.eq (.get "lab" (.var "w")) (.var "n")).evalB B (τ.setVar "w" w)
-        = some true := by simp [hlab, getElem?_arrOf L hwn, hn, hnew]; omega
-    have hnotexp : ∀ i < head, ∀ j, offset x (Q i) ≤ j → j < offset x (Q i + 1) →
-        target x j ≠ w := by
-      intro i hi j hj₁' hj₂' hjw
-      have h₁ := hB.exp i hi j hj₁' hj₂'
-      rw [hjw, hnew] at h₁
-      exact (hB.qmem i (by have := hB.hd; omega)).2 h₁.symm
-    have hQne : ∀ p, p < τ.vars "tail" → Q p ≠ w := by
-      intro p hp hpw
-      exact (hB.qmem p hp).2 (by rw [hpw, hnew])
-    refine ⟨_, (Run.seq (Run.assign (v := w) hteval)
-      (Run.seq (Run.ite_true hceval
-        (Run.seq (Run.store (idx := w) (v := u) (by simp; omega) (by simp [hup]; omega)
-            (by simp [hlab, hwn]))
-          (Run.seq (Run.store (idx := τ.vars "tail") (v := w)
-              (by simp; omega) (by simp; omega) (by simp [hq, htail]))
-            (Run.assign (v := τ.vars "tail" + 1) (by simp; omega)))))
-        (Run.seq (Run.assign (v := τ.vars "sc" + 1) (by simp; omega))
-          (Run.assign (v := τ.vars "j" + 1) (by simp; omega))))).mono (by simp), ?_,
-      by simp; omega⟩
-    refine ⟨fun z => if z = w then u else L z, fun i => if i = τ.vars "tail" then w else Q i,
-      ⟨by simp [hn], by simp [hmm], by simp [hup], by simp [hoff], by simp [htgt],
-        by simp [hlab, set_arrOf], by simp [hq, set_arrOf]⟩, ?_,
-      by simp [hhead], by simp; omega, by simp [hqv, show head ≠ τ.vars "tail" by omega],
+    refine ⟨⟨upd L w u, upd Q (τ.vars "tail") w,
+      ⟨by simp [hn], by simp [hup], by simp [hoff], by simp [htgt],
+        by simp [hlab, hrj', hup, set_arrOf_eq_upd], by simp [hq, hrj', set_arrOf_eq_upd]⟩,
+      by simpa using hL.enqueue hwn hnew hlw, by simp [hhead], by simp; omega,
+      by rw [upd_of_ne _ (by omega : head ≠ τ.vars "tail")]; exact hqv,
       by simp [hvv], by simp [hje], by simp; omega, by simp; omega, by simp [hsc]; omega,
-      ?_, ?_⟩
-    · refine ⟨⟨?_, by simp; omega, by simp; omega, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_⟩
-      · -- lab
-        intro z hz
-        by_cases hzw : z = w
-        · exact Or.inr (by simp [hzw, hlw])
-        · simpa [if_neg hzw] using hB.lab z hz
-      · -- qmem
-        intro i hi
-        simp only [vars_setVar] at hi
-        by_cases hit : i = τ.vars "tail"
-        · simp [hit, hwn]; omega
-        · have hi' : i < τ.vars "tail" := by simp at hi; omega
-          rw [if_neg hit, if_neg (hQne i hi')]
-          exact hB.qmem i hi'
-      · -- qall
-        intro z hz hlz
-        by_cases hzw : z = w
-        · exact ⟨τ.vars "tail", by simp, by simp [hzw]⟩
-        · rw [if_neg hzw] at hlz
-          obtain ⟨i, hi, rfl⟩ := hB.qall z hz hlz
-          exact ⟨i, by simp; omega, by simp [if_neg (show i ≠ τ.vars "tail" by omega)]⟩
-      · -- qinj
-        intro i hi j hj hij
-        simp only [vars_setVar] at hi hj
-        by_cases hit : i = τ.vars "tail" <;> by_cases hjt : j = τ.vars "tail"
-        · omega
-        · rw [if_pos hit, if_neg hjt] at hij
-          exact absurd hij.symm (hQne j (by simp at hj; omega))
-        · rw [if_neg hit, if_pos hjt] at hij
-          exact absurd hij (hQne i (by simp at hi; omega))
-        · rw [if_neg hit, if_neg hjt] at hij
-          exact hB.qinj i (by simp at hi; omega) j (by simp at hj; omega) hij
-      · -- exp
-        intro i hi j hj₁' hj₂'
-        have hit : i ≠ τ.vars "tail" := by have := hB.hd; omega
-        rw [if_neg hit] at hj₁' hj₂' ⊢
-        rw [if_neg (hnotexp i hi j hj₁' hj₂'), if_neg (hQne i (by have := hB.hd; omega))]
-        exact hB.exp i hi j hj₁' hj₂'
-      · -- done
-        intro z hz hlz
-        by_cases hzw : z = w
-        · simp [hzw]; omega
-        · simpa [if_neg hzw] using hL.done z hz hlz
-      · -- low
-        intro z hz hlz
-        by_cases hzw : z = w
-        · simp [hzw]
-        · rw [if_neg hzw] at hlz ⊢; exact hL.low z hz hlz
-      · -- root
-        by_cases huw : u = w
-        · simp [huw]; omega
-        · simpa [if_neg huw] using hL.root
-      · -- cur
-        intro i hi₁ hi₂
-        simp only [vars_setVar] at hi₁ hi₂
-        by_cases hit : i = τ.vars "tail"
-        · simp [hit]
-        · have hi' : i < τ.vars "tail" := by simp at hi₂; omega
-          rw [if_neg hit, if_neg (hQne i hi')]
-          exact hL.cur i (by omega) hi'
-    · intro j' hj₁' hj₂'
-      simp only [vars_setVar] at hj₂'
-      by_cases hyw : target x j' = w
-      · simp [hyw]
-      · simp only [if_neg hyw]
-        rcases Nat.lt_or_ge j' (τ.vars "j") with h | h
-        · exact hscan j' hj₁' h
-        · exact absurd (show j' = τ.vars "j" by simp at hj₂'; omega) (by
-            rintro rfl; exact hyw hw)
-    · intro i hi
-      have hit : i ≠ τ.vars "tail" := by have := hB.hd; omega
-      simp only [if_neg hit]; exact hq₀ i hi
-  · -- already labelled, and by this search
-    have hLw : L w = u := by
-      have := (hB.lab w hwn).resolve_left hnew; omega
-    have hceval : (Cond.eq (.get "lab" (.var "w")) (.var "n")).evalB B (τ.setVar "w" w)
-        = some false := by
-      simp [hlab, getElem?_arrOf L hwn, hn, hLw]; omega
-    refine ⟨_, (Run.seq (Run.assign (v := w) hteval)
-      (Run.seq (Run.ite_false hceval Run.skip)
-        (Run.seq (Run.assign (v := τ.vars "sc" + 1) (by simp; omega))
-          (Run.assign (v := τ.vars "j" + 1) (by simp; omega))))).mono (by simp), ?_,
-      by simp; omega⟩
-    refine ⟨L, Q, ⟨by simp [hn], by simp [hmm], by simp [hup], by simp [hoff], by simp [htgt],
-      by simp [hlab], by simp [hq]⟩, by simpa using hL, by simp [hhead], by simp [hht],
-      hqv, by simp [hvv], by simp [hje], by simp; omega, by simp; omega,
-      by simp [hsc]; omega, ?_, hq₀⟩
+      ?_, fun i hi => by rw [upd_of_ne _ (by omega : i ≠ τ.vars "tail")]; exact hq₀ i hi⟩,
+      by simp⟩
     intro j' hj₁' hj₂'
-    simp only [vars_setVar] at hj₂'
+    simp at hj₂'
+    by_cases hyw : target x j' = w
+    · rw [hyw, upd_self]
+    · rw [upd_of_ne _ hyw]
+      rcases Nat.lt_or_ge j' (τ.vars "j") with h | h
+      · exact hscan j' hj₁' h
+      · exact absurd (show j' = τ.vars "j" by omega) (by rintro rfl; exact hyw hw)
+  · -- already labelled, and by this search, so nothing is written
+    have hLw : L w = u := by
+      have := (hB.lab w hwn).resolve_left (show ¬ L w = n by omega); omega
+    refine ⟨⟨L, Q, ⟨by simp [hn], by simp [hup], by simp [hoff],
+      by simp [htgt], by simp [hlab], by simp [hq]⟩, by simpa using hL, by simp [hhead],
+      by simp [hht], hqv, by simp [hvv], by simp [hje], by simp; omega, by simp; omega,
+      by simp [hsc]; omega, ?_, hq₀⟩, by simp⟩
+    intro j' hj₁' hj₂'
+    simp at hj₂'
     rcases Nat.lt_or_ge j' (τ.vars "j") with h | h
     · exact hscan j' hj₁' h
-    · have : j' = τ.vars "j" := by simp at hj₂'; omega
-      rw [this, hw]; exact hLw
+    · rw [show j' = τ.vars "j" by omega, hw]; exact hLw
+  -- what the walk deferred: the queue has room, because the vertex just
+  -- found is unlabelled and so is not on it
+  all_goals
+    (have hnew : L w = n := by omega
+     have := hB.tail_lt hwn hnew
+     simp [hq]
+     omega)
 
-/-- The whole block of `v`, scanned. -/
-theorem scan_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
+/-- **The whole block of `v`, scanned.** The loop is the kit's row scan:
+the caller says what a slot does and how far it moves the pointer, and
+the combinator supplies the loop condition, the exit fact and the cost —
+thirty per slot of the block. -/
+theorem scan_spec (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     (hT : ∀ j < 2 * m, T j = target x j) (hu : u < n) {v head sc₀ : ℕ} (hv : v < n)
-    (hnB : n < B) (hmB : 2 * m < B) (hsc₀ : sc₀ + deg x v ≤ 2 * m)
-    {Q₀ : ℕ → ℕ} {τ : Env} (hI : ScanInv x n m u v head sc₀ G O T Q₀ τ)
-    (hjs : τ.vars "j" = offset x v) :
-    ∃ τ', Run B (.while (.lt (.var "j") (.var "jend")) scanBody) τ τ' (30 * deg x v + 4) ∧
-      ScanInv x n m u v head sc₀ G O T Q₀ τ' ∧ τ'.vars "j" = offset x (v + 1) := by
+    (hnB : n < B) (hmB : 2 * m < B) (hsc₀ : sc₀ + deg x v ≤ 2 * m) {Q₀ : ℕ → ℕ} :
+    Spec B (fun τ => ScanInv x n m u v head sc₀ G O T Q₀ τ ∧ τ.vars "j" = offset x v)
+      (.while (.lt (.var "j") (.var "jend")) scanBody)
+      (fun _ τ' => ScanInv x n m u v head sc₀ G O T Q₀ τ' ∧ τ'.vars "j" = offset x (v + 1))
+      (30 * deg x v + 4) := by
   have h2m : offset x (v + 1) ≤ 2 * m := hm ▸ offset_le hx (by omega)
-  obtain ⟨τ', hrun, hI', hfalse⟩ :=
-    Run.while_count (B := B) (b := Cond.lt (.var "j") (.var "jend")) (c := scanBody)
-      (ScanInv x n m u v head sc₀ G O T Q₀) (fun σ => offset x (v + 1) - σ.vars "j") 26
-      (fun σ hσ => by
-        obtain ⟨-, -, -, -, -, -, -, -, hje, -, hjle, -⟩ := hσ
-        exact evalB_condLt_vars (by omega) (by omega))
-      (fun σ h hc => scanBody_run hx hm hT hu hv hnB hmB hsc₀ h hc) hI
-  obtain ⟨L₁, Q₁, h₃, h₄, h₅, h₆, h₇, h₈, hje, h₁₀, hjle, h₁₂, h₁₃, h₁₄⟩ := hI'
-  have hj : τ'.vars "j" = offset x (v + 1) := by
-    simp [hje] at hfalse; omega
-  exact ⟨τ', hrun.mono (by simp [deg, hjs]),
-    ⟨L₁, Q₁, h₃, h₄, h₅, h₆, h₇, h₈, hje, h₁₀, hjle, h₁₂, h₁₃, h₁₄⟩, hj⟩
+  have hdegv : deg x v = offset x (v + 1) - offset x v := rfl
+  refine Csr.rowScan_spec B (30 * deg x v + 4) (offset x (v + 1)) 26 "j" "jend" scanBody
+    (ScanInv x n m u v head sc₀ G O T Q₀) (by omega)
+    (fun σ hσ => by obtain ⟨-, -, -, -, -, -, -, -, hje, -, hjle, -⟩ := hσ; exact ⟨hje, hjle⟩)
+    (fun σ hσ hlt => by
+      obtain ⟨σ', K', hr, hK, hI', hj'⟩ := scanBody_run hx hm hT hu hv hnB hmB hsc₀ hσ hlt
+      exact ⟨σ', K', hr, hI', hj', hK⟩) (fun _ hσ => hσ.1)
+    (fun σ hσ => by rw [hσ.2]; omega)
+
+/-! ### Emptying the queue -/
+
+/-- The invariant of the search loop. -/
+def DrainInv (x : List ℕ) (n m u : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
+    (τ : Env) : Prop :=
+  ∃ L Q, SearchEnv n m u O T L Q τ ∧ Live x n u G L Q (τ.vars "head") (τ.vars "tail") ∧
+    τ.vars "sc" = ∑ i ∈ Finset.range (τ.vars "head"), deg x (Q i)
 
 /-- Taking one vertex off the queue and scanning its block: the cost is
-thirty per slot of that block and nineteen besides. -/
+thirty per slot of that block and nineteen besides. The three reads are
+written out rather than walked (see this file's header); the scan enters
+as one step, by its specification. -/
 theorem expandBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     (hO : ∀ i ≤ n, O i = offset x i) (hT : ∀ j < 2 * m, T j = target x j) (hu : u < n)
     (hnB : n < B) (hmB : 2 * m < B)
@@ -328,14 +360,11 @@ theorem expandBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     (hL : Live x n u G L Q (τ.vars "head") (τ.vars "tail"))
     (hht : τ.vars "head" < τ.vars "tail")
     (hsc : τ.vars "sc" = ∑ i ∈ Finset.range (τ.vars "head"), deg x (Q i)) :
-    ∃ (τ' : Env) (L' Q' : ℕ → ℕ) (K : ℕ), Run B expandBody τ τ' K ∧
-      SearchEnv n m u O T L' Q' τ' ∧
-      Live x n u G L' Q' (τ'.vars "head") (τ'.vars "tail") ∧
+    ∃ (τ' : Env) (K : ℕ), Run B expandBody τ τ' K ∧
+      K ≤ 30 * deg x (Q (τ.vars "head")) + 19 ∧ DrainInv x n m u G O T τ' ∧
       τ'.vars "head" = τ.vars "head" + 1 ∧
-      τ'.vars "sc" = ∑ i ∈ Finset.range (τ'.vars "head"), deg x (Q' i) ∧
-      τ'.vars "sc" = τ.vars "sc" + deg x (Q (τ.vars "head")) ∧
-      K ≤ 30 * deg x (Q (τ.vars "head")) + 19 := by
-  obtain ⟨hn, hmm, hup, hoff, htgt, hlab, hq⟩ := hSE
+      τ'.vars "sc" = τ.vars "sc" + deg x (Q (τ.vars "head")) := by
+  obtain ⟨hn, hup, hoff, htgt, hlab, hq⟩ := hSE
   have hB := hL.base
   have hheadn : τ.vars "head" < n := by have := hB.tl; omega
   obtain ⟨v, hvdef⟩ : ∃ v, Q (τ.vars "head") = v := ⟨_, rfl⟩
@@ -364,23 +393,26 @@ theorem expandBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
   -- the scan
   have hI₃ : ScanInv x n m u v (τ.vars "head") (τ.vars "sc") G O T Q
       (((τ.setVar "v" v).setVar "j" (offset x v)).setVar "jend" (offset x (v + 1))) :=
-    ⟨L, Q, ⟨by simp [hn], by simp [hmm], by simp [hup], by simp [hoff], by simp [htgt],
+    ⟨L, Q, ⟨by simp [hn], by simp [hup], by simp [hoff], by simp [htgt],
         by simp [hlab], by simp [hq]⟩, by simpa using hL, by simp, by simpa using hht,
       hvdef, by simp, by simp, by simp,
       by simpa using offset_mono' hx (Nat.le_succ v) (show v + 1 ≤ n by omega),
       by simp, by intro j' h₁ h₂; simp at h₂; omega, fun i _ => rfl⟩
-  obtain ⟨τ₄, hscan, hI₄, hj₄⟩ := scan_run hx hm hT hu hvn hnB hmB hsum hI₃ (by simp)
-  obtain ⟨L', Q', ⟨hn', hmm', hup', hoff', htgt', hlab', hq'⟩, hL', hhead', hht', hqv',
+  obtain ⟨τ₄, hscan, hI₄, hj₄⟩ :=
+    (scan_spec (B := B) hx hm hT hu hvn hnB hmB hsum (Q₀ := Q)).run ⟨hI₃, by simp⟩
+  obtain ⟨L', Q', ⟨hn', hup', hoff', htgt', hlab', hq'⟩, hL', hhead', hht', hqv',
     hvv', hje', hjge', hjle', hsc', hscanned, hq₀'⟩ := hI₄
-  have hht'' : τ.vars "head" + 1 ≤ τ₄.vars "tail" := by omega
   have htl' := hL'.base.tl
-  refine ⟨τ₄.setVar "head" (τ.vars "head" + 1), L', Q', _,
+  have hscv : τ₄.vars "sc" = τ.vars "sc" + deg x v := by rw [hsc', hj₄, deg]
+  refine ⟨τ₄.setVar "head" (τ.vars "head" + 1), _,
     Run.seq (Run.assign (v := v) e₁)
       (Run.seq (Run.assign (v := offset x v) e₂)
         (Run.seq (Run.assign (v := offset x (v + 1)) e₃)
           (Run.seq hscan (Run.assign (v := τ.vars "head" + 1) (by simp [hhead']; omega))))),
-    ⟨by simp [hn'], by simp [hmm'], by simp [hup'], by simp [hoff'], by simp [htgt'],
-      by simp [hlab'], by simp [hq']⟩, ?_, by simp, ?_, ?_, by simp; omega⟩
+    by simp; omega,
+    ⟨L', Q', ⟨by simp [hn'], by simp [hup'], by simp [hoff'], by simp [htgt'],
+      by simp [hlab'], by simp [hq']⟩, ?_, ?_⟩,
+    by simp, by simpa using hscv⟩
   · -- the search is live one step further along
     have hLv : L' v = u := by rw [← hqv']; exact hL'.cur _ le_rfl hht'
     refine ⟨⟨hL'.base.lab, by simp; omega, by simpa using hL'.base.tl,
@@ -400,22 +432,10 @@ theorem expandBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
       simp at hi₁ hi₂
       exact hL'.cur i (by omega) hi₂
   · -- the count of scanned slots is the sum over the queue
-    have hcongr : ∑ i ∈ Finset.range (τ.vars "head"), deg x (Q' i)
-        = ∑ i ∈ Finset.range (τ.vars "head"), deg x (Q i) :=
-      Finset.sum_congr rfl fun i hi => by rw [hq₀' i (Finset.mem_range.1 hi)]
     show τ₄.vars "sc" = ∑ i ∈ Finset.range (τ.vars "head" + 1), deg x (Q' i)
-    rw [Finset.sum_range_succ, hcongr, ← hsc, hqv', hsc', hj₄, deg]
-  · show τ₄.vars "sc" = τ.vars "sc" + deg x v
-    rw [hsc', hj₄, deg]
-
-
-/-! ### Emptying the queue -/
-
-/-- The invariant of the search loop. -/
-def DrainInv (x : List ℕ) (n m u : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
-    (τ : Env) : Prop :=
-  ∃ L Q, SearchEnv n m u O T L Q τ ∧ Live x n u G L Q (τ.vars "head") (τ.vars "tail") ∧
-    τ.vars "sc" = ∑ i ∈ Finset.range (τ.vars "head"), deg x (Q i)
+    rw [Finset.sum_range_succ,
+      Finset.sum_congr rfl fun i hi => by rw [hq₀' i (Finset.mem_range.1 hi)],
+      ← hsc, hqv', hsc', hj₄, deg]
 
 /-- **The search.** The queue is emptied, and the whole cost of doing
 so is paid out of the potential — including the scans, whose cost no
@@ -426,26 +446,6 @@ theorem drain_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     {τ : Env} (hI : DrainInv x n m u G O T τ) :
     ∃ (τ' : Env) (K : ℕ), Run B drain τ τ' K ∧ DrainInv x n m u G O T τ' ∧
       τ'.vars "head" = τ'.vars "tail" ∧ K + Pot n m τ' ≤ Pot n m τ + 4 := by
-  have hstep : ∀ σ : Env, DrainInv x n m u G O T σ →
-      (Cond.lt (.var "head") (.var "tail")).evalB B σ = some true →
-      ∃ σ' K, Run B expandBody σ σ' K ∧ DrainInv x n m u G O T σ' ∧
-        1 + (Cond.lt (Expr.var "head") (Expr.var "tail")).size + K + Pot n m σ' ≤ Pot n m σ := by
-    intro σ hσ hc
-    obtain ⟨L₁, Q₁, hSE, hLive, hsum⟩ := hσ
-    have hht : σ.vars "head" < σ.vars "tail" := by simp at hc; omega
-    obtain ⟨σ', L₂, Q₂, K, hrun, hSE', hLive', hhead', hsum', hsc', hK⟩ :=
-      expandBody_run hx hm hO hT hu hnB hmB hSE hLive hht hsum
-    refine ⟨σ', K, hrun, ⟨L₂, Q₂, hSE', hLive', hsum'⟩, ?_⟩
-    have hhd := hLive'.base.hd
-    have h2m : σ'.vars "sc" ≤ 2 * m := by
-      rw [hsum', ← hm]
-      exact sum_deg_queue hx (fun i hi => (hLive'.base.qmem i (by omega)).1)
-        (fun i hi j hj h => hLive'.base.qinj i (by omega) j (by omega) h)
-    have htl := hLive'.base.tl
-    have hhd0 := hLive.base.hd
-    have htl0 := hLive.base.tl
-    simp only [Pot, size_condLt, size_var]
-    omega
   obtain ⟨τ', K, hrun, hI', hfalse, hpay⟩ :=
     Run.while_potential (B := B) (b := Cond.lt (.var "head") (.var "tail")) (c := expandBody)
       (DrainInv x n m u G O T) (Pot n m)
@@ -454,10 +454,27 @@ theorem drain_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
         have hhd := hLive.base.hd
         have htl := hLive.base.tl
         exact evalB_condLt_vars (by omega) (by omega))
-      hstep hI
-  obtain ⟨L₁, Q₁, hSE₁, hL₁, hsum₁⟩ := hI'
-  have hhd := hL₁.base.hd
-  exact ⟨τ', K, hrun, ⟨L₁, Q₁, hSE₁, hL₁, hsum₁⟩, by simp at hfalse; omega,
-    by simpa using hpay⟩
+      (fun σ hσ hc => by
+        obtain ⟨L₁, Q₁, hSE, hLive, hsum⟩ := hσ
+        obtain ⟨σ', K, hrun, hK, hI', hhead', hsc'⟩ :=
+          expandBody_run hx hm hO hT hu hnB hmB hSE hLive (lt_of_condLt_true hc) hsum
+        refine ⟨σ', K, hrun, hI', ?_⟩
+        obtain ⟨L₂, Q₂, -, hLive', hsum'⟩ := hI'
+        have hhd := hLive'.base.hd
+        have htl := hLive'.base.tl
+        have h2m : σ'.vars "sc" ≤ 2 * m := by
+          rw [hsum', ← hm]
+          exact sum_deg_queue hx (fun i hi => (hLive'.base.qmem i (by omega)).1)
+            (fun i hi j hj h => hLive'.base.qinj i (by omega) j (by omega) h)
+        have hhd0 := hLive.base.hd
+        have htl0 := hLive.base.tl
+        simp only [Pot, size_condLt, size_var]
+        omega)
+      hI
+  refine ⟨τ', K, hrun, hI', ?_, by simpa using hpay⟩
+  obtain ⟨L₁, Q₁, -, hL₁, -⟩ := hI'
+  have := hL₁.base.hd
+  have := le_of_condLt_false hfalse
+  omega
 
 end Lax11Proofs.CC
