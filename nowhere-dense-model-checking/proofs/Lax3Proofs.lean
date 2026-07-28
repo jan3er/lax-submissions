@@ -3,3 +3,4 @@ import Lax3Proofs.Horizon
 import Lax3Proofs.Clusters
 import Lax3Proofs.ScatterCore
 import Lax3Proofs.SemLocal
+import Lax3Proofs.SyntaxLemmas
