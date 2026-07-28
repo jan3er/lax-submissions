@@ -110,9 +110,14 @@ linear cost. Everything that triple's postcondition *means* —
 `InCsr` — is proved here unconditionally, and the program is exhibited,
 compiled and run: the worked example checks its three answers on a
 five-vertex graph, with and without the mask, against the hand
-computation. What `Implements` still owes is the walk of the five
-phases, for which the invariant, its turns, the exit reading and the
-degree-count bijection are all in place above.
+computation.
+
+Of the five phase walks `Implements` splits into, **two are
+discharged** — `initDeg_spec`, the degree pass with its amortized outer
+loop, and `offPass_spec`, the running sum — and three remain:
+`initBuck`, `elimLoop` and `fillPass`. The first two of those wait on
+one missing piece, a reachability relation for the lazily deleted
+bucket stacks; `Implements`' own docstring says what each owes.
 -/
 
 namespace Lax3Proofs.RamElim
@@ -1053,6 +1058,372 @@ the campaign's budget is spent against, and the sharp charging is a
 later phase's business. -/
 def elimCost (n ns : ℕ) : ℕ := 600 * n + 600 * ns + 100
 
+/-! ### The phases, walked
+
+Each phase is a `Spec` of its own, proved by `run_vcg` against an
+invariant of its own. The mathematics is already done — `Elim`'s three
+turns, `card_liveSlots`, `Elim.cert` — so what is left in this section
+is symbolic execution and the arithmetic of the array bounds. -/
+
+/-! #### The degrees
+
+One pass over the block structure, its inner loop the kit's row scan.
+What the scan counts is `liveUpto`, the live slots of the row seen so
+far; what `card_liveSlots` then says is that the whole row's count is
+the arena degree, which is exactly `Elim.init`'s second hypothesis. -/
+
+/-- The arena degree of a vertex, at the number level the program
+speaks. -/
+noncomputable def adeg {n : ℕ} (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (v : ℕ) : ℕ :=
+  if h : v < n then (nbrsIn (masked G M) Finset.univ ⟨v, h⟩).card else 0
+
+theorem adeg_eq {v : ℕ} (hv : v < n) :
+    adeg G M v = (nbrsIn (masked G M) Finset.univ (⟨v, hv⟩ : Fin n)).card := dif_pos hv
+
+/-- A dead vertex has degree zero, being isolated in the arena. -/
+theorem adeg_of_dead {v : ℕ} (hv : v < n) (hM : M v = 0) : adeg G M v = 0 := by
+  rw [adeg_eq hv, nbrsIn_of_dead hv hM, Finset.card_empty]
+
+/-- And a live one has as many as its row has live slots. -/
+theorem adeg_of_alive (h : CsrSimple G ns O T) {v : ℕ} (hv : v < n) (hM : M v ≠ 0) :
+    adeg G M v = (liveSlots O T M v).card := by
+  rw [adeg_eq hv, card_liveSlots h hv hM]
+
+/-- The live slots of the row of `v` strictly below `j`: what the
+counting scan has added up when its pointer stands at `j`. -/
+def liveUpto (O T M : ℕ → ℕ) (v j : ℕ) : ℕ :=
+  ((Finset.Ico (O v) j).filter (fun t => M (T t) ≠ 0)).card
+
+@[simp] theorem liveUpto_start (O T M : ℕ → ℕ) (v : ℕ) : liveUpto O T M v (O v) = 0 := by
+  simp [liveUpto]
+
+theorem liveUpto_succ (O T M : ℕ → ℕ) {v j : ℕ} (h : O v ≤ j) :
+    liveUpto O T M v (j + 1) = liveUpto O T M v j + (if M (T j) ≠ 0 then 1 else 0) := by
+  classical
+  have hins : Finset.Ico (O v) (j + 1) = insert j (Finset.Ico (O v) j) := by
+    ext x; simp only [Finset.mem_insert, Finset.mem_Ico]; omega
+  rw [liveUpto, liveUpto, hins, Finset.filter_insert]
+  by_cases hm : M (T j) ≠ 0
+  · rw [if_pos hm, if_pos hm,
+      Finset.card_insert_of_notMem (by simp [Finset.mem_filter])]
+  · rw [if_neg hm, if_neg hm, Nat.add_zero]
+
+theorem liveUpto_last (O T M : ℕ → ℕ) (v : ℕ) :
+    liveUpto O T M v (O (v + 1)) = (liveSlots O T M v).card := rfl
+
+/-- The invariant of the degree pass: the input arrays are untouched,
+the counter has not passed the end, and every degree below it is the
+arena degree. -/
+def DegInv (n ns : ℕ) (G : SimpleGraph (Fin n)) (O T M : ℕ → ℕ) (σ : Env) : Prop :=
+  σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+    σ.arrs "alv" = arrOf n M ∧ σ.vars "i" ≤ n ∧
+    ∃ g, σ.arrs "deg" = arrOf n g ∧ ∀ j < σ.vars "i", g j = adeg G M j
+
+/-- The invariant of the counting scan: a degree pass in progress, and
+the row of `v` counted as far as the pointer. -/
+def DegScanInv (n ns : ℕ) (G : SimpleGraph (Fin n)) (O T M : ℕ → ℕ) (v : ℕ) (σ : Env) : Prop :=
+  DegInv n ns G O T M σ ∧ σ.vars "i" = v ∧ σ.vars "jend" = O (v + 1) ∧
+    O v ≤ σ.vars "j" ∧ σ.vars "j" ≤ O (v + 1) ∧
+    σ.vars "c" = liveUpto O T M v (σ.vars "j")
+
+/-- One slot of the counting scan: a live target is counted, a dead one
+passed over. Written in the `_run` form the kit's row scan consumes,
+with every obligation of the walk pre-loaded as a named hypothesis —
+`RamBfs.scanSlot_run`'s shape, and for its reason. -/
+theorem degSlot_run {B n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ → ℕ} {v : ℕ}
+    (hcsr : CsrGraph G ns O T) (hv : v < n) (hnB : n < B) (hnsB : ns < B)
+    (hMB : ∀ z < n, M z < B) {σ : Env}
+    (hI : DegScanInv n ns G O T M v σ) (hjlt : σ.vars "j" < O (v + 1)) :
+    ∃ σ' K, Run B degSlot σ σ' K ∧ K ≤ 40 ∧
+      DegScanInv n ns G O T M v σ' ∧ σ'.vars "j" = σ.vars "j" + 1 := by
+  obtain ⟨⟨hn, hoff, htgt, halv, hile, ⟨g, hdeg, hg⟩⟩, hi, hje, hj₁, hj₂, hc⟩ := hI
+  have hns : O (v + 1) ≤ ns := hcsr.le_ns (by omega)
+  have hjns : σ.vars "j" < ns := by omega
+  have htv : (σ.arrs "tgt").getD (σ.vars "j") 0 = T (σ.vars "j") := by
+    rw [htgt, getD_arrOf T hjns]
+  have htv' : (σ.arrs "tgt")[σ.vars "j"]?.getD 0 = T (σ.vars "j") := by
+    rw [← List.getD_eq_getElem?_getD]; exact htv
+  have htn : T (σ.vars "j") < n := hcsr.target_lt _ hjns
+  have hjlen : σ.vars "j" < (σ.arrs "tgt").length := by rw [htgt, length_arrOf]; omega
+  have htB : (σ.arrs "tgt").getD (σ.vars "j") 0 < B := by rw [htv]; exact lt_trans htn hnB
+  -- the mask read, in the environment the branch tests it in
+  have halvlen : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "u")
+      < ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "alv").length := by
+    rw [arrs_setVar, vars_setVar, halv, length_arrOf]; simpa [htv'] using htn
+  have hbrAlv : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "alv").getD
+      ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "u") 0
+      = M (T (σ.vars "j")) := by
+    rw [arrs_setVar, vars_setVar]; simpa [htv', halv] using getD_arrOf M htn
+  have hbrAlvB : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "alv").getD
+      ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "u") 0 < B := by
+    rw [hbrAlv]; exact hMB _ htn
+  -- the counter stays inside the target array, so it is a word
+  have hcns : σ.vars "c" < ns := by
+    rw [hc, liveUpto]
+    calc ({t ∈ Finset.Ico (O v) (σ.vars "j") | M (T t) ≠ 0} : Finset ℕ).card
+        ≤ (Finset.Ico (O v) (σ.vars "j")).card := Finset.card_filter_le _ _
+      _ < ns := by rw [Nat.card_Ico]; omega
+  have hcB : σ.vars "c" + 1 < B := by omega
+  have hjB : σ.vars "j" + 1 < B := by omega
+  run_vcg
+  · -- a live target is counted
+    have hm : M (T (σ.vars "j")) ≠ 0 := by omega
+    exact ⟨⟨⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv], by simp [hile],
+      ⟨g, by simp [hdeg], by simpa using hg⟩⟩, by simp [hi], by simp [hje], by simp; omega,
+      by simp; omega, by simp [hc, liveUpto_succ O T M hj₁, hm]⟩, by simp⟩
+  · -- a dead target is passed over
+    have hm : M (T (σ.vars "j")) = 0 := by omega
+    exact ⟨⟨⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv], by simp [hile],
+      ⟨g, by simp [hdeg], by simpa using hg⟩⟩, by simp [hi], by simp [hje], by simp; omega,
+      by simp; omega, by simp [hc, liveUpto_succ O T M hj₁, hm]⟩, by simp⟩
+
+/-- **One vertex's degree.** The row is walked by the kit's row scan —
+the caller says what a slot does and the combinator supplies the loop
+condition, the exit fact and the cost — and what the row counted is the
+arena degree by `card_liveSlots`, or zero if the vertex is dead. -/
+theorem degRow_run {B n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ → ℕ} {v : ℕ}
+    (hcsr : CsrSimple G ns O T) (hv : v < n) (hnB : n + 1 < B) (hnsB : ns < B)
+    (hMB : ∀ z < n, M z < B) {σ : Env}
+    (hI : DegInv n ns G O T M σ) (hiv : σ.vars "i" = v) :
+    ∃ σ' K, Run B degRow σ σ' K ∧ K ≤ 44 * Csr.rowLen O v + 40 ∧
+      DegInv n ns G O T M σ' ∧ σ'.vars "i" = v + 1 := by
+  obtain ⟨hn, hoff, htgt, halv, hile, ⟨g, hdeg, hg⟩⟩ := id hI
+  have hns : O (v + 1) ≤ ns := hcsr.csr.le_ns (by omega)
+  have hov : O v ≤ O (v + 1) := hcsr.csr.mono v hv
+  have hrow : Csr.rowLen O v = O (v + 1) - O v := rfl
+  have hMv : M v < B := hMB v hv
+  have hcsrRel : Csr "off" "tgt" n ns n O T σ :=
+    ⟨hoff, htgt, fun i hi => hcsr.csr.mono i hi, hcsr.csr.last,
+      fun p hp => hcsr.csr.target_lt p hp⟩
+  -- the count the row ends at, and that it is the arena degree
+  have hcard : (liveSlots O T M v).card ≤ ns := by
+    calc (liveSlots O T M v).card ≤ (Finset.Ico (O v) (O (v + 1))).card :=
+          Finset.card_filter_le _ _
+      _ ≤ ns := by rw [Nat.card_Ico]; omega
+  -- the scan, stated so that what it hands back is what the rest of the block owes
+  have hscanSpec : Spec B
+      (fun τ => DegScanInv n ns G O T M v τ ∧ τ.vars "j" = O v)
+      (Csr.scan "j" "jend" degSlot)
+      (fun _ τ' => (∃ f, τ'.arrs "deg" = arrOf n f ∧ ∀ j < v, f j = adeg G M j) ∧
+        τ'.vars "n" = n ∧ τ'.arrs "off" = arrOf (n + 1) O ∧ τ'.arrs "tgt" = arrOf ns T ∧
+        τ'.arrs "alv" = arrOf n M ∧ τ'.vars "i" = v ∧
+        τ'.vars "c" = (liveSlots O T M v).card ∧
+        τ'.vars "i" < (τ'.arrs "alv").length ∧
+        (τ'.arrs "alv").getD (τ'.vars "i") 0 = M v ∧
+        (τ'.arrs "alv").getD (τ'.vars "i") 0 < B ∧
+        τ'.vars "i" < (τ'.arrs "deg").length ∧
+        τ'.vars "c" < B ∧ τ'.vars "i" + 1 < B ∧ τ'.vars "i" < B)
+      (44 * Csr.rowLen O v + 4) := by
+    refine (Csr.rowScan_spec B (44 * Csr.rowLen O v + 4) (O (v + 1)) 40 "j" "jend" degSlot
+      (DegScanInv n ns G O T M v) (by omega) (fun τ hτ => ⟨hτ.2.2.1, hτ.2.2.2.2.1⟩)
+      (fun τ hτ hlt => ?_) (fun _ hτ => hτ.1)
+      (fun τ hτ => by rw [hτ.2]; omega)).post (fun _ τ' _ hQ => ?_)
+    · obtain ⟨τ', K', hr, hK', hI', hj'⟩ :=
+        degSlot_run hcsr.csr hv (by omega) hnsB hMB hτ hlt
+      exact ⟨τ', K', hr, hI', hj', hK'⟩
+    · obtain ⟨⟨hn', hoff', htgt', halv', hile', ⟨f, hdeg', hf'⟩⟩, hi', -, -, -, hc'⟩ := hQ.1
+      have hjend := hQ.2
+      rw [hjend, liveUpto_last] at hc'
+      have hivn : τ'.vars "i" < n := by rw [hi']; exact hv
+      exact ⟨⟨f, hdeg', fun j hj => hf' j (by rw [hi']; exact hj)⟩, hn', hoff', htgt', halv',
+        hi', hc', by rw [halv', length_arrOf]; exact hivn,
+        by rw [halv', getD_arrOf M hivn, hi'], by rw [halv', getD_arrOf M hivn, hi']; exact hMv,
+        by rw [hdeg', length_arrOf]; exact hivn, by rw [hc']; omega,
+        by rw [hi']; omega, by rw [hi']; omega⟩
+  run_vcg [Csr.loadRow_spec B n ns n "off" "tgt" "i" "j" "jend" O T (by decide) (by decide),
+    hscanSpec]
+  · -- a live vertex records what its row counted
+    obtain ⟨⟨f, hdeg', hf'⟩, hn', hoff', htgt', halv', hi', hc', -, hav, -, -, -, -, -⟩ :=
+      ‹(∃ f, _) ∧ _›
+    have hMvne : M v ≠ 0 := by
+      have := ‹0 < (_ : List ℕ).getD _ 0›
+      omega
+    refine ⟨⟨by simp [hn'], by simp [hoff'], by simp [htgt'], by simp [halv'],
+      by simp [hi']; omega, ⟨upd f v (adeg G M v), ?_, fun j hj => ?_⟩⟩, by simp [hi']⟩
+    · rw [arrs_setVar, arrs_setArr, if_pos rfl, hdeg', hi', hc',
+        ← adeg_of_alive hcsr hv hMvne, set_arrOf_eq_upd]
+    · simp only [vars_setVar, if_true, vars_setArr, hi'] at hj
+      rcases Nat.lt_or_ge j v with hj' | hj'
+      · rw [upd_of_ne _ (by omega)]; exact hf' j hj'
+      · rw [show j = v by omega, upd_self]
+  · -- a dead vertex is isolated, and records nothing
+    obtain ⟨⟨f, hdeg', hf'⟩, hn', hoff', htgt', halv', hi', hc', -, hav, -, -, -, -, -⟩ :=
+      ‹(∃ f, _) ∧ _›
+    have hMv0 : M v = 0 := by
+      have := ‹¬ (0 < (_ : List ℕ).getD _ 0)›
+      omega
+    refine ⟨⟨by simp [hn'], by simp [hoff'], by simp [htgt'], by simp [halv'],
+      by simp [hi']; omega, ⟨upd f v (adeg G M v), ?_, fun j hj => ?_⟩⟩, by simp [hi']⟩
+    · rw [arrs_setVar, arrs_setArr, if_pos rfl, hdeg', hi',
+        show (0 : ℕ) = adeg G M v from (adeg_of_dead hv hMv0).symm, set_arrOf_eq_upd]
+    · simp only [vars_setVar, if_true, vars_setArr, hi'] at hj
+      rcases Nat.lt_or_ge j v with hj' | hj'
+      · rw [upd_of_ne _ (by omega)]; exact hf' j hj'
+      · rw [show j = v by omega, upd_self]
+  · -- the two offset reads: a row of the structure, and its number a word
+    exact ⟨⟨by simpa using hcsrRel, by omega, hnsB⟩, by simp [hiv]; omega,
+      by simp [hiv]; omega⟩
+  · -- the scan starts at the top of the row, in the state the reads left
+    obtain ⟨-, hj', hje', rfl⟩ :=
+      ‹Csr.LoadRowPost "off" "tgt" "i" "j" "jend" n ns n O T _ _›
+    refine ⟨⟨⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv],
+      by simp [hile], ⟨g, by simp [hdeg], by simpa [hiv] using hg⟩⟩, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
+    all_goals simp [hiv, hov]
+
+/-- **Every vertex's degree in the arena.** The pass is amortized, not
+counted: a turn costs the length of the row it walks, and the rows tile
+the target array, so the potential is "so much per slot left, so much
+per vertex left" and the whole pass is linear. -/
+theorem initDeg_spec (B n ns : ℕ) (G : SimpleGraph (Fin n)) (O T M : ℕ → ℕ)
+    (hcsr : CsrSimple G ns O T) (hnB : n + 1 < B) (hnsB : ns < B) (hMB : ∀ z < n, M z < B) :
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧
+        σ.arrs "tgt" = arrOf ns T ∧ σ.arrs "alv" = arrOf n M ∧
+        (∃ g, σ.arrs "deg" = arrOf n g))
+      initDeg
+      (fun _ σ' => DegInv n ns G O T M σ' ∧ σ'.vars "i" = n)
+      (48 * n + 44 * ns + 10) := by
+  have hOle : ∀ i ≤ n, O i ≤ ns := fun i hi => hcsr.csr.le_ns hi
+  have hloop : Spec B (DegInv n ns G O T M)
+      (.while (.lt (.var "i") (.var "n")) degRow)
+      (fun _ σ' => DegInv n ns G O T M σ' ∧
+        (Cond.lt (Expr.var "i") (Expr.var "n")).evalB B σ' = some false)
+      (48 * n + 44 * ns + 8) := by
+    refine Spec.while_potential (DegInv n ns G O T M)
+      (fun σ => 44 * (ns - O (σ.vars "i")) + 48 * (n - σ.vars "i"))
+      (fun σ hσ => evalB_condLt_vars (by have := hσ.2.2.2.2.1; omega)
+        (by rw [hσ.1]; omega))
+      (fun σ hσ hb => ?_) (fun _ h => h)
+      (fun σ _ => by simp only [size_condLt, size_var]; omega)
+    have hlt : σ.vars "i" < n := by
+      have := lt_of_condLt_true hb
+      rw [hσ.1] at this; exact this
+    obtain ⟨σ', K, hrun, hK, hI', hi'⟩ :=
+      degRow_run hcsr hlt hnB hnsB hMB hσ rfl
+    refine ⟨σ', K, hrun, hI', ?_⟩
+    have h₁ : O (σ.vars "i") ≤ O (σ.vars "i" + 1) := hcsr.csr.mono _ hlt
+    have h₂ : O (σ.vars "i" + 1) ≤ ns := hOle _ (by omega)
+    have hrow : Csr.rowLen O (σ.vars "i") = O (σ.vars "i" + 1) - O (σ.vars "i") := rfl
+    simp only [size_condLt, size_var, hi']
+    omega
+  run_vcg [hloop]
+  · -- the loop's exit reading
+    obtain ⟨hI', hfalse⟩ := ‹DegInv n ns G O T M _ ∧ _›
+    have h₁ := le_of_condLt_false hfalse
+    exact ⟨hI', by have := hI'.1; have := hI'.2.2.2.2.1; omega⟩
+  · -- the pass starts with nothing filled in
+    obtain ⟨g, hdeg⟩ := ‹∃ g, σ.arrs "deg" = arrOf n g›
+    exact ⟨by simpa using ‹σ.vars "n" = n›, by simpa using ‹σ.arrs "off" = arrOf (n + 1) O›,
+      by simpa using ‹σ.arrs "tgt" = arrOf ns T›, by simpa using ‹σ.arrs "alv" = arrOf n M›,
+      by simp, ⟨g, by simpa using hdeg, fun j hj => absurd hj (by simp)⟩⟩
+
+/-- Where the block of vertex `i` starts: the recorded extraction
+degrees of everything before it. -/
+def psum (ID : ℕ → ℕ) (i : ℕ) : ℕ := ∑ t ∈ Finset.range i, ID t
+
+@[simp] theorem psum_zero (ID : ℕ → ℕ) : psum ID 0 = 0 := by simp [psum]
+
+theorem psum_succ (ID : ℕ → ℕ) (i : ℕ) : psum ID (i + 1) = psum ID i + ID i :=
+  Finset.sum_range_succ ID i
+
+theorem psum_mono (ID : ℕ → ℕ) {i j : ℕ} (h : i ≤ j) : psum ID i ≤ psum ID j := by
+  refine Finset.sum_le_sum_of_subset ?_
+  exact Finset.range_subset_range.2 h
+
+/-- The invariant of the offset pass: the running sum is in `s`, the
+blocks up to the counter are opened in `ioff`, and the fill pointers
+below it are at the starts of their blocks. -/
+def OffInv (n : ℕ) (ID : ℕ → ℕ) (σ : Env) : Prop :=
+  σ.vars "n" = n ∧ σ.arrs "idg" = arrOf n ID ∧ σ.vars "i" ≤ n ∧
+    σ.vars "s" = psum ID (σ.vars "i") ∧
+    (∃ g, σ.arrs "ioff" = arrOf (n + 1) g ∧ ∀ j ≤ σ.vars "i", g j = psum ID j) ∧
+    (∃ g, σ.arrs "ifl" = arrOf n g ∧ ∀ j < σ.vars "i", g j = psum ID j)
+
+/-- One vertex's block, opened. -/
+theorem offRow_spec (B n : ℕ) (ID : ℕ → ℕ) (hnB : n + 1 < B) (hsB : psum ID n < B) :
+    Spec B (fun σ => OffInv n ID σ ∧ σ.vars "i" < n) offRow
+      (fun σ σ' => OffInv n ID σ' ∧ σ'.vars "i" = σ.vars "i" + 1) 20 := by
+  refine Spec.pre (P := fun σ => (OffInv n ID σ ∧ σ.vars "i" < n) ∧
+      σ.vars "i" < (σ.arrs "ifl").length ∧ σ.vars "i" < (σ.arrs "idg").length ∧
+      σ.vars "i" + 1 < (σ.arrs "ioff").length ∧
+      (σ.arrs "idg").getD (σ.vars "i") 0 = ID (σ.vars "i") ∧
+      (σ.arrs "idg").getD (σ.vars "i") 0 < B ∧
+      σ.vars "i" + 1 < B ∧ σ.vars "s" < B ∧
+      σ.vars "s" + (σ.arrs "idg").getD (σ.vars "i") 0 < B) ?_ ?_
+  · run_vcg
+    · obtain ⟨hn, hidg, -, hs, ⟨g, hioff, hg⟩, ⟨f, hifl, hf⟩⟩ := ‹OffInv n ID σ›
+      have hlt : σ.vars "i" < n := ‹σ.vars "i" < n›
+      have hv : (σ.arrs "idg").getD (σ.vars "i") 0 = ID (σ.vars "i") := ‹_›
+      have hv' : (σ.arrs "idg")[σ.vars "i"]?.getD 0 = ID (σ.vars "i") := by
+        rw [← List.getD_eq_getElem?_getD]; exact hv
+      refine ⟨⟨by simp [hn], by simp [hidg], by simp; omega,
+        by simp [hs, hv', psum_succ],
+        ⟨upd g (σ.vars "i" + 1) (psum ID (σ.vars "i" + 1)),
+          by simp [hioff, hs, hv', psum_succ, set_arrOf_eq_upd], fun j hj => ?_⟩,
+        ⟨upd f (σ.vars "i") (psum ID (σ.vars "i")),
+          by simp [hifl, hs, set_arrOf_eq_upd], fun j hj => ?_⟩⟩, by simp⟩
+      · simp at hj
+        rcases Nat.lt_or_ge j (σ.vars "i" + 1) with hj' | hj'
+        · rw [upd_of_ne _ (by omega)]; exact hg j (by omega)
+        · rw [show j = σ.vars "i" + 1 by omega, upd_self]
+      · simp at hj
+        rcases Nat.lt_or_ge j (σ.vars "i") with hj' | hj'
+        · rw [upd_of_ne _ (by omega)]; exact hf j hj'
+        · rw [show j = σ.vars "i" by omega, upd_self]
+    · simpa using ‹(σ.arrs "idg").getD (σ.vars "i") 0 < B›
+    · simpa using ‹σ.vars "s" + (σ.arrs "idg").getD (σ.vars "i") 0 < B›
+    · simpa using ‹σ.vars "s" + (σ.arrs "idg").getD (σ.vars "i") 0 < B›
+  · rintro σ ⟨⟨hn, hidg, hile, hs, ⟨g, hioff, hg⟩, ⟨f, hifl, hf⟩⟩, hlt⟩
+    -- (the pre-loading of the walk's obligations; see shape note 5)
+    have hidgv : (σ.arrs "idg").getD (σ.vars "i") 0 = ID (σ.vars "i") := by
+      rw [hidg, getD_arrOf ID hlt]
+    have hstep : psum ID (σ.vars "i") + ID (σ.vars "i") = psum ID (σ.vars "i" + 1) :=
+      (psum_succ ID _).symm
+    have hle1 : psum ID (σ.vars "i" + 1) ≤ psum ID n := psum_mono ID (by omega)
+    refine ⟨⟨⟨hn, hidg, hile, hs, ⟨g, hioff, hg⟩, ⟨f, hifl, hf⟩⟩, hlt⟩,
+      by rw [hifl, length_arrOf]; omega, by rw [hidg, length_arrOf]; omega,
+      by rw [hioff, length_arrOf]; omega, hidgv, ?_, by omega, ?_, ?_⟩
+    · rw [hidgv]
+      have : ID (σ.vars "i") ≤ psum ID (σ.vars "i" + 1) := by rw [psum_succ]; omega
+      omega
+    · rw [hs]; have := psum_mono ID (le_of_lt hlt : σ.vars "i" ≤ n); omega
+    · rw [hidgv, hs]; omega
+
+/-- What the offset pass is handed: the recorded extraction degrees and
+the two arrays it writes, at their lengths. -/
+def OffPre (n : ℕ) (ID : ℕ → ℕ) (σ : Env) : Prop :=
+  σ.vars "n" = n ∧ σ.arrs "idg" = arrOf n ID ∧
+    (∃ g, σ.arrs "ioff" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "ifl" = arrOf n g)
+
+/-- **The offsets of the in-neighbour lists.** A running sum: every
+block is opened at the sum of the extraction degrees before it, and
+every fill pointer starts at the start of its own block. -/
+theorem offPass_spec (B n : ℕ) (ID : ℕ → ℕ) (hnB : n + 1 < B) (hsB : psum ID n < B) :
+    Spec B (OffPre n ID) offPass
+      (fun _ σ' => σ'.vars "n" = n ∧ σ'.vars "s" = psum ID n ∧
+        (∃ g, σ'.arrs "ioff" = arrOf (n + 1) g ∧ ∀ j ≤ n, g j = psum ID j) ∧
+        (∃ g, σ'.arrs "ifl" = arrOf n g ∧ ∀ j < n, g j = psum ID j))
+      (24 * n + 12) := by
+  have hloop : Spec B (fun σ => OffInv n ID (σ.setVar "i" 0))
+      (.seq (.assign "i" (.lit 0)) (.while (.lt (.var "i") (.var "n")) offRow))
+      (fun _ σ' => OffInv n ID σ' ∧ σ'.vars "i" = n) ((20 + 4) * n + 6) :=
+    Spec.forRangeZero "i" "n" (OffInv n ID) n 20 (by omega)
+      (fun _ h => h.2.2.1) (fun _ h => h.1) (offRow_spec B n ID hnB hsB)
+  run_vcg [hloop]
+  · -- the loop's exit, read as this phase's answer
+    obtain ⟨⟨hn, -, -, hs, hio, hif⟩, hi⟩ := ‹OffInv n ID _ ∧ _›
+    rw [hi] at hs hio hif
+    exact ⟨hn, hs, hio, hif⟩
+  · -- the one store is inside the offsets array
+    obtain ⟨-, -, ⟨g, hioff⟩, -⟩ := ‹OffPre n ID σ›
+    rw [hioff, length_arrOf]; omega
+  · -- the loop starts with an empty sum and the first block opened
+    obtain ⟨hn, hidg, ⟨g, hioff⟩, ⟨f, hifl⟩⟩ := ‹OffPre n ID σ›
+    refine ⟨by simp [hn], by simp [hidg], by simp, by simp,
+      ⟨upd g 0 0, by simp [hioff, set_arrOf_eq_upd], fun j hj => ?_⟩,
+      ⟨f, by simp [hifl], fun j hj => absurd hj (by simp)⟩⟩
+    simp at hj
+    rw [hj, upd_self, psum_zero]
+
 /-- **The one thing this file leaves open.** `elimCom` is exhibited,
 compiled and run — the worked example below checks its answers against
 the arithmetic on the other side of the abstraction — and everything
@@ -1066,21 +1437,37 @@ three turns are `Elim.init`, `Elim.bump` and `Elim.extract`, and its
 exit reading is `Elim.cert`.
 
 It splits along the program's five phases, each a `Spec` of its own.
+**Two of the five are discharged** in the section above and are no
+longer part of this obligation; the three that remain are named here
+with what each of them needs.
 
-* `initDeg` leaves `deg v` at the arena degree of `v`. Its content is
+* `initDeg` — **done**, `initDeg_spec`: it leaves `deg v` at the arena
+  degree of `v`, at a cost of `48 n + 44 ns + 10`. Its content is
   `card_liveSlots` — the row's live slots biject with the arena
-  neighbours — and `nbrsIn_of_dead` for the other branch; the result is
-  `Elim.init`'s second hypothesis.
-* `initBuck` fills the buckets and leaves `sp = n + 1`, `ls = n`. Its
-  content is the bucket relation, which the elimination loop carries.
-* `elimLoop` is the loop, against `Elim` plus that bucket relation; its
-  exit is `cnt = n`, where `Elim.cert` applies.
-* `offPass` is a running sum, `Spec.forRangeZero` with `Fill`'s
-  invariant on two arrays at once, and it establishes `InCsr`'s `zero`,
-  `last`, `mono` and `len`.
-* `fillPass` is a second walk of the block structure whose content is a
-  counting sort: each arc lands in the block of its larger-ranked
-  endpoint, which gives `InCsr`'s `mem_iff` and `target_lt`.
+  neighbours — and `adeg_of_dead` for the other branch, and its result
+  is exactly `Elim.init`'s second hypothesis. The outer loop is
+  amortized against `44 (ns − off i) + 48 (n − i)`, the rows tiling the
+  target array.
+* `offPass` — **done**, `offPass_spec`: a running sum, at a cost of
+  `24 n + 12`, leaving `ioff j = psum ID j` for every `j ≤ n` and every
+  fill pointer at the start of its own block. It establishes `InCsr`'s
+  `zero`, `last`, `mono` and `len`.
+* `initBuck` — **open**: fills the buckets and leaves `sp = n + 1`,
+  `ls = n`. Its content is the bucket relation, which the elimination
+  loop then carries.
+* `elimLoop` — **open**: the loop, against `Elim` plus that bucket
+  relation; its exit is `cnt = n`, where `Elim.cert` applies.
+* `fillPass` — **open**: a second walk of the block structure whose
+  content is a counting sort — each arc lands in the block of its
+  larger-ranked endpoint — giving `InCsr`'s `mem_iff` and `target_lt`.
+
+The two open bucket phases both wait on the same missing piece: a
+reachability relation for the lazily deleted stacks (`q` is on the
+chain of `bh d` under `bn`), with the invariant that an allocated slot
+points strictly downwards, so that a push in front of a head and a pop
+of a head can both be shown to preserve "every uneliminated vertex has
+a slot in the bucket of its degree" — the clause `Elim.bump` consumes.
+Nothing above depends on it.
 
 The cost is amortized, with the potential
 
