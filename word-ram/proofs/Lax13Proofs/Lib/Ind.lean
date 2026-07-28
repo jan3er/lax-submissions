@@ -57,6 +57,13 @@ module writes itself.
    unfold it either. Whatever pointwise invariant the structure carries
    — here, that every cell is `0` or `1` — lives *in* the relation, so
    that the value bound of every operation comes out of `1 < B` alone.
+   Two of those facts are not optional. A `@[simp] setVar_iff` is what
+   carries the relation across the scalar assignments a caller's block
+   is full of, and an `of_eq` — the relation holds in any environment
+   agreeing on the names it mentions — is what carries it across a
+   foreign phase, off the equations `Spec.frame` hands the call site.
+   Without both, a composite cannot be closed and the worked example
+   does not go through.
 
 2. **Operations are `def`s of type `Com`, parameterized in every name
    they touch.** `mark (a x : String) : Com`, never a fixed `"mark"`.
@@ -90,6 +97,19 @@ module writes itself.
    verbatim and the proof stays one `run_vcg` and one `simp_all`. This
    is `test_spec` below, and every `Csr`, `Stack` and `Queue` read will
    want the same three lines.
+
+   Two refinements, both learned from a read whose index is not the
+   initial state's. The value bound has to be pre-loaded in **both**
+   `getD` forms — `(σ.arrs a).getD i 0 < B` *and*
+   `(σ.arrs a)[i]?.getD 0 < B`, the second off the first by
+   `List.getD_eq_getElem?_getD` — because the discharger's `simp` pass
+   normalizes the one into the other, and a discharger that succeeds on
+   only some of a read's obligations comes back as a hard error from
+   inside `run_vcg` rather than as a leftover goal. And a scalar bound
+   has to be pre-loaded in **state form**, `σ.vars t + 1 < B` and not
+   only the relation's `h + 1 < B`: the relation is opaque, so the
+   abstract form does not reach `omega`. `Stack.TopRead` and
+   `Queue.FrontRead` package both refinements, one per module.
 
 6. **A derived section for the set-shaped view**, never the relation
    itself. `Finset` may appear here and nowhere else.
