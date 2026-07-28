@@ -107,7 +107,7 @@ theorem foldCom_run {B : ℕ} {T : Table} (hT : T.Wf) (hTB : T.Fits B) {x : List
   have hσ₁arr : ∀ a, σ₁.arrs a = List.replicate (foldExt T N a) 0 := fun a => by
     rw [hσ₁]; simpa using hσ₀arr a
   -- the parents
-  obtain ⟨σ₂, p₂, r₂, hpar₂, hp₂, harr₂, hinp₂, hout₂, hvar₂⟩ :=
+  obtain ⟨σ₂, p₂, r₂, hpar₂, hp₂, hinp₂⟩ :=
     readLoop_run (B := B) (a := "par") (lim := "N") (by decide) (by decide) (σ := σ₁)
       (g := fun _ => 0) (k := N) (ys := arrOf N par) (rest := arrOf N lab)
       (by rw [hσ₁arr "par"]; simp [foldExt, replicate_eq_arrOf])
@@ -115,26 +115,26 @@ theorem foldCom_run {B : ℕ} {T : Table} (hT : T.Wf) (hTB : T.Fits B) {x : List
   have hpararr₂ : σ₂.arrs "par" = arrOf N par := by
     rw [hpar₂]; exact arrOf_congr fun i hi => by rw [hp₂ i hi, getD_arrOf _ hi]
   -- the labels
-  obtain ⟨σ₃, l₃, r₃, hlab₃, hl₃, harr₃, hinp₃, hout₃, hvar₃⟩ :=
+  obtain ⟨σ₃, l₃, r₃, hlab₃, hl₃, hinp₃⟩ :=
     readLoop_run (B := B) (a := "lab") (lim := "N") (by decide) (by decide) (σ := σ₂)
       (g := fun _ => 0) (k := N) (ys := arrOf N lab) (rest := [])
-      (by rw [harr₂ "lab" (by decide), hσ₁arr "lab"]; simp [foldExt, replicate_eq_arrOf])
-      (by rw [hvar₂ "N" (by decide) (by decide), hσ₁]; simp) (by simp) (by simp [hinp₂])
+      (by rw [r₂.frame_arr "lab" (by decide), hσ₁arr "lab"]; simp [foldExt, replicate_eq_arrOf])
+      (by rw [r₂.frame_var "N" (by decide), hσ₁]; simp) (by simp) (by simp [hinp₂])
       hNB hlabB
   have hlabarr₃ : σ₃.arrs "lab" = arrOf N lab := by
     rw [hlab₃]; exact arrOf_congr fun i hi => by rw [hl₃ i hi, getD_arrOf _ hi]
   have hN₃ : σ₃.vars "N" = N := by
-    rw [hvar₃ "N" (by decide) (by decide), hvar₂ "N" (by decide) (by decide), hσ₁]; simp
+    rw [r₃.frame_var "N" (by decide), r₂.frame_var "N" (by decide), hσ₁]; simp
   -- the table, materialized: seeds, row bases, combinations
   obtain ⟨σ₄, r₄, hini₄, harr₄, hvar₄, hinp₄, hout₄⟩ :=
     stores_arrOf_run (B := B) (a := "ini") (n := T.L) (σ := σ₃) (f := fun _ => 0) (h := T.init)
-      (by rw [harr₃ "ini" (by decide), harr₂ "ini" (by decide), hσ₁arr "ini"]
+      (by rw [r₃.frame_arr "ini" (by decide), r₂.frame_arr "ini" (by decide), hσ₁arr "ini"]
           simp [foldExt, replicate_eq_arrOf])
       hLB (fun l hl => lt_of_lt_of_le (hT.init_lt l hl) hVB)
   obtain ⟨σ₅, r₅, hrow₅, harr₅, hvar₅, hinp₅, hout₅⟩ :=
     stores_arrOf_run (B := B) (a := "row") (n := T.V) (σ := σ₄) (f := fun _ => 0)
       (h := fun a => a * T.V)
-      (by rw [harr₄ "row" (by decide), harr₃ "row" (by decide), harr₂ "row" (by decide),
+      (by rw [harr₄ "row" (by decide), r₃.frame_arr "row" (by decide), r₂.frame_arr "row" (by decide),
               hσ₁arr "row"]
           simp [foldExt, replicate_eq_arrOf])
       hVB (fun a ha => by
@@ -145,8 +145,8 @@ theorem foldCom_run {B : ℕ} {T : Table} (hT : T.Wf) (hTB : T.Fits B) {x : List
   obtain ⟨σ₆, r₆, htab₆, harr₆, hvar₆, hinp₆, hout₆⟩ :=
     stores_arrOf_run (B := B) (a := "tab") (n := T.V * T.V) (σ := σ₅) (f := fun _ => 0)
       (h := fun k => T.step (k / T.V) (k % T.V))
-      (by rw [harr₅ "tab" (by decide), harr₄ "tab" (by decide), harr₃ "tab" (by decide),
-              harr₂ "tab" (by decide), hσ₁arr "tab"]
+      (by rw [harr₅ "tab" (by decide), harr₄ "tab" (by decide), r₃.frame_arr "tab" (by decide),
+              r₂.frame_arr "tab" (by decide), hσ₁arr "tab"]
           simp [foldExt, replicate_eq_arrOf])
       hsqB (fun j hj => by
         have hV : 0 < T.V := by
@@ -159,20 +159,20 @@ theorem foldCom_run {B : ℕ} {T : Table} (hT : T.Wf) (hTB : T.Fits B) {x : List
   -- what the seeding phase starts from
   have hacc₆ : σ₆.arrs "acc" = arrOf N (fun _ => 0) := by
     rw [harr₆ "acc" (by decide), harr₅ "acc" (by decide), harr₄ "acc" (by decide),
-      harr₃ "acc" (by decide), harr₂ "acc" (by decide), hσ₁arr "acc"]
+      r₃.frame_arr "acc" (by decide), r₂.frame_arr "acc" (by decide), hσ₁arr "acc"]
     simp [foldExt, replicate_eq_arrOf]
   have hlabarr₆ : σ₆.arrs "lab" = arrOf N lab := by
     rw [harr₆ "lab" (by decide), harr₅ "lab" (by decide), harr₄ "lab" (by decide), hlabarr₃]
   have hpararr₆ : σ₆.arrs "par" = arrOf N par := by
     rw [harr₆ "par" (by decide), harr₅ "par" (by decide), harr₄ "par" (by decide),
-      harr₃ "par" (by decide), hpararr₂]
+      r₃.frame_arr "par" (by decide), hpararr₂]
   have hini₆ : σ₆.arrs "ini" = arrOf T.L T.init := by
     rw [harr₆ "ini" (by decide), harr₅ "ini" (by decide), hini₄]
   have hrow₆ : σ₆.arrs "row" = arrOf T.V (fun a => a * T.V) := by
     rw [harr₆ "row" (by decide), hrow₅]
   have hN₆ : σ₆.vars "N" = N := by rw [hvar₆, hvar₅, hvar₄, hN₃]
   have hout₆' : σ₆.out = [] := by
-    rw [hout₆, hout₅, hout₄, hout₃, hout₂, hσ₁]; simp [hσ₀, initEnv]
+    rw [hout₆, hout₅, hout₄, r₃.out_eq (by decide), r₂.out_eq (by decide), hσ₁]; simp [hσ₀, initEnv]
   -- the seeds
   obtain ⟨σ₇, r₇, hacc₇, harr₇, hinp₇, hout₇, hvar₇⟩ :=
     seedLoop_run (B := B) (T := T) hT hTB (lab := lab) (N := N) (σ := σ₆) (f := fun _ => 0)

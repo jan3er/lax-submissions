@@ -120,13 +120,13 @@ theorem driverCom_run {B : ℕ} {T : Table} (hT : T.Wf) (hTB : T.Fits B) {acp : 
   have hσ₃arr : ∀ a, σ₃.arrs a = List.replicate (driverExt T n m N a) 0 := fun a => by
     rw [hσ₃, hσ₂, hσ₁]; simpa using hσ₀arr a
   -- the graph block, read and discarded
-  obtain ⟨σ₄, _, r₄, _, _, harr₄, hinp₄, hout₄, hvar₄⟩ :=
+  obtain ⟨σ₄, _, r₄, _, _, hinp₄⟩ :=
     readLoop_run (B := B) (a := "csr") (lim := "len") (by decide) (by decide) (σ := σ₃)
       (g := fun _ => 0) (k := gr.length) (ys := gr) (rest := N :: tr)
       (by rw [hσ₃arr "csr"]; simp [driverExt, hgr, replicate_eq_arrOf])
       (by rw [hσ₃]; simp [hgr]) rfl (by rw [hσ₃, hσ₂]; simp) hgrB hgrmem
   have hA₄ : ∀ a, a ≠ "csr" → σ₄.arrs a = List.replicate (driverExt T n m N a) 0 :=
-    fun a ha => by rw [harr₄ a ha, hσ₃arr a]
+    fun a ha => by rw [r₄.frame_arr a (by simp [ha]), hσ₃arr a]
   -- the node count
   set σ₅ : Env := { σ₄.setVar "N" N with inp := tr } with hσ₅
   have r₅ : Run B (.read "N") σ₄ σ₅ 1 := Run.read (by rw [hinp₄])
@@ -134,7 +134,7 @@ theorem driverCom_run {B : ℕ} {T : Table} (hT : T.Wf) (hTB : T.Fits B) {acp : 
     fun a ha => by rw [hσ₅]; simpa using hA₄ a ha
   have hN₅ : σ₅.vars "N" = N := by rw [hσ₅]; simp
   -- the parents
-  obtain ⟨σ₆, p₆, r₆, hpar₆, hp₆, harr₆, hinp₆, hout₆, hvar₆⟩ :=
+  obtain ⟨σ₆, p₆, r₆, hpar₆, hp₆, hinp₆⟩ :=
     readLoop_run (B := B) (a := "par") (lim := "N") (by decide) (by decide) (σ := σ₅)
       (g := fun _ => 0) (k := N) (ys := tr.take N) (rest := tr.drop N)
       (by rw [hA₅ "par" (by decide)]; simp [driverExt, replicate_eq_arrOf])
@@ -144,10 +144,10 @@ theorem driverCom_run {B : ℕ} {T : Table} (hT : T.Wf) (hTB : T.Fits B) {acp : 
     rw [hpar₆]
     exact arrOf_congr fun i hi => by rw [hp₆ i hi, getD_take hi, hpardef]
   have hA₆ : ∀ a, a ≠ "csr" → a ≠ "par" → σ₆.arrs a = List.replicate (driverExt T n m N a) 0 :=
-    fun a h1 h2 => by rw [harr₆ a h2, hA₅ a h1]
-  have hN₆ : σ₆.vars "N" = N := by rw [hvar₆ "N" (by decide) (by decide), hN₅]
+    fun a h1 h2 => by rw [r₆.frame_arr a (by simp [h2]), hA₅ a h1]
+  have hN₆ : σ₆.vars "N" = N := by rw [r₆.frame_var "N" (by decide), hN₅]
   -- the op codes
-  obtain ⟨σ₇, l₇, r₇, hlab₇, hl₇, harr₇, hinp₇, hout₇, hvar₇⟩ :=
+  obtain ⟨σ₇, l₇, r₇, hlab₇, hl₇, hinp₇⟩ :=
     readLoop_run (B := B) (a := "lab") (lim := "N") (by decide) (by decide) (σ := σ₆)
       (g := fun _ => 0) (k := N) (ys := (tr.drop N).take N) (rest := (tr.drop N).drop N)
       (by rw [hA₆ "lab" (by decide) (by decide)]; simp [driverExt, replicate_eq_arrOf])
@@ -159,12 +159,12 @@ theorem driverCom_run {B : ℕ} {T : Table} (hT : T.Wf) (hTB : T.Fits B) {acp : 
       rw [hl₇ i hi, getD_take hi, getD_drop, hlabdef]
   have hA₇ : ∀ a, a ≠ "csr" → a ≠ "par" → a ≠ "lab" →
       σ₇.arrs a = List.replicate (driverExt T n m N a) 0 :=
-    fun a h1 h2 h3 => by rw [harr₇ a h3, hA₆ a h1 h2]
-  have hN₇ : σ₇.vars "N" = N := by rw [hvar₇ "N" (by decide) (by decide), hN₆]
+    fun a h1 h2 h3 => by rw [r₇.frame_arr a (by simp [h3]), hA₆ a h1 h2]
+  have hN₇ : σ₇.vars "N" = N := by rw [r₇.frame_var "N" (by decide), hN₆]
   have hpararr₇ : σ₇.arrs "par" = arrOf N par := by
-    rw [harr₇ "par" (by decide), hpararr₆]
+    rw [r₇.frame_arr "par" (by decide), hpararr₆]
   -- the vertex names, read and discarded
-  obtain ⟨σ₈, _, r₈, _, _, harr₈, hinp₈, hout₈, hvar₈⟩ :=
+  obtain ⟨σ₈, _, r₈, _, _, hinp₈⟩ :=
     readLoop_run (B := B) (a := "ids") (lim := "N") (by decide) (by decide) (σ := σ₇)
       (g := fun _ => 0) (k := N) (ys := (tr.drop N).drop N) (rest := [])
       (by rw [hA₇ "ids" (by decide) (by decide) (by decide)];
@@ -173,12 +173,12 @@ theorem driverCom_run {B : ℕ} {T : Table} (hT : T.Wf) (hTB : T.Fits B) {acp : 
       (fun v hv => htrmem v (List.mem_of_mem_drop (List.mem_of_mem_drop hv)))
   have hA₈ : ∀ a, a ≠ "csr" → a ≠ "par" → a ≠ "lab" → a ≠ "ids" →
       σ₈.arrs a = List.replicate (driverExt T n m N a) 0 :=
-    fun a h1 h2 h3 h4 => by rw [harr₈ a h4, hA₇ a h1 h2 h3]
-  have hN₈ : σ₈.vars "N" = N := by rw [hvar₈ "N" (by decide) (by decide), hN₇]
+    fun a h1 h2 h3 h4 => by rw [r₈.frame_arr a (by simp [h4]), hA₇ a h1 h2 h3]
+  have hN₈ : σ₈.vars "N" = N := by rw [r₈.frame_var "N" (by decide), hN₇]
   have hpararr₈ : σ₈.arrs "par" = arrOf N par := by
-    rw [harr₈ "par" (by decide), hpararr₇]
+    rw [r₈.frame_arr "par" (by decide), hpararr₇]
   have hlabarr₈ : σ₈.arrs "lab" = arrOf N lab := by
-    rw [harr₈ "lab" (by decide), hlabarr₇]
+    rw [r₈.frame_arr "lab" (by decide), hlabarr₇]
   -- the four tables, materialized
   obtain ⟨σ₉, r₉, hini₉, harr₉, hvar₉, hinp₉, hout₉⟩ :=
     stores_arrOf_run (B := B) (a := "ini") (n := T.L) (σ := σ₈) (f := fun _ => 0) (h := T.init)
@@ -238,7 +238,7 @@ theorem driverCom_run {B : ℕ} {T : Table} (hT : T.Wf) (hTB : T.Fits B) {acp : 
   have hout₃ : σ₃.out = σ₀.out := rfl
   have hout₀ : σ₀.out = [] := rfl
   have hout₁₂' : σ₁₂.out = [] := by
-    rw [hout₁₂, hout₁₁, hout₁₀, hout₉, hout₈, hout₇, hout₆, hout₅, hout₄, hout₃, hout₀]
+    rw [hout₁₂, hout₁₁, hout₁₀, hout₉, r₈.out_eq (by decide), r₇.out_eq (by decide), r₆.out_eq (by decide), hout₅, r₄.out_eq (by decide), hout₃, hout₀]
   -- the seeds
   obtain ⟨σ₁₃, r₁₃, hacc₁₃, harr₁₃, hinp₁₃, hout₁₃, hvar₁₃⟩ :=
     seedLoop_run (B := B) (T := T) hT hTB (lab := lab) (N := N) (σ := σ₁₂) (f := fun _ => 0)

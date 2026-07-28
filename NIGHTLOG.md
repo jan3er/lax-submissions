@@ -2720,3 +2720,20 @@ the three `*-night-brief.md`, `vc-contracts/`) are now tracked there too.
 Two renames: `todo.md` → `implementation-log.md`,
 `cc-night-brief.md` → `ram-stack-night-brief.md`. Earlier entries in this
 log cite the old root paths; `plans/README.md` has the old→new map.
+
+## IMP+ toolkit P1 — the frame rule — 2026-07-28
+`Lax13Proofs/Frame.lean` lands: `Com.wvars` / `Com.warrs` / `Com.reads`
+with decision procedures, and `Run.frame_var` / `frame_arr` /
+`frame_inp` proved by the induction `BigStep.out_eq` already did for the
+output tape. A `Decidable` instance for the pre-existing `Com.NoWrite`
+joins it, so all four `Env` fields are framed by one `by decide` each.
+Retrofit: `readLoop_run` (`Lax11Proofs/CCPhases.lean`) dropped three of
+its four frame conjuncts and `ReadInv` dropped its `σ` parameter with
+them; all twelve call sites across Lax11 and Lax15 rewritten and green,
+zero `sorry`. The second half of P1's acceptance — `Scanned` /
+`not_scanned_ne` in Lax15's `Phases.lean` — is surveyed but not done,
+and is the next session's first task; the survey, the two shape
+decisions taken, and the timings are in
+`plans/word-ram/imp-toolkit-plan.md`.
+Working model from here, Jan's call mid-session: Fable supervises and
+Opus subagents write the proofs.

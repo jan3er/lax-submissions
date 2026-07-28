@@ -1,5 +1,5 @@
 import Lax11.ConnectedComponents
-import Lax13Proofs.Reasoning
+import Lax13Proofs.Frame
 
 /-!
 The driver: connected components, as an IMP+ program.

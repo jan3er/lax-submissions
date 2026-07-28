@@ -1,9 +1,16 @@
 # IMP+ toolkit plan
 
-Rev 1, 2026-07-28. **Status: OPEN, phase 1 not started.** Owner: unassigned;
-Jan to allocate. Decisions below are settled unless marked **JAN-FLAG**.
-This document is the contract: implementing sessions follow it, deviations
-need an owner decision first.
+Rev 1, 2026-07-28. **Status: OPEN, P1 built and half accepted.** Decisions
+below are settled unless marked **JAN-FLAG**. This document is the
+contract: implementing sessions follow it, deviations need an owner
+decision first.
+
+**Working model (Jan, 2026-07-28).** Fable supervises — plan, sequencing,
+review, acceptance calls, commits — and **Opus subagents write the
+proofs**. A supervising session spawns an Opus agent per proof-shaped
+unit of work rather than editing Lean itself, so the supervisor keeps
+context for the whole campaign instead of burning it on one file. See
+"Handoff notes" at the end.
 
 Scope is **proofs-only**. No concept surface anywhere in the repo changes,
 no `lean-toolchain` or mathlib pin moves, and the machine model
@@ -300,10 +307,107 @@ registered, `pull-db` broken) is unresolved and untouched by this work.
 
 ## Progress log
 
-- [ ] P1 frame rule
+- [~] **P1 frame rule — kit built and green, acceptance half done.**
 - [ ] P2 spec triples
 - [ ] P3 `run_step` tactic
 - [ ] P4 data-structure library
 - [ ] P5 pilot retrofit (Lax11 CC) — **gate: ≤ 40% of 1,655 lines**
 - [ ] P6 remaining retrofits
 - [ ] P7 pins and drafts (registration excluded, JAN-FLAG)
+
+### P1, as built (2026-07-28)
+
+`word-ram/proofs/Lax13Proofs/Frame.lean`, imported from
+`Lax13Proofs.lean`. Everything below is green with zero `sorry` across
+all three packages.
+
+- `Com.wvars`, `Com.warrs`, `Com.reads` as planned, plus decision
+  procedures for `Com.reads` **and for `Com.NoWrite`** — the latter so
+  the output tape joins the other three fields in being framed by one
+  `by decide`, instead of `Run.out_eq` needing `simp [Com.NoWrite]`.
+- `Run.frame_var`, `Run.frame_arr`, `Run.frame_inp`, on `BigStep` first
+  (`BigStep.vars_eq` / `.arrs_eq` / `.inp_eq`) and lifted, following
+  `BigStep.out_eq`. Plus `Run.frame_vars_eqOn` / `frame_arrs_eqOn` for
+  the whole-function case.
+- Equation lemmas materialized in-package for all three new match
+  definitions, per the standing kit rule.
+
+**Two shape decisions taken, both minor, both reversible.**
+
+1. `Com.reads` is `Prop`-valued as the plan writes it, with a
+   hand-written `Decidable` instance by the same recursion, rather than
+   `Bool`-valued. It keeps `reads`/`NoWrite` in one style.
+2. **The framed name is an explicit argument**: `h.frame_var "m"
+   (by decide)`, not `h.frame_var (y := "m") (by decide)`. These are
+   used inside `rw` chains, where the implicit form needs a named
+   argument at every step. This also makes the retrofit textually a
+   one-for-one swap: `hvar₄ "m" (by decide) (by decide)` becomes
+   `r₄.frame_var "m" (by decide)`.
+
+**Acceptance, part 1 — done.** `readLoop_run`
+(`Lax11Proofs/CCPhases.lean`) lost three of its four frame conjuncts
+(`arrs` off its own array, `out`, `vars` off `i`/`t`); `σ'.inp = rest`
+stays, being a consumption fact and not a frame condition. `ReadInv`
+lost the same three and with them its `σ` parameter — the invariant no
+longer mentions the initial environment at all. **All twelve** call
+sites rewritten and green (the plan said eight; Lax15's two `Main`s
+added four more): `CCSweep`, `VCMain`, `TreeFoldMain` ×2,
+`CourcelleMain` ×4, `Lax15Proofs/Main`, `Lax15Proofs/Main3` ×2. Two
+`@[simp]` lemmas were added next to `readLoop` — `warrs_readLoop`,
+`wvars_readLoop` — so that a call site with a *bound* name discharges
+its obligation by `by simp [h]` against the disequality it already has.
+
+**Acceptance, part 2 — NOT done.** `Scanned` / `not_scanned_ne`
+(`Lax15Proofs/Phases.lean`, and the parallel `Scanned3` in
+`Phases3.lean`) are untouched. The survey is done and is the next
+session's starting point:
+
+- `Scanned` is exactly the nine names of `descendScan.wvars`, and
+  `decide` settles `"m2" ∉ descendScan.wvars` fast — measured, not
+  assumed. So `ScanInv`'s first conjunct becomes
+  `∀ y, y ∉ descendScan.wvars → τ.vars y = σ.vars y`.
+- The conjunct **cannot** simply be dropped the way `ReadInv`'s were.
+  `Run.while_potential` hands the invariant back at a point where no run
+  from the loop's entry is in hand, and the step needs
+  `ν.vars "m2" = 2 * m` at every turn. It stays in the invariant; what
+  goes is the *proof* of it — the four
+  `obtain ⟨h1,…,h9⟩ := not_scanned_ne hy` blocks become one
+  `Run.frame_var` against the step's own run, since
+  `(Com.seq ownerAdvance slotStep).wvars ⊆ descendScan.wvars`.
+- Line 1544's `hI₀` establishes the invariant on the seven-`setVar`
+  prefix; it can be framed off the prefix run or left as `simp`.
+
+**Timings.** Full `lake build` after the change: `word-ram/proofs`
+2,955 jobs / 8.5 s; `ram-linear-time/proofs` 3,012 jobs / 1 min 16 s;
+`vertex-cover-ladder/proofs` 3,017 jobs / 2 min 41 s. No before-numbers
+were taken, and P1 changes too little proof text for a regression to
+hide; from P2 on, take the baseline first.
+
+**Line count.** Call sites came out line-neutral, as expected — P1 pays
+in the *statement* (four conjuncts and one parameter off `readLoop_run`
+and `ReadInv`, ~14 lines of proof) and in not having to re-establish
+frames when phases compose. The line win the campaign is after is P2–P4.
+
+## Handoff notes
+
+The next session picks up at "Acceptance, part 2" above, then P2.
+Working model, per Jan: **Fable supervises, Opus subagents write the
+Lean.** Concretely — the supervisor holds the plan, decides scope and
+acceptance, runs the builds and commits; each proof-shaped unit (one
+lemma family, one file's retrofit, the tactic) goes to an Opus agent
+with the relevant statement, the acceptance test, and a pointer to this
+plan. Do not let the supervisor read whole 1,800-line proof files: that
+is what the context is being saved for.
+
+Standing facts a spawned agent needs and will not find on its own:
+
+- Build with `lake build` inside the package directory; `concepts/`
+  before `proofs/`. The three packages take 8 s / 1 min 16 s / 2 min 41 s
+  from cold-ish, so batch edits before rebuilding.
+- The packages use **sibling path requires**, so a change in
+  `word-ram/proofs` is visible to Lax11 and Lax15 with no re-pin during
+  development. Re-pinning is P7's job.
+- A new match-defined kit function needs its equation lemmas
+  materialized in `Lax13Proofs` — see the note in `Frame.lean`.
+- Frame obligations: `by decide` for a literal name, `by simp [h]` for a
+  bound one given the disequality.

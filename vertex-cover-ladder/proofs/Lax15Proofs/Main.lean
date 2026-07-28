@@ -262,7 +262,7 @@ theorem vcfCom_run {x : List ℕ} {n : ℕ} {G : SimpleGraph (Fin n)} {k m B : �
   have r₃ : Run B (.assign "len" (.add (.var "n") (.lit 1))) σ₂ σ₃ 4 :=
     (Run.assign (v := n + 1) (by simp [hσ₂, hσ₁, initEnv]; omega)).mono (by simp)
   -- the offsets
-  obtain ⟨σ₄, O, r₄, hoff₄, hO₄, harr₄, hinp₄, hout₄, hvar₄⟩ :=
+  obtain ⟨σ₄, O, r₄, hoff₄, hO₄, hinp₄⟩ :=
     CC.readLoop_run (B := B) (a := "off") (lim := "len") (by decide) (by decide) (σ := σ₃)
       (g := fun _ => 0) (k := n + 1) (ys := ys) (rest := zs ++ [k])
       (by simp [hσ₃, hσ₂, hσ₁, initEnv, vcfExt, replicate_eq_arrOf])
@@ -273,12 +273,12 @@ theorem vcfCom_run {x : List ℕ} {n : ℕ} {G : SimpleGraph (Fin n)} {k m B : �
   set σ₅ : Env := σ₄.setVar "m2" (2 * m) with hσ₅
   have r₅ : Run B (.assign "m2" (.add (.var "m") (.var "m"))) σ₄ σ₅ 4 :=
     (Run.assign (v := 2 * m)
-      (by simp [hvar₄ "m" (by decide) (by decide), hσ₃, hσ₂, hσ₁, initEnv, two_mul]
+      (by simp [r₄.frame_var "m" (by decide), hσ₃, hσ₂, hσ₁, initEnv, two_mul]
           omega)).mono (by simp)
-  obtain ⟨σ₆, T, r₆, htgt₆, hT₆, harr₆, hinp₆, hout₆, hvar₆⟩ :=
+  obtain ⟨σ₆, T, r₆, htgt₆, hT₆, hinp₆⟩ :=
     CC.readLoop_run (B := B) (a := "tgt") (lim := "m2") (by decide) (by decide) (σ := σ₅)
       (g := fun _ => 0) (k := 2 * m) (ys := zs) (rest := [k])
-      (by rw [hσ₅, arrs_setVar, harr₄ "tgt" (by decide)]
+      (by rw [hσ₅, arrs_setVar, r₄.frame_arr "tgt" (by decide)]
           simp [hσ₃, hσ₂, hσ₁, initEnv, vcfExt, replicate_eq_arrOf])
       (by simp [hσ₅]) hzs (by simp [hσ₅, hinp₄]) hmB hzsB
   have hT : ∀ p < 2 * m, T p = target (n :: m :: rest) p := fun p hp => by
@@ -288,14 +288,14 @@ theorem vcfCom_run {x : List ℕ} {n : ℕ} {G : SimpleGraph (Fin n)} {k m B : �
   have r₇ : Run B (.read "bud") σ₆ σ₇ 1 := Run.read hinp₆
   -- what the search starts from
   have hm2₇ : σ₇.vars "m2" = 2 * m := by
-    have h6 := hvar₆ "m2" (by decide) (by decide)
+    have h6 := r₆.frame_var "m2" (by decide)
     simp [hσ₇, h6, hσ₅]
   have hbud₇ : σ₇.vars "bud" = k := by simp [hσ₇]
   have hzero : ∀ y : String, y ≠ "i" → y ≠ "t" → y ≠ "m2" → y ≠ "bud" → y ≠ "len" →
       y ≠ "n" → y ≠ "m" → σ₇.vars y = 0 := by
     intro y h1 h2 h3 h4 h5 h6 h7
-    have e6 := hvar₆ y h1 h2
-    have e4 := hvar₄ y h1 h2
+    have e6 := r₆.frame_var y (by simp [h1, h2])
+    have e4 := r₄.frame_var y (by simp [h1, h2])
     simp [hσ₇, h4, e6, hσ₅, h3, e4, hσ₃, hσ₂, hσ₁, initEnv, h5, h6, h7]
   have hmode₇ : σ₇.vars "mode" = 0 := hzero "mode" (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide)
@@ -307,18 +307,19 @@ theorem vcfCom_run {x : List ℕ} {n : ℕ} {G : SimpleGraph (Fin n)} {k m B : �
     (by decide) (by decide) (by decide) (by decide)
   have harr₇ : ∀ b : String, σ₇.arrs b = σ₆.arrs b := by intro b; simp [hσ₇]
   have hoff₇ : σ₇.arrs "off" = arrOf (n + 1) O := by
-    rw [harr₇, harr₆ "off" (by decide), hσ₅, arrs_setVar, hoff₄]
+    rw [harr₇, r₆.frame_arr "off" (by decide), hσ₅, arrs_setVar, hoff₄]
   have htgt₇ : σ₇.arrs "tgt" = arrOf (2 * m) T := by rw [harr₇, htgt₆]
   have hmark₇ : σ₇.arrs "mark" = arrOf n (fun _ => 0) := by
-    rw [harr₇, harr₆ "mark" (by decide), hσ₅, arrs_setVar, harr₄ "mark" (by decide)]
+    rw [harr₇, r₆.frame_arr "mark" (by decide), hσ₅, arrs_setVar, r₄.frame_arr "mark" (by decide)]
     simp [hσ₃, hσ₂, hσ₁, initEnv, vcfExt, replicate_eq_arrOf]
   have hrest₇ : ∀ a : String, a ≠ "off" → a ≠ "tgt" → a ≠ "mark" →
       σ₇.arrs a = arrOf (n + 1) (fun _ => 0) := by
     intro a h1 h2 h3
-    rw [harr₇, harr₆ a h2, hσ₅, arrs_setVar, harr₄ a h1]
+    rw [harr₇, r₆.frame_arr a (by simp [h2]), hσ₅, arrs_setVar,
+      r₄.frame_arr a (by simp [h1])]
     simp [hσ₃, hσ₂, hσ₁, initEnv, vcfExt, h2, h3, replicate_eq_arrOf]
   have hout₇ : σ₇.out = [] := by
-    simp [hσ₇, hout₆, hσ₅, hout₄, hσ₃, hσ₂, hσ₁, initEnv]
+    simp [hσ₇, r₆.out_eq (by decide), hσ₅, r₄.out_eq (by decide), hσ₃, hσ₂, hσ₁, initEnv]
   have hRep : Rep n m O T (⟨[], 0, k, 0⟩ : Config n) σ₇ := by
     refine ⟨hm2₇, hoff₇, htgt₇, hmode₇, hbud₇, hans₇, htop₇, htt₇,
       ⟨fun _ => 0, hmark₇, ?_⟩,

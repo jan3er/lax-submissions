@@ -330,7 +330,7 @@ theorem ccCom_run (hx : EncodesGraph x n G) (hm : edgeCount x = m) (hB : x.lengt
   have r₃ : Run B (.assign "len" (.add (.var "n") (.lit 1))) σ₂ σ₃ 4 :=
     (Run.assign (v := n + 1) (by simp [hσ₂, hσ₁, initEnv]; omega)).mono (by simp)
   -- the offsets
-  obtain ⟨σ₄, O, r₄, hoff₄, hO₄, harr₄, hinp₄, hout₄, hvar₄⟩ :=
+  obtain ⟨σ₄, O, r₄, hoff₄, hO₄, hinp₄⟩ :=
     readLoop_run (B := B) (a := "off") (lim := "len") (by decide) (by decide) (σ := σ₃)
       (g := fun _ => 0) (k := n + 1) (ys := ys) (rest := zs)
       (by simp [hσ₃, hσ₂, hσ₁, initEnv, ccExt, replicate_eq_arrOf])
@@ -341,22 +341,22 @@ theorem ccCom_run (hx : EncodesGraph x n G) (hm : edgeCount x = m) (hB : x.lengt
   set σ₅ : Env := σ₄.setVar "len" (2 * m) with hσ₅
   have r₅ : Run B (.assign "len" (.add (.var "m") (.var "m"))) σ₄ σ₅ 4 :=
     (Run.assign (v := 2 * m)
-      (by simp [hvar₄ "m" (by decide) (by decide), hσ₃, hσ₂, hσ₁, initEnv, two_mul]
+      (by simp [r₄.frame_var "m" (by decide), hσ₃, hσ₂, hσ₁, initEnv, two_mul]
           omega)).mono (by simp)
-  obtain ⟨σ₆, T, r₆, htgt₆, hT₆, harr₆, hinp₆, hout₆, hvar₆⟩ :=
+  obtain ⟨σ₆, T, r₆, htgt₆, hT₆, hinp₆⟩ :=
     readLoop_run (B := B) (a := "tgt") (lim := "len") (by decide) (by decide) (σ := σ₅)
       (g := fun _ => 0) (k := 2 * m) (ys := zs) (rest := [])
-      (by rw [hσ₅, arrs_setVar, harr₄ "tgt" (by decide)]
+      (by rw [hσ₅, arrs_setVar, r₄.frame_arr "tgt" (by decide)]
           simp [hσ₃, hσ₂, hσ₁, initEnv, ccExt, replicate_eq_arrOf])
       (by simp [hσ₅]) hzs (by simp [hσ₅, hinp₄]) hmB hzsB
   have hT : ∀ j < 2 * m, T j = target x j := fun j hj => by rw [hT₆ j hj, hzd j hj]
   -- the labels, cleared
   obtain ⟨σ₇, L₀, r₇, hlab₇, hL₀, harr₇, hinp₇, hout₇, hvar₇⟩ :=
     initLab_run (B := B) (σ := σ₆) (g := fun _ => 0) (n := n)
-      (by rw [harr₆ "lab" (by decide), hσ₅, arrs_setVar, harr₄ "lab" (by decide)]
+      (by rw [r₆.frame_arr "lab" (by decide), hσ₅, arrs_setVar, r₄.frame_arr "lab" (by decide)]
           simp [hσ₃, hσ₂, hσ₁, initEnv, ccExt, replicate_eq_arrOf])
-      (by rw [hvar₆ "n" (by decide) (by decide), hσ₅, vars_setVar,
-              if_neg (by decide : "n" ≠ "len"), hvar₄ "n" (by decide) (by decide)]
+      (by rw [r₆.frame_var "n" (by decide), hσ₅, vars_setVar,
+              if_neg (by decide : "n" ≠ "len"), r₄.frame_var "n" (by decide)]
           simp [hσ₃, hσ₂, hσ₁, initEnv])
       hnB
   -- the four scalars the sweep starts from
@@ -373,23 +373,23 @@ theorem ccCom_run (hx : EncodesGraph x n G) (hm : edgeCount x = m) (hB : x.lengt
       σ₁₁ 2 := (Run.assign (v := 0) (by simp; omega)).mono (by simp)
   -- what the sweep starts from
   have hn₇ : σ₇.vars "n" = n := by
-    rw [hvar₇ "n" (by decide), hvar₆ "n" (by decide) (by decide), hσ₅, vars_setVar,
-      if_neg (by decide : "n" ≠ "len"), hvar₄ "n" (by decide) (by decide)]
+    rw [hvar₇ "n" (by decide), r₆.frame_var "n" (by decide), hσ₅, vars_setVar,
+      if_neg (by decide : "n" ≠ "len"), r₄.frame_var "n" (by decide)]
     simp [hσ₃, hσ₂, hσ₁, initEnv]
   have hm₇ : σ₇.vars "m" = m := by
-    rw [hvar₇ "m" (by decide), hvar₆ "m" (by decide) (by decide), hσ₅, vars_setVar,
-      if_neg (by decide : "m" ≠ "len"), hvar₄ "m" (by decide) (by decide)]
+    rw [hvar₇ "m" (by decide), r₆.frame_var "m" (by decide), hσ₅, vars_setVar,
+      if_neg (by decide : "m" ≠ "len"), r₄.frame_var "m" (by decide)]
     simp [hσ₃, hσ₂, hσ₁, initEnv]
   have hoff₇ : σ₇.arrs "off" = arrOf (n + 1) O := by
-    rw [harr₇ "off" (by decide), harr₆ "off" (by decide), hσ₅, arrs_setVar, hoff₄]
+    rw [harr₇ "off" (by decide), r₆.frame_arr "off" (by decide), hσ₅, arrs_setVar, hoff₄]
   have htgt₇ : σ₇.arrs "tgt" = arrOf (2 * m) T := by
     rw [harr₇ "tgt" (by decide), htgt₆]
   have hq₇ : σ₇.arrs "q" = arrOf n (fun _ => 0) := by
-    rw [harr₇ "q" (by decide), harr₆ "q" (by decide), hσ₅, arrs_setVar,
-      harr₄ "q" (by decide)]
+    rw [harr₇ "q" (by decide), r₆.frame_arr "q" (by decide), hσ₅, arrs_setVar,
+      r₄.frame_arr "q" (by decide)]
     simp [hσ₃, hσ₂, hσ₁, initEnv, ccExt, replicate_eq_arrOf]
   have hout₇' : σ₇.out = [] := by
-    rw [hout₇, hout₆, hσ₅, out_setVar, hout₄]
+    rw [hout₇, r₆.out_eq (by decide), hσ₅, out_setVar, r₄.out_eq (by decide)]
     simp [hσ₃, hσ₂, hσ₁, initEnv]
   -- the sweep
   have hI : SweepInv x n m G O T σ₁₁ := by

@@ -12,10 +12,15 @@ lemma of this development has: what the phase does to *its* array, that
 it leaves the other arrays and the untouched scalars alone, what it
 costs, and under which bound it stays.
 
-The frame conditions are the tedious part and there is no way around
-them: IMP+ has no notion of a variable being local, so a lemma about a
-loop has to say which names it may have changed. They are cheap to
-state and cheap to use, which is what matters.
+The frame conditions used to be the tedious part: IMP+ has no notion of
+a variable being local, so a lemma about a loop had to say which names
+it may have changed, carry that around its own invariant, and hand it
+to the caller to destructure. `readLoop_run` no longer does. Which
+names a command may touch is syntactic, and `Lax13Proofs.Frame` decides
+it, so the frame facts are recovered from the run the conclusion
+already carries and cost the caller one `by decide` each. `initLab_run`
+and `writeLoop_run` below still state theirs by hand; they are the next
+two to go.
 
 The value bound `B` costs each of the three one hypothesis and no
 invariant clause: everything a phase produces is a counter below the
@@ -30,36 +35,58 @@ open Lax13.Ram Lax13Proofs.Imp Lax13Proofs.Compile Lax13Proofs.Reasoning
 
 /-! ### Reading a block of the tape into an array -/
 
+/-- What `readLoop` may store into: its own array, and nothing else. -/
+@[simp] theorem warrs_readLoop (a lim : String) : (readLoop a lim).warrs = [a] := by
+  simp [readLoop, Com.warrs]
+
+/-- What `readLoop` may assign to: the counter and the temporary. Its
+limit `lim` is not among them, which is why the caller may pass a scalar
+it wants to keep.
+
+With this and `warrs_readLoop`, a frame obligation of the rule is
+`by decide` when the name is a literal and `by simp [h]` when it is a
+variable the caller already has a disequality for. -/
+@[simp] theorem wvars_readLoop (a lim : String) :
+    (readLoop a lim).wvars = ["i", "t", "i"] := by
+  simp [readLoop, Com.wvars]
+
 /-- The invariant of `readLoop`: `i` numbers have been moved from the
-tape into the array, and nothing else has changed. -/
-def ReadInv (a lim : String) (σ : Env) (k : ℕ) (ys rest : List ℕ) (τ : Env) : Prop :=
+tape into the array. What the loop leaves alone is *not* part of it: the
+frame rule of `Lax13Proofs.Frame` reads that off the syntax of
+`readLoop` once, from the run the conclusion already carries, so the
+invariant does not have to carry it around the loop and the caller does
+not have to be handed it. -/
+def ReadInv (a lim : String) (k : ℕ) (ys rest : List ℕ) (τ : Env) : Prop :=
   τ.vars "i" ≤ k ∧ τ.vars lim = k ∧
   τ.inp = ys.drop (τ.vars "i") ++ rest ∧
-  (∃ g, τ.arrs a = arrOf k g ∧ ∀ i < τ.vars "i", g i = ys.getD i 0) ∧
-  (∀ b, b ≠ a → τ.arrs b = σ.arrs b) ∧ τ.out = σ.out ∧
-  (∀ y, y ≠ "i" → y ≠ "t" → τ.vars y = σ.vars y)
+  (∃ g, τ.arrs a = arrOf k g ∧ ∀ i < τ.vars "i", g i = ys.getD i 0)
 
 /-- Reading `k` numbers off the tape into the array `a`, at a cost of
 `12` per number. The array must already have length `k`; the numbers
 read are the first `k` of the tape. The loop counts up to `k` and moves
 numbers it has just read, so it stays below the bound as soon as the
-count and those numbers do. -/
+count and those numbers do.
+
+Everything the loop does *not* touch is left to the frame rule: a
+caller wanting another array, another scalar or the output tape applies
+`Run.frame_arr`, `Run.frame_var` or `Run.out_eq` to the run this
+returns, and pays one `by decide` against the syntax of
+`readLoop a lim`. The input tape is the exception — it is consumed, so
+what is left of it is a conclusion and not a frame condition. -/
 theorem readLoop_run {B : ℕ} {a lim : String} (hi : lim ≠ "i") (ht : lim ≠ "t")
     {σ : Env} {g : ℕ → ℕ} {k : ℕ} {ys rest : List ℕ}
     (harr : σ.arrs a = arrOf k g) (hlim : σ.vars lim = k)
     (hys : ys.length = k) (hinp : σ.inp = ys ++ rest)
     (hkB : k < B) (hyB : ∀ v ∈ ys, v < B) :
     ∃ (σ' : Env) (g' : ℕ → ℕ), Run B (readLoop a lim) σ σ' (12 * k + 6) ∧
-      σ'.arrs a = arrOf k g' ∧ (∀ i < k, g' i = ys.getD i 0) ∧
-      (∀ b, b ≠ a → σ'.arrs b = σ.arrs b) ∧ σ'.inp = rest ∧ σ'.out = σ.out ∧
-      (∀ y, y ≠ "i" → y ≠ "t" → σ'.vars y = σ.vars y) := by
-  have hstep : ∀ τ : Env, ReadInv a lim σ k ys rest τ →
+      σ'.arrs a = arrOf k g' ∧ (∀ i < k, g' i = ys.getD i 0) ∧ σ'.inp = rest := by
+  have hstep : ∀ τ : Env, ReadInv a lim k ys rest τ →
       (Cond.lt (.var "i") (.var lim)).evalB B τ = some true →
       ∃ τ', Run B (.seq (.read "t")
         (.seq (.store a (.var "i") (.var "t"))
           (.assign "i" (.add (.var "i") (.lit 1))))) τ τ' 8 ∧
-        ReadInv a lim σ k ys rest τ' ∧ (k - τ'.vars "i") < (k - τ.vars "i") := by
-    rintro τ ⟨hle, hl, hinp', ⟨f, hf, hfv⟩, hb, hout, hy⟩ hcond
+        ReadInv a lim k ys rest τ' ∧ (k - τ'.vars "i") < (k - τ.vars "i") := by
+    rintro τ ⟨hle, hl, hinp', ⟨f, hf, hfv⟩⟩ hcond
     have hlt : τ.vars "i" < k := by simp [hl] at hcond; omega
     have hylen : τ.vars "i" < ys.length := by omega
     have hdrop : ys.drop (τ.vars "i") = ys[τ.vars "i"]! :: ys.drop (τ.vars "i" + 1) := by
@@ -73,34 +100,27 @@ theorem readLoop_run {B : ℕ} {a lim : String} (hi : lim ≠ "i") (ht : lim ≠
       (Run.seq (Run.store (idx := τ.vars "i") (v := ys[τ.vars "i"]!)
           (by simp; omega) (by simp; omega) (by simp [hf]; omega))
         (Run.assign (v := τ.vars "i" + 1) (by simp; omega)))).mono (by simp),
-      ⟨by simp; omega, by simp [hi, ht, hl], by simp, ?_, ?_, by simp [hout], ?_⟩, by simp; omega⟩
-    · refine ⟨fun j => if j = τ.vars "i" then ys[τ.vars "i"]! else f j, by simp [hf, set_arrOf], ?_⟩
-      intro j hj
-      simp at hj
-      by_cases hje : j = τ.vars "i"
-      · subst hje
-        simp [List.getElem!_eq_getElem?_getD, List.getD_eq_getElem?_getD]
-      · simp only [if_neg hje]
-        exact hfv j (by omega)
-    · intro b hbne
-      simp [hbne, hb b hbne]
-    · intro y hy1 hy2
-      simp [hy1, hy2, hy y hy1 hy2]
-  obtain ⟨σ', hrun, ⟨hle', hl', hinp'', ⟨g', hg', hgv⟩, hb', hout', hy'⟩, hfalse⟩ :=
+      ⟨by simp; omega, by simp [hi, ht, hl], by simp, ?_⟩, by simp; omega⟩
+    refine ⟨fun j => if j = τ.vars "i" then ys[τ.vars "i"]! else f j, by simp [hf, set_arrOf], ?_⟩
+    intro j hj
+    simp at hj
+    by_cases hje : j = τ.vars "i"
+    · subst hje
+      simp [List.getElem!_eq_getElem?_getD, List.getD_eq_getElem?_getD]
+    · simp only [if_neg hje]
+      exact hfv j (by omega)
+  obtain ⟨σ', hrun, ⟨hle', hl', hinp'', ⟨g', hg', hgv⟩⟩, hfalse⟩ :=
     Run.while_count (B := B) (b := Cond.lt (.var "i") (.var lim))
-      (ReadInv a lim σ k ys rest) (fun τ => k - τ.vars "i") 8
+      (ReadInv a lim k ys rest) (fun τ => k - τ.vars "i") 8
       (fun τ hτ => by
         obtain ⟨hle, hl, -⟩ := hτ
         exact evalB_condLt_vars (by omega) (by omega)) hstep
       (σ := σ.setVar "i" 0)
-      ⟨by simp, by simp [hi, hlim], by simp [hinp], ⟨g, by simp [harr], by simp⟩,
-        by simp, by simp, by intro y hy1 _; simp [hy1]⟩
+      ⟨by simp, by simp [hi, hlim], by simp [hinp], ⟨g, by simp [harr], by simp⟩⟩
   have hik : σ'.vars "i" = k := by simp [hl'] at hfalse; omega
   rw [hik] at hinp'' hgv
-  refine ⟨σ', g', (Run.seq (Run.assign (v := 0) (by simp; omega)) hrun).mono (by simp; omega),
-    hg', hgv, fun b hbne => by simp [hb' b hbne], ?_, by simp [hout'], ?_⟩
-  · rw [hinp'', List.drop_eq_nil_of_le (by omega)]; rfl
-  · intro y hy1 hy2; simp [hy' y hy1 hy2]
+  exact ⟨σ', g', (Run.seq (Run.assign (v := 0) (by simp; omega)) hrun).mono (by simp; omega),
+    hg', hgv, by rw [hinp'', List.drop_eq_nil_of_le (by omega)]; rfl⟩
 
 /-! ### Clearing the label array -/
 
