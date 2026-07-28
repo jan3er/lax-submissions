@@ -254,19 +254,13 @@ theorem thinBelow_succ (hg : EncodesGraph g n G) {o : Fin n} {J s t1 t2 : ℕ}
 
 /-! ### The descend scan -/
 
-/-- The eight scalars the descend scan moves. -/
-def Scanned3 (y : String) : Prop :=
-  y = "j" ∨ y = "u" ∨ y = "w" ∨ y = "found" ∨ y = "v" ∨ y = "seen" ∨ y = "t1" ∨ y = "t2"
+/-- As in rung A: a turn of the scan, and a turn of the owner advance
+inside it, move only names the whole scan moves, so the invariant frames
+against `descendScan3.wvars` and each turn discharges its frame
+obligation through `Run.frame_var_sub`. -/
+theorem wvars_slotStep3_sub : slotStep3.wvars ⊆ descendScan3.wvars := by decide
 
-instance : DecidablePred Scanned3 := fun y => by unfold Scanned3; infer_instance
-
-/-- What a frame condition against `Scanned3` gives, one name at a
-time. -/
-theorem not_scanned3_ne {y : String} (h : ¬ Scanned3 y) :
-    y ≠ "j" ∧ y ≠ "u" ∧ y ≠ "w" ∧ y ≠ "found" ∧ y ≠ "v" ∧ y ≠ "seen" ∧ y ≠ "t1" ∧
-      y ≠ "t2" := by
-  simp only [Scanned3, not_or] at h
-  exact h
+theorem wvars_ownerAdvance3_sub : ownerAdvance3.wvars ⊆ descendScan3.wvars := by decide
 
 /-- The invariant of the descend scan. Beyond the frame conditions and
 the position of the owner: while the flag is down the registers
@@ -275,7 +269,7 @@ dichotomy — nothing branchable below the pointer, or a named vertex of
 residual degree at least three. -/
 def ScanInv3 (g : List ℕ) {n : ℕ} (m : ℕ) (G : SimpleGraph (Fin n)) (M : Finset (Fin n))
     (σ τ : Env) : Prop :=
-  (∀ y, ¬ Scanned3 y → τ.vars y = σ.vars y) ∧ τ.arrs = σ.arrs ∧ τ.inp = σ.inp ∧
+  (∀ y, y ∉ descendScan3.wvars → τ.vars y = σ.vars y) ∧ τ.arrs = σ.arrs ∧ τ.inp = σ.inp ∧
   τ.out = σ.out ∧ τ.vars "found" ≤ 1 ∧ τ.vars "seen" ≤ 2 ∧ τ.vars "t1" ≤ n ∧
   τ.vars "t2" ≤ n ∧ τ.vars "u" ≤ n ∧ offset g (τ.vars "u") ≤ τ.vars "j" ∧
   τ.vars "j" ≤ offset g (τ.vars "u" + 1) ∧ τ.vars "j" ≤ 2 * m ∧
@@ -289,17 +283,16 @@ the target array leaves the configuration represented and every array
 untouched, having decided the branching test at threshold three: either
 no unmarked block names three different unmarked vertices — the
 solver's hypothesis — or `v` names a vertex of residual degree at least
-three, which is what the deeper branch spends its budget on. The frame
-condition is stated as well as the arrays: the scalars the pass does not
-touch — `"n"` above all, which the solver reads and `Rep` is silent
-about — come out of it unchanged. -/
+three, which is what the deeper branch spends its budget on. No frame
+condition is stated: the scalars the pass does not touch — `"n"` above
+all, which the solver reads and `Rep` is silent about — are read off the
+run by `Run.frame_var`. -/
 theorem descendScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     (hO : ∀ i ≤ n, O i = offset g i) (hT : ∀ p < 2 * m, T p = target g p)
     (h1B : 1 < B) (hnB : n < B) (hmB : 2 * m < B)
     {C : Config n} {τ : Env} (hRep : Rep n m O T C τ) :
     ∃ (τ' : Env) (K : ℕ), Run B descendScan3 τ τ' K ∧ Rep n m O T C τ' ∧
       τ'.arrs = τ.arrs ∧ τ'.inp = τ.inp ∧ τ'.out = τ.out ∧
-      (∀ y, ¬ Scanned3 y → τ'.vars y = τ.vars y) ∧
       ((τ'.vars "found" = 0 ∧ ThinBlocks3 g (marked C.frames)) ∨
         (τ'.vars "found" = 1 ∧ ∃ v : Fin n, (v : ℕ) = τ'.vars "v" ∧
           v ∉ marked C.frames ∧ 3 ≤ resDeg G (marked C.frames) v)) ∧
@@ -378,17 +371,19 @@ theorem descendScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
         0).setVar "t2" 0 with hν'
       have hvu : ν'.vars "u" = ν.vars "u" + 1 := by simp [hν']
       have hvj : ν'.vars "j" = ν.vars "j" := by simp [hν']
-      refine ⟨ν', 12, (Run.seq (Run.assign (v := ν.vars "u" + 1) (by simp; omega))
+      have rbody : Run B (.seq (.assign "u" (.add (.var "u") (.lit 1)))
+          (.seq (.assign "seen" (.lit 0))
+            (.seq (.assign "t1" (.lit 0)) (.assign "t2" (.lit 0))))) ν ν' 12 :=
+        (Run.seq (Run.assign (v := ν.vars "u" + 1) (by simp; omega))
           (Run.seq (Run.assign (v := 0) (by simp; omega))
             (Run.seq (Run.assign (v := 0) (by simp; omega))
-              (Run.assign (v := 0) (by simp; omega))))).mono (by simp), ⟨⟨?_, ?_,
+              (Run.assign (v := 0) (by simp; omega))))).mono (by simp)
+      refine ⟨ν', 12, rbody, ⟨⟨?_, ?_,
         by simp [hν', hinp], by simp [hν', hout], by simp [hν']; omega,
         by simp [hν'], by simp [hν'], by simp [hν'],
         by omega, by rw [hvu, hvj, heq], ?_, by omega, ?_, ?_⟩, by rw [hvj, hjν]⟩, ?_⟩
       · intro y hy
-        obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩ := not_scanned3_ne hy
-        simp only [hν', vars_setVar, if_neg h8, if_neg h7, if_neg h6, if_neg h2]
-        exact hfr y hy
+        exact (rbody.frame_var_sub y wvars_ownerAdvance3_sub hy).trans (hfr y hy)
       · simp [hν', harrs]
       · rw [hvu, hvj, ← heq]
         exact offset_mono' hg (by omega) (by omega)
@@ -476,8 +471,7 @@ theorem descendScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
         by rw [hv "t2" (by decide) (by decide)]; exact ht2n,
         by rw [hu']; exact hun, by rw [hu', hj]; omega, by rw [hu', hj]; omega,
         by rw [hj]; omega, ?_, ?_⟩
-      · obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩ := not_scanned3_ne hy
-        rw [hv y h1 h3]
+      · rw [hv y (notMem_wvars_ne hy (by decide)) (notMem_wvars_ne hy (by decide))]
         exact hfr y hy
       · intro hf o ho hoM
         rw [hu'] at ho
@@ -552,10 +546,12 @@ theorem descendScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
           simp [hρ₂]
         have hu₄ : ρ₄.vars "u" = ρ₁.vars "u" := by
           rw [hv₄ "u" (by decide) (by decide) (by decide) (by decide) (by decide), h₂u]
-        refine ⟨ρ₄.setVar "j" (ρ₁.vars "j" + 1), K₁ + 200, Run.seq r₁ ((Run.seq
-          (Run.ite_true hcu (Run.seq rw₁ (Run.ite_true hcw r₄)))
-          (Run.assign (v := ρ₁.vars "j" + 1) (by
-            simp [hj₄]; omega))).mono (by simp; omega)), ?_, ?_⟩
+        have rslot : Run B slotStep3 ρ₁ (ρ₄.setVar "j" (ρ₁.vars "j" + 1)) 200 :=
+          (Run.seq
+            (Run.ite_true hcu (Run.seq rw₁ (Run.ite_true hcw r₄)))
+            (Run.assign (v := ρ₁.vars "j" + 1) (by
+              simp [hj₄]; omega))).mono (by simp; omega)
+        refine ⟨ρ₄.setVar "j" (ρ₁.vars "j" + 1), K₁ + 200, Run.seq r₁ rslot, ?_, ?_⟩
         · -- the invariant, after a residual slot
           set ρ₅ : Env := ρ₄.setVar "j" (ρ₁.vars "j" + 1) with hρ₅
           have hfrall : ∀ y, y ≠ "j" → y ≠ "w" → y ≠ "seen" → y ≠ "t1" → y ≠ "t2" →
@@ -709,10 +705,7 @@ theorem descendScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
                 · omega
                 · exact ⟨v₀, by rw [hv₅, hvv, h₂v]; exact hv0, hv1⟩
           obtain ⟨⟨hb1, hb2, hb3, hb4⟩, hSeen₅, hdich₅⟩ := hmain
-          exact ⟨fun y hy => by
-              obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩ := not_scanned3_ne hy
-              rw [hfrall y h1 h3 h6 h7 h8 h4 h5]
-              exact hfr y hy,
+          exact ⟨fun y hy => (rslot.frame_var_sub y wvars_slotStep3_sub hy).trans (hfr y hy),
             harr₅, by rw [hρ₅, inp_setVar, hi₄, hρ₂, inp_setVar, hinp],
             by rw [hρ₅, out_setVar, ho₄, hρ₂, out_setVar, hout],
             hb1, hb2, hb3, hb4, by rw [hu₅]; exact hun, by rw [hu₅, hj₅]; omega,
@@ -760,8 +753,9 @@ theorem descendScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     refine ⟨fun y hy => ?_, by simp [hσ₀], by simp [hσ₀], by simp [hσ₀], by simp [hσ₀],
       by simp [hσ₀], by simp [hσ₀], by simp [hσ₀], by simp [hσ₀], ?_, ?_, by simp [hσ₀],
       ?_, ?_⟩
-    · obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩ := not_scanned3_ne hy
-      simp [hσ₀, h1, h2, h4, h6, h7, h8]
+    · have hne : ∀ z ∈ descendScan3.wvars, y ≠ z := fun _ hz => notMem_wvars_ne hy hz
+      simp [hσ₀, hne "j" (by decide), hne "u" (by decide), hne "found" (by decide),
+        hne "seen" (by decide), hne "t1" (by decide), hne "t2" (by decide)]
     · simp [hσ₀, hg.offset_zero]
     · simp [hσ₀]
     · intro _ o ho _
@@ -793,7 +787,7 @@ theorem descendScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
           (Run.seq (Run.assign (v := 0) (by simp; omega))
             (Run.seq (Run.assign (v := 0) (by simp; omega))
               (Run.seq (Run.assign (v := 0) (by simp; omega)) hrun))))))).mono ?_,
-    ?_, harrs', hinp', hout', hfr', ?_, le_rfl⟩
+    ?_, harrs', hinp', hout', ?_, le_rfl⟩
   · simp only [hσ₀] at hpay
     simp only [size_condLt, size_var, size_lit] at hpay ⊢
     simp only [vars_setVar] at hpay

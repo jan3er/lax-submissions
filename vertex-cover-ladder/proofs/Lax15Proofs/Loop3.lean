@@ -94,7 +94,7 @@ theorem descendBody3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     ∃ (C' : Config n) (τ' : Env) (K : ℕ), Run B descendBody3 τ τ' K ∧
       Rep n m O T C' τ' ∧ SideInv n τ' ∧ J3 G k C' ∧ pot3 C' + 1 ≤ pot3 C ∧
       τ'.inp = τ.inp ∧ τ'.out = τ.out ∧ K ≤ 1600 * (n + 2 * m + 1) := by
-  obtain ⟨σ, K₀, hrun₀, hRep₀, harrs₀, hinp₀, hout₀, hfr₀, hverdict, hK₀⟩ :=
+  obtain ⟨σ, K₀, hrun₀, hRep₀, harrs₀, hinp₀, hout₀, hverdict, hK₀⟩ :=
     descendScan3_run hg hm hO hT (by omega) (by omega) hmB hRep
   have hbudk : C.bud + (trail C.frames).length = k := hJ.j.2.2.1 hmode
   have hbud : σ.vars "bud" = C.bud := hRep₀.bud
@@ -104,7 +104,7 @@ theorem descendBody3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
   have hfrn : C.frames.length ≤ n := hJ.j.frames_length_le
   have httn : (trail C.frames).length ≤ n := hJ.j.trail_length_le
   have hsideσ : SideInv n σ :=
-    hside.transport (hfr₀ "n" (by decide)) (by rw [harrs₀]) (by rw [harrs₀])
+    hside.transport (hrun₀.frame_var "n" (by decide)) (by rw [harrs₀]) (by rw [harrs₀])
   rcases hverdict with ⟨hf0, hthin⟩ | ⟨hf1, v, hvval, hvM, hvd⟩
   · -- **The leaf.** No unmarked block names three different unmarked
     -- vertices, so every residual degree is at most two and the

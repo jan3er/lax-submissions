@@ -941,20 +941,14 @@ its slot form — no unmarked vertex has two differently-targeted
 unmarked slots, which is `ThinBlocks`, or a named one does, which is a
 vertex of residual degree at least two. -/
 
-/-- The nine scalars the descend scan moves. -/
-def Scanned (y : String) : Prop :=
-  y = "j" ∨ y = "u" ∨ y = "w" ∨ y = "ro" ∨ y = "found" ∨ y = "v" ∨ y = "seen" ∨
-    y = "t1" ∨ y = "cnted"
+/-- A turn of the scan, and a turn of the owner advance inside it, move
+only names the whole scan moves. The scan's invariant therefore frames
+against `descendScan.wvars` and each turn discharges its own frame
+obligation through `Run.frame_var_sub`; the two inclusions are decided
+once here instead of at every use. -/
+theorem wvars_slotStep_sub : slotStep.wvars ⊆ descendScan.wvars := by decide
 
-instance : DecidablePred Scanned := fun y => by unfold Scanned; infer_instance
-
-/-- What a frame condition against `Scanned` gives, one name at a
-time. -/
-theorem not_scanned_ne {y : String} (h : ¬ Scanned y) :
-    y ≠ "j" ∧ y ≠ "u" ∧ y ≠ "w" ∧ y ≠ "ro" ∧ y ≠ "found" ∧ y ≠ "v" ∧ y ≠ "seen" ∧
-      y ≠ "t1" ∧ y ≠ "cnted" := by
-  simp only [Scanned, not_or] at h
-  exact h
+theorem wvars_ownerAdvance_sub : ownerAdvance.wvars ⊆ descendScan.wvars := by decide
 
 /-- The residual owners below no slot at all. -/
 theorem resOwners_zero : ResOwners g M 0 = ∅ := by
@@ -973,7 +967,7 @@ and `t1` remember the first unmarked target of the current block, and
 the flag is the dichotomy — nothing branchable below the pointer, or a
 recorded pair of unmarked slots with different targets. -/
 def ScanInv (g : List ℕ) {n : ℕ} (m : ℕ) (M : Finset (Fin n)) (σ τ : Env) : Prop :=
-  (∀ y, ¬ Scanned y → τ.vars y = σ.vars y) ∧ τ.arrs = σ.arrs ∧ τ.inp = σ.inp ∧
+  (∀ y, y ∉ descendScan.wvars → τ.vars y = σ.vars y) ∧ τ.arrs = σ.arrs ∧ τ.inp = σ.inp ∧
   τ.out = σ.out ∧ τ.vars "found" ≤ 1 ∧ τ.vars "cnted" ≤ 1 ∧ τ.vars "seen" ≤ 1 ∧
   τ.vars "t1" ≤ n ∧
   τ.vars "u" ≤ n ∧ offset g (τ.vars "u") ≤ τ.vars "j" ∧
@@ -1089,17 +1083,19 @@ theorem descendScan_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
         0).setVar "cnted" 0 with hν'
       have hvu : ν'.vars "u" = ν.vars "u" + 1 := by simp [hν']
       have hvj : ν'.vars "j" = ν.vars "j" := by simp [hν']
-      refine ⟨ν', 12, (Run.seq (Run.assign (v := ν.vars "u" + 1) (by simp; omega))
+      have rbody : Run B (.seq (.assign "u" (.add (.var "u") (.lit 1)))
+          (.seq (.assign "seen" (.lit 0))
+            (.seq (.assign "t1" (.lit 0)) (.assign "cnted" (.lit 0))))) ν ν' 12 :=
+        (Run.seq (Run.assign (v := ν.vars "u" + 1) (by simp; omega))
           (Run.seq (Run.assign (v := 0) (by simp; omega))
             (Run.seq (Run.assign (v := 0) (by simp; omega))
-              (Run.assign (v := 0) (by simp; omega))))).mono (by simp), ⟨⟨?_, ?_,
+              (Run.assign (v := 0) (by simp; omega))))).mono (by simp)
+      refine ⟨ν', 12, rbody, ⟨⟨?_, ?_,
         by simp [hν', hinp], by simp [hν', hout], by simp [hν']; omega,
         by simp [hν'], by simp [hν'], by simp [hν'],
         by omega, by rw [hvu, hvj, heq], ?_, by omega, ?_, ?_, ?_, ?_⟩, by rw [hvj, hjν]⟩, ?_⟩
       · intro y hy
-        obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9⟩ := not_scanned_ne hy
-        simp only [hν', vars_setVar, if_neg h9, if_neg h8, if_neg h7, if_neg h2]
-        exact hfr y hy
+        exact (rbody.frame_var_sub y wvars_ownerAdvance_sub hy).trans (hfr y hy)
       · simp [hν', harrs]
       · rw [hvu, hvj, ← heq]
         exact offset_mono' hg (by omega) (by omega)
@@ -1197,8 +1193,7 @@ theorem descendScan_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
         by rw [hv "t1" (by decide) (by decide)]; exact ht1n,
         by rw [hu']; exact hun, by rw [hu', hj]; omega, by rw [hu', hj]; omega,
         by rw [hj]; omega, ?_, ?_, ?_, ?_⟩
-      · obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9⟩ := not_scanned_ne hy
-        rw [hv y h1 h3]
+      · rw [hv y (notMem_wvars_ne hy (by decide)) (notMem_wvars_ne hy (by decide))]
         exact hfr y hy
       · rw [hv "ro" (by decide) (by decide), hj, hRO]
         exact hro
@@ -1302,16 +1297,13 @@ theorem descendScan_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
           rw [hv₄ "u" (by decide) (by decide) (by decide) (by decide),
             hv₃ "u" (by decide) (by decide)]
           simp
-        refine ⟨ρ₄.setVar "j" (ρ₁.vars "j" + 1), K₁ + 90, Run.seq r₁ ((Run.seq
-          (Run.ite_true hcu (Run.seq rw₁ (Run.ite_true hcw (Run.seq r₃ r₄))))
-          (Run.assign (v := ρ₁.vars "j" + 1) (by
-            simp [hj₄]; omega))).mono (by simp; omega)), ?_, ?_⟩
+        have rslot : Run B slotStep ρ₁ (ρ₄.setVar "j" (ρ₁.vars "j" + 1)) 90 :=
+          (Run.seq
+            (Run.ite_true hcu (Run.seq rw₁ (Run.ite_true hcw (Run.seq r₃ r₄))))
+            (Run.assign (v := ρ₁.vars "j" + 1) (by
+              simp [hj₄]; omega))).mono (by simp; omega)
+        refine ⟨ρ₄.setVar "j" (ρ₁.vars "j" + 1), K₁ + 90, Run.seq r₁ rslot, ?_, ?_⟩
         · -- the invariant, after a residual slot
-          have hall : ∀ y, y ≠ "j" → y ≠ "ro" → y ≠ "cnted" → y ≠ "seen" → y ≠ "t1" →
-              y ≠ "found" → y ≠ "v" → (ρ₄.setVar "j" (ρ₁.vars "j" + 1)).vars y =
-                (ρ₁.setVar "w" (target g (ρ₁.vars "j"))).vars y := by
-            intro y h0 h1 h2 h3 h4 h5 h6
-            rw [vars_setVar, if_neg h0, hv₄ y h3 h4 h5 h6, hv₃ y h1 h2]
           have hju : (ρ₄.setVar "j" (ρ₁.vars "j" + 1)).vars "u" = ρ₁.vars "u" := by
             rw [vars_setVar, if_neg (by decide), hu₄]
           have hjj : (ρ₄.setVar "j" (ρ₁.vars "j" + 1)).vars "j" = ρ₁.vars "j" + 1 := by simp
@@ -1343,9 +1335,7 @@ theorem descendScan_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
             by rw [out_setVar, ho₄, ho₃, out_setVar, hout], ?_, ?_, ?_, ?_,
             by rw [hju]; exact hun, by rw [hju, hjj]; omega, by rw [hju, hjj]; omega,
             by rw [hjj]; omega, ?_, ?_, ?_, ?_⟩
-          · obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9⟩ := not_scanned_ne hy
-            rw [hall y h1 h4 h9 h7 h8 h5 h6, vars_setVar, if_neg h3]
-            exact hfr y hy
+          · exact (rslot.frame_var_sub y wvars_slotStep_sub hy).trans (hfr y hy)
           · rcases hcase₄ with ⟨-, -, -, hf, -⟩ | ⟨-, -, -, -, hf, -⟩ | ⟨-, -, -, -, hf, -⟩
             · rw [hfo₄, hf, hfoundρ₃]; exact hf01
             · rw [hfo₄, hf, hfoundρ₃]; exact hf01
@@ -1541,8 +1531,10 @@ theorem descendScan_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     refine ⟨fun y hy => ?_, by simp [hσ₀], by simp [hσ₀], by simp [hσ₀], by simp [hσ₀],
       by simp [hσ₀], by simp [hσ₀], by simp [hσ₀], by simp [hσ₀], ?_, ?_, by simp [hσ₀],
       ?_, ?_, ?_, ?_⟩
-    · obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9⟩ := not_scanned_ne hy
-      simp [hσ₀, h1, h2, h4, h5, h7, h8, h9]
+    · have hne : ∀ z ∈ descendScan.wvars, y ≠ z := fun _ hz => notMem_wvars_ne hy hz
+      simp [hσ₀, hne "j" (by decide), hne "u" (by decide), hne "ro" (by decide),
+        hne "found" (by decide), hne "seen" (by decide), hne "t1" (by decide),
+        hne "cnted" (by decide)]
     · simp [hσ₀, hg.offset_zero]
     · simp [hσ₀]
     · simp [hσ₀, resOwners_zero]

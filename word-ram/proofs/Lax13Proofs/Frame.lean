@@ -223,6 +223,23 @@ theorem Run.frame_inp {B : ℕ} {c : Com} {σ σ' : Env} {K : ℕ} (h : Run B c 
     (hr : ¬ c.reads) : σ'.inp = σ.inp := by
   obtain ⟨_, _, hbs⟩ := h.bigStep; exact hbs.inp_eq hr
 
+/-- The frame rule for scalars, through a syntactic inclusion. A phase
+of a larger program is framed by the larger program's list, so a caller
+carrying `y ∉ c.wvars` frames every sub-phase of `c` by one lemma. The
+inclusion is `by decide` on concrete syntax, and is worth proving once
+per pair rather than at every use. -/
+theorem Run.frame_var_sub {B : ℕ} {c : Com} {σ σ' : Env} {K : ℕ} (h : Run B c σ σ' K)
+    (y : String) {l : List String} (hsub : c.wvars ⊆ l) (hy : y ∉ l) :
+    σ'.vars y = σ.vars y :=
+  h.frame_var y fun hm => hy (hsub hm)
+
+/-- A name framed off a command differs from every name the command
+assigns to. This is how a frame hypothesis meets a lemma stated in
+disequalities: `notMem_wvars_ne hy (by decide) : y ≠ "j"`. -/
+theorem _root_.Lax13Proofs.Imp.notMem_wvars_ne {c : Com} {y z : String}
+    (hy : y ∉ c.wvars) (hz : z ∈ c.wvars) : y ≠ z :=
+  fun h => hy (h.symm ▸ hz)
+
 /-- The scalars a command may assign to are finitely many, so a frame
 condition over *all* names outside the list is one `funext` away when a
 caller wants the whole function rather than one entry. -/

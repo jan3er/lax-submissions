@@ -307,7 +307,7 @@ registered, `pull-db` broken) is unresolved and untouched by this work.
 
 ## Progress log
 
-- [~] **P1 frame rule — kit built and green, acceptance half done.**
+- [x] **P1 frame rule — done, both acceptance tests passed.**
 - [ ] P2 spec triples
 - [ ] P3 `run_step` tactic
 - [ ] P4 data-structure library
@@ -357,25 +357,44 @@ added four more): `CCSweep`, `VCMain`, `TreeFoldMain` ×2,
 `wvars_readLoop` — so that a call site with a *bound* name discharges
 its obligation by `by simp [h]` against the disequality it already has.
 
-**Acceptance, part 2 — NOT done.** `Scanned` / `not_scanned_ne`
-(`Lax15Proofs/Phases.lean`, and the parallel `Scanned3` in
-`Phases3.lean`) are untouched. The survey is done and is the next
-session's starting point:
+**Acceptance, part 2 — done (2026-07-28).** `Scanned` /
+`not_scanned_ne` and the parallel `Scanned3` / `not_scanned3_ne` are
+deleted. `ScanInv` and `ScanInv3` frame against `descendScan.wvars` /
+`descendScan3.wvars`, as the survey predicted, and the eight
+`obtain ⟨h1,…,h9⟩ := not_scanned_ne hy` blocks are gone.
 
-- `Scanned` is exactly the nine names of `descendScan.wvars`, and
-  `decide` settles `"m2" ∉ descendScan.wvars` fast — measured, not
-  assumed. So `ScanInv`'s first conjunct becomes
-  `∀ y, y ∉ descendScan.wvars → τ.vars y = σ.vars y`.
-- The conjunct **cannot** simply be dropped the way `ReadInv`'s were.
-  `Run.while_potential` hands the invariant back at a point where no run
-  from the loop's entry is in hand, and the step needs
-  `ν.vars "m2" = 2 * m` at every turn. It stays in the invariant; what
-  goes is the *proof* of it — the four
-  `obtain ⟨h1,…,h9⟩ := not_scanned_ne hy` blocks become one
-  `Run.frame_var` against the step's own run, since
-  `(Com.seq ownerAdvance slotStep).wvars ⊆ descendScan.wvars`.
-- Line 1544's `hI₀` establishes the invariant on the seven-`setVar`
-  prefix; it can be framed off the prefix run or left as `simp`.
+- Two kit lemmas carried the retrofit. **`Run.frame_var_sub`** frames a
+  sub-phase against an enclosing command's list — `h.frame_var_sub y
+  hsub hy` — which is what the invariant's conjunct needs at every turn,
+  since a turn is a `slotStep` but the invariant speaks of the whole
+  scan. **`notMem_wvars_ne`** turns a frame hypothesis into the
+  disequality an older lemma still asks for, `by decide` per name.
+- The inclusions `slotStep.wvars ⊆ descendScan.wvars` and
+  `ownerAdvance.wvars ⊆ descendScan.wvars` are `by decide`, proved once
+  per file and named. Measured: both, plus `"m2" ∉ descendScan.wvars`,
+  elaborate in well under a second at default heartbeats.
+- Six of the eight sites became a **one-line term**, `(r.frame_var_sub y
+  hsub hy).trans (hfr y hy)`, once the turn's run was given a name
+  (`have rslot : Run B slotStep ρ₁ … := …` ahead of the `refine` that
+  used to build it inline). That naming is worth doing on its own: it is
+  also what P3's tactic will produce.
+- The two `hI₀` sites — the invariant on the scan's seven-`setVar`
+  register prefix — stayed `simp`, since the prefix of a right-nested
+  `seq` is not a subterm and so has no run to frame off. They cost one
+  `notMem_wvars_ne … (by decide)` per name.
+- `hall` / `hfrall`, the hand-rolled frame chains through the two block
+  lemmas, went away with their only uses.
+
+**A statement shrank too.** `descendScan3_run` exported
+`∀ y, ¬ Scanned3 y → τ'.vars y = τ.vars y`; the conjunct is deleted and
+its one consumer (`Loop3.lean`, for `"n"`) now reads the fact off the
+run it already holds, `hrun₀.frame_var "n" (by decide)`. This is the
+`readLoop_run` pattern of part 1, and it is the shape every phase lemma
+should end up in.
+
+Net: **−14 lines** across `Phases`, `Phases3` and `Loop3`, +17 in the
+kit. The point is not the count — it is that none of the eight sites
+mentions a variable name any more.
 
 **Timings.** Full `lake build` after the change: `word-ram/proofs`
 2,955 jobs / 8.5 s; `ram-linear-time/proofs` 3,012 jobs / 1 min 16 s;
@@ -390,7 +409,7 @@ frames when phases compose. The line win the campaign is after is P2–P4.
 
 ## Handoff notes
 
-The next session picks up at "Acceptance, part 2" above, then P2.
+The next session picks up at P2.
 Working model, per Jan: **Fable supervises, Opus subagents write the
 Lean.** Concretely — the supervisor holds the plan, decides scope and
 acceptance, runs the builds and commits; each proof-shaped unit (one
