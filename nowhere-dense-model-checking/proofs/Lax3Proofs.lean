@@ -19,3 +19,4 @@ import Lax3Proofs.Relativize
 import Lax3Proofs.Reduction
 import Lax3Proofs.Evaluator
 import Lax3Proofs.RamBfs
+import Lax3Proofs.OrderedCovers
