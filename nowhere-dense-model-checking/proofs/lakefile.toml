@@ -29,5 +29,16 @@ path = "../../word-ram/concepts"
 name = "Lax11"
 path = "../../ram-linear-time/concepts"
 
+# the IMP+ toolkit (Spec, run_vcg, Lib) of submission Lax13's proofs,
+# consumed the same way Lax11Proofs consumes it
+[[require]]
+name = "Lax13Proofs"
+path = "../../word-ram/proofs"
+
+# the sparsity proof modules (Densification pattern and friends)
+[[require]]
+name = "Lax12Proofs"
+path = "../../sparsity-lectures/proofs"
+
 [[lean_lib]]
 name = "Lax3Proofs"
