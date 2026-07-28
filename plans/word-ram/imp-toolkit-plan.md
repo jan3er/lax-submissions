@@ -246,6 +246,17 @@ not change; only the proofs do.
 and bring the design back to Jan rather than proceeding to P6. The point of
 the pilot is to find that out for 1,655 lines instead of for 20,000.
 
+**Gate re-cut (owner decision, Jan, 2026-07-28, mid-P5).** The 40%
+denominator included `CC.lean` (170 lines of program text, fixed by
+definition) and `CCGraph.lean` (242 lines of graph mathematics), neither
+of which the kit targets — the campaign's own evidence table splits
+math / program / glue and aims at glue only. Jan authorized re-setting
+the target on that split: **the four glue files (`CCPhases`, `CCSearch`,
+`CCSweep`, `CCMain`, baseline 1,263 lines) come out at ≤ 40%, i.e.
+≤ 505 lines.** `CC.lean` is untouched; `CCGraph` is measured and
+reported but ungated. The stop-and-return-to-Jan consequence of a miss
+is unchanged.
+
 ### P6 — The rest of the retrofit
 
 In order, each behind the same 40% gate and each committed separately:
@@ -311,8 +322,10 @@ registered, `pull-db` broken) is unresolved and untouched by this work.
 - [x] **P2 spec triples — done, acceptance passed.**
 - [x] **P3 `run_vcg` tactic — done, acceptance passed.**
 - [x] **P4 data-structure library — done, both acceptance criteria passed.**
-- [ ] P5 pilot retrofit (Lax11 CC) — **gate: ≤ 40% of 1,655 lines**
-- [ ] P6 remaining retrofits
+- [x] **P5 pilot retrofit (Lax11 CC) — done; gate MISSED** (1,152 vs 505
+  on the re-cut glue gate). Per the plan: **stopped**, P6 not started,
+  verdict and options below for Jan.
+- [ ] P6 remaining retrofits — **blocked on Jan's call** (see P5 verdict)
 - [ ] P7 pins and drafts (registration excluded, JAN-FLAG)
 
 ### P1, as built (2026-07-28)
@@ -651,6 +664,104 @@ open, in priority order for a pre-P5 look:
 3. **Lax15 `Phases3.lean` has a local `structure Queue`**: the P6
    rung-C retrofit will hit the P2 ambiguous-term failure mode if it
    `open`s the Lib namespace; rename the local one first.
+
+### P5, as built (2026-07-28)
+
+Six commits: pre-P5 tactic flags (`847538b`), P5a CCPhases (`dd7fea0`),
+gate re-cut (`27866fd`), P5b kit gaps (`58c1882`), P5c CCSearch
+(`ac4569f`), P5d kit gaps (`cf7572d`), P5e CCSweep+CCMain (`02f27e8`).
+All built by Opus subagents under supervision, one unit per agent, each
+reviewed and committed separately. Three packages green throughout, zero
+`sorry`, exported statements (`ccCom_solves`,
+`exists_linearTime_program_ccLabels`, `readLoop_run`) byte-identical,
+cmp-verified.
+
+**The number.** The four glue files landed at 145 + 494 + 372 + 141 =
+**1,152** against the re-cut gate of 505 (40% of the 1,263 glue
+baseline). **The gate is missed by 2.3×**, and per the plan the campaign
+stops here: P6 is not started pending Jan.
+
+**Why, by glue category** — the pilot's real product. The plan's four
+categories behaved differently:
+
+1. **Symbolic execution shrinks hard.** `scanBody_run` 151→88 (−42%),
+   `ccCom_run` 153→93 (−39%), CCPhases 218→145 (−33%) with all three
+   loops on `Spec.forRange`/`Lib.Fill`. Where glue is walking a block,
+   `run_vcg` deletes it.
+2. **Composition shrinks when grouped.** The unit-C lesson: a handed
+   spec makes its post-state opaque, so it restates facts *per phase*;
+   a frame lookup inside one spec pays *per fact*. Handing four
+   consecutive commands as ONE prefix-matched spec is what took 60
+   lines off `ccCom_run`; handing the phases separately would have
+   grown it.
+3. **Invariant hand-off does not shrink and can grow.** `expandBody_run`
+   +11 on the kit route (P5d, recorded in CCSearch's header):
+   re-establishing `ScanInv`/`DrainInv` field by field across each
+   opaque step costs more than the hand-built reads the kit removes.
+   Same call at two smaller sites (`Queue.push` at `scanBody`,
+   relation conversion beats two lines).
+4. **Relational-potential loops keep their content.** `outerBody_run`
+   unchanged at 120: its cost is relational in the global potential,
+   which `Spec`'s constant `K` cannot state. `sweep_spec` shows the
+   boundary: `Spec.while_potential` + `.frame` converts the potential
+   to a constant at the *outermost* wrap only.
+
+**The structural reason the gate was unreachable here**: ~330 lines of
+the four files are Base/Live/enqueue/sweep *mathematics* and another
+large block is invariant/statement text — the CC driver keeps its math
+in the glue files, unlike the Lax15 evidence (where math sits in
+`Config`/`Solver` files) from which the 65%-glue figure and the 40%
+gate were derived. Even at zero machine glue the four files floor near
+~470. Net honest motion: 1,263 → 1,152 (−9%) on the driver that had
+the least removable glue, while **elaboration got faster at every
+single site** (CCPhases −45%, CCSearch/CCSweep −13%, CCSweep again
+−1 s in P5e; not one regression all pilot).
+
+**The kit grew by ~900 lines** it did not have at P4 — all
+consumer-driven, all one-time: tape rules (`Spec.read`/`write`,
+`run_vcg` walking both), `Spec.forRangeZero`, explicit `forRange`
+args, `Lib/Fill`, seq-**prefix** spec matching (`SeqSplit`/`seq_split`
++ `usePrefix`), relational `Queue.drain_run` (now the primitive;
+`drain_spec` derived), `Csr.ownerScan_run`, `LoadRowPost` naming its
+state. Plus four latent bugs root-caused and fixed: `tryClose`
+swallowing partial discharger failures (Lean's `Tactic.run` resets
+`recover`), first-match-wins spec reuse, `mdata`-wrapped goals
+rejected, `costTac`'s unreachable `omega` branch.
+
+**Open kit gaps, priority order for whatever comes next**: (1) `inpTac`
+runs `simp_all` over the whole context and can diverge on innocuous
+hypothesis pairs, surfacing as a recursion-depth error at the `run_vcg`
+call naming nothing — have `tryClose` defer instead of propagate, and
+name the obligation in the error. (2) The straight-line `Lib` post-state
+abbrevs (`SlotPost`, `PushPost`, `FrontPost`, `AdvancePost`) should name
+their final state as `LoadRowPost` now does. (3) `RunStep.read`'s
+post-state mentions `σ` three times — k consecutive reads give a
+3^k-sized term. (4) No `run_vcg … with h` naming form for handed
+postconditions (hence the `SetupPost`/`Swept` abbrevs). (5) `Queue.Pre`
+demands `t + 1 < B` even for `front`. (6) Handed specs elaborate before
+the walk, so they cannot mention data an earlier step produced —
+inherent, but undocumented until `sweep_spec`'s docstring.
+
+**Options for Jan** (owner call; the plan stops here by design):
+
+- **(a) Close the retrofit arm: declare P6 out of scope** — the plan
+  explicitly allows this ("the kit is useful with no retrofits at all")
+  — and go to P7 (pins + drafts), which closes the campaign and
+  un-gates the ND-MC RAM phases. The pilot's evidence is that the kit's
+  economics favor *new* code written in `Spec` form from the start
+  (grouping chosen up front, invariants stated once, no hand-off tax),
+  which is exactly what ND-MC P5–P7 will write. This is my
+  recommendation.
+- **(b) P6 selectively**, only where symbolic-execution glue dominates
+  (the Lax15 rung-B/C `Phases`/`Phases3` block lemmas match category 1;
+  the P4 survey found five of seven loops are direct Csr instances),
+  under a per-file go/no-go instead of a blanket 40%.
+- **(c) Re-design toward the NREST-shaped fix** for category 3 (the
+  hand-off tax) — per-component refinement relations so a phase
+  touching only the marks does not re-establish the whole invariant.
+  That is the plan's own "revisit only after P5's numbers are in"
+  clause; the numbers are now in, and they say category 3 is the
+  binding constraint on retrofits.
 
 ## Handoff notes
 

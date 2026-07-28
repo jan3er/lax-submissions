@@ -24,12 +24,27 @@ or a number it read, and each of those is below the length of the word,
 by `mem_lt_length` and by the encoding's own conditions. So the single
 hypothesis `x.length ≤ B` is what the whole run needs, and it is what
 becomes the word-length hypothesis of the statement.
+
+The driver's thirteen commands are walked by `run_vcg`, which assembles
+the run, adds the costs and proves the announced bound. It is handed
+three specifications, and the *grouping* is what matters: the four
+commands that fill the arrays go over as one, matched as a prefix of the
+block. A handed specification gives back a state the walk knows nothing
+else about, so every fact the sweep needs must be carried in a
+postcondition — but inside one specification those facts are read off
+the runs it already holds, one `frame_var` apiece and at any distance.
+Forward composition pays per phase; a frame lookup pays per fact.
+
+`outerBody_run` stays hand-built, and honestly so: a turn of the sweep
+pays for itself out of the potential, which neither a `Spec`'s single
+cost nor the walk's `K ≤` shape can state.
 -/
 
 namespace Lax11Proofs.CC
 
 open Lax13.Ram Lax13.RamComputes Lax11.GraphEncoding Lax11.ConnectedComponents
 open Lax13Proofs.Imp Lax13Proofs.Compile Lax13Proofs.Reasoning Lax11Proofs.Labels
+open Lax13Proofs.Reasoning.Lib
 
 variable {x : List ℕ} {B n m : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
 
@@ -40,7 +55,7 @@ exhausted, every component below `u` is labelled, and no label above
 `u` has been written. -/
 def SweepInv (x : List ℕ) (n m : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
     (τ : Env) : Prop :=
-  τ.vars "n" = n ∧ τ.vars "m" = m ∧ τ.vars "u" ≤ n ∧
+  τ.vars "n" = n ∧ τ.vars "u" ≤ n ∧
   τ.arrs "off" = arrOf (n + 1) O ∧ τ.arrs "tgt" = arrOf (2 * m) T ∧
   τ.vars "head" = τ.vars "tail" ∧
   ∃ L Q, τ.arrs "lab" = arrOf n L ∧ τ.arrs "q" = arrOf n Q ∧
@@ -62,7 +77,7 @@ theorem outerBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     ∃ τ' K, Run B outerBody τ τ' K ∧ SweepInv x n m G O T τ' ∧
       1 + (Cond.lt (Expr.var "u") (Expr.var "n")).size + K + SweepPot n m τ'
         ≤ SweepPot n m τ := by
-  obtain ⟨hn, hmm, hun, hoff, htgt, hht, L, Q, hlab, hq, hB, hdone, hlow, hsum⟩ := hI
+  obtain ⟨hn, hun, hoff, htgt, hht, L, Q, hlab, hq, hB, hdone, hlow, hsum⟩ := hI
   have hu : τ.vars "u" < n := by simp [hn] at hc; omega
   have hhd := hB.hd
   have htl := hB.tl
@@ -76,80 +91,31 @@ theorem outerBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     have htail : τ.vars "tail" < n := hB.tail_lt hu hLu
     have hceval : (Cond.eq (.get "lab" (.var "u")) (.var "n")).evalB B τ = some true := by
       simp [hlab, getElem?_arrOf L hu, hn, hLu]; omega
-    have hQne : ∀ p, p < τ.vars "tail" → Q p ≠ τ.vars "u" := by
-      intro p hp hpu
-      exact (hB.qmem p hp).2 (by rw [hpu, hLu])
-    -- the state the search starts from
+    -- the state the search starts from: the root labelled with itself and
+    -- put on the queue, which is `Base.enqueue`
     have hdrainI : DrainInv x n m (τ.vars "u") G O T
         (((τ.setArr "lab" (τ.vars "u") (τ.vars "u")).setArr "q" (τ.vars "tail")
           (τ.vars "u")).setVar "tail" (τ.vars "tail" + 1)) := by
-      refine ⟨fun z => if z = τ.vars "u" then τ.vars "u" else L z,
-        fun i => if i = τ.vars "tail" then τ.vars "u" else Q i,
-        ⟨by simp [hn], by simp [hmm], by simp, by simp [hoff], by simp [htgt],
-          by simp [hlab, set_arrOf], by simp [hq, set_arrOf]⟩, ?_, ?_⟩
-      · refine ⟨⟨?_, by simp; omega, by simp; omega, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_⟩
-        · intro z hz
-          by_cases hzu : z = τ.vars "u"
-          · exact Or.inr (by simp [hzu, hlu])
-          · simpa [if_neg hzu] using hB.lab z hz
-        · intro i hi
-          simp at hi
-          by_cases hit : i = τ.vars "tail"
-          · simp [hit, hu]; omega
-          · have hi' : i < τ.vars "tail" := by omega
-            rw [if_neg hit, if_neg (hQne i hi')]
-            exact hB.qmem i hi'
-        · intro z hz hlz
-          by_cases hzu : z = τ.vars "u"
-          · exact ⟨τ.vars "tail", by simp, by simp [hzu]⟩
-          · rw [if_neg hzu] at hlz
-            obtain ⟨i, hi, rfl⟩ := hB.qall z hz hlz
-            exact ⟨i, by simp; omega, by simp [if_neg (show i ≠ τ.vars "tail" by omega)]⟩
-        · intro i hi j hj hij
-          simp at hi hj
-          by_cases hit : i = τ.vars "tail" <;> by_cases hjt : j = τ.vars "tail"
-          · omega
-          · rw [if_pos hit, if_neg hjt] at hij
-            exact absurd hij.symm (hQne j (by omega))
-          · rw [if_neg hit, if_pos hjt] at hij
-            exact absurd hij (hQne i (by omega))
-          · rw [if_neg hit, if_neg hjt] at hij
-            exact hB.qinj i (by omega) j (by omega) hij
-        · intro i hi j hj₁ hj₂
-          simp at hi
-          have hit : i ≠ τ.vars "tail" := by omega
-          rw [if_neg hit] at hj₁ hj₂ ⊢
-          have hnotu : target x j ≠ τ.vars "u" := by
-            intro hju
-            have := hB.exp i (by omega) j hj₁ hj₂
-            rw [hju, hLu] at this
-            exact (hB.qmem i (by omega)).2 this.symm
-          rw [if_neg hnotu, if_neg (hQne i (by omega))]
-          exact hB.exp i (by omega) j hj₁ hj₂
-        · intro z hz hlz
-          by_cases hzu : z = τ.vars "u"
-          · simp [hzu]; omega
-          · simpa [if_neg hzu] using hdone z hz hlz
-        · intro z hz hlz
-          by_cases hzu : z = τ.vars "u"
-          · simp [hzu]
-          · rw [if_neg hzu] at hlz ⊢
-            exact le_of_lt (hlow z hz hlz)
-        · simp
-          omega
-        · intro i hi₁ hi₂
-          simp at hi₁ hi₂
-          have hit : i = τ.vars "tail" := by omega
-          simp [hit]
+      refine ⟨upd L (τ.vars "u") (τ.vars "u"), upd Q (τ.vars "tail") (τ.vars "u"),
+        ⟨by simp [hn], by simp, by simp [hoff], by simp [htgt],
+          by simp [hlab, set_arrOf_eq_upd], by simp [hq, set_arrOf_eq_upd]⟩,
+        ⟨by simpa using hB.enqueue hu hLu hlu, fun z hz hlz => ?_, fun z hz hlz => ?_,
+          by simp; omega, fun i hi₁ hi₂ => ?_⟩, ?_⟩
+      · by_cases hzu : z = τ.vars "u"
+        · rw [hzu, upd_self]; omega
+        · rw [upd_of_ne _ hzu]; exact hdone z hz (by simpa using hlz)
+      · by_cases hzu : z = τ.vars "u"
+        · rw [hzu, upd_self]
+        · rw [upd_of_ne _ hzu] at hlz ⊢; exact le_of_lt (hlow z hz hlz)
+      · simp only [vars_setVar, vars_setArr] at hi₁ hi₂
+        rw [show i = τ.vars "tail" by simp at hi₁ hi₂; omega, upd_self, upd_self]
       · show τ.vars "sc" = _
-        simp only [vars_setVar]
         rw [hsum]
-        refine Finset.sum_congr rfl fun i hi => ?_
-        simp at hi
-        rw [if_neg (show i ≠ τ.vars "tail" by omega)]
+        exact Finset.sum_congr rfl fun i hi => by
+          rw [upd_of_ne _ (show i ≠ τ.vars "tail" by simp at hi; omega)]
     obtain ⟨τ₄, K₄, hdrun, hdI, hdhead, hdpay⟩ :=
       drain_run hx hm hO hT hu hnB hmB hdrainI
-    obtain ⟨L₄, Q₄, ⟨hn₄, hm₄, hu₄, hoff₄, htgt₄, hlab₄, hq₄⟩, hL₄, hsum₄⟩ := hdI
+    obtain ⟨L₄, Q₄, ⟨hn₄, hu₄, hoff₄, htgt₄, hlab₄, hq₄⟩, hL₄, hsum₄⟩ := hdI
     have htl₄ := hL₄.base.tl
     refine ⟨τ₄.setVar "u" (τ.vars "u" + 1), _,
       Run.seq (Run.ite_true hceval
@@ -159,7 +125,7 @@ theorem outerBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
               (by simp; omega) (by simp; omega) (by simp [hq, htail]))
             (Run.seq (Run.assign (v := τ.vars "tail" + 1) (by simp; omega)) hdrun))))
         (Run.assign (v := τ.vars "u" + 1) (by simp [hu₄]; omega)), ?_, ?_⟩
-    · refine ⟨by simp [hn₄], by simp [hm₄], by simp; omega, by simp [hoff₄],
+    · refine ⟨by simp [hn₄], by simp; omega, by simp [hoff₄],
         by simp [htgt₄], by simp [hdhead], L₄, Q₄, by simp [hlab₄], by simp [hq₄],
         by simpa using hL₄.base, ?_, ?_, by simpa using hsum₄⟩
       · intro w hw hlw
@@ -196,7 +162,7 @@ theorem outerBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
       Run.seq (Run.ite_false hceval Run.skip)
         (Run.assign (v := τ.vars "u" + 1) (by simp; omega)),
       ?_, ?_⟩
-    · refine ⟨by simp [hn], by simp [hmm], by simp; omega, by simp [hoff], by simp [htgt],
+    · refine ⟨by simp [hn], by simp; omega, by simp [hoff], by simp [htgt],
         by simp [hht], L, Q, by simp [hlab], by simp [hq], by simpa using hB, ?_, ?_,
         by simpa using hsum⟩
       · intro w hw hlw
@@ -224,37 +190,42 @@ theorem outerBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
       simp only [size_condLt, size_condEq, size_get, Expr.add_def, size_bin, size_lit, size_var]
       omega
 
-/-- **The sweep.** Every vertex is looked at, and what is left in the
-label array is the answer: at `u = n` the clause "every component below
-`u` is done" says that every vertex is labelled, and a written label is
-the right one. -/
-theorem sweep_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
-    (hO : ∀ i ≤ n, O i = offset x i) (hT : ∀ j < 2 * m, T j = target x j)
-    (hnB : n < B) (hmB : 2 * m < B)
-    {τ : Env} (hI : SweepInv x n m G O T τ) :
-    ∃ (τ' : Env) (L : ℕ → ℕ) (K : ℕ),
-      Run B (.while (.lt (.var "u") (.var "n")) outerBody) τ τ' K ∧
-      τ'.vars "n" = n ∧ τ'.arrs "lab" = arrOf n L ∧ (∀ w < n, L w = lbl G w) ∧
-      K + SweepPot n m τ' ≤ SweepPot n m τ + 4 := by
-  obtain ⟨τ', K, hrun, hI', hfalse, hpay⟩ :=
-    Run.while_potential (B := B) (b := Cond.lt (.var "u") (.var "n")) (c := outerBody)
-      (SweepInv x n m G O T) (SweepPot n m)
-      (fun σ hσ => by
-        obtain ⟨hn, hmm, hun, -⟩ := hσ
-        exact evalB_condLt_vars (by omega) (by omega))
-      (fun σ hσ hc => outerBody_run hx hm hO hT hnB hmB hσ hc) hI
-  obtain ⟨hn', -, hun', -, -, -, L, Q, hlab', -, hB', hdone', -, -⟩ := hI'
-  have hun : τ'.vars "u" = n := by simp [hn'] at hfalse; omega
-  refine ⟨τ', L, K, hrun, hn', hlab', fun w hw => ?_, by simpa using hpay⟩
-  exact (hB'.lab w hw).resolve_left (hdone' w hw (by rw [hun]; exact lbl_lt hw))
+/-- What the sweep leaves: the labels, and an output tape still empty. -/
+abbrev Swept (n : ℕ) (G : SimpleGraph (Fin n)) (τ : Env) : Prop :=
+  ∃ L, τ.vars "n" = n ∧ τ.arrs "lab" = arrOf n L ∧ τ.out = [] ∧ ∀ w < n, L w = lbl G w
+
+/-- The sweep, as a specification with a constant cost — the potential
+at entry, which the caller bounds once. The two array functions are
+existential in the precondition and absent from the conclusion, because
+the phase that fills the arrays runs *inside* the block this
+specification is a step of: `run_vcg` elaborates what it is handed
+before it starts walking, so a handed specification cannot mention
+anything a step before it produced. -/
+theorem sweep_spec (hx : EncodesGraph x n G) (hm : edgeCount x = m)
+    (hnB : n < B) (hmB : 2 * m < B) (Kp : ℕ) :
+    Spec B (fun τ => ∃ O T, (∀ i ≤ n, O i = offset x i) ∧ (∀ j < 2 * m, T j = target x j) ∧
+        SweepInv x n m G O T τ ∧ SweepPot n m τ ≤ Kp ∧ τ.out = [])
+      (.while (.lt (.var "u") (.var "n")) outerBody) (fun _ τ' => Swept n G τ') (Kp + 4) := by
+  rintro τ ⟨O, T, hO, hT, hI⟩
+  refine Spec.run ((Spec.while_potential (K := Kp + 4)
+    (P := fun τ => SweepInv x n m G O T τ ∧ SweepPot n m τ ≤ Kp ∧ τ.out = [])
+    (SweepInv x n m G O T) (SweepPot n m)
+    (fun σ hσ => by obtain ⟨hn, hun, -⟩ := hσ; exact evalB_condLt_vars (by omega) (by omega))
+    (fun σ hσ hc => outerBody_run hx hm hO hT hnB hmB hσ hc)
+    (fun _ h => h.1) (fun _ h => by have := h.2.1; simp; omega)).frame.post
+      (Q' := fun _ τ' => Swept n G τ') ?_) hI
+  rintro σ σ' ⟨-, -, hout⟩ ⟨⟨hI', hfalse⟩, -, -, -, hout'⟩
+  obtain ⟨hn', hun', -, -, -, L, Q, hlab', -, hB', hdone', -, -⟩ := hI'
+  have hun : σ'.vars "u" = n := by simp [hn'] at hfalse; omega
+  exact ⟨L, hn', hlab', (hout' (by decide)).trans hout, fun w hw =>
+    (hB'.lab w hw).resolve_left (hdone' w hw (by rw [hun]; exact lbl_lt hw))⟩
 
 /-! ### The driver, end to end
 
-What is left is bookkeeping: the four phases in a row, each handed the
-frame conditions of the one before. The only choice is the array
-extents, and they are the obvious ones — the encoding says how long the
-offset and target arrays are, and the labels and the queue need one
-entry per vertex. -/
+What is left is bookkeeping. The only choice is the array extents, and
+they are the obvious ones — the encoding says how long the offset and
+target arrays are, and the labels and the queue need one entry per
+vertex. -/
 
 /-- The array extents the driver runs with. -/
 def ccExt (n m : ℕ) (a : String) : ℕ :=
@@ -274,6 +245,30 @@ theorem getD_cons_cons {a b i : ℕ} {l : List ℕ} :
   rw [h]
   simp [List.getD_eq_getElem?_getD]
 
+/-- Writing the labels out, which is where the run meets the concept:
+what lands on the tape is `ccLabels G` itself. -/
+theorem write_spec (hnB : n < B) :
+    Spec B (Swept n G) writeLoop (fun _ σ' => σ'.out = ccLabels G) (11 * n + 6) := by
+  rintro σ ⟨L, hn, hlab, hout₀, hL⟩
+  obtain ⟨σ', hr, hout⟩ := writeLoop_run (B := B) hlab hn hnB
+    (fun i hi => by rw [hL i hi]; have := lbl_lt (G := G) hi; omega)
+  refine ⟨σ', hr, ?_⟩
+  show σ'.out = ccLabels G
+  rw [hout, hout₀, List.nil_append]
+  refine List.ext_getElem (by simp [ccLabels]) fun i h₁ h₂ => ?_
+  simp only [List.length_map, List.length_range] at h₁
+  rw [List.getElem_map, List.getElem_range, hL i h₁, lbl_eq h₁]
+  simp [ccLabels]
+
+/-- What the setup leaves: the three arrays filled, the queue still
+empty, and nothing written. Naming it is what lets the sweep's
+obligation read it back off the walk's context. -/
+abbrev SetupPost (x : List ℕ) (n m : ℕ) (τ : Env) : Prop :=
+  ∃ O T L, (∀ i ≤ n, O i = offset x i) ∧ (∀ j < 2 * m, T j = target x j) ∧
+    (∀ i < n, L i = n) ∧ τ.vars "n" = n ∧ τ.arrs "off" = arrOf (n + 1) O ∧
+    τ.arrs "tgt" = arrOf (2 * m) T ∧ τ.arrs "lab" = arrOf n L ∧
+    τ.arrs "q" = arrOf n (fun _ => 0) ∧ τ.out = []
+
 /-- The whole run of the driver on an encoded graph: the labels come
 out, the cost is linear in the length of the word, and every value the
 run produces stays below any bound the word itself stays below. The
@@ -282,7 +277,7 @@ and this is the sum of those bounds, rounded up to the length of the
 input. -/
 theorem ccCom_run (hx : EncodesGraph x n G) (hm : edgeCount x = m) (hB : x.length ≤ B) :
     ∃ (σ' : Env) (K : ℕ), Run B ccCom (initEnv (ccExt n m) x) σ' K ∧
-      σ'.out = ccLabels G ∧ K ≤ 84 * (x.length + 1) := by
+      K ≤ 84 * (x.length + 1) ∧ σ'.out = ccLabels G := by
   -- the word: the two header entries, then the offsets and the targets
   have hlen := hx.length_eq
   rw [hm] at hlen
@@ -302,140 +297,76 @@ theorem ccCom_run (hx : EncodesGraph x n G) (hm : edgeCount x = m) (hB : x.lengt
     fun v hv => lt_of_lt_of_le
       (mem_lt_length hx (by rw [hxr]; exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ hv)))
       hB
-  set ys := rest.take (n + 1) with hys_def
-  set zs := rest.drop (n + 1) with hzs_def
-  have hys : ys.length = n + 1 := by rw [hys_def, List.length_take]; omega
-  have hzs : zs.length = 2 * m := by rw [hzs_def, List.length_drop]; omega
-  have hsplit : rest = ys ++ zs := (List.take_append_drop _ _).symm
+  obtain ⟨ys, zs, hys, hzs, hsplit, hyd, hzd⟩ :
+      ∃ ys zs, ys.length = n + 1 ∧ zs.length = 2 * m ∧ rest = ys ++ zs ∧
+        (∀ i < n + 1, ys.getD i 0 = offset x i) ∧ (∀ j < 2 * m, zs.getD j 0 = target x j) := by
+    refine ⟨rest.take (n + 1), rest.drop (n + 1), by simp; omega, by simp; omega,
+      (List.take_append_drop _ _).symm, fun i hi => ?_, fun j _ => ?_⟩
+    · rw [getD_take hi, offset, hxr, getD_cons_cons]
+    · rw [getD_drop, target, hx.vertexCount_eq, hxr]
+      rw [show 3 + n + j = 2 + (n + 1 + j) by omega, getD_cons_cons]
   have hysB : ∀ v ∈ ys, v < B :=
-    fun v hv => hrestB v (by rw [hys_def] at hv; exact List.mem_of_mem_take hv)
+    fun v hv => hrestB v (by rw [hsplit]; exact List.mem_append_left _ hv)
   have hzsB : ∀ v ∈ zs, v < B :=
-    fun v hv => hrestB v (by rw [hzs_def] at hv; exact List.mem_of_mem_drop hv)
-  -- what the two arrays hold once they are read in
-  have hyd : ∀ i < n + 1, ys.getD i 0 = offset x i := by
-    intro i hi
-    rw [hys_def, getD_take hi, offset, hxr, getD_cons_cons]
-  have hzd : ∀ j < 2 * m, zs.getD j 0 = target x j := by
-    intro j _
-    rw [hzs_def, getD_drop, target, hx.vertexCount_eq, hxr]
-    have h : 3 + n + j = 2 + (n + 1 + j) := by omega
-    rw [h, getD_cons_cons]
-  -- the reads
-  have e₁ : (initEnv (ccExt n m) x).inp = n :: (m :: rest) := hxr
-  set σ₁ : Env := { (initEnv (ccExt n m) x).setVar "n" n with inp := m :: rest } with hσ₁
-  set σ₂ : Env := { σ₁.setVar "m" m with inp := rest } with hσ₂
-  set σ₃ : Env := σ₂.setVar "len" (n + 1) with hσ₃
-  have r₁ : Run B (.read "n") (initEnv (ccExt n m) x) σ₁ 1 := Run.read e₁
-  have r₂ : Run B (.read "m") σ₁ σ₂ 1 := Run.read rfl
-  have r₃ : Run B (.assign "len" (.add (.var "n") (.lit 1))) σ₂ σ₃ 4 :=
-    (Run.assign (v := n + 1) (by simp [hσ₂, hσ₁, initEnv]; omega)).mono (by simp)
-  -- the offsets
-  obtain ⟨σ₄, O, r₄, hoff₄, hO₄, hinp₄⟩ :=
-    readLoop_run (B := B) (a := "off") (lim := "len") (by decide) (by decide) (σ := σ₃)
-      (g := fun _ => 0) (k := n + 1) (ys := ys) (rest := zs)
-      (by simp [hσ₃, hσ₂, hσ₁, initEnv, ccExt, replicate_eq_arrOf])
-      (by simp [hσ₃]) hys (by simp [hσ₃, hσ₂, hsplit]) hn1B hysB
-  have hO : ∀ i ≤ n, O i = offset x i := fun i hi => by
-    rw [hO₄ i (by omega), hyd i (by omega)]
-  -- the targets
-  set σ₅ : Env := σ₄.setVar "len" (2 * m) with hσ₅
-  have r₅ : Run B (.assign "len" (.add (.var "m") (.var "m"))) σ₄ σ₅ 4 :=
-    (Run.assign (v := 2 * m)
-      (by simp [r₄.frame_var "m" (by decide), hσ₃, hσ₂, hσ₁, initEnv, two_mul]
-          omega)).mono (by simp)
-  obtain ⟨σ₆, T, r₆, htgt₆, hT₆, hinp₆⟩ :=
-    readLoop_run (B := B) (a := "tgt") (lim := "len") (by decide) (by decide) (σ := σ₅)
-      (g := fun _ => 0) (k := 2 * m) (ys := zs) (rest := [])
-      (by rw [hσ₅, arrs_setVar, r₄.frame_arr "tgt" (by decide)]
-          simp [hσ₃, hσ₂, hσ₁, initEnv, ccExt, replicate_eq_arrOf])
-      (by simp [hσ₅]) hzs (by simp [hσ₅, hinp₄]) hmB hzsB
-  have hT : ∀ j < 2 * m, T j = target x j := fun j hj => by rw [hT₆ j hj, hzd j hj]
-  -- the labels, cleared
-  obtain ⟨σ₇, L₀, r₇, hlab₇, hL₀, harr₇, hinp₇, hout₇, hvar₇⟩ :=
-    initLab_run (B := B) (σ := σ₆) (g := fun _ => 0) (n := n)
-      (by rw [r₆.frame_arr "lab" (by decide), hσ₅, arrs_setVar, r₄.frame_arr "lab" (by decide)]
-          simp [hσ₃, hσ₂, hσ₁, initEnv, ccExt, replicate_eq_arrOf])
-      (by rw [r₆.frame_var "n" (by decide), hσ₅, vars_setVar,
-              if_neg (by decide : "n" ≠ "len"), r₄.frame_var "n" (by decide)]
-          simp [hσ₃, hσ₂, hσ₁, initEnv])
-      hnB
-  -- the four scalars the sweep starts from
-  set σ₁₁ : Env := (((σ₇.setVar "u" 0).setVar "head" 0).setVar "tail" 0).setVar "sc" 0
-    with hσ₁₁
-  have r₈ : Run B (.assign "u" (.lit 0)) σ₇ (σ₇.setVar "u" 0) 2 :=
-    (Run.assign (v := 0) (by simp; omega)).mono (by simp)
-  have r₉ : Run B (.assign "head" (.lit 0)) (σ₇.setVar "u" 0)
-      ((σ₇.setVar "u" 0).setVar "head" 0) 2 := (Run.assign (v := 0) (by simp; omega)).mono (by simp)
-  have r₁₀ : Run B (.assign "tail" (.lit 0)) ((σ₇.setVar "u" 0).setVar "head" 0)
-      (((σ₇.setVar "u" 0).setVar "head" 0).setVar "tail" 0) 2 :=
-    (Run.assign (v := 0) (by simp; omega)).mono (by simp)
-  have r₁₁ : Run B (.assign "sc" (.lit 0)) (((σ₇.setVar "u" 0).setVar "head" 0).setVar "tail" 0)
-      σ₁₁ 2 := (Run.assign (v := 0) (by simp; omega)).mono (by simp)
-  -- what the sweep starts from
-  have hn₇ : σ₇.vars "n" = n := by
-    rw [hvar₇ "n" (by decide), r₆.frame_var "n" (by decide), hσ₅, vars_setVar,
-      if_neg (by decide : "n" ≠ "len"), r₄.frame_var "n" (by decide)]
-    simp [hσ₃, hσ₂, hσ₁, initEnv]
-  have hm₇ : σ₇.vars "m" = m := by
-    rw [hvar₇ "m" (by decide), r₆.frame_var "m" (by decide), hσ₅, vars_setVar,
-      if_neg (by decide : "m" ≠ "len"), r₄.frame_var "m" (by decide)]
-    simp [hσ₃, hσ₂, hσ₁, initEnv]
-  have hoff₇ : σ₇.arrs "off" = arrOf (n + 1) O := by
-    rw [harr₇ "off" (by decide), r₆.frame_arr "off" (by decide), hσ₅, arrs_setVar, hoff₄]
-  have htgt₇ : σ₇.arrs "tgt" = arrOf (2 * m) T := by
-    rw [harr₇ "tgt" (by decide), htgt₆]
-  have hq₇ : σ₇.arrs "q" = arrOf n (fun _ => 0) := by
-    rw [harr₇ "q" (by decide), r₆.frame_arr "q" (by decide), hσ₅, arrs_setVar,
-      r₄.frame_arr "q" (by decide)]
-    simp [hσ₃, hσ₂, hσ₁, initEnv, ccExt, replicate_eq_arrOf]
-  have hout₇' : σ₇.out = [] := by
-    rw [hout₇, r₆.out_eq (by decide), hσ₅, out_setVar, r₄.out_eq (by decide)]
-    simp [hσ₃, hσ₂, hσ₁, initEnv]
-  -- the sweep
-  have hI : SweepInv x n m G O T σ₁₁ := by
-    refine ⟨by simp [hσ₁₁, hn₇], by simp [hσ₁₁, hm₇], by simp [hσ₁₁],
-      by simp [hσ₁₁, hoff₇], by simp [hσ₁₁, htgt₇], by simp [hσ₁₁],
-      L₀, fun _ => 0, by simp [hσ₁₁, hlab₇], by simp [hσ₁₁, hq₇],
-      ⟨fun w hw => Or.inl (hL₀ w hw), by simp [hσ₁₁], by simp [hσ₁₁],
-        by simp [hσ₁₁], ?_, by simp [hσ₁₁], by simp [hσ₁₁]⟩,
-      ?_, ?_, by simp [hσ₁₁]⟩
+    fun v hv => hrestB v (by rw [hsplit]; exact List.mem_append_right _ hv)
+  have e₁ : (initEnv (ccExt n m) x).inp = n :: m :: rest := hxr
+  -- the three phases that fill the arrays, as one specification
+  have hsetup : Spec B
+      (fun σ => σ.vars "n" = n ∧ σ.vars "m" = m ∧ σ.vars "len" = n + 1 ∧ σ.inp = ys ++ zs ∧
+        σ.arrs "off" = arrOf (n + 1) (fun _ => 0) ∧ σ.arrs "tgt" = arrOf (2 * m) (fun _ => 0) ∧
+        σ.arrs "lab" = arrOf n (fun _ => 0) ∧ σ.arrs "q" = arrOf n (fun _ => 0) ∧ σ.out = [])
+      (.seq (readLoop "off" "len") (.seq (.assign "len" (.add (.var "m") (.var "m")))
+        (.seq (readLoop "tgt" "len") initLab)))
+      (fun _ σ' => SetupPost x n m σ') (23 * n + 24 * m + 34) := by
+    rintro σ ⟨hn, hm', hlen', hinp, hoff, htgt, hlab, hq, hout⟩
+    obtain ⟨σ₄, O, r₄, hoff₄, hO₄, hinp₄⟩ :=
+      readLoop_run (B := B) (a := "off") (lim := "len") (by decide) (by decide)
+        hoff hlen' hys hinp hn1B hysB
+    have r₅ : Run B (.assign "len" (.add (.var "m") (.var "m"))) σ₄
+        (σ₄.setVar "len" (2 * m)) 4 :=
+      (Run.assign (v := 2 * m)
+        (by simp [(r₄.frame_var "m" (by decide)).trans hm', two_mul]; omega)).mono (by simp)
+    obtain ⟨σ₆, T, r₆, htgt₆, hT₆, hinp₆⟩ :=
+      readLoop_run (B := B) (a := "tgt") (lim := "len") (by decide) (by decide)
+        (σ := σ₄.setVar "len" (2 * m)) (g := fun _ => 0) (k := 2 * m) (ys := zs) (rest := [])
+        (by simp [(r₄.frame_arr "tgt" (by decide)).trans htgt]) (by simp) hzs
+        (by simp [hinp₄]) hmB hzsB
+    obtain ⟨σ₇, L₀, r₇, hlab₇, hL₀⟩ :=
+      initLab_run (B := B) (σ := σ₆) (g := fun _ => 0) (n := n)
+        (by simp [r₆.frame_arr "lab" (by decide), r₄.frame_arr "lab" (by decide), hlab])
+        (by simp [r₆.frame_var "n" (by decide), r₄.frame_var "n" (by decide), hn]) hnB
+    exact ⟨σ₇, (r₄.seq (r₅.seq (r₆.seq r₇))).mono (by omega), O, T, L₀,
+      fun i hi => by rw [hO₄ i (by omega), hyd i (by omega)],
+      fun j hj => by rw [hT₆ j hj, hzd j hj], hL₀,
+      by simp [r₇.frame_var "n" (by decide), r₆.frame_var "n" (by decide),
+        r₄.frame_var "n" (by decide), hn],
+      by simp [r₇.frame_arr "off" (by decide), r₆.frame_arr "off" (by decide), hoff₄],
+      by simp [r₇.frame_arr "tgt" (by decide), htgt₆], hlab₇,
+      by simp [r₇.frame_arr "q" (by decide), r₆.frame_arr "q" (by decide),
+        r₄.frame_arr "q" (by decide), hq],
+      by simp [r₇.out_eq (by decide), r₆.out_eq (by decide), r₄.out_eq (by decide), hout]⟩
+  run_vcg [hsetup, sweep_spec hx hm hnB hmB (60 * m + 50 * n), write_spec (G := G) hnB]
+  · -- the output tape is what the write phase said it would be
+    assumption
+  -- the two header entries are words, being entries of the word
+  · simp [e₁]; omega
+  · simp [e₁]; omega
+  · -- the setup starts on a zeroed layout with the tape at the offsets
+    simp [hxr, hsplit, initEnv, ccExt, replicate_eq_arrOf]
+  · -- the sweep starts from what the setup left and four zeroed scalars
+    obtain ⟨O, T, L₀, hO, hT, hL₀, hn₇, hoff₇, htgt₇, hlab₇, hq₇, hout₇⟩ :=
+      ‹SetupPost x n m _›
+    refine ⟨O, T, hO, hT, ⟨by simp [hn₇], by simp, by simp [hoff₇], by simp [htgt₇], by simp,
+      L₀, fun _ => 0, by simp [hlab₇], by simp [hq₇],
+      ⟨fun w hw => Or.inl (hL₀ w hw), by simp, by simp, by simp, ?_, by simp, by simp⟩,
+      ?_, ?_, by simp⟩, by simp [SweepPot, Pot]; omega, by simp [hout₇]⟩
     · intro w hw hlw
       exact absurd (hL₀ w hw) hlw
     · intro w hw hlw
-      simp [hσ₁₁] at hlw
+      simp at hlw
     · intro w hw hlw
       exact absurd (hL₀ w hw) hlw
-  obtain ⟨σ₁₂, L, K, r₁₂, hn₁₂, hlab₁₂, hL, hpay⟩ := sweep_run hx hm hO hT hnB hmB hI
-  have hK : K ≤ 60 * m + 50 * n + 4 := by
-    have hsp : SweepPot n m σ₁₁ = 60 * m + 50 * n := by
-      simp [hσ₁₁, SweepPot, Pot]; omega
-    omega
-  have hout₁₂ : σ₁₂.out = [] := by
-    rw [← show σ₁₁.out = [] by simp [hσ₁₁, hout₇']]
-    exact r₁₂.out_eq (by simp [Com.NoWrite, outerBody, drain, expandBody, scanBody])
-  -- the labels, written out
-  obtain ⟨σ₁₃, r₁₃, hout₁₃⟩ :=
-    writeLoop_run (B := B) hlab₁₂ hn₁₂ hnB
-      (fun i hi => by rw [hL i hi]; have := lbl_lt (G := G) hi; omega)
-  have s₁₂ := Run.seq (r₁₂.mono hK) r₁₃
-  have s₁₁ := Run.seq r₁₁ s₁₂
-  have s₁₀ := Run.seq r₁₀ s₁₁
-  have s₉ := Run.seq r₉ s₁₀
-  have s₈ := Run.seq r₈ s₉
-  have s₇ := Run.seq r₇ s₈
-  have s₆ := Run.seq r₆ s₇
-  have s₅ := Run.seq r₅ s₆
-  have s₄ := Run.seq r₄ s₅
-  have s₃ := Run.seq r₃ s₄
-  have s₂ := Run.seq r₂ s₃
-  refine ⟨σ₁₃, _, Run.seq r₁ s₂, ?_, ?_⟩
-  · rw [hout₁₃, hout₁₂, List.nil_append]
-    refine List.ext_getElem (by simp [ccLabels]) fun i h₁ h₂ => ?_
-    simp only [List.length_map, List.length_range] at h₁
-    rw [List.getElem_map, List.getElem_range, hL i h₁, lbl_eq h₁]
-    simp [ccLabels]
-  · rw [hxr] at hlen ⊢
-    simp at hlen ⊢
-    omega
+  · -- and the write phase from what the sweep left
+    assumption
 
 end Lax11Proofs.CC

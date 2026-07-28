@@ -390,11 +390,18 @@ abbrev RowPre (o t v : String) (nv ns V B : ℕ) (off tgt : ℕ → ℕ) (σ : E
 abbrev SlotPre (o t j : String) (nv ns V B : ℕ) (off tgt : ℕ → ℕ) (σ : Env) : Prop :=
   Pre o t nv ns V B off tgt σ ∧ σ.vars j < ns
 
-/-- What `loadRow` leaves: the two bounds of the row. -/
+/-- What `loadRow` leaves: the two bounds of the row, and — since this
+is a straight-line operation stepped over in the middle of a caller's
+block — the state itself. A relation says what an operation *did*, which
+is what a data structure's caller wants; a caller who has to go on
+walking its own block wants the state back, because everything it reads
+next is a projection of it and a frame condition per projection is what
+it costs otherwise. `Spec.assign` names the state for the same reason. -/
 abbrev LoadRowPost (o t v j jend : String) (nv ns V : ℕ) (off tgt : ℕ → ℕ)
     (σ σ' : Env) : Prop :=
   Csr o t nv ns V off tgt σ' ∧ σ'.vars j = off (σ.vars v) ∧
-    σ'.vars jend = off (σ.vars v + 1)
+    σ'.vars jend = off (σ.vars v + 1) ∧
+    σ' = (σ.setVar j (off (σ.vars v))).setVar jend (off (σ.vars v + 1))
 
 /-- What `slot` leaves: the target at the pointer. -/
 abbrev SlotPost (o t j w : String) (nv ns V : ℕ) (off tgt : ℕ → ℕ) (σ σ' : Env) : Prop :=
@@ -469,7 +476,7 @@ theorem loadRow_spec (B nv ns V : ℕ) (o t v j jend : String) (off tgt : ℕ �
     · simp only [evalB_bin_iff]
       exact ⟨σ.vars v, 1, ev, by simp; omega, by simp [Bop.apply], by omega⟩
     · rw [arrs_setVar, hc.offArr, getElem?_arrOf off (by omega)]
-  refine ⟨_, 8, ((Run.assign e₁).seq (Run.assign e₂)).mono (by simp), le_rfl, ?_, ?_, ?_⟩
+  refine ⟨_, 8, ((Run.assign e₁).seq (Run.assign e₂)).mono (by simp), le_rfl, ?_, ?_, ?_, rfl⟩
   · simpa using hc
   · simp [hjje]
   · simp
@@ -509,7 +516,7 @@ theorem rowScan_spec (B K hi Kb : ℕ) (j jend : String) (c : Com)
       ∃ σ' K', Run B c σ σ' K' ∧ I σ' ∧ σ'.vars j = σ.vars j + 1 ∧ K' ≤ Kb)
     (hPI : ∀ σ, P σ → I σ) (hK : ∀ σ, P σ → (Kb + 4) * (hi - σ.vars j) + 4 ≤ K) :
     Spec B P (scan j jend c) (fun _ σ' => I σ' ∧ σ'.vars j = hi) K := by
-  refine Spec.forRange (x := j) (m := jend) (c := c) I hi Kb
+  refine Spec.forRange j jend (c := c) I hi Kb K
     (fun σ hI => by have := hIb σ hI; omega) (fun σ hI => by have := (hIb σ hI).1; omega)
     (fun σ hI => (hIb σ hI).1) (fun σ hI => (hIb σ hI).2) ?_ hPI hK
   refine Spec.of_exists (fun σ hσ => ?_)
@@ -599,6 +606,36 @@ theorem ownerScan_spec (B K nv ns Kslot Kown : ℕ) (j m u : String) (c : Com)
     have h₂ := hIb σ' hI'
     exact ⟨hI', by omega⟩
 
+/-- **The owner-advancing scan, as a step of a larger loop.** The same
+statement with the cost bound read off the state the pass *starts* in
+rather than announced as a constant — which is what a turn of an outer
+amortized loop owes its own potential, since a turn's cost there is
+existential and may not be bounded by any constant.
+
+The credit form `K + Φ σ' ≤ Φ σ + 4` that `Queue.drain_run` exports is
+deliberately not what this is. `drain`'s potential is its caller's
+parameter, so handing back the drop exposes nothing; this pass's
+potential is the combinator's own, and the point of the export is that
+the caller never writes it down. A caller who needs the credit for the
+rows the pass left unvisited is asking for the potential, and should say
+so — then this becomes the primitive and `ownerScan_spec` derives from
+it, the way `Queue`'s two forms do. -/
+theorem ownerScan_run (B nv ns Kslot Kown : ℕ) (j m u : String) (c : Com)
+    (I : Env → Prop) (hnsB : ns < B)
+    (hIb : ∀ σ, I σ → σ.vars m = ns ∧ σ.vars j ≤ ns ∧ σ.vars u ≤ nv)
+    (hstep : ∀ σ, I σ → σ.vars j < ns →
+      ∃ σ' K', Run B c σ σ' K' ∧ I σ' ∧
+        σ.vars j ≤ σ'.vars j ∧ σ.vars u ≤ σ'.vars u ∧
+        (σ.vars j < σ'.vars j ∨ σ.vars u < σ'.vars u) ∧
+        K' ≤ Kslot * (σ'.vars j - σ.vars j) + Kown * (σ'.vars u - σ.vars u))
+    {σ : Env} (hI : I σ) :
+    ∃ σ' K, Run B (scan j m c) σ σ' K ∧ I σ' ∧ σ'.vars j = ns ∧
+      K ≤ (Kslot + 4) * (ns - σ.vars j) + (Kown + 4) * (nv - σ.vars u) + 4 := by
+  obtain ⟨σ', hrun, hI', hj⟩ :=
+    (ownerScan_spec B ((Kslot + 4) * (ns - σ.vars j) + (Kown + 4) * (nv - σ.vars u) + 4)
+      nv ns Kslot Kown j m u c (P := fun τ => τ = σ) I hnsB hIb hstep
+      (fun τ hτ => hτ ▸ hI) (fun τ hτ => by subst hτ; exact le_rfl)).run rfl
+  exact ⟨σ', _, hrun, hI', hj, le_rfl⟩
 
 /-! ### The worked example
 
