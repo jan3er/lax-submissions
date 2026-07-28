@@ -4,6 +4,7 @@
     "allow": [
       "mcp__lean-lsp",
       "Bash(lake build*)",
+      "Bash(lax build*)",
       "Bash(lake env*)",
       "Bash(rg *)"
     ]
