@@ -1,7 +1,7 @@
 # Overnight brief 2 (rev 2): executing courcelle-plan.md
 
 You are one session in the second night's Opus relay (same mechanics
-as `cc-night-brief.md`; its Guardrails and Log protocol apply
+as `ram-stack-night-brief.md` (then `cc-night-brief.md`); its Guardrails and Log protocol apply
 verbatim; session numbering continues in `NIGHTLOG.md`). The source of
 truth is **`courcelle-plan.md` (now rev 5)** — read it first; decisions
 C1–C14 are settled (C4/C6/C7/C7a superseded at rev 5); your job is the

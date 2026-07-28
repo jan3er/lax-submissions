@@ -7,7 +7,7 @@ axioms. Later sections retain the original pre-implementation wording where
 it records the decisions that guided the build.
 
 Exact Lean forms for the concept surface of the flagship submission
-(Theorem 2 of DMMPT26). Companion to `todo.md` and `pipeline.md`. All
+(Theorem 2 of DMMPT26). Companion to `implementation-log.md` and `pipeline.md`. All
 design decisions are settled — the notes below state each design choice
 as prose, and the decision record at the end keeps the ledger. Lean
 snippets are final modulo step-3 polish.
@@ -215,7 +215,7 @@ def MonadicallyDependent (C : GraphClass) : Prop :=
 ```
 
 One line over concepts 1–3; the reviewable content is that this *is* the
-literature's definition (todo.md decision A).
+literature's definition (implementation-log.md decision A).
 
 ## 5. NeighborhoodComplexity (definition-concept)
 
@@ -313,7 +313,7 @@ Notes:
 
 ## 7. WeaklySparseDependent (theorem-concept, obligation left OPEN)
 
-Corollary 6a; decision D of `todo.md` (state, don't prove).
+Corollary 6a; decision D of `implementation-log.md` (state, don't prove).
 
 ```lean
 /-- A graph class is weakly sparse if some complete bipartite graph

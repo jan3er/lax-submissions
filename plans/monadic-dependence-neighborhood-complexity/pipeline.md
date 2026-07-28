@@ -6,7 +6,7 @@ concepts are proved with only Lean's standard logical axioms.
 
 Target: Theorem 2 of arXiv:2607.10941 (DMMPT26 below). This document maps
 every ingredient of the proof to a chosen source and records how it will
-formalize. Companion to `todo.md`.
+formalize. Companion to `implementation-log.md`.
 
 ## 0. What the pinned mathlib already has
 
@@ -185,6 +185,6 @@ subsequently proved. The original consequences for the concept surface were:
       arbitrary relational structures per Jan).
 - [x] Step 3: concept package Lax5 builds, `lax build` pipeline OK
       (scaffold was pre-allocated; manifest + abstract written).
-- [x] Step 4: proof package, sorry-free (full build log in `todo.md`).
+- [x] Step 4: proof package, sorry-free (full build log in `implementation-log.md`).
       The headline theorem, Corollaries 6a and 6b, and Adler–Adler all audit
       to standard logical axioms only; no proof obligations remain.

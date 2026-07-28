@@ -2712,3 +2712,11 @@ they bind; all trivially revertible.
 Memory updated (`vc-ladder-lax15`). Nothing was submitted; the machine
 model was never touched; rung C (folding/struction) remains sketched
 only.
+
+## Housekeeping — 2026-07-28
+All root-level plan artifacts moved to `plans/<submission-name>/`; the
+until-then-untracked night artifacts (`vc-fib-plan.md`, `vc-rung-b-plan.md`,
+the three `*-night-brief.md`, `vc-contracts/`) are now tracked there too.
+Two renames: `todo.md` → `implementation-log.md`,
+`cc-night-brief.md` → `ram-stack-night-brief.md`. Earlier entries in this
+log cite the old root paths; `plans/README.md` has the old→new map.

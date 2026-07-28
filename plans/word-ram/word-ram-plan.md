@@ -142,7 +142,7 @@ build green) and commits before the next phase starts.
 
 - Touch only: `word-ram/`, `ram-linear-time/`, `word-ram-plan.md`, memory.
 - Never touch: `NIGHTLOG.md`, `sparsity-lectures-plan.md`,
-  `monadic-dependence-neighborhood-complexity/`, `twin-width-*`, `todo.md`,
+  `monadic-dependence-neighborhood-complexity/`, `twin-width-*`, `implementation-log.md` (then `todo.md`),
   the stale `*-night-brief.md` / `vc-contracts/` leftovers.
 - Stage by explicit path only; never `git add -A`. Commit at phase ends.
 

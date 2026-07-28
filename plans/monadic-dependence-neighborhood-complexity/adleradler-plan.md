@@ -208,7 +208,7 @@ modules (sparsity lectures, Ch. on wideness).
    (position structure + extension cases + conclusion).
 7. `AdlerAdler.lean` assembly; rewire `Corollary6.lean`-style consumers
    if any; `lean_verify` audit of the headline theorem; update
-   `abstract.md`, `pipeline.md`, `todo.md`, memory; commit.
+   `abstract.md`, `pipeline.md`, `implementation-log.md`, memory; commit.
 
 ## Risks / fallbacks
 
