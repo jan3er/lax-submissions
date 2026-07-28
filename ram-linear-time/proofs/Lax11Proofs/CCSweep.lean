@@ -237,7 +237,7 @@ theorem sweep_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
       τ'.vars "n" = n ∧ τ'.arrs "lab" = arrOf n L ∧ (∀ w < n, L w = lbl G w) ∧
       K + SweepPot n m τ' ≤ SweepPot n m τ + 4 := by
   obtain ⟨τ', K, hrun, hI', hfalse, hpay⟩ :=
-    Run.while_pot (B := B) (b := Cond.lt (.var "u") (.var "n")) (c := outerBody)
+    Run.while_potential (B := B) (b := Cond.lt (.var "u") (.var "n")) (c := outerBody)
       (SweepInv x n m G O T) (SweepPot n m)
       (fun σ hσ => by
         obtain ⟨hn, hmm, hun, -⟩ := hσ

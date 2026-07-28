@@ -407,7 +407,7 @@ theorem descendScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
       · simp only [size_condLt, size_get, size_var, size_bin, size_lit, hvu]
         omega
     obtain ⟨ρ', K, hrun, ⟨hIρ', hjρ'⟩, hfalse, hpay⟩ :=
-      Run.while_pot (B := B)
+      Run.while_potential (B := B)
         (b := Cond.lt (.get "off" (.add (.var "u") (.lit 1))) (.add (.var "j") (.lit 1)))
         (c := .seq (.assign "u" (.add (.var "u") (.lit 1)))
           (.seq (.assign "seen" (.lit 0))
@@ -771,7 +771,7 @@ theorem descendScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
       intro o _ p₁ p₂ p₃ _ _ hc₁
       exact absurd hc₁ (by simp [hσ₀])
   obtain ⟨τ', K, hrun, hI', hfalse, hpay⟩ :=
-    Run.while_pot (B := B) (b := Cond.lt (.var "j") (.var "m2"))
+    Run.while_potential (B := B) (b := Cond.lt (.var "j") (.var "m2"))
       (c := .seq ownerAdvance3 slotStep3) (ScanInv3 g m G M τ)
       (fun ν => 400 * (2 * m - ν.vars "j") + 200 * (n - ν.vars "u"))
       (fun ν hν => by
@@ -1648,7 +1648,7 @@ theorem rowScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
   obtain ⟨τ', K, hrun, ⟨hfr', harr', hinp', hout', hlo', hhi', hseen2', ht1n', ht2n',
       htog1', hsle', hcard', hst1', hst2', hs', htg', VIS', Q', hvis', hVIS', hq',
       hQ', hQpre', htlge', htln'⟩, hfalse, hpay⟩ :=
-    Run.while_pot (B := B) (b := Cond.lt (.var "j") (.var "jend")) (c := solveSlot)
+    Run.while_potential (B := B) (b := Cond.lt (.var "j") (.var "jend")) (c := solveSlot)
       (RowInv3 g M V u Q head tl (σ.vars "s") (σ.vars "tog") σ)
       (fun ρ => 300 * (offset g ((u : ℕ) + 1) - ρ.vars "j"))
       (fun ρ hρ => by
@@ -1702,7 +1702,7 @@ theorem clearVis_run (h1B : 1 < B) (hnB : n < B) {VIS : ℕ → ℕ} {σ : Env}
     (Run.assign (v := 0) (evalB_lit (by omega))).mono (by simp)
   obtain ⟨τ', K, hrun, ⟨hfr, harr, hinp, hout, hile, VIS', hvis', hzero⟩,
       hfalse, hpay⟩ :=
-    Run.while_pot (B := B) (b := Cond.lt (.var "i") (.var "n"))
+    Run.while_potential (B := B) (b := Cond.lt (.var "i") (.var "n"))
       (σ := σ.setVar "i" 0)
       (c := .seq (.store "vis" (.var "i") (.lit 0))
         (.assign "i" (.add (.var "i") (.lit 1))))

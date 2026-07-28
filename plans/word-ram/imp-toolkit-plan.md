@@ -83,7 +83,7 @@ being no interface.
   logic and is exactly what lets the frame rule of phase 1 be syntactic.
   It is not to be given up.
 - **`Run` with cost as an upper bound** (`Reasoning.lean:292`) and
-  **`Run.while_pot`** (`Reasoning.lean:378`). The potential form is time
+  **`Run.while_potential`** (`Reasoning.lean:378`). The potential form is time
   credits in first-order clothing; it is the hard part and it is right.
 - **`Transfer.Solves` as the single boundary predicate.** Unchanged.
 
@@ -102,7 +102,7 @@ with Time*; *For a Few Dollars More*), `Sepref`, and Isabelle-LLVM.
   cost **ride one ordering** instead of being separate conjuncts of every
   lemma. Phases 2 and 4 import those two properties without importing the
   monad.
-- *Taken:* the currency/amortization idea, already present as `while_pot`.
+- *Taken:* the currency/amortization idea, already present as `while_potential`.
 - *Not taken:* `Sepref`. Its synthesis is thousands of lines of Isabelle/ML
   resting on Isabelle's transfer and parametricity infrastructure. The Lean
   analogue is a spec-lemma set plus a VCG, which is phases 2–4 arrived at
@@ -163,7 +163,7 @@ def Spec (B : ℕ) (P : Env → Prop) (c : Com) (Q : Env → Env → Prop) (K : 
 ```
 
 with `Spec.seq`, `Spec.ite`, `Spec.conseq`, `Spec.frame`, `Spec.mono`,
-`Spec.while_pot` (re-cut from `Run.while_pot`) and **`Spec.forRange`** — a
+`Spec.while_potential` (re-cut from `Run.while_potential`) and **`Spec.forRange`** — a
 counter-from-`a`-to-`b` combinator, since every scan in the repo is
 currently a hand-built `while` plus invariant plus potential.
 

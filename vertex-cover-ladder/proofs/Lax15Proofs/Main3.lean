@@ -55,7 +55,7 @@ theorem potN3_eq {C : Config n} {τ : Env} (hRep : Rep n m O T C τ)
 
 /-! ### The loop
 
-One application of `Run.while_pot`. A turn pays `1 + 3` for the test and
+One application of `Run.while_potential`. A turn pays `1 + 3` for the test and
 at most `1610 · (n + 2m + 1)` for the body, and buys one unit of `pot3`,
 so the scale `1614 · (n + 2m + 1)` covers it. The whole search is
 therefore paid for by the potential of the configuration it starts
@@ -115,7 +115,7 @@ theorem searchLoop3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     simp only [size_condLt, size_var, size_lit]
     omega
   obtain ⟨τ', K, hrun, hI', hfalse, hpay⟩ :=
-    Run.while_pot (B := B) (b := Cond.lt (.var "mode") (.lit 2)) (c := outerBody3)
+    Run.while_potential (B := B) (b := Cond.lt (.var "mode") (.lit 2)) (c := outerBody3)
       (fun τ => ∃ C, Rep n m O T C τ ∧ SideInv n τ ∧ J3 G k C ∧
         τ.inp = σ.inp ∧ τ.out = σ.out)
       (fun τ => 1614 * (n + 2 * m + 1) *

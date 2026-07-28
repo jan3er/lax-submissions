@@ -375,7 +375,7 @@ for what happens after it: a nested search whose outer sweep and inner
 searches draw on the same budget could not be assembled from the weaker
 form, since the outer proof would have to count the inner potential
 twice. -/
-theorem Run.while_pot {B : ℕ} {b : Cond} {c : Com} (I : Env → Prop) (Φ : Env → ℕ)
+theorem Run.while_potential {B : ℕ} {b : Cond} {c : Com} (I : Env → Prop) (Φ : Env → ℕ)
     (hdef : ∀ σ, I σ → ∃ v, b.evalB B σ = some v)
     (hstep : ∀ σ, I σ → b.evalB B σ = some true →
       ∃ σ' K, Run B c σ σ' K ∧ I σ' ∧ 1 + b.size + K + Φ σ' ≤ Φ σ)
@@ -428,7 +428,7 @@ theorem Run.while_count {B : ℕ} {b : Cond} {c : Com} (I : Env → Prop) (V : E
         = (1 + b.size + P) * (V τ' + 1) := by ring
       _ ≤ (1 + b.size + P) * V τ := Nat.mul_le_mul_left _ hV
   obtain ⟨σ', K, hrun, hI', hfalse, hpay⟩ :=
-    Run.while_pot I (fun σ => (1 + b.size + P) * V σ) hdef key hI
+    Run.while_potential I (fun σ => (1 + b.size + P) * V σ) hdef key hI
   exact ⟨σ', hrun.mono (by omega), hI', hfalse⟩
 
 /-! ### The one frame condition that is worth having generically

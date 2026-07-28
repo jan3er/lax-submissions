@@ -262,7 +262,7 @@ theorem scan_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     · exact Or.inl ⟨by simp [hσ₀], by intro o p _ _ _ h3; simp [hσ₀] at h3⟩
   obtain ⟨τ', K, hrun, ⟨hm2', harrs', hinp'', hout'', hfr', hun', houj', hj2m', hdich'⟩,
       hfalse, hpay⟩ :=
-    Run.while_pot (B := B) (b := Cond.lt (.var "j") (.var "m2")) (c := scanBody)
+    Run.while_potential (B := B) (b := Cond.lt (.var "j") (.var "m2")) (c := scanBody)
       (ScanInv g n m MK σ) (ScanPot m n)
       (fun τ hτ => by
         obtain ⟨hm2', -, -, -, -, -, -, hj2m, -⟩ := hτ

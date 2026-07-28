@@ -375,7 +375,7 @@ theorem unwind_run (h1B : 1 < B) (hnB : n < B) {S : List (Fin n)} {MK TR : ℕ �
       omega
   obtain ⟨τ', K, hrun, ⟨hfr', harr', hinp', hout', i', hile', htti', MK', hmark', hMK'⟩,
       hfalse, hpay⟩ :=
-    Run.while_pot (B := B) (b := Cond.lt (.var "tb") (.var "tt"))
+    Run.while_potential (B := B) (b := Cond.lt (.var "tb") (.var "tt"))
       (c := .seq (.assign "tt" (.sub (.var "tt") (.lit 1)))
         (.store "mark" (.get "trail" (.var "tt")) (.lit 0)))
       (UnwindInv tb M S τ) (fun ρ => 30 * (ρ.vars "tt" - tb))
@@ -656,7 +656,7 @@ theorem rowLoop_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
         omega
   obtain ⟨τ', K, hrun, ⟨hfr', harr', hinp', hout', hlo', hhi', l, hnd', hmem', htt'',
       ⟨MK', hmark', hMK'⟩, ⟨TR', htrail', hTRlo', hTRhi'⟩⟩, hfalse, hpay⟩ :=
-    Run.while_pot (B := B) (b := Cond.lt (.var "j") (.var "jend")) (c := rowStep)
+    Run.while_potential (B := B) (b := Cond.lt (.var "j") (.var "jend")) (c := rowStep)
       (RowInv g v M tb TR τ) (fun ρ => 40 * (offset g ((v : ℕ) + 1) - ρ.vars "j"))
       (fun ρ hρ => by
         obtain ⟨hfr, -, -, -, -, hhi, -⟩ := hρ
@@ -1127,7 +1127,7 @@ theorem descendScan_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
       · simp only [size_condLt, size_get, size_var, size_bin, size_lit, hvu]
         omega
     obtain ⟨ρ', K, hrun, ⟨hIρ', hjρ'⟩, hfalse, hpay⟩ :=
-      Run.while_pot (B := B)
+      Run.while_potential (B := B)
         (b := Cond.lt (.get "off" (.add (.var "u") (.lit 1))) (.add (.var "j") (.lit 1)))
         (c := .seq (.assign "u" (.add (.var "u") (.lit 1)))
           (.seq (.assign "seen" (.lit 0))
@@ -1555,7 +1555,7 @@ theorem descendScan_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
       exact absurd (show σ₀.vars "seen" = 0 by simp [hσ₀]) hs
     · refine Or.inl ⟨by simp [hσ₀], fun o ho p₁ p₂ h1 h2 h3 => absurd h3 (by simp [hσ₀])⟩
   obtain ⟨τ', K, hrun, hI', hfalse, hpay⟩ :=
-    Run.while_pot (B := B) (b := Cond.lt (.var "j") (.var "m2"))
+    Run.while_potential (B := B) (b := Cond.lt (.var "j") (.var "m2"))
       (c := .seq ownerAdvance slotStep) (ScanInv g m M τ)
       (fun ν => 200 * (2 * m - ν.vars "j") + 100 * (n - ν.vars "u"))
       (fun ν hν => by

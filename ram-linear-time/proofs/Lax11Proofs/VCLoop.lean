@@ -463,7 +463,7 @@ theorem outerBody_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
 
 /-! ### The loop
 
-One application of `Run.while_pot`. The invariant is "some
+One application of `Run.while_potential`. The invariant is "some
 configuration is represented and satisfies `Inv`, and the tapes are
 untouched"; the potential is the numeric one, scaled by the cost of a
 turn. Each turn pays `1 + 3` for the test and at most `100m + 50n +
@@ -522,7 +522,7 @@ theorem searchLoop_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     simp only [size_condLt, size_var, size_lit]
     omega
   obtain ⟨τ', K, hrun, hI', hfalse, hpay⟩ :=
-    Run.while_pot (B := B) (b := Cond.lt (.var "mode") (.lit 2)) (c := outerBody)
+    Run.while_potential (B := B) (b := Cond.lt (.var "mode") (.lit 2)) (c := outerBody)
       (fun τ => ∃ C, Rep n m k O T C τ ∧ Inv G k C ∧ τ.inp = σ.inp ∧ τ.out = σ.out)
       (fun τ => (100 * m + 50 * n + 104) *
         potN (τ.vars "mode") (τ.vars "bud") (phasesOf τ))

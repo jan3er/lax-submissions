@@ -285,7 +285,7 @@ theorem drain3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
   have hclV0 : ∀ v ∈ W₀, ResNbhd G M v ⊆ insert r W₀ :=
     fun v hv x hx => Finset.mem_insert_of_mem (hcl v hv hx)
   obtain ⟨τ', K, hrun, hI, hfalse, hpay⟩ :=
-    Run.while_pot (B := B) (b := Cond.lt (.var "head") (.var "tl")) (c := expandBody3)
+    Run.while_potential (B := B) (b := Cond.lt (.var "head") (.var "tl")) (c := expandBody3)
       (σ := σ)
       (fun ν => ∃ (V W : Finset (Fin n)) (VISν Qν : ℕ → ℕ),
         ν.inp = σ.inp ∧ ν.out = σ.out ∧
@@ -527,7 +527,7 @@ theorem rootSweep_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
       K ≤ 600 * m + 570 * n + 10 := by
   classical
   obtain ⟨τ', K, hrun, hI, hfalse, hpay⟩ :=
-    Run.while_pot (B := B) (b := Cond.lt (.var "r") (.var "n")) (c := rootStep) (σ := σ)
+    Run.while_potential (B := B) (b := Cond.lt (.var "r") (.var "n")) (c := rootStep) (σ := σ)
       (fun ν => ∃ (V : Finset (Fin n)) (VISν Qν : ℕ → ℕ),
         ν.inp = σ.inp ∧ ν.out = σ.out ∧
         (∀ a, a ≠ "vis" → a ≠ "q" → ν.arrs a = σ.arrs a) ∧

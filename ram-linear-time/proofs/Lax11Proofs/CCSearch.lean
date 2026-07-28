@@ -447,7 +447,7 @@ theorem drain_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     simp only [Pot, size_condLt, size_var]
     omega
   obtain ⟨τ', K, hrun, hI', hfalse, hpay⟩ :=
-    Run.while_pot (B := B) (b := Cond.lt (.var "head") (.var "tail")) (c := expandBody)
+    Run.while_potential (B := B) (b := Cond.lt (.var "head") (.var "tail")) (c := expandBody)
       (DrainInv x n m u G O T) (Pot n m)
       (fun σ hσ => by
         obtain ⟨L', Q', -, hLive, -⟩ := hσ
