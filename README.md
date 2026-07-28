@@ -43,16 +43,21 @@ Submission directories currently in this repository:
   Courcelle–Makowsky–Rotics model checking on bounded cliquewidth, and
   the 2^k vertex-cover FPT bound, discharged via a verified IMP+
   compiler.
-- `vertex-cover-fibonacci/` — **Lax15**: vertex cover is decided on the
-  word RAM within `c · fib(k+2) · (|x|+1)` steps (one theorem concept,
-  proved in the same submission). The base of the exponential drops from
-  2 to the golden ratio by branching on a vertex of residual degree at
-  least two rather than on an edge. Builds on the Lax11 draft — the graph
-  encoding and instance format are imported, so the admissible set is
-  character for character that submission's and the two bounds are claims
-  about the same inputs, this one sharpening the 2^k rung rather than
-  replacing it — and on Lax13's word RAM, whose machine, compiler and
-  loop rule carry the proof.
+- `vertex-cover-fibonacci/` — **Lax15**: vertex cover below 2^k — two
+  theorem concepts, each proved in the same submission, and one
+  definition. The first decides vertex cover on the word RAM within
+  `c · fib(k+2) · (|x|+1)` steps, dropping the base of the exponential
+  from 2 to the golden ratio by branching on a vertex of residual degree
+  at least two rather than on an edge; the second, within
+  `c · branchCount k · (|x|+1)` for the surface's own `branchCount` — the
+  leaf count of a `b ↦ (b−1, b−3)` split, base the real root of
+  `x³ = x² + 1` ≈ 1.4656 — by branching only at residual degree three and
+  solving the max-degree-two leaf exactly. Builds on the Lax11 draft —
+  the graph encoding and instance format are imported, so the admissible
+  set is character for character that submission's and all three bounds
+  are claims about the same inputs, each rung sharpening the one below
+  rather than replacing it — and on Lax13's word RAM, whose machine,
+  compiler and loop rule carry both proofs.
 
 These submissions are the reference implementations of everything below. When in
 doubt, open them and imitate. The normative rule set is the Lax spec
