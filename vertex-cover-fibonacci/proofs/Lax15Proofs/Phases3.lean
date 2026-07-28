@@ -802,4 +802,375 @@ theorem descendScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
     · exact Or.inl ⟨hf, thinBlocks3_of_thinBelow hg hm (by rw [← hjend]; exact hthin)⟩
     · exact Or.inr ⟨hf, hwit⟩
 
+/-! ### The solver's queue
+
+The breadth-first sweep of the components driver, with the same
+discipline: `vis` is set before the enqueue, so the queue holds each
+visited vertex exactly once and is never reset between components. Here
+the visited set is carried as a `Finset` rather than read off the array,
+which makes the two facts the sweep needs — that the queue has room for
+one more, and that a drained queue has expanded everything visited —
+statements about cardinality. -/
+
+/-- The queue holds exactly the visited vertices, once each, and `head`
+is inside it. -/
+structure Queue {n : ℕ} (V : Finset (Fin n)) (Q : ℕ → ℕ) (head tl : ℕ) : Prop where
+  /-- The queue is as long as the visited set. -/
+  card : tl = V.card
+  /-- The expanded part is a prefix of the queue. -/
+  hd : head ≤ tl
+  /-- Everything on the queue is a visited vertex. -/
+  mem : ∀ i < tl, ∃ v : Fin n, (v : ℕ) = Q i ∧ v ∈ V
+  /-- Every visited vertex is on the queue. -/
+  all : ∀ v ∈ V, ∃ i < tl, Q i = (v : ℕ)
+  /-- Nothing is on the queue twice. -/
+  inj : ∀ i < tl, ∀ j < tl, Q i = Q j → i = j
+
+/-- The queue fits in the array. -/
+theorem Queue.tl_le {V : Finset (Fin n)} {Q : ℕ → ℕ} {head tl : ℕ}
+    (h : Queue V Q head tl) : tl ≤ n := by
+  rw [h.card]
+  simpa using Finset.card_le_univ V
+
+/-- An unvisited vertex leaves room for one more. -/
+theorem Queue.tl_lt {V : Finset (Fin n)} {Q : ℕ → ℕ} {head tl : ℕ} (h : Queue V Q head tl)
+    {w : Fin n} (hw : w ∉ V) : tl < n := by
+  rw [h.card]
+  have : V ⊂ Finset.univ := ⟨Finset.subset_univ V, fun hsub => hw (hsub (Finset.mem_univ w))⟩
+  simpa using Finset.card_lt_card this
+
+/-- Enqueueing an unvisited vertex. -/
+theorem Queue.push {V : Finset (Fin n)} {Q : ℕ → ℕ} {head tl : ℕ} (h : Queue V Q head tl)
+    {w : Fin n} (hw : w ∉ V) :
+    Queue (insert w V) (fun i => if i = tl then (w : ℕ) else Q i) head (tl + 1) where
+  card := by rw [Finset.card_insert_of_notMem hw, h.card]
+  hd := by have := h.hd; omega
+  mem := by
+    intro i hi
+    by_cases hit : i = tl
+    · exact ⟨w, by simp [hit], Finset.mem_insert_self _ _⟩
+    · obtain ⟨v, hv1, hv2⟩ := h.mem i (by omega)
+      exact ⟨v, by simp [hit, hv1], Finset.mem_insert_of_mem hv2⟩
+  all := by
+    intro v hv
+    rcases Finset.mem_insert.1 hv with rfl | hv
+    · exact ⟨tl, by omega, by simp⟩
+    · obtain ⟨i, hi, hQ⟩ := h.all v hv
+      exact ⟨i, by omega, by simp [show i ≠ tl by omega, hQ]⟩
+  inj := by
+    intro i hi j hj hij
+    by_cases hit : i = tl <;> by_cases hjt : j = tl
+    · omega
+    · exfalso
+      obtain ⟨v, hv1, hv2⟩ := h.mem j (by omega)
+      rw [if_pos hit, if_neg hjt] at hij
+      have hwv : w = v := Fin.ext (by rw [hij, hv1])
+      exact hw (by rw [hwv]; exact hv2)
+    · exfalso
+      obtain ⟨v, hv1, hv2⟩ := h.mem i (by omega)
+      rw [if_neg hit, if_pos hjt] at hij
+      have hwv : w = v := Fin.ext (by rw [← hij, hv1])
+      exact hw (by rw [hwv]; exact hv2)
+    · simp only [if_neg hit, if_neg hjt] at hij
+      exact h.inj i (by omega) j (by omega) hij
+
+/-- **The count and the push.** A distinct unmarked target of the
+dequeued vertex `u` counts the edge `{u, w}` into the halving toggle if
+`u` is its smaller endpoint, and visits and enqueues `w` if the search
+has not reached it. The visited set afterwards is `insert w V`, whether
+or not `w` was there already. -/
+theorem countPush_run (h1B : 1 < B) (hnB : n < B) {ρ : Env} {V : Finset (Fin n)}
+    {VIS Q : ℕ → ℕ} {u w : Fin n} {head tl : ℕ}
+    (hvis : ρ.arrs "vis" = arrOf n VIS) (hVIS : Indicator V VIS)
+    (hq : ρ.arrs "q" = arrOf n Q) (hQ : Queue V Q head tl)
+    (hu : ρ.vars "u" = (u : ℕ)) (hw : ρ.vars "w" = (w : ℕ)) (htl : ρ.vars "tl" = tl)
+    (hsB : ρ.vars "s" + 1 < B) (htog : ρ.vars "tog" ≤ 1) :
+    ∃ (ρ' : Env) (VIS' Q' : ℕ → ℕ) (K : ℕ), Run B countPush ρ ρ' K ∧ K ≤ 60 ∧
+      ρ'.inp = ρ.inp ∧ ρ'.out = ρ.out ∧
+      (∀ a, a ≠ "vis" → a ≠ "q" → ρ'.arrs a = ρ.arrs a) ∧
+      (∀ y, y ≠ "s" → y ≠ "tog" → y ≠ "tl" → ρ'.vars y = ρ.vars y) ∧
+      ρ'.arrs "vis" = arrOf n VIS' ∧ Indicator (insert w V) VIS' ∧
+      ρ'.arrs "q" = arrOf n Q' ∧ Queue (insert w V) Q' head (ρ'.vars "tl") ∧
+      (∀ i < tl, Q' i = Q i) ∧ tl ≤ ρ'.vars "tl" ∧ ρ'.vars "tl" ≤ n ∧
+      ((u < w ∧ ρ.vars "tog" = 0 ∧ ρ'.vars "s" = ρ.vars "s" + 1 ∧ ρ'.vars "tog" = 1) ∨
+       (u < w ∧ ρ.vars "tog" = 1 ∧ ρ'.vars "s" = ρ.vars "s" ∧ ρ'.vars "tog" = 0) ∨
+       (¬ ((u : ℕ) < (w : ℕ)) ∧ ρ'.vars "s" = ρ.vars "s" ∧
+          ρ'.vars "tog" = ρ.vars "tog")) := by
+  have hwn : (w : ℕ) < n := w.2
+  have hun : (u : ℕ) < n := u.2
+  -- the counting half
+  have hcount : ∃ (ρ₁ : Env) (K : ℕ), Run B
+      (.ite (.lt (.var "u") (.var "w"))
+        (.ite (.eq (.var "tog") (.lit 0))
+          (.seq (.assign "s" (.add (.var "s") (.lit 1))) (.assign "tog" (.lit 1)))
+          (.assign "tog" (.lit 0)))
+        .skip) ρ ρ₁ K ∧ K ≤ 20 ∧ ρ₁.arrs = ρ.arrs ∧ ρ₁.inp = ρ.inp ∧ ρ₁.out = ρ.out ∧
+      (∀ y, y ≠ "s" → y ≠ "tog" → ρ₁.vars y = ρ.vars y) ∧
+      (((u : ℕ) < (w : ℕ) ∧ ρ.vars "tog" = 0 ∧ ρ₁.vars "s" = ρ.vars "s" + 1 ∧
+          ρ₁.vars "tog" = 1) ∨
+       ((u : ℕ) < (w : ℕ) ∧ ρ.vars "tog" = 1 ∧ ρ₁.vars "s" = ρ.vars "s" ∧
+          ρ₁.vars "tog" = 0) ∨
+       (¬ ((u : ℕ) < (w : ℕ)) ∧ ρ₁.vars "s" = ρ.vars "s" ∧
+          ρ₁.vars "tog" = ρ.vars "tog")) := by
+    by_cases hlt : (u : ℕ) < (w : ℕ)
+    · have hc : (Cond.lt (.var "u") (.var "w")).evalB B ρ = some true :=
+        (evalB_condLt (evalB_var (by omega)) (evalB_var (by omega))).trans
+          (by simp [hu, hw, hlt])
+      by_cases ht0 : ρ.vars "tog" = 0
+      · refine ⟨(ρ.setVar "s" (ρ.vars "s" + 1)).setVar "tog" 1, 20,
+          (Run.ite_true hc (Run.ite_true ((evalB_condEq (evalB_var (by omega))
+              (evalB_lit (by omega))).trans (by simp [ht0]))
+            (Run.seq (Run.assign (v := ρ.vars "s" + 1) (by simp; omega))
+              (Run.assign (v := 1) (by simp; omega))))).mono (by simp),
+          le_rfl, by simp, by simp, by simp, ?_, Or.inl ⟨hlt, ht0, by simp, by simp⟩⟩
+        intro y h1 h2
+        simp [h1, h2]
+      · refine ⟨ρ.setVar "tog" 0, 20,
+          (Run.ite_true hc (Run.ite_false ((evalB_condEq (evalB_var (by omega))
+              (evalB_lit (by omega))).trans (by simp [ht0]))
+            (Run.assign (v := 0) (by simp; omega)))).mono (by simp),
+          le_rfl, by simp, by simp, by simp, ?_,
+          Or.inr (Or.inl ⟨hlt, by omega, by simp, by simp⟩)⟩
+        intro y h1 h2
+        simp [h2]
+    · exact ⟨ρ, 20, (Run.ite_false ((evalB_condLt (evalB_var (by omega))
+        (evalB_var (by omega))).trans (by simp [hu, hw, hlt])) Run.skip).mono (by simp),
+        le_rfl, rfl, rfl, rfl, fun y _ _ => rfl, Or.inr (Or.inr ⟨hlt, rfl, rfl⟩)⟩
+  obtain ⟨ρ₁, K₁, r₁, hK₁, ha₁, hi₁, ho₁, hfr₁, hcase₁⟩ := hcount
+  have hvis₁ : ρ₁.arrs "vis" = arrOf n VIS := by rw [ha₁, hvis]
+  have hq₁ : ρ₁.arrs "q" = arrOf n Q := by rw [ha₁, hq]
+  have hw₁ : ρ₁.vars "w" = (w : ℕ) := by rw [hfr₁ "w" (by decide) (by decide), hw]
+  have htl₁ : ρ₁.vars "tl" = tl := by rw [hfr₁ "tl" (by decide) (by decide), htl]
+  have hVISB : VIS (w : ℕ) < B := indicator_lt h1B hVIS hwn
+  have hcvis : (Cond.eq (.get "vis" (.var "w")) (.lit 0)).evalB B ρ₁
+      = some (VIS (w : ℕ) == 0) := by
+    have hev : (Expr.var "w").evalB B ρ₁ = some (w : ℕ) := by
+      rw [← hw₁]; exact evalB_var (by omega)
+    exact evalB_condEq (evalB_get (k := (w : ℕ)) hev
+      (by rw [hvis₁, getElem?_arrOf VIS hwn]) hVISB) (evalB_lit (by omega))
+  by_cases hvw : VIS (w : ℕ) = 0
+  · -- an unvisited target: it is visited and enqueued
+    have hwV : w ∉ V := not_mem_of_indicator_eq hVIS hwn hvw
+    have htln : tl < n := hQ.tl_lt hwV
+    set ρ₂ : Env := ((ρ₁.setArr "vis" (w : ℕ) 1).setArr "q" tl (w : ℕ)).setVar "tl" (tl + 1)
+      with hρ₂
+    have r₂ : Run B (.seq (.store "vis" (.var "w") (.lit 1))
+        (.seq (.store "q" (.var "tl") (.var "w"))
+          (.assign "tl" (.add (.var "tl") (.lit 1))))) ρ₁ ρ₂ 12 :=
+      (Run.seq (Run.store (idx := (w : ℕ)) (v := 1) (by simp [hw₁]; omega)
+          (by simp; omega) (by rw [hvis₁, length_arrOf]; exact hwn))
+        (Run.seq (Run.store (idx := tl) (v := (w : ℕ)) (by simp [htl₁]; omega)
+            (by simp [hw₁]; omega)
+            (by rw [arrs_setArr, if_neg (by decide), hq₁, length_arrOf]; exact htln))
+          (Run.assign (v := tl + 1) (by simp [htl₁]; omega)))).mono (by simp)
+    refine ⟨ρ₂, fun x => if x = (w : ℕ) then 1 else VIS x,
+      fun i => if i = tl then (w : ℕ) else Q i, K₁ + 40,
+      (Run.seq r₁ (Run.ite_true (by simp [hcvis, hvw]) r₂)).mono (by simp),
+      by omega, by simp [hρ₂, hi₁], by simp [hρ₂, ho₁], ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+      by simp [hρ₂], by simp [hρ₂]; omega, ?_⟩
+    · intro a h1 h2
+      simp only [hρ₂, arrs_setVar, arrs_setArr, if_neg h1, if_neg h2]
+      exact ha₁ ▸ rfl
+    · intro y h1 h2 h3
+      simp only [hρ₂, vars_setVar, vars_setArr, if_neg h3]
+      exact hfr₁ y h1 h2
+    · rw [hρ₂, arrs_setVar, arrs_setArr, if_neg (by decide), arrs_setArr, if_pos rfl,
+        hvis₁, set_arrOf]
+    · exact indicator_set_one hVIS hwn
+    · rw [hρ₂, arrs_setVar, arrs_setArr, if_pos rfl, arrs_setArr, if_neg (by decide),
+        hq₁, set_arrOf]
+    · have : ρ₂.vars "tl" = tl + 1 := by simp [hρ₂]
+      rw [this]
+      exact hQ.push hwV
+    · intro i hi
+      simp [show i ≠ tl by omega]
+    · rcases hcase₁ with ⟨h1, h2, h3, h4⟩ | ⟨h1, h2, h3, h4⟩ | ⟨h1, h2, h3⟩
+      · exact Or.inl ⟨h1, h2, by simp [hρ₂, h3], by simp [hρ₂, h4]⟩
+      · exact Or.inr (Or.inl ⟨h1, h2, by simp [hρ₂, h3], by simp [hρ₂, h4]⟩)
+      · exact Or.inr (Or.inr ⟨h1, by simp [hρ₂, h2], by simp [hρ₂, h3]⟩)
+  · -- the target has been visited already
+    have hwV : w ∈ V := mem_of_indicator_ne hVIS hwn hvw
+    refine ⟨ρ₁, VIS, Q, K₁ + 40,
+      (Run.seq r₁ (Run.ite_false (by simp [hcvis, hvw]) Run.skip)).mono (by simp),
+      by omega, hi₁, ho₁, fun a _ _ => by rw [ha₁], fun y h1 h2 _ => hfr₁ y h1 h2,
+      hvis₁, by rwa [Finset.insert_eq_self.2 hwV], hq₁, ?_, fun i _ => rfl,
+      le_of_eq htl₁.symm, by rw [htl₁]; exact hQ.tl_le, ?_⟩
+    · rw [htl₁, Finset.insert_eq_self.2 hwV]
+      exact hQ
+    · rcases hcase₁ with h | h | h
+      · exact Or.inl h
+      · exact Or.inr (Or.inl h)
+      · exact Or.inr (Or.inr h)
+
+/-- **The dedup, with the solver's actions.** A first or second distinct
+unmarked target is counted and enqueued; a repeat is ignored; a third
+distinct one is *skipped* — the branch that `ThinBlocks3` makes
+unreachable, and which the row scan refutes. -/
+theorem dedupCount_run (h1B : 1 < B) (hnB : n < B) (h2B : 2 < B) {ρ : Env}
+    {V : Finset (Fin n)} {VIS Q : ℕ → ℕ} {u w : Fin n} {head tl : ℕ}
+    (hvis : ρ.arrs "vis" = arrOf n VIS) (hVIS : Indicator V VIS)
+    (hq : ρ.arrs "q" = arrOf n Q) (hQ : Queue V Q head tl)
+    (hu : ρ.vars "u" = (u : ℕ)) (hw : ρ.vars "w" = (w : ℕ)) (htl : ρ.vars "tl" = tl)
+    (hsB : ρ.vars "s" + 1 < B) (htog : ρ.vars "tog" ≤ 1) (hs2 : ρ.vars "seen" ≤ 2)
+    (ht1B : ρ.vars "t1" < B) (ht2B : ρ.vars "t2" < B) :
+    ∃ (ρ' : Env) (VIS' Q' : ℕ → ℕ) (V' : Finset (Fin n)) (K : ℕ),
+      Run B (dedupStep countPush countPush .skip) ρ ρ' K ∧ K ≤ 200 ∧
+      ρ'.inp = ρ.inp ∧ ρ'.out = ρ.out ∧
+      (∀ a, a ≠ "vis" → a ≠ "q" → ρ'.arrs a = ρ.arrs a) ∧
+      (∀ y, y ≠ "s" → y ≠ "tog" → y ≠ "tl" → y ≠ "seen" → y ≠ "t1" → y ≠ "t2" →
+        ρ'.vars y = ρ.vars y) ∧
+      ρ'.arrs "vis" = arrOf n VIS' ∧ Indicator V' VIS' ∧
+      ρ'.arrs "q" = arrOf n Q' ∧ Queue V' Q' head (ρ'.vars "tl") ∧
+      (∀ i < tl, Q' i = Q i) ∧ tl ≤ ρ'.vars "tl" ∧ ρ'.vars "tl" ≤ n ∧
+      ρ'.vars "tog" ≤ 1 ∧ ρ'.vars "seen" ≤ 2 ∧
+      ((V' = insert w V ∧
+        ((ρ.vars "seen" = 0 ∧ ρ'.vars "seen" = 1 ∧ ρ'.vars "t1" = (w : ℕ) ∧
+            ρ'.vars "t2" = ρ.vars "t2") ∨
+         (ρ.vars "seen" = 1 ∧ (w : ℕ) ≠ ρ.vars "t1" ∧ ρ'.vars "seen" = 2 ∧
+            ρ'.vars "t1" = ρ.vars "t1" ∧ ρ'.vars "t2" = (w : ℕ))) ∧
+        (((u : ℕ) < (w : ℕ) ∧ ρ.vars "tog" = 0 ∧ ρ'.vars "s" = ρ.vars "s" + 1 ∧
+            ρ'.vars "tog" = 1) ∨
+         ((u : ℕ) < (w : ℕ) ∧ ρ.vars "tog" = 1 ∧ ρ'.vars "s" = ρ.vars "s" ∧
+            ρ'.vars "tog" = 0) ∨
+         (¬ ((u : ℕ) < (w : ℕ)) ∧ ρ'.vars "s" = ρ.vars "s" ∧
+            ρ'.vars "tog" = ρ.vars "tog"))) ∨
+       (ρ' = ρ ∧ V' = V ∧ ρ.vars "seen" ≠ 0 ∧
+        ((w : ℕ) = ρ.vars "t1" ∨ (ρ.vars "seen" = 2 ∧ (w : ℕ) = ρ.vars "t2") ∨
+         (ρ.vars "seen" = 2 ∧ (w : ℕ) ≠ ρ.vars "t1" ∧ (w : ℕ) ≠ ρ.vars "t2")))) := by
+  have hwn : (w : ℕ) < n := w.2
+  have hsB' : ρ.vars "seen" < B := by omega
+  have hwB : ρ.vars "w" < B := by rw [hw]; omega
+  -- the two branches that record a new target both end in `countPush`
+  have hnew : ∀ (ρa : Env), ρa.arrs = ρ.arrs → ρa.inp = ρ.inp → ρa.out = ρ.out →
+      (∀ y, y ≠ "seen" → y ≠ "t1" → y ≠ "t2" → ρa.vars y = ρ.vars y) →
+      ∃ (ρ' : Env) (VIS' Q' : ℕ → ℕ) (K : ℕ), Run B countPush ρa ρ' K ∧ K ≤ 60 ∧
+        ρ'.inp = ρ.inp ∧ ρ'.out = ρ.out ∧
+        (∀ a, a ≠ "vis" → a ≠ "q" → ρ'.arrs a = ρ.arrs a) ∧
+        (∀ y, y ≠ "s" → y ≠ "tog" → y ≠ "tl" → ρ'.vars y = ρa.vars y) ∧
+        ρ'.arrs "vis" = arrOf n VIS' ∧ Indicator (insert w V) VIS' ∧
+        ρ'.arrs "q" = arrOf n Q' ∧ Queue (insert w V) Q' head (ρ'.vars "tl") ∧
+        (∀ i < tl, Q' i = Q i) ∧ tl ≤ ρ'.vars "tl" ∧ ρ'.vars "tl" ≤ n ∧
+        (((u : ℕ) < (w : ℕ) ∧ ρ.vars "tog" = 0 ∧ ρ'.vars "s" = ρ.vars "s" + 1 ∧
+            ρ'.vars "tog" = 1) ∨
+         ((u : ℕ) < (w : ℕ) ∧ ρ.vars "tog" = 1 ∧ ρ'.vars "s" = ρ.vars "s" ∧
+            ρ'.vars "tog" = 0) ∨
+         (¬ ((u : ℕ) < (w : ℕ)) ∧ ρ'.vars "s" = ρ.vars "s" ∧
+            ρ'.vars "tog" = ρ.vars "tog")) := by
+    intro ρa ha hi ho hfr
+    obtain ⟨ρ', VIS', Q', K, hrun, hK, hi', ho', ha', hfr', hv1, hv2, hv3, hv4, hv5,
+      hv6, hv7, hcase⟩ :=
+      countPush_run (B := B) (V := V) (VIS := VIS) (Q := Q) (u := u) (w := w)
+        (head := head) (tl := tl) h1B hnB (by rw [ha, hvis]) hVIS (by rw [ha, hq]) hQ
+        (by rw [hfr "u" (by decide) (by decide) (by decide), hu])
+        (by rw [hfr "w" (by decide) (by decide) (by decide), hw])
+        (by rw [hfr "tl" (by decide) (by decide) (by decide), htl])
+        (by rw [hfr "s" (by decide) (by decide) (by decide)]; omega)
+        (by rw [hfr "tog" (by decide) (by decide) (by decide)]; omega)
+    have hsa : ρa.vars "s" = ρ.vars "s" := hfr "s" (by decide) (by decide) (by decide)
+    have hta : ρa.vars "tog" = ρ.vars "tog" :=
+      hfr "tog" (by decide) (by decide) (by decide)
+    refine ⟨ρ', VIS', Q', K, hrun, hK, by rw [hi', hi], by rw [ho', ho], ?_, hfr',
+      hv1, hv2, hv3, hv4, hv5, hv6, hv7, ?_⟩
+    · intro a h1 h2
+      rw [ha' a h1 h2, ha]
+    · rcases hcase with ⟨h1, h2, h3, h4⟩ | ⟨h1, h2, h3, h4⟩ | ⟨h1, h2, h3⟩
+      · exact Or.inl ⟨h1, by omega, by omega, h4⟩
+      · exact Or.inr (Or.inl ⟨h1, by omega, by omega, h4⟩)
+      · exact Or.inr (Or.inr ⟨h1, by omega, by omega⟩)
+  by_cases hs0 : ρ.vars "seen" = 0
+  · -- the block's first unmarked target: counted and enqueued
+    set ρa : Env := (ρ.setVar "seen" 1).setVar "t1" (ρ.vars "w") with hρa
+    obtain ⟨ρ', VIS', Q', K, hrun, hK, hi', ho', ha', hfr', hv1, hv2, hv3, hv4, hv5,
+      hv6, hv7, hcase⟩ :=
+      hnew ρa (by simp [hρa]) (by simp [hρa]) (by simp [hρa])
+        (fun y h1 h2 _ => by simp [hρa, h1, h2])
+    refine ⟨ρ', VIS', Q', insert w V, K + 60,
+      (Run.ite_true ((evalB_condEq (evalB_var hsB') (evalB_lit (by omega))).trans
+          (by simp [hs0]))
+        (Run.seq (Run.assign (v := 1) (by simp; omega))
+          (Run.seq (Run.assign (v := ρ.vars "w") (by simp; omega)) hrun))).mono
+        (by simp; omega),
+      by omega, hi', ho', ha', ?_, hv1, hv2, hv3, hv4, hv5, hv6, hv7, ?_, ?_,
+      Or.inl ⟨rfl, Or.inl ⟨hs0, ?_, ?_, ?_⟩, hcase⟩⟩
+    · intro y h1 h2 h3 h4 h5 h6
+      rw [hfr' y h1 h2 h3]
+      simp [hρa, h4, h5]
+    · rcases hcase with ⟨-, -, -, h⟩ | ⟨-, -, -, h⟩ | ⟨-, -, h⟩
+      · omega
+      · omega
+      · omega
+    · rw [hfr' "seen" (by decide) (by decide) (by decide)]
+      simp [hρa]
+    · rw [hfr' "seen" (by decide) (by decide) (by decide)]
+      simp [hρa]
+    · rw [hfr' "t1" (by decide) (by decide) (by decide)]
+      simp [hρa, hw]
+    · rw [hfr' "t2" (by decide) (by decide) (by decide)]
+      simp [hρa]
+  · by_cases hwt1 : ρ.vars "w" = ρ.vars "t1"
+    · -- a repeat of the first target
+      exact ⟨ρ, VIS, Q, V, 200, (Run.ite_false ((evalB_condEq (evalB_var hsB')
+          (evalB_lit (by omega))).trans (by simp [hs0]))
+          (neTest_eq hwB ht1B hwt1)).mono (by simp), le_rfl, rfl, rfl,
+        fun a _ _ => rfl, fun y _ _ _ _ _ _ => rfl, hvis, hVIS, hq, by rw [htl]; exact hQ,
+        fun i _ => rfl, by rw [htl], by rw [htl]; exact hQ.tl_le, htog, hs2,
+        Or.inr ⟨rfl, rfl, hs0, Or.inl (by rw [← hw, hwt1])⟩⟩
+    · by_cases hs1 : ρ.vars "seen" = 1
+      · -- the block's second distinct unmarked target
+        set ρa : Env := (ρ.setVar "seen" 2).setVar "t2" (ρ.vars "w") with hρa
+        obtain ⟨ρ', VIS', Q', K, hrun, hK, hi', ho', ha', hfr', hv1, hv2, hv3, hv4, hv5,
+          hv6, hv7, hcase⟩ :=
+          hnew ρa (by simp [hρa]) (by simp [hρa]) (by simp [hρa])
+            (fun y h1 _ h3 => by simp [hρa, h1, h3])
+        refine ⟨ρ', VIS', Q', insert w V, K + 100,
+          (Run.ite_false ((evalB_condEq (evalB_var hsB') (evalB_lit (by omega))).trans
+              (by simp [hs0]))
+            (neTest_ne hwB ht1B hwt1
+              (Run.ite_true ((evalB_condEq (evalB_var hsB') (evalB_lit (by omega))).trans
+                  (by simp [hs1]))
+                (Run.seq (Run.assign (v := 2) (by simp; omega))
+                  (Run.seq (Run.assign (v := ρ.vars "w") (by simp; omega))
+                    hrun))))).mono (by simp; omega),
+          by omega, hi', ho', ha', ?_, hv1, hv2, hv3, hv4, hv5, hv6, hv7, ?_, ?_,
+          Or.inl ⟨rfl, Or.inr ⟨hs1, by rw [← hw]; exact hwt1, ?_, ?_, ?_⟩, hcase⟩⟩
+        · intro y h1 h2 h3 h4 h5 h6
+          rw [hfr' y h1 h2 h3]
+          simp [hρa, h4, h6]
+        · rcases hcase with ⟨-, -, -, h⟩ | ⟨-, -, -, h⟩ | ⟨-, -, h⟩
+          · omega
+          · omega
+          · omega
+        · rw [hfr' "seen" (by decide) (by decide) (by decide)]
+          simp [hρa]
+        · rw [hfr' "seen" (by decide) (by decide) (by decide)]
+          simp [hρa]
+        · rw [hfr' "t1" (by decide) (by decide) (by decide)]
+          simp [hρa]
+        · rw [hfr' "t2" (by decide) (by decide) (by decide)]
+          simp [hρa, hw]
+      · -- a repeat of the second target, or a third distinct one: nothing happens
+        have hs2' : ρ.vars "seen" = 2 := by omega
+        by_cases hwt2 : ρ.vars "w" = ρ.vars "t2"
+        · exact ⟨ρ, VIS, Q, V, 200, (Run.ite_false ((evalB_condEq (evalB_var hsB')
+              (evalB_lit (by omega))).trans (by simp [hs0]))
+              (neTest_ne hwB ht1B hwt1
+                (Run.ite_false ((evalB_condEq (evalB_var hsB')
+                    (evalB_lit (by omega))).trans (by simp [hs1]))
+                  (neTest_eq hwB ht2B hwt2)))).mono (by simp), le_rfl, rfl, rfl,
+            fun a _ _ => rfl, fun y _ _ _ _ _ _ => rfl, hvis, hVIS, hq,
+            by rw [htl]; exact hQ, fun i _ => rfl, by rw [htl],
+            by rw [htl]; exact hQ.tl_le, htog, hs2,
+            Or.inr ⟨rfl, rfl, hs0, Or.inr (Or.inl ⟨hs2', by rw [← hw, hwt2]⟩)⟩⟩
+        · exact ⟨ρ, VIS, Q, V, 200, (Run.ite_false ((evalB_condEq (evalB_var hsB')
+              (evalB_lit (by omega))).trans (by simp [hs0]))
+              (neTest_ne hwB ht1B hwt1
+                (Run.ite_false ((evalB_condEq (evalB_var hsB')
+                    (evalB_lit (by omega))).trans (by simp [hs1]))
+                  (neTest_ne hwB ht2B hwt2 Run.skip)))).mono (by simp), le_rfl, rfl, rfl,
+            fun a _ _ => rfl, fun y _ _ _ _ _ _ => rfl, hvis, hVIS, hq,
+            by rw [htl]; exact hQ, fun i _ => rfl, by rw [htl],
+            by rw [htl]; exact hQ.tl_le, htog, hs2,
+            Or.inr ⟨rfl, rfl, hs0, Or.inr (Or.inr ⟨hs2', by rw [← hw]; exact hwt1,
+              by rw [← hw]; exact hwt2⟩)⟩⟩
+
 end Lax15Proofs.VC3
