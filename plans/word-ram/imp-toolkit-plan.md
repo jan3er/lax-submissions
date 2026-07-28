@@ -325,8 +325,10 @@ registered, `pull-db` broken) is unresolved and untouched by this work.
 - [x] **P5 pilot retrofit (Lax11 CC) — done; gate MISSED** (1,152 vs 505
   on the re-cut glue gate). Per the plan: **stopped**, P6 not started,
   verdict and options below for Jan.
-- [ ] P6 remaining retrofits — **blocked on Jan's call** (see P5 verdict)
-- [ ] P7 pins and drafts (registration excluded, JAN-FLAG)
+- [x] P6 remaining retrofits — **declared OUT OF SCOPE** (owner decision,
+  Jan, 2026-07-28: option (a) of the P5 verdict). The kit's economics
+  favor new code written in `Spec` form; the retrofits stop at the pilot.
+- [ ] P7 pins and drafts — **in progress** (registration excluded, JAN-FLAG)
 
 ### P1, as built (2026-07-28)
 
