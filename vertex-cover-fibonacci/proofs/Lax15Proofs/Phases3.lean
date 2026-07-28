@@ -1901,4 +1901,90 @@ theorem expandBody3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
   · rw [vars_setVar, if_neg (show ¬ ("tog" = "head") by decide), htg₀]
     omega
 
+/-! ### What is left of the solver
+
+Three lemmas, in this order. Everything they need is above or in
+`Solver.lean`; nothing below has to be redesigned.
+
+**1. `drain3_run`** — `while head < tl do expandBody3`, entered right
+after a root `r` has been visited, enqueued and the toggle reset. Its
+invariant, with `V₀` the visited set at entry, `s₀` the cost at entry
+and `c v := ((ResNbhd G M v).filter (fun x => (v : ℕ) < (x : ℕ))).card`:
+
+* `Queue V Q head (ν.vars "tl")` for the current visited set `V`, and
+  `V₀ ⊆ V`, and `∀ v ∈ V, v ∉ M`;
+* *closure*: `∀ i < head, ResNbhd G M (q i) ⊆ V` — what `expandBody3`
+  adds at each turn;
+* *reach*: `∀ v ∈ V, v ∈ V₀ ∨ (R G M).Reachable r v`;
+* `ν.vars "s" = s₀ + (E + 1) / 2` and `ν.vars "tog" = E % 2`, where
+  `E = ∑ i ∈ Finset.range head, c (q i)` — the toggle in closed form
+  with `tog₀ = 0`, which is why the root resets it.
+
+The potential **must read the queue array**, since this rung has no slot
+counter:
+
+    Φ ν = 300 * (2 * m - ∑ i ∈ Finset.range (ν.vars "head"),
+              (offset g ((ν.arrs "q").getD i 0 + 1)
+                - offset g ((ν.arrs "q").getD i 0)))
+          + 70 * (n - ν.vars "head")
+
+This is legitimate because `expandBody3` writes `q` only at indices
+`≥ tl > head`, so the prefix the sum reads never moves. That the sum
+stays `≤ 2 * m` is `Queue.inj` — the dequeued vertices are distinct —
+together with the blocks being disjoint subintervals of `[0, 2m)`; the
+pure-side form of that is
+
+    ∀ S : Finset (Fin n), ∑ v ∈ S, (offset g ((v : ℕ) + 1) - offset g (v : ℕ)) ≤ 2 * m
+
+which telescopes over `Finset.univ` to `offset g n = 2 * m`.
+
+At exit `head = tl`, so *every* queued vertex is expanded and `V` is
+closed under `ResNbhd`; with *reach* that makes `V \ V₀` exactly the
+`R G M`-component of `r`, and
+
+    E = ∑ v ∈ V \ V₀, c v = (compEdges (R G M) (connectedComponentMk r)).card
+
+— each residual edge counted once, at its smaller endpoint. That last
+identity is the one genuinely new pure lemma; it is
+`Finset.card_eq_sum_card_fiberwise` for the map `e ↦ e.inf` from
+`compEdges` into the component, with `inf_mem` and
+`inf_notMem_and_sup_mem_resNbhd` (both in `Residual.lean`) identifying
+the fibre over `v` with `(ResNbhd G M v).filter (v < ·)`.
+
+**2. `rootStep_run` and the sweep** — `while r < n do rootStep`. The
+sweep invariant, with `P r := {C : (R G M).ConnectedComponent |
+∃ v ∈ C, (v : ℕ) < r ∧ v ∉ M}`:
+
+* the visited set is the union of the components in `P (ν.vars "r")`;
+* `ν.vars "s" = ∑ C ∈ P (ν.vars "r"), ((compEdges (R G M) C).card + 1) / 2`.
+
+An unmarked, unvisited root adds exactly one component to `P`, and the
+drain adds `⌈e_C / 2⌉` to `s`; a marked or already visited one adds
+nothing (a marked vertex has no `R`-edges, so its component contributes
+`0`). At `r = n` every component with an unmarked vertex is in `P`, and
+the ones without contribute nothing, so `s = compCost G M` by
+`compCost_eq`. The sweep's own potential is `Pot + 400 * (n - r)`, with
+the drain's leftover paying for the searches — the reason `while_pot`
+bounds the cost by the potential *drop*.
+
+**3. `solve_run`** — the whole of `solveBlock`, final `ite` included, so
+that B5 can consume it with a single `Run.seq`. It needs one hypothesis
+rung A never wanted: `τ.vars "n" = n` (the read phase sets it; `Rep` is
+silent about it). Conclusion:
+
+    ∃ τ' K, Run B solveBlock τ τ' K ∧ τ'.inp = τ.inp ∧ τ'.out = τ.out ∧
+      ((compCost G (marked C.frames) ≤ C.bud ∧
+          Rep n m O T ⟨C.frames, 2, C.bud, 1⟩ τ') ∨
+       (¬ compCost G (marked C.frames) ≤ C.bud ∧
+          Rep n m O T ⟨C.frames, 1, C.bud, C.ans⟩ τ')) ∧
+      K ≤ 400 * (n + 2 * m + 1)
+
+`Rep` transports by `Rep.of_frames_eq`: the solver writes only `vis`,
+`q`, `i`, `r`, `head`, `tl`, `s`, `tog`, `mode`, `ans` and the row
+scan's registers, and `Rep` names none of the first eight. `s < B` for
+the final comparison comes from `compCost ≤ (ResEdges G M).card ≤ m`.
+B5 then turns `compCost ≤ bud` into `Ok` by `ok_iff_compCost_le`, whose
+`hdeg` hypothesis is `resDeg_le_two_of_thinBlocks3` applied to the
+scan's `ThinBlocks3`. -/
+
 end Lax15Proofs.VC3
