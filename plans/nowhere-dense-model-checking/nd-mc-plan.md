@@ -385,12 +385,16 @@ Layer L4 — RAM realization (Lax13 toolkit):
   frontmatter + formalization notes; C0 and the three theorem
   concepts stated as axioms; walk-distance API module proofs-side.
   **Gate: Jan endorse-reviews the surface; statements freeze.**
-- [ ] **P2 — locality engine** (6–10 sessions, three parallel Opus
-  tracks). (a) `semLocal` + `separate`; (b) `clusters` +
-  `scatterCore`; (c) shared syntax lemmas (UsesOnly, weakening,
-  DRank monotonicity = Obs 4/6). Then `farQuant`, `locality`,
-  `normalForm` serialized on (a)+(b)+(c). Acceptance: locality
-  concept discharged, zero sorry, no statement drift.
+- [x] **P2 — locality engine** — done 2026-07-28, 3 sessions.
+  Sessions 1–2 landed semLocal/clusters/scatterCore/syntax lemmas and
+  forced one surface revision (guard-set `exL`, endorsed via
+  `exl-guard-decision.md`; the whole-context guard made the two
+  axioms unprovable). Session 3: `separate` (2-way guard-side split,
+  statement gained `1 ≤ a`, `1 ≤ b`), `farQuant`, BC-algebra +
+  `sat_scatterFml`, assembly. Both concept axioms discharged
+  (`Lax3Proofs.Assembly.locality`/`normalForm`, assumptions: []);
+  acceptance met: zero sorry, no statement drift beyond the recorded
+  revision.
 - [ ] **P3 — splitter + covers** (2–4 sessions). L2 items 7–9;
   both theorem concepts discharged against Lax12 assumptions.
   Strategy stated as a function with its win proof (constructiveness

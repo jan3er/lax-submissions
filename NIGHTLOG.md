@@ -2951,3 +2951,40 @@ split (a) separate (b) farQuant (c) BC-algebra + scatterFml, then
 serialized assembly. P2 is PAUSED on Jan's endorsement of the
 revised surface; if endorsed, the rework is already done and the
 campaign resumes at zero extra cost.
+
+## ND-MC P2 session 3 — locality + normalForm discharged, P2 complete — 2026-07-28
+Jan: "continue with the nowhere dense plan" — read as the endorsement
+the session-2 escalation asked for. `nd-mc-exl-guard` merged
+(400b811); the guard-set `DistFO.lean` is now the surface (flag for
+re-endorsement at the next surface review). Three parallel Opus
+tracks on pre-wired stub modules, then one serialized assembly track:
+Separation.lean (3b4d2d0) — Lem 8 in reindexed per-side contexts,
+with two supervisor deviations: added `1 ≤ a`, `1 ≤ b` (no local
+rank-(·,0) formula exists at arity 0) and a 2-way guard-side split in
+the exL case (the guard set makes the witness's side syntactic; the
+design record's 3-way r⁻ split and its annulus atoms were a leftover
+of the whole-context surface). FarQuant.lean (2f53d33) — Lem 12:
+capsule via unconditional sat_rename, candidate (t : Fin k, I, sel)
+recognition by distance atoms (radii ≤ 8·9^(k−1)·r, under
+ρ⁻(k,q'+1)), scatterCore at H = ρ⁺(k+1,q'), counting by subset
+patterns of ≤ k cluster tests `exL r (sel-fiber) β↑` against scatter
+sentences ⟨4R, β, |T|+1⟩. BCAlgebra.lean + ScatterFml.lean (5ef8eef)
+— BC clause lemmas, collapse/patternBC/assignments/
+exists_eval_sum_iff/pullOut (scatter atoms out of a quantifier),
+interp with rank transport; sat_scatterFml with NO rank/locality
+hypotheses, plus the five normalForm side-condition bridges.
+Assembly.lean (1d96817) — structural induction: exL via pullOut
+(interp truth constant = Separation.alwaysTrue, NOT verum which
+spends an exU); exU at arity 0 → scatter ⟨4ρ⁻(1,q), ψ_τ, 1⟩; exU at
+arity ≥ 1 → near/far split at ρ⁻(k+1,q), far via separate
+(e₁ = castSucc, e₂ = const last) then farQuant per capsule.
+`Lax3Proofs.Assembly.locality`/`normalForm` carry `conclusion:`
+frontmatter; build-output.json registers both with assumptions: [].
+Gates: full `lax build` green (concepts 2016 + proofs 1079 jobs);
+lean_verify on both = propext/Classical.choice/Quot.sound; zero
+diagnostics all five new modules; supervisor audits found no
+splitter-rule or namespace violations. P2 acceptance met: both
+concept axioms discharged, zero sorry, no statement drift. Note for
+polish (non-blocking): FarQuant carries private copies of a few BC
+helpers; could later import BCAlgebra instead. Next: P3 splitter +
+covers (plan L2 items 7–9), on the now-live locality interface.
