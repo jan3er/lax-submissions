@@ -13,6 +13,7 @@ import Lax3Proofs.SplitterBasics
 import Lax3Proofs.SplitterMono
 import Lax3Proofs.SplitterWin
 import Lax3Proofs.CoverConstruction
+import Lax3Proofs.Augmentation
 import Lax3Proofs.Isolate
 import Lax3Proofs.Relativize
 import Lax3Proofs.Reduction
