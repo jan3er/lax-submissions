@@ -509,7 +509,7 @@ theorem rowScan_spec (B K hi Kb : ℕ) (j jend : String) (c : Com)
       ∃ σ' K', Run B c σ σ' K' ∧ I σ' ∧ σ'.vars j = σ.vars j + 1 ∧ K' ≤ Kb)
     (hPI : ∀ σ, P σ → I σ) (hK : ∀ σ, P σ → (Kb + 4) * (hi - σ.vars j) + 4 ≤ K) :
     Spec B P (scan j jend c) (fun _ σ' => I σ' ∧ σ'.vars j = hi) K := by
-  refine Spec.forRange (x := j) (m := jend) (c := c) I hi Kb
+  refine Spec.forRange j jend (c := c) I hi Kb K
     (fun σ hI => by have := hIb σ hI; omega) (fun σ hI => by have := (hIb σ hI).1; omega)
     (fun σ hI => (hIb σ hI).1) (fun σ hI => (hIb σ hI).2) ?_ hPI hK
   refine Spec.of_exists (fun σ hσ => ?_)

@@ -4,6 +4,7 @@ import Lax13Proofs.Lib.Stack
 import Lax13Proofs.Lib.Trail
 import Lax13Proofs.Lib.Queue
 import Lax13Proofs.Lib.Csr
+import Lax13Proofs.Lib.Fill
 
 /-!
 The data-structure library: one module per structure, each an
@@ -23,4 +24,9 @@ stored in, and its two scans — one row, and the whole array with the
 owner pointer advancing — are the most-copied loops here; both are
 combinators with the body open, and the second is where the amortized
 potential of an owner-advancing pass stops being the caller's problem.
+`Lib/Fill.lean` is the array a counter fills cell by cell — what a flat
+pass over an array leaves behind — and the one module whose export is a
+whole phase: `Fill.loop_spec` is `Spec.forRangeZero` and the module's
+one operation put together, so that clearing an array is one line at a
+call site.
 -/

@@ -140,6 +140,29 @@ theorem Spec.store {a : String} {i e : Expr} {idx f : Env → ℕ}
     Spec B P (.store a i e) (fun σ σ' => σ' = σ.setArr a (idx σ) (f σ)) (1 + i.size + e.size) :=
   fun σ hσ => ⟨_, Run.store (hi σ hσ) (he σ hσ) (hidx σ hσ), rfl⟩
 
+/-! The two tape operations. Both are stated the way `assign` and
+`store` are — the caller names what the operation moves as a function of
+the state it is in — and both are relational in the tape they touch,
+since a phase says how the tape it was handed *changed*, never what it
+is. -/
+
+/-- **A read**: the head of the input tape goes into `x`, and the tape
+loses it. The caller names the head and what is left; naming them is the
+side condition, since a read from an exhausted tape has no derivation
+at all. -/
+theorem Spec.read {x : String} {v : Env → ℕ} {rest : Env → List ℕ}
+    (h : ∀ σ, P σ → σ.inp = v σ :: rest σ) :
+    Spec B P (.read x) (fun σ σ' => σ' = { σ.setVar x (v σ) with inp := rest σ }) 1 :=
+  fun σ hσ => ⟨_, Run.read (h σ hσ), rfl⟩
+
+/-- **A write**: the value of the expression is appended to the output
+tape. The value is named as a function of the state, and being below the
+bound is part of naming it — `evalB` is the bounded evaluation. -/
+theorem Spec.write {e : Expr} {f : Env → ℕ}
+    (h : ∀ σ, P σ → e.evalB B σ = some (f σ)) :
+    Spec B P (.write e) (fun σ σ' => σ' = { σ with out := σ.out ++ [f σ] }) (1 + e.size) :=
+  fun σ hσ => ⟨_, Run.write (h σ hσ), rfl⟩
+
 /-- **Sequencing**, the rule the interface exists for. `hmid` says the
 first phase lands in the second's precondition, `hpost` composes the two
 relations into the one wanted; neither mentions a `Run`, and the result
@@ -248,8 +271,15 @@ the caller owes a body specification and the two bounds `x ≤ N` and
 
 The postcondition is the one the caller wants after a scan — the
 invariant, with the counter *at* the bound, rather than a failed
-condition to be read again. -/
-theorem Spec.forRange {x m : String} (I : Env → Prop) (N Kb : ℕ)
+condition to be read again.
+
+The two counter names and the cost are **explicit**, because nothing but
+the conclusion determines them: a use whose result is consumed by an
+`obtain` has no expected type, so with `x` and `m` implicit the
+invariant's own hypotheses — `∀ σ, I σ → σ.vars x < B` — are asked to
+elaborate against a metavariable and fail. `B`, `P` and `c` stay
+implicit; the body specification determines all three. -/
+theorem Spec.forRange (x m : String) (I : Env → Prop) (N Kb K : ℕ)
     (hxB : ∀ σ, I σ → σ.vars x < B) (hmB : ∀ σ, I σ → σ.vars m < B)
     (hm : ∀ σ, I σ → σ.vars m = N) (hxN : ∀ σ, I σ → σ.vars x ≤ N)
     (hbody : Spec B (fun σ => I σ ∧ σ.vars x < N) c
@@ -282,5 +312,37 @@ theorem Spec.forRange {x m : String} (I : Env → Prop) (N Kb : ℕ)
     have h₁ := hm σ' hq.1
     have h₂ := hxN σ' hq.1
     omega
+
+/-- **The counted scan from zero**, `x := 0; while x < m do c`, which is
+what a flat pass over an array is actually written as: `Spec.forRange`
+starts wherever the counter happens to stand, and every site in the repo
+starts it at zero on the line before.
+
+Nothing is asked about the initial state but that the invariant holds
+once the counter has been zeroed — which is where a caller's "the array
+is the right length and nothing of it is filled in yet" goes. The two
+bounds `Spec.forRange` wants of the counter follow from `N < B` and the
+invariant's own `x ≤ N` and `m = N`, so a counter phase owes neither;
+and the cost is not a parameter but a *result*, `(Kb + 4) · N + 6`, the
+loop's `(Kb + 4) · N + 4` plus the two the initialisation costs.
+
+A caller whose precondition is not literally this one composes with
+`Spec.pre`; there is deliberately no `P` and no `K` to be left
+undetermined here. -/
+theorem Spec.forRangeZero (x m : String) (I : Env → Prop) (N Kb : ℕ) (hNB : N < B)
+    (hxN : ∀ σ, I σ → σ.vars x ≤ N) (hm : ∀ σ, I σ → σ.vars m = N)
+    (hbody : Spec B (fun σ => I σ ∧ σ.vars x < N) c
+      (fun σ σ' => I σ' ∧ σ'.vars x = σ.vars x + 1) Kb) :
+    Spec B (fun σ => I (σ.setVar x 0))
+      (.seq (.assign x (.lit 0)) (.while (.lt (.var x) (.var m)) c))
+      (fun _ σ' => I σ' ∧ σ'.vars x = N) ((Kb + 4) * N + 6) := by
+  intro σ hσ
+  obtain ⟨σ', hrun, hI', hxN'⟩ :=
+    (Spec.forRange x m I N Kb ((Kb + 4) * N + 4)
+      (fun _ hτ => lt_of_le_of_lt (hxN _ hτ) hNB) (fun _ hτ => hm _ hτ ▸ hNB) hm hxN hbody
+      (fun _ h => h)
+      (fun _ _ => Nat.add_le_add_right (Nat.mul_le_mul_left _ (Nat.sub_le _ _)) 4)).run hσ
+  exact ⟨σ', (Run.seq (Run.assign (v := 0) (by simp; omega)) hrun).mono (by simp; omega),
+    hI', hxN'⟩
 
 end Lax13Proofs.Reasoning

@@ -40,6 +40,14 @@ Three implementation decisions are what make it usable.
   does. They are in scope for `simp_all`, `omega` and `‹_›`, and that is
   the whole interface.
 
+The two tape operations are walked like the rest. A `write` is an
+`assign` whose value lands on the output tape, and asks nothing beyond
+the value bound evaluating its expression already owes. A `read` is the
+one command that can fail to have a derivation at all — the tape may be
+exhausted — so it owes `σ.inp ≠ []`, taken from the precondition the way
+an array's range condition is, and names what it read by `headD` and
+`tail` the way an array read is named by `getD`.
+
 Loops are deliberately not walked: `Spec.while_potential`,
 `Spec.while_count` and `Spec.forRange` want an invariant and a potential,
 which is content and not bookkeeping. A loop enters a block the way any
@@ -160,6 +168,27 @@ theorem store (B : ℕ) (σ : Env) (a : String) (i e : Expr) (idx v : ℕ)
     (hidx : idx < (σ.arrs a).length) :
     Run B (.store a i e) σ (σ.setArr a idx v) (1 + i.size + e.size) := Run.store hi he hidx
 
+/-- **A read**, with the head of the tape and what is left of it named
+by `headD` and `tail` rather than left as an existential — the same
+choice `eval_get` makes, and for the same reason: the walk owes the side
+condition anyway, and a hypothesis about the tape is then an equation
+between two concrete lists. The side condition is that the tape is not
+exhausted; a read from an exhausted tape has no derivation at all, so
+this is the one command whose *definedness* the precondition has to
+carry. -/
+theorem read (B : ℕ) (σ : Env) (x : String) (h : σ.inp ≠ []) :
+    Run B (.read x) σ { σ.setVar x (σ.inp.headD 0) with inp := σ.inp.tail } 1 := by
+  refine Run.read (v := σ.inp.headD 0) (rest := σ.inp.tail) ?_
+  cases hl : σ.inp with
+  | nil => exact absurd hl h
+  | cons v rest => simp
+
+/-- **A write**: the value goes on the end of the output tape. Its being
+below the bound is `evalB`'s obligation, so a write asks nothing beyond
+what evaluating its expression already did. -/
+theorem write (B : ℕ) (σ : Env) (e : Expr) (v : ℕ) (h : e.evalB B σ = some v) :
+    Run B (.write e) σ { σ with out := σ.out ++ [v] } (1 + e.size) := Run.write h
+
 theorem seq (B : ℕ) (c d : Com) (σ σ' σ'' : Env) (K K' : ℕ)
     (h : Run B c σ σ' K) (h' : Run B d σ' σ'' K') :
     Run B (.seq c d) σ σ'' (K + K') := h.seq h'
@@ -254,10 +283,21 @@ def sideTac : TacticM (TSyntax `tactic) := `(tactic| first | omega | (simp <;> o
 `accumulated cost ≤ announced cost`, on concrete syntax. -/
 def costTac : TacticM (TSyntax `tactic) := `(tactic| first | simp | (simp <;> omega) | omega)
 
-/-- A value-bound obligation: tried at once, deferred if it does not go. -/
-def mkSide (cfg : Cfg) (mv : MVarId) (ty : Lean.Expr) : TacticM Lean.Expr := mv.withContext do
+/-- The discharger for the one obligation that is not arithmetic: that
+the input tape a `read` is about is not exhausted. `omega` knows nothing
+about lists, so this one takes the precondition's own conjunct
+(`assumption`) or the same conjunct after the walk's chain of `setVar`s
+is collapsed off the tape (`simp_all`). -/
+def inpTac : TacticM (TSyntax `tactic) := `(tactic| first | assumption | simp_all)
+
+/-- A value-bound obligation: tried at once, deferred if it does not go.
+`tac` overrides the standard discharger, which is what the tape
+condition of a `read` needs. -/
+def mkSide (cfg : Cfg) (mv : MVarId) (ty : Lean.Expr) (tac : Option (TSyntax `tactic) := none) :
+    TacticM Lean.Expr := mv.withContext do
   let m ← mkFreshExprSyntheticOpaqueMVar ty
-  unless ← tryClose m.mvarId! (← sideTac) do
+  let tac ← match tac with | some t => pure t | none => sideTac
+  unless ← tryClose m.mvarId! tac do
     cfg.side.modify (·.push m.mvarId!)
   return m
 
@@ -418,6 +458,20 @@ partial def exec (cfg : Cfg) (mv : MVarId) (c σ : Lean.Expr) (specs : Array Lea
       let (h, ty, mv) ← mkHave mv `hrun val
       let (σ', K) ← runParts ty
       kont mv σ' K h specs
+  | (``Lax13Proofs.Imp.Com.read, #[x]) =>
+      let inp := mkApp (mkConst ``Lax13Proofs.Imp.Env.inp) σ
+      let nil ← mv.withContext <| mkAppOptM ``List.nil #[mkConst ``Nat]
+      let hne ← mkSide cfg mv (← mv.withContext <| mkAppM ``Ne #[inp, nil]) (← inpTac)
+      let val := mkAppN (mkConst ``RunStep.read) #[cfg.B, σ, x, hne]
+      let (h, ty, mv) ← mkHave mv `hrun val
+      let (σ', K) ← runParts ty
+      kont mv σ' K h specs
+  | (``Lax13Proofs.Imp.Com.write, #[e]) =>
+      let (v, he) ← evalE cfg mv σ e
+      let val := mkAppN (mkConst ``RunStep.write) #[cfg.B, σ, e, v, he]
+      let (h, ty, mv) ← mkHave mv `hrun val
+      let (σ', K) ← runParts ty
+      kont mv σ' K h specs
   | (``Lax13Proofs.Imp.Com.seq, #[c₁, c₂]) =>
       exec cfg mv c₁ σ specs fun mv₁ σ₁ K₁ h₁ specs₁ =>
         exec cfg mv₁ c₂ σ₁ specs₁ fun mv₂ σ₂ K₂ h₂ specs₂ => do
@@ -459,13 +513,13 @@ partial def exec (cfg : Cfg) (mv : MVarId) (c σ : Lean.Expr) (specs : Array Lea
   | _ =>
       let hint :=
         if cfg.specs.isEmpty then
-          m!"(a loop or a tape operation is stepped over by handing run_vcg a Spec \
-            for it: `run_vcg [my_loop_spec]`)"
+          m!"(a loop is stepped over by handing run_vcg a Spec for it: \
+            `run_vcg [my_loop_spec]`)"
         else
           m!"(no specification handed to run_vcg is about it: {specs.size} of \
             {cfg.specs.size} still unconsumed on this path, and none of the {cfg.specs.size} \
-            has this command. A loop or a tape operation is stepped over only by a Spec \
-            whose command is syntactically the one here.)"
+            has this command. A loop is stepped over only by a Spec whose command is \
+            syntactically the one here.)"
       throwError "run_vcg: no rule for {c}\n{hint}"
 
 end
@@ -513,8 +567,9 @@ open RunVCG in
 /-- **Symbolically execute a concrete block of IMP+.**
 
 The goal is a `Spec B P c Q K` — or the existential shape phase lemmas
-had before `Spec` — whose command `c` is built from `skip`, `assign`,
-`store`, `seq` and `ite`. `run_vcg` runs it: it introduces the initial
+had before `Spec`, or either of those with the state already introduced —
+whose command `c` is built from `skip`, `assign`, `store`, `read`,
+`write`, `seq` and `ite`. `run_vcg` runs it: it introduces the initial
 state, takes the precondition apart, applies the rule of every construct
 in turn as a `have`, splits every conditional on its test, and discharges
 the announced cost bound.
@@ -570,7 +625,7 @@ open RunVCG in
     | _ => pure #[]
   -- `Spec B P c Q K` is a definition; unfold it and introduce.
   let mv ← mv.withContext do
-    let t ← instantiateMVars (← mv.getType)
+    let t := (← instantiateMVars (← mv.getType)).consumeMData
     if t.isAppOf ``Spec then
       let t' ← withTransparency .default (whnf t)
       let mv ← mv.change t'
@@ -578,7 +633,14 @@ open RunVCG in
       let (f, mv) ← mv.intro1P
       splitAnds mv f
     else pure mv
-  let target ← mv.withContext do instantiateMVars (← mv.getType)
+  -- The goal a `have` leaves behind carries `mdata` (the `noImplicitLambda`
+  -- annotation the `have` elaborator puts on the type it hands the rest of
+  -- the proof). It is invisible when the goal is printed and fatal to a
+  -- syntactic match, so it comes off before the shape is read: a block whose
+  -- proof opens with a `have` is otherwise reported as "not an existential"
+  -- over a goal that visibly is one.
+  let target ← mv.withContext do
+    return (← instantiateMVars (← mv.getType)).consumeMData
   -- Read `B`, `c`, `σ` and the announced cost off the target.
   let some (envTy, p) := target.app2? ``Exists
     | throwError "run_vcg: the goal is not an existential over the final state:\n{target}"
@@ -694,6 +756,35 @@ example (B : ℕ) (h : 1 < B) :
       (fun ρ ρ' => (ρ.vars "c" = 0 ∧ ρ.vars "u" < ρ.vars "w" ∧ ρ'.vars "n" = ρ.vars "n" + 1) ∨
         ρ'.vars "n" = ρ.vars "n") 20 := by
   run_vcg <;> simp_all
+
+/-- A read: the tape's head lands in the variable and the tape loses it.
+The precondition carries the one thing the walk cannot know — that there
+is a head — and carries it in the form a caller has it in, an equation
+naming the head and the rest. No bound is owed: a read produces no
+value, it moves one, and what a tape holds is `Env.InpBounded`'s
+business. -/
+example (B : ℕ) (v : ℕ) (rest : List ℕ) :
+    Spec B (fun ρ => ρ.inp = v :: rest) (.read "t")
+      (fun _ ρ' => ρ'.vars "t" = v ∧ ρ'.inp = rest) 1 := by
+  run_vcg; simp_all
+
+/-- A proof that opens the state itself and derives what the walk will
+need before starting it — the shape of a loop body, whose invariant is a
+definition the discharger cannot see into. The walk is happy to be
+handed an already-introduced goal, `have`s and all.
+
+It also shows what a `read` leaves behind: the walk names the value
+`ρ.inp.headD 0`, so the bound on what was read is *not* the caller's
+`v < B` until the tape equation has been used, and comes back as a goal
+like any other bound the precondition does not carry verbatim. -/
+example (B : ℕ) (v : ℕ) (rest : List ℕ) :
+    Spec B (fun ρ => ρ.inp = v :: rest ∧ v < B) (.seq (.read "t") (.write (.var "t")))
+      (fun ρ ρ' => ρ'.out = ρ.out ++ [v]) 3 := by
+  rintro ρ ⟨hinp, hvB⟩
+  have hne : ρ.inp ≠ [] := by rw [hinp]; simp
+  run_vcg
+  · simp [hinp]
+  · simp [hinp, hvB]
 
 /-! A sub-program the walk must not unfold — a loop, or a phase already
 proved — enters as one step, by handing `run_vcg` its specification. The
