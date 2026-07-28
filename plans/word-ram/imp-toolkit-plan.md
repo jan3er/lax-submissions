@@ -246,6 +246,17 @@ not change; only the proofs do.
 and bring the design back to Jan rather than proceeding to P6. The point of
 the pilot is to find that out for 1,655 lines instead of for 20,000.
 
+**Gate re-cut (owner decision, Jan, 2026-07-28, mid-P5).** The 40%
+denominator included `CC.lean` (170 lines of program text, fixed by
+definition) and `CCGraph.lean` (242 lines of graph mathematics), neither
+of which the kit targets — the campaign's own evidence table splits
+math / program / glue and aims at glue only. Jan authorized re-setting
+the target on that split: **the four glue files (`CCPhases`, `CCSearch`,
+`CCSweep`, `CCMain`, baseline 1,263 lines) come out at ≤ 40%, i.e.
+≤ 505 lines.** `CC.lean` is untouched; `CCGraph` is measured and
+reported but ungated. The stop-and-return-to-Jan consequence of a miss
+is unchanged.
+
 ### P6 — The rest of the retrofit
 
 In order, each behind the same 40% gate and each committed separately:
