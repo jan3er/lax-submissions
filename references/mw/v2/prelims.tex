@@ -1,0 +1,325 @@
+\section{Preliminaries}\label{sec:prelims}
+
+We now state formally the main definitions of this paper, and prove some basic equivalences. 
+
+       \paragraph{Notation, graphs.}
+       For two distinct elements $a,b$ of a set $V$,
+by $ab$ we denote the unordered pair $\set{a,b}$, and call $ab$ a \emph{pair} for simplicity
+-- the distinction between ordered pairs and unordered pairs will follow from the context.
+% For a set $V$, denote ${V\choose 2}:=\setof{\set{a,b}}{a,b\in V,a\neq b}$.
+For $A,B\subset V$, denote $$AB\coloneqq \setof{ab}{a\in A,b\in B,a\neq b}$$ and ${A\choose 2}\coloneqq AA$.
+A \emph{graph} is a pair $G=(V,E)$ with $E\subset {V\choose 2}$.
+We call the elements of $V$ \emph{vertices}, and elements of $E$ \emph{edges}, and denote $V(G)\coloneqq V$ and $E(G)\coloneqq E$. 
+%Denote $\bar E:={V\choose 2}-E$.
+%\jan{we use \(\bar E\) only twice. maybe dont define it.}
+
+\subsection{Merge-width and merge sequences}\label{sec:merge-sequence}
+
+In the gray box of \Cref{sec:intro} we gave a definition of merge-width in terms of \emph{construction sequences}
+(see also \Cref{sec:computing} for a more formal definition, in the more general setting of binary structures).
+We now give an alternative definition in terms of so-called \emph{merge sequences}, and prove in \Cref{lem:fmw}
+that these definitions are indeed equivalent.
+These two definitions complement each other: 
+While construction sequences are useful for showing that a graph class with bounded merge-width has a certain property,
+merge sequences are useful for the opposing goal of showing that a given graph class has bounded merge-width.
+
+% Fix a set $V$ of vertices.
+% A \emph{merge-sequence} is a sequence of steps, maintaining a partition $\cal P$~of~$V$ and a partition of $V\choose 2$ into three sets: \emph{edges}~$E$, \emph{non-edges} $N$, and \emph{unresolved} pairs $U$. Initially, $\cal P$ partitions $V$ into singletons, and all pairs in $V\choose 2$ are unresolved.
+% In each step, we can either \emph{merge} two parts $A,B$ of $\cal P$, replacing them by the single part $A\cup B$, 
+% or \emph{resolve} a pair of parts $A,B\in\cal P$ (possibly $A=B$), by proclaiming each of the yet unresolved vertex pairs $\set{a,b}\in U$ with $a\in A$ and $b\in B$ either an edge, or a non-edge -- all in \emph{the same way}. 
+% We require that in the end, every pair of vertices in $V$ either forms an edge or a non-edge, thus defining a graph.
+
+% \sz{directly define merge sequences}
+% Fix a vertex set $V$.
+% A \emph{construction sequence} is a sequence of steps, maintaining a partition $\cal P$~of~$V$ and a partition of  ${V\choose 2}$ into three sets:  
+% \emph{edges} $E$, \emph{non-edges} $N$,
+% and \emph{unresolved} pairs $U$.
+%  Initially, $\cal P$ partitions $V$ into singletons, and every pair in $V\choose 2$ is unresolved.
+% In each step, one of three operations is performed:
+% \begin{itemize}
+%   \item  \emph{merge} two parts of $\cal P$, replacing the two parts by their union $A\cup B$
+%   (setting $\cal P:=\cal P-\set{A,B}\cup \set{A\cup B}$), 
+%   \item \emph{resolve positively} a pair of parts $A,B\in\cal P$ 
+%   (possibly $A=B$), declaring 
+%  all the unresolved pairs in $U\cap AB$
+%  as edges (setting $E:=E\cup (U\cap AB)$ and $U:=U-AB$),
+%  \item \emph{resolve negatively} a pair of parts -- as above, but declaring the unresolved pairs in $U\cap AB$ as non-edges (setting $N:=N\cup (U\cap AB)$ and $U:=U-AB$).
+% \end{itemize}
+% In the end, we require that every pair in ${V\choose 2}$ is an edge or a non-edge, and that $\cal P$ has one part. This way, we have constructed a graph $G=(V,E)$.
+
+% Fix $r\in\N\cup\set{\infty}$.
+% For a set $R\subset {V\choose 2}$ and partition $\cal P$ of $V$,
+% the \emph{radius-$r$ width} of $(\cal P,R)$ is the maximum, over all vertices $v\in V$,
+% of the number of parts $A\in \cal P$ 
+% such that there is a path of length at most $r$ in the graph $G=(V,R)$ from $v$ to some $a\in A$.
+
+% The \emph{radius-$r$ width}
+% of a construction sequence is the maximum,
+% over all steps in the sequence,
+% of the radius-$r$ width of $(\cal P,R)$, where $\cal P$ is the current partition and $R=E\cup N$ 
+% is the set of currently resolved pairs (both edges and non-edges). 
+% The \emph{radius-$r$ merge-width} of a graph~$G$, denoted $\mw_r(G)$,
+% is the least radius-$r$ width of a construction sequence of $G$.
+% It is crucial to note that if $\mw_r(G)\le k$, then
+%  at any time in the considered merge sequence, and for every part $P\in\cal P$,
+% even though we require each vertex $v\in P$ to be adjacent in $(V,E\cup N)$ to at most $k$ of parts of $\cal P$,
+% we allow for different vertices in $P$ 
+% to be adjacent to different parts.
+% If we additionally demanded that throughout the merge sequence, vertices in any given part $P\in\cal P$ are adjacent in $(V,E\cup N)$ to the same parts in $\cal P$, then the resulting parameter for radius $1$
+%  would differ from twin-width, $\tww(G)$, by at most one,
+% and the parameters for radius $r$ would be upper bounded by $1+\tww(G)+\ldots+\tww(G)^r$.
+%  Finally, a graph class $\CC$ has \emph{bounded merge-width}
+% if ${\mw_r(\CC)<\infty}$ holds\footnote{For a graph parameter $f$ and graph class $\CC$, by $f(\CC)$ we denote $\sup_{G\in\CC}f(G)$.} for every (finite) $r\in\N$.
+
+\medskip
+% The following, alternative perspective, is easier to work with in many contexts.
+
+
+% , and also not to specify if the performed reveals are positive and which are negative, as this information can be inferred from the target graph $G$.
+% This leads to the following, alternative definition of merge-width.
+
+% \begin{definition}
+    Fix $r\in\N\cup\set{\infty}$.
+        For a set $R\subset {V\choose 2}$ and partition $\cal P$ of $V$,
+        we say a part \(A \in \cal P\) is \emph{\(r\)-reachable} from a vertex \(v\) if there is a path of length at most $r$ in the graph $G=(V,R)$ from $v$ to some vertex in~$A$.
+        The \emph{radius-$r$ width} of $(\cal P,R)$  is 
+        \[
+           \max_{v \in V}\ \Big|\bigl\{ A \in \cal P \mid  A \text{ is \(r\)-reachable from } v \bigr\}\Big|.
+        \]
+        % \end{definition}
+        
+       
+
+
+\begin{definition}\label{def:ms}
+A \emph{merge sequence} of a graph $G=(V,E)$ 
+is a sequence
+$$(\cal P_1,R_1),\ldots,(\cal P_m,R_m),$$
+  such that:
+  \begin{enumerate}
+    \item $\cal P_1,\ldots,\cal P_m$ is a sequence of partitions of $V$, 
+    where $\cal P_1$ is the partition into singletons and $\cal P_m$ has one part,
+    and $\cal P_{t}$ is coarser than (or equal to) $\cal P_{t-1}$ for $t=2,\ldots,m$,
+    % \item $\Delta_1,\ldots,\Delta_m$ are 
+    % default graphs on $\cal P_1,\ldots,\cal P_m$, respectively,
+    \item $R_1\subset\ldots\subset R_m\subset {V\choose 2}$; the pairs in $R_t$ are said to be \emph{resolved} at time $t$, and
+    \item for all $t\in [m]$ and $A,B\in \cal P_t$,
+     either $AB-R_t\subset E$, or $AB-R_t\subset {V\choose 2} - E$.
+  \end{enumerate}
+For $r\in\N\cup\set{\infty}$, the \emph{radius-$r$ width} of the merge sequence is the maximum, over $t=2,\ldots,m$,
+of the radius-$r$ width of $(\cal P_{t-1},R_t)$.
+\end{definition}
+
+Note the offset in the indices of $\cal P_{t-1}$ and $R_t$.
+Conceptually, this offset allows us to not only do a single merge, but an unbounded number of merges when going from partition \(\cal P_{t-1}\) to \(\cal P_t\) (see backwards direction of \Cref{lem:fmw}).
+
+\begin{definition}
+  The \emph{radius-$r$ merge-width} of a graph $G$, denoted $\mw_r(G)$, is the least radius-$r$ width of a merge sequence of $G$.
+Finally, a graph class $\CC$ has \emph{bounded merge-width}
+  if ${\mw_r(\CC)<\infty}$ holds\footnote{For a graph parameter $f$ and graph class $\CC$, by $f(\CC)$ we denote $\sup_{G\in\CC}f(G)$.} for every (finite) $r\in\N$.
+\end{definition}
+
+\begin{lemma}\label{lem:fmw}
+    For every construction sequence of a graph $G$ there is a merge sequence of $G$
+  of the same radius-$r$ width, for all $r\in\N\cup\set\infty$,
+  and vice versa.
+  % For every graph $G$ and $r\in\N\cup\set{\infty}$,
+  %    $\mw_r(G)$ is equal to the least radius-$r$ width of a merge sequence for $G$.
+  \end{lemma}
+  \begin{proof}
+    % Fix a  graph $G$. We show that 
+    % . This yields the conclusion.
+  
+  First, fix a construction sequence of $G$, consisting of $m$ steps. 
+  % Without loss of generality, we may assume that the merge sequence ends with the partition $\cal P=\set{V}$, as we can always merge parts until only one part remains, without changing the radius-$r$ width of the sequence, for all $r\in\N\cup\set{\infty}$.
+    Let $\cal P_t$ be the partition of $V$,
+    and let $R_t$ be the set of edges and non-edges 
+    at the beginning of step $t$ of the sequence.
+    It is clear that 
+    $(\cal P_1,R_1),\ldots,(\cal P_m,R_m)$ is a merge sequence. 
+    In particular, the third item of \Cref{def:ms} follows from the second item of \Cref{remark:maindef}.
+    
+    Fix $r\in\N\cup\set{\infty}$, and let $k$ 
+    be the radius-$r$ merge-width of the considered construction sequence.
+    Then, for each $t\in[1,m]$, 
+    the radius-$r$ width of $(\cal P_t,R_t)$ is at most $k$.
+    Since for $t>1$, we either have $\cal P_{t-1}=\cal P_t$ or $R_{t-1}=R_t$, it follows that 
+    the radius-$r$ width of $(\cal P_{t-1},R_t)$ is at most $k$ as well.
+    This concludes one direction.
+  
+  
+  \medskip
+  
+  In the other direction,  
+  let $(\cal P_1,R_1),\ldots,(\cal P_m,R_m)$ be a merge sequence of $G$.
+  We define a construction sequence which consists of $m$ stages, as follows.
+  In the beginning of stage $t\in[m-1]$,
+  the current partition $\cal P$ is the partition $\cal P_t$, and the set $R$ of resolved pairs is contained in $R_t$.
+  In stage $t$, first resolve (in any order) all pairs 
+  $A,B\in\cal P_{t}$ such that $AB\subset R_{t+1}$.
+  The third item of \Cref{def:ms} guarantees that this is always possible by positive or negative resolves.
+
+  Next, repeatedly merge (in any order) any two parts $A,B$ of the current partition, as long as $A\cup B$ is contained in some part of $\cal P_{t+1}$.
+  Once this is done, the current partition is equal to $\cal P_{t+1}$, and we proceed to the next stage.
+  
+  During all steps in stage $t$, the set $R$ of resolved pairs is contained in $R_{t+1}$, and $\cal P$ is a coarsening of $\cal P_t$. In particular, for every $r\in\N\cup\set{\infty}$,
+  \begin{multline*}
+\text{radius-$r$ width of $(\cal P,R)$}\ \le \ 
+\text{radius-$r$ width of $(\cal P_t,R_{t+1})$} \\
+\le \ \text{radius-$r$ width of the given merge sequence}.
+  \end{multline*}
+ 
+  After the last stage, the current partition $\cal P$ has only the single part $V$. 
+  Finally, we resolve $V$ with itself. This completes the  construction sequence.
+  \end{proof}
+
+%\[
+%   -----
+%\]
+%\jan{we need normalized construction sequences, not merge sequences.}
+%
+%
+%\medskip
+%  Say that a merge sequence for a graph $G$ is \emph{normalized} if in the corresponding sequence $\cal P_1,\ldots,\cal P_m$, for all $t\in [m-1]$, the partition
+%  $\cal P_{t+1}$ is obtained from $\cal P_t$ by merging exactly two parts into one. In particular, $m=|V(G)|$.
+%
+%
+%
+%  \begin{lemma}\label{lem:normalize}
+%    Every merge sequence can be converted to a normalized merge sequence without increasing the radius-$r$ width, for all $r\in\N\cup\set{\infty}$.
+%  \end{lemma}
+%  \begin{proof}
+%    Observe that we can always convert a merge sequence to one in which all partitions $\cal P_1,\ldots,\cal P_m$ are pairwise distinct, since if $\cal P_{t-1}=\cal P_{t}$,
+%  then omitting the pair $(\cal P_t,R_t)$ from the merge sequence yields a valid merge sequence of the same radius-$r$ width, for all $r\in\N\cup\set{\infty}$.
+%
+%  Furthermore, we may assume that for any two consecutive partitions $\cal P_t,\cal P_{t+1}$ of the merge sequence, there is no partition $\cal P$ which is strictly coarser than $\cal P_t$ and strictly finer than $\cal P_{t+1}$. Indeed, otherwise we may insert the pair $(\cal P,R_{t+1})$ between the pairs $(\cal P_t,R_t)$ and $(\cal P_{t+1},R_{t+1})$ of the merge sequence, without increasing its radius-$r$ width, for all $r\in\N\cup\set{\infty}$.
+%  \end{proof}
+
+%  \begin{remark}\label{rem:equiv}
+%  The merge sequences defined in the introduction (the gray box of \Cref{sec:intro}) correspond to a special form of merge sequences considered in \Cref{def:ms}, namely, merge sequences
+%  $(\cal P_1,R_1),\ldots,(\cal P_m,R_m)$ such that
+%  for all $t\in[m-1]$,
+% either $\cal P_{t+1}=\cal P_t$, or $\cal P_{t+1}$ is obtained from $\cal P_t$ by merging two parts into one, and $R_{t+1}=R_t$.
+% Call such merge sequences \emph{step-by-step}.
+% For a step-by-step merge sequence, the maximum radius-$r$ width of the pairs $(\cal P_t,R_{t+1})$, for $t\in[m-1]$,
+% is equal to the maximum radius-$r$ width of the pairs
+% $(\cal P_t,R_t)$, for $t\in[m]$, due to the fact that for all $t\in[m-1]$, either $\cal P_t=\cal P_{t+1}$, or $R_t=R_{t+1}$ and $\cal P_t$ is a refinement of $\cal P_{t+1}$.
+% Therefore, the radius-$r$ width of such sequences coincides with the definition given in the introduction.
+%
+% Furthermore, we can easily convert a normalized merge sequence $(\cal P_1,R_1),\ldots,(\cal P_m,R_m)$ into a step-by-step merge sequence, namely
+%$(\cal P_1,R_1),(\cal P_1,R_2),(\cal P_2,R_2),(\cal P_2,R_3),\ldots,(\cal P_m,R_m)$, while preserving the radius-$r$ width of the sequence.
+%This, together with \Cref{lem:normalize}, proves the equivalence of the two definitions of merge-width.
+%  \end{remark}
+
+  
+
+%  \subsection{Construction sequences}\label{sec:construction-sequences}
+%Recall the definition of \emph{construction sequences}, given in the gray box of \Cref{sec:overview}.
+%   The following perspective on merge-width is useful in the algorithmic context, as it allows to view merge sequences as 
+% a process constructing the target graph.
+
+% \begin{definition}
+% Fix a vertex set $V$.
+% A \emph{construction sequence} is a sequence of steps, maintaining a partition $\cal P$~of~$V$ and a partition of  ${V\choose 2}$ into three sets:  
+% \emph{edges} $E$, \emph{non-edges} $N$,
+% and \emph{unresolved} pairs~$U$.
+%  Initially, $\cal P$ partitions $V$ into singletons, and every pair in $V\choose 2$ is unresolved.
+% In each step, one of three operations is performed:
+% \begin{itemize}
+%   \item  \emph{merge} two parts $A,B$ of $\cal P$, replacing the two parts by their union $A\cup B$
+%   (setting $\cal P:=\cal P-\set{A,B}\cup \set{A\cup B}$), 
+%   \item \emph{resolve positively} a pair of parts $A,B\in\cal P$ 
+%   (possibly $A=B$), declaring 
+%  all the unresolved pairs in $U\cap AB$
+%  as edges (setting $E:=E\cup (U\cap AB)$ and $U:=U-AB$),
+%  \item \emph{resolve negatively} a pair of parts -- as above, but declaring the unresolved pairs in $U\cap AB$ as non-edges (setting $N:=N\cup (U\cap AB)$ and $U:=U-AB$).
+% \end{itemize}
+% In the end, we require that every pair in ${V\choose 2}$ is an edge or a non-edge, and that $\cal P$ has one part. This way, we have constructed a graph $G=(V,E)$.
+
+% The \emph{radius-$r$ width}
+% of a construction sequence is the maximum,
+% over all steps in the sequence,
+% of the radius-$r$ width of $(\cal P,R)$, where $\cal P$ is the current partition and $R=E\cup N$ 
+% is the set of currently resolved pairs (both edges and non-edges). 
+% \end{definition}
+
+
+  
+\subsection{Construction sequences have linear length}\label{sec:representing}
+
+When designing merge-width based algorithms,
+we always assume graphs to be represented by construction sequences, rather than merge sequences,
+as the former impose more structure.
+A~priori such a construction sequence can be arbitrarily long, as for example, the same pair of parts can be resolved indefinitely.
+In this subsection we make an innocuous assumption that guarantees a linear bound on their length.
+
+
+Namely, call a resolve operation in a construction sequence 
+\emph{effective} if it creates a non-zero number of new edges or non-edges. 
+That is, an \emph{ineffective} resolve operation 
+is a resolve operation performed between a pair $A,B$ of parts 
+such that all pairs in $AB$ were already resolved before the operation.
+Call a construction sequence \emph{effective} if 
+every resolve operation in it is effective.
+We assume without loss of generality and without explicitly mentioning it that all construction sequences are effective.
+Note that the following lemma also applies if the radius-\(r\) width is bounded, as this implies a bound on the radius-\(1\) width.
+
+\begin{lemma}\label{lem:effective-construction-seq}
+  Every effective construction sequence of a graph $G$ of radius-$1$ width $w$ has length at most $(2w+1)|V(G)|$.
+\end{lemma}
+\begin{proof}
+  We rearrange the construction sequence by repeatedly postponing resolve operations.
+  Namely, consider a subsequence of consecutive operations in a construction sequence,
+  consisting of a sequence of resolve operations, and finishing with the merge
+  of two parts $A,B\in\cal P$. We may postpone all resolves which occur in the subsequence, and involve 
+  neither $A$ or $B$, until after the merge of $A$ and $B$ is done.
+  This result in a valid construction sequence,
+  of the same radius-$1$ width and the same length.
+  As all resolve operations are effective,
+  at most $2w$ resolve operations between pairs $P,Q$ remain in the subsequence: at most $w$ pairs involving $A$, and at most $w$ pairs involving $B$, because each vertex in $A$ (or in $B$) $1$-reaches all parts resolved with $A$ (resp. $B$). 
+  In the final construction sequence, at most $2w$ resolve operations are performed per merge,
+  followed potentially by a single last resolve on the final part.
+  As there can be at most \(|V(G)|-1\) merges, we have at most $(2w+1)|V(G)|$ steps altogether.
+  Since the original construction sequence has the same length as the rearanged construction sequence, the result follows.
+\end{proof}
+
+
+% \begin{szin}
+%     Jan: I updated the following overview.
+
+%     We currently have a  plethora of variants of merge-width:
+% \begin{description}
+%   \item[construction sequences] Used in the intro and the algorithm.
+%    \item[construction sequences for binary structures] Actually used in the proofs.
+%   \item[merge sequences] Used for bounded expansion and closure under transductions.
+  
+%   \item[restrained flip sequences]
+%   Used to bound flip-width. Also, to explain the connection with the sparse parameters (wcol, tw), when flips are isolations.
+% \end{description}
+% Another possible definition is:
+% \begin{description}
+% \item[merge sequences with default graphs]In each step, we merge two parts \emph{and} define a new default graph on the parts. Essentially, this is a step-by-step merge sequence 
+% with radius-$r$ width measured only immediately after each merge. This gives a $\pm 1$ discrepancy with the other definitions, which however slightly  better the twin-width, degeneracy, and clique-width parameters.
+% \end{description}
+
+
+% We should redisucss which definitions we want to include, and also consider including all the definitions (and their equivalence) in the preliminaries section, for a better organization (especially the restrained flip sequences with their obscure discussion).
+% \end{szin}
+
+
+%   \begin{remark}
+%     We remark on the equivalence of the two definitons of merge-width -- 
+%     If we take a merge sequence, convert it 
+%     into a construction sequence 
+%     and then back into a merge sequence using the construction in \Cref{lem:fmw}, 
+%     we obtain a merge sequence $(\cal P_1,R_1),\ldots,(\cal P_m,R_m)$ such that 
+%     for all $t\in[m-1]$,
+%     we have that either $R_t=R_{t+1}$ or $\cal P_{t}=\cal P_{t+1}$, and moreover, either $\cal P_{t+1}=\cal P_t$ or $\cal P_{t+1}$ is obtained from $\cal P_t$ by merging two parts into one.
+%     This is therefore a merge sequence of the form as considered in the introduction. Moreover, from 
+%     the fact that $R_t=R_{t+1}$ or $\cal P_t=\cal P_{t+1}$
+%     it follows that the maximum width of $(\cal P_t,R_t)$, for $t\in[m]$,
+%     is equal to the maximum width of $(\cal P_{t},R_{t+1})$, for $t\in[m-1]$,
+%     so the resulting merge sequence has the same radius-$r$ width as the original one.
+%   \end{remark}
+
+  

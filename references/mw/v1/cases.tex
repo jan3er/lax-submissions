@@ -1,0 +1,894 @@
+
+
+
+
+
+
+
+
+
+
+
+\section{Case studies}\label{sec:cases}
+We now review the relationship between
+merge-width and previously studied graph parameters.
+First, it is not difficult to check that 
+$\mw_\infty(G)$ is functionally equivalent to the clique-width of $G$. 
+\begin{theorem}\label{thm:cw}
+  A graph class $\CC$ has bounded clique-width if and only if $\mw_\infty(\CC)<\infty$.
+\end{theorem}
+
+
+    It is not difficult and quite instructive to prove the result directly,
+    by translating between construction sequences and clique-width expressions, and vice-versa.
+    Such a proof would provide explicit (linear) bounds in each direction.
+    To be more succinct, we derive the statement without explicit bounds, by deriving it from results proved later in \Cref{sec:cases}.
+
+\begin{proof}[Proof sketch]
+
+    For the left-to-right implication,
+    let $G$ be a graph of clique-width $k$.
+    By \cite[Thm. 1]{tww6}, $G$ has a contraction sequence $\cal P_1,\ldots,\cal P_n$, such that at every 
+    step $i\in\set{1,\ldots,n}$ of the sequence,
+    every connected component of the red graph of $\cal P_i$ contains 
+    at most $k'$ parts, for some constant $k'\in\N$ depending on $k$.
+    By transforming the contraction sequence into a merge sequence as in the proof of \Cref{lem:tww} below, by \eqref{eq:tww-mw} we derive that the resulting construction sequence has radius-$\infty$ width at most $k'$. Thus, $\mw_\infty(G)\le k'$.
+    This proves the left-to-right implication.
+
+    Conversely, suppose that $\mw_\infty(\CC)<\infty$.
+    It follows from \Cref{thm:fw-cases} below that $\fw_\infty(\CC)<\infty$.
+    Therefore, $\CC$ has bounded clique-width, by \cite[Thm. II.6]{flip-width}.
+\end{proof}
+
+
+
+
+
+
+\noindent Thus, in a sense, the finite-radius merge-width parameters are local variants of clique-width.
+
+
+
+
+
+
+
+
+
+
+
+
+
+\subsection{Merge-width and twin-width}\label{sec:tww}
+We first discuss the relationship of merge-width and twin-width,
+whose definition we recall now.
+Recall that a \emph{contraction sequence} of a graph $G$ is a sequence of merge operations, which starts with the partition of $V(G)$ into singletons, and ends with the partition with one part.
+Two sets $A,B\subset V(G)$ of vertices are \emph{homogeneous} if $AB\subset E(G)$ or $AB\cap E(G)=\emptyset$.
+The \emph{red graph} of a partition $\cal P$
+is the graph with vertices $\cal P$ and edges connecting pairs $\set{A,B}\in{\cal P\choose 2}$ 
+which are not homogeneous. The twin-width of a graph $G$ is the minimum number $d$ 
+such that $G$ admits a contraction sequence such that at every step, the red graph of the current partition has maximum degree at most $d$.
+
+
+\twwintro*
+\Cref{thm:tww} follows immediately from the next lemma.
+\begin{lemma}\label{lem:tww}
+  Fox every $r,d\in \N$ and graph $G$ of twin-width $d$, we have 
+  $$\mw_r(G)\le 2+d+\ldots+d^r.$$
+\end{lemma}
+\begin{proof}
+Fix a contraction sequence $\cal P_1,\ldots,\cal P_n$ of $G$, such that
+the red graph of each partition $\cal P_t$ has maximum degree at most $d$.
+For a vertex \(v\), denote by \(\cal P_t(v)\) the part of \(\cal P_t\) containing \(v\).
+For $t\in[n]$, let $R_t$ consist of those pairs $ab\in {V\choose 2}$ such that $\cal P_t(a),\cal P_t(b)$ are either equal, or not homogeneous in $G$.
+Then 
+  $(\cal P_1,R_1),\ldots,(\cal P_n,R_n),$
+  is a merge sequence of $G$. We bound its radius-$r$ width, for fixed $r\in\N$.
+
+  For every $t\in[n]$, part $A\in\cal P_t$ and vertex $a\in A$, 
+  we have that 
+  \begin{align}\label{eq:tww-mw}
+  B^r_{R_t}(a)\subset \bigcup B^r_{\cal P_t}(A),  
+  \end{align}
+  where $B^r_{R_t}(a)$ is the ball of radius $r$ around $a$ in the graph $(V,R_t)$, 
+  and $B^r_{\cal P_t}(A)$ is the ball of radius $r$ around $A$ in the red graph of $\cal P_t$.
+  In particular, $B^r_{R_t}(a)$ intersects at most $|B^r_{\cal P_t}(A)|$ parts of $\cal P_t$.
+  As degree in the red graph is at most \(d\), the radius-$r$ width of $(\cal P_t,R_t)$ is at most $|B^r_{\cal P_t}(A)|\le 1+d+\ldots+d^r$.
+  Since $\cal P_{t-1}$ is a refinement of $\cal P_t$ with exactly one more part,
+  it follows that 
+  the radius-$r$ width of $(\cal P_{t-1},R_t)$ is at most $2+d+\ldots+d^r$.
+Consequently,
+$\mw_r(G)\le 2+d+\ldots+d^r.$
+\end{proof}
+
+
+\subsection{Merge-width and Sparsity}\label{sec:sparsity}
+The converse to \Cref{thm:tww} is false. 
+For instance,  the class 
+of graphs of maximum degree bounded by $d$ (a class which has unbounded twin-width already for $d=3$) 
+has bounded merge-width.
+Indeed, there is a trivial merge sequence for such a graph $G$: 
+ $$\bigl(\textit{partition into singletons},\emptyset\bigr),\quad \bigl(\textit{partition with one part},E(G)\bigr).$$
+The radius-$r$ width of this sequence is 
+the maximum size of a radius-$r$ ball in $G$,
+which is at most $1+d+\cdots+d^r$, 
+so 
+$\mw_r(G)\le 1+d+\cdots+d^r$.
+
+
+
+If the above merge sequence for graphs of bounded degree seems uninsightful,
+this reflects the fact that graphs of bounded degree are trivial from the perspective of Sparsity theory.
+The next result is slightly more 
+illuminating.
+The proof is already given in \Cref{ex:degeneracy}.
+
+
+
+
+\begin{theorem}\label{thm:deg}
+  If $G$ is a $d$-degenerate graph then 
+  $\mw_1(G)\le d+2.$
+\end{theorem}
+
+
+Next, we prove:
+\beintro*
+
+The simple construction from \Cref{thm:deg} does not trivially generalize to bound the radius-$r$ merge-width 
+of graphs in classes of bounded expansion,
+as it appears that to bound $\mw_r(G)$ for $r>1$, a more involved construction 
+is needed, which we now present.
+
+\medskip
+
+We first recall the definition of classes of bounded expansion for completeness only, as we will not use the original definition, only the characterization given in the upcoming \Cref{fact:be}.
+By definition,  a graph class $\CC$ has \emph{bounded expansion} if and only if for every $r\in\N$,
+there is some $k\in\R$ such that for every graph $G$
+which can be obtained from some graph in $\CC$ by first removing vertices and edges, and then contracting 
+some vertex subsets of radius ${\le r}$ to single vertices, 
+we have that $|E(G)|\le k\cdot |V(G)|$.
+Classes of bounded expansion include every class of bounded maximum degree,
+the class of planar graphs, and every graph class that excludes some graph  as a  minor, or as a topological minor.
+
+
+Fix a graph $G$, number $r\in\N$, and total order $\le$ on $V(G)$. 
+A vertex \(u\) is \emph{weakly \(r\)-reachable} from a vertex \(v\) if there is a path of length at most \(r\) from \(v\) 
+to \(u\) and all vertices on that path are at least as large as \(u\).
+Let \(\wreach_r(G,\le,v)\) be the set of vertices that are weakly \(r\)-reachable from \(v\) with respect to the ordering.
+Then the weak \(r\)-coloring number of \(G\) is defined as
+\[
+\wcol_r(G) \coloneqq \min_{\le} \max_{v \in V(G)} |\wreach_r(G,\le,v)|,
+\]
+where the minimum ranges over all total orders $\le$ of $V$.
+
+\begin{lemma}[\cite{zhu2009colouring}]\label{fact:be}
+A graph class $\CC$ has bounded expansion if and only if $\wcol_r(\CC)<\infty$, for all~${r\in\N}$.
+\end{lemma}
+
+
+
+
+
+
+
+
+
+
+
+
+
+\Cref{thm:be} follows immediately from the next lemma,
+which 
+shows that the 
+ radius-$r$ merge-width 
+is bounded in terms of the weak $(r+1)$-coloring number. 
+
+
+\begin{lemma}\label{lem:wcol}
+  For every $k,r\in\N$ and graph $G$ with $\wcol_{r+1}(G)\le k$, we have
+  $$\mw_r(G)\le 3\cdot 2^{k} .$$
+\end{lemma}
+In particular, we show that $\mw_2(G)$  is bounded in terms of $\wcol_3(G)$,
+and we do not know whether it is bounded in terms of $\wcol_2(G)$.
+
+\begin{proof}Fix $r\in\N$, and a graph $G$ with vertex set $V$.
+Let $\le$ be an ordering of the vertex set $V$ of $G$ 
+such that for every vertex \(v\), the weak $r$-reachability set $\wreach_{r+1}(G,\le,v)$ has size at most $k$.
+
+For $t=1,\ldots,n$, define the following.
+\begin{itemize}
+  \item Let $L_t$ comprise the $t$ largest elements of $V$ with respect to $\le$, and let $S_t\coloneqq V-L_t$.
+  \item Let  $\cal P_t$ be the partition of $V$ into \emph{atomic types}
+  over the set $S_t$. That is, $\cal P_t$ partitions $S_t$ into singletons, and partitions vertices  $v\in L_t$ according to their neighborhood $N(v)\cap S_t$~in~$S_t$.
+  \item Let $R_t \coloneqq\setof{ab\in E(G)}{a,b\in L_t}$ be the set of all edges in $G$ with both endpoints in $L_t$.
+\end{itemize}
+We verify that $(\cal P_1,R_1),\ldots,(\cal P_n,R_n)$ is a merge sequence of $G$. Clearly, $\cal P_1$ is the partition into singletons, 
+and $\cal P_n$ has one part.
+Observe that for $t\in[n]$ and any two parts $A,B$ of $\cal P_t$,
+either $A,B\subset L_t$, and therefore  $E(G)\cap AB\subset R_t$,
+or, otherwise, at least one of $A,B$ is contained in $S_t$, and then $A$ and $B$ are homogeneous,
+as both $A$ and  $B$ are atomic types over $S_t$. 
+In any case, $AB-R_t\subset E(G)$ or 
+$AB-R_t\subset {V\choose 2}-E(G)$, so the conditions of a merge sequence are satisfied.
+
+
+Fix $t\in[n]$. Fix two vertices $v,w\in L_t$, such that 
+there is a path of length at most $r$ in $(V,R_t)$ from $v$ to $w$.
+Then there is a path $\pi$ of length at most \(r\) from $v$ to $w$ in $G$
+contained in $L_t$.
+In particular, for every vertex $u\in N_G(w)\cap S_t$ 
+there is a path from $v$ to $u$ of length at most $r+1$ in \(G\) (namely the path $\pi$ followed by the edge $wu$) such that every inner vertex on that path is in $L_t$.
+In other words, $N_G(w)\cap S_t \subseteq \wreach_{r+1}(G,\le,v)$.
+ As $|\wreach_{r+1}(G,\le,v)|\le k$ by assumption, and 
+ the atomic type of $w$ over $S_t$ is uniquely 
+determined by $N(w)\cap S_t$, it follows that 
+there are at most $2^k$ parts of $\cal P_t$ 
+that are reachable by a path of length at most $r$ from $v$.
+Thus, the radius-$r$ width of $(\cal P_t,R_t)$ is at most
+$2^k$.
+
+
+
+To bound the radius-$r$ width of $(\cal P_{t-1},R_t)$, for $t>1$, notice that every part in $\cal P_{t}$ 
+is a union of at most three parts in $\cal P_{t-1}$.
+ Namely, if $v$ is the unique vertex with $v\in S_{t-1}-S_{t}$, then the atomic type $A$ of a vertex $u$ over $S_{t}$ 
+ is uniquely determined by the atomic type of $u$ over $S_{t-1}$ and the atomic type of $u$ over $\set v$. 
+ There are three 
+ possible atomic types over $\set v$, corresponding 
+ to
+ whether $u=v$, or $(u\neq v)\land E(u,v)$, or 
+$(u\neq v)\land \neg E(u,v)$. This proves that $A$ is a union of at most three parts in $\cal P_{t-1}$.
+
+It follows that the radius-$r$ width of $(\cal P_{t-1},R_t)$ is at most $3\cdot 2^k$, and we have constructed a merge sequence of $G$ 
+of radius-$r$ width at most $3\cdot 2^k$.
+\end{proof}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+\subsection{Merge-width and flip-width}\label{sec:fw}
+We study the relationship between merge-width and flip-width, whose definition we now recall.
+
+For a graph $G$ and 
+two sets $A,B\subset V(G)$,
+\emph{flipping} the pair $(A,B)$ in $G$ 
+results in the graph $G'$ 
+with edges $E(G')=E(G)\triangle AB$, where \(\triangle\) denotes the symmetric difference.
+Given a partition $\cal P$ of $V(G)$, 
+a \emph{$\cal P$-flip} of $G$ is a graph $G'$
+obtained from $G$ by flipping arbitrary pairs $A,B\in\cal P$ (possibly with $A=B$).
+Thus, a graph $G'$ is a $\cal P$-flip of $G$ if and only if for every pair $A,B\in\cal P$, 
+either $E(G')\cap AB=E(G)\cap AB$ or $E(G')\cap AB=AB-E(G)$.
+A \(k\)-flip is a \(\cal P\)-flip with \(|\cal P| \le k\).
+
+We recall the definition of flip-width from \cite{flip-width}.
+Fix $k,r\in\N$.
+The \emph{flip-width game} of radius $r$ and width $k$ is played on a graph $G$ between two players, flipper and runner.
+Initially, runner picks a vertex $v_0\in V(G)$.
+In round $t=1,2,\ldots$,
+    flipper announces a $k$-flip $G_t$ of $G$;
+    then runner picks $v_t\in B^r_{G_{t-1}}(v_{t-1})$ -- that is, they traverse 
+    a path of length at most $r$ in the \emph{previous} graph $G_{t-1}$.
+    Flipper wins if $v_t$ is isolated in $G_t$.
+The \emph{radius-$r$ flip-width} of $G$, denoted $\fw_r(G)$,
+is the least number $k$ such that flipper has a winning strategy for the flip-width game of width $k$ and radius $r$ on $G$.
+We prove:
+\begin{theorem}\label{thm:fw-cases}
+  Every class of bounded merge-width has bounded flip-width.
+  More precisely, for all $r\in\N$ and every graph $G$,
+  $$\fw_r(G)\le 4^{\mw_{2r-1}(G)}.$$
+\end{theorem}
+
+\Cref{thm:fw-cases} allows to deduce several results about classes of bounded merge-width
+from the corresponding results for classes of bounded flip-width.
+For instance, we obtain the two corollaries stated in the introduction:
+\corbe*
+The forward implication in \Cref{cor:be} follows from \Cref{thm:be} and the trivial fact that each class of bounded expansion excludes some biclique as a subgraph. The backwards direction follows from \Cref{thm:fw-cases} and from the analogous statement for classes of bounded flip-width, proved in \cite[Thm. VI.3]{flip-width}.
+
+
+\cortww*
+In \Cref{cor:tww-mw}, we use the notion of merge-width for binary structures, specifically for \emph{ordered graphs} --  graphs equipped with a total order on the vertex set. This is defined in \Cref{sec:computing}.  \Cref{thm:fw-cases} applies to classes binary structures, allowing to derive \Cref{cor:tww-mw} by a similar reasoning as for \Cref{cor:be} above:
+The forward direction uses \Cref{thm:tww}and the fact that every graph can be extended with a total order, without increasing its twin-width \cite{tww4}, and the backwards direction uses \Cref{thm:fw-cases} and the analogue of \Cref{cor:tww-mw} proved in \cite[Thm. VII.3]{flip-width}.
+For simplicity, below we present the proof of \Cref{thm:fw-cases} only for graph classes. The more general case is analogous, 
+but the requires notion of flips and of flip-width for binary structures as defined in \cite[Sec. V.B]{flip-width}.
+
+We state another corollary that follows from \Cref{thm:deg} and an analogous result from \cite[Thm. VI.1]{flip-width}.
+\begin{corollary}\label{cor:deg}
+  Let $\CC$ be a graph class. Then $\CC$ has bounded degeneracy if and only if $\mw_1(\CC)<\infty$ and $\CC$ excludes some biclique $K_{t,t}$ as a subgraph.
+\end{corollary}
+
+
+
+
+\medskip
+To prove \Cref{thm:fw-cases},
+we start with a simple observation that allows us to rephrase the main condition from the definition 
+of a merge sequence in terms of flips, as follows.
+
+
+\begin{lemma}\label{lem:flip}
+    Let $G=(V,E)$ be a graph, let $\cal P$ be a partition of $V$, and let $R\subset {V\choose 2}$.
+    The following conditions are equivalent:
+    \begin{enumerate}
+        \item for all $A,B\in\cal P$, either $AB-R\subset E$, or $AB-R\subset AB - E$,
+        \item  there is a $\cal P$-flip $G'$ of $G$ with $E(G')\subset R$.
+    \end{enumerate}
+    \end{lemma}
+    \begin{proof}
+        (1$\rightarrow$2).
+        The $\cal P$-flip $G'$
+        is obtained from $G$ by flipping each pair $A,B\in\cal P$ such that $AB-R\subset E$. As a result $AB-R\subset AB-E(G')$, 
+        and therefore $E(G')\cap AB\subset R$ for each $A,B\in\cal P_t$.
+        Altogether, $E(G')\subset R$.
+    
+        (2$\rightarrow$1). Fix $A,B\in\cal P$. We have that
+        $E(G')\cap AB\subset R\cap AB$,
+        so $AB-R\subset AB-E(G')$.
+        As $G'$ is a $\cal P$-flip of $G$,
+        we have that either $E(G')\cap AB=E(G)\cap AB$ or $E(G')\cap AB=AB-E(G)$.
+        Altogether, either $AB-R\subset E(G)\cap AB$, or  $AB-R\subset AB-E(G)$.
+    \end{proof}
+    
+Using \Cref{lem:flip}, we may therefore redefine merge-width in terms of flips, as follows.
+
+
+
+
+\begin{definition}Let $G$ be a graph.
+A \emph{restrained flip sequence} for $G$ is a sequence
+\begin{align}\label{eq:mono-fw}
+    (\cal P_1,R_1,G_1),\ldots,(\cal P_m,R_m,G_m)    
+\end{align}
+such that:
+\begin{itemize}
+    \item $\cal P_1,\ldots,\cal P_m$ is a refining sequence of partitions, starting with the  partition $\cal P_1$ of $V(G)$ with one part, and ending with the partition $\cal P_m$ into singletons,
+    \item the graph $G_t$ is a $\cal P_{t}$-flip of $G$, for $t\in [m]$,
+    \item ${V\choose 2}= R_1\supseteq \cdots \supseteq R_m=\emptyset$, and
+    \item  $E(G_t)\subset R_t$ for $t\in[m]$.
+\end{itemize}
+The radius-$r$ width of the restrained flip sequence is 
+the maximum, over $t\in[m-1]$,
+of the radius-$r$ width of $(\cal P_{t+1},R_{t})$.
+\end{definition}
+
+Note that in the reformulation above,
+the partitions $\cal P_1,\ldots,\cal P_m$ are becoming finer with each step, instead of becoming coarser as in merge sequences. In each step of a restrained flip sequence, we provide a $\cal P_t$-flip $G_t$.
+The sequence $R_1\supseteq \cdots\supseteq R_m$
+is a descending sequence of subsets of $V\choose 2$ with $R_m=\emptyset$. The set $R_t$ is called the \emph{restraint} at time $t$, as we require that $E(G_s)\subset R_t$ for all $s\in[m]$ with $s\ge t$, thus restraining all the future graphs $G_t,G_{t+1},\ldots,G_m$.  Note that  $E(G_m)\subset R_m=\emptyset$, so $G_m$ is edgeless.
+
+As $G_t$ is a $\cal P_t$-flip of $G$, 
+$G_{t-1}$ is a $\cal P_{t-1}$-flip of $G$, and $\cal P_{t-1}$ is coarser than $\cal P_t$,
+we may equivalently require that $G_t$ as a $\cal P_{t}$-flip of $G_{t-1}$, rather than of $G$.
+Therefore, in the sequence $G_1,G_2,G_3,\ldots$ 
+each subsequent graph is a flip of the previous graph.
+This is similar to the setting of flipper games considered in \cite{flippers}.
+
+
+
+
+\begin{lemma}\label{lem:mw-flip seq}
+    For every graph $G$,
+    there is a correspondence between merge sequences and restrained flip sequences for $G$,
+    which preserves the length, and the radius-$r$ width of the sequences, for each $r\in\N\cup\set{\infty}$.
+\end{lemma}
+
+
+
+
+\begin{proof}
+    Fix a merge sequence 
+    $(\cal P_1,R_1),\ldots,(\cal P_m,R_m)$
+    of $G$.
+ By \Cref{lem:flip} (1$\rightarrow$2),
+ for each $t\in[m]$,
+    there is a  $\cal P_t$-flip $G_t$ of $G$ such that 
+$E(G_t)\subset R_t$.
+    The sequence 
+    $(\cal P_m,R_m,G_m),\ldots,(\cal P_1,R_1,G_1)$
+    is a restrained flip sequence for $G$.
+    
+    Conversely,
+    given a restrained flip sequence for $G$ of the form $(\cal P_1,R_1,G_1),\ldots,(\cal P_m,R_m,G_m)$,
+    by \Cref{lem:flip} (2$\rightarrow$1) we conclude that 
+    the sequence $(\cal P_m,R_m),\ldots,(\cal P_1,R_1)$ is a merge sequence of $G$.
+\end{proof}
+
+
+
+
+
+
+
+
+
+
+The next lemma shows that radius-$r$ flip-width is bounded in terms of radius-$(2r-1)$ merge-width, thus proving \Cref{thm:fw-cases}.
+
+
+
+
+\begin{lemma}\label{lem:fw}
+    Fix $r,s\in\N$. 
+    For every graph $G$, if $\mw_{2r-1}(G)\le s$ then  $\fw_r(G)\le 4^s$. 
+\end{lemma}
+
+\begin{proof}
+    Let $G$ be a graph with $\mw_{2r-1}(G)\le s$. Then $G$ has a merge sequence of radius-$(2r-1)$ merge-width at most $s$.
+    By \Cref{lem:mw-flip seq}, $G$ has a 
+ restrained flip sequence of radius-$(2r+1)$ width at most \(s\) of the form
+$$(R_1,\cal P_1,G_1),\ldots,(R_n,\cal P_n,G_n).$$
+
+The following lemma will allow us to construct a strategy for flipper in the flip-width game.
+
+\begin{lemma}\label{lem:strategy}
+    Fix $t\in [2,n]$, and 
+    let $s$ be the radius-$(2r-1)$ width of $(\cal P_t,R_{t-1})$.
+    For every $v\in V(G)$ there is a $4^s$-flip $G_t'$ of $G$ such that:
+$$B^r_{G_t'}(w)\subset B^r_{G_t}(w)\quad\text{for every $w\in B^r_{G_{t-1}}(v)$.}$$
+\end{lemma}
+Before proving \Cref{lem:strategy}, we first show how it yields a winning strategy
+for flipper in the flip-width game of radius $r$
+    and width $4^s$.
+Flipper's strategy will be to announce graphs $G_1',G_2',\ldots$, ensuring  that following invariant holds after round $t\ge 1$ of the game:
+    \begin{align}\label{eq:fw-invariant}
+    B^r_{G_{t}'}(v_t)\subset B^r_{G_t}(v_t).    
+    \end{align}
+    
+    In the first round, when $t=1$, flipper announces $G_1'=G_1$ and runner picks a vertex 
+    $v_1$,
+    and the invariant holds trivially.
+    Suppose the invariant is satisfied after round $t-1$ of the game,
+    that is, 
+    $$B^r_{G_{t-1}'}(v_{t-1})\subset B^r_{G_{t-1}}(v_{t-1}).$$
+    Now flipper announces the $4^s$-flip $G_t'$ of $G$
+    given by \Cref{lem:strategy} for $v \coloneqq v_{t-1}$.
+    Next, runner picks a vertex $v_t\in B^r_{G_{t-1}'}(v_{t-1})$.
+In particular, $v_t\in B^r_{G_{t-1}}(v_{t-1})$, so 
+ \eqref{eq:fw-invariant} holds by \Cref{lem:strategy}, and the invariant is fulfilled.
+
+    Playing according to this strategy, flipper wins within $n$ rounds,
+    since $E(G_n)=\emptyset$, and therefore $v_n$ is isolated in $G_n'$
+    by \eqref{eq:fw-invariant}. This proves that $\fw_r(G)\le 4^s$, and thus \Cref{lem:fw}.
+\end{proof}
+
+\begin{remark}\label{rem:duration}
+    Observe that the number of rounds needed by flipper to win in the flip-width game of radius $r$ and width $4^s$ can be bounded by $|V(G)|$.
+    Namely, the proof of \Cref{lem:fw} above shows that 
+    the number of rounds is (at most) equal to the length $n$ of a restrained flip sequence 
+     of radius-$(2r+1)$ width at most \(s\) for $G$.
+     By \Cref{lem:mw-flip seq}, this corresponds to the length of a radius-$(2r+1)$ merge sequence of width $s$. Any merge sequence of $G$ can be converted into one of length $n=|V(G)|$, while preserving its radius-$r$ width for each $r\in\N$, since if for two consecutive pairs $(\cal P_i, R_i),(\cal P_{i+1},R_{i+1})$ in a merge sequence we have $\cal P_i=\cal P_{i+1}$, then $(\cal P_{i+1},R_{i+1})$ can be dropped from the merge sequence.
+\end{remark}
+
+We now prove \Cref{lem:strategy}. 
+
+
+
+    \begin{proof}[Proof of \Cref{lem:strategy}]
+        Fix $v\in V(G)$. For $i=0,\ldots,2r-1$, let 
+ $\cal Q_i\subset \cal P_t$ consist of all parts $A\in\cal P_t$ that can be reached by a path of length at most $i$ by from $v$ in the graph $(V,R_{t-1})$.
+In particular, $|\cal Q_{2r-1}|\le s$.
+
+Let $G_t'=(V,E')$ be the graph 
+such that for any two parts $A,B\in\cal P_t$:
+$$E'\cap AB=
+\begin{cases}
+    E(G)\cap AB&\text{if $A,B\notin\cal Q_{2r-1}$}\\
+    E(G_t)\cap AB&\text{otherwise}.
+\end{cases}$$
+
+\begin{claim}\label{cl:k-flip}
+    $G_t'$ is a $4^s$-flip of $G$.
+\end{claim}
+\begin{claimproof}
+    As $G_t$ is a $\cal P_t$-flip of $G$, so is $G_t'$.
+    Therefore, for any two parts $A,B\in\cal P_t$, 
+    the set $E'\cap AB$ is either equal to $E\cap AB$,
+    or to $AB-E$.
+
+    For every part $A\in\cal Q_{2r-1}$, let $U(A)$ be the union of all parts 
+    $B\in\cal P_t$ such that $E'\cap AB= AB-E$.
+    Then for every $B$ with $B\subset U(A)$ or $B\subset V- U(A)$,
+    we have that
+    $E'\cap AB=E\cap AB$ or 
+     $E'\cap AB=AB-E$.
+
+    Consider the set family:
+    $$\cal F\coloneqq \cal Q_{2r-1} \cup \setof{U(A)}{A\in \cal Q_{2r-1}}.$$ Then $|\cal F|\le 2|\cal Q_{2r-1}|\le 2s$.
+    
+    Let $\cal Q$ be the partition 
+    of $V$ such that 
+    two vertices $a,b$ are in the same part of $\cal Q$ if and only if $a$ and $b$ belong to the same sets in $\cal F$.
+    Then $|\cal Q|\le 2^{|\cal F|}\le 4^{s}$.
+    Moreover, for every $A,B\in \cal Q$,
+    either $E'\cap AB=E\cap AB$,
+    or $E'\cap AB=AB-E$.
+    It follows that 
+    $G_t'$ is a $4^s$-flip of $G$.
+\end{claimproof}
+
+
+
+\begin{claim}\label{cl:balls}
+    For all $w\in B^r_{G_{t-1}}(v)$
+ and $i=0,\ldots,r$ we have:
+    $$B^i_{G_t'}(w)\subset B^i_{G_t}(w).$$
+\end{claim}
+
+\begin{claimproof}
+    We induct on $i$. For $i=0$ the statement is trivial.
+In the inductive step, fix $1\le i\le r$ and $u\in B^i_{G'}(w)$ with $u\neq w$.
+Then there is some  $a\in B^{i-1}_{G'}(w)$ with $ua\in E(G')$.
+By inductive assumption, $a\in B^{i-1}_{G_t}(w)$.
+From  $i\le r$ and  $E(G_t)\subset R_{t-1}$
+we get that $a\in B^{r-1}_{R_{t-1}}(w)$,
+which together with $w\in B^{r}_{G_{t-1}}(v)\subset B^{r}_{R_{t-1}}(v)$ implies $a\in B^{2r-1}_{R_{t-1}}(v)$. In particular, $a\in \bigcup \cal Q_{2r-1}$.
+By definition of $E'$, this implies $ua\in E(G_t)$. Together with 
+$a\in B^{i-1}_{G_t}(w)$, this implies that $u\in B^{i}_{G_t}(w)$, as required.
+\end{claimproof}
+\Cref{cl:k-flip} and \Cref{cl:balls} together prove \Cref{lem:strategy}.
+\end{proof}
+
+
+
+
+\subsection{Almost bounded merge-width}\label{sec:abmw}
+A graph class $\CC$ has \emph{almost bounded merge-width}
+if for every $r\in\N$ and $\eps>0$,
+we have that $\mw_r(G)\le O_{\CC,r,\eps}(|V(G)|^\eps)$, for all $n\in\N$ and all $n$-vertex graphs $G\in\CC$.
+
+Clearly, classes of bounded merge-width have almost bounded merge-width.
+The following result states that all nowhere dense classes have almost bounded merge-width. We will prove this later below, by inspecting the proof of \Cref{thm:be}.
+
+\thmnwd*
+
+Classes of \emph{almost bounded flip-width} are defined analogously as classes of almost bounded merge-width, with $\mw_r(G)$ replaced with $\fw_r(G)$.
+The following is the main result of this section.
+
+\thmabmw*
+
+As every hereditary class of almost bounded flip-width is monadically dependent \cite[Thm. 2.12]{flip-breakability}, we obtain the following.
+\begin{corollary}\label{cor:abmw-mNIP}
+    Every hereditary class of almost bounded merge-width is monadically dependent.
+\end{corollary}
+
+\Cref{thm:nwd} and \Cref{cor:abmw-mNIP} together justify our \Cref{conj:almostboundedmergewidth}
+that almost bounded merge-width coincides with monadic dependence on hereditary classes.
+
+
+
+
+
+
+
+
+
+
+\subsection{Preliminaries}
+Before proving \Cref{thm:nwd} and \Cref{thm:abmw}, 
+we first recall some basic notions.
+
+\medskip
+A \emph{set system} is a pair $(X,\cal F)$ with $\cal F\subset 2^X$.
+Its \emph{VC-dimension} is the maximal size of a subset $Y\subset X$ such that 
+$\setof{Y\cap F}{F\in\cal F}=2^Y$.
+We recall the fundamental Sauer-Shelah-Perles lemma~\cite{sauer,shelah-sauer-lemma}.
+
+\begin{lemma}[Sauer-Shelah-Perles lemma]\label{lem:sauer-shelah-perles}
+  Let $(X,\cal F)$ be a set system of VC-dimension~$d$.
+  Then $|\cal F|\le O(|X|^d)$.
+\end{lemma}
+
+The \emph{VC-dimension} of a graph $G$, denoted $\VCdim(G)$, 
+is defined as the VC-dimension of the set system $\bigl(V(G),\setof{N(v)}{v\in V(G)}\bigr)$.
+More explicitly, $\VCdim(G)$ is the maximal size of a subset $X\subset V(G)$
+such that $\setof{N(v)\cap X}{v\in V(G)}=2^X$.
+
+Define the \emph{atomic complexity} of a graph $G$, as the function $\pi_G\from\N\to\N$ defined as
+ $$\pi_G(s)\coloneqq\max\Bigl\{|S|+\bigl|\{N_G(v)\cap S\,:\,v\in V(G)-S\}\bigr|\,:\, S\subset V(G), |S|\le s\Bigr\} \quad\text{for all }s \in \N.$$
+(Equivalently, $\pi_G(s)$ is the maximal number of atomic types over a set $S$ of size at most $s$ in $G$. This is essentially equal to the \emph{neighborhood complexity}, up to an additive factor of $s$.) 
+In particular, $\pi_G(s)\le s+2^s$, for all graphs $G$ and all $s\in\N$.
+From \Cref{lem:sauer-shelah-perles}, we get the following.
+\begin{corollary}\label{cor:sauer-shelah}
+    Let $G$ be a graph of VC-dimension $d$.
+    Then $\pi_G(s)\le O(s^d)$, for all $s\in \N$.
+\end{corollary}
+
+
+
+\subsection{Proof of \Cref{thm:nwd}}
+
+
+To prove \Cref{thm:nwd}, we use the following result.
+\begin{fact}[\cite{zhu2009colouring,sparsity-book}]\label{fact:nd-wcol}
+    Let $\CC$ be a nowhere dense graph class, and fix $r\in\N$ and $\eps>0$.
+    Then for every graph $G\in\CC$
+    $$\wcol_r(G)\le O_{\CC,r,\eps}(|V(G)|^{\eps}).$$
+\end{fact}
+
+\begin{lemma}\label{lem:nd-VC}
+    Let $\CC$ be a nowhere dense graph class. 
+    Then there is some $d\in \N$ such that all graphs $G\in \CC$ have VC-dimension less than $d$.
+\end{lemma}
+\begin{proof}
+    As $\CC$ is nowhere dense, there is some $d\in\N$ such that 
+    no graph $G\in \CC$ contains the $1$-subdivision of the clique $K_d$, as a subgraph.
+    It follows that every graph $G\in \CC$ has VC-dimension less than $d$.
+\end{proof}
+
+
+\begin{lemma}\label{lem:wcol-poly}
+    For every $r\in\N\cup\set{\infty}$ and graph $G$, we have
+    $$\mw_r(G)\le 3\cdot\pi_G(\wcol_{r+1}(G)).$$
+  \end{lemma}
+  \begin{proof}[Proof sketch]
+    We follow the proof of \Cref{lem:wcol}, and use the same notation. 
+    Let \(k\coloneqq\wcol_{r+1}(G)\).
+    Fix $t\in [n]$, and let $L_t,S_t,\cal P_t,R_t,\le$ be as defined in the proof.
+    Fix $v\in L_t$.
+    It was observed that for every $w\in V(G)$ which is reachable from $v$ by a path of length $r$
+in the graph $(V,R_t)$, 
+ the atomic type of $w$ over $S_t$ is uniquely 
+determined by $N_G(w)\cap S_t \subseteq \wreach_{r+1}(G,\le,v)$,
+and moreover, $|\wreach_{r+1}(G,\le,v)|\le k$.
+Since $$\Big|\setof{N_G(w)\cap \wreach_{r+1}(G,\le,v)}{w\in V(G)}\Big|\le  \pi_G(k),$$
+we conclude that are at most $\pi_G(k)$ parts of $\cal P_t$ 
+that are reachable by a path of length at most $r+1$ from $v$.
+Thus, the radius-$r$ width of $(\cal P_t,R_t)$ is at most
+$\pi_G(k)$. The rest of the argument remains unchanged, yielding the final bound $\mw_r(G)\le 3\cdot \pi_G(k)\le 3\cdot \pi_G(\wcol_{r+1}(G))$.
+  \end{proof}
+  
+  \Cref{thm:nwd} now follows by combining the previous insights.
+  \begin{proof}[Proof of \Cref{thm:nwd}]
+    By \Cref{lem:nd-VC}, there is some $d\in\N$ such that every $G\in\CC$ has VC-dimension at most $d$.
+    Fix $r\in\N$ and $\eps>0$.
+Then, for every graph $G\in\CC$, by \Cref{lem:wcol-poly} and \Cref{fact:nd-wcol}, we have 
+$$\mw_r(G)\le 3\cdot \pi_G\bigl(\wcol_{r+1}(G)\bigr)\le  3\cdot \pi_G\bigl(O_{\CC,r,\eps}(|V(G)|^\eps)\bigr)\le O_{\CC,r,\eps}\bigl(|V(G)|^{\eps\cdot d}\bigr).$$
+Since $\eps>0$ is arbitrary, this implies that $\CC$ has almost bounded merge-width.
+  \end{proof}
+
+  \subsection{Proof of \Cref{thm:abmw}}
+
+
+We start by proving that hereditary classes of almost bounded merge-width have bounded VC-dimension. 
+In fact, we prove a stronger result, expressed using the following notion.
+
+\newcommand{\ntn}{\mathrm{ntn}}
+
+A pair $u,v$ of distinct vertices in a graph $G$ is a pair of \emph{$k$-near-twins} if $|N_G(u)\triangle N_G(v)|\le k$.
+ For a bipartite graph $G=(X,Y,E)$, let the near-twin number $\ntn(G)$ denote 
+ the smallest number $k$ such that 
+for all $X'\subset X,Y'\subset Y$ with $|X'|+|Y'|>2$,
+the bipartite subgraph $G[X',Y']$ induced by $X'$ and $Y'$  in $G$
+has a pair of $k$-near-twins contained either in $X'$, or in $Y'$.
+
+\begin{lemma}\label{lem:twins-bip}
+    Let $G=(X,Y,E)$ be a bipartite graph with $\mw_1(G)\le k$
+    and with $|X|+|Y|>2$.
+    Then $G$ contains a pair of $2k$-near-twins
+     contained in a single part of $G$. In particular, $\ntn(G)\le 2k$.
+\end{lemma}
+\begin{proof}
+    Fix a construction sequence of $G$ of radius-$1$ width $k$. Consider the first moment when some part $A$ of the current partition $\cal P$ contains two vertices $a,b$ that belong to the same part of the bipartition $\set{X,Y}$ of $G$. Suppose $a,b\in X$. Then $N_G(a)\triangle N_G(b)\subset (N_R(a)\cup N_R(b))\cap Y$,
+    where $N_R(\cdot)$ denotes the neighborhood in the graph $(V,R)$  of currently resolved pairs.
+    Note that $|N_R(a)\cap Y|\le k$,
+    since no two vertices of $Y$ are in a single part of the current partition $\cal P$, and $N_R(a)$ is contained in at most $k$ parts of $\cal P$. Similarly, $|N_R(b)\cap Y|\le k$.
+    It follows that $|N_G(a)\triangle N_G(b)|\le 2k$.
+\end{proof}
+
+The following lemma is implicit in \cite{flip-width}
+(it follows from 
+\cite[Lem. 5.25]{flip-width-arxiv}).
+\begin{lemma}\label{lem:ntn}
+    If $\CC$ is a hereditary class of bipartite graphs such that $\ntn(G)\le o(|V(G)|)$ for $G \in \CC$, then $\VCdim(\CC)<\infty$.
+\end{lemma}
+
+
+
+
+
+\begin{corollary}\label{lem:abmw-vc}
+    If $\CC$ is a hereditary class of graphs such that $\mw_1(G)\le o(|V(G)|)$ for $G \in \CC$, then $\VCdim(\CC)<\infty$.
+\end{corollary}
+    \begin{proof}
+For a graph $G$ define the bipartite graph $B(G)$, with two parts of size $V(G)$,
+representing the binary relation $E(G)\subset V(G)\times V(G)$.
+Then $\mw_1(B(G))\le O (\mw_1(G))$, as a construction sequence of $G$ can
+be easily converted to a construction sequence for $B(G)$.
+In particular, $\mw_1(B(G))\le o(|V(G)|)$ for $G\in \CC$.
+Moreover, $\VCdim(G)=\VCdim(B(G))$.
+The conclusion follows from \Cref{lem:twins-bip}
+and \Cref{lem:ntn}, applied to the class $\setof{B(G)}{G\in\CC}$.
+    \end{proof}
+
+
+
+
+    Recall that by the Sauer-Shelah-Perles Lemma (see \Cref{lem:sauer-shelah-perles}), 
+    if $G$ is a graph of VC-dimension at most $d$,
+    then $\pi_G(s)\le O(s^d)$ for all $s\in\N$. The following variant of \Cref{lem:fw}
+     therefore gives -- for graphs of fixed VC-dimension -- a polynomial bound on the flip-width parameters, in terms of the merge-width parameters.
+
+    
+    \begin{lemma}\label{lem:fw-poly}Fix $r\in\N$.
+        For every graph $G$,  $$\fw_r(G)\le \pi_G(\mw_{2r}(G)).$$
+    \end{lemma}
+\Cref{lem:fw-poly} strengthens 
+ \Cref{lem:fw} by replacing the upper bound $4^s$ by $\pi_G(s)$.
+    However, \Cref{lem:fw-poly} gives a slightly better dependency on the radius, as the upper bound involves $\mw_{2r-1}(G)$, rather than $\mw_{2r}(G)$.
+    
+    \Cref{lem:fw-poly} follows from the lemma below, 
+    exactly in the same way as \Cref{lem:fw} follows from \Cref{lem:strategy}.
+    
+    \begin{lemma}\label{lem:strategy-poly}
+        Fix $t\in [2,n]$, and 
+        let $s$ be the radius-$2r$ width of $(\cal P_t,R_{t-1})$.
+        For every $v\in V(G)$ there is a $\pi_G(s)$-flip $G_t'$ of $G$ such that:
+    $$B^r_{G_t'}(w)\subset B^r_{G_t}(w)\quad\text{for every $w\in B^r_{G_{t-1}}(v)$.}$$
+    \end{lemma}
+    
+    
+    
+    
+        \begin{proof}Denote $s\coloneqq \mw_{2r}(G)$ and $V\coloneqq V(G)$.
+            Fix $v\in V$. 
+            For $i=0,\ldots,2r$, let 
+            $B_i$ denote the set of vertices  that can be reached by a path of length at most $i$ by from $v$ in the graph $(V,R_{t-1})$.
+            Let $\cal Q_i=\setof{A\cap B_{2r}}{A\in\cal P_t,A\cap B_{2r}\subset B_i}$.
+    In particular, $|\cal Q_{2r}|\le s$.
+    
+    
+    Observe that
+    there are no edges in $G_{t}$ between  $B_{2r-1}$ and $V-B_{2r}$,
+    since an edge  $uw\in E(G_t)$ with  $u\in B_{2r-1}$  implies $w\in B_{2r}$,
+    as $E(G_{t})\subset R_t\subset R_{t-1}$.
+    Since each part of $\cal Q_{2r-1}$ is contained in $B_{2r-1}$ and in some part of $\cal P_t$,
+     and $G_t$ is a $\cal P_t$-flip of $G$, 
+    it follows that each part of $\cal Q_{2r-1}$ is homogeneous in $G$ towards 
+    every vertex $w\in V(G)-B_{2r}$.
+    
+    
+    Let $\cal R$ be the partition of $V(G)-B_{2r}$ which partitions vertices according to their neighborhood in $B_{2r-1}$, in $G$.
+    Denote $\cal Q\coloneqq \cal Q_{2r}\cup\cal R$. Then $\cal Q$ is a partition of $V$.
+    
+    \begin{claim}\label{cl:small-q-poly}
+        $|\cal Q|\le \pi_G(s).$
+       \end{claim}
+       \begin{claimproof}
+           For every part $A\in \cal Q_{2r-1}$ pick a vertex $v_A\in B_{2r-1}\cap A$,
+           and let $S=\setof{v_A}{A\in\cal Q_{2r-1}}$. In particular, $|S|\le s$.
+           It follows from the above that, in the graph $G$, for every vertex $w\in V(G)-B_{2r}$,
+           the neighborhood  of $w$ in $B_{2r-1}$ is uniquely determined by the neighborhood of $w$ in $S$; moreover, $V(G)-B_{2r}$ is disjoint from $S$.
+           Therefore, $$|\cal R|\le  \pi_G(s)-s.$$
+           Together with $|\cal Q_{2r}|\le s$, this yields the conclusion.
+       \end{claimproof}
+           
+    
+    Consider the graph $G'$ with vertex set $V$,
+    such that for any two parts $A,B\in\cal Q$:
+    $$E(G')\cap AB=
+    \begin{cases}
+        E(G)\cap AB&\text{if $A,B\notin \cal Q_{2r-1}$},\\
+        E(G_t)\cap AB&\text{otherwise.}\\
+    \end{cases}$$
+    
+    \begin{claim}\label{cl:k-flip-poly}
+        $G'$ is a $\cal Q$-flip of $G$.
+    \end{claim}
+    \begin{claimproof}
+        
+        It is enough to show that for all   $A,B\in \cal Q$, 
+        \begin{align}
+            E(G')\cap AB=E(G)\cap AB\qquad\textit{or}\qquad
+            E(G')\cap AB= AB-E(G).\label{eq:flip-poly}    
+        \end{align}
+        We consider several cases.
+    \begin{itemize}
+        \item If $A,B\notin \cal Q_{2r-1}$, this is clear by definition of $E(G')$.
+        \item Suppose that $A\in\cal Q_{2r-1}$ and $B\in \cal Q_{2r}$.
+        Then \eqref{eq:flip-poly} follows, as $E(G')\cap AB=E(G_t)\cap AB$ by definition,
+        and $G_t$ is a $\cal P_t$-flip of $G$, and each of the parts $A,B$ is contained in some part of $\cal P_t$.
+        \item Suppose that $A\in\cal Q_{2r-1}$ and $B\notin\cal Q_{2r}$. Then 
+        $A\subset B_{2r-1}$ and 
+        $B\subset V(G)-B_{2r}$, and $B\in\cal R$. By the previous discussion, $E(G_t)\cap AB=\emptyset$. Moreover, each vertex of $b\in B$ is homogeneous in $G$ towards $A$,
+        that is, each $b$ is either complete, or anti-complete towards $A$ in $G$.
+        Since all vertices of $B$ have equal neighborhoods in $A$
+        (by definition of $\cal R$, as $B\in\cal R$ and $A\subset B_{2r-1}$),
+        it follows that $B$ is homogeneous in $G$ towards $A$.
+    Together with $E(G_t)\cap AB=\emptyset$, this yields \eqref{eq:flip-poly}.
+    \end{itemize}
+    Up to exchanging the roles of $A$ and $B$, this covers all the cases.
+    \end{claimproof}
+    
+    
+    
+    
+    \begin{claim}\label{cl:balls-poly}
+        For all $w\in B^r_{G_{t-1}}(v)$
+     and $i=0,\ldots,r$ we have:
+        $$B^i_{G'}(w)\subset B^i_{G_t}(w).$$
+    \end{claim}
+    
+    \begin{claimproof}
+        We induct on $i$. For $i=0$ the statement is trivial.
+    In the inductive step, fix $1\le i\le r$ and $u\in B^i_{G'}(w)$ with $u\neq w$.
+    Then there is some  $a\in B^{i-1}_{G'}(w)$ with $ua\in E(G')$.
+    By inductive assumption, $a\in B^{i-1}_{G_t}(w)$.
+    From  $i\le r$ and  $E(G_t)\subset R_{t-1}$
+    we get that $a\in B^{r-1}_{R_{t-1}}(w)$,
+    which together with $w\in B^{r}_{G_{t-1}}(v)\subset B^{r}_{R_{t-1}}(v)$ implies $a\in B^{2r-1}_{R_{t-1}}(v)=B_{2r-1}$. In particular, $a\in \bigcup \cal Q_{2r-1}$.
+    As $ua\in E(G')$, this implies $ua\in E(G_t)$, by definition of $E(G')$. Together with 
+    $a\in B^{i-1}_{G_t}(w)$, this implies that $u\in B^{i}_{G_t}(w)$, as required.
+    \end{claimproof}
+    \Cref{cl:k-flip-poly,cl:small-q-poly,cl:balls-poly} together prove \Cref{lem:strategy-poly}.
+    \end{proof}
+   As mentioned, \Cref{lem:strategy-poly} implies \Cref{lem:fw-poly},
+   analogously as in the proof of \Cref{lem:fw}.
+
+
+\thmabmw*
+\begin{proof}
+    Let $\CC$ be a hereditary class of almost bounded merge-width.
+    By \Cref{lem:abmw-vc}, $\CC$  has VC-dimension bounded by some $d\in\N$.
+By \Cref{lem:sauer-shelah-perles}, we have that $\pi_G(s)\le O(s^d)$ for all $G\in\CC$ and $s\in\N$.
+
+Fix $r\in\N$ and $\eps>0$.
+Then, for every graph $G\in\CC$, we have 
+$$\fw_r(G)\le \pi_G(\mw_{2r}(G))\le \pi_G(O_{\CC,r,\eps}(|V(G)|^\eps))\le O_{\CC,r,\eps}(|V(G)|^{\eps\cdot d}).$$
+Since $\eps>0$ is arbitrary, this implies that $\CC$ has almost bounded flip-width.
+\end{proof}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+
+
+

@@ -1,0 +1,294 @@
+\section{A locality theorem}\label{sec:logic}
+Most of the material in this section is taken from the standalone note~\cite{locality-note}.
+We state here the definitions and results from that note that are used in the sequel;
+the proofs are deferred to~\cite{locality-note}.
+We use a restricted form of the result of \cite{locality-note}, which is sufficient for the purpose of this paper.
+The main result is the following locality theorem (see below for definitions).
+\begin{restatable}[{\cite{locality-note}} Locality theorem for \distFO]{theorem}{localglobalgame}\label{thm:localglobal}
+        Fix $k,q \in \N$. Every \distFO formula $\phi(\bar x)$ of distance rank $(k,q)$
+     is equivalent to a boolean combination of
+    local \distFO formulas and \distFO scatter sentences, all of distance rank $(k,q)$.    
+    This boolean combination can be effectively computed, given $k,q$, and~$\phi$.
+\end{restatable}
+In \Cref{sec:types} we introduce various notions of \emph{types} and translate \Cref{thm:localglobal} into this framework.
+Using this, in \Cref{sec:mc} we show that given a binary structure $A$ and the local type of each vertex in it, we can efficiently compute the new local type of each vertex following a merge operation or a resolve operation.
+
+\subsection{Preliminaries}
+%\label{sec:preliminaries}
+ $\N$ denotes the set of non-negative integers. For $n\in\N$, denote $[n]\eqdef\set{1,\ldots,n}$.
+
+We consider finite relational signatures only.
+A structure $A$ over the signature $\sigma$,
+ or a \emph{$\sigma$-structure}, consists of a (possibly infinite) domain $V(A)$ and the interpretation
+  $R^A\subset V(A)^k$ of each relation symbol $R\in \sigma$ of arity $k$.
+The \emph{Gaifman graph} of a structure $A$ is the graph with vertices $V(A)$ and edges connecting pairs of distinct vertices which occur together in some tuple of some relation of $A$. By $\dist^A(\cdot,\cdot)$ we denote the shortest path metric  in the Gaifman graph of $A$, and for $r\in\N$ and $u\in V(A)$ denote $N^A_r(u)\coloneqq\setof{v\in V(A)}{\dist^A(u,v)\le r}$.
+% $$\setof{uv\in \mbox{$V\choose 2$}}{R\in\sigma_2,A\models R(u,v)\lor R(v,u)}.$$
+
+
+% We use \(\bar a\) to denote tuples \(a_1,\dots,a_k\) of elements.
+% For brevity, we often implicitly convert such tuples to their underlying vertex sets,
+% and write expressions like \(S \subseteq \bar a\) as a shorthand for \(S \subseteq \{a_1,\dots,a_k\}\).
+
+%Let $\sigma$ be a relational signature and let $\sigma'\subset \sigma$.
+%    The \emph{$\sigma'$-reduct} of a $\sigma$-structure $\str A$ is the $\sigma'$-structure
+%    obtained from $\str A$ by removing the relations in $\sigma'-\sigma$.
+%    We will only consider reducts which remove some unary relations, and keep all binary relations. For a $\sigma$-structure $\str A$ and $\sigma'\subset\sigma_1$, we denote by $\str A[\sigma']$ the $(\sigma'\cup\sigma_2)$-reduct of $\str A$.
+
+
+% \begin{janin}
+%     Questions during proofreading:
+%     \begin{itemize}
+%         \item \(\dist(\bar x, \bar y)\) or \(\dist(\bar x;\bar y)\)? \textbf{Sz:} done -- changed to  \(\dist(\bar x, \bar y)\)
+%         \item inline definitions like \(\beta^A\) that yield all vertices in \(A\) satisfying \(\beta\)? -- \textbf{Sz:} done
+%         \item a dot after each quantifier?
+%          \textbf{Sz:} removed
+%     \end{itemize}
+% \end{janin}
+
+\subsection{Distance logic and scatter sentences}\label{sec:typedefs}
+
+
+\paragraph{First-order distance logic.}
+We define a logic called \distFO that extends FO by the following \emph{distance atoms}.
+\begin{quote}
+     For each radius \(r \in \N\), \distFO introduces
+        a \emph{binary distance atom} \(\dist(x,y) \le r\) expressing that the distance between \(x\) and \(y\) in the Gaifman graph is at most \(r\).
+        We call \(r\) the \emph{radius} of the distance atom.
+
+     For each radius \(r \in \N\) and unary relation symbol \(Y\), \distFO introduces
+        a \emph{unary distance atom} \(\dist(x,Y) < r\) expressing that the distance from \(x\) to \(Y\) in the Gaifman graph is smaller than \(r\);
+        equivalently, \(\exists y~Y(y) \land \dist(x,y) < r\).
+        We call \(r\) the \emph{radius} of the distance atom.
+\end{quote}
+Formulas of \distFO are built inductively,
+starting with usual atomic formulas of first-order logic (relation symbols or equality applied to variables), distance atoms, boolean connectives, and existential quantification (universal quantification is then expressible using negation).
+
+
+For a \distFO formula $\phi(x_1,\ldots,x_k)$, structure $A$, %by $\phi^A\subset V(A)^k$ we denote the
+and  tuple $(a_1,\ldots,a_k)\in V(A)^k$
+we write $A\models\phi(a_1,\ldots,a_k)$
+to denote
+that $\phi(a_1,\ldots,a_k)$ holds in $A$, which is defined by induction on the structure of $\phi$, in the expected way.
+
+For a set $\bar x$ of variables, 
+we write $\phi(\bar x)$ to indicate that $\bar x$ contains the free variables of the formula $\phi$.
+We write \(\dist(\bar x,y) \le r\) as shorthand for \(\bigvee_{x \in \bar x}\dist(x,y) \le r\), and
+\(\dist(\bar x,\bar y) \le r\) as shorthand for
+\(\bigvee_{x\in \bar x, y \in \bar y}\dist(x,y) \le r\).
+
+
+
+
+% Note that binary distance atoms can be expressed
+% using usual first-order formulas (assuming~$\sigma$ contains finitely many relation symbols of arity ${>}1$).
+% However, we treat them as primitive atomic formulas, as
+% we will need to have a fine control over the quantifier rank of the constructed formulas. For this reason, the possibility to measure distances using quantifier-free formulas is essential, similarly as in \cite{gks}.
+
+
+\paragraph{Horizon functions.}
+Fix the following two \emph{horizon functions} $\rho^-,\rho^+\from \N^2\to \N_{\ge 1}$:
+% satisfying the following properties for all $k,q\in\N$:
+% \begin{equation}\label{eq:main-property-rho}
+% \begin{aligned}
+%     \rho^-(k,q)&\ge \rho^+(k+1,q-1)+\rho^-(k+1,q-1)
+%     &&\quad\text{for $q\ge 1$},\\
+%     \rho^+(k,q)&\ge 9^k \cdot \rho^-(k,q).
+% \end{aligned}
+% \end{equation}
+% For instance, it is easy to check that the following
+% functions satisfy \eqref{eq:main-property-rho}:
+\begin{align*}%\label{eq:rho-def}
+   \rho^-(k,q) \eqdef 9^{(k+q+1)q} \quad\quad\quad\text{and}\quad\quad\quad
+   \rho^+(k,q) \eqdef 9^{(k+q)(q+1)}.
+\end{align*}
+(In \cite{locality-note}, more general functions are allowed, but the above choice is sufficient for this paper.)
+% Indeed, \(\rho^+(k,q)=9^k\rho^-(k,q)\), and for $q\ge 1$,
+% \[
+%     \rho^-(k,q)-\rho^-(k+1,q-1)
+%     =9^{(k+q+1)(q-1)}\bigl(9^{k+q+1}-1\bigr)
+%     \ge 9^{(k+q)q}
+%     =\rho^+(k+1,q-1).
+% \]
+The functions \(\rho^-\) and \(\rho^+\) will be used to define the allowed radius of distance atoms in \distFO formulas and scatter sentences of a given \emph{distance rank} (defined below), as well as the radius at which \emph{local quantification} is allowed.
+
+\paragraph{Distance rank.}
+Let \(k,q \in \N\).
+We define \emph{\distFO formulas of distance rank} \((k,q)\) by induction on~$q$,
+as formulas with at most $k$ free variables and
+quantifier rank at most $q$ which are boolean combinations of:
+\begin{itemize}
+    \item atoms of first-order logic (relation symbols in $\sigma\cup\set{=}$ applied to variables),
+    \item unary and binary distance atoms with radius  \(r\le \rho^-(k,q)\),
+    \item if $q\ge 1$, formulas
+        \[
+            \exists y~\phi(\bar x y)
+            \quad\quad\text{or}\quad\quad
+            \exists y~\bigl(\dist(\bar x,y) \le \rho^+(k+1,q-1)\bigr) \land \phi(\bar x y)
+        \]
+        where \(\phi(\bar x y)\) has distance rank \((k+1,q-1)\).
+\end{itemize}
+A \distFO formula is \emph{local}
+if it never uses the \emph{unrestricted quantification} $\exists y~\phi$
+(only \emph{local quantification}, that is, of the latter form above, is allowed).
+
+\paragraph{Scatter sentences.}
+A set \(S\) of vertices of a structure $A$ is \emph{\(r\)-scattered} if all vertices in \(S\)
+have pairwise distance larger than \(r\) in the Gaifman graph of $A$. (Thus, a \(1\)-scattered set is an independent set.)
+
+For every finite structure $A$, radius \(r\), formula \(\beta(x)\), 
+define $s_{A,r,\beta}$ as the size of the inclusion-wise maximal $r$-scattered subset 
+of \(X\coloneqq\{ a \in V(A) \mid A \models \beta(a)\}\) obtained by the following greedy process.
+Assuming \(v_1,\dots,v_i\) have already been chosen, select \(v_{i+1}\) as the smallest element of~$X$ (with respect to some arbitrary, fixed order on \(V(A)\))
+ which is of distance larger than \(r\) in the Gaifman graph of $A$ from \(v_1,\dots,v_i\).
+If no such \(v_{i+1}\) can be found, terminate and set $s_{A,r,\beta} \coloneqq i$.
+Note that the value $s_{A,r,\beta}$ can be efficiently computed,
+given $A$, an order on $V(A)$, and $X$.
+(In \cite{locality-note}, other choices of the value $s_{A,r,\beta}$ are allowed, but the above choice is sufficient in this paper. For infinite structures $A$, which are not considered in this paper, the definition of $s_{A,r,\beta}$ can be extended in various ways.)
+
+
+We define logical \emph{scatter sentences}
+\(\textbf{scatter}(r,\beta(x),t)\) with \(A \models \textbf{scatter}(r,\beta(x),t)\) if and only if $s_{A,r,\beta}\ge t$.
+We define \emph{scatter sentences of distance rank \((k,q)\)}, for \(q\ge 1\),
+as all scatter sentences \(\mathbf{scatter}(r,\beta(x),t)\) such that
+\(t\le k+q\) and
+for some \(i\in\{1,\ldots,q\}\),
+\(\beta(x)\) is a local \(\distFO\) formula of distance rank \((k+i,q-i)\), and 
+\begin{align}\label{eq:scatter-radius}
+4\rho^-(k+i,q-i)\le r\le 9^{k+i}\rho^-(k+i,q-i)\le \rho^-(k,q).
+\end{align}
+
+We have defined all the notions occurring in the statement of \Cref{thm:localglobal}, repeated below.
+\localglobalgame*
+
+\paragraph{Some facts.}
+We repeat some statements from \cite{locality-note}.
+
+% Property \eqref{eq:main-property-rho} implies \(\rho^-(k+1,q-1)\le \rho^+(k+1,q-1) < \rho^-(k,q)\) for all \(k,q \in \N\) with $q\ge 1$. Hence, the distance atoms have progressively shorter radii as one 
+\begin{observation}[{\cite[Observation 2.1]{locality-note}}]\label{obs:preservedistrank}
+    Every \distFO formula of distance rank \((k+1,q-1)\) with at most \(k\) free variables also has distance rank \((k,q)\).
+\end{observation}
+
+\begin{observation}[{\cite[Observation 2.3]{locality-note}}]\label{obs:preservescatterrank}
+    Every scatter sentence of distance rank \((k+1,q-1)\) is also a scatter sentence of distance rank \((k,q)\).
+\end{observation}
+
+% \paragraph{Semantic locality.}
+The following lemma states that for local \distFO formulas, the truth value is determined by a bounded-radius neighborhood of the free variables. 
+% \Cref{lem:ltp-local-subgraph} below states that a local \distFO formula $\phi(\bar x)$ of distance rank $(k,q)$,
+% is semantically $\rho^-(k,q)$-local.
+% We do not use this lemma in the proof of the locality theorem, but it is a useful property of local formulas, and we include it here for completeness.
+% This will be crucial in the context of merge-width.
+% There, for each step of a construction sequence of merge-width $w$, we view each part of the current partition as a unary predicate, and therefore
+% $A[N_{\rho^-(k-1,q+1)}(\bar a)]$ contains only $w$ nonempty unary relations (and two binary relations -- the edges and the non-edges).
+% It follows that
+% the set of all local \distFO formulas of distance rank \((k,q)\) satisfied by \(\bar a\) in \(A\) has size bounded in terms of $k, q$, and $w$.
+
+
+\begin{lemma}[Semantic locality, {\cite[Lemma~2.2]{locality-note}}]\label{lem:ltp-local-subgraph}
+    Let \(k,q \in \N\) with $k\ge 1$, and let
+    \(\phi(\bar x)\) be a local \distFO formula of distance rank \((k,q)\), and let $r=\rho^-(k,q)$.
+    Then  for every structure $A$ and tuple $\bar a\in A^{\bar x}$,
+we have that
+$$A\models \phi(\bar a) \quad\Longleftrightarrow\quad A[N_r(\bar a)]\models \phi(\bar a).$$
+    % , that is, for every structure $A$ and tuple $\bar a\in A^{\bar x}$,
+    % \(A\) be a structure, and \(\bar a\in A^{\bar x}\).
+    % Then \(A \models \phi(\bar a) \) if and only if \(A[N_{\rho^-(k-1,q+1)}(\bar a)] \models \phi(\bar a)\).
+\end{lemma}
+
+% \paragraph{Separation lemma.}
+\begin{lemma}[Separation lemma, {\cite[Lemma 3.1]{locality-note}}]\label{lem:far-ltp}
+    Fix $k,q\in\N$ and let $\phi(\tup x,\tup y)$ be a local \distFO formula of distance rank $(k,q)$.
+    The formula
+    $$\Big(\dist(\tup x,\tup y)>\rho^-(k,q)\Big) \ \land\ \phi(\tup x,\tup y)$$
+    is equivalent to a disjunction of formulas of the form
+    $$\Big(\dist(\tup x,\tup y)>\rho^-(k,q)\Big) \ \land\  \alpha(\tup x)\land \beta(\tup y),$$
+    where $\alpha$ and $\beta$ are local \distFO formulas of distance rank $(k,q)$.
+    Moreover, this disjunction can be effectively computed, given $k,q$, and $\phi$.
+\end{lemma}
+
+\subsection{Types}\label{sec:types}
+We define two variants of \emph{types} for \distFO,
+following the standard notions from model theory.
+
+Fix $k,q\in\N$ and a finite relational signature $\sigma$.
+Fix a $\sigma$-structure \(A\) and tuple of vertices \(\bar a\in V(A)^\ell\) with $\ell\le k$.
+\begin{itemize}
+    \item The  \emph{$(k,q)$-type}
+of \(\bar a\) in~\(A\)
+denoted \(\tp_{k,q}(A,\bar a)\), is the set of all \distFO formulas \(\phi(x_1,\ldots,x_\ell)\) of distance rank \((k,q)\)
+with \(A \models \phi(\bar a)\).
+\item
+The \emph{local $(k,q)$-type}
+of \(\bar a\) in~\(A\)
+denoted \(\ltp_{k,q}(A,\bar a)\), is the set of all local \distFO formulas \(\phi(x_1,\ldots,x_\ell)\) of distance rank \((k,q)\)
+with \(A \models \phi(\bar a)\).
+% with \(A[N_{\rho^-(k-1,q+1)}(\bar a)] \models \phi(\bar a)\).
+% By the upcoming \Cref{lem:ltp-local-subgraph}, the induced subgraph \(A[N_{\rho^-(k-1,q+1)}(\bar a)]\) can be equivalently replaced by \(A\).\jan{updated the definition of local types. now its clear from the definition that it is small if there are few colors in a local ball}
+\item
+The \emph{scatter \((k,q)\)-type} of \(A\), denoted \(\stp_{k,q}(A)\) is the set of all scatter sentences of distance rank \((k,q)\) that hold in \(A\).
+\end{itemize}
+We assume all formulas to be normalized\footnote{This is defined by induction on the quantifier rank of the formula, by saying that a \emph{normalized} formula of quantifier rank $q$ is a boolean combination of normalized formulas of quantifier rank $q-1$ or atomic formulas, where the boolean combination is in disjunctive normal form with no two identical disjuncts and no two identical conjuncts in one disjunct. Every \distFO formula can be effectively rewritten into an equivalent normalized formula, without changing its rank, or its distance rank.}, and thus the size of each type is bounded in terms of \(k\), \(q\), and the signature of the considered structure.
+Furthermore, we assume that all those types store additionally the information about $\sigma$, $k$, and $q$
+(as well as $\ell$, in the case of $\ltp$ and $\tp$).
+
+We rephrase \Cref{thm:localglobal} as follows.
+
+\begin{theorem}[Reformulation of \Cref{thm:localglobal}]\label{thm:localglobal'}
+    Fix $k,\ell,q\in\N$ with $\ell\le k$
+    and a finite relational signature $\sigma$.
+For every $\sigma$-structure $A$ and tuple $\tup a\in V(A)^\ell$,
+the type $\tp_{k,q}(A,\tup a)$ depends (effectively) only 
+on the local type $\ltp_{k,q}(A,\tup a)$ and on the scatter type $\stp_{k,q}(A)$.
+
+More precisely, there is a computable function $f$ 
+such that for every finite relational signature $\sigma$, for all $k,q,\ell\in\N$ with $\ell\le k$, and for every $\sigma$-structure $A$ and tuple $\tup a\in V(A)^\ell$ we have
+$$\tp_{k,q}(A,\tup a)=f(\ltp_{k,q}(A,\tup a), \stp_{k,q}(A)).$$
+\end{theorem}
+\begin{proof}
+Fix $\sigma,k,\ell,q, A,\tup a$ as above.
+Let $\tau=\ltp_{k,q}(A, \tup a)$ and $\tau'=\stp_{k,q}(A)$.
+We show how to compute $\tp_{k,q}(A,\tup a)$ by an effective procedure, given $\tau,\tau'$, and not  $A$ and $\tup a$.
+
+Note that for every (suitably normalized) local \distFO formula $\psi(x_1,\ldots,x_\ell)$ of distance rank $(k,q)$,
+ $$A\models \psi(\bar a)\quad\iff\quad \psi(x_1,\ldots,x_\ell)\in \tau=\ltp_{k,q}(A,\bar a).$$ 
+  This can be determined effectively, given $\psi$ and $\tau$.
+
+  Similarly, given a (suitably normalized) scatter sentence $\alpha$, 
+  it holds that 
+  $$A\models \alpha\quad\iff\quad \alpha\in \tau'= \stp_{k,q}(A),$$ 
+  and this can be determined effectively, given $\alpha$ and $\tau'$.
+
+By induction, 
+for every boolean combination $\psi(\bar x)$
+of local \distFO formulas and scatter sentences of distance rank $(k,q)$,
+whether or not $A\models \psi(\bar a)$ holds can be effectively determined basing only $\psi$ and on $\tau$ and $\tau'$ (and not on $A$ and $\bar a$).
+
+    Next, for every \distFO formula $\phi(x_1,\ldots,x_\ell)$ of distance rank $(k,q)$, we can determine 
+    whether $A\models\phi(\bar a)$, as follows. 
+Apply \Cref{thm:localglobal} to compute an equivalent formula $\psi(x_1,\ldots,x_\ell)$ which is a boolean combination 
+of local \distFO formulas and scatter sentences of distance rank $(k,q)$
+(each of which can be normalized effectively).
+Then test whether $A\models \psi(\bar a)$, as described earlier.
+This depends effectively only on $\phi$, $\tau$, and $\tau'$.
+
+Finally, we can compute $\tp_{k,q}(A,\tup a)$ as the set of all (normalized) \distFO formulas $\phi(x_1,\ldots,x_\ell)$ of distance rank $(k,q)$ such that $A\models\phi(\bar a)$.
+Since the set of all normalized \distFO formulas $\phi(\bar x)$ of distance rank $(k,q)$ can be effectively computed, and for each of them we can determine whether $A\models\phi(\bar x)$ as described above,
+this shows that $\tp_{k,q}(A,\tup a)$ effectively depends only on $\tau$ and $\tau'$.
+\end{proof}
+
+We also rephrase \Cref{lem:far-ltp} as follows (we omit the proof which follows similarly as the proof of \Cref{thm:localglobal'}).
+\begin{lemma}\label{lem:far-ltp'}
+    For every $\sigma$-structure $A$, numbers $k,q\in \N$ and 
+    tuples 
+    $\tup a\in V(A)^{\tup x}$ and $\tup b\in V(A)^{\tup y}$ with $|\tup x|+|\tup y|\le k$ 
+    and $\dist^A(\tup a,\tup b)>\rho^-(k,q)$,
+    $\ltp_{k,q}(A,\tup a\tup b)$ depends (effectively) only on $\ltp_{k,q}(A,\tup a)$
+    and $\ltp_{k,q}(A,\tup b)$.
+\end{lemma}
+
+
+
+
+
+
+

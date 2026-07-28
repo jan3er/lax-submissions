@@ -1,0 +1,1087 @@
+\documentclass[11pt]{article}
+\usepackage[letterpaper, margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{mathtools}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{xspace}
+\usepackage{bm}
+\usepackage[breakable]{tcolorbox}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{relsize}
+\usepackage[left, pagewise]{lineno}
+\usepackage{tikz}
+  \usetikzlibrary{positioning,fit,calc}
+  \tikzstyle{block} = [draw=black, ultra thin, text width=2cm, minimum height=1.3cm, font = {\footnotesize\itshape},align=center]  
+  \tikzstyle{arrow} = [thick,->,>=stealth]
+  
+  \renewenvironment{quote}
+  {\list{}{\leftmargin=0.5cm \rightmargin=0.5cm} %
+   \item\relax}
+  {\endlist}
+  
+  \setcounter{tocdepth}{2}
+
+  \usepackage[page,toc,titletoc,title]{appendix}
+\usepackage[textsize=footnotesize]{todonotes}
+\usetikzlibrary{shapes,arrows,positioning,patterns}
+\usepackage{comment}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\hypersetup{
+    colorlinks=true,
+    citecolor=blue,
+    linkcolor=blue,
+    filecolor=blue,      
+    urlcolor=blue,
+}
+\usepackage{thm-restate}
+\usepackage{placeins}
+\usepackage[font=small,labelfont=bf,margin=0.06in]{caption}
+
+\usepackage[style=alphabetic,maxnames=999]{biblatex}
+\addbibresource{bib.bib}
+\AtEveryBibitem{
+  \clearfield{editor}
+  \clearlist{editor}
+  \clearname{editor}
+  \clearfield{location}
+  \clearlist{location}
+  \clearname{location}
+  \clearfield{isbn}
+  \clearlist{isbn}
+  \clearname{isbn}
+  \clearfield{url}
+  \clearlist{url}
+  \clearname{url}
+}
+
+\RequirePackage[osf,sc]{mathpazo}
+\usepackage{framed}
+\usepackage{mdframed}
+\usepackage{float}
+\usepackage{xcolor}
+
+\newcommand{\ind}[2][]{%
+  \mathrel{
+    \mathop{
+      \vcenter{
+        \hbox{\oalign{\noalign{\kern-.3ex}\hfil$\vert$\hfil\cr
+              \noalign{\kern-.7ex}
+              $\smile$\cr\noalign{\kern-.3ex}}}
+      }
+    }^{#2}\displaylimits_{#1}
+  }
+}
+\newcommand{\wh}{\widehat}
+\newcommand{\nind}{\not\ind}
+\renewcommand{\deg}{\mathrm{degeneracy}}
+\newcommand{\sz}[1]{\todo[color=pink!40]{sz: #1}}
+\newcommand{\jan}[1]{\todo[color=green!40]{jan: #1}}
+\newcommand{\szfuture}[1]{\todo[color=green!40]{future: #1}}
+
+
+
+
+\DeclareMathOperator{\rk}{rk}
+\DeclareMathOperator{\VCdim}{VCdim}
+\DeclareMathOperator{\TVCdim}{2VCdim}
+\DeclareMathOperator{\fw}{fw}
+\DeclareMathOperator{\cw}{cliquewidth}
+\DeclareMathOperator{\rw}{rankwidth}
+\DeclareMathOperator{\bfw}{bfw}
+\newcommand{\fwp}{\fw^\mathrm{part}}%
+\newcommand{\fwg}{\fw^\mathrm{gen}}%
+\newcommand{\fwd}{\dfw}
+\newcommand{\bfwp}{\bfw^\mathrm{part}}%
+\newcommand{\bfwg}{\bfw^\mathrm{gen}}%
+\newcommand{\bfwd}{\bfw^\mathrm{def}}%
+
+\newcommand{\poly}{\textit{poly}}
+\DeclareMathOperator{\iw}{iw}
+\DeclareMathOperator{\copw}{copwidth}
+\DeclareMathOperator{\dfw}{dfw}
+\DeclareMathOperator{\adm}{adm}
+\DeclareMathOperator{\imp}{imp}
+\DeclareMathOperator{\tww}{tww}
+\DeclareMathOperator{\wcol}{wcol}
+\DeclareMathOperator{\scol}{scol}
+\DeclareMathOperator{\sreach}{SReach}
+\DeclareMathOperator{\Types}{Types}
+\DeclareMathOperator{\wreach}{WReach}
+\DeclareMathOperator{\loli}{loli}
+\DeclareMathOperator{\cone}{Cone}
+
+
+\newlength{\leftbarwidth}
+\setlength{\leftbarwidth}{3pt}
+\newlength{\leftbarsep}
+\setlength{\leftbarsep}{10pt}
+
+\renewenvironment{leftbar}[1][blue]
+{%
+\def\FrameCommand
+{%
+{\hspace{-8pt} \color{#1} \vrule width 3pt}%
+\hspace{0pt}%
+\fboxsep=\FrameSep\colorbox{#1!5!}%
+}%
+\MakeFramed{\hsize\hsize\advance\hsize-\width\FrameRestore}%
+}
+{\endMakeFramed}
+\setlength{\FrameSep}{5pt}
+
+
+\makeatletter
+
+  \if@todonotes@disabled %
+  \excludecomment{szin}
+  \else %
+  \newenvironment{szin}{\begin{leftbar}[red]{\noindent\bf sz: }}{\end{leftbar}}
+  \fi
+
+\makeatother
+
+
+\newcommand\myitem[1]{\hyperref[item:#1]{\emph{\ref*{item:#1}.}{}}\xspace}
+
+
+
+
+\newcommand{\appmark}{$\ast$}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem*{theorem*}{Theorem}
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{question}[theorem]{Question}
+
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem*{corollary*}{Corollary}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem*{lemma*}{Lemma}
+\newtheorem{fact}[theorem]{Fact}
+\newtheorem{observation}[theorem]{Observation}
+\newtheorem{notation}{Notation}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem*{proposition*}{Proposition}
+
+\renewcommand{\qedsymbol}{\raisebox{0.2ex}{\scalebox{0.85}{$\blacksquare$}}}
+
+
+\newtheorem{claim}{Claim}[section]
+\crefname{claim}{claim}{Claims} %
+\Crefname{claim}{Claim}{Claims} %
+
+\newenvironment{claimproof}[1][\proofname]{%
+  \renewcommand{\qedsymbol}{\raisebox{0.3ex}{\scalebox{1}{$\blacktriangleleft$}}}%
+  \begin{proof}[#1]%
+}{%
+  \end{proof}%
+}
+
+\newtheorem{goal}[theorem]{Goal}
+\newcommand{\msfw}{\mathrm{monotone\text{-}set\text{-}fw}}
+\newcommand{\mfw}{\mathrm{monotone\text{-}fw}}
+
+
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{definition}[theorem]{Definition}
+
+
+
+
+\def\marker{\bar}
+\def\bu{{\marker u}}
+\def\bv{{\marker v}}
+\def\bw{{\marker w}}
+\def\bx{{\marker x}}
+\def\by{{\marker y}}
+\def\bz{{\marker z}}
+\def\bs{{\marker s}}
+
+\newcommand{\parent}{\mathrm{parent}}
+\renewcommand{\preceq}{\preccurlyeq}
+\renewcommand{\succeq}{\succcurlyeq}
+
+
+\def\Nesetril{Ne\v{s}et\v{r}il\xspace}
+\def\Dvorak{Dvo\v{r}\'{a}k\xspace}
+\def\Kral{Kr\'{a}l\xspace}
+\def\Gajarsky{Gajarsk\'{y}\xspace}
+
+\newcommand{\cmso}{\mathrm{CMSO}}
+\newcommand{\mso}{\mathrm{MSO}}
+\newcommand{\first}{\text{first}}
+\newcommand{\str}[1]{{{#1}}}
+\newcommand{\from}{\colon}
+\newcommand{\tto}{\rightsquigarrow}
+\newcommand{\pto}{\rightharpoonup}
+\newcommand{\set}[1]{\{#1\}}
+\newcommand{\setof}[2]{\set{#1\mid#2}}
+\def\phi{\varphi}
+\def\cal{\mathcal}
+\def\N{\mathbb N}
+\def\R{\mathbb R}
+\def\epsilon{\varepsilon}
+\def\eps{\varepsilon}
+\renewcommand{\subset}{\subseteq}
+\renewcommand{\setminus}{-}
+\renewcommand{\le}{\leqslant}
+\renewcommand{\ge}{\geqslant}
+\newcommand{\lca}{\mathrm{lca}}
+\newcommand{\dist}{\mathrm{dist}}
+\newcommand{\lie}{\mathrm{lie}}
+\newcommand\tw{{\rm treewidth}}
+\newcommand\td{{\rm treedepth}}
+\newcommand{\BB}{\cal B}
+\newcommand{\CC}{\cal C}
+\newcommand{\DD}{\cal D}
+\newcommand{\TT}{\cal T}
+\newcommand{\trans}[1]{\mathsf{#1}}
+\DeclareMathOperator{\mw}{mw}
+\newcommand\reach{{\rm reach}}
+\newcommand{\warp}[1]{\langle #1\rangle}
+\newcommand{\leaves}{\mathrm{Leaves}}
+\def\G{\mathcal G}
+\def\S{\mathcal S}
+\newcommand{\Oof}{O}
+\def\edge{\textit{edge}}
+\newcommand{\tup}{\bar}
+\newcommand{\tp}{\textnormal{tp}}
+\newcommand{\ltp}{\textnormal{ltp}}
+\newcommand{\atp}{\textnormal{atp}}
+\def\typi{\textit{type}}
+\newcommand{\stp}{\textnormal{stp}}
+
+\newcommand{\cluster}{\textnormal{cluster}}
+
+
+\newcommand{\anonym}[2][]{#2}%
+
+
+
+
+\newcommand{\ERCagreement}{\xspace ST received funding from the European Research Council (ERC) (grant agreement №948057 -- {\sc bobr} -- and №101126229 -- {\sc buka}).
+\begin{tikzpicture}[remember picture, overlay]
+  \coordinate (refpoint) at (12,0); %
+
+  \node[anchor=south, yshift=0cm] at (refpoint)
+  {\includegraphics[width=40px]{logo-erc.jpg}};
+
+  \node[anchor=south, yshift=-2cm] at (refpoint)
+  {\includegraphics[width=60px]{logo-eu.pdf}};
+\end{tikzpicture}
+}
+
+\begin{document}
+
+\title{\vspace{-1.5em}Merge-width and First-Order Model Checking}
+
+\author{{Jan Dreier and Szymon Toru\'nczyk}}
+
+  \date{~}
+\maketitle
+
+\vspace{-4em}
+\begin{abstract}
+We introduce \emph{merge-width}, a family of graph parameters that unifies several structural graph measures, including treewidth, degeneracy, twin-width, clique-width, and generalized coloring numbers. 
+Our parameters are based on new decompositions called \emph{construction sequences}.
+These are sequences of ever coarser partitions of the vertex set, where each pair of parts has a specified default connection, and all  vertex pairs of the graph that differ from the default are marked as \emph{resolved}.
+ The \emph{radius-$r$ merge-width} is the maximum number of parts reached from a vertex by following a path of at most $r$ resolved edges.
+ Graph classes of \emph{bounded merge-width}
+ -- for which the radius-\(r\) merge-width parameter can be bounded by a constant, for each fixed \(r=1,2,3,\ldots\) --  include all classes of bounded expansion or of bounded twin-width, thus unifying two central notions from the Sparsity and Twin-width frameworks. Furthermore, they are preserved under first-order transductions, which attests to their robustness.
+We conjecture that classes of bounded merge-width are equivalent to the previously introduced classes of bounded flip-width.
+
+As our main result, we show that the model checking problem for first-order logic is fixed-parameter tractable on graph classes of bounded merge-width, assuming the input includes a witnessing construction sequence. This unites and extends two previous model checking results: the result of \Dvorak, \Kral, and Thomas for classes of bounded expansion, and the result of Bonnet, Kim, Thomass\'e, and Watrigant for classes of bounded twin-width.
+ Finally, we suggest future research directions that could impact the study of structural and algorithmic graph theory, in particular of monadically dependent graph classes, which we conjecture to coincide with classes of \emph{almost bounded merge-width}.
+\end{abstract}
+
+
+\paragraph{Acknowledgements.}
+We are grateful to Jakub Gajarsk{\'{y}}, Nikolas M\"ahlmann, Rose McCarty, Jakub No\-wa\-ko\-wski, Pierre Ohlmann,  Michał Pilipczuk, and Wojciech Przybyszewski
+for many inspiring discussions. We also thank the anonymous reviewers for numerous useful comments.\ERCagreement
+
+\vspace{-1em}
+
+\section{Introduction}\label{sec:intro}
+Several graph parameters in structural graph theory -- in particular, treewidth, degeneracy, and twin-width -- have proven exceptionally effective in both algorithmic and combinatorial contexts. 
+The study of these parameters has led to a wealth of related measures,
+such as generalized coloring numbers (extensions of degeneracy that detect distances up to a fixed radius),
+as well as clique-width and rank-width (two closely related extensions of treewidth beyond the realm of sparse graphs).
+
+
+\medskip
+What do all those parameters have in common?
+\medskip
+
+They all describe the existence 
+of graph decompositions of some sort, which can be then 
+utilized for algorithms and inductive proofs.
+However, the decompositions underlying 
+degeneracy and twin-width, for example,
+differ significantly in their structure, utility, and scope.
+For instance, there are classes of graphs whose degeneracy is bounded by a constant,
+but which have unbounded twin-width, and vice versa.
+
+\smallskip
+Ever since the introduction of twin-width, it has been anticipated that twin-width and degeneracy may have some common explanation and a common generalization.
+Already with the development
+of Sparsity by \Nesetril and Ossona de Mendez, 
+it has been expected 
+that its central notions -- of which degeneracy is a prime example -- might have extensions which are suitable beyond the sparse realm, similar to how treewidth is extended by clique-width and rank-width.
+Such notions could enable the 
+analysis of a broader variety of graphs,
+and lead to the 
+unification of Sparsity with Twin-width.
+Specifically, two central notions studied in those frameworks are
+graph classes of \emph{bounded expansion} -- for which degeneracy, and also each of the generalized coloring numbers is bounded by a constant  -- 
+ and, respectively, graph classes of \emph{bounded twin-width}.
+Graph classes of bounded expansion include e.g.\
+every  class of bounded maximum degree,
+the class of planar graphs,
+and every class which excludes some graph as a minor, or even as a topological minor. These graph classes are all sparse: the number of edges is linear in the number of vertices in all graphs from the class.
+Graph classes of bounded twin-width 
+include e.g. every class which excludes some graph as a minor, and also non-sparse graph classes, such as classes of bounded clique-width, proper hereditary classes of permutation graphs, or the class of unit interval graphs. However, some of the simplest classes of bounded expansion -- classes 
+of bounded maximum degree -- have unbounded twin-width \cite{tww2}. Hence, these two notions are incomparable. 
+Another central notion studied in Sparsity are \emph{nowhere dense} classes, with coloring numbers bounded by $n^{o(1)}$, for $n$-vertex graphs in the class, rather than $O(1)$. This notion is conceptually similar to, and more general than bounded expansion, and is
+discussed at the end of this section.
+\Cref{fig:diagram} reviews the different properties of graph classes discussed in this paper. 
+
+
+
+\paragraph{First-order model checking.}
+Classes of bounded twin-width and of bounded expansion share many similarities.
+Most notably, similar algorithmic 
+problems can be efficiently solved on those graph classes, including all problems expressible
+in first-order logic.
+More precisely, we say that the model checking problem for first-order logic \emph{is fixed-parameter tractable} on a graph class $\CC$ if for every first-order sentence~$\phi$ 
+there is an algorithm which determines whether a given $n$-vertex graph $G\in\CC$ satisfies $\phi$
+in time 
+$c\cdot n^d$, for some constant $c$ which may depend both on $\phi$ and on $\CC$,
+and for some exponent $d$ depending on $\CC$ only. Algorithms of this form are known as \emph{algorithmic meta-theorems}, as they establish the fixed-parameter tractability of an entire family of graph problems,  namely those expressible in first-order logic.
+This includes the independent set problem, the clique problem, the dominating set problem, and many others.
+
+The model checking problem is fixed-parameter tractable for all graph classes of bounded expansion, by the result of \Dvorak, \Kral, and Thomas \cite{DvorakKT13-journal}.
+This also holds for classes of bounded twin-width, by the result of Bonnet, Kim, Thomass\'e, and Watrigant \cite{tww1} -- with the additional requirement that the input graph $G$ is provided together with 
+a \emph{contraction sequence} witnessing that $G$ has twin-width bounded by a constant.
+It remains unknown if there is a polynomial-time algorithm which
+computes such a suitable contraction sequence.
+
+
+\medskip
+\paragraph{Flip-width.}
+Evidence that the aforementioned graph parameters are 
+indeed all related
+was given by \anonym[Toruńczyk]{the second author} in \cite{flip-width}. It was observed that all parameters discussed so far
+can be explained using variants of a pursuit-evasion game, similar to the classic Cops and Robber game that characterizes treewidth \cite{seymour-thomas-cops}.
+This led to a 
+family of graph parameters, called \emph{flip-width}.
+Variants of the flip-width parameters recover
+ all the graph parameters listed above -- treewidth, twin-width, degeneracy, clique-width, generalized coloring numbers -- up to functional equivalence.
+In turn, graph classes of \emph{bounded flip-width} -- in which all the flip-width parameters are bounded --
+generalize classes of bounded expansion and classes of bounded twin-width.
+
+Unlike parameters such as treewidth or twin-width,
+the flip-width parameters are defined in terms of pursuit-evasion games
+and thus do not describe 
+the existence of a decomposition of the considered graph.
+This limits the usefulness of flip-width for algorithmic and combinatorial applications. 
+In particular, it is not known whether the model checking results 
+for classes of bounded expansion and for classes of bounded twin-width (with a given contraction sequence) extend
+to classes of bounded flip-width. 
+It is even unknown if in classes of bounded flip-width, the pursuer has a winning strategy  
+-- the closest equivalent of a decomposition provided by flip-width --
+which terminates after a number of rounds which is bounded by a polynomial in the number of vertices, with a fixed degree of the polynomial.
+
+
+
+\nocite{robertson-seymour-tw}
+\nocite{clique-width}
+\nocite{tww2}
+\nocite{tww1}
+\nocite{grad-and-bounded-expansion-Nesetril}
+\nocite{NesetrilM11a}
+\nocite{flip-width}
+\nocite{Shelah1986}
+\begin{figure}
+    \centering
+    \includegraphics{figures/arrows.pdf}
+    \newcommand{\myarrow}[1][]{\mathrel{\tikz{
+    \node[fill, minimum width=.5ex, minimum height=.9em, inner sep=0pt, single arrow, single arrow head extend=1.7pt, single arrow tip angle=45]
+        (A){\raisebox{3.5pt}[0pt][0pt]{$\,\scriptstyle #1\ $}}; \path([xshift=-.4pt]A.west)--(A.east);}}}
+  \caption{Properties of graph classes, and implications ($\myarrow$) among them. 
+  Each property in the upper row implies the graph class is \emph{weakly-sparse} 
+  -- excludes some biclique $K_{t,t}$ as a subgraph.
+  Each property in the lower row, restricted to weakly sparse graph classes, yields the property  in the upper row directly above it. Also, each property in the lower row, apart 
+  from almost bounded merge-width/flip-width, is known to be preserved under first-order transductions.
+  Within each of the two larger red boxes, we conjecture that also the converse implications hold, and thus that the three notions are equivalent.
+  }\label{fig:diagram}
+\end{figure}
+\subsection*{Contribution}
+In this paper, we propose an answer to the question posed in the beginning of this introduction, by directly relating the 
+\emph{decompositions} underlying the aforementioned parameters. We introduce 
+\emph{construction sequences}, which are similar to the {contraction sequences} underlying twin-width. 
+Imposing suitable restrictions on construction sequences allows us to recover contraction sequences underlying twin-width,  tree decompositions underlying treewidth, as well as the decompositions underlying clique-width, degeneracy, and generalized coloring numbers.
+
+As our core conceptual contribution,
+we introduce
+a new family of graph parameters, 
+dubbed \emph{\mbox{radius-$r$} merge-width}, for each radius $r\in\N$,
+which measure the complexity of graphs in terms of construction sequences.
+
+Our second contribution, and  main result, establishes 
+that the model checking problem for first-order logic
+is fixed-parameter tractable on graph classes of bounded merge-width (for which each merge-width parameter is bounded by a constant),
+assuming that the input graph is provided together with a witnessing construction sequence.
+These contributions  are detailed further below. We start by defining the main concept of this paper.
+\medskip
+\begin{tcolorbox}[
+  boxsep=2pt,
+  left=2pt,
+  right=2pt,
+  top=2pt,
+  ]%
+\paragraph{Merge-width.} Fix a vertex set $V$.
+A \emph{construction sequence} is a sequence of steps, maintaining a partition $\cal P$~of~$V$ and a partition of  ${V\choose 2}$ into three sets:  
+\emph{edges} $E$, \mbox{\emph{non-edges}~$N$},
+and \emph{unresolved} pairs~$U$.
+ Initially, $\cal P$ partitions $V$ into singletons, and every pair in $V\choose 2$ is unresolved.
+In each step, one of three operations is performed:
+\begin{itemize}
+  \item  \emph{merge} two parts $A,B\in\cal P$, replacing the two parts by their union $A\cup B$, 
+  \item \emph{resolve positively} a pair of parts $A,B\in\cal P$ 
+  (possibly $A=B$), declaring 
+ all the unresolved pairs $\set{a,b}\in U$ with $a\in A,b\in B$ as \emph{edges}, that is, moving them from \(U\) to \(E\), or 
+ \item \emph{resolve negatively} a pair of parts -- 
+     by declaring the corresponding unresolved vertex pairs as \emph{non-edges}, that is, moving them from \(U\) to \(N\).
+\end{itemize}
+In the end, we require that $\cal P$ has one part, and that every pair from ${V\choose 2}$ is resolved as either an edge or a non-edge.
+We thus say this is a construction sequence of the graph $G=(V,E)$.
+
+\quad The \emph{radius-$r$ width}
+of a construction sequence is the least number $k$ such that at every step in the sequence, the following holds:
+\begin{quote}  
+For every vertex $v\in V$, at most $k$ parts 
+of the current partition $\cal P$ can be reached from $v$ by a path of length  ${\le}r$ in the graph $(V,E\cup N)$ formed by the current edges and non-edges.
+\end{quote}
+The \emph{radius-$r$ merge-width} of a graph $G$, denoted $\mw_r(G)$, is the least radius-$r$ width of a construction sequence of $G$.
+Finally, a graph class $\CC$ has  \emph{bounded merge-width} if $\mw_r(\CC)<\infty$ for all $r\in\N$, where $\mw_r(\CC)\coloneqq\sup_{G\in\CC}\mw_r(G)$.
+\end{tcolorbox}
+\smallskip
+
+The definition of merge-width in terms of 
+\emph{construction sequences} is complemented by an equivalent but often more flexible definition via \emph{merge sequences}
+ introduced later in \Cref{sec:merge-sequence}.
+
+ 
+\begin{remark}\label{remark:maindef}
+We start with three observations, regarding each step \((\cal P,E,N,U)\) of a construction sequence of a graph \(G\). 
+
+\begin{enumerate}[wide, labelwidth=!, labelindent=0pt]
+  \item 
+        As the edge set of the last step of the construction sequence needs to be \(E(G)\), and 
+throughout the construction sequence, the sets $E$ and $N$ can never decrease,
+        we observe that at each step, \(E \subseteq E(G)\) and \(N \subseteq V \setminus E(G)\).
+        Thus, when the graph \(G\) is clear from from the context, at each step, we only need to specify \(\cal P\) and the set \(R\coloneqq E\cup N \subset {V \choose 2}\) of \emph{resolved pairs}.
+        The partition of \(V\choose 2\) into \(E, N\), and \(U\) then follows from \(G\), as \(E=R\cap E(G), N = R \setminus E(G)\), and \(U={V\choose 2}-R\).
+    \item 
+        For every pair of parts $A,B\in\cal P$ (including $A=B$), the unresolved pairs $\set{a,b}\in U={V\choose 2}-R$ with $a\in A$ and $b\in B$ are either all adjacent, or are all non-adjacent in~$G$.
+        (In other words, the pair $A,B$ is  \emph{homogeneous}, once the vertex pairs in $R$ are ignored.)
+        This holds as otherwise, reconstructing the edge set \(E(G)\) in the remainder of the construction sequence would be impossible.
+        Thus, for every pair of parts in \(\cal P\), we can declare a \emph{default connection} (either ``adjacent'' or ``non-adjacent'') that
+        describes all unresolved vertex pairs between these two parts.
+        (If there are no unresolved vertex pairs between them, we may choose an arbitrary default connection.)
+    \item 
+        Assume we want to perform a merge operation between two parts, say \(A,B \in \cal P\).
+        Before doing so, for each part \(C\in\cal P\) (including $A$ and  $B$) whose default connection to \(A\) is different than to \(B\), we need to resolve either the pair \(C,A\) or \(C,B\),
+        as otherwise the previous item is violated
+        (unless one of those pairs is fully resolved).
+        All other resolutions can be postponed to after the merge of $A$ and $B$, without increasing the radius-$r$ width of the construction sequence, for each $r\in\N$. %
+
+  \medskip 
+   See Figures \ref{fig:a}, \ref{fig:b}, and \ref{fig:c} for examples of construction sequences.
+\end{enumerate}
+\end{remark}
+\FloatBarrier
+{\definecolor{lightred}{RGB}{255, 158, 159}
+\definecolor{darkred}{RGB}{176, 0, 2} 
+\definecolor{lightergray}{RGB}{234,234,234}
+\definecolor{darkergray}{RGB}{126,126,126}
+\begin{figure}[p]
+\vspace{-0.5cm}
+    \centering
+    \includegraphics[scale=0.95]{figures/example1.pdf}
+    \caption{Excerpt of a construction sequence of a graph, with a partition \(\cal P=\{A,B,C,D,E,F\}\).
+    The \emph{resolved pairs} are indicated as  \textcolor{darkred}{\rule[0.5ex]{0.3cm}{1.3pt}} (edges) and \textcolor{lightred}{\rule[0.5ex]{0.3cm}{1.3pt}} (non-edges).
+    Recall that \emph{unresolved pairs} between any two parts are either all adjacent or all non-adjacent (\Cref{remark:maindef}, item 2).
+    Thus, resolved pairs are indicated in an aggregated way as \textcolor{darkergray}{\rule[-0.ex]{0.3cm}{5.3pt}} (edges) 
+    and \textcolor{lightergray}{\rule[-0.ex]{0.3cm}{5.3pt}} (non-edges) connecting parts,
+    or as fill colors within each part.
+    In this and other pictures, each arrow labeled ``resolve'' represents a sequence of either positive or negative resolve operations,
+    while each arrow labeled ``merge'' usually represents a single merge operation.
+    For visual clarity, this figure only shows default connections within or involving parts \(C\) and \(D\).
+    \smallskip \\
+    As discussed in item 3 of \Cref{remark:maindef},
+    before we can merge the two parts $C$ and $D$, every part that has a different default connection to $C$ than to $D$ must be fully resolved with either $C$ or~$D$.
+    As \(E\) has the same default connection (\textcolor{darkergray}{\rule[-0.ex]{0.3cm}{5.3pt}}) to both \(C\) and \(D\),
+    no vertex pairs incident to \(E\) need to be resolved before the merge.
+    The same holds for~\(F\).
+    However, both \(A\) and \(B\) have different default connections to \(C\) and to \(D\).
+    Thus, to enable the merge, each of the parts \(A\) and \(B\) need to commit to a default connection to the new part \(C \cup D\).
+    The part \(A\) commits to \textcolor{lightergray}{\rule[-0.ex]{0.3cm}{5.3pt}} and thus has to resolve all missing edges to \(C\).
+    Similarly, \(B\) commits to \textcolor{darkergray}{\rule[-0.ex]{0.3cm}{5.3pt}} and resolves all missing non-edges to \(D\).
+    As \(D\) has a default self-connection 
+    \textcolor{darkergray}{\rule[-0.ex]{0.3cm}{5.3pt}} before the merge, but \(C \cup D\) commits to  default self-connection \textcolor{lightergray}{\rule[-0.ex]{0.3cm}{5.3pt}},
+    the part \(D\) also resolves all missing edges within itself.
+    Afterwards, \(C\) and \(D\) can be merged.
+}\label{fig:a}
+\end{figure}
+\begin{figure}[p]
+    \centering
+    \includegraphics[scale=0.95]{figures/example2.pdf}
+    \captionsetup{justification=raggedright, singlelinecheck=false}
+    \caption{
+    A full construction sequence of a graph \(G\) witnessing \(\mw_1(G)\le 3\), using notation from Fig.~\ref{fig:a}.
+}\label{fig:b}
+\end{figure}
+\begin{figure}[p]
+    \centering
+    \includegraphics[scale=0.95]{figures/example3.pdf}
+    \caption{
+        \emph{Left:} A graph $G$ consisting of a matching and a complement of a matching.
+        \emph{Right:} An excerpt from a construction sequence of $G$. 
+        First the symmetric difference to the empty default connection (for the matching) and the full default connection (for the complement)
+        is resolved, in a sequence of steps. Each vertex reaches three parts by a path of arbitrary length in the resolved graph.
+        Then the middle column is merged, in a sequence of steps, into a single part.
+        For clarity, default connections are only drawn between neighboring columns.
+        Note that in the context of twin-width (see \Cref{ex:tww}), such a contraction sequence would
+        result in many parts that are inhomogeneous towards the middle part.
+}\label{fig:c}
+\end{figure}}
+\FloatBarrier
+
+\begin{example}\label{ex:degree}
+  As a simple example, fix $r,d\in\N$ and consider a graph $G$ with maximum degree at most $d$. We show that $G$ has radius-$r$ merge-width $O(d^r)$.
+  A construction sequence of $G$ proceeds as follows:
+  first resolve positively every pair $\set{u},\set{v}$ of singletons such that $u$ and~$v$ are adjacent in $G$. Next, perform a sequence of $|V(G)|-1$ merges, in any order, arriving at a partition with a single part. 
+  Finally, resolve negatively that part with itself.
+  At any moment of the construction sequence (apart from the last step), the set $R$ of resolved vertex pairs is contained in the edge set of $G$; hence, the graph with edge set $R$ has maximum degree $d$.
+  It follows that the radius-$r$ width of the construction sequence is at most $1+d+\cdots+d^r\le O(d^r)$ (see \Cref{sec:sparsity} for more details).\qed
+\end{example}
+
+
+\begin{example}\label{ex:tww}
+  Again fix $r,d\in\N$ and consider a graph $G$ of \emph{twin-width} at most $d$. We show that $G$ has radius-$r$ merge-width $O(d^r)$.
+  Recall that a pair of vertex sets of a graph $G$ is  \emph{homogeneous} if  either all or no edges between these parts are present in $G$.
+Further, by definition, $G$ has twin-width at most $d$ if there 
+is a sequence of steps -- a \emph{contraction sequence} -- maintaining a partition $\cal P$ of $V(G)$, starting with the partition into singletons and ending in the partition with one part, such that in each step some two parts are merged into one, and moreover, each part in $\cal P$ is inhomogeneous towards at most $d$ other parts in $\cal P$. This can be readily converted into a construction sequence, by following the merges of the contraction sequence, and prior to merging two parts $A,B\in \cal P$, resolving the pairs $C,A$, and $C,B$, for each part $C\in\cal P$ 
+such that the pair $C, A\cup B$ is not homogeneous in $G$.
+Once $A$ and $B$ are merged, the set $R$ of resolved vertex pairs 
+consists of those pairs $\set{u,v}$ such that the pair of parts containing $u$ and $v$ respectively is inhomogeneous. It is easy to see 
+that the radius-$r$ width of the resulting construction sequence is at most $2+d+\cdots+d^r\le O(d^r)$ (see \Cref{sec:tww} for details).\qed
+\end{example}
+
+\Cref{ex:tww} proves the following.
+\begin{restatable}{theorem}{twwintro}\label{thm:tww}
+  Graph classes of bounded twin-width have bounded merge-width.
+\end{restatable}
+
+While twin-width measures inhomogeneity on a \emph{part-to-part} level,
+the central conceptual novelty of merge-width is
+to measure inhomogeneity on a \emph{vertex-to-vertex} level (via the set $R$ of resolved vertex pairs).
+This more fine-grained perspective is the key behind
+merge-width's additional expressive power (see also Fig.~\ref{fig:c}). For instance,
+ graphs of maximum degree at most three have unbounded twin-width \cite{tww2}
+and have bounded merge-width, by \Cref{ex:degree}.
+As it is expected of any notion that extends concepts from Sparsity theory, the number of reachable parts
+needs to be bounded separately for each number of steps \(r \in \N\).
+
+
+
+\begin{example}\label{ex:degeneracy}
+  We show that $\mw_1(G)\le d+2$ for all $d$-degenerate graphs.
+  A $d$-degenerate graph admits a \emph{degeneracy} total ordering of its vertices, such that every vertex has at most $d$ neighbors before it. Suppose $G$ has $n$ vertices, with degeneracy ordering $v_n<\ldots<v_1$.
+
+  We define a construction sequence consisting of $n$ stages.
+  At the beginning of stage $t$, for $t=1,\ldots,n$,
+  the current partition  is
+$$\cal P_t\coloneqq\Big\{\set{v_n},\ldots,\set{v_{t+1}},\set{v_t,\ldots,v_1}\Big\},$$
+and the set of resolved edges \(E_t\) consists of all edges of $G$ with at least one endpoint in $\set{v_t,\ldots,v_1}$,
+while the set of resolved non-edges \(N_t\) is empty.
+See \Cref{fig:degeneracy} for an illustration.
+\begin{figure}
+    \centering
+    \includegraphics{figures/degeneracy.pdf}
+    \caption{
+        A step in a construction sequence of a graph with degeneracy one.
+}\label{fig:degeneracy}
+\end{figure}
+  In stage $t$ with $t<n$, first positively resolve the singleton part $\{v_{t+1}\}$ with all other singleton parts that are adjacent to it in \(G\),
+  obtaining the set $E_{t+1}$.
+  Afterwards, merge $\set{v_{t+1}}$ with the part $\set{v_t,\ldots,v_1}$,
+  obtaining the partition $\cal P_{t+1}$.
+  As a last step, in stage $n$, we resolve \(\{v_n,\dots,v_1\}\) negatively with itself,
+  guaranteeing that all pairs are resolved.
+
+This is a construction sequence.
+  Moreover, at every moment of the construction sequence,
+  every vertex $v$ is equal or adjacent in the current resolved graph $(V,E \cup N)$ to vertices in at most $d+2$ parts:
+  at most $d+1$ singleton parts (including $\set{v}$),
+  and the  part $\set{v_t,\ldots,v_1}$.\qed
+\end{example}
+
+Thus, graph classes of bounded degeneracy have bounded radius-1 merge-width
+(they may have unbounded radius-2 merge-width, however).
+Conversely, it follows from our results (see \Cref{cor:deg}) that 
+a graph class $\CC$ 
+has bounded degeneracy if and only if it has bounded \mbox{radius-1} merge-width, and 
+excludes some biclique $K_{t,t}$ as a subgraph.
+Thus, radius-1 merge-width may be seen as an extension of degeneracy to graphs which are possibly dense.
+
+
+On the other extreme, the definition of merge-width also makes sense for the limit radius $r=\infty$.
+It is easy to see that $\mw_\infty(G)$ is functionally related to the clique-width of $G$ (see \Cref{thm:cw}).
+Thus, in a sense, the merge-width parameters, for finite $r$, are local variants of clique-width.
+
+
+
+In this paper, our main focus is the study of graph classes of bounded merge-width. 
+We already saw in \Cref{thm:tww} that those include all classes of bounded twin-width. 
+They also include all classes of bounded expansion, a key notion in Sparsity theory.
+
+
+
+
+\begin{restatable}{theorem}{beintro}
+  \label{thm:be}
+  Graph classes of bounded expansion have bounded merge-width.
+\end{restatable}
+\noindent The proof of \Cref{thm:be} converts total orders with small \emph{weak coloring numbers} -- a fundamental parameter in Sparsity -- into construction sequences. A graph class $\CC$ has bounded expansion if and only if 
+for each $r\in\N$ there is some constant $k_r$ such that each graph in $\CC$ has \emph{$r$-weak coloring} number at most $k_r$.
+By definition, a graph $G$ with $r$-weak coloring number~$k$ admits a total order $\le$ on its vertices, so that 
+for every vertex $v\in V(G)$, there are at most $k$ vertices $w\le v$ that can be reached from $v$ by a path $\pi$ of length ${\le}r$, with $w=\min(V(\pi))$.
+We use such an order to prove $\mw_{r-1}(G)\le O(2^k)$, by defining a construction sequence of $G$ of radius-$(r-1)$ width at most $O(2^k)$.
+Similarly as in \Cref{ex:degeneracy}, the sequence proceeds in $n$ stages. At the beginning of stage~$t$, the partition $\cal P_t$ partitions the set $S_t$ 
+of $n-t$ smallest elements of $V$ into singletons, and the remaining vertices are partitioned according to their neighborhoods in $S_t$, whereas the set $E_t$ of resolved edges consists of all edges of $G$ whose \emph{both endpoints} (unlike in \Cref{ex:degeneracy}) lie outside of $S_t$. A simple analysis shows that the ball of radius $(r-1)$ around any given vertex in the graph $(V,E_t)$ intersects at most $2^k$ parts of $\cal P_t$.
+See \Cref{lem:wcol} for details.
+
+
+\medskip
+On the other hand, classes of bounded merge-width have bounded flip-width.
+
+\begin{theorem}\label{thm:mw-fw}
+Every class of bounded merge-width has bounded flip-width. 
+\end{theorem}
+\noindent\Cref{thm:mw-fw}, proved in \Cref{sec:fw}, allows us to derive properties of classes of bounded merge-width from known properties of classes of bounded flip-width. In particular, we get the following corollaries,
+characterizing classes of bounded expansion and of bounded twin-width in terms of merge-width.
+
+\begin{restatable}{corollary}{corbe}\label{cor:be}
+  A graph class has bounded expansion if and only if it has bounded merge-width, and is weakly sparse (excludes some biclique $K_{t,t}$ as a subgraph).
+\end{restatable}
+
+In order to characterize twin-width in terms of merge-width, note that  the definition of merge-width extends easily to structures equipped with one or multiple binary relations, such as \emph{ordered graphs} --  graphs equipped with a total order on the vertex set. (See also \Cref{sec:computing} for merge-width of binary structures.) Similarly, the notion of twin-width also applies to ordered graphs \cite{tww4}, and \Cref{thm:tww} and \Cref{thm:mw-fw} also hold for classes of ordered graphs. We get the following corollary, from an analogous result concerning flip-width \cite[Thm. II.8]{flip-width}.
+\begin{corollary}\label{cor:tww-mw-ordered}
+  A class of ordered graphs has bounded twin-width if and only if it has bounded merge-width.
+\end{corollary}
+The following is a consequence for usual (unordered) graphs, as every graph can be equipped with a total order, yielding an ordered graph of the same twin-width \cite{tww4}.
+
+\begin{restatable}{corollary}{cortww}\label{cor:tww-mw}
+  A graph class has bounded twin-width if and only if it is obtained 
+  from some class of {ordered graphs} of bounded merge-width
+  by forgetting the order.
+\end{restatable}
+
+
+
+We conjecture that 
+the converse to \Cref{thm:mw-fw} also holds: that every class of bounded flip-width has bounded merge-width (see Discussion below).
+As we demonstrate in \Cref{sec:fw}, construction sequences can be 
+viewed as representations of specific winning strategies for the pursuer in the flip-width game. In particular,  
+in those strategies, the pursuer wins in $n$ rounds on an $n$ vertex graph (see \Cref{rem:duration}).
+This is reminiscent of the situation with treewidth, where tree decompositions correspond to \emph{monotone} winning strategies for the pursuer in the Cops and Robber game.
+If indeed every class of bounded flip-width 
+has bounded merge-width, this would imply that whenever 
+the pursuer has a winning strategy, then 
+they also have one of a special form, analogously to the treewidth case.
+
+
+
+\paragraph{Main result.}
+As our second contribution and  main result,
+we prove that the model checking problem for first-order logic
+is fixed-parameter tractable on graph classes of bounded merge-width,
+provided the input graph comes with a construction sequence demonstrating that its merge-width is bounded.
+More precisely, we prove:
+
+\begin{restatable}{theorem}{intromain}\label{thm:main}
+  Fix $q,w\in\N$.
+    For each first-order sentence $\phi$ of quantifier rank $q$,
+   there is some $r\le 2^{O(q^2)}$ and an algorithm 
+   which, 
+  given a graph $G$ together with its construction sequence of radius-$r$ width~$w$,
+determines whether $G$ satisfies $\phi$ 
+in time 
+$f(w,q)\cdot |V(G)|^3$,
+where  $f\from {\N\times\N}\to\N$ is a fixed function.
+\end{restatable}
+\noindent (See \Cref{sec:representing} for how construction sequences are represented.)
+
+\medskip
+\Cref{thm:main} conceptually generalizes two previous results concerning classes of bounded expansion and classes of bounded twin-width:
+\begin{enumerate}[wide, labelwidth=!, labelindent=0pt]
+  \item We extend the result of \Dvorak, \Kral, and Thomas~\cite{DvorakKT13-journal}, that model checking is fixed-parameter tractable on all graph classes of bounded expansion. This is because for every graph $G$ from such a class~$\CC$, a construction sequence of bounded radius-$r$ width can be computed in  time\footnote{Throughout this paper, 
+  by $O_{p}(n)$, where $p$ is a list of parameters, we denote a value which is upper-bounded by $c\cdot n+d$, for some constants $c,d$ depending on $p$.} $O_{r,\CC}(|V(G)|)$, for every fixed $r\in\N$
+  (see \Cref{thm:be}).
+
+  \item We also extend the result of Bonnet, Kim, Thomass\'e, and Watrigant \cite{tww1}, that model checking is fixed-parameter tractable on all graphs of bounded twin-width, assuming that 
+  the given input graph $G$ is given together with a contraction sequence witnessing that the twin-width is bounded by a constant $d$. This is because such a contraction sequence can be converted in time $O_d(|V(G)|)$ into a construction sequence of radius-$r$ width at most $O(d^r)$, for every $r\in\N$ (see \Cref{ex:tww}).
+\end{enumerate}
+Note that in these two results, the running time is linear in $|V(G)|$, whereas in \Cref{thm:main}
+it is cubic, and thus, our result falls short of fully implying them.
+We conjecture that \Cref{thm:main} can be strengthened to obtain a linear dependence on \(|V(G)|\).
+Moreover, while our algorithm depends non-uniformly on \(q\) and \(w\), we conjecture that a single uniform algorithm is possible.
+
+Our proof combines tools used in the context of model checking for classes of bounded twin-width (\emph{local types} \cite{tww-types-icalp}),
+with tools used in the context of model checking for nowhere dense classes (\emph{rank-preserving Gaifman normal form} \cite{gks}).
+See \Cref{sec:overview} for an overview of our proof.
+
+
+\paragraph{Closure under interpretations and transductions.}
+In addition, 
+we exhibit some further properties of classes of bounded merge-width.
+Namely, they are preserved under one-dimensional first-order interpretations (more generally, transductions), a notion from model theory. 
+This roughly means that redefining the edges of each graph in the class using a fixed first-order formula $\phi(x,y)$
+preserves classes of bounded merge-width.
+More precisely, for a graph  $G$ and first-order formula  $\phi(x,y)$, 
+we construct  
+a graph $\phi(G)$
+with vertices $V(G)$ and edges $\set{u,v}\in {V(G)\choose 2}$ such that $G\models\phi(u,v)$. 
+In \Cref{sec:closure} we prove the following:
+
+\begin{restatable}{theorem}{introinterp}\label{thm:interp}
+  Let $\phi(x,y)$ be a first-order formula and 
+   $\CC$ be a graph class of bounded merge-width.
+  Then the class $\setof{\phi(G)}{G\in\CC}$ has bounded merge-width.
+\end{restatable}
+
+
+For example, with \(\phi(x,y)=\exists z \,E(x,z) \land E(y,z)\),
+this shows that the class of squares of graphs from a fixed class of bounded merge-width again forms a class of bounded merge-width, which is already a non-trivial fact.
+The theorem moreover implies that classes
+of \emph{structurally bounded expansion} \cite{lsd-journal}
+-- classes of the form $\phi(\CC)$, for a first-order formula $\phi(x,y)$ and  class $\CC$ of bounded expansion -- also have bounded merge-width. 
+
+More generally, a graph class $\CC$ \emph{transduces} a graph class $\DD$,
+if there is a formula $\phi(x,y)$ involving the binary edge relation symbol and additional unary relation symbols,
+such that every graph $H\in\DD$ can be obtained from some graph $G\in\CC$ 
+in the following steps:
+\begin{enumerate}
+  \item expand $G$ arbitrarily by unary relations appearing in $\phi$, obtaining a structure~$G'$,
+  \item pick an arbitrary subset $W\subset V(G)$,
+  \item obtain a graph $H$ with vertices $W$ and edges $\set{u,v}\in {W\choose 2}$ such that $G'\models\phi(u,v)$.
+\end{enumerate}
+\noindent
+The following is essentially a rephrasing of \Cref{thm:interp}, in a slightly more expressive language.
+\begin{corollary}\label{cor:transduce}
+  Suppose $\CC$ and $\DD$ are graph classes, and that $\CC$ transduces $\DD$.
+  If $\CC$ has bounded merge-width, then so does $\DD$.
+\end{corollary}
+
+\paragraph{Almost bounded merge-width.}
+Apart from classes of bounded expansion, another -- arguably even more important -- 
+concept studied in Sparsity, are nowhere dense classes.
+A graph class $\CC$ is \emph{nowhere dense} if for every $r\in\N$ there is some $k\in\N$ 
+such that the $r$-subdivision  of the $k$-clique (obtained by replacing each of its edges with a path with $r$ inner vertices) is not a subgraph of any graph in $\CC$.
+Those classes strictly extend classes of bounded expansion, and each such class excludes some biclique $K_{t,t}$ as a subgraph. It follows from \Cref{cor:be}
+that nowhere dense classes and classes of bounded merge-width are incomparable
+(see \Cref{fig:diagram}).
+
+Nowhere dense graph classes can be characterized in terms of generalized coloring numbers:  A~hereditary\footnote{closed under taking induced subgraphs} graph class is nowhere dense if and only if for each fixed $r\in\N$, the $r$-weak coloring number of every $n$-vertex graph in the class is bounded by $n^{o(1)}$ (relaxing the constant bound in classes of bounded expansion).
+Motivated by this characterization, we define the following notion.
+A graph class has \emph{almost bounded merge-width} if for each fixed ${r\in\N}$,  every $n$-vertex graph in the class has radius-$r$ merge-width at most $n^{o(1)}$.  
+Trivially, classes of almost bounded merge-width 
+include all classes of bounded merge-width. Furthermore, they 
+ include all nowhere dense graph classes (see \Cref{sec:abmw}):
+
+\begin{restatable}{theorem}{thmnwd}\label{thm:nwd}
+  Every nowhere dense graph class has almost bounded merge-width.
+\end{restatable}
+
+
+
+Classes of \emph{almost bounded flip-width} are defined \cite{flip-width} analogously 
+to classes of almost bounded merge-width,
+with the merge-width parameters replaced with the flip-width parameters.
+The following result parallels \Cref{thm:mw-fw}:
+\begin{restatable}{theorem}{thmabmw}\label{thm:abmw}
+  Every hereditary class of almost bounded merge-width has almost bounded flip-width.
+\end{restatable}
+
+For a hereditary, weakly sparse graph class (excluding some biclique as a subgraph), nowhere denseness is equivalent to almost bounded flip-width \cite[Thm. X.8]{flip-width}. With \Cref{thm:nwd} and \Cref{thm:abmw}, this imples the following.
+\begin{corollary}\label{cor:nd}
+  The following conditions are equivalent for a hereditary, weakly sparse graph class $\CC$:
+  \begin{enumerate}
+    \item $\CC$ is nowhere dense,
+    \item $\CC$ has almost bounded merge-width,
+    \item $\CC$ has almost bounded flip-width.    
+  \end{enumerate}
+\end{corollary}
+
+We conjecture that in general, for hereditary graph classes almost bounded merge-width, almost bounded flip-width, and \emph{monadic dependence}  
+ coincide 
+(see \Cref{conj:almostboundedmergewidth} below).
+
+
+
+\subsection*{Discussion}
+We discuss several possible research directions and open problems.
+
+\paragraph{Combinatorial properties.}
+Classes of bounded twin-width and classes of structurally bounded expansion  constitute two prime examples 
+of classes of bounded merge-width. 
+Those classes are known to share several combinatorial properties, such as
+(polynomial) $\chi$-boundedness, the strong Erd{\H o}s-Hajnal property, or admitting $O(\log(n))$-adjacency labelling sche\-mes \cite{tww2, tww3, lsd-journal}.
+We conjecture that classes of  bounded merge-width also enjoy all those properties.
+
+On the other hand, we conjecture that if a hereditary graph class is \emph{small} -- contains at most $n!\cdot 2^{O(n)}$ distinct labeled $n$-vertex graphs -- then it has bounded merge-width. This would extend (by \Cref{cor:be}) a result of Bonnet, Duron, Sylvester, and Zamaraev \cite{DBLP:conf/innovations/BonnetD0Z25}, 
+ that every hereditary, weakly sparse, small graph class has bounded expansion,
+and (by \Cref{cor:tww-mw-ordered}) a result of Bonnet, Giocanti, Ossona de Mendez, Simon, Thomass\'e, and Toruńczyk \cite{tww4}, that every small, hereditary class of ordered graphs has bounded twin-width.
+This would also strengthen a result of Dreier, M\"ahlmann, and Toruńczyk \cite{flipbreakability}, that small, hereditary classes are monadically dependent (see definition below).
+If indeed all classes of bounded merge-width admit $O(\log(n))$-adjacency labelling schemes, this would also imply that every hereditary, small graph class admits such a labelling scheme, as conjectured in \cite{bonnet_et_al:LIPIcs.ICALP.2024.31}.
+
+
+
+\paragraph{Algorithmic simplicity.}
+ Our model-checking algorithm of \Cref{thm:main} relies on technically involved machinery for first-order logic.
+ We are curious whether fundamental problems such as \emph{independent set} or \emph{dominating set} 
+ can be solved on graph classes of bounded merge-width via more direct techniques, and more efficiently --
+ in particular, with linear time dependency.
+ 
+
+\paragraph{Approximating merge-width.}
+A burning issue is the question of obtaining 
+an fpt approximation algorithm for merge-width. 
+More precisely, to prove fixed-parameter tractability of the first-order model checking problem over all classes of bounded merge-width,
+it would be sufficient to show that for every class $\CC$ of bounded merge-width and $r\in\N$, there is a bound $w$ and an algorithm 
+which, given a graph $G\in\CC$, outputs 
+its construction sequence of radius-$r$ width $w$,
+ in time $O_{\CC,r}(|V(G)|^c)$, for some universal constant $c$.
+ Proving this seems to be challenging. 
+ Such an approximation algorithm exists 
+ in two special cases:
+ \begin{itemize}
+  \item For classes $\CC$ of graphs of bounded merge-width which exclude some biclique $K_{t,t}$ as a subgraph,
+  that is, classes of bounded expansion, by  \Cref{cor:be}. 
+  For those classes, an approximation algorithm for the weak coloring numbers follows from the results of \cite{dvorak-admissibility}. This allows to approximate the merge-width parameters, as follows from the proof of \Cref{thm:be}.
+  \item 
+  For classes $\CC$ of ordered graphs of bounded merge-width
+  (more generally, classes with \emph{effectively} bounded twin-width). Those coincide with classes of ordered graphs of bounded twin-width, by \Cref{cor:tww-mw-ordered}.
+  For those classes, an approximation algorithm for twin-width exists, by the result of \cite{tww4}. This allows to approximate the merge-width parameters, as follows from the proof of \Cref{thm:tww}.
+ \end{itemize}  
+ 
+ In both cases, the algorithms are greedy algorithms which either proceed with constructing a suitable decomposition, or encounter an obstruction to the existence of such a decomposition. This suggests 
+ that, in order to approach the problem in general, a suitable understanding of the obstructions to having small merge-width is required. A conjectured, concrete form of such obstructions is discussed below.
+ 
+ For this reason, an fpt approximation algorithm for merge-width could turn out to be more approachable than an fpt approximation algorithm for twin-width, as even for classes of cubic graphs (in particular, $K_{4,4}$-free graphs), 
+ a characterization of classes of bounded twin-width in terms of forbidden obstructions seems elusive.
+
+ 
+
+ \paragraph{Merge-width and flip-width.}
+As mentioned, we conjecture that classes of bounded merge-width coincide with classes of bounded flip-width. Besides simplifying the picture in \Cref{fig:diagram}, we expect that a proof of this conjecture might lead to an fpt approximation algorithm for merge-width. To approach  both questions, the missing piece might be a duality result, stating the equivalence of the existence of decompositions in the form of construction sequences, and the lack of certain obstructions. 
+Indeed, both in the sparse setting, and in the ordered setting (see two bullet points in previous paragraph), such a duality result yields both the approximation algorithm as well as the equivalence with flip-width \cite{flip-width}.
+Concrete obstructions that might characterize classes of bounded flip-width, and therefore possibly also classes of bounded merge-width, were conjectured in 
+\cite{flip-width}, in the form of \emph{hideouts}, 
+and -- in a more explicit form -- in \cite[Sec. 4]{flip-breakability}.
+Without going into the particulars of those obstructions, we pose the following conjecture.
+Following \cite{tww-types-icalp}, we say that a graph class $\CC$ is in the \emph{dense analogue of bounded expansion} if 
+ for every weakly sparse graph class $\DD$ such that $\CC$ transduces $\DD$,
+ the class $\DD$ has bounded expansion (equivalently in this context, by \cite{Dvorak18}, $\DD$ has bounded degeneracy).
+
+
+\begin{conjecture}\label{conj:bmw}The following conditions are equivalent for a graph class $\CC$:
+  \begin{enumerate}
+    \item\label{conj1:it1} $\CC$ has bounded merge-width,
+    \item\label{conj1:it2} $\CC$ has bounded flip-width,
+    \item\label{conj1:it3} $\CC$ is in the dense analogue of bounded expansion.
+  \end{enumerate}
+\end{conjecture}
+The implication \eqref{conj1:it1}$\rightarrow$\eqref{conj1:it2} is given by \Cref{thm:mw-fw} above.
+The implication \eqref{conj1:it2}$\rightarrow$\eqref{conj1:it3} is proved in \cite[Thm. VI.3]{flip-width}.
+The implication \eqref{conj1:it3}$\rightarrow$\eqref{conj1:it2} is conjectured in \cite[Conj. XI.7.]{flip-width}.
+We propose the stronger conjecture, \eqref{conj1:it3}$\rightarrow$\eqref{conj1:it1}.
+
+ \Cref{conj:bmw} holds in two settings:
+ \begin{itemize}
+  \item for graph classes $\CC$ that exclude some biclique $K_{t,t}$ as a subgraph, due to \Cref{cor:be},
+  \item for classes $\CC$ of ordered graphs, due to \Cref{cor:tww-mw-ordered}.
+ \end{itemize}
+
+
+\paragraph{Model checking and monadic dependence.}
+The celebrated result of Grohe, Kreutzer, and Siebertz \cite{gks} establishes the fixed-parameter tractability 
+of the model checking problem 
+for all nowhere dense classes. 
+Furthermore, for a weakly sparse graph class $\CC$,
+the model checking problem is fixed-parameter tractable on $\CC$ if and only if $\CC$ 
+is nowhere dense (under standard complexity theoretic assumptions).
+Similarly, for a hereditary class of \emph{ordered} graphs (see \Cref{cor:tww-mw}),
+the model  checking problem is fixed-parameter tractable on $\CC$ if and only if $\CC$ has bounded twin-width \cite{tww4}. 
+The result of Grohe, Kreutzer, and Siebertz  was subsequently extended to \emph{monadically stable} graph classes \cite{ms-mc1,ms-mc2}.
+
+\emph{Monadic dependence}, which subsumes all those graph classes,
+ is a notion which was introduced by Shelah in his momentous classification program in model theory, and is defined as follows: 
+A graph class $\CC$ is monadically dependent if and only if it does not transduce the class of all graphs.
+Monadically dependent classes include all graph classes that 
+have been discussed so far, including classes of almost bounded merge-width and almost bounded flip-width (see \Cref{fig:diagram}).
+ 
+\medskip
+A central conjecture in algorithmic model theory -- which we call the \emph{model checking conjecture} here -- states that the model checking problem for first-order logic is fixed-parameter tractable for precisely those hereditary graph classes which are 
+monadically dependent. 
+Currently,
+monadically dependent classes lie beyond the reach of algorithmic methods,
+primarily due to the lack of suitable decompositions, similar to the ones 
+used in the results for nowhere dense, monadically stable, or bounded twin-width graph classes.
+
+We conjecture that monadically dependent classes have almost bounded merge-width.
+More precisely, we pose the following.
+
+
+
+\begin{conjecture}\label{conj:almostboundedmergewidth}
+The following conditions are equivalent for a hereditary graph class $\CC$:
+\begin{enumerate}
+  \item\label{conj2:it1} $\CC$ has almost bounded merge-width,
+  \item\label{conj2:it2} $\CC$ has almost bounded flip-width,
+  \item\label{conj2:it3} $\CC$ is monadically dependent.
+\end{enumerate}
+\end{conjecture}
+
+The implication \eqref{conj2:it1}$\rightarrow$\eqref{conj2:it2} is established in \Cref{thm:abmw}.
+The implication \eqref{conj2:it2}$\rightarrow$\eqref{conj2:it3} was proved in \cite{flip-breakability}. The implication \eqref{conj2:it3}$\rightarrow$\eqref{conj2:it2} was conjectured in \cite{flip-width}. We strengthen this conjecture, by conjecturing the implication \eqref{conj2:it3}$\rightarrow$\eqref{conj2:it1}.
+This would generalize \Cref{cor:nd}, as for weakly sparse graph classes, monadic dependence coincides with nowhere denseness.
+
+
+It seems that a proof of this last implication
+could provide a key to achieving the missing 
+decompositions for monadically dependent classes, and provide a crucial step towards the resolution of the model checking conjecture.
+
+
+
+
+
+
+
+
+\section{Proof overview}\label{sec:overview}
+We now discuss the proof of our main result, \Cref{thm:main}.
+Our model checking algorithm iteratively computes for each step of given a construction sequence local first-order information.
+More precisely, 
+at any stage of a construction sequence, 
+we have a structure $A=(V,E,N,\cal P)$,
+where $\cal P$ is a partition of $V$ and $E,N\subset {V\choose 2}$ are two disjoint subsets.
+We view $A$ as a logical structure by representing each part of the partition $\cal P$ as a separate unary predicate. Thus, the signature of $A$ may have as many as $|V|$ unary predicates. However, crucially, every vertex $v$ only reaches a bounded number of distinct unary predicates by paths of length ${\le}r$ in the graph $(V,E\cup N)$, assuming the construction sequence has bounded radius-$r$ width. 
+
+ We then employ a key property of first-order logic, called \emph{locality}, which roughly says that, for a fixed structure $A$ and formula $\phi(x)$, whether or not $\phi(x)$ holds at a given vertex $v\in V(A)$ depends only on the neighborhood of $v$ in the Gaifman graph of $A$, of radius depending on the quantifier rank of $\phi$. In our case, the Gaifman graph of the structure $A=(V,E,N,\cal P)$ is just the graph with the resolved pairs, $(V,E\cup N)$.
+
+
+     Let us give more details.
+     Define  the \emph{\(q\)-type} of a vertex \(v\) in a structure \(A'\) as the set of all formulas \(\phi(x)\) of quantifier rank up to \(q\)
+     such that \(\phi(v)\) holds in \(A'\).
+     Further, define the \emph{local reduct around \(v\)} as the structure \(A'\) obtained from \(A\)
+     by keeping only those unary predicates which can be reached from \(v\) via short paths in the Gaifman graph.
+     See \Cref{fig:reduct} for an illustration.
+
+
+\begin{figure}
+    \centering
+    \includegraphics{figures/reduct.pdf}
+    \caption{
+        \emph{Left:} The structure \(A\). Each color describes a separate unary predicate and black edges describe the Gaifman graph.
+        \emph{Center:} The local reduct around \(v\) contains only unary predicates reachable via two steps from \(A\).
+        \emph{Right:} The local reduct around \(v\) contains more predicates after a resolve operation (between red and blue).
+        Incorporating these additional predicates into the local type is our key challenge.
+    }\label{fig:reduct}
+\end{figure}
+
+
+     As an invariant for our model checking algorithm, we compute at each step of a construction sequence, and each vertex \(v\),
+     its \(q\)-type in the local reduct around \(v\).
+     We call this \emph{the local \(q\)-type} of~\(v\).
+     The local types in the final step of the construction sequence then give the answer to the model checking query, as the sequence finishes with all edges of $G$ resolved.
+     Crucially, as the merge-width bounds the number of unary predicates in the local reducts,
+     this also bounds the number of formulas to consider for the local types, and thus ensures the efficiency of our algorithm.
+
+     The local types are trivial to compute for each vertex in the beginning of the sequence, as there are no edges and non-edges, 
+     and therefore all vertices carry the same information.
+     The challenge is to show that this information can be updated 
+     with each step of the construction sequence.
+
+     Dealing with merge operations is easy, since those operations only simplify the considered structure,
+     by replacing two unary predicates by their union, without affecting the binary predicates.
+     The essential difficulty is to deal with resolve operations, as those alter the binary relations, 
+     and therefore modify the Gaifman graph of the structure.
+     Intuitively, suddenly a vertex $v$ may see a lot more structure in its vicinity compared to the previous step.
+     Given the local \(q\)-type of a vertex \(v\), computed in a reduct \(A'\) of \(A\) (\Cref{fig:reduct}, center), the difficulty therefore lies
+     in computing the \(q\)-type in a richer reduct \(A''\) of \(A\)
+     that also contains the unary predicates of \(v\)'s new surroundings (\Cref{fig:reduct}, right).
+
+     While Gaifman's classical theorem implies that the local type of a vertex determines its type in the larger reduct \(A''\), it has one crucial drawback: 
+     To obtain the \(q\)-type in \(A''\), we need to know beforehand the local \(q^*\)-type for some \(q^* > q\).
+     Thus, to compute the local \(q\)-type for the last step, we would have to compute local \(q^*\)-types early on for unbounded values of \(q^*\), which is infeasible.
+
+     Our main technical contribution is a locality theorem (\Cref{thm:localglobal}) that determines the \emph{\(q\)-type} of a vertex from its \emph{local \(q\)-type}.
+     The groundbreaking work of Grohe, Kreutzer and Siebertz introduced a similar locality theorem
+     under the name \emph{rank-preserving normal form}~\cite{gks}.
+     Our construction takes great inspiration from this.
+     In particular, we also extend first-order logic with additional distance predicates, and rely on similar proof techniques.
+     But our result also  differs significantly.
+     As Grohe, Kreutzer, and Siebertz applied their locality theorem in the context of a bounded-depth recursion,
+     it was permissive to add additional unary predicates to the structure in which the local type is computed.
+     As we propagate local information more often, once for each step of the construction sequence,
+     we cannot rely on additional unary predicates and therefore cannot use the result of~\cite{gks}.
+     For the same reason, the locality theorem of~\cite{ms-mc1} developed in the context of monadically stable classes is also not suitable for our purposes.
+     We believe our new locality theorem will serve as a crucial tool in the study of monadically dependent graph classes.
+
+
+ \paragraph{Outline.}
+ In \Cref{sec:prelims}, we start by giving a rigorous definition of merge-width, and prove some basic equivalences.
+ Then in \Cref{sec:logic} and \Cref{sec:mc}, we prove our locality theorem and incorporate it in our model checking algorithm.
+ Finally, in \Cref{sec:closure} and \Cref{sec:cases} we exhibit closure properties of merge-width and its relationship
+ to other structural parameters; we also study classes of almost bounded merge-width.
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\input{prelims}
+
+\input{proofs}
+
+\input{mc}
+
+\input{cases}
+
+
+
+
+
+\printbibliography
+
+
+
+\end{document}

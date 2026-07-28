@@ -1,0 +1,1628 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.2 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{anyt/global//global/global}
+    \entry{learningLogic}{inproceedings}{}
+      \name{author}{3}{}{%
+        {{hash=eff841e7106430d5e5fef81617904045}{%
+           family={Bergerem},
+           familyi={B\bibinitperiod},
+           given={Steffen\bibnamedelima van},
+           giveni={S\bibinitperiod\bibinitdelim v\bibinitperiod}}}%
+        {{hash=09c9a63ce22980640e97ed9ed81ea815}{%
+           family={Grohe},
+           familyi={G\bibinitperiod},
+           given={Martin},
+           giveni={M\bibinitperiod}}}%
+        {{hash=8e0061f6262029d9845f58dee9929da4}{%
+           family={Ritzert},
+           familyi={R\bibinitperiod},
+           given={Martin},
+           giveni={M\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Philadelphia, PA, USA}%
+      }
+      \list{publisher}{1}{%
+        {ACM}%
+      }
+      \strng{namehash}{95701d812b2af46df83db886568dfd63}
+      \strng{fullhash}{95701d812b2af46df83db886568dfd63}
+      \strng{bibnamehash}{95701d812b2af46df83db886568dfd63}
+      \strng{authorbibnamehash}{95701d812b2af46df83db886568dfd63}
+      \strng{authornamehash}{95701d812b2af46df83db886568dfd63}
+      \strng{authorfullhash}{95701d812b2af46df83db886568dfd63}
+      \field{labelalpha}{BGR22}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{We analyse the complexity of learning first-order queries in a model-theoretic framework for supervised learning introduced by (Grohe and Turán, TOCS 2004). Previous research on the complexity of learning in this framework focussed on the question of when learning is possible in time sublinear in the background structure.Here we study the parameterized complexity of the learning problem. We have two main results. The first is a hardness result, showing that learning first-order queries is at least as hard as the corresponding model-checking problem, which implies that on general structures it is hard for the parameterized complexity class AW[*]. Our second main contribution is a fixed-parameter tractable agnostic PAC learning algorithm for first-order queries over sparse relational data (more precisely, over nowhere dense background structures).}
+      \field{booktitle}{Proceedings of the 41st ACM SIGMOD-SIGACT-SIGAI Symposium on Principles of Database Systems, PODS'22}
+      \field{isbn}{9781450392600}
+      \field{title}{On the Parameterized Complexity of Learning First-Order Logic}
+      \field{year}{2022}
+      \field{pages}{337\bibrangedash 346}
+      \range{pages}{10}
+      \verb{doi}
+      \verb 10.1145/3517804.3524151
+      \endverb
+      \verb{urlraw}
+      \verb https://doi.org/10.1145/3517804.3524151
+      \endverb
+      \verb{url}
+      \verb https://doi.org/10.1145/3517804.3524151
+      \endverb
+      \keyw{supervised learning,parameterized complexity,nowhere dense graph,fixed-parameter tractable,first-order query learning,first-order logic,boolean classification,agnostic probably approximately correct learning}
+    \endentry
+    \entry{tww1}{inproceedings}{}
+      \name{author}{4}{}{%
+        {{hash=84c9c80f57b3a2ce49370110ddc34d1b}{%
+           family={Bonnet},
+           familyi={B\bibinitperiod},
+           given={Édouard},
+           giveni={É\bibinitperiod}}}%
+        {{hash=1d9374b766b15d87eeac92a995393f28}{%
+           family={Kim},
+           familyi={K\bibinitperiod},
+           given={Eun\bibnamedelima Jung},
+           giveni={E\bibinitperiod\bibinitdelim J\bibinitperiod}}}%
+        {{hash=3e2648fe69c98b5e65ce5bdf328df4b4}{%
+           family={Thomassé},
+           familyi={T\bibinitperiod},
+           given={Stéphan},
+           giveni={S\bibinitperiod}}}%
+        {{hash=b12e5c52f8160af66c41049cd21d0f3b}{%
+           family={Watrigant},
+           familyi={W\bibinitperiod},
+           given={Rémi},
+           giveni={R\bibinitperiod}}}%
+      }
+      \name{editor}{1}{}{%
+        {{hash=ef923107efe0479e584967b3642173c1}{%
+           family={Irani},
+           familyi={I\bibinitperiod},
+           given={Sandy},
+           giveni={S\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {IEEE}%
+      }
+      \strng{namehash}{c2efb7ce2da4fdc933dec76b059d29d8}
+      \strng{fullhash}{c2efb7ce2da4fdc933dec76b059d29d8}
+      \strng{bibnamehash}{c2efb7ce2da4fdc933dec76b059d29d8}
+      \strng{authorbibnamehash}{c2efb7ce2da4fdc933dec76b059d29d8}
+      \strng{authornamehash}{c2efb7ce2da4fdc933dec76b059d29d8}
+      \strng{authorfullhash}{c2efb7ce2da4fdc933dec76b059d29d8}
+      \strng{editorbibnamehash}{ef923107efe0479e584967b3642173c1}
+      \strng{editornamehash}{ef923107efe0479e584967b3642173c1}
+      \strng{editorfullhash}{ef923107efe0479e584967b3642173c1}
+      \field{labelalpha}{Bon+20}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{61st {IEEE} Annual Symposium on Foundations of Computer Science, {FOCS} 2020}
+      \field{title}{Twin-width {I:} tractable {FO} model checking}
+      \field{year}{2020}
+      \field{pages}{601\bibrangedash 612}
+      \range{pages}{12}
+      \verb{doi}
+      \verb 10.1109/FOCS46700.2020.00062
+      \endverb
+    \endentry
+    \entry{tww2}{inproceedings}{}
+      \name{author}{5}{}{%
+        {{hash=84c9c80f57b3a2ce49370110ddc34d1b}{%
+           family={Bonnet},
+           familyi={B\bibinitperiod},
+           given={Édouard},
+           giveni={É\bibinitperiod}}}%
+        {{hash=02c4f2f07c188c9299f616fbd2d5633d}{%
+           family={Geniet},
+           familyi={G\bibinitperiod},
+           given={Colin},
+           giveni={C\bibinitperiod}}}%
+        {{hash=1d9374b766b15d87eeac92a995393f28}{%
+           family={Kim},
+           familyi={K\bibinitperiod},
+           given={Eun\bibnamedelima Jung},
+           giveni={E\bibinitperiod\bibinitdelim J\bibinitperiod}}}%
+        {{hash=3e2648fe69c98b5e65ce5bdf328df4b4}{%
+           family={Thomassé},
+           familyi={T\bibinitperiod},
+           given={Stéphan},
+           giveni={S\bibinitperiod}}}%
+        {{hash=b12e5c52f8160af66c41049cd21d0f3b}{%
+           family={Watrigant},
+           familyi={W\bibinitperiod},
+           given={Rémi},
+           giveni={R\bibinitperiod}}}%
+      }
+      \name{editor}{1}{}{%
+        {{hash=e31719b087ab896a11d4b30ad542eab8}{%
+           family={Marx},
+           familyi={M\bibinitperiod},
+           given={Dániel},
+           giveni={D\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Virtual Conference}%
+      }
+      \list{publisher}{1}{%
+        {SIAM}%
+      }
+      \strng{namehash}{56fca853d1af8b6c601a649e1edc692b}
+      \strng{fullhash}{56fca853d1af8b6c601a649e1edc692b}
+      \strng{bibnamehash}{56fca853d1af8b6c601a649e1edc692b}
+      \strng{authorbibnamehash}{56fca853d1af8b6c601a649e1edc692b}
+      \strng{authornamehash}{56fca853d1af8b6c601a649e1edc692b}
+      \strng{authorfullhash}{56fca853d1af8b6c601a649e1edc692b}
+      \strng{editorbibnamehash}{e31719b087ab896a11d4b30ad542eab8}
+      \strng{editornamehash}{e31719b087ab896a11d4b30ad542eab8}
+      \strng{editorfullhash}{e31719b087ab896a11d4b30ad542eab8}
+      \field{extraname}{1}
+      \field{labelalpha}{Bon+21}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{extraalpha}{1}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the 2021 {ACM-SIAM} Symposium on Discrete Algorithms, {SODA} 2021}
+      \field{title}{Twin-width {II:} small classes}
+      \field{year}{2021}
+      \field{pages}{1977\bibrangedash 1996}
+      \range{pages}{20}
+      \verb{doi}
+      \verb 10.1137/1.9781611976465.118
+      \endverb
+    \endentry
+    \entry{tww3}{inproceedings}{}
+      \name{author}{5}{}{%
+        {{hash=84c9c80f57b3a2ce49370110ddc34d1b}{%
+           family={Bonnet},
+           familyi={B\bibinitperiod},
+           given={Édouard},
+           giveni={É\bibinitperiod}}}%
+        {{hash=02c4f2f07c188c9299f616fbd2d5633d}{%
+           family={Geniet},
+           familyi={G\bibinitperiod},
+           given={Colin},
+           giveni={C\bibinitperiod}}}%
+        {{hash=1d9374b766b15d87eeac92a995393f28}{%
+           family={Kim},
+           familyi={K\bibinitperiod},
+           given={Eun\bibnamedelima Jung},
+           giveni={E\bibinitperiod\bibinitdelim J\bibinitperiod}}}%
+        {{hash=3e2648fe69c98b5e65ce5bdf328df4b4}{%
+           family={Thomassé},
+           familyi={T\bibinitperiod},
+           given={Stéphan},
+           giveni={S\bibinitperiod}}}%
+        {{hash=b12e5c52f8160af66c41049cd21d0f3b}{%
+           family={Watrigant},
+           familyi={W\bibinitperiod},
+           given={Rémi},
+           giveni={R\bibinitperiod}}}%
+      }
+      \name{editor}{3}{}{%
+        {{hash=e5933a3896c092918084907295ad0307}{%
+           family={Bansal},
+           familyi={B\bibinitperiod},
+           given={Nikhil},
+           giveni={N\bibinitperiod}}}%
+        {{hash=a2ba638e640c38630ea955744eb4400e}{%
+           family={Merelli},
+           familyi={M\bibinitperiod},
+           given={Emanuela},
+           giveni={E\bibinitperiod}}}%
+        {{hash=4225ab35a9e84541465345977a7f9c42}{%
+           family={Worrell},
+           familyi={W\bibinitperiod},
+           given={James},
+           giveni={J\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Dagstuhl, Germany}%
+      }
+      \list{publisher}{1}{%
+        {Schloss Dagstuhl -- Leibniz-Zentrum für Informatik}%
+      }
+      \strng{namehash}{56fca853d1af8b6c601a649e1edc692b}
+      \strng{fullhash}{56fca853d1af8b6c601a649e1edc692b}
+      \strng{bibnamehash}{56fca853d1af8b6c601a649e1edc692b}
+      \strng{authorbibnamehash}{56fca853d1af8b6c601a649e1edc692b}
+      \strng{authornamehash}{56fca853d1af8b6c601a649e1edc692b}
+      \strng{authorfullhash}{56fca853d1af8b6c601a649e1edc692b}
+      \strng{editorbibnamehash}{31af76aa0e4257eb848b45ba937636bb}
+      \strng{editornamehash}{31af76aa0e4257eb848b45ba937636bb}
+      \strng{editorfullhash}{31af76aa0e4257eb848b45ba937636bb}
+      \field{extraname}{2}
+      \field{labelalpha}{Bon+21}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{extraalpha}{2}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{annotation}{Keywords: Twin-width, Max Independent Set, Min Dominating Set, Coloring, Parameterized Algorithms, Approximation Algorithms, Exact Algorithms}
+      \field{booktitle}{48th International Colloquium on Automata, Languages, and Programming (ICALP 2021)}
+      \field{isbn}{978-3-95977-195-5}
+      \field{issn}{1868-8969}
+      \field{series}{Leibniz International Proceedings in Informatics (LIPIcs)}
+      \field{title}{{Twin-width III: Max Independent Set, Min Dominating Set, and Coloring}}
+      \field{volume}{198}
+      \field{year}{2021}
+      \field{pages}{35:1\bibrangedash 35:20}
+      \range{pages}{-1}
+      \verb{doi}
+      \verb 10.4230/LIPIcs.ICALP.2021.35
+      \endverb
+    \endentry
+    \entry{tww4}{inproceedings}{}
+      \name{author}{6}{}{%
+        {{hash=84c9c80f57b3a2ce49370110ddc34d1b}{%
+           family={Bonnet},
+           familyi={B\bibinitperiod},
+           given={Édouard},
+           giveni={É\bibinitperiod}}}%
+        {{hash=a3afc3526ff818ff5cd07b43458fba7d}{%
+           family={Giocanti},
+           familyi={G\bibinitperiod},
+           given={Ugo},
+           giveni={U\bibinitperiod}}}%
+        {{hash=dc44b19991f2a6d8e51bba9dd8274e48}{%
+           family={Ossona\bibnamedelimb de\bibnamedelima Mendez},
+           familyi={O\bibinitperiod\bibinitdelim d\bibinitperiod\bibinitdelim M\bibinitperiod},
+           given={Patrice},
+           giveni={P\bibinitperiod}}}%
+        {{hash=5cd3d9b9cc3f934a906ccb4131e20e6c}{%
+           family={Simon},
+           familyi={S\bibinitperiod},
+           given={Pierre},
+           giveni={P\bibinitperiod}}}%
+        {{hash=3e2648fe69c98b5e65ce5bdf328df4b4}{%
+           family={Thomassé},
+           familyi={T\bibinitperiod},
+           given={Stéphan},
+           giveni={S\bibinitperiod}}}%
+        {{hash=0ee77d8be2008042e2de77ec3c1402ff}{%
+           family={Toruńczyk},
+           familyi={T\bibinitperiod},
+           given={Szymon},
+           giveni={S\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Rome, Italy}%
+      }
+      \list{publisher}{1}{%
+        {ACM}%
+      }
+      \strng{namehash}{8fe7ce8a42688b9d2f897a05c39bcfd2}
+      \strng{fullhash}{8fe7ce8a42688b9d2f897a05c39bcfd2}
+      \strng{bibnamehash}{8fe7ce8a42688b9d2f897a05c39bcfd2}
+      \strng{authorbibnamehash}{8fe7ce8a42688b9d2f897a05c39bcfd2}
+      \strng{authornamehash}{8fe7ce8a42688b9d2f897a05c39bcfd2}
+      \strng{authorfullhash}{8fe7ce8a42688b9d2f897a05c39bcfd2}
+      \field{labelalpha}{Bon+22}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{extraalpha}{1}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{We establish a list of characterizations of bounded twin-width for hereditary classes of totally ordered graphs: as classes of at most exponential growth studied in enumerative combinatorics, as monadically NIP classes studied in model theory, as classes that do not transduce the class of all graphs studied in finite model theory, and as classes for which model checking first-order logic is fixed-parameter tractable studied in algorithmic graph theory. This has several consequences. First, it allows us to show that every hereditary class of ordered graphs either has at most exponential growth, or has at least factorial growth. This settles a question first asked by Balogh, Bollobás, and Morris [Eur. J. Comb. '06] on the growth of hereditary classes of ordered graphs, generalizing the Stanley-Wilf conjecture/Marcus-Tardos theorem. Second, it gives a fixed-parameter approximation algorithm for twin-width on ordered graphs. Third, it yields a full classification of fixed-parameter tractable first-order model checking on hereditary classes of ordered binary structures. Fourth, it provides a model-theoretic characterization of classes with bounded twin-width. Finally, it settles our small conjecture [SODA '21] in the case of ordered graphs.}
+      \field{booktitle}{Proceedings of the 54th Annual ACM SIGACT Symposium on Theory of Computing, STOC 2022}
+      \field{isbn}{9781450392648}
+      \field{title}{Twin-Width IV: Ordered Graphs and Matrices}
+      \field{year}{2022}
+      \field{pages}{924\bibrangedash 937}
+      \range{pages}{14}
+      \verb{doi}
+      \verb 10.1145/3519935.3520037
+      \endverb
+      \keyw{matrices,Ramsey theory,enumerative combinatorics,computational complexity,algorithms,ordered graphs,model theory,Twin-width}
+    \endentry
+    \entry{tww6}{inproceedings}{}
+      \name{author}{4}{}{%
+        {{hash=84c9c80f57b3a2ce49370110ddc34d1b}{%
+           family={Bonnet},
+           familyi={B\bibinitperiod},
+           given={Édouard},
+           giveni={É\bibinitperiod}}}%
+        {{hash=1d9374b766b15d87eeac92a995393f28}{%
+           family={Kim},
+           familyi={K\bibinitperiod},
+           given={Eun\bibnamedelima Jung},
+           giveni={E\bibinitperiod\bibinitdelim J\bibinitperiod}}}%
+        {{hash=18775a31036f9d4ec2c5f2b28e7904b0}{%
+           family={Reinald},
+           familyi={R\bibinitperiod},
+           given={Amadeus},
+           giveni={A\bibinitperiod}}}%
+        {{hash=3e2648fe69c98b5e65ce5bdf328df4b4}{%
+           family={Thomassé},
+           familyi={T\bibinitperiod},
+           given={Stéphan},
+           giveni={S\bibinitperiod}}}%
+      }
+      \name{editor}{2}{}{%
+        {{hash=bd5e1b01b04d3acace0cdf8a2ada8f0e}{%
+           family={Naor},
+           familyi={N\bibinitperiod},
+           given={Joseph\bibnamedelima (Seffi)},
+           giveni={J\bibinitperiod\bibinitdelim (\bibinitperiod}}}%
+        {{hash=2278c95310e7172bfd9ff775f317da28}{%
+           family={Buchbinder},
+           familyi={B\bibinitperiod},
+           given={Niv},
+           giveni={N\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Virtual Conference / Alexandria, VA, USA}%
+      }
+      \list{publisher}{1}{%
+        {SIAM}%
+      }
+      \strng{namehash}{ca727ced833c9227de5749af53139b9b}
+      \strng{fullhash}{ca727ced833c9227de5749af53139b9b}
+      \strng{bibnamehash}{ca727ced833c9227de5749af53139b9b}
+      \strng{authorbibnamehash}{ca727ced833c9227de5749af53139b9b}
+      \strng{authornamehash}{ca727ced833c9227de5749af53139b9b}
+      \strng{authorfullhash}{ca727ced833c9227de5749af53139b9b}
+      \strng{editorbibnamehash}{e122a83e549bc1a3bb6c018aaa48aff1}
+      \strng{editornamehash}{e122a83e549bc1a3bb6c018aaa48aff1}
+      \strng{editorfullhash}{e122a83e549bc1a3bb6c018aaa48aff1}
+      \field{labelalpha}{Bon+22}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{extraalpha}{2}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the 2022 {ACM-SIAM} Symposium on Discrete Algorithms, {SODA} 2022}
+      \field{title}{Twin-width {VI:} the lens of contraction sequences}
+      \field{year}{2022}
+      \field{pages}{1036\bibrangedash 1056}
+      \range{pages}{21}
+      \verb{doi}
+      \verb 10.1137/1.9781611977073.45
+      \endverb
+    \endentry
+    \entry{bonnet_et_al:LIPIcs.ICALP.2024.31}{inproceedings}{}
+      \name{author}{5}{}{%
+        {{hash=84c9c80f57b3a2ce49370110ddc34d1b}{%
+           family={Bonnet},
+           familyi={B\bibinitperiod},
+           given={Édouard},
+           giveni={É\bibinitperiod}}}%
+        {{hash=50ac5e6bbe6d1ba0105bbaa4500e4742}{%
+           family={Duron},
+           familyi={D\bibinitperiod},
+           given={Julien},
+           giveni={J\bibinitperiod}}}%
+        {{hash=4d14515bdd1b5641bfdf728982e929c6}{%
+           family={Sylvester},
+           familyi={S\bibinitperiod},
+           given={John},
+           giveni={J\bibinitperiod}}}%
+        {{hash=7b13b24b6bf32348f40b19afc80d35af}{%
+           family={Zamaraev},
+           familyi={Z\bibinitperiod},
+           given={Viktor},
+           giveni={V\bibinitperiod}}}%
+        {{hash=1be5dc6ca7bb463cc85141dacf51d34b}{%
+           family={Zhukovskii},
+           familyi={Z\bibinitperiod},
+           given={Maksim},
+           giveni={M\bibinitperiod}}}%
+      }
+      \name{editor}{4}{}{%
+        {{hash=4334ca20b624af80592940ea44076698}{%
+           family={Bringmann},
+           familyi={B\bibinitperiod},
+           given={Karl},
+           giveni={K\bibinitperiod}}}%
+        {{hash=09c9a63ce22980640e97ed9ed81ea815}{%
+           family={Grohe},
+           familyi={G\bibinitperiod},
+           given={Martin},
+           giveni={M\bibinitperiod}}}%
+        {{hash=456181baabbf06a8e29d0f5d1ecdd235}{%
+           family={Puppis},
+           familyi={P\bibinitperiod},
+           given={Gabriele},
+           giveni={G\bibinitperiod}}}%
+        {{hash=a8121723fec40d2bb3f1a992ccf73f9f}{%
+           family={Svensson},
+           familyi={S\bibinitperiod},
+           given={Ola},
+           giveni={O\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Dagstuhl, Germany}%
+      }
+      \list{publisher}{1}{%
+        {Schloss Dagstuhl -- Leibniz-Zentrum für Informatik}%
+      }
+      \strng{namehash}{06d8c371343f09c363e80511cb8716e6}
+      \strng{fullhash}{06d8c371343f09c363e80511cb8716e6}
+      \strng{bibnamehash}{06d8c371343f09c363e80511cb8716e6}
+      \strng{authorbibnamehash}{06d8c371343f09c363e80511cb8716e6}
+      \strng{authornamehash}{06d8c371343f09c363e80511cb8716e6}
+      \strng{authorfullhash}{06d8c371343f09c363e80511cb8716e6}
+      \strng{editorbibnamehash}{fc952e9b4893edeeb8858127672ea5ba}
+      \strng{editornamehash}{fc952e9b4893edeeb8858127672ea5ba}
+      \strng{editorfullhash}{fc952e9b4893edeeb8858127672ea5ba}
+      \field{labelalpha}{Bon+24}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{annotation}{Keywords: Adjacency labeling, degeneracy, monotone classes, small classes, factorial classes, implicit graph conjecture}
+      \field{booktitle}{51st International Colloquium on Automata, Languages, and Programming (ICALP 2024)}
+      \field{isbn}{978-3-95977-322-5}
+      \field{issn}{1868-8969}
+      \field{series}{Leibniz International Proceedings in Informatics (LIPIcs)}
+      \field{title}{{Tight Bounds on Adjacency Labels for Monotone Graph Classes}}
+      \field{volume}{297}
+      \field{year}{2024}
+      \field{pages}{31:1\bibrangedash 31:20}
+      \range{pages}{-1}
+      \verb{doi}
+      \verb 10.4230/LIPIcs.ICALP.2024.31
+      \endverb
+      \verb{urlraw}
+      \verb https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.ICALP.2024.31
+      \endverb
+      \verb{url}
+      \verb https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.ICALP.2024.31
+      \endverb
+    \endentry
+    \entry{DBLP:conf/innovations/BonnetD0Z25}{inproceedings}{}
+      \name{author}{4}{}{%
+        {{hash=84c9c80f57b3a2ce49370110ddc34d1b}{%
+           family={Bonnet},
+           familyi={B\bibinitperiod},
+           given={Édouard},
+           giveni={É\bibinitperiod}}}%
+        {{hash=50ac5e6bbe6d1ba0105bbaa4500e4742}{%
+           family={Duron},
+           familyi={D\bibinitperiod},
+           given={Julien},
+           giveni={J\bibinitperiod}}}%
+        {{hash=4d14515bdd1b5641bfdf728982e929c6}{%
+           family={Sylvester},
+           familyi={S\bibinitperiod},
+           given={John},
+           giveni={J\bibinitperiod}}}%
+        {{hash=7b13b24b6bf32348f40b19afc80d35af}{%
+           family={Zamaraev},
+           familyi={Z\bibinitperiod},
+           given={Viktor},
+           giveni={V\bibinitperiod}}}%
+      }
+      \name{editor}{1}{}{%
+        {{hash=826e410c56bcee530cac25b63e599125}{%
+           family={Meka},
+           familyi={M\bibinitperiod},
+           given={Raghu},
+           giveni={R\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Schloss Dagstuhl - Leibniz-Zentrum für Informatik}%
+      }
+      \strng{namehash}{9c7a7d2504ea86b8ad0d2be3b4452a8e}
+      \strng{fullhash}{9c7a7d2504ea86b8ad0d2be3b4452a8e}
+      \strng{bibnamehash}{9c7a7d2504ea86b8ad0d2be3b4452a8e}
+      \strng{authorbibnamehash}{9c7a7d2504ea86b8ad0d2be3b4452a8e}
+      \strng{authornamehash}{9c7a7d2504ea86b8ad0d2be3b4452a8e}
+      \strng{authorfullhash}{9c7a7d2504ea86b8ad0d2be3b4452a8e}
+      \strng{editorbibnamehash}{826e410c56bcee530cac25b63e599125}
+      \strng{editornamehash}{826e410c56bcee530cac25b63e599125}
+      \strng{editorfullhash}{826e410c56bcee530cac25b63e599125}
+      \field{labelalpha}{Bon+25}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{16th Innovations in Theoretical Computer Science Conference, {ITCS} 2025, January 7-10, 2025, Columbia University, New York, NY, {USA}}
+      \field{series}{LIPIcs}
+      \field{title}{Adjacency Labeling Schemes for Small Classes}
+      \field{volume}{325}
+      \field{year}{2025}
+      \field{pages}{21:1\bibrangedash 21:22}
+      \range{pages}{-1}
+      \verb{doi}
+      \verb 10.4230/LIPICS.ITCS.2025.21
+      \endverb
+      \verb{urlraw}
+      \verb https://doi.org/10.4230/LIPIcs.ITCS.2025.21
+      \endverb
+      \verb{url}
+      \verb https://doi.org/10.4230/LIPIcs.ITCS.2025.21
+      \endverb
+    \endentry
+    \entry{clique-width}{article}{}
+      \name{author}{3}{}{%
+        {{hash=5eb043c6d579ba54ec303811f38c6bfe}{%
+           family={Courcelle},
+           familyi={C\bibinitperiod},
+           given={Bruno},
+           giveni={B\bibinitperiod}}}%
+        {{hash=017b40b8d219b85da1d78cc417a7342a}{%
+           family={Engelfriet},
+           familyi={E\bibinitperiod},
+           given={Joost},
+           giveni={J\bibinitperiod}}}%
+        {{hash=28cb0e4624d878cdc6b02c4061d38500}{%
+           family={Rozenberg},
+           familyi={R\bibinitperiod},
+           given={Grzegorz},
+           giveni={G\bibinitperiod}}}%
+      }
+      \strng{namehash}{21241f47e341680756ddf96cc6ca819b}
+      \strng{fullhash}{21241f47e341680756ddf96cc6ca819b}
+      \strng{bibnamehash}{21241f47e341680756ddf96cc6ca819b}
+      \strng{authorbibnamehash}{21241f47e341680756ddf96cc6ca819b}
+      \strng{authornamehash}{21241f47e341680756ddf96cc6ca819b}
+      \strng{authorfullhash}{21241f47e341680756ddf96cc6ca819b}
+      \field{labelalpha}{CER93}
+      \field{sortinit}{C}
+      \field{sortinithash}{4d103a86280481745c9c897c925753c0}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{We introduce the handle-rewriting hypergraph grammars (HH grammars), based on the replacement of handles, i.e., of subhypergraphs consisting of one hyperedge together with its incident vertices. This extends hyperedge replacement, where only the hyperedge is replaced. A HH grammar is separated (an S-HH grammar) if nonterminal handles do not overlap. The S-HH grammars are context-free, and the sets they generate can be characterized as the least solutions of certain systems of equations. They generate the same sets of graphs as the NLC-like vertex-rewriting C-edNCE graph grammars that are also context-free.}
+      \field{issn}{0022-0000}
+      \field{journaltitle}{Journal of Computer and System Sciences}
+      \field{number}{2}
+      \field{title}{Handle-rewriting hypergraph grammars}
+      \field{volume}{46}
+      \field{year}{1993}
+      \true{nocite}
+      \field{pages}{218\bibrangedash 270}
+      \range{pages}{53}
+      \verb{doi}
+      \verb 10.1016/0022-0000(93)90004-G
+      \endverb
+    \endentry
+    \entry{DvorakKT13-journal}{article}{}
+      \name{author}{3}{}{%
+        {{hash=9a58fffe53eb03f4c1ee4429f8d0bb7c}{%
+           family={Dvorák},
+           familyi={D\bibinitperiod},
+           given={Zdenek},
+           giveni={Z\bibinitperiod}}}%
+        {{hash=c9e587ce8326559085dfc4f4f9fa4061}{%
+           family={Král},
+           familyi={K\bibinitperiod},
+           given={Daniel},
+           giveni={D\bibinitperiod}}}%
+        {{hash=636ffdd00ee890af41f40d857746827f}{%
+           family={Thomas},
+           familyi={T\bibinitperiod},
+           given={Robin},
+           giveni={R\bibinitperiod}}}%
+      }
+      \strng{namehash}{1ef07eb849c241496ad5c80788cf3de0}
+      \strng{fullhash}{1ef07eb849c241496ad5c80788cf3de0}
+      \strng{bibnamehash}{1ef07eb849c241496ad5c80788cf3de0}
+      \strng{authorbibnamehash}{1ef07eb849c241496ad5c80788cf3de0}
+      \strng{authornamehash}{1ef07eb849c241496ad5c80788cf3de0}
+      \strng{authorfullhash}{1ef07eb849c241496ad5c80788cf3de0}
+      \field{labelalpha}{DKT13}
+      \field{sortinit}{D}
+      \field{sortinithash}{6f385f66841fb5e82009dc833c761848}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{J. {ACM}}
+      \field{number}{5}
+      \field{title}{Testing first-order properties for subclasses of sparse graphs}
+      \field{volume}{60}
+      \field{year}{2013}
+      \field{pages}{36:1\bibrangedash 36:24}
+      \range{pages}{-1}
+      \verb{doi}
+      \verb 10.1145/2499483
+      \endverb
+    \endentry
+    \entry{ms-mc1}{inproceedings}{}
+      \name{author}{3}{}{%
+        {{hash=1361aec85d53264a1ab8b37db748882b}{%
+           family={Dreier},
+           familyi={D\bibinitperiod},
+           given={Jan},
+           giveni={J\bibinitperiod}}}%
+        {{hash=6cbc2f1b1f76d2e8a33299e8dac9ecb9}{%
+           family={Mählmann},
+           familyi={M\bibinitperiod},
+           given={Nikolas},
+           giveni={N\bibinitperiod}}}%
+        {{hash=f942ac3a41f52de98a79cc95ba1b175f}{%
+           family={Siebertz},
+           familyi={S\bibinitperiod},
+           given={Sebastian},
+           giveni={S\bibinitperiod}}}%
+      }
+      \name{editor}{2}{}{%
+        {{hash=2a5c238aff19b0d3c464fc31ca0d99d5}{%
+           family={Saha},
+           familyi={S\bibinitperiod},
+           given={Barna},
+           giveni={B\bibinitperiod}}}%
+        {{hash=7e130dd65380968821f792904ac745c9}{%
+           family={Servedio},
+           familyi={S\bibinitperiod},
+           given={Rocco\bibnamedelima A.},
+           giveni={R\bibinitperiod\bibinitdelim A\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {ACM}%
+      }
+      \strng{namehash}{91414564bf6e647560278a2765c57a35}
+      \strng{fullhash}{91414564bf6e647560278a2765c57a35}
+      \strng{bibnamehash}{91414564bf6e647560278a2765c57a35}
+      \strng{authorbibnamehash}{91414564bf6e647560278a2765c57a35}
+      \strng{authornamehash}{91414564bf6e647560278a2765c57a35}
+      \strng{authorfullhash}{91414564bf6e647560278a2765c57a35}
+      \strng{editorbibnamehash}{3835e3966afa861461c5d4fd404c6783}
+      \strng{editornamehash}{3835e3966afa861461c5d4fd404c6783}
+      \strng{editorfullhash}{3835e3966afa861461c5d4fd404c6783}
+      \field{labelalpha}{DMS23}
+      \field{sortinit}{D}
+      \field{sortinithash}{6f385f66841fb5e82009dc833c761848}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the 55th Annual {ACM} Symposium on Theory of Computing, {STOC} 2023}
+      \field{title}{First-Order Model Checking on Structurally Sparse Graph Classes}
+      \field{year}{2023}
+      \field{pages}{567\bibrangedash 580}
+      \range{pages}{14}
+      \verb{doi}
+      \verb 10.1145/3564246.3585186
+      \endverb
+      \verb{urlraw}
+      \verb https://doi.org/10.1145/3564246.3585186
+      \endverb
+      \verb{url}
+      \verb https://doi.org/10.1145/3564246.3585186
+      \endverb
+    \endentry
+    \entry{flip-breakability}{inproceedings}{}
+      \name{author}{3}{}{%
+        {{hash=1361aec85d53264a1ab8b37db748882b}{%
+           family={Dreier},
+           familyi={D\bibinitperiod},
+           given={Jan},
+           giveni={J\bibinitperiod}}}%
+        {{hash=6cbc2f1b1f76d2e8a33299e8dac9ecb9}{%
+           family={Mählmann},
+           familyi={M\bibinitperiod},
+           given={Nikolas},
+           giveni={N\bibinitperiod}}}%
+        {{hash=0ee77d8be2008042e2de77ec3c1402ff}{%
+           family={Toruńczyk},
+           familyi={T\bibinitperiod},
+           given={Szymon},
+           giveni={S\bibinitperiod}}}%
+      }
+      \name{editor}{3}{}{%
+        {{hash=984a9c4e45e3489881e4a5220c9d1254}{%
+           family={Mohar},
+           familyi={M\bibinitperiod},
+           given={Bojan},
+           giveni={B\bibinitperiod}}}%
+        {{hash=112165148a03fb0b8ee92c5f5cf5f5a5}{%
+           family={Shinkar},
+           familyi={S\bibinitperiod},
+           given={Igor},
+           giveni={I\bibinitperiod}}}%
+        {{hash=a6443b4330ad30f55ff01dfe2383c6a4}{%
+           family={O'Donnell},
+           familyi={O\bibinitperiod},
+           given={Ryan},
+           giveni={R\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {ACM}%
+      }
+      \strng{namehash}{3f8fc310eaeb98d50b4432b94d3ab301}
+      \strng{fullhash}{3f8fc310eaeb98d50b4432b94d3ab301}
+      \strng{bibnamehash}{3f8fc310eaeb98d50b4432b94d3ab301}
+      \strng{authorbibnamehash}{3f8fc310eaeb98d50b4432b94d3ab301}
+      \strng{authornamehash}{3f8fc310eaeb98d50b4432b94d3ab301}
+      \strng{authorfullhash}{3f8fc310eaeb98d50b4432b94d3ab301}
+      \strng{editorbibnamehash}{aabd8fb1f1914f61cf3fdd8e29b38f24}
+      \strng{editornamehash}{aabd8fb1f1914f61cf3fdd8e29b38f24}
+      \strng{editorfullhash}{aabd8fb1f1914f61cf3fdd8e29b38f24}
+      \field{extraname}{1}
+      \field{labelalpha}{DMT24}
+      \field{sortinit}{D}
+      \field{sortinithash}{6f385f66841fb5e82009dc833c761848}
+      \field{extraalpha}{1}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the 56th Annual {ACM} Symposium on Theory of Computing, {STOC} 2024}
+      \field{title}{Flip-Breakability: {A} Combinatorial Dichotomy for Monadically Dependent Graph Classes}
+      \field{year}{2024}
+      \field{pages}{1550\bibrangedash 1560}
+      \range{pages}{11}
+      \verb{doi}
+      \verb 10.1145/3618260.3649739
+      \endverb
+      \verb{urlraw}
+      \verb https://doi.org/10.1145/3618260.3649739
+      \endverb
+      \verb{url}
+      \verb https://doi.org/10.1145/3618260.3649739
+      \endverb
+    \endentry
+    \entry{flipbreakability}{article}{}
+      \name{author}{3}{}{%
+        {{hash=1361aec85d53264a1ab8b37db748882b}{%
+           family={Dreier},
+           familyi={D\bibinitperiod},
+           given={Jan},
+           giveni={J\bibinitperiod}}}%
+        {{hash=6cbc2f1b1f76d2e8a33299e8dac9ecb9}{%
+           family={Mählmann},
+           familyi={M\bibinitperiod},
+           given={Nikolas},
+           giveni={N\bibinitperiod}}}%
+        {{hash=0ee77d8be2008042e2de77ec3c1402ff}{%
+           family={Toruńczyk},
+           familyi={T\bibinitperiod},
+           given={Szymon},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{3f8fc310eaeb98d50b4432b94d3ab301}
+      \strng{fullhash}{3f8fc310eaeb98d50b4432b94d3ab301}
+      \strng{bibnamehash}{3f8fc310eaeb98d50b4432b94d3ab301}
+      \strng{authorbibnamehash}{3f8fc310eaeb98d50b4432b94d3ab301}
+      \strng{authornamehash}{3f8fc310eaeb98d50b4432b94d3ab301}
+      \strng{authorfullhash}{3f8fc310eaeb98d50b4432b94d3ab301}
+      \field{extraname}{2}
+      \field{labelalpha}{DMT24}
+      \field{sortinit}{D}
+      \field{sortinithash}{6f385f66841fb5e82009dc833c761848}
+      \field{extraalpha}{2}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{eprinttype}{arXiv}
+      \field{journaltitle}{CoRR}
+      \field{title}{Flip-Breakability: A Combinatorial Dichotomy for Monadically Dependent Graph Classes}
+      \field{volume}{abs/2403.15201}
+      \field{year}{2024}
+      \verb{eprint}
+      \verb 2403.15201
+      \endverb
+    \endentry
+    \entry{ms-mc2}{inproceedings}{}
+      \name{author}{6}{}{%
+        {{hash=1361aec85d53264a1ab8b37db748882b}{%
+           family={Dreier},
+           familyi={D\bibinitperiod},
+           given={Jan},
+           giveni={J\bibinitperiod}}}%
+        {{hash=dcf9e0a6a96709bc500d702c8e35b43d}{%
+           family={Eleftheriadis},
+           familyi={E\bibinitperiod},
+           given={Ioannis},
+           giveni={I\bibinitperiod}}}%
+        {{hash=6cbc2f1b1f76d2e8a33299e8dac9ecb9}{%
+           family={Mählmann},
+           familyi={M\bibinitperiod},
+           given={Nikolas},
+           giveni={N\bibinitperiod}}}%
+        {{hash=698d9dcd62218ef6916f16ef66603627}{%
+           family={McCarty},
+           familyi={M\bibinitperiod},
+           given={Rose},
+           giveni={R\bibinitperiod}}}%
+        {{hash=1ab5cb4c1773d12f499567e578046996}{%
+           family={Pilipczuk},
+           familyi={P\bibinitperiod},
+           given={Micha{ł}},
+           giveni={M\bibinitperiod}}}%
+        {{hash=0ee77d8be2008042e2de77ec3c1402ff}{%
+           family={Toruńczyk},
+           familyi={T\bibinitperiod},
+           given={Szymon},
+           giveni={S\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {IEEE}%
+      }
+      \strng{namehash}{59794e00956f3480008cb9736818c987}
+      \strng{fullhash}{59794e00956f3480008cb9736818c987}
+      \strng{bibnamehash}{59794e00956f3480008cb9736818c987}
+      \strng{authorbibnamehash}{59794e00956f3480008cb9736818c987}
+      \strng{authornamehash}{59794e00956f3480008cb9736818c987}
+      \strng{authorfullhash}{59794e00956f3480008cb9736818c987}
+      \field{labelalpha}{Dre+24}
+      \field{sortinit}{D}
+      \field{sortinithash}{6f385f66841fb5e82009dc833c761848}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{65th {IEEE} Annual Symposium on Foundations of Computer Science, {FOCS} 2024}
+      \field{title}{First-Order Model Checking on Monadically Stable Graph Classes}
+      \field{year}{2024}
+      \verb{doi}
+      \verb 10.1109/FOCS61266.2024.00012
+      \endverb
+    \endentry
+    \entry{dvorak-admissibility}{article}{}
+      \name{author}{1}{}{%
+        {{hash=67971cf70262cbe218a2596692e7a59f}{%
+           family={Dvořák},
+           familyi={D\bibinitperiod},
+           given={Zdeněk},
+           giveni={Z\bibinitperiod}}}%
+      }
+      \strng{namehash}{67971cf70262cbe218a2596692e7a59f}
+      \strng{fullhash}{67971cf70262cbe218a2596692e7a59f}
+      \strng{bibnamehash}{67971cf70262cbe218a2596692e7a59f}
+      \strng{authorbibnamehash}{67971cf70262cbe218a2596692e7a59f}
+      \strng{authornamehash}{67971cf70262cbe218a2596692e7a59f}
+      \strng{authorfullhash}{67971cf70262cbe218a2596692e7a59f}
+      \field{extraname}{1}
+      \field{labelalpha}{Dvo13}
+      \field{sortinit}{D}
+      \field{sortinithash}{6f385f66841fb5e82009dc833c761848}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{The k-domination number of a graph is the minimum size of a set D such that every vertex of G is at distance at most k from D. We give a linear-time constant-factor algorithm for approximation of the k-domination number in classes of graphs with bounded expansion, which include e.g. proper minor-closed graph classes, proper classes closed on topological minors and classes of graphs that can be drawn on a fixed surface with bounded number of crossings on each edge. The algorithm is based on the following approximate min--max characterization. A subset A of vertices of a graph G is d-independent if the distance between each two vertices in A is greater than d. Note that the size of the largest 2k-independent set is a lower bound for the k-domination number. We show that every graph from a fixed class with bounded expansion contains a 2k-independent set A and a k-dominating set D such that |D|=O(|A|), and these sets can be found in linear time. For a fixed value of k, the assumptions on the class can be formulated more precisely in terms of generalized coloring numbers. In particular, for the domination number (k=1), the results hold for all graph classes with arrangeability bounded by a constant.}
+      \field{issn}{0195-6698}
+      \field{journaltitle}{European Journal of Combinatorics}
+      \field{number}{5}
+      \field{title}{Constant-factor approximation of the domination number in sparse graphs}
+      \field{volume}{34}
+      \field{year}{2013}
+      \field{pages}{833\bibrangedash 840}
+      \range{pages}{8}
+      \verb{doi}
+      \verb 10.1016/j.ejc.2012.12.004
+      \endverb
+    \endentry
+    \entry{Dvorak18}{article}{}
+      \name{author}{1}{}{%
+        {{hash=a0398726fd2a0ad84fd5b8873724e46a}{%
+           family={Dvořák},
+           familyi={D\bibinitperiod},
+           given={Zdenek},
+           giveni={Z\bibinitperiod}}}%
+      }
+      \strng{namehash}{a0398726fd2a0ad84fd5b8873724e46a}
+      \strng{fullhash}{a0398726fd2a0ad84fd5b8873724e46a}
+      \strng{bibnamehash}{a0398726fd2a0ad84fd5b8873724e46a}
+      \strng{authorbibnamehash}{a0398726fd2a0ad84fd5b8873724e46a}
+      \strng{authornamehash}{a0398726fd2a0ad84fd5b8873724e46a}
+      \strng{authorfullhash}{a0398726fd2a0ad84fd5b8873724e46a}
+      \field{extraname}{2}
+      \field{labelalpha}{Dvo18}
+      \field{sortinit}{D}
+      \field{sortinithash}{6f385f66841fb5e82009dc833c761848}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Eur. J. Comb.}
+      \field{title}{Induced subdivisions and bounded expansion}
+      \field{volume}{69}
+      \field{year}{2018}
+      \field{pages}{143\bibrangedash 148}
+      \range{pages}{6}
+      \verb{doi}
+      \verb 10.1016/j.ejc.2017.10.004
+      \endverb
+    \endentry
+    \entry{lsd-journal}{article}{}
+      \name{author}{7}{}{%
+        {{hash=b5531a3543426107703e256e2a798b1b}{%
+           family={Gajarský},
+           familyi={G\bibinitperiod},
+           given={Jakub},
+           giveni={J\bibinitperiod}}}%
+        {{hash=3cb5faad668e139961dfd9cb56eea64e}{%
+           family={Kreutzer},
+           familyi={K\bibinitperiod},
+           given={Stephan},
+           giveni={S\bibinitperiod}}}%
+        {{hash=6aa15b331e7116166c27b5898ff32854}{%
+           family={Nešetřil},
+           familyi={N\bibinitperiod},
+           given={Jaroslav},
+           giveni={J\bibinitperiod}}}%
+        {{hash=bea43e6640918084a28ec760c65941a5}{%
+           family={Mendez},
+           familyi={M\bibinitperiod},
+           given={Patrice\bibnamedelima Ossona},
+           giveni={P\bibinitperiod\bibinitdelim O\bibinitperiod},
+           prefix={de},
+           prefixi={d\bibinitperiod}}}%
+        {{hash=1ab5cb4c1773d12f499567e578046996}{%
+           family={Pilipczuk},
+           familyi={P\bibinitperiod},
+           given={Micha{ł}},
+           giveni={M\bibinitperiod}}}%
+        {{hash=f942ac3a41f52de98a79cc95ba1b175f}{%
+           family={Siebertz},
+           familyi={S\bibinitperiod},
+           given={Sebastian},
+           giveni={S\bibinitperiod}}}%
+        {{hash=0ee77d8be2008042e2de77ec3c1402ff}{%
+           family={Toruńczyk},
+           familyi={T\bibinitperiod},
+           given={Szymon},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{215546ceeb237acbe915fa7879405a59}
+      \strng{fullhash}{215546ceeb237acbe915fa7879405a59}
+      \strng{bibnamehash}{215546ceeb237acbe915fa7879405a59}
+      \strng{authorbibnamehash}{215546ceeb237acbe915fa7879405a59}
+      \strng{authornamehash}{215546ceeb237acbe915fa7879405a59}
+      \strng{authorfullhash}{215546ceeb237acbe915fa7879405a59}
+      \field{labelalpha}{Gaj+20}
+      \field{sortinit}{G}
+      \field{sortinithash}{32d67eca0634bf53703493fb1090a2e8}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{{ACM} Trans. Comput. Log.}
+      \field{number}{4}
+      \field{title}{First-Order Interpretations of Bounded Expansion Classes}
+      \field{volume}{21}
+      \field{year}{2020}
+      \field{pages}{29:1\bibrangedash 29:41}
+      \range{pages}{-1}
+      \verb{doi}
+      \verb 10.1145/3382093
+      \endverb
+    \endentry
+    \entry{tww-types-icalp}{inproceedings}{}
+      \name{author}{4}{}{%
+        {{hash=b5531a3543426107703e256e2a798b1b}{%
+           family={Gajarský},
+           familyi={G\bibinitperiod},
+           given={Jakub},
+           giveni={J\bibinitperiod}}}%
+        {{hash=1ab5cb4c1773d12f499567e578046996}{%
+           family={Pilipczuk},
+           familyi={P\bibinitperiod},
+           given={Micha{ł}},
+           giveni={M\bibinitperiod}}}%
+        {{hash=0aa624012f0a4e82d608913b4d512755}{%
+           family={Przybyszewski},
+           familyi={P\bibinitperiod},
+           given={Wojciech},
+           giveni={W\bibinitperiod}}}%
+        {{hash=0ee77d8be2008042e2de77ec3c1402ff}{%
+           family={Toruńczyk},
+           familyi={T\bibinitperiod},
+           given={Szymon},
+           giveni={S\bibinitperiod}}}%
+      }
+      \name{editor}{3}{}{%
+        {{hash=301bec1d3d20066ee39d71a8c7968885}{%
+           family={Bojanczyk},
+           familyi={B\bibinitperiod},
+           given={Mikolaj},
+           giveni={M\bibinitperiod}}}%
+        {{hash=a2ba638e640c38630ea955744eb4400e}{%
+           family={Merelli},
+           familyi={M\bibinitperiod},
+           given={Emanuela},
+           giveni={E\bibinitperiod}}}%
+        {{hash=ba42119f00fe8387df5041f9845eb753}{%
+           family={Woodruff},
+           familyi={W\bibinitperiod},
+           given={David\bibnamedelima P.},
+           giveni={D\bibinitperiod\bibinitdelim P\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Schloss Dagstuhl - Leibniz-Zentrum für Informatik}%
+      }
+      \strng{namehash}{f5044aec152236a06881386db08fbde5}
+      \strng{fullhash}{f5044aec152236a06881386db08fbde5}
+      \strng{bibnamehash}{f5044aec152236a06881386db08fbde5}
+      \strng{authorbibnamehash}{f5044aec152236a06881386db08fbde5}
+      \strng{authornamehash}{f5044aec152236a06881386db08fbde5}
+      \strng{authorfullhash}{f5044aec152236a06881386db08fbde5}
+      \strng{editorbibnamehash}{0e7fe143a82ed44c2bab224fe0e4b5d8}
+      \strng{editornamehash}{0e7fe143a82ed44c2bab224fe0e4b5d8}
+      \strng{editorfullhash}{0e7fe143a82ed44c2bab224fe0e4b5d8}
+      \field{labelalpha}{Gaj+22}
+      \field{sortinit}{G}
+      \field{sortinithash}{32d67eca0634bf53703493fb1090a2e8}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{49th International Colloquium on Automata, Languages, and Programming, {ICALP} 2022}
+      \field{series}{LIPIcs}
+      \field{title}{Twin-Width and Types}
+      \field{volume}{229}
+      \field{year}{2022}
+      \field{pages}{123:1\bibrangedash 123:21}
+      \range{pages}{-1}
+      \verb{doi}
+      \verb 10.4230/LIPIcs.ICALP.2022.123
+      \endverb
+    \endentry
+    \entry{flippers}{inproceedings}{}
+      \name{author}{9}{}{%
+        {{hash=b5531a3543426107703e256e2a798b1b}{%
+           family={Gajarský},
+           familyi={G\bibinitperiod},
+           given={Jakub},
+           giveni={J\bibinitperiod}}}%
+        {{hash=6cbc2f1b1f76d2e8a33299e8dac9ecb9}{%
+           family={Mählmann},
+           familyi={M\bibinitperiod},
+           given={Nikolas},
+           giveni={N\bibinitperiod}}}%
+        {{hash=698d9dcd62218ef6916f16ef66603627}{%
+           family={McCarty},
+           familyi={M\bibinitperiod},
+           given={Rose},
+           giveni={R\bibinitperiod}}}%
+        {{hash=4446b1a5d9054d6a862ad45c2aceeaee}{%
+           family={Ohlmann},
+           familyi={O\bibinitperiod},
+           given={Pierre},
+           giveni={P\bibinitperiod}}}%
+        {{hash=1ab5cb4c1773d12f499567e578046996}{%
+           family={Pilipczuk},
+           familyi={P\bibinitperiod},
+           given={Micha{ł}},
+           giveni={M\bibinitperiod}}}%
+        {{hash=0aa624012f0a4e82d608913b4d512755}{%
+           family={Przybyszewski},
+           familyi={P\bibinitperiod},
+           given={Wojciech},
+           giveni={W\bibinitperiod}}}%
+        {{hash=f942ac3a41f52de98a79cc95ba1b175f}{%
+           family={Siebertz},
+           familyi={S\bibinitperiod},
+           given={Sebastian},
+           giveni={S\bibinitperiod}}}%
+        {{hash=859e580fc8381ba021f411d5e69a11b6}{%
+           family={Soko{ł}owski},
+           familyi={S\bibinitperiod},
+           given={Marek},
+           giveni={M\bibinitperiod}}}%
+        {{hash=0ee77d8be2008042e2de77ec3c1402ff}{%
+           family={Toruńczyk},
+           familyi={T\bibinitperiod},
+           given={Szymon},
+           giveni={S\bibinitperiod}}}%
+      }
+      \name{editor}{3}{}{%
+        {{hash=acb38d24334e9dc710f6dae315b5a4ce}{%
+           family={Etessami},
+           familyi={E\bibinitperiod},
+           given={Kousha},
+           giveni={K\bibinitperiod}}}%
+        {{hash=b1684193b9de8503418fa549b5fe487c}{%
+           family={Feige},
+           familyi={F\bibinitperiod},
+           given={Uriel},
+           giveni={U\bibinitperiod}}}%
+        {{hash=456181baabbf06a8e29d0f5d1ecdd235}{%
+           family={Puppis},
+           familyi={P\bibinitperiod},
+           given={Gabriele},
+           giveni={G\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Schloss Dagstuhl - Leibniz-Zentrum für Informatik}%
+      }
+      \strng{namehash}{720733d40f36dda1ff403953ed6e5bfb}
+      \strng{fullhash}{720733d40f36dda1ff403953ed6e5bfb}
+      \strng{bibnamehash}{720733d40f36dda1ff403953ed6e5bfb}
+      \strng{authorbibnamehash}{720733d40f36dda1ff403953ed6e5bfb}
+      \strng{authornamehash}{720733d40f36dda1ff403953ed6e5bfb}
+      \strng{authorfullhash}{720733d40f36dda1ff403953ed6e5bfb}
+      \strng{editorbibnamehash}{3bd7770b18fdea0f73f03dd06e908156}
+      \strng{editornamehash}{3bd7770b18fdea0f73f03dd06e908156}
+      \strng{editorfullhash}{3bd7770b18fdea0f73f03dd06e908156}
+      \field{labelalpha}{Gaj+23}
+      \field{sortinit}{G}
+      \field{sortinithash}{32d67eca0634bf53703493fb1090a2e8}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{50th International Colloquium on Automata, Languages, and Programming, {ICALP} 2023}
+      \field{series}{LIPIcs}
+      \field{title}{Flipper Games for Monadically Stable Graph Classes}
+      \field{volume}{261}
+      \field{year}{2023}
+      \field{pages}{128:1\bibrangedash 128:16}
+      \range{pages}{-1}
+      \verb{doi}
+      \verb 10.4230/LIPIcs.ICALP.2023.128
+      \endverb
+    \endentry
+    \entry{gks}{article}{}
+      \name{author}{3}{}{%
+        {{hash=09c9a63ce22980640e97ed9ed81ea815}{%
+           family={Grohe},
+           familyi={G\bibinitperiod},
+           given={Martin},
+           giveni={M\bibinitperiod}}}%
+        {{hash=3cb5faad668e139961dfd9cb56eea64e}{%
+           family={Kreutzer},
+           familyi={K\bibinitperiod},
+           given={Stephan},
+           giveni={S\bibinitperiod}}}%
+        {{hash=f942ac3a41f52de98a79cc95ba1b175f}{%
+           family={Siebertz},
+           familyi={S\bibinitperiod},
+           given={Sebastian},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{98b7e13f4062743c1e7b7ba7884ec759}
+      \strng{fullhash}{98b7e13f4062743c1e7b7ba7884ec759}
+      \strng{bibnamehash}{98b7e13f4062743c1e7b7ba7884ec759}
+      \strng{authorbibnamehash}{98b7e13f4062743c1e7b7ba7884ec759}
+      \strng{authornamehash}{98b7e13f4062743c1e7b7ba7884ec759}
+      \strng{authorfullhash}{98b7e13f4062743c1e7b7ba7884ec759}
+      \field{labelalpha}{GKS17}
+      \field{sortinit}{G}
+      \field{sortinithash}{32d67eca0634bf53703493fb1090a2e8}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{J. {ACM}}
+      \field{number}{3}
+      \field{title}{Deciding First-Order Properties of Nowhere Dense Graphs}
+      \field{volume}{64}
+      \field{year}{2017}
+      \field{pages}{17:1\bibrangedash 17:32}
+      \range{pages}{-1}
+      \verb{doi}
+      \verb 10.1145/3051095
+      \endverb
+    \endentry
+    \entry{libkin04}{book}{}
+      \name{author}{1}{}{%
+        {{hash=931db7d26f75777de801bc1858e3ebae}{%
+           family={Libkin},
+           familyi={L\bibinitperiod},
+           given={Leonid},
+           giveni={L\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Springer}%
+      }
+      \strng{namehash}{931db7d26f75777de801bc1858e3ebae}
+      \strng{fullhash}{931db7d26f75777de801bc1858e3ebae}
+      \strng{bibnamehash}{931db7d26f75777de801bc1858e3ebae}
+      \strng{authorbibnamehash}{931db7d26f75777de801bc1858e3ebae}
+      \strng{authornamehash}{931db7d26f75777de801bc1858e3ebae}
+      \strng{authorfullhash}{931db7d26f75777de801bc1858e3ebae}
+      \field{labelalpha}{Lib04}
+      \field{sortinit}{L}
+      \field{sortinithash}{7c47d417cecb1f4bd38d1825c427a61a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{isbn}{3-540-21202-7}
+      \field{series}{Texts in Theoretical Computer Science. An {EATCS} Series}
+      \field{title}{Elements of Finite Model Theory}
+      \field{year}{2004}
+      \verb{doi}
+      \verb 10.1007/978-3-662-07003-1
+      \endverb
+      \verb{urlraw}
+      \verb http://www.cs.toronto.edu/\%7Elibkin/fmt
+      \endverb
+      \verb{url}
+      \verb http://www.cs.toronto.edu/%5C%7Elibkin/fmt
+      \endverb
+    \endentry
+    \entry{sparsity-book}{book}{}
+      \name{author}{2}{}{%
+        {{hash=6aa15b331e7116166c27b5898ff32854}{%
+           family={Nešetřil},
+           familyi={N\bibinitperiod},
+           given={Jaroslav},
+           giveni={J\bibinitperiod}}}%
+        {{hash=bea43e6640918084a28ec760c65941a5}{%
+           family={Mendez},
+           familyi={M\bibinitperiod},
+           given={Patrice\bibnamedelima Ossona},
+           giveni={P\bibinitperiod\bibinitdelim O\bibinitperiod},
+           prefix={de},
+           prefixi={d\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Springer}%
+      }
+      \strng{namehash}{6d1cde55a7adabf2e99da91db797937b}
+      \strng{fullhash}{6d1cde55a7adabf2e99da91db797937b}
+      \strng{bibnamehash}{6d1cde55a7adabf2e99da91db797937b}
+      \strng{authorbibnamehash}{6d1cde55a7adabf2e99da91db797937b}
+      \strng{authornamehash}{6d1cde55a7adabf2e99da91db797937b}
+      \strng{authorfullhash}{6d1cde55a7adabf2e99da91db797937b}
+      \field{labelalpha}{NM12}
+      \field{sortinit}{N}
+      \field{sortinithash}{22369a73d5f88983a108b63f07f37084}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{isbn}{978-3-642-27874-7}
+      \field{series}{Algorithms and combinatorics}
+      \field{title}{Sparsity - Graphs, Structures, and Algorithms}
+      \field{volume}{28}
+      \field{year}{2012}
+      \verb{doi}
+      \verb 10.1007/978-3-642-27875-4
+      \endverb
+    \endentry
+    \entry{grad-and-bounded-expansion-Nesetril}{article}{}
+      \name{author}{2}{}{%
+        {{hash=6aa15b331e7116166c27b5898ff32854}{%
+           family={Nešetřil},
+           familyi={N\bibinitperiod},
+           given={Jaroslav},
+           giveni={J\bibinitperiod}}}%
+        {{hash=dc44b19991f2a6d8e51bba9dd8274e48}{%
+           family={{Ossona de Mendez}},
+           familyi={O\bibinitperiod},
+           given={Patrice},
+           giveni={P\bibinitperiod}}}%
+      }
+      \strng{namehash}{12b6b701f7b166c6277d2d13e98af094}
+      \strng{fullhash}{12b6b701f7b166c6277d2d13e98af094}
+      \strng{bibnamehash}{12b6b701f7b166c6277d2d13e98af094}
+      \strng{authorbibnamehash}{12b6b701f7b166c6277d2d13e98af094}
+      \strng{authornamehash}{12b6b701f7b166c6277d2d13e98af094}
+      \strng{authorfullhash}{12b6b701f7b166c6277d2d13e98af094}
+      \field{extraname}{1}
+      \field{labelalpha}{NO08}
+      \field{sortinit}{N}
+      \field{sortinithash}{22369a73d5f88983a108b63f07f37084}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{We introduce classes of graphs with bounded expansion as a generalization of both proper minor closed classes and degree bounded classes. Such classes are based on a new invariant, the greatest reduced average density (grad) of G with rank r, ∇r(G). For these classes we prove the existence of several partition results such as the existence of low tree-width and low tree-depth colorings. This generalizes and simplifies several earlier results (obtained for minor closed classes).}
+      \field{issn}{0195-6698}
+      \field{journaltitle}{European Journal of Combinatorics}
+      \field{number}{3}
+      \field{title}{Grad and classes with bounded expansion I. Decompositions}
+      \field{volume}{29}
+      \field{year}{2008}
+      \true{nocite}
+      \field{pages}{760\bibrangedash 776}
+      \range{pages}{17}
+      \verb{doi}
+      \verb 10.1016/j.ejc.2006.07.013
+      \endverb
+    \endentry
+    \entry{NesetrilM11a}{article}{}
+      \name{author}{2}{}{%
+        {{hash=6aa15b331e7116166c27b5898ff32854}{%
+           family={Nešetřil},
+           familyi={N\bibinitperiod},
+           given={Jaroslav},
+           giveni={J\bibinitperiod}}}%
+        {{hash=dc44b19991f2a6d8e51bba9dd8274e48}{%
+           family={{Ossona de Mendez}},
+           familyi={O\bibinitperiod},
+           given={Patrice},
+           giveni={P\bibinitperiod}}}%
+      }
+      \strng{namehash}{12b6b701f7b166c6277d2d13e98af094}
+      \strng{fullhash}{12b6b701f7b166c6277d2d13e98af094}
+      \strng{bibnamehash}{12b6b701f7b166c6277d2d13e98af094}
+      \strng{authorbibnamehash}{12b6b701f7b166c6277d2d13e98af094}
+      \strng{authornamehash}{12b6b701f7b166c6277d2d13e98af094}
+      \strng{authorfullhash}{12b6b701f7b166c6277d2d13e98af094}
+      \field{extraname}{2}
+      \field{labelalpha}{NO11}
+      \field{sortinit}{N}
+      \field{sortinithash}{22369a73d5f88983a108b63f07f37084}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Eur. J. Comb.}
+      \field{number}{4}
+      \field{title}{On nowhere dense graphs}
+      \field{volume}{32}
+      \field{year}{2011}
+      \true{nocite}
+      \field{pages}{600\bibrangedash 617}
+      \range{pages}{18}
+      \verb{doi}
+      \verb 10.1016/j.ejc.2011.01.006
+      \endverb
+    \endentry
+    \entry{robertson-seymour-tw}{article}{}
+      \name{author}{2}{}{%
+        {{hash=30004d929a781bee1262997e1b576502}{%
+           family={Robertson},
+           familyi={R\bibinitperiod},
+           given={Neil},
+           giveni={N\bibinitperiod}}}%
+        {{hash=9c86b2da84f8e18c3c5e6194460cbfbb}{%
+           family={Seymour},
+           familyi={S\bibinitperiod},
+           given={P.D},
+           giveni={P\bibinitperiod}}}%
+      }
+      \strng{namehash}{1c46a51d3b7bab4f1b95f280f231547e}
+      \strng{fullhash}{1c46a51d3b7bab4f1b95f280f231547e}
+      \strng{bibnamehash}{1c46a51d3b7bab4f1b95f280f231547e}
+      \strng{authorbibnamehash}{1c46a51d3b7bab4f1b95f280f231547e}
+      \strng{authornamehash}{1c46a51d3b7bab4f1b95f280f231547e}
+      \strng{authorfullhash}{1c46a51d3b7bab4f1b95f280f231547e}
+      \field{labelalpha}{RS84}
+      \field{sortinit}{R}
+      \field{sortinithash}{5e1c39a9d46ffb6bebd8f801023a9486}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{The ``tree-width'' of a graph is defined and it is proved that for any fixed planar graph H, every planar graph with sufficiently large tree-width has a minor isomorphic to H. This result has several applications which are described in other papers in this series.}
+      \field{issn}{0095-8956}
+      \field{journaltitle}{Journal of Combinatorial Theory, Series B}
+      \field{number}{1}
+      \field{title}{Graph minors. III. Planar tree-width}
+      \field{volume}{36}
+      \field{year}{1984}
+      \true{nocite}
+      \field{pages}{49\bibrangedash 64}
+      \range{pages}{16}
+      \verb{doi}
+      \verb 10.1016/0095-8956(84)90013-3
+      \endverb
+    \endentry
+    \entry{sauer}{article}{}
+      \name{author}{1}{}{%
+        {{hash=5fb080444554a38b6e7cd705a287301a}{%
+           family={Sauer},
+           familyi={S\bibinitperiod},
+           given={N},
+           giveni={N\bibinitperiod}}}%
+      }
+      \strng{namehash}{5fb080444554a38b6e7cd705a287301a}
+      \strng{fullhash}{5fb080444554a38b6e7cd705a287301a}
+      \strng{bibnamehash}{5fb080444554a38b6e7cd705a287301a}
+      \strng{authorbibnamehash}{5fb080444554a38b6e7cd705a287301a}
+      \strng{authornamehash}{5fb080444554a38b6e7cd705a287301a}
+      \strng{authorfullhash}{5fb080444554a38b6e7cd705a287301a}
+      \field{labelalpha}{Sau72}
+      \field{sortinit}{S}
+      \field{sortinithash}{b164b07b29984b41daf1e85279fbc5ab}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{If T is a family of sets and A some set we denote by T ∩ A the following family of subsets of A: T ∩ A = {F ∩ A; F ϵ T}. P. Erdös (oral communication) transmitted to me in Nice the following question: Is it true that if T is a family of subsets of some infinite set S then either there exists to each number n a set A ⊂ S with |A| = n such that |T ∩ A| = 2n or there exists some number N such that |T ∩ A| ⩽ |A|c for each A ⊂ S with |A| ⩾ N and some constant c? In this paper we will answer this question in the affirmative by determining the exact upper bound. (Theorem 2).1}
+      \field{issn}{0097-3165}
+      \field{journaltitle}{Journal of Combinatorial Theory, Series A}
+      \field{number}{1}
+      \field{title}{On the density of families of sets}
+      \field{volume}{13}
+      \field{year}{1972}
+      \field{pages}{145\bibrangedash 147}
+      \range{pages}{3}
+      \verb{doi}
+      \verb 10.1016/0097-3165(72)90019-2
+      \endverb
+    \endentry
+    \entry{shelah-sauer-lemma}{article}{}
+      \name{author}{1}{}{%
+        {{hash=7d5fc2482a23e1353705eea5a284444e}{%
+           family={Shelah},
+           familyi={S\bibinitperiod},
+           given={Saharon},
+           giveni={S\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Pacific Journal of Mathematics, A Non-profit Corporation}%
+      }
+      \strng{namehash}{7d5fc2482a23e1353705eea5a284444e}
+      \strng{fullhash}{7d5fc2482a23e1353705eea5a284444e}
+      \strng{bibnamehash}{7d5fc2482a23e1353705eea5a284444e}
+      \strng{authorbibnamehash}{7d5fc2482a23e1353705eea5a284444e}
+      \strng{authornamehash}{7d5fc2482a23e1353705eea5a284444e}
+      \strng{authorfullhash}{7d5fc2482a23e1353705eea5a284444e}
+      \field{extraname}{1}
+      \field{labelalpha}{She72}
+      \field{sortinit}{S}
+      \field{sortinithash}{b164b07b29984b41daf1e85279fbc5ab}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Pacific Journal of Mathematics}
+      \field{number}{1}
+      \field{title}{{A combinatorial problem; stability and order for models and theories in infinitary languages.}}
+      \field{volume}{41}
+      \field{year}{1972}
+      \field{pages}{247\bibrangedash 261}
+      \range{pages}{15}
+      \verb{doi}
+      \verb pjm/1102968432
+      \endverb
+    \endentry
+    \entry{Shelah1986}{inbook}{}
+      \name{author}{1}{}{%
+        {{hash=7d5fc2482a23e1353705eea5a284444e}{%
+           family={Shelah},
+           familyi={S\bibinitperiod},
+           given={Saharon},
+           giveni={S\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Berlin, Heidelberg}%
+      }
+      \list{publisher}{1}{%
+        {Springer Berlin Heidelberg}%
+      }
+      \strng{namehash}{7d5fc2482a23e1353705eea5a284444e}
+      \strng{fullhash}{7d5fc2482a23e1353705eea5a284444e}
+      \strng{bibnamehash}{7d5fc2482a23e1353705eea5a284444e}
+      \strng{authorbibnamehash}{7d5fc2482a23e1353705eea5a284444e}
+      \strng{authornamehash}{7d5fc2482a23e1353705eea5a284444e}
+      \strng{authorfullhash}{7d5fc2482a23e1353705eea5a284444e}
+      \field{extraname}{2}
+      \field{labelalpha}{She86}
+      \field{sortinit}{S}
+      \field{sortinithash}{b164b07b29984b41daf1e85279fbc5ab}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{This is part of the classification developed in Baldwin Shelah [BSh]. The paper is divided into two parts. In part I we show that (T∞, 2nd)≨(T, mon) iff the Hanf number for the theory T in monadic logic is smaller than the Hanf number of second order logic.}
+      \field{booktitle}{Around Classification Theory of Models}
+      \field{isbn}{978-3-540-39788-5}
+      \field{title}{Monadic logic: Hanf Numbers}
+      \field{year}{1986}
+      \true{nocite}
+      \field{pages}{203\bibrangedash 223}
+      \range{pages}{21}
+      \verb{doi}
+      \verb 10.1007/BFb0098511
+      \endverb
+    \endentry
+    \entry{seymour-thomas-cops}{article}{}
+      \name{author}{2}{}{%
+        {{hash=9c86b2da84f8e18c3c5e6194460cbfbb}{%
+           family={Seymour},
+           familyi={S\bibinitperiod},
+           given={P.D.},
+           giveni={P\bibinitperiod}}}%
+        {{hash=b6267a76fcb8ecc22612effb6d2142a7}{%
+           family={Thomas},
+           familyi={T\bibinitperiod},
+           given={R.},
+           giveni={R\bibinitperiod}}}%
+      }
+      \strng{namehash}{35b4303b7282b56e4698f270d162ff51}
+      \strng{fullhash}{35b4303b7282b56e4698f270d162ff51}
+      \strng{bibnamehash}{35b4303b7282b56e4698f270d162ff51}
+      \strng{authorbibnamehash}{35b4303b7282b56e4698f270d162ff51}
+      \strng{authornamehash}{35b4303b7282b56e4698f270d162ff51}
+      \strng{authorfullhash}{35b4303b7282b56e4698f270d162ff51}
+      \field{labelalpha}{ST93}
+      \field{sortinit}{S}
+      \field{sortinithash}{b164b07b29984b41daf1e85279fbc5ab}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{The tree-width of a graph G is the minimum k such that G may be decomposed into a "tree-structure" of pieces each with at most k + l vertices. We prove that this equals the maximum k such that there is a collection of connected subgraphs, pairwise intersecting or adjacent, such that no set of ≤ k vertices meets all of them. A corollary is an analogue of LaPaugh′s "monotone search" theorem for cops trapping a robber they can see (LaPaugh′s robber was invisible).}
+      \field{issn}{0095-8956}
+      \field{journaltitle}{Journal of Combinatorial Theory, Series B}
+      \field{number}{1}
+      \field{title}{Graph Searching and a Min-Max Theorem for Tree-Width}
+      \field{volume}{58}
+      \field{year}{1993}
+      \field{pages}{22\bibrangedash 33}
+      \range{pages}{12}
+      \verb{doi}
+      \verb 10.1006/jctb.1993.1027
+      \endverb
+    \endentry
+    \entry{flip-width}{inproceedings}{}
+      \name{author}{1}{}{%
+        {{hash=0ee77d8be2008042e2de77ec3c1402ff}{%
+           family={Toruńczyk},
+           familyi={T\bibinitperiod},
+           given={Szymon},
+           giveni={S\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {IEEE}%
+      }
+      \strng{namehash}{0ee77d8be2008042e2de77ec3c1402ff}
+      \strng{fullhash}{0ee77d8be2008042e2de77ec3c1402ff}
+      \strng{bibnamehash}{0ee77d8be2008042e2de77ec3c1402ff}
+      \strng{authorbibnamehash}{0ee77d8be2008042e2de77ec3c1402ff}
+      \strng{authornamehash}{0ee77d8be2008042e2de77ec3c1402ff}
+      \strng{authorfullhash}{0ee77d8be2008042e2de77ec3c1402ff}
+      \field{extraname}{1}
+      \field{labelalpha}{Tor23}
+      \field{sortinit}{T}
+      \field{sortinithash}{9af77f0292593c26bde9a56e688eaee9}
+      \field{extraalpha}{1}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{64th {IEEE} Annual Symposium on Foundations of Computer Science, {FOCS} 2023}
+      \field{title}{Flip-width: Cops and Robber on dense graphs}
+      \field{year}{2023}
+      \field{pages}{663\bibrangedash 700}
+      \range{pages}{38}
+      \verb{doi}
+      \verb 10.1109/FOCS57990.2023.00045
+      \endverb
+      \verb{urlraw}
+      \verb https://doi.org/10.1109/FOCS57990.2023.00045
+      \endverb
+      \verb{url}
+      \verb https://doi.org/10.1109/FOCS57990.2023.00045
+      \endverb
+    \endentry
+    \entry{flip-width-arxiv}{article}{}
+      \name{author}{1}{}{%
+        {{hash=0ee77d8be2008042e2de77ec3c1402ff}{%
+           family={Toruńczyk},
+           familyi={T\bibinitperiod},
+           given={Szymon},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{0ee77d8be2008042e2de77ec3c1402ff}
+      \strng{fullhash}{0ee77d8be2008042e2de77ec3c1402ff}
+      \strng{bibnamehash}{0ee77d8be2008042e2de77ec3c1402ff}
+      \strng{authorbibnamehash}{0ee77d8be2008042e2de77ec3c1402ff}
+      \strng{authornamehash}{0ee77d8be2008042e2de77ec3c1402ff}
+      \strng{authorfullhash}{0ee77d8be2008042e2de77ec3c1402ff}
+      \field{extraname}{2}
+      \field{labelalpha}{Tor23}
+      \field{sortinit}{T}
+      \field{sortinithash}{9af77f0292593c26bde9a56e688eaee9}
+      \field{extraalpha}{2}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{eprinttype}{arXiv}
+      \field{journaltitle}{CoRR}
+      \field{title}{Flip-width: Cops and Robber on dense graphs}
+      \field{volume}{abs/2302.00352}
+      \field{year}{2023}
+      \verb{eprint}
+      \verb 2302.00352
+      \endverb
+    \endentry
+    \entry{zhu2009colouring}{article}{}
+      \name{author}{1}{}{%
+        {{hash=4c73a8ef4d222eb71f862538d668c13a}{%
+           family={Zhu},
+           familyi={Z\bibinitperiod},
+           given={Xuding},
+           giveni={X\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Elsevier}%
+      }
+      \strng{namehash}{4c73a8ef4d222eb71f862538d668c13a}
+      \strng{fullhash}{4c73a8ef4d222eb71f862538d668c13a}
+      \strng{bibnamehash}{4c73a8ef4d222eb71f862538d668c13a}
+      \strng{authorbibnamehash}{4c73a8ef4d222eb71f862538d668c13a}
+      \strng{authornamehash}{4c73a8ef4d222eb71f862538d668c13a}
+      \strng{authorfullhash}{4c73a8ef4d222eb71f862538d668c13a}
+      \field{labelalpha}{Zhu09}
+      \field{sortinit}{Z}
+      \field{sortinithash}{96892c0b0a36bb8557c40c49813d48b3}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Discrete Mathematics}
+      \field{number}{18}
+      \field{title}{Colouring graphs with bounded generalized colouring number}
+      \field{volume}{309}
+      \field{year}{2009}
+      \field{pages}{5562\bibrangedash 5568}
+      \range{pages}{7}
+      \verb{doi}
+      \verb 10.1016/j.disc.2008.03.024
+      \endverb
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+

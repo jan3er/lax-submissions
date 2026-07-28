@@ -2830,3 +2830,19 @@ nowhere-dense-model-checking, Lax4 left free for a future merge-width
 submission; real-ε side-condition bound; colored-graph locality
 surface; four citable theorems), all revisable until the P1
 statement freeze.
+
+## ND-MC P0 — 2026-07-28
+Sources fetched with license READMEs: `references/rploc` (2606.23180,
+CC-BY), `references/gks` (1311.3899, arXiv nonexclusive),
+`references/mw` (2502.18065 v1+v2, CC-BY, both kept for the
+error-fix diff). Design note written:
+`plans/nowhere-dense-model-checking/nd-mc-design.md`, settling
+(a)–(e). Headlines: the isolation rewrite needs no matrix-indexed
+variant family (profile colors at batch vertices carry the matrix —
+D8 tightens, R2 shrinks); radius schedule flat at ρ* = ρ⁻(0,q); R1
+reduced to one named kernel (augmentation density theorem, NO05, not
+in the notes, not in Lax12 — budgeted 3–5 sessions inside P6);
+notes' Lem 4.2 constant slip (2s+1 vs 2s+2) recorded; isolation-form
+win proof checked against Lax12's walk-based `deleteVerts` UQW —
+zero impedance. Gate open: Jan reads the design note; P1 does not
+start before that.

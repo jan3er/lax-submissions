@@ -1,0 +1,171 @@
+\section{Preliminaries}\label{sec:prelims}
+
+We now state formally the main definitions of this paper, and prove some basic equivalences. 
+
+       \paragraph{Notation, graphs.}
+       For two distinct elements $a,b$ of a set $V$,
+by $ab$ we denote the unordered pair $\set{a,b}$, and call $ab$ a \emph{pair} for simplicity
+-- the distinction between ordered pairs and unordered pairs will follow from the context.
+For $A,B\subset V$, denote $$AB\coloneqq \setof{ab}{a\in A,b\in B,a\neq b}$$ and ${A\choose 2}\coloneqq AA$.
+A \emph{graph} is a pair $G=(V,E)$ with $E\subset {V\choose 2}$.
+We call the elements of $V$ \emph{vertices}, and elements of $E$ \emph{edges}, and denote $V(G)\coloneqq V$ and $E(G)\coloneqq E$. 
+
+\subsection{Merge-width and merge sequences}\label{sec:merge-sequence}
+
+In the gray box of \Cref{sec:intro} we gave a definition of merge-width in terms of \emph{construction sequences}.
+We now give an alternative definition in terms of so-called \emph{merge sequences}, and prove in \Cref{lem:fmw}
+that these definitions are indeed equivalent.
+These two definitions complement each other: 
+While construction sequences are useful for showing that a graph class with bounded merge-width has a certain property,
+merge sequences are useful for the opposing goal of showing that a given graph class has bounded merge-width.
+
+
+
+
+
+\medskip
+
+
+
+    Fix $r\in\N\cup\set{\infty}$.
+        For a set $R\subset {V\choose 2}$ and partition $\cal P$ of $V$,
+        we say a part \(A \in \cal P\) is \emph{\(r\)-reachable} from a vertex \(v\) if there is a path of length at most $r$ in the graph $G=(V,R)$ from $v$ to some vertex in~$A$.
+        The \emph{radius-$r$ width} of $(\cal P,R)$  is 
+        \[
+           \max_{v \in V}\ \Big|\bigl\{ A \in \cal P \mid  A \text{ is \(r\)-reachable from } v \bigr\}\Big|.
+        \]
+        
+       
+
+
+\begin{definition}\label{def:ms}
+A \emph{merge sequence} of a graph $G=(V,E)$ 
+is a sequence
+$$(\cal P_1,R_1),\ldots,(\cal P_m,R_m),$$
+  such that:
+  \begin{enumerate}
+    \item $\cal P_1,\ldots,\cal P_m$ is a sequence of partitions of $V$, 
+    where $\cal P_1$ is the partition into singletons and $\cal P_m$ has one part,
+    and $\cal P_{t}$ is coarser than (or equal to) $\cal P_{t-1}$ for $t=2,\ldots,m$,
+    \item $R_1\subset\ldots\subset R_m\subset {V\choose 2}$; the pairs in $R_t$ are said to be \emph{resolved} at time $t$, and
+    \item for all $t\in [m]$ and $A,B\in \cal P_t$,
+     either $AB-R_t\subset E$, or $AB-R_t\subset {V\choose 2} - E$.
+  \end{enumerate}
+For $r\in\N\cup\set{\infty}$, the \emph{radius-$r$ width} of the merge sequence is the maximum, over $t=2,\ldots,m$,
+of the radius-$r$ width of $(\cal P_{t-1},R_t)$.
+\end{definition}
+
+Note the offset in the indices of $\cal P_{t-1}$ and $R_t$.
+Conceptually, this offset allows us to not only do a single merge, but an unbounded number of merges when going from partition \(\cal P_{t-1}\) to \(\cal P_t\) (see backwards direction of \Cref{lem:fmw}).
+
+\begin{definition}
+  The \emph{radius-$r$ merge-width} of a graph $G$, denoted $\mw_r(G)$, is the least radius-$r$ width of a merge sequence of $G$.
+Finally, a graph class $\CC$ has \emph{bounded merge-width}
+  if ${\mw_r(\CC)<\infty}$ holds\footnote{For a graph parameter $f$ and graph class $\CC$, by $f(\CC)$ we denote $\sup_{G\in\CC}f(G)$.} for every (finite) $r\in\N$.
+\end{definition}
+
+\begin{lemma}\label{lem:fmw}
+    For every construction sequence of a graph $G$ there is a merge sequence of $G$
+  of the same radius-$r$ width, for all $r\in\N\cup\set\infty$,
+  and vice versa.
+  \end{lemma}
+  \begin{proof}
+  
+  First, fix a construction sequence of $G$, consisting of $m$ steps. 
+    Let $\cal P_t$ be the partition of $V$,
+    and let $R_t$ be the set of edges and non-edges 
+    at the beginning of step $t$ of the sequence.
+    It is clear that 
+    $(\cal P_1,R_1),\ldots,(\cal P_m,R_m)$ is a merge sequence. 
+    In particular, the third item of \Cref{def:ms} follows from the second item of \Cref{remark:maindef}.
+    
+    Fix $r\in\N\cup\set{\infty}$, and let $k$ 
+    be the radius-$r$ merge-width of the considered construction sequence.
+    Then, for each $t\in[1,m]$, 
+    the radius-$r$ width of $(\cal P_t,R_t)$ is at most $k$.
+    Since for $t>1$, we either have $\cal P_{t-1}=\cal P_t$ or $R_{t-1}=R_t$, it follows that 
+    the radius-$r$ width of $(\cal P_{t-1},R_t)$ is at most $k$ as well.
+    This concludes one direction.
+  
+  
+  \medskip
+  
+  In the other direction,  
+  let $(\cal P_1,R_1),\ldots,(\cal P_m,R_m)$ be a merge sequence of $G$.
+  We define a construction sequence which consists of $m$ stages, as follows.
+  In the beginning of stage $t\in[m-1]$,
+  the current partition $\cal P$ is the partition $\cal P_t$, and the set $R$ of resolved pairs is contained in $R_t$.
+  In stage $t$, first resolve (in any order) all pairs 
+  $A,B\in\cal P_{t}$ such that $AB\subset R_{t+1}$.
+  The third item of \Cref{def:ms} guarantees that this is always possible by positive or negative resolves.
+
+  Next, repeatedly merge (in any order) any two parts $A,B$ of the current partition, as long as $A\cup B$ is contained in some part of $\cal P_{t+1}$.
+  Once this is done, the current partition is equal to $\cal P_{t+1}$, and we proceed to the next stage.
+  
+  During all steps in stage $t$, the set $R$ of resolved pairs is contained in $R_{t+1}$, and $\cal P$ is a coarsening of $\cal P_t$. In particular, for every $r\in\N\cup\set{\infty}$,
+  \begin{multline*}
+\text{radius-$r$ width of $(\cal P,R)$}\ \le \ 
+\text{radius-$r$ width of $(\cal P_t,R_{t+1})$} \\
+\le \ \text{radius-$r$ width of the given merge sequence}.
+  \end{multline*}
+ 
+  After the last stage, the current partition $\cal P$ has only the single part $V$. 
+  Finally, we resolve $V$ with itself. This completes the  construction sequence.
+  \end{proof}
+
+
+
+  
+
+
+
+
+
+  
+\subsection{Construction sequences have linear length}\label{sec:representing}
+
+When designing merge-width based algorithms,
+we always assume graphs to be represented by construction sequences, rather than merge sequences,
+as the former impose more structure.
+A~priori such a construction sequence can be arbitrarily long, as for example, one can keep on resolving the same pair indefinitely.
+In this subsection we make an innocuous assumption that guarantees a linear bound on their length.
+
+
+Namely, call a resolve operation in a construction sequence 
+\emph{effective} if it creates a non-zero number of new edges or non-edges. 
+That is, an \emph{ineffective} resolve operation 
+is a resolve operation performed between a pair $A,B$ of parts 
+such that all pairs in $AB$ were already resolved before the operation.
+Call a construction sequence \emph{effective} if 
+every resolve operation in it is effective.
+We assume without loss of generality and without explicitly mentioning it that all construction sequences are effective.
+Note that the following lemma also applies if the radius-\(r\) width is bounded, as this implies a bound on the radius-\(1\) width.
+
+\begin{lemma}\label{lem:effective-construction-seq}
+  Every effective construction sequence for a graph $G$ of radius-$1$ width $w$ has length at most $(2w+1)|V(G)|$.
+\end{lemma}
+\begin{proof}
+  We rearrange the construction sequence by repeatedly postponing resolve operations.
+  Namely, consider a subsequence of consecutive operations in a construction sequence,
+  consisting of a sequence of resolve operations, and finishing with the merge
+  of two parts $A,B\in\cal P$. We may postpone all resolves which occur in the subsequence, and involve 
+  neither $A$ or $B$, until after the merge of $A$ and $B$ is done.
+  This result in a valid construction sequence,
+  of the same radius-$1$ width and the same length.
+  As all resolve operations are effective,
+  at most $2w$ resolve operations between pairs $P,Q$ remain in the subsequence: at most $w$ pairs involving $A$, and at most $w$ pairs involving $B$, because each vertex in $A$ (or in $B$) $1$-reaches all parts resolved with $A$ (resp. $B$). 
+  In the final construction sequence, at most $2w$ resolve operations are performed per merge,
+  followed potentially by a single last resolve on the final part.
+  As there can be at most \(|V(G)|-1\) merges, we have at most $(2w+1)|V(G)|$ steps altogether.
+  Since the original construction sequence has the same length as the rearanged construction sequence, the result follows.
+\end{proof}
+
+
+
+  
+
+
+
+
+
+  

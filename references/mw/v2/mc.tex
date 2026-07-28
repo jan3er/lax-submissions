@@ -1,0 +1,658 @@
+\section{Model checking}\label{sec:mc}
+In this section, we prove the main model-checking theorem, \Cref{thm:main}.
+% \intromain*
+The proof uses a slightly more general statement for binary structures, \Cref{thm:main-algorithm}.
+We proceed to define the notions of construction sequences and merge-width, and of types for binary structures, which are needed to state and prove \Cref{thm:main-algorithm}.
+We rely on the locality theorem, the local-subgraph lemma, and the far-apart decomposition from the standalone locality note~\cite{locality-note}.
+
+
+
+\subsection{Construction sequences for binary structures}\label{sec:computing}
+\newcommand{\merge}[2]{\mathrm{merge}_{#1,#2}}
+\newcommand{\resolve}[3]{\mathrm{resolve}^{#1}_{#2,#3}}
+In \Cref{sec:mc}, we consider binary relational signatures only.
+More precisely, a (binary, relational) \emph{signature} $\sigma$ consists of a set $\sigma_2$ of binary relation symbols, and a set $\sigma_1$ of unary relation symbols.
+A \emph{binary structure} is a structure over a binary relational signature.
+
+
+
+We first define the notion of construction sequences, and of merge-width, for binary structures.
+Throughout \Cref{sec:mc}, fix a signature $\sigma$
+consisting of finitely many unary and binary relational symbols \(\sigma_1\) and \(\sigma_2\).
+Let $\pi$ consist of infinitely many unary predicates $P_1,P_2,\ldots$ not occurring in $\sigma$,
+and let $\sigma^*\coloneqq\sigma\cup\pi$.
+We call the predicates in $\pi$ \emph{part predicates}.
+A \emph{partitioned $\sigma$-structure} (called partitioned structure for brevity)
+is a $\sigma^*$-structure $\str A$ in which
+the predicates $P_i\in\pi$ define pairwise disjoint subsets of $\str A$, which cover $V(\str A)$.
+In particular, at most $|V(\str A)|$ part predicates are non-empty.
+
+
+
+For a partitioned structure $\str A$ and
+ part predicates $P,Q\in \pi$ and binary relation $R\in\sigma_2$,
+define the following partitioned structures:
+\begin{itemize}
+\item $\resolve RPQ(\str A)$, defined as the partitioned structure $\str B$ obtained from $\str A$ by setting $$R^\str B\coloneqq R^\str A\cup (P^\str A\times Q^\str A-\bigcup_{S\in\sigma_2} S^\str A),$$ and leaving all other predicates as in $\str A$.
+% \item $\resolve -AB(\str G)$. The result is the partitioned graph $\str H$ obtained from $\str G$ by setting $N_\str H:=N_\str G\cup (A_\str GB_\str G-E_\str G)$, and leaving all other predicates as in $\str G$.
+
+\item $\merge PQ(\str A)$, defined as the partitioned structure $\str B$ obtained from $\str A$
+ by setting $$P^{\str B}\coloneqq P^{\str A}\cup Q^{\str A}\text{\quad and \quad} Q^{\str B}\coloneqq\emptyset.$$
+\end{itemize}
+
+ For a partitioned $\sigma$-structure $\str A$, $\reach_r^{\str A}(a)\subset \sigma_1\cup\pi$ denotes the set of unary predicates that are reachable from $a$ by a path of length at most $r$ in the Gaifman graph of~$\str A$.
+Moreover, the \emph{radius-$r$ width} of a partitioned structure $\str A$
+was defined as $$\max_{a\in V(\str A)}\bigl|\reach_r^{\str A}(a)\bigr|.$$
+
+\begin{definition}[Construction sequences]
+An \emph{initial} partitioned structure
+is a partitioned structure whose Gaifman graph is edgeless,
+and all part predicates contain at most one element.
+
+  A \emph{construction sequence} of a structure $\str A$
+  is a sequence of partitioned structures $\str A_1,\ldots,\str A_m$
+  such that
+  \begin{itemize}
+    \item $\str A_1$ is an initial partitioned structure,
+    \item $\str A_m$ has only one nonempty part predicate,  $\str A$ is a reduct of $\str A_m$,
+    and the Gaifman graph of $\str A_m$ is the complete graph on $V(\str A)$,
+    and
+\item for each $t\in[m-1]$, we have that $\str A_{t+1}=F(\str A_t)$, for
+some $F\in\setof {\merge PQ,\resolve RPQ}{P,Q\in\pi,R\in \sigma_2}$.
+  \end{itemize}
+  The \emph{radius-$r$ width} of the construction sequence is the maximum
+  radius-$r$ width of all the structures $\str A_1,\ldots,\str A_m$.
+  The \emph{radius-$r$ merge-width} of $\str A$ is the minimum
+  radius-$r$ width of a construction sequence of $\str A$.
+\end{definition}
+
+For graphs, the definition above is compatible with the construction sequences
+from \Cref{sec:intro} in the following sense.
+
+\begin{lemma}\label{lem:construction-construction}
+Let \(G=(V,E_G)\) be a graph, and 
+let $A_G$ be the corresponding relational structure with domain $V$ and a binary relation $E=\setof{(u,v)\in V^2}{u\neq v, uv\in E_G}$.
+Every construction sequence of \(G\) of
+length \(\ell\) can be transformed into a construction sequence
+\(\str A_1,\ldots,\str A_m\) of $A_G$ of length \(m\le |V|+2\ell+1\), and the same radius-$r$ width, for every \(r\in\N\cup\{\infty\}\).
+\end{lemma}
+\begin{proof}   
+    The construction sequence for $A_G$ 
+    uses the signature $\sigma=\set{E,N}$. Starting with the partition of $V$ into singletons, the sequence first resolves applies the operation $\resolve{N}{P}{P}$ for each singleton part $P$. After this sequence of steps we have $N=\setof{(v,v)}{v\in V}$.
+    
+    Next we proceed with the construction sequence by replicating the steps in the given graph construction sequence. A merge
+step is simulated by the corresponding operation \(\merge PQ\). A positive
+resolve of two parts \(P,Q\) is simulated by the two structure operations
+\(\resolve EPQ\) and \(\resolve EQP\); a negative resolve is simulated in the
+same way using \(N\) instead of \(E\). 
+
+By induction over the sequence, the off-diagonal pairs contained in
+\(E\cup N\) are exactly the currently resolved vertex pairs of the graph
+construction sequence, with both orientations present. Therefore the Gaifman
+graph of the current partitioned structure is exactly the graph \((V,R)\) of
+currently resolved pairs. Since \(\sigma_G\) has no unary symbols besides the
+part predicates, the radius-\(r\) width is preserved for every \(r\).
+% The final graph construction sequence resolves every pair of
+% vertices, so the final reduct \(\str A_G\) has the required off-diagonal
+% interpretation of \(E\) and \(N\), and its Gaifman graph is complete.
+\end{proof}
+
+
+
+\subsection{Main lemma}
+
+
+
+The model checking algorithm processes a given construction sequence, step by step.
+The following lemma handles a single step of the computation.
+
+\begin{restatable}{lemma}{computestep}\label{lem:local-type-resolve-merge}
+    There is an algorithm which takes as input
+    a $\sigma$-structure $\str A$, \(\bigl(\ltp_{k,q}(\str A, v):v\in V(\str A)\bigr)\), and
+    \begin{itemize}
+        \item either symbols \(P,Q \in \sigma_1\) defining a structure \(\str B \eqdef \merge PQ(\str A)\),
+        \item or symbols \(P,Q \in \sigma_1\) and \(R \in \sigma_2\) defining a structure \(\str B \eqdef \resolve RPQ(\str A)\),
+    \end{itemize}
+    and computes
+    $\bigl(\ltp_{k,q}(\str B, v):v\in V(\str B)\bigr)$
+    in time $O_{k,q,\sigma_2,w}(|V(\str A)|+|E(\str A)|)$,
+    where \(w\) is the radius-\((2\rho^-(k-1,q+1)+2)\) width of \(B\).
+\end{restatable}
+
+
+\Cref{lem:local-type-resolve-merge} easily yields the following generalization of \Cref{thm:main} to binary structures.
+
+\begin{restatable}{theorem}{mainalgorithm}\label{thm:main-algorithm}
+There is an algorithm which,
+given a binary $\sigma$-structure $\str A$ together
+ with its construction sequence
+ and a first-order $\sigma$-sentence $\phi$,
+ determines whether $\str A\models \phi$
+in time
+ $O_{\sigma,q,w}(|V(\str A)|^2 \cdot m)$,
+ where:
+    \begin{itemize}
+        \item $m$ is the length of the construction sequence,
+        \item $q$ is the quantifier rank of $\phi$,
+        \item $w$ is the radius-\((2\rho^-(0,q+1)+2)\) width of the construction sequence.
+    \end{itemize}
+\end{restatable}
+
+
+\begin{proof}[Proof of \Cref{thm:main-algorithm}]
+   Let $q$ be the quantifier rank of $\phi$.
+For  $t=1,\ldots,m$ we compute
+$$(\ltp_{1,q}(\str A_t,a):a\in V(\str A)),$$
+by induction on $t$.
+In the base case of $t=1$, the structure $\str A_1$ is an initial partitioned structure.
+  Therefore, its Gaifman graph is edgeless and all distance atoms of the dist-FO logic are vacuous.
+  In effect, $\ltp_{1,q}(\str A_1,a)$ is completely determined by the
+  atomic type $\tau(x)$ of $a$ in $\str A_1$,
+as well as the  quantifier-rank $q$ first-order type of $a$ in the structure $\str A'$ obtained from $\str A_1$ by forgetting the part predicates $Q\in\pi$, as well as all binary predicates. As the structure $\str A'$ involves only unary predicates,
+evaluating first-order formulas of fixed quantifier rank $q$ can be done in time $O_{q,|\sigma|}(|V(\str A')|)$.
+This completes the case $t=1$.
+
+In the inductive step,
+apply \Cref{lem:local-type-resolve-merge} to compute $\bigl(\ltp_{1,q}(\str A_t,a):a\in V(\str A)\bigr)$ from $\bigl(\ltp_{1,q}(\str A_{t-1},a):a\in V(\str A)\bigr)$ in time $O_{q,\sigma_2,w}(|V(\str A)|+|E(\str A_{t-1})|)\le O_{\sigma,q,w}(|V(\str A)|^2)$. As there are $m$ computation steps, the total running time is $O_{\sigma,q,w}(|V(\str A)|^2\cdot m)$.
+
+Finally, to determine whether $A\models\phi$,
+we view $\phi$ as a formula $\phi(x)$ with one free variable, and check whether $\phi$ is in $\ltp_{1,q}(\str A_m,a)$ for any chosen vertex $a\in V(\str A)$, which can be done in time $O_{q,\sigma}(1)$
+ (if $V(A)$ is empty, we evaluate $\phi$ by brute force).
+Note that since the Gaifman graph of $\str A_m$ is complete, $\phi$ can be viewed as a local \distFO formula of distance rank $(1,q)$, so the above check is well-defined.
+\end{proof}
+
+ \Cref{thm:main-algorithm} easily implies \Cref{thm:main}, as we now argue.
+\begin{proof}[Proof of \Cref{thm:main}]
+  Let \(q\) be the quantifier rank of \(\phi\), and let $r=(2\rho^-(0,q+1)+2)\le 2^{O(q^2)}$. 
+  Let $w$ be the radius-\(r\) width of the input construction sequence of $G$, and 
+let \(\ell\) be its length.
+  Since we assume the sequence is effective and has radius-\(r\) width \(w\), it also
+  has radius-\(1\) width at most \(w\), and \Cref{lem:effective-construction-seq}
+  gives \(\ell\le (2w+1)|V(G)|\).
+
+  By \Cref{lem:construction-construction}, the graph construction sequence
+  induces a construction sequence of the corresponding binary \(\{E\}\)-structure
+  \(\str A_G\) of length \(m\le |V(G)|+2\ell+1\le O_w(|V(G)|)\) and radius-\(r\) width $w$.
+  Then
+  \[
+      G\models\phi \quad\iff\quad \str A_G\models\phi.
+  \]
+  By \Cref{thm:main-algorithm}, we can decide whether \(A_G\models\phi\) in time
+  \[
+      O_{q,w}(|V(G)|^2\cdot m)=O_{q,w}(|V(G)|^3).\qedhere
+  \]
+\end{proof}
+The remainder of \Cref{sec:mc} is devoted to the proof of \Cref{lem:local-type-resolve-merge}.
+
+\subsection{Transforming types}
+\label{sec:trans-tp}
+First,
+we show that if $A$ is a structure
+and $B$ is obtained from $A$ via either a merge or a resolve operation,
+then given a type $\tp_{k,q}(A,\tup a)$ of a tuple $\tup a$ in $A$, we can determine
+its type $\tp_{k,q}(B,\tup a)$ in~$B$.
+To prove this, it is enough to observe that
+every formula $\phi(\tup x)$ of \distFO can be transformed into a formula $\psi(\tup x)$
+of the same distance rank, so that
+\[B \models \phi(\bar v)\quad\iff\quad A \models \psi(\bar v)\qquad \text{for all }\bar v\in V(B)^{\bar x}.\]
+This is based on formula rewriting, using the definitions of the merge and resolve operations.
+The starting observation is that if $B$ is obtained from $A$ by such an operation, then the atomic predicates of $B$ correspond to quantifier-free formulas in $A$, respecting the equivalence above.
+For plain first-order logic, this is enough to conclude that every first-order formula $\phi(\tup x)$ can be transformed into a formula $\psi(\tup x)$ of the same quantifier rank so that the above equivalence holds.
+For \distFO, we also need to analyse how  distance atoms change from $B$ to $A$.
+The case of a merge operation is easy, since it does not change distances;
+this is handled by the next lemma.
+
+
+
+\begin{lemma}\label{lem:merge-interp}
+    Let $\str A$ be a $\sigma$-structure and \(\str B \eqdef \merge PQ(\str A)\)
+    for some $P,Q\in\sigma_1$.
+    Every \distFO formula \(\phi(\bar x)\) can be transformed into a \distFO formula \(\psi(\bar x)\) of the same distance rank
+    such that
+    \[B \models \phi(\bar v)\quad\iff\quad A \models \psi(\bar v)\qquad \text{for all }\bar v\in V(B)^{\bar x}.\]
+    The formula $\psi$ can be computed in time $O_{k,q,\sigma}(1)$,
+    given $P, Q$, and $\phi$. Moreover, if $\phi$ is a local \distFO formula, then so is $\psi$.
+\end{lemma}
+\begin{proof}
+    Note that \(A\) and \(B\) have the same Gaifman graph.
+    Observe that for all vertices \(u\),
+    \[
+        P^B(u) ~\iff~ P^A(u) \lor Q^A(u) \quad\quad\text{and}\quad\quad Q^B(u) ~\iff~ \text{false}.
+    \]
+    More generally, for all $r\in\N$,
+    \begin{align*}
+        \dist(u, P^B)< r ~&\iff~
+        \bigl(\dist(u, P^A)< r\bigr) \lor
+        \bigl(\dist(u, Q^A)< r\bigr),
+    \\ \dist(u, Q^B)< r~&\iff~ \text{false}.
+    \end{align*}
+
+    Thus, we can transform \(\phi(\tup x)\) to \(\psi(\tup x)\), by replacing each \(P\)- or \(Q\)-atom and unary distance atom with the corresponding quantifier-free formula on the right-hand side of these equivalences.
+    This obviously preserves  the truth of the formula, the distance rank, and locality.
+\end{proof}
+\begin{corollary}\label{cor:merge-interp}
+     Let $\str A$ be a $\sigma$-structure and \(\str B \eqdef \merge PQ(\str A)\)
+    for some $P,Q\in\sigma_1$.
+    For every tuple $\tup a$ of at most $k$ elements of $A$,
+    the type $\tp_{k,q}(B,\tup a)$
+    only depends on $P,Q$, and the type
+    $\tp_{k,q}(A,\tup a)$,
+    and is computable from these data in time $O_{k,q,\sigma}(1)$.
+Similarly, given $P,Q,$ and the local type $\ltp_{k,q}(A,\tup a)$,
+the local type $\ltp_{k,q}(B,\tup a)$ can be computed in time $O_{k,q,\sigma}(1)$.
+\end{corollary}
+\begin{proof}
+    Let \(\tup a\) be a tuple of elements of $A$.
+    To decide whether a formula $\phi(\tup x)$ is in $\tp_{k,q}(B,\tup a)$,
+    it suffices to  transform $\phi(\tup x)$ into a formula $\psi(\tup x)$ as in \Cref{lem:merge-interp},
+    and to then check whether $\psi(\tup x)$ is in $\tp_{k,q}(A,\tup a)$.
+    This crucially uses the fact that the formula transformation does not increase the distance rank of the considered formulas. Local types are handled the same way, as the transformation preserves locality.
+\end{proof}
+
+The next lemma handles the case of
+resolves, and those change distances. Crucially, as the Gaifman graph of $B=\resolve RPQ(\str A)$ contains the Gaifman graph of $A$, distances in $B$
+cannot become larger than in $A$.
+We need to analyse how
+this affects distance atoms, as well as
+local quantification.
+The key observation is that only distances
+between pairs of vertices which were close to either $P$ or $Q$ in $A$ are affected.
+Binary distance atoms in $B$ are handled thanks to the unary distance atoms of \distFO,
+which allow to measure distances to $P$ or to $Q$ in $A$. This is the reason for why unary distance atoms are included in \distFO.
+Similarly, we can handle local quantification in $B$. However, following this transformation
+requires introducing unrestricted quantification.
+Thus, unlike \Cref{lem:merge-interp}, the transformation in \Cref{lem:resolve-interp} does not preserve locality of formulas
+(local formulas will be treated separately in \Cref{lem:local-type-resolve-merge}).
+
+% are the most important conceptual step of the algorithm\sz{Perhaps also \Cref{lem:local-type-resolve-merge}?}, and the reason why we include unary distance atoms in the definition of \distFO.
+\begin{lemma}\label{lem:resolve-interp}
+    Let $\str A$ be a $\sigma$-structure and \(\str B \eqdef \resolve RPQ(\str A)\)
+    for some $P,Q\in\sigma_1$ and $R\in\sigma_2$.
+    Every \distFO formula \(\phi(\bar x)\) can be transformed into a \distFO formula \(\psi(\bar x)\) of the same distance rank
+    so that
+    \[B \models \phi(\bar v)\quad\iff\quad A \models \psi(\bar v)\qquad \text{for all }\bar v\in V(B)^{\bar x}.\]
+    The formula $\psi$ can be computed in time $O_{k,q,\sigma}(1)$,
+    given $\phi, P, Q,R$, and the distances  $\dist^A(P^A,Y)$ and $\dist^A(Q^A,Y)$ for $Y\in \sigma_1$.
+\end{lemma}
+
+
+% \begin{lemma}\label{lem:type-resolve}
+%     There is an algorithm which takes as input
+%     \begin{itemize}
+%         \item \(k,q \in \N\), and a $\sigma$-structure $\str A$,
+%         \item \(\bigl(\tp_{k,q}(\str A, v):v\in V(\str A)\bigr)\), and
+%         \item symbols \(P,Q \in \sigma_1\) and \(R \in \sigma_2\) defining a structure \(\str B \eqdef \resolve RPQ(\str A)\),
+%     \end{itemize}
+%     and computes
+%     $\bigl(\tp_{k,q}(\str B, v):v\in V(\str B)\bigr)$
+%     in time $O_{k,q,\sigma}(|V(\str A)|+|E(\str A)|)$,
+% \end{lemma}
+
+
+% We first show how \Cref{lem:type-resolve} follows from \Cref{lem:resolve-interp}
+% \begin{proof}
+%         Let \(v \in V(B)\).
+%     To decide whether a formula $\phi(x)$ is in $\tp_{k,q}(B,v)$,
+%     it suffices to  transform $\phi(x)$ into a formula $\psi(x)$ as in \Cref{lem:resolve-interp},
+%     and to then check whether $\psi(x)$ is in $\tp_{k,q}(A,v)$.
+%     This crucially uses the fact that the formula transformation does not increase the distance rank of the considered formulas.
+%     The distances $(\dist^A(P^A,Y): Y\in \sigma_1)$ and
+%     $(\dist^A(Q^A,Y): Y\in \sigma_1)$
+%      can be computed by a breadth-first search for each \(Y\in \sigma_1\) in time \(O(|V(A)|+|E(A)|)\).
+% \end{proof}
+
+
+% We now prove \Cref{lem:resolve-interp}.
+\begin{proof}%[Proof of \Cref{lem:resolve-interp}]
+We proceed by induction on the structure of $\phi(\bar x)$.
+    We analyze all cases of the structural induction. We assume both $P^A$ and $Q^A$ are non-empty, as otherwise there is nothing to prove.
+
+    %We transform a considered formula \(\phi(x)\) in the signature of \(B\) into a formula \(\psi(x)\) in the signature of \(A\) via structural induction.
+    %it suffices to rewrite all atoms of \(\phi\)
+    %whose interpretation in \(B\) changed compared to \(A\).
+    %We go through them one by one.
+    %%the modified relation \(R\), as well as the (binary and unary) distance atoms.
+    %
+    %\jan{todo: structural induction on formula}
+
+    \paragraph{Atoms of first-order logic.}
+    The relation \(R\) is the only atom from the signature $\sigma$ that changes its interpretation between \(A\) and \(B\).
+    Observe for all \(u,v\) that
+    \[
+        R^\str B(u,v) ~\iff~ R^\str A(u,v) \lor \Bigl(P^\str A(u) \land Q^\str A(v) \land \bigwedge_{S\in\sigma_2} \neg S^\str A(u,v)\Bigr).
+    \]
+    %Thus, when translating \(\phi(x)\) to \(\psi(x)\), we replace each \(R\)-atom with the right-hand side of this equation.
+    This transformation does not change the distance rank, and proves the statement for first-order atoms.
+
+    \paragraph{Unary distance atoms up to radius \(\rho^-(k,q)\).}
+    %We next consider unary distance atoms.
+    For all vertices \(u\) and unary relation symbols \(Y\in \sigma_1\),
+    any shortest path from $u$ to $Y^A$ in $B$ uses either $0$, $1$, or $2$ edges with one endpoint in $P^A$ and the other one in $Q^A$. Hence we have:
+
+    \begin{multline*}
+      \dist^{B}(u,Y) < r ~\iff~\Bigl(\dist^{A}(u,Y) < r\Bigr)\lor {}\\ \Bigl(\dist^{A}(u,P^{A}) < \bigl(r - 1 - \dist^{A}(Q^{A},Y)\bigr) \Bigr)
+                            \lor  \Bigl(\dist^{A}(u,Q^{A}) < \bigl(r - 1 - \dist^{A}(P^{A},Y)\bigr) \Bigr)\lor {}\\
+                            \Bigl(\dist^{A}(u,P^{A}) < \bigl(r - 2 - \dist^{A}(P^{A},Y)\bigr) \Bigr)
+                            \lor  \Bigl(\dist^{A}(u,Q^{A}) < \bigl(r - 2 - \dist^{A}(Q^{A},Y)\bigr) \Bigr).
+    \end{multline*}
+    The right-hand sides of the inequalities are numerical constants which depend on the values \(\dist^{A}(Q^{A},Y)\) and \(\dist^{A}(P^{A},Y)\). In the algorithmic part of the statement, we assume those values are given.
+    %  that can be computed by a breadth-first search for each \(Y\in \sigma_1\) in time \(O(|V(A)|+|E(A)|)\).
+    Both sides of the equivalence have the same distance rank.
+    %Thus, just for like binary distance atoms, we get a rank preserving substitution also for unary distance atoms.
+
+    \paragraph{Binary distance atoms up to radius \(\rho^-(k,q)\).}
+
+    Every minimal-length path between two vertices \(u\) and \(v\) in \(B\)
+    uses $0$, $1$, or $2$ edges from \(B\) that are not in \(A\), that is, edges from \(P^A\) to \(Q^A\) or from \(Q^A\) to \(P^A\).
+    Hence, every such path between \(u\) and \(v\) in \(B\)
+    is either:
+    \begin{itemize}
+       \item  a path between \(u\) and \(v\) in \(A\),
+       \item a path between \(u\) and \(P^A\) in \(A\) followed by an edge from \(P^A\) to \(Q^A\) (which exists in \(B\)) followed by a path between \(Q^A\) and \(v\) in \(A\),
+       \item a path between \(u\) and $P^A$ in \(A\) followed by path of length two  from \(P^A\) to \(P^A\) passing through \(Q^A\), followed by a path between \(P^A\) and \(v\) in \(A\), or
+       \item one of the above with the roles of \(P^A\) and \(Q^A\) reversed.
+    \end{itemize}
+For each $r\in \N$, define the following formula (here $\dist(a,X)\le s$ is shorthand for the unary distance predicate $\dist(a,X)<(s+1)$):
+\begin{multline*}
+\delta^r_{P,Q}(x,y)\ \equiv\\
+\bigvee_{\substack{r_1,r_2:\\r_1+1+r_2=r}} \Bigl(\bigl(\dist(x,P) \le r_1\bigr) \land \bigl(\dist(y,Q) \le r_2\bigr)\Bigr)\ \lor\
+        \Bigl(\bigl(\dist(x,Q) \le r_1\bigr) \land \bigl(\dist(y,P) \le r_2\bigr)\Bigr)\quad\lor\\
+        \bigvee_{\substack{r_1,r_2:\\r_1+2+r_2=r}} \Bigl(\bigl(\dist(x,P) \le r_1\bigr) \land \bigl(\dist(y,P) \le r_2\bigr)\Bigr)\ \lor\
+        \Bigl(\bigl(\dist(x,Q) \le r_1\bigr) \land \bigl(\dist(y,Q) \le r_2\bigr)\Bigr).
+\end{multline*}
+Then, for all vertices \(u,v\) and distances \(r \in \N\),
+    %a binary distance atom in \(B\) via distance atoms in \(A\).
+    \begin{align}\label{eq:dist}
+        &B\models \dist(u,v) \le r ~\iff~ A\models \bigl(\dist(u,v) \le r\bigr) \ \lor\   \delta^r_{P,Q}(u,v).
+    \end{align}
+    The right hand side only uses (unary and binary) distance atoms with radius at most \(r\), and thus has the same distance rank as the left side.
+
+    \paragraph{Existential quantification.}
+    If the statement holds for \(\phi(\bar x y)\), then it clearly also holds for \(\exists y~ \phi(\bar x y)\).
+    Consider now a formula
+   \[\exists y~\bigl(\dist(\bar x,y) \le \rho^+(k+1,q-1)\bigr) \land \phi(\bar x y)\] of distance rank \((k,q)\).
+%  This formula is equivalent to the disjunction
+%     \[\bigvee_{x\in \bar x}\Bigl(\exists y~\dist(x,y) \le \rho^+(k+1,q-1) \land \phi(\bar x y)\Bigr),\]
+%      so it is enough to consider each disjunct separately.
+    As binary distance atoms may only use radii up to \(\rho^-(k+1,q-1)\), we
+    cannot directly evoke the equivalence \eqref{eq:dist} for this binary distance
+    atom without increasing the distance rank.
+    However, by induction, our statement transforms the subformula \(\phi(\bar x y)\) of distance rank \((k+1,q-1)\) into a \distFO formula \(\psi(\bar x y)\) of the same distance rank.
+
+    By commuting existential quantification and disjunction, the equivalence \eqref{eq:dist}  implies for any \(\bar v=(v_1,\ldots,v_\ell)\in A^{|\tup x|}\) and $r\eqdef\rho^+(k+1,q-1)$:
+    \begin{align*}
+        B &\models \exists y~\bigl(\dist(y,\bar v) \le r \bigr) \land \phi(y\bar v) ~\iff~ \\
+        A &\models \exists y~ \bigl(\dist(y,\bar v) \le r\bigr)  \land \psi(y\bar v)\ \ \  \lor\ \ \exists y~  {\bigvee_{i\in [\ell]}}   \delta^r_{P,Q}(v_i,y)
+        \land \psi(y\bar v).
+    \end{align*}
+    The first disjunct involves
+    local existential quantification and is a \distFO formula of distance rank $(k,q)$.
+    The second disjunct involves unrestricted quantification. Note that the formula $\delta^r_{P,Q}(v_i,y)$ is a boolean combination of unary distance atoms
+    with radii up to \(r=\rho^+(k+1,q-1)\le \rho^-(k,q)\), and is therefore also a \distFO formula of distance rank $(k,q)$.
+Therefore, the right side has distance rank \((k,q)\).
+    This completes the inductive proof.
+\end{proof}
+
+We get the following corollary,
+analogous  to \Cref{cor:merge-interp}.
+% Note that
+% the distances $(\dist^A(P^A,Y): Y\in \sigma_1)$ and
+%     $(\dist^A(Q^A,Y): Y\in \sigma_1)$
+%      can be computed by a breadth-first search for each \(Y\in \sigma_1\) in time \(O(|V(A)|+|E(A)|)\).
+\begin{corollary}\label{cor:resolve-interp}
+     Let $\str A$ be a $\sigma$-structure and \(\str B \eqdef \resolve RPQ(\str A)\)
+    for some $P,Q\in\sigma_1$ and $R\in\sigma_2$.
+    For every tuple $\tup a$ of at most $k$ elements of $A$,
+    the type $\tp_{k,q}(B,\tup a)$
+    only depends on $P,Q,R$, the type
+    $\tp_{k,q}(A,\tup a)$,
+    and the distances  $\dist^A(P^A,Y)$ and $\dist^A(Q^A,Y)$ for $Y\in \sigma_1$.
+Moreover, given this data,
+$\tp_{k,q}(B,\tup a)$ can be computed in time $O_{k,q,\sigma}(1)$.
+\end{corollary}
+
+
+
+\subsection{Transforming local types}
+The transformations from
+\Cref{sec:trans-tp} imply that
+if the structure $B$ is obtained from a fixed structure $A$
+by a merge or resolve operation,
+then the type of each vertex in $B$ only
+depends on its type (of the same distance rank) in $A$.
+However, this transformation
+is not directly useful algorithmically in the context of merge-width, since the type
+of a vertex stores information about
+all predicates in $\sigma_1$,
+and the number of such predicates may be unbounded. In fact, the hidden constant in the running time $O_{k,q,\sigma}(1)$ of the algorithms from \Cref{sec:trans-tp} is non-elementary in $|\sigma_1|$.
+In the context of merge-width, local types are significantly more manageable,
+since we assume that locally around any given vertex, the number of (non-empty) unary predicates is bounded and therefore, by \Cref{lem:ltp-local-subgraph},
+the local type has bounded size.
+
+To compute the local type of a vertex $a$ in the structure $B$,
+given its local type in the structure $A$,
+we apply
+the transformations from \Cref{sec:trans-tp}
+to a structure $A^*$ which contains a sufficiently large neighborhood of $a$,
+and use \Cref{lem:ltp-local-subgraph}.
+However, as we are now given the local type of $a$ in $A^*$ on input, we first compute its (global) type in $A^*$, using the locality theorem (specifically, \Cref{thm:localglobal'}). For that, we first need to compute the scatter type of $A^*$.
+
+
+
+
+
+
+\begin{lemma}\label{obs:stpcompute}
+    Given $k,q\in\N$, a binary signature $\sigma$,
+    and a $\sigma$-structure \(A^*\)
+    and, if $q\ge 1$, also \(\ltp_{k+1,q-1}(A^*,a)\) for each \(a \in V(A^*)\),
+    one can compute \(\stp_{k,q}(A^*)\) in time \(O_{k,q,\sigma} (|V(A^*)|+|E(A^*)|)\).
+\end{lemma}
+\begin{proof}
+For each relevant radius and formula, we execute the greedy scattered set process discussed in \Cref{sec:typedefs} for up to \(k+q\) steps.
+For each vertex added by the greedy process,
+the factor \(|V(A^*)|+|E(A^*)|\) in the run time accounts for the search that is necessary to exclude the vertices that are close to~it.
+\end{proof}
+
+
+\begin{lemma}\label{lem:localglobaltypes-uniform}
+    There is an algorithm which takes as input
+    \(k,q \in \N\),
+    a $\sigma$-structure \(A^*\),
+    and \(\ltp_{k,q}(A^*,a)\) for each \(a\in V(A^*)\),
+    and computes
+    \(\tp_{k,q}(A^*,a)\) for each $a \in V(A^*)$, jointly
+    in time \(O_{k,q,\sigma}(|V(A^*)|+|E(A^*)|)\).
+\end{lemma}
+\begin{proof}
+    By \Cref{obs:stpcompute} and \Cref{obs:preservedistrank}
+    we can efficiently compute \(\stp_{k,q}(A^*)\).
+    By \Cref{thm:localglobal'},
+    \(\tp_{k,q}(A^*,a)\) can be computed from
+    \(\ltp_{k,q}(A^*,a)\) and \(\stp_{k,q}(A^*)\)
+    in time $O_{k,q,\sigma}(1)$.
+\end{proof}
+
+\subsection{Proof of \Cref{lem:local-type-resolve-merge}}
+Finally, we prove \Cref{lem:local-type-resolve-merge}, repeated below, which allows us to compute the local type of a vertex in $B$ from its local type in $A$ when $B$ is obtained from $A$ by a merge or resolve operation.
+\computestep*
+
+\begin{proof}
+    The case of a merge operation follows  from \Cref{cor:merge-interp} and \Cref{lem:ltp-local-subgraph}. We therefore consider the case of a resolve operation. We can assume that $P^A$ and $Q^A$ are non-empty, as otherwise the resolve operation does not change the structure and the statement is trivial.
+
+    % We first consider the \emph{merge} operation, and then the more involved \emph{resolve} operation.
+%
+    % \paragraph{Merge.}
+    % Note that \(A\) and \(B\) have the same Gaifman graph.
+    % We argue that every local \distFO formula \(\phi(x)\) can be effectively transformed into a local \distFO formula \(\psi(x)\) of the same distance rank
+    % such that
+    % \[B\models \phi(v)\quad\iff\quad  A\models \psi(v)\qquad\text{for all \(v \in V(B)\).}\]\sz{removed $[N_{\rho^-(k-1,q+1)}(v)]$}
+    % Observe that for all vertices \(u\),
+    % \[
+    %     P^B(u) ~\iff~ P^A(u) \lor Q^A(u) \quad\quad\text{and}\quad\quad Q^B(u) ~\iff~ \text{false}.
+    % \]
+    % More generally, for all $r\in\N$,
+    % \begin{align*}
+    %     \dist(u, P^B)\le r ~&\iff~
+    %     \bigl(\dist(u, P^A)\le r\bigr) \lor
+    %     \bigl(\dist(u, Q^A)\le r\bigr),
+    % \\ \dist(u, Q^B)\le r~&\iff~ \text{false}.
+    % \end{align*}
+%
+    % Thus, we can transform \(\phi(x)\) to \(\psi(x)\), by replacing each \(P\)- or \(Q\)-atom and unary distance atom with the corresponding quantifier-free formula on the right-hand side of these equivalences.
+    % This obviously preserves locality, the truth of the formula, and the distance rank.
+%
+%
+    % \paragraph{Resolve.}
+    Let \(r\eqdef\rho^-(k-1,q+1)\) and \(S \eqdef N_{2r}^A(P^A \cup Q^A)\).
+    Let \(A^*\) and \(B^*\) be the reducts of \(A\) and \(B\) that remove all unary predicates that contain no element from \(S\).
+    In the Gaifman graph of \(B\), as \(P\) and \(Q\) are fully connected (that is, form a biclique or clique), the set \(S\) has radius at most \(2r+2\).
+    As \(w\) bounds the radius-\((2r+2)\) width of \(B\), we know that \(B^*\) has at most \(w\) unary predicates.
+    Hence, so has \(A^*\).
+
+    As \(A^*\) is a reduct of \(A\), it is trivial to compute \(\ltp_{k,q}(A^*,
+    v)\) from \(\ltp_{k,q}(A,v)\) by simply removing all formulas that use unary
+    predicates not mentioned in \(A^*\).
+    Given that, by \Cref{lem:localglobaltypes-uniform}, we can compute 
+    the global types \[\bigl(\tp_{k,q}(A^*,v):v\in V(\str A)\bigr)\]
+    in time
+    $O_{k,q,\sigma_2,w}(|V(\str A)|+|E(A)|)$.
+    Since \(B^*=\resolve RPQ(\str A^*)\), by \Cref{cor:resolve-interp}, we can then compute \[(\tp_{k,q}(B^*,v) : v \in V(B)).\] This
+    takes time $O_{k,q,\sigma_2,w}(|V(\str A)|+|E(A)|)$,
+    as the distances
+ $\dist^A(P^A,Y)$ and
+    $\dist^A(Q^A,Y)$ for each
+    unary predicate $Y$ of $A^*$,
+    required by \Cref{cor:resolve-interp},
+     can be computed by a breadth-first search in time \(O(|V(A)|+|E(A)|)\),
+     and there are at most $w$ such predicates $Y$.
+     Given \((\tp_{k,q}(B^*,v) : v \in V(B))\),  in particular we can obtain \((\ltp_{k,q}(B^*,v) : v \in V(B))\),
+     in time $O_{k,q}(|V(A)|)$.
+
+    Thus, to prove the lemma, it remains to show that for all \(v \in V(A)\),
+    \[
+        \ltp_{k,q}(\str B,v)=\begin{cases}
+            \ltp_{k,q}(A,v)&\text{if }\dist^{A}(v,P^A \cup Q^A) > r,\\
+            \ltp_{k,q}(B^*,v)&\text{otherwise}.
+        \end{cases}
+    \]
+    To show this, first consider \(v \in V(A)\) with \(\dist^A(v,P^A \cup Q^A) > r\).
+    Then \(B[N_r(v)]=A[N_r(v)]\), and thus trivially, \[\ltp_{k,q}(B[N_r(v)],v)=\ltp_{k,q}(A[N_r(v)],v).\]
+    Hence, by \Cref{lem:ltp-local-subgraph}, also \[\ltp_{k,q}(B,v) = \ltp_{k,q}(A,v).\]
+    Next consider \(v \in V(A)\) with \(\dist^A(v,P^A \cup Q^A) \le r\).
+    Then \(N_r^B(v) \subseteq S\), and thus by twice applying \Cref{lem:ltp-local-subgraph},
+    \[\ltp_{k,q}(B,v) = \ltp_{k,q}(B[N_{r}(v)],v) = \ltp_{k,q}(B^*,v).\qedhere\]
+\end{proof}
+
+\section{Closure under interpretations}\label{sec:closure}
+We prove \Cref{thm:interp}, repeated below.
+\introinterp*
+
+
+In fact, we prove a stronger result, stated below, in which the input class $\CC$ is a class of structures over a binary signature $\sigma$.
+For a \(\sigma\)-structure \(\str A\) and a first-order \(\sigma\)-formula
+\(\phi(x,y)\), define \(\phi(\str A)\) as the graph with vertices
+\(V(\str A)\) and edges \(uv\) such that
+\(\str A\models \phi(u,v)\lor\phi(v,u)\). Our goal is to bound the merge-width of $\phi(\str A)$ in terms of the merge-width of $\str A$. To this end, it will be convenient to exhibit a merge sequence (see \Cref{sec:merge-sequence}), rather than a construction sequence.
+
+\begin{lemma}\label{lem:interp}
+  Fix a finite binary signature \(\sigma\), a first-order \(\sigma\)-formula
+  \(\phi(x,y)\) of quantifier rank \(q\), and \(r\in\N\).
+  Set
+  \[
+      h\eqdef \rho^-(2,q)
+      \quad\text{and}\quad
+      s\eqdef \rho^-(1,q+1).
+  \]
+  If a \(\sigma\)-structure \(\str A\) has a construction sequence of radius \(rh+s\)
+  width at most \(w\), then the graph \(\phi(\str A)\) has a merge sequence of
+  radius-\(r\) width bounded in terms of \(r,q,w\), and \(\sigma\).
+\end{lemma}
+
+\begin{proof}
+  Let \(\str A_1,\ldots,\str A_m\) be a construction sequence for \(\str A\)
+  of radius-\((rh+s)\) width at most \(w\).
+  We may assume that \(\str A\) is a reduct of \(\str A_m\).
+  Denote \(V\coloneqq V(\str A)\).
+
+  For \(t\in[m]\), let \(\cal P_t\) be the partition of \(V\) in which two vertices
+  \(a,b\) lie in the same part if and only if
+  \[
+      \ltp_{2,q}(\str A_t,a)=\ltp_{2,q}(\str A_t,b).
+  \]
+  Define
+  \[
+      R_t\coloneqq
+      \setof{ab\in \binom V2}{\dist^{\str A_t}(a,b)\le h}.
+  \]
+Then $R_1\subseteq R_2\dots\subseteq R_m$, as $\dist^{A_{i+1}}(a,b)\le \dist^{A_{i}}(a,b)$ for $i\in[m-1]$ and $a,b\in V(\str A)$.
+
+  We prove that
+  \begin{align}\label{eq:new-merege-seq}
+      (\cal P_1,R_1),\ldots,(\cal P_m,R_m),(\{V\},\binom V2)
+  \end{align}
+  is a merge sequence of \(\phi(\str A)\) of radius-\(r\) width bounded in terms of
+  \(r,q,w,\sigma\).
+
+  
+  First, \(\cal P_1\) is the partition into singletons because in the initial
+  partitioned structure each vertex is the unique element of its part predicate.
+  Moreover, \(\cal P_t\) coarsens \(\cal P_{t-1}\).  Indeed, the proof of
+  \Cref{lem:local-type-resolve-merge}, and the merge case in \Cref{cor:merge-interp},
+  show that \(\ltp_{2,q}(\str A_t,a)\) is determined by
+  \(\ltp_{2,q}(\str A_{t-1},a)\) and the operation producing \(\str A_t\).
+
+  We next bound the radius-\(r\) width. Fix \(t>1\) and \(v\in V\).
+  If \(u\) is at distance at most \(r\) from \(v\) in \((V,R_t)\), then
+  \(\dist^{\str A_t}(u,v)\le rh\).
+  By \Cref{lem:ltp-local-subgraph}, every local formula contributing to
+  \(\ltp_{2,q}(\str A_{t-1},u)\) is evaluated inside the radius-\(s\)
+  neighborhood of \(u\) in \(\str A_{t-1}\).  Since the Gaifman graph of
+  \(\str A_{t-1}\) is contained in that of \(\str A_t\), all unary predicates
+  relevant to this local type are contained in
+  \(\reach^{\str A_t}_{rh+s}(v)\), apart from the two part predicates affected
+  when the step \(\str A_{t-1}\to\str A_t\) is a merge.  Thus only \(w+2\)
+  unary predicates can occur in these local neighborhoods.
+  As the number of normalized local \((2,q)\)-types over a signature with at most
+  \(w+2\) unary predicates and fixed binary part \(\sigma_2\) is bounded in terms
+  of \(q,w,\sigma\), only boundedly many parts of \(\cal P_{t-1}\) are reachable
+  from \(v\) in \((V,R_t)\).  The final pair \((\{V\},\binom V2)\) has bounded
+  width as well, since the number of parts of \(\cal P_m\) is bounded by the same
+  local-type bound.
+
+  It remains to verify the default condition for unresolved pairs.  Fix \(t\in[m]\)
+  and parts \(X,Y\in\cal P_t\).  Let \(a,a'\in X\) and \(b,b'\in Y\) be such that
+  \(ab,a'b'\notin R_t\).  Then both pairs are at distance larger than \(h\) in
+  \(\str A_t\).  By \Cref{lem:far-ltp'} the local type
+  \(\ltp_{2,q}(\str A_t,ab)\) is determined by the one-vertex local types
+  \(\ltp_{2,q}(\str A_t,a)\) and \(\ltp_{2,q}(\str A_t,b)\); hence
+  \[
+      \ltp_{2,q}(\str A_t,ab)=\ltp_{2,q}(\str A_t,a'b').
+  \]
+  By \Cref{thm:localglobal'}, we have that
+  \[
+      \tp_{2,q}(\str A_t,ab)=\tp_{2,q}(\str A_t,a'b').
+  \]
+  Repeatedly applying \Cref{cor:merge-interp,cor:resolve-interp} along the fixed
+  suffix \(\str A_t,\ldots,\str A_m\) shows that
+  \[
+      \tp_{2,q}(\str A_m,ab)=\tp_{2,q}(\str A_m,a'b').
+  \]
+  Since \(\phi(x,y)\lor\phi(y,x)\) is a first-order formula of quantifier rank
+  at most \(q\) over the reduct \(\str A\), it follows that either all pairs in
+  \(XY-R_t\) are edges of \(\phi(\str A)\), or none of them are.
+
+  Thus \eqref{eq:new-merege-seq} is a merge sequence of \(\phi(\str A)\) with the
+  required radius-\(r\) width bound.
+\end{proof}
+
+\begin{proof}[Proof of \Cref{thm:interp}]
+    Represent each graph \(G\in\CC\) as the binary
+  structure \(\str A_G\) with a binary relation representing adjacency in $G$.  
+  Note that $\phi(G)=\phi(A_G)$.
+  By \Cref{lem:construction-construction},
+  the class of binary structures $\setof{A_G}{G\in\CC}$ has bounded merge-width.  
+  By 
+ \Cref{lem:interp},
+ the class $\setof{\phi(A_G)}{G\in\CC}$ has bounded merge-width.
+\end{proof}

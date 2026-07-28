@@ -1,0 +1,304 @@
+\section{Model checking}\label{sec:mc}
+In this section, we prove the main result of the paper, repeated below.
+\intromain*
+\Cref{thm:main} will follow from a more general result, \Cref{thm:compute} below,
+which applies to arbitrary relational structures equipped with binary relations.
+
+
+\subsection{Construction sequences for binary structures}\label{sec:computing}
+\newcommand{\merge}[2]{\mathrm{merge}_{#1,#2}}
+\newcommand{\resolve}[3]{\mathrm{resolve}^{#1}_{#2,#3}}
+We first lift the notion of construction sequences, and of merge-width, to binary structures.
+Throughout \Cref{sec:mc}, fix a signature $\sigma$
+consisting of finitely many unary and binary relational symbols \(\sigma_1\) and \(\sigma_2\).
+Let $\pi$ consist of infinitely many unary predicates $P_1,P_2,\ldots$ not occurring in $\sigma$,
+and let $\sigma^*\coloneqq\sigma\cup\pi$.
+We call the predicates in $\pi$ \emph{part predicates}.
+A \emph{partitioned $\sigma$-structure} (called partitioned structure for brevity)
+is a $\sigma^*$-structure $\str A$ in which
+the predicates $P_i\in\pi$ define pairwise disjoint subsets of $\str A$. 
+In particular, at most $|V(\str A)|$ part predicates are non-empty.
+
+
+
+For a partitioned structure $\str A$ and 
+ part predicates $P,Q\in \pi$ and binary relation $R\in\sigma_2$,
+define the following partitioned structures:
+\begin{itemize}
+\item $\resolve RPQ(\str A)$, defined as the partitioned structure $\str B$ obtained from $\str A$ by setting $$R^\str B\coloneqq R^\str A\cup (P^\str A\times Q^\str A-\bigcup_{S\in\sigma_2} S^\str A),$$ and leaving all other predicates as in $\str A$.
+
+\item $\merge PQ(\str A)$, defined as the partitioned structure $\str B$ obtained from $\str A$ 
+ by setting $$P^{\str B}\coloneqq P^{\str A}\cup Q^{\str A}\text{\quad and \quad} Q^{\str B}\coloneqq\emptyset.$$
+\end{itemize}
+
+Recall \Cref{def:strucreach}: For a partitioned $\sigma$-structure $\str A$, $\reach_r^{\str A}(a)\subset \sigma_1\cup\pi$ denotes the set of unary predicates that are reachable from $a$ by a path of length at most $r$ in the Gaifman graph of~$\str A$.
+Moreover, the \emph{radius-$r$ width} of a partitioned structure $\str A$
+was defined as $$\max_{a\in V(\str A)}\bigl|\reach_r^{\str A}(a)\bigr|.$$
+
+\begin{definition}[Construction sequences]
+An \emph{initial} partitioned structure
+is a partitioned structure whose Gaifman graph is edgeless, 
+and all part predicates contain at most one element.
+
+  A \emph{construction sequence} for a structure $\str A$
+  is a sequence of partitioned structures $\str A_1,\ldots,\str A_m$
+  such that
+  \begin{itemize}
+    \item $\str A_1$ is an initial partitioned structure,  
+    \item $\str A_m$ has only one nonempty part predicate, and  $\str A$ is a reduct of $\str A_m$, and
+\item for each $t\in[m-1]$, we have that $\str A_{t+1}=F(\str A_t)$, for 
+some $F\in\setof {\merge PQ,\resolve RPQ}{P,Q\in\pi,R\in \sigma_2}$.
+  \end{itemize}
+  The \emph{radius-$r$ width} of the construction sequence is the maximum 
+  radius-$r$ width of all the structures $\str A_1,\ldots,\str A_m$.
+  The \emph{radius-$r$ merge-width} of $\str A$ is the minimum 
+  radius-$r$ width of a construction sequence for $\str A$.
+\end{definition}
+
+For the case of graphs,
+the following lemma establishes the equivalence of the definition of merge-width given here
+with the definition from \Cref{sec:prelims}.
+
+\begin{lemma}\label{lem:construction-construction}
+  Let $G=(V,E)$ be a graph, and let $\str A$ be the corresponding binary structure with a binary relation interpreted as $\setof{(a,b)\in V^2}{ab\in E(G)}$.
+There is a correspondence between construction sequences for $G$, as defined 
+  in the gray box of \Cref{sec:intro}, and construction sequences for $\str A$, as defined above, in the signature $\sigma$ with $\sigma_2=\set{E,N}$.
+  The correspondence preserves the radius-$r$ width of the sequence for all \(r \in \N \cup \{\infty\}\), and the length of the sequence up to a multiplicative factor of $2$.
+\end{lemma}
+\begin{proof}[Proof sketch]
+  We show one direction, from construction sequences for graphs to construction sequences for partitioned $\sigma$-structures.
+  The other direction is similar.
+A merge between two parts of the current partition in a graph construction sequence,
+is simulated by the corresponding merge operation on partitioned $\sigma$-structures.
+A positive resolve between two parts $P,Q$ of the current partition 
+is simulated by performing two consecutive resolve operations on the partitioned structure $\str B$,
+namely $\resolve EPQ$ and $\resolve EQP$.
+Similarly, a negative resolve is simulated by $\resolve NPQ$ and $\resolve NQP$.
+\end{proof}
+
+
+\subsection{Computing local types in construction sequences}
+\label{sec:step}
+The following result generalizes our main result \Cref{thm:main}
+by considering partitioned structures instead of graphs and formulas $\phi(x)$ with one free variable instead of just sentences.
+\begin{theorem}\label{thm:compute}
+  Fix $q,w\in\N$, and let $r\coloneqq 2\rho(1,q)$.
+ Given a $\sigma$-structure $\str A$, together
+ with its construction sequence of length \(m\) and radius-$r$ width at most $w$,
+ and a first-order $\sigma$-formula $\phi(x)$ of quantifier rank $q$,
+ one can compute 
+ $$\phi^\str A=\setof{a\in V(\str A)}{\str A\models \phi(a)}$$
+in time 
+ $O_{\sigma,q,w}(|V(\str A)|^2 \cdot m)$.
+\end{theorem}
+
+
+Recall \Cref{rem:representation}
+for details how a \(\sigma\)-structure \(A\) is represented
+in the memory of a RAM machine.
+With this in mind, given a partitioned structure $\str A$ and predicates $R\in\sigma_2,P,Q\in\pi$,
+one can compute the structures $\merge PQ(\str A)$ and $\resolve RPQ(\str A)$ in time 
+$O_{\sigma}(|V(\str A)|^2)$.
+
+
+
+
+
+
+
+\Cref{thm:compute} follows easily from the next lemma.
+  
+\begin{lemma}\label{lem:compute}Fix $q,w\in\N$, and let $r\coloneqq 2\rho(1,q)$.
+ Given a  construction sequence  $\str A_1,\ldots,\str A_m$
+ of radius-$r$ width at most $w$, the local types 
+   $$(\ltp_{1,q}(\str A_m,a):a\in V(\str A_m)).$$
+ can be computed in time 
+ $O_{\sigma,q,w}(|V(\str A_m)|^2 \cdot m)$.
+\end{lemma}
+\begin{proof}
+  Fix $q\in\N$,
+and let $r\coloneqq 2\rho(1,q)$, where $\rho$ is the function defined in \Cref{sec:typedefs}.
+Fix $w\in\N$, and let $\CC_{r,w}$ denote the class of all partitioned $\sigma$-structures 
+of radius-$r$ width at most~$w$.
+We argue that for $t=1,\ldots,m$,
+$$(\ltp_{1,q}(\str A_t,a):a\in V(\str A_t)).$$
+can be computed in time 
+$O_{\sigma,q,w}(|V(\str A_t)|^2\cdot t)$.
+
+We proceed by induction on $t$.
+In the base case of $t=1$, the structure $\str A_1$ is an initial partitioned structure.
+  Therefore, its Gaifman graph is edgeless and all distance atoms of the dist-FO logic are vacuous.
+  In effect, $\ltp_{1,q}(\str A_1,a)$ is completely determined by the 
+  atomic type $\tau(x)$ of $a$ in $\str A_1$,
+as well as the  quantifier-rank $q$ first-order type of $a$ in the structure $\str A'$ obtained from $\str A_1$ by forgetting the part predicates $Q\in\pi$, as well as all binary predicates. As the structure $\str A'$ involves only unary predicates, 
+evaluating first-order formulas of fixed quantifier rank $q$ can be done in time $O_{q,|\sigma|}(|V(\str A')|)$.
+This completes the case $t=1$.
+
+In the inductive step,
+observe 
+that 
+each operation of the form 
+$\resolve RPQ$ or $\merge PQ$, for $P,Q\in \pi$ and $R\in\sigma_2$,
+is a Gaifman increasing modification of $\str A$ of order $O(1)$.
+The conclusion therefore follows from \Cref{thm:modification}.
+\end{proof}
+
+\Cref{thm:compute} follows immediately from \Cref{lem:compute},
+as the last structure \(A_m\) trivially satisfies \(\ltp_{1,q}(A_m,a)=\tp_{1,q}(A_m,a)\) for every \(a\).
+Finally, we prove \Cref{thm:main}.
+
+\begin{proof}[Proof of \Cref{thm:main}]
+  Let $r$ be defined as in \Cref{thm:compute}.
+  Let  $G$ be a graph, given with a merge sequence of radius-$r$ width $w$, in the form of an effective construction sequence (see \Cref{sec:representing}).
+  The radius-$1$ width of the sequence is also at most $w$, and thus
+  by \Cref{lem:effective-construction-seq}, it has length \(m\le (2w+1)|V(G)|.\)
+  Let $A$ be the binary structure representing $G$;
+  by \Cref{lem:construction-construction} we can efficiently compute a construction sequence for $A$ of at most twice the length.
+
+The formula \(\phi\) can be seen as a formula \(\phi(x)\) with a free variable \(x\) which never actually happens to be used.
+By \Cref{thm:compute}, in time $O_{q,w}(|V(G)|^2 \cdot 2m) = O_{q,w}(|V(G)|^3)$ we can compute the set 
+$X=\setof{v\in V(G)}{A\models \phi(v)}$.
+Then $G\models\phi$ if and only if $X\neq \emptyset$.
+\end{proof}
+
+
+\section{Closure under interpretations}\label{sec:closure}
+We prove \Cref{thm:interp}, repeated below.
+Recall that for a graph  $G$ and first-order formula  $\phi(x,y)$, the graph
+ $\phi(G)$ has vertices $V\coloneqq V(G)$ and edges $\set{u,v}\in {V\choose 2}$ such that $G\models\phi(u,v)$.
+
+\introinterp*
+
+
+
+
+
+
+
+\Cref{thm:interp} follows immediately  from \Cref{lem:interp} below, which applies more generally to binary structures. 
+For a $\sigma$-structure $\str A$ and first-order $\sigma$-formula $\phi(x,y)$, 
+we define the graph $\phi(\str A)$ with vertices $V\coloneqq V(\str A)$ and edges $\setof{ab\in {V\choose 2}}{\str A\models\phi(a,b)}$. 
+
+\begin{lemma}\label{lem:interp}
+  Fix a binary relational signature $\sigma$ and $q\in\N$, and set $r_q\coloneqq\rho(2,q)+1$. 
+  Let $\str A$ be a $\sigma$-structure,
+  and let $\phi(x,y)$ be a first-order $\sigma$-formula of quantifier rank $q$.
+For every $r\in\N$, the radius-$r$ merge-width of the graph $\phi(\str A)$ is bounded in terms of $q$, the signature $\sigma$ of $\str A$, and the radius-$(r\cdot r_q)$ merge-width of $\str A$.
+\end{lemma}
+Note that \Cref{lem:interp} yields \Cref{thm:interp}, as well as  \Cref{cor:transduce}, concerning transductions. 
+This is because expanding a graph $G$ with unary predicates yields a binary structure $\str  A$ with the same 
+merge-width parameters.
+
+\begin{proof}[Proof of \Cref{lem:interp}]Let $\str A$ be a $\sigma$-structure.
+Fix $r\in\N$, and denote $r'\coloneqq r\cdot r_q$.
+Fix  a construction sequence 
+$\str A_1,\ldots,\str A_m$ for $\str A$ of radius-$r'$ width $w$.
+We construct 
+a merge sequence for the graph $G\coloneqq \phi(\str A)$ of radius-$r$ width bounded in terms of $q,w,$ and $\sigma$.
+
+
+Denote $V\coloneqq V(\str A)$.
+For $t\in[m]$,
+let $\cal P_t$ be the partition of $V$
+such that two vertices $a,b\in V$ are in the same part of $\cal P_t$ if and only if $\ltp_{2,q}(\str A_t,a)=\ltp_{2,q}(\str A_t,b)$.
+Define $$R_t\coloneqq \setof{ab\in \mbox{$V\choose 2$}}{\dist^{\str A_t}(a,b)\le \rho(2,q)},$$
+where $\dist^{\str A_t}(\cdot,\cdot)$ denotes the distance in the Gaifman graph of $\str A_t$.
+
+We argue that 
+\begin{align}\label{eq:ms}
+  \bigl(\cal P_1,R_1\bigr),\ldots,\bigl(\cal P_m,R_m\bigr),\bigl(\set{V},\mbox{${V\choose 2}$}\bigr)
+\end{align}
+  is a merge sequence for $\phi(\str A)$ of radius-\(r\) width bounded in terms of $w$, $q$, and the signature of~$\str A$. This will follow from the claims below.
+Fix $t\in[m]$ with $t>1$.
+
+
+\begin{claim}\label{cl:width}
+  The radius-$r$ width of the pair $(\cal P_{t-1},R_{t})$ is bounded in terms of \(w,\sigma\) and \(q\).
+\end{claim}
+\begin{claimproof}
+  Fix $v\in V$.
+  We need to bound the size of  the set
+  $$\setof{\ltp_{2,q}(\str A_{t-1},u)}{u\in V,\dist^{(V,R_t)}(v,u)\le r}.$$
+  By definition of \(R_t\), this is equivalent to
+  $$\setof{\ltp_{2,q}(\str A_{t-1},u)}{u\in V,\dist^{A_t}(v,u)\le r \cdot \rho(2,q)}.$$
+
+Recall that the local type $\ltp_{2,q}(\str A_{t-1},u)$ 
+determines the set $\reach^{\str A_{t-1}}_{\rho(2,q)}(u)$.
+For every fixed set $\reach^{\str A_{t-1}}_{\rho(2,q)}(u)$,
+there is a bounded (in terms of $w$, $\sigma$ and $q$) number of different local types that 
+determine that set, by \Cref{obs:typebound}.
+Therefore, it is enough to bound the size of the set 
+\begin{align}\label{eq:closrels-size}
+\setof{\reach^{\str A_{t-1}}_{\rho(2,q)}(u)}{u\in V,\dist^{A_t}(v,u)\le r \cdot \rho(2,q)}.  
+\end{align}
+
+
+
+As the Gaifman graph of $\str A_{t-1}$ is contained in the Gaifman graph of $\str A_t$,
+observe that
+$$\reach^{\str A_{t-1}}_{\rho(2,q)}(u)\subset \reach^{\str A_{t}}_{\rho(2,q)}(u)\cup M\qquad\text{for all $u\in V$,}
+$$
+where $M=\set{P,Q}$ consists of the two part predicates that have been merged when obtaining $\str A_t$ from $\str A_{t-1}$, 
+in the case of a merge step (that is, when $\str A_t=\merge PQ(\str A_{t-1})$), and $M=\emptyset$ in the case of a resolve step.
+
+If moreover $\dist^{A_t}(v,u)\le r \cdot \rho(2,q)$, then with \(\rho(2,q) + r \cdot \rho(2,q) = r'\),
+$$\reach^{\str A_{t-1}}_{\rho(2,q)}(u)\subset \reach^{\str A_{t}}_{r'}(v)\cup M.
+$$
+As $|\reach^{\str A_t}_{r'}(v)|\le w$ by assumption, 
+it follows that the set \eqref{eq:closrels-size} has at most $2^{w+2}$ distinct elements.
+\end{claimproof}
+
+
+\begin{claim}\label{cl:coarse}
+  The partition
+  $\cal P_{t}$ is a coarsening of $\cal P_{t-1}$.
+\end{claim}
+\begin{claimproof}
+  We need to show for all vertices \(a,b\) that if $\ltp_{2,q}(\str A_{t-1},a)=\ltp_{2,q}(\str A_{t-1},b)$,
+  then $\ltp_{2,q}(\str A_{t},a)=\ltp_{2,q}(\str A_{t},b)$.
+  As \(A_t\) is a Gaifman increasing modification of \(A_{t-1}\), this follows from \Cref{lem:modification-tuples}.
+\end{claimproof}
+
+
+\begin{claim}\label{cl:default}
+  For every $X,Y\in \cal P_t$,
+  there is $\phi_{XY}\in\set{\phi,\neg\phi}$ such that 
+  $$\str A\models\phi_{XY}(X,b)\text{\qquad for all 
+  $a\in X,b\in Y$ with $ab\notin R_t$}.$$
+\end{claim}
+  \begin{claimproof}
+    We show that $\tp_{2,q}(\str A_m,ab)$ depends only on 
+    $\ltp_{2,q}(\str A_t,a)$ and $\ltp_{2,q}(\str A_t,b)$,
+    for all $a,b\in V$ with $\dist_{\str A_t}(a,b) > \rho(2,q)$.
+The conclusion will follow, 
+    since $\tp_{2,q}(\str A_m,ab)$ determines whether or not $\str A\models\phi(a,b)$ holds, 
+    as $\phi(x,y)$ is a first-order $\sigma$-formula of quantifier rank $q$,
+    and $\str A$ is a reduct of $\str A_m$.
+
+
+For all $a,b\in V$ with $\dist_{\str A_t}(a,b) > \rho(2,q)$, by \Cref{lem:far-ltp},
+we have that 
+$\ltp_{2,q}(\str A_t,a)$ and $\ltp_{2,q}(\str A_t,b)$
+determine $\ltp_{2,q}(\str A_t,ab)$ (assuming the structure $\str A_t$ is fixed). 
+    
+    
+Furthermore, $\ltp_{2,q}(\str A_t,ab)$ determines $\ltp_{2,q}(\str A_s,ab)$, for all $s\ge t$ (assuming the structures $A_1,\ldots,A_m$ are fixed).
+This is proved by induction on $s$, using \Cref{lem:modification-tuples}. Therefore, $\ltp_{2,q}(\str A_t,ab)$ determines $\ltp_{2,q}(\str A_m,ab)$,
+which in turn is equivalent to $\tp_{2,q}(\str A_m,ab)$, which then finally determines whether or not $\str A\models\phi(a,b)$.
+  \end{claimproof}
+
+  \begin{claim}\label{cl:final}
+     $|\cal P_m|$ is bounded in terms of $q$ and the signature $\sigma$ of $\str A$.
+  \end{claim}
+  \begin{claimproof}
+    As the partitioned $\sigma$-structure $\str A_m$ has only one nonempty part predicate, 
+    the number of possible local types $\ltp_{2,q}(\str A_m,a)$ is bounded in terms 
+    of $\sigma$ and $q$, which follows from \Cref{obs:typebound}.
+  \end{claimproof}
+
+  From \cref{cl:width,cl:coarse,cl:default,cl:final}
+  it follows
+  that \eqref{eq:ms}
+  is a merge sequence for $\phi(\str A)$ of width bounded in terms of $w$, $q$, and the signature $\sigma$ of $\str A$.
+\end{proof}
+

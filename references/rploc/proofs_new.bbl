@@ -1,0 +1,336 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.2 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{anyt/global//global/global}
+    \entry{learningLogic}{inproceedings}{}
+      \name{author}{3}{}{%
+        {{hash=eff841e7106430d5e5fef81617904045}{%
+           family={Bergerem},
+           familyi={B\bibinitperiod},
+           given={Steffen\bibnamedelima van},
+           giveni={S\bibinitperiod\bibinitdelim v\bibinitperiod}}}%
+        {{hash=09c9a63ce22980640e97ed9ed81ea815}{%
+           family={Grohe},
+           familyi={G\bibinitperiod},
+           given={Martin},
+           giveni={M\bibinitperiod}}}%
+        {{hash=8e0061f6262029d9845f58dee9929da4}{%
+           family={Ritzert},
+           familyi={R\bibinitperiod},
+           given={Martin},
+           giveni={M\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Philadelphia, PA, USA}%
+      }
+      \list{publisher}{1}{%
+        {ACM}%
+      }
+      \strng{namehash}{95701d812b2af46df83db886568dfd63}
+      \strng{fullhash}{95701d812b2af46df83db886568dfd63}
+      \strng{bibnamehash}{95701d812b2af46df83db886568dfd63}
+      \strng{authorbibnamehash}{95701d812b2af46df83db886568dfd63}
+      \strng{authornamehash}{95701d812b2af46df83db886568dfd63}
+      \strng{authorfullhash}{95701d812b2af46df83db886568dfd63}
+      \field{labelalpha}{BGR22}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{We analyse the complexity of learning first-order queries in a model-theoretic framework for supervised learning introduced by (Grohe and Turán, TOCS 2004). Previous research on the complexity of learning in this framework focussed on the question of when learning is possible in time sublinear in the background structure.Here we study the parameterized complexity of the learning problem. We have two main results. The first is a hardness result, showing that learning first-order queries is at least as hard as the corresponding model-checking problem, which implies that on general structures it is hard for the parameterized complexity class AW[*]. Our second main contribution is a fixed-parameter tractable agnostic PAC learning algorithm for first-order queries over sparse relational data (more precisely, over nowhere dense background structures).}
+      \field{booktitle}{Proceedings of the 41st ACM SIGMOD-SIGACT-SIGAI Symposium on Principles of Database Systems, PODS'22}
+      \field{isbn}{9781450392600}
+      \field{title}{On the Parameterized Complexity of Learning First-Order Logic}
+      \field{year}{2022}
+      \field{pages}{337\bibrangedash 346}
+      \range{pages}{10}
+      \verb{doi}
+      \verb 10.1145/3517804.3524151
+      \endverb
+      \verb{urlraw}
+      \verb https://doi.org/10.1145/3517804.3524151
+      \endverb
+      \verb{url}
+      \verb https://doi.org/10.1145/3517804.3524151
+      \endverb
+      \keyw{supervised learning,parameterized complexity,nowhere dense graph,fixed-parameter tractable,first-order query learning,first-order logic,boolean classification,agnostic probably approximately correct learning}
+    \endentry
+    \entry{mw-stoc}{inproceedings}{}
+      \name{author}{2}{}{%
+        {{hash=1361aec85d53264a1ab8b37db748882b}{%
+           family={Dreier},
+           familyi={D\bibinitperiod},
+           given={Jan},
+           giveni={J\bibinitperiod}}}%
+        {{hash=0ee77d8be2008042e2de77ec3c1402ff}{%
+           family={Toruńczyk},
+           familyi={T\bibinitperiod},
+           given={Szymon},
+           giveni={S\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Prague, Czechia}%
+      }
+      \list{publisher}{1}{%
+        {Association for Computing Machinery}%
+      }
+      \strng{namehash}{58d5b1cf3661369ee6885d35bebc4016}
+      \strng{fullhash}{58d5b1cf3661369ee6885d35bebc4016}
+      \strng{bibnamehash}{58d5b1cf3661369ee6885d35bebc4016}
+      \strng{authorbibnamehash}{58d5b1cf3661369ee6885d35bebc4016}
+      \strng{authornamehash}{58d5b1cf3661369ee6885d35bebc4016}
+      \strng{authorfullhash}{58d5b1cf3661369ee6885d35bebc4016}
+      \field{extraname}{1}
+      \field{labelalpha}{DT25}
+      \field{sortinit}{D}
+      \field{sortinithash}{6f385f66841fb5e82009dc833c761848}
+      \field{extraalpha}{1}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{isbn}{9798400715105}
+      \field{series}{STOC '25}
+      \field{title}{Merge-Width and First-Order Model Checking}
+      \field{year}{2025}
+      \field{pages}{1944\bibrangedash 1955}
+      \range{pages}{12}
+      \verb{doi}
+      \verb 10.1145/3717823.3718259
+      \endverb
+      \verb{urlraw}
+      \verb https://doi.org/10.1145/3717823.3718259
+      \endverb
+      \verb{url}
+      \verb https://doi.org/10.1145/3717823.3718259
+      \endverb
+      \keyw{bounded expansion,first-order model checking,flip-width,merge-width,monadic dependence,nowhere dense,twin-width}
+    \endentry
+    \entry{mw-arxiv-v1}{misc}{}
+      \name{author}{2}{}{%
+        {{hash=1361aec85d53264a1ab8b37db748882b}{%
+           family={Dreier},
+           familyi={D\bibinitperiod},
+           given={Jan},
+           giveni={J\bibinitperiod}}}%
+        {{hash=0ee77d8be2008042e2de77ec3c1402ff}{%
+           family={Toruńczyk},
+           familyi={T\bibinitperiod},
+           given={Szymon},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{58d5b1cf3661369ee6885d35bebc4016}
+      \strng{fullhash}{58d5b1cf3661369ee6885d35bebc4016}
+      \strng{bibnamehash}{58d5b1cf3661369ee6885d35bebc4016}
+      \strng{authorbibnamehash}{58d5b1cf3661369ee6885d35bebc4016}
+      \strng{authornamehash}{58d5b1cf3661369ee6885d35bebc4016}
+      \strng{authorfullhash}{58d5b1cf3661369ee6885d35bebc4016}
+      \field{extraname}{2}
+      \field{labelalpha}{DT25}
+      \field{sortinit}{D}
+      \field{sortinithash}{6f385f66841fb5e82009dc833c761848}
+      \field{extraalpha}{2}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{eprintclass}{math.CO}
+      \field{eprinttype}{arXiv}
+      \field{title}{Merge-width and First-Order Model Checking}
+      \field{year}{2025}
+      \verb{eprint}
+      \verb 2502.18065v1
+      \endverb
+      \verb{urlraw}
+      \verb https://arxiv.org/abs/2502.18065v1
+      \endverb
+      \verb{url}
+      \verb https://arxiv.org/abs/2502.18065v1
+      \endverb
+    \endentry
+    \entry{gaifman}{incollection}{}
+      \name{author}{1}{}{%
+        {{hash=1ef8f3916e9761575ce4dcc3f68c77a1}{%
+           family={Gaifman},
+           familyi={G\bibinitperiod},
+           given={Haim},
+           giveni={H\bibinitperiod}}}%
+      }
+      \name{editor}{1}{}{%
+        {{hash=8fba841d75acc12b0a126b3e8ee74aaa}{%
+           family={Stern},
+           familyi={S\bibinitperiod},
+           given={J.},
+           giveni={J\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Elsevier}%
+      }
+      \strng{namehash}{1ef8f3916e9761575ce4dcc3f68c77a1}
+      \strng{fullhash}{1ef8f3916e9761575ce4dcc3f68c77a1}
+      \strng{bibnamehash}{1ef8f3916e9761575ce4dcc3f68c77a1}
+      \strng{authorbibnamehash}{1ef8f3916e9761575ce4dcc3f68c77a1}
+      \strng{authornamehash}{1ef8f3916e9761575ce4dcc3f68c77a1}
+      \strng{authorfullhash}{1ef8f3916e9761575ce4dcc3f68c77a1}
+      \strng{editorbibnamehash}{8fba841d75acc12b0a126b3e8ee74aaa}
+      \strng{editornamehash}{8fba841d75acc12b0a126b3e8ee74aaa}
+      \strng{editorfullhash}{8fba841d75acc12b0a126b3e8ee74aaa}
+      \field{labelalpha}{Gai82}
+      \field{sortinit}{G}
+      \field{sortinithash}{32d67eca0634bf53703493fb1090a2e8}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the Herbrand Symposium}
+      \field{issn}{0049-237X}
+      \field{series}{Studies in Logic and the Foundations of Mathematics}
+      \field{title}{On Local and Non-Local Properties}
+      \field{volume}{107}
+      \field{year}{1982}
+      \field{pages}{105\bibrangedash 135}
+      \range{pages}{31}
+      \verb{doi}
+      \verb 10.1016/S0049-237X(08)71879-2
+      \endverb
+    \endentry
+    \entry{gks}{article}{}
+      \name{author}{3}{}{%
+        {{hash=09c9a63ce22980640e97ed9ed81ea815}{%
+           family={Grohe},
+           familyi={G\bibinitperiod},
+           given={Martin},
+           giveni={M\bibinitperiod}}}%
+        {{hash=3cb5faad668e139961dfd9cb56eea64e}{%
+           family={Kreutzer},
+           familyi={K\bibinitperiod},
+           given={Stephan},
+           giveni={S\bibinitperiod}}}%
+        {{hash=f942ac3a41f52de98a79cc95ba1b175f}{%
+           family={Siebertz},
+           familyi={S\bibinitperiod},
+           given={Sebastian},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{98b7e13f4062743c1e7b7ba7884ec759}
+      \strng{fullhash}{98b7e13f4062743c1e7b7ba7884ec759}
+      \strng{bibnamehash}{98b7e13f4062743c1e7b7ba7884ec759}
+      \strng{authorbibnamehash}{98b7e13f4062743c1e7b7ba7884ec759}
+      \strng{authornamehash}{98b7e13f4062743c1e7b7ba7884ec759}
+      \strng{authorfullhash}{98b7e13f4062743c1e7b7ba7884ec759}
+      \field{labelalpha}{GKS17}
+      \field{sortinit}{G}
+      \field{sortinithash}{32d67eca0634bf53703493fb1090a2e8}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{J. {ACM}}
+      \field{number}{3}
+      \field{title}{Deciding First-Order Properties of Nowhere Dense Graphs}
+      \field{volume}{64}
+      \field{year}{2017}
+      \field{pages}{17:1\bibrangedash 17:32}
+      \range{pages}{-1}
+      \verb{doi}
+      \verb 10.1145/3051095
+      \endverb
+    \endentry
+    \entry{gs-pods}{inproceedings}{}
+      \name{author}{2}{}{%
+        {{hash=09c9a63ce22980640e97ed9ed81ea815}{%
+           family={Grohe},
+           familyi={G\bibinitperiod},
+           given={Martin},
+           giveni={M\bibinitperiod}}}%
+        {{hash=9d41cda0123e3c91bf925f52e5424ce5}{%
+           family={Schweikardt},
+           familyi={S\bibinitperiod},
+           given={Nicole},
+           giveni={N\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Houston, TX, USA}%
+      }
+      \list{publisher}{1}{%
+        {Association for Computing Machinery}%
+      }
+      \strng{namehash}{0f44a3fc8a16b82979fa3e395ec92f55}
+      \strng{fullhash}{0f44a3fc8a16b82979fa3e395ec92f55}
+      \strng{bibnamehash}{0f44a3fc8a16b82979fa3e395ec92f55}
+      \strng{authorbibnamehash}{0f44a3fc8a16b82979fa3e395ec92f55}
+      \strng{authornamehash}{0f44a3fc8a16b82979fa3e395ec92f55}
+      \strng{authorfullhash}{0f44a3fc8a16b82979fa3e395ec92f55}
+      \field{extraname}{1}
+      \field{labelalpha}{GS18}
+      \field{sortinit}{G}
+      \field{sortinithash}{32d67eca0634bf53703493fb1090a2e8}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the 37th ACM SIGMOD-SIGACT-SIGAI Symposium on Principles of Database Systems}
+      \field{isbn}{9781450347068}
+      \field{series}{PODS '18}
+      \field{title}{First-Order Query Evaluation with Cardinality Conditions}
+      \field{year}{2018}
+      \field{pages}{253\bibrangedash 266}
+      \range{pages}{14}
+      \verb{urlraw}
+      \verb https://doi.org/10.1145/3196959.3196970
+      \endverb
+      \verb{url}
+      \verb https://doi.org/10.1145/3196959.3196970
+      \endverb
+      \keyw{counting,first-order query evaluation,nowhere dense classes of structures}
+    \endentry
+    \entry{grohe2026rankpreservinggaifmannormalform}{misc}{}
+      \name{author}{2}{}{%
+        {{hash=09c9a63ce22980640e97ed9ed81ea815}{%
+           family={Grohe},
+           familyi={G\bibinitperiod},
+           given={Martin},
+           giveni={M\bibinitperiod}}}%
+        {{hash=9d41cda0123e3c91bf925f52e5424ce5}{%
+           family={Schweikardt},
+           familyi={S\bibinitperiod},
+           given={Nicole},
+           giveni={N\bibinitperiod}}}%
+      }
+      \strng{namehash}{0f44a3fc8a16b82979fa3e395ec92f55}
+      \strng{fullhash}{0f44a3fc8a16b82979fa3e395ec92f55}
+      \strng{bibnamehash}{0f44a3fc8a16b82979fa3e395ec92f55}
+      \strng{authorbibnamehash}{0f44a3fc8a16b82979fa3e395ec92f55}
+      \strng{authornamehash}{0f44a3fc8a16b82979fa3e395ec92f55}
+      \strng{authorfullhash}{0f44a3fc8a16b82979fa3e395ec92f55}
+      \field{extraname}{2}
+      \field{labelalpha}{GS26}
+      \field{sortinit}{G}
+      \field{sortinithash}{32d67eca0634bf53703493fb1090a2e8}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{eprintclass}{cs.LO}
+      \field{eprinttype}{arXiv}
+      \field{title}{A Rank-Preserving Gaifman Normal Form}
+      \field{year}{2026}
+      \verb{eprint}
+      \verb 2606.11993
+      \endverb
+      \verb{urlraw}
+      \verb https://arxiv.org/abs/2606.11993
+      \endverb
+      \verb{url}
+      \verb https://arxiv.org/abs/2606.11993
+      \endverb
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+

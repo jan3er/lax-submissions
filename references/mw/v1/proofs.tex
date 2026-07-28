@@ -1,0 +1,954 @@
+\section{A locality theorem}\label{sec:logic}
+
+Following the approach of \cite{gks},
+we will define a logic dist-FO that extends first-order logic
+with certain distance predicates.
+With respect to this logic (for a fixed quantifier rank \(q\) and auxiliary number \(k\)),
+for a given structure $A$ 
+we will define three kinds of \emph{types}.
+
+\begin{itemize}
+    \item The \emph{type} \(\tp_{k,q}(A,a)\) of a vertex $a$ in $A$,
+        containing a set of formulas $\phi(x)$ that hold at \(a\).
+    \item The \emph{local type} \(\ltp_{k,q}(A,a)\) of a vertex $a$ in $A$,
+        is the same as above, but ignores color predicates that are far away from \(a\).
+        It therefore has only a bounded number of possible values in a construction sequence of small width,
+        making it suitable to use in our algorithms.
+    \item The \emph{scatter type} \(\stp_{k,q}(A)\) of \(A\)
+        contains information about inclusionwise maximal scattered
+        sets with certain types.
+        We use the scatter type to link the local and global types of a vertex.
+\end{itemize}
+
+Our algorithm maintains the \emph{local} type of each vertex at each step of the construction sequence.
+However, as part of each update step, we crucially also need to compute certain \emph{global} types.
+The following locality theorem forms the heart of our algorithm by connecting these two types via the scatter type.
+The subsequent lemma demonstrates how we will use it algorithmically.
+
+\begin{restatable}[Locality theorem]{theorem}{localglobalgame}\label{thm:localglobal}
+    Fix $k,q,\ell\in\N$ with $\ell\le k$.
+    Let \(A\) and \(B\) be binary structures  with \(\stp_{k,q}(A)=\stp_{k,q}(B)\).
+    Then, for all  tuples $\tup a\in V(A)^\ell,\tup b\in V(B)^\ell$,
+    \[
+       \tp_{k,q}(A,\tup a) = \tp_{k,q}(B,\tup b) \quad\iff\quad
+       \ltp_{k,q}(A,\tup a) = \ltp_{k,q}(B,\tup b).
+    \]
+\end{restatable}
+
+\begin{restatable}{lemma}{localglobaltypes}\label{lem:localglobaltypes}Fix $k,q\in\N$ with $k\ge 1$ and a finite binary signature $\sigma$.
+    There is an algorithm which takes as input
+    a $\sigma$-structure \(A\)
+    and \(\ltp_{k,q}(A,a)\) for all \(a \in V(A)\),
+    and computes
+    \(\tp_{k,q}(A,a)\) for all \(a \in V(A)\), jointly
+    in time \(O_{k,q,\sigma}(|V(A)|+|E(A)|)\).
+\end{restatable}
+
+In the next two subsections, we give the full definitions of dist-FO,
+type, local type, and scatter type.
+We moreover derive \Cref{lem:localglobaltypes} from \Cref{thm:localglobal}.
+The following subsections then prove \Cref{thm:localglobal}.
+Finally, in \Cref{sec:updating-local} we derive further algorithmic consequences of
+\Cref{lem:localglobaltypes}. Those are the ones which will be used 
+in further sections. 
+
+\subsection{Logical preliminaries}
+The set $\N$ includes $0$. For $n\in\N$, denote $[n]\coloneqq\set{1,\ldots,n}$.
+
+We consider binary relational signatures only.
+More precisely, a (binary, relational) \emph{signature} $\sigma$ consists of a set $\sigma_2$ of binary relation symbols, and a set $\sigma_1$ of unary relation symbols. A structure $A$ over the signature $\sigma$,
+ or a \emph{$\sigma$-structure}, consists of a domain $V(A)$ and the interpretation 
+  $R^A\subset V(A)^k$ of each relation symbol $R\in \sigma_k$, for $k\in\set{1,2}$.
+More generally, for a formula $\phi(x_1,\ldots,x_k)$, by $\phi^A\subset V(A)^k$ we denote the 
+set of tuples $(a_1,\ldots,a_k)\in V(A)^k$ such that $\phi(a_1,\ldots,a_k)$ holds in $A$, also denoted $A\models\phi(a_1,\ldots,a_k)$.
+A \emph{binary structure} is a structure over a binary relational signature.
+The \emph{Gaifman graph} of a $\sigma$-structure $A$ is the graph $(V,E)$ with vertices $V\coloneqq V(A)$ and edges 
+$$E \coloneqq E(A)\coloneqq \setof{uv\in \mbox{$V\choose 2$}}{R\in\sigma_2,A\models R(u,v)\lor R(v,u)}.$$
+
+
+We use \(\bar a\) to denote tuples \(a_1,\dots,a_k\) of elements, and  \(|\bar a|\) to denote their length.
+For brevity, we often implicitly convert such tuples to their underlying vertex sets,
+and write expressions like \(S \subseteq \bar a\) as a shorthand for \(S \subseteq \{a_1,\dots,a_k\}\).
+
+Let $\sigma$ be a relational signature and let $\sigma'\subset \sigma$.
+    The \emph{$\sigma'$-reduct} of a $\sigma$-structure $\str A$ is the $\sigma'$-structure 
+    obtained from $\str A$ by removing the relations in $\sigma'-\sigma$.
+    We will only consider reducts which remove some unary relations, and keep all binary relations. For a $\sigma$-structure $\str A$ and $\sigma'\subset\sigma_1$, we denote by $\str A[\sigma']$ the $(\sigma'\cup\sigma_2)$-reduct of $\str A$.
+
+    
+
+\subsection{Definitions and computational implications}\label{sec:typedefs}
+
+
+\paragraph{First-order distance logic.}
+We define a logic called dist-FO that extends FO by the following \emph{distance atoms}:
+\begin{itemize}
+    \item For each radius \(r \in \N\), dist-FO introduces 
+        a binary distance atom \(\dist(x,y) \le r\) expressing that the distance between \(x\) and \(y\) in the Gaifman graph is at most \(r\).
+    \item For each radius \(r \in \N\) and unary relation symbol \(Y\), dist-FO introduces
+        a unary distance atom \(\dist(x,Y) < r\) equivalent to the formula
+        \(\exists y~Y(y) \land \dist(x,y) < r\).
+\end{itemize}
+We call \(r\) the \emph{radius} of the distance atom.
+Note that distance atoms can be expressed 
+using usual first-order formulas (assuming $\sigma_2$ is finite),
+and that for radius \(1\), these first-order formulas are quantifier-free.
+We will need to have a fine control over the quantifier rank of the constructed formulas, and for this reason, the possibility to measure distances using quantifier-free formulas is essential, similarly as in \cite{gks}.
+
+
+We define a sufficiently fast-growing function $\rho\from \N^2\to\N$, so that for $k,q\in\N$
+    \[
+        \rho(k,q) = 
+        \begin{cases}
+            1 & \text{if }q=0, \\
+            (13^{k}+1) \cdot \rho(k+1,q-1) & \text{if }q > 0.
+        \end{cases}
+    \]
+This function originates from \Cref{lem:scatter}, which forms the combinatorial core of the proof of \Cref{thm:localglobal}.
+
+
+Let \(k,q \in \N\).
+A dist-FO formula has \emph{distance rank} \((k,q)\) if it is a boolean combination of
+\begin{itemize}
+    \item atomic formulas, 
+    \item distance atoms (of arity one and two) for radii up to \(\rho(k,q)\), and
+    \item dist-FO formulas \(\exists x \phi\) and \(\forall x \phi\), where \(\phi\) has distance rank \((k+1,q-1)\) and \(q > 0\).
+\end{itemize}
+Thus, in particular, a formula with distance rank \((k,q)\) has quantifier rank at most \(q\).
+Throughout our proofs, the number \(k\) provides an upper bound on the number of free variables of a formula, and
+thus grows with every quantifier.
+As \(\rho(k+1,q-1) < \rho(k,q)\) for all \(k,q \in \N\),
+we observe that the distance atoms nevertheless have progressively shorter radii as one traverses the quantifiers inwards.
+
+
+\paragraph{Atomic types.}
+The \emph{$(k,q)$-atomic type} of a tuple \(\bar a\) in a binary structure \(A\),
+denoted by \(\atp_{k,q}(A,\bar a)\), is the set of all quantifier-free dist-FO formulas \(\phi(\bar x)\)
+that use distance atoms only for radii up to \(\rho(k,q)\) and satisfy \(A \models \phi(\bar a)\).
+
+
+\paragraph{Types.}
+For a binary structure \(A\) and tuple of vertices \(\bar a\),
+define \(\tp_{k,q}(A,\bar a)\) as the set of all dist-FO formulas \(\phi(\bar x)\) of distance rank \((k,q)\)
+with \(A \models \phi(\bar a)\).
+We call \(\tp_{k,q}(A,\bar a)\) the \emph{(k,q)-type of \(\bar a\) in \(A\)}.
+It is easy to see, by normalizing formulas, that the number of formulas $\phi(x_1,\ldots,x_\ell)$ of distance-rank $(k,q)$, up to equivalence, is bounded in terms of $k,q,\ell$, and $\sigma$.
+This yields the following.
+
+\begin{observation}\label{obs:typebound}
+    Fix $q,k,\ell\in\N$, and a finite binary signature $\sigma$. The set
+    $$\setof{\tp_{k,q}(A,\bar a)}{\str A\text{ is a $\sigma$-structure}, \bar a\in V(A)^\ell}$$ is finite, of size bounded in terms of $k,q,\ell$ and $\sigma$.
+\end{observation}
+
+\begin{remark}
+Even though each type \(\tp_{k,q}(A,\bar a)\) is, formally, an infinite set of formulas, it has a finite representation, by the observation above. 
+We may thus 
+consider every operation mapping types to types (for fixed parameters $k,q,\ell,\sigma$) as computable in time $O_{q,k,\ell,\sigma}(1)$.
+\end{remark}
+
+
+
+
+
+\paragraph{Local types.}\label{par:local-type-def}
+Let \(A\) be a binary structure with unary relations symbols \(\sigma_1\).
+For a tuple $\tup a$ of elements of $A$, denote
+$$\reach^A_r(\bar a) \coloneqq  \{ Y \in \sigma_1 \mid a\in \bar a, A \models \dist(a,Y) \le r \}.$$
+For a set \(\lambda \subseteq \sigma_1\), recall that \(A[\lambda]\) is the structure obtained from removing
+all unary predicates outside \(\lambda\).
+For each $k,q\in\N$, binary structure $A$, and tuple \(\tup a\in V(A)\) with $|\tup a|\le k$, define the \emph{local $(k,q)$-type of $a$ in $A$} as 
+$$\ltp_{k,q}(A,\tup a) \coloneqq  \tp_{k,q}\bigl(A\bigl[\reach^A_{\rho(k,q)}(\tup a)\bigr],\tup a\bigr).$$
+As ${\rho(k,q)\ge \rho(k+1,q-1)}$, we have the following.
+\begin{observation}\label{obs:ltphered}
+    For all $k,q\in\N$, binary structures \(A,B\), and tuples \(\tup a, \tup b\),
+    $$\ltp_{k,q}(A, \tup a)= \ltp_{k,q}(B, \tup b)\qquad\text{implies}\qquad
+    \ltp_{k+1,q-1}(A, \tup a)= \ltp_{k+1,q-1}(B, \tup b).$$
+\end{observation}
+
+
+\paragraph{Scatter types.}
+A vertex set \(S\) is an \emph{\(r\)-scattered set} in a graph if all vertices in \(S\)
+have pairwise distance larger than \(r\). (Thus, a \(1\)-scattered set is an independent set.)
+
+For each binary structure~\(A\) and $k,q\in\N$, pick any function 
+\[\stp_{k,q}(A)\from \Big([\rho(k,q)]\times\left\{\text{formulas $\phi(x)$ of distance rank \((k+1,q-1)\)}\right\}\Big)\to\set{0,\ldots,k+q},\]
+called the \emph{(\(k,q\))-scatter type} of $\str A$, 
+which maps every pair $(r,\phi(x))$ in its domain
+to the size of any set $S\subset \phi^\str A$ which is \(r\)-scattered in $\str A$ and has size at most $k+q$, and is an inclusionwise maximal set with those two properties.
+(For $q=0$,  $\stp_{k,q}(A)$ is the unique function $\stp_{k,q}(A)\from [\rho(k,q)]\times\emptyset\to\set{0,\ldots,k}$, and the condition holds trivially.)
+
+As we demand \(S\) to be any \emph{inclusionwise maximal} set with the above properties, rather than a set of maximal size,
+the function \(\stp_{k,q}(A)\) is not uniquely determined.
+However, by assuming a total order on \(V(A)\),
+we can make the definition unique by setting \(\stp_{k,q}(A)\) to be the output of a simple
+algorithm that greedily constructs scattered sets for each \(r\) and \(\phi\)
+until they either reach a size of \(k+q\) or cannot be extended anymore.
+As each formula of distance rank \((k,q)\) and quantifier rank at most $q-1$ is also a formula of distance rank \((k+1,q-1)\),
+and moreover \(k+q = (k+1)+(q-1)\),
+we can craft the above algorithm to ensure the following.
+\begin{observation}\label{obs:stphered}
+    For all $k,q\in\N$ with $q>0$ and binary structures \(A,B\),
+    $$\stp_{k,q}(A)= \stp_{k,q}(B)\qquad\text{implies}\qquad
+    \stp_{k+1,q-1}(A)= \stp_{k+1,q-1}(B).$$
+\end{observation}
+We can use \Cref{obs:typebound} to bound the number of different scatter types, and to bound the run time of the aforementioned greedy algorithm,
+yielding the following two observations.
+\begin{observation}\label{obs:scattertypebound}Fix $k,q\in\N$, and a finite binary signature $\sigma$.
+    The set
+    $$\setof{\stp_{k,q}(A)}{\str A\text{ is a $\sigma$-structure}}$$ is finite, of size bounded in terms of $k,q$ and $\sigma$.
+\end{observation}
+
+In the following, for each vertex added by the greedy algorithm, 
+the factor \(|V(A)|+|E(A)|\) in the run time accounts for the search that is necessary to exclude the vertices that are close to~it.
+
+\begin{observation}\label{obs:stpcompute}
+    Fix $k,q\in\N$ and a binary signature $\sigma$.
+    Given a binary $\sigma$-structure \(A\)
+    and, if $q>0$, also \(\tp_{k+1,q-1}(A,v)\) for each vertex \(v \in V(A)\),
+    one can compute \(\stp_{k,q}(A)\) in time \(O_{k,q,\sigma} (|V(A)|+|E(A)|)\).
+\end{observation}
+
+We will use the following lemma to justify our use of inclusionwise maximal scattered sets.
+
+\begin{lemma}\label{lem:scattersizes}
+    Let \(G\) be a graph and \(X \subseteq V(G)\).
+    If \(X\) contains an inclusionwise maximal \(r\)-scattered set of size \(k\),
+    then \(X\) contains no \(2r\)-scattered set of size larger than \(k\).
+\end{lemma}
+\begin{proof}
+    Fix an inclusionwise maximal \(r\)-scattered set \(S \subseteq X\).
+    Then \(X \subseteq N_{r}(S)\), as otherwise \(S\) could be extended.
+    Thus, given two vertices \(u,v\) of a \(2r\)-scattered set \(S' \subseteq X\),
+    they both have distance at most \(r\) from some vertex in \(S\).
+    However, as \(\dist(u,v)>2r\),
+    the two vertices cannot have distance at most \(r\) to the same vertex.
+    The pigeonhole principle implies \(|S'| \le |S|\)
+\end{proof}
+
+
+\paragraph{Computational implications.}
+We have now defined all the notions appearing in the statement of \Cref{thm:localglobal}.
+Before giving its proof,
+we can already derive some computational implications from it.
+
+\localglobaltypes*
+\begin{proof}
+    We prove the statement by induction on \(q\).
+    If $q>0$ then by \Cref{obs:ltphered} and induction, we can compute \(\tp_{k+1,q-1}(A,a)\) for all \(a\).
+    By \Cref{obs:stpcompute}, (also when $q= 0$) we can efficiently compute \(\stp_{k,q}(A)\).
+
+    By \Cref{thm:localglobal}, \(\tp_{k,q}(A,a)\) is uniquely determined by
+    \(\ltp_{k,q}(A,a)\) and \(\stp_{k,q}(A)\).
+    By \Cref{obs:typebound} and \ref{obs:scattertypebound},
+    both \(\ltp_{k,q}(A,a)\) and \(\stp_{k,q}(A)\)
+    have only a bounded number of possible values,
+    and thus we can hard-code a look-up table that yields \(\tp_{k,q}(A,a)\)
+    for each combination in bounded time.
+    Note that our algorithm non-uniformly depends on \(k,q\) and \(\sigma\), which is allowed by the statement of the lemma.
+\end{proof}
+
+
+\subsection{Local and global games}\label{sec:localglobalgame}
+Towards a proof of \Cref{thm:localglobal}, in \Cref{sec:localglobalgame} we define three variants of the classical Ehrenfeucht-Fraïssé (EF) game on binary structures,
+called the \emph{global game}, the \emph{local game}, and the \emph{strongly local game},
+which will turn out to be equivalent.
+We refer to the literature for extensive background on EF games, for example, to the textbook~\cite{libkin04}.
+Recall the definition of atomic types \(\atp_{k,q}(A,\bar a)\) provided in \Cref{sec:typedefs}
+
+
+\paragraph{Global game.}
+Let \(A,B\) be binary structures and \(\bar a, \bar b\) be tuples of vertices from \(A\) and \(B\), respectively, with \(|\bar a|=|\bar b|\).
+The \emph{global \((k,q)\)-game} on \((A,B,\bar a,\bar b)\) is a game played between \emph{Spoiler} and \emph{Duplicator}
+defined by the following three steps.
+\begin{enumerate}[label=(\theenumi)]
+    \item\label{g:step1}
+    If \(\atp_{k,q}(A,\bar a) \neq \atp_{k,q}(B,\bar b)\) then Spoiler wins directly.
+    Otherwise, if \(q=0\) then Duplicator wins directly.
+    If none of these criteria hold then proceed to the next step.
+    \item\label{g:step2} Spoiler picks a vertex \(a \in V(A)\) or \(b \in V(B)\),
+and Duplicator picks a vertex \(a\) or \(b\) from the structure that Spoiler did not pick.
+    \item\label{g:step3} Afterwards, continue with the \((k+1,q-1)\)-game on \((A,B,\bar a a,\bar b b)\).
+\end{enumerate}
+
+
+
+For plain first-order logic, it is a well-known fact that
+ two structures have the same types of quantifier-rank $q$ if and only if Duplicator wins the \(q\)-round EF game.
+ More precisely, by this we mean that Duplicator has a winning strategy in the game.
+See for example \cite[Theorem 3.9]{libkin04} for a proof.
+The following lemma extends this result to the dist-FO logic.
+The proof is analogous to the classical proof for first-order logic, and thus omitted.
+
+\begin{lemma}\label{lem:globaltype}
+    Fix $k,\ell,q\in\N$ with $\ell\le k$.
+Let \(A,B\) be binary structures and \(\bar a\in V(A)^\ell, \bar b\in V(B)^\ell\).
+Then \(\tp_{k,q}(A,\bar a) = \tp_{k,q}(B,\bar b)\) if and only if Duplicator wins the global \((k,q)\)-game on \((A,B,\bar a,\bar b)\).
+\end{lemma}
+
+\paragraph{Local game.}
+We define a \emph{local \((k,q)\)-game} by replacing steps (2) and (3) of the global \((k,q)\)-game as follows.
+\begin{itemize}
+    \item [(2)]\label{l:step2}
+        By symmetry, assume Spoiler picks \(a \in V(A)\) (we enforce symmetric constraints if Spoiler picks \(b \in V(B)\)).
+        This move is only allowed if there is a previous vertex \(a_i \in \bar a\) 
+        with
+        \begin{align}\label{eq:loc}%
+            \reach^A_{\rho(k+1,q-1)}(a) \subseteq \reach^A_{\rho(k,q)}(a_i).    
+        \end{align}
+        Now Duplicator responds by picking some $b\in V(B)$.
+
+        
+
+        \item[(3)]\label{l:step3} Afterwards, continue with the local \((k+1,q-1)\)-game on \((A,B,\bar a a,\bar b b)\).
+\end{itemize}
+Note that in step (2)
+for every response \(b\in V(B)\) of Duplicator which does not immediately loose in the upcoming step (3),
+        the following analogue of \eqref{eq:loc} holds as well:
+        \[
+            \reach^B_{\rho(k+1,q-1)}(b) \subseteq \reach^B_{\rho(k,q)}(b_i)
+        \]
+        This is because
+        the atomic type constraints in step (1) of the game ensure that in this round, \(\reach^A_{\rho(k,q)}(a_i) = \reach^B_{\rho(k,q)}(b_i)\).
+        The same constraints ensure that at the beginning of the next round, \(\reach^A_{\rho(k+1,q-1)}(a) = \reach^B_{\rho(k+1,q-1)}(b)\).
+        Thus, in the local game, both players are forced to play close a vertex that is in a sense close to a previously chosen vertex.
+        This implies the following lemma.
+
+        \medskip
+Recall that \(A[\lambda]\) is the structure obtained from removing all unary predicates outside a set \(\lambda\),
+and that \(\ltp_{k,q}(A,a) \coloneqq  \tp_{k,q}\bigl(A\bigl[\reach^A_{\rho(k,q)}(a)\bigr],a\bigr)\).
+
+
+\begin{lemma}\label{lem:localtype}Fix $k,q,\ell\in\N$ with $\ell\le k$.
+Let \(A,B\) be binary structures and \(a \in V(A)^\ell, b \in V(B)^\ell\).\\
+If \(\ltp_{k,q}(A,\tup a) = \ltp_{k,q}(B,\tup b)\) then Duplicator wins the local \((k,q)\)-game on \((A,B,\tup a,\tup b)\).
+\end{lemma}
+\begin{proof}
+    As $\ltp_{k,q}(A,\tup a) = \ltp_{k,q}(B,\tup b)$, in particular, we have $$\reach^A_{\rho(k,q)}(\tup a)= \reach^B_{\rho(k,q)}(\tup b).$$
+    Denote  $\lambda\coloneqq \reach^A_{\rho(k,q)}(\tup a)$.
+    By \Cref{lem:globaltype}, Duplicator wins the global \((k,q)\)-game on \((A[\lambda],B[\lambda],\\\tup a,\tup b)\).
+    As the local game places the additional constraint of step (2) only on Spoiler's moves,
+    Duplicator also wins the local \((k,q)\)-game on \((A[\lambda],B[\lambda],\tup a, \tup b)\).
+    We argue that  Duplicator's winning strategy in this game is also a winning strategy in the local $(k,q)$-game on $(A,B,\tup a,\tup b)$:
+
+    Recall that \(\bar a = a_1,\dots,a_\ell\) and \(\bar b = b_1,\dots,b_\ell\).
+    For $i=1,2,\ldots,q$,
+    let \(a_{\ell+i},b_{\ell+i}\) be the vertices played in the \(i\)th round of this local game.
+    We show by induction on \(i=1,\ldots,q\) that
+    \[
+        \reach^A_{\rho(k+i,q-i)}(a_{\ell+i}) \subseteq \lambda
+    \qquad\text{and}\qquad
+        \reach^B_{\rho(k+i,q-i)}(b_{\ell+i}) \subseteq \lambda.
+    \]
+    The game rules require the existence of some \(i' < i\) with
+    \[
+        \reach^A_{\rho(k+i,q-i)}(a_{\ell+i}) \subseteq \reach^A_{\rho(k+(i-1),q+(i-1))}(a_{\ell+i'}).
+    \]
+    By the induction assumption (or definition of $\lambda$, if $i' \le 0$), the right side is contained in $\lambda$.
+    The same argument holds for~\(b_{\ell+i}\),  proving the claim.
+    
+    The above implies that Duplicator, by using their winning strategy in the local $(k,q)$-game on \((A[\lambda],B[\lambda],\bar a, \bar b)\), also wins the local $(k,q)$-game on $(A,B,\bar a,\bar b)$, as the 
+    the atomic type constraints of step (1) of the game cannot access predicates outside \(\lambda\).
+\end{proof}
+
+
+\paragraph{Strongly local game.}
+As an intermediate tool in the proof of \Cref{thm:localglobal},
+we also define the \emph{strongly local \((k,q)\)-game} by replacing steps (2) and (3) of the global \((k,q)\)-game
+as follows.
+\begin{itemize}
+    \item[(2.a)]\label{sl:2a}
+    Create a graph \(D\) with vertex set \(\{1,\dots,|\bar a|\}\) where two vertices \(i,j\) are connected
+        if and only if \(\dist^A(a_i,a_j) \le \rho(k,q)\).
+        By the constraints of step (1),
+        this is equivalent to \(\dist^B(b_i,b_j) \le \rho(k,q)\).
+
+    Spoiler chooses a connected component $C$ of $D$.
+    Let \(\bar a',\bar b'\) be the subtuples obtained from \(\bar a,\bar b\) by restricting to the indices in $C$. 
+    
+    \item[(2.b)]\label{sl:2b}
+     Spoiler picks some  $a\in V(A)$ or $b\in V(B)$.
+    Suppose, by symmetry, that Spoiler picks $a\in V(A)$.
+     This move is only allowed if there is some $a_i\in \bar a'$
+    with
+    \begin{align}\label{eq:sloc}
+        \dist^A(a,a_i) \le \rho(k,q)-\rho(k+1,q-1).    %
+    \end{align}
+     Duplicator responds by picking some $b\in V(B)$.
+    
+    \item[(3)]\label{sl:3}
+    Afterwards, continue with the strongly local \((k+1,q-1)\)-game on \((A,B,\bar a' a,\bar b' b)\).
+\end{itemize}
+
+The following two lemmas establish the relationship between this game and the local variant considered previously.
+\begin{lemma}\label{lem:local-slocal}
+    Fix $k,\ell,q\in\N$ with $\ell\le k$.
+    Let \(A\) and \(B\) be two binary structures
+    and let \(\bar a\in V(A)^\ell,\bar b\in V(B)^\ell\).    
+    If  Duplicator wins the local \((k,q)\)-game on \((A,B, \tup a, \tup b)\), then 
+ they also win the strongly local \((k,q)\)-game on \((A,B, \tup a, \tup b)\).
+\end{lemma}
+\begin{proof}
+    This is because the condition \eqref{eq:sloc} in step (2.b) of the strongly local game
+    implies, by the triangle inequality, the condition \eqref{eq:loc} of step (2) in the local game.
+\end{proof}
+
+
+The key argument in the proof of \Cref{thm:localglobal} is encompassed in the following.
+\begin{restatable}{lemma}{lemmain}\label{lem:main}Fix $k,q,\ell\in\N$ with $\ell\le k$.
+    Let \(A\) and \(B\) be two binary structures with \(\stp_{k,q}(A)=\stp_{k,q}(B)\),
+    and let \(\bar a\in V(A)^\ell,\bar b\in V(B)^\ell\).    
+    If Duplicator wins the strongly local \((k,q)\)-game on  \((A,B,\bar a,\bar b)\), then they also win the global \((k,q)\)-game on  \((A,B,\bar a,\bar b)\).
+\end{restatable}
+
+\Cref{lem:main} is proved in \Cref{sec:lemmain-proof}.
+
+
+
+\subsection{Proof of \Cref{thm:localglobal}}\label{sec:gameproof}
+Before proving the central \Cref{lem:main}, we show how it implies \Cref{thm:localglobal}, which is repeated below.
+
+\localglobalgame*
+\begin{proof}
+    The rightwards implication is immediate, as the local type is just the type in a reduct omitting some unary predicates.
+
+    For  the leftwards implication,
+   suppose 
+ \(\ltp_{k,q}(A,\tup a) = \ltp_{k,q}(B,\tup b)\).
+ By 
+            \Cref{lem:localtype} Duplicator wins the local \((k,q)\)-game on \((A,B, \tup a, \tup b)\).
+        By \Cref{lem:local-slocal},  they also win the strongly local \((k,q)\)-game on \((A,B, \tup a, \tup b)\).
+        Finally, by \Cref{lem:main} they also win the global \((k,q)\)-game,
+            and by \Cref{lem:globaltype}, \(\tp_{k,q}(A,\tup a) = \tp_{k,q}(B,\tup b)\).
+\end{proof}
+We also prove a lemma which will be used later in \Cref{sec:closure}.
+
+\begin{lemma}\label{lem:far-ltp}
+    Fix $k,q\in\N$. Let $A$ be a structure and  $\tup a_1,\tup a_2$ be tuples in $A$
+    with $|\tup a_1\tup a_2|\le k$ and 
+    \begin{align*}
+        \dist^A(\tup a_1,\tup a_2)&>\rho(k,q).
+    \end{align*}
+Then $\ltp_{k,q}(A,\tup a_1\tup a_2)$ depends only on $\stp(A)$, $\ltp_{k,q}(A,\tup a_1)$, and
+$\ltp_{k,q}(A,\tup a_2)$.
+\end{lemma}
+More precisely, the conclusion means that there is a function $F$ such that 
+ $\ltp_{k,q}(A,\tup a_1,\tup a_2)=F(\stp_{k,q}(A),\ltp_{k,q}(A,\tup a_1),\ltp_{k,q}(A,\tup a_2))$,
+ for all $A,\tup a_1,\tup a_2$ satisfying the assumption of the lemma.
+
+\begin{proof}
+    We show that 
+    if $A,B$ are structures and $\tup a_1,\tup a_2,\tup b_1,\tup b_2$ are tuples with 
+    \begin{align}
+        \dist^A(\tup a_1,\tup a_2)&>\rho(k,q),\label{dist1}\\
+        \dist^B(\tup b_1,\tup b_2)&>\rho(k,q),\label{dist2}\\
+        \ltp_{k,q}(A,\tup a_1)&=\ltp_{k,q}(B,\tup b_1)\label{tupa}\\
+        \ltp_{k,q}(A,\tup a_2)&=\ltp_{k,q}(B,\tup b_2)\label{tupb},\\
+        \stp_{k,q}(A)&=\stp_{k,q}(B)\label{stp},
+    \end{align}
+    then $\ltp_{k,q}(A,\tup a_1\tup a_2)=\ltp_{k,q}(B,\tup b_1\tup b_2)$.
+
+    By \eqref{tupa}, \Cref{lem:localtype}, and \Cref{lem:local-slocal}, 
+    Duplicator wins the strongly local $(k,q)$-game on $(A,B,\tup a_1,\tup b_1)$.
+    Similarly, using \eqref{tupb}, Duplicator wins the strongly local $(k,q)$-game on $(A,B,\tup a_2,\tup b_2)$.
+    By \eqref{dist1} and \eqref{dist2},
+    and the mechanics of the strongly local game (specifically, the choice of a connected component of a graph with threshold $\rho(k,q)$ in step (2.a)),
+    it follows that Duplicator wins the strongly local $(k,q)$-game on $(A,B,\tup a_1\tup a_2,\tup b_1\tup b_2)$.
+    Finally, by \eqref{stp} and \Cref{lem:main}, they also win the global \((k,q)\)-game  on $(A,B,\tup a_1\tup a_2,\tup b_1\tup b_2)$,
+            and therefore, the local $(k,q)$-game 
+            which, by \Cref{lem:localtype}, yields  $\ltp_{k,q}(A,\tup a_1\tup a_2)=\ltp_{k,q}(B,\tup b_1\tup b_2)$.
+\end{proof}
+
+
+
+
+\subsection{An auxiliary lemma about distances}
+The proof of \Cref{lem:main} 
+relies on a combinatorial argument which is encapsulated in \Cref{lem:scatter} below.
+We start with the following observation, also made by \cite[Lem. 3]{learningLogic},
+which is similar in spirit to the Vitali covering lemma.
+
+\begin{lemma}[{\cite{learningLogic}}]\label{lem:vitali}
+    Given $r,\beta\in\N$, a graph, and a set $K$ of its vertices, there are $R\in\N$ and a set \(K' \subseteq K\),
+     such~that
+    \begin{enumerate}
+        \item $r\le R\le r\cdot (\beta+1)^{|K|-1}$, 
+        \item the vertices in \(K'\) have pairwise distance larger than \(\beta R\), and 
+        \item every vertex in \(K\) has distance at most \(R\) from \(K'\).
+    \end{enumerate}
+\end{lemma}
+\begin{proof}
+For  \(t=0,1,2,\ldots\), we construct a subset \( K_t \subseteq K \) of size \(|K|-t\)
+such that every vertex in \(K\) has distance at most \(R(t)\coloneqq  r (\beta + 1)^{t} \) from \(K_t\).
+Set \(K_0 \coloneqq  K\).
+For $t\ge 0$, if every pair of vertices in \(K_t\) has distance larger than \(\beta R(t)\), we are done.
+Otherwise, pick vertices \(u,v \in K_t\) at distance at most \(\beta R(t)\).
+Set \(K_{t+1} \coloneqq  K_t - \{u\}\),
+and observe that every vertex that has distance \(R(t)\) from \(u\) has distance \(R(t) + \beta R(t) = R(t+1)\) from \(v\).
+This process terminates at the latest when \(t=|K|-1\). 
+\end{proof}
+
+\begin{lemma}\label{lem:scatter}
+    Let \(h,\ell \in \N\).
+    Let \(A,B\) be graphs and \(\bar a, \bar b\) be \(\ell\)-tuples of vertices from \(A,B\), respectively.
+    Let \(X_A \subseteq V(A),X_B \subseteq V(B)\) be such that the following hold:
+    \begin{enumerate}
+        \item  \(\dist^A(a_i,a_j) =r \Leftrightarrow \dist^B(b_i,b_j)= r,\) for all \(i,j \in [\ell]\) and \(0 \le r \le 13^\ell h\),
+
+        \item  \(\dist^B(b_i,X_B) \le h \Rightarrow \dist^A(a_i,X_A) \le h\), for all \(i\in[\ell]\),
+        \item  $X_A$ and $X_B$ contain 
+         some two inclusionwise maximal \(r\)-scattered sets either of equal size, or both of sizes greater than $\ell$, for all \(1 \le r \le 13^\ell h\).
+    \end{enumerate}
+    If every vertex in \(X_B\) has distance at most \(h\) from \(\bar b\),
+    then every vertex in \(X_A\) has distance at most \(13^\ell h\) from \(\bar a\). In symbols,
+    $$X_B\subset N_h^B(\tup b)\qquad\text{implies}\qquad X_A\subset N^A_{13^\ell h}(\tup a).$$
+\end{lemma}
+\begin{proof}
+    Apply \Cref{lem:vitali} to \(\bar a\) for $\beta=12$ and $r\coloneqq h$.
+        We obtain an index set \(I \subseteq [\ell]\), a mapping \(m : [\ell] \to I\), and a radius \(h \le R \le 13^{\ell-1} h\), such that
+        \(\dist^A(a_i,a_j) > 12 R\) for all \(i,j \in I\), and
+        \(\dist^A(a_i,a_{m(i)}) \le R\) for all \(i \in [\ell]\).
+        By the first assumption of this lemma, also
+        \(\dist^B(b_i,b_j) > 12 R\) for all \(i,j \in I\), and
+        \(\dist^B(b_i,b_{m(i)}) \le R\) for all \(i \in [\ell]\).
+        For each \(i\) in \(I\), define 
+        a \emph{cluster in \(A\)} as \(\bigcup_{j \in m^{-1}(i)} N^A_h(a_j) \),
+        and a corresponding \emph{cluster in \(B\)} as \(\bigcup_{j \in m^{-1}(i)} N^B_h(b_j) \).
+        Note that in both \(A\) and \(B\), every cluster is contained in a ball of radius \(R+h \le 2R\), 
+        and clusters have pairwise distance larger than \(12R-2h-2R \ge 8R\).
+
+        The third assumption of the lemma implies that
+        \(A\) and \(B\) contain inclusionwise maximal \(4R\)-scattered sets \(S_A \subseteq X_A\)
+        and \(S_B \subseteq X_B\), either of the same size \(s\) or both larger than \(\ell\).
+        
+        Suppose  $X_B\subset N_h^B(\tup b)$. Then every vertex in \(X_B\) (and thus also of \(S_B\))
+        has distance at most \(h\) from some vertex in \(\bar b\),
+        and thus is contained in some cluster.
+        However, as any two vertices from \(S_B\) have distance larger than \(4R\)
+        and each cluster is contained in a ball of radius \(2R\),
+        each cluster can contain at most one vertex from \(S_B\).
+        This implies that \(|S_A|=|S_B|=s \le \ell\).
+
+        The second assumption of the lemma states that, if a cluster in \(B\) contains a vertex from \(X_B\),
+        then the corresponding cluster in \(A\) contains a vertex from \(X_A\).
+        Hence, as \(S_B\) contains \(s\) vertices of \(X_B\) that are in pairwise different clusters on the \(B\) side,
+        there are also \(s\) vertices in \(X_A\), call them \(S'_A \subseteq X_A\), which are in pairwise different clusters on the \(A\) side.
+        As clusters have pairwise distance larger than \(8R\), the vertices in \(S'_A\) form an \(8R\)-scattered set.
+        Moreover, by \Cref{lem:scattersizes}, \(X_A\) contains no \(8R\)-scattered set of size larger than \(s\),
+        and thus \(S'_A\) is a \emph{maximal} \(8R\)-scattered subset of \(X_A\).
+        Thus, all vertices in \(X_A\) have distance at most \(8R\) from \(S'_A\), which itself is contained in a union of clusters, 
+        and thus has distance at most \(R\) from \(\bar a\).
+        Thus, all vertices in \(X_A\) have distance at most \(9R \le 13^\ell h\) from \(\bar a\), equivalently, $X_A\subset N^A_{13^\ell h}(\tup a)$.
+\end{proof}
+
+\subsection{Proof of \Cref{lem:main}}\label{sec:lemmain-proof}
+We now prove \Cref{lem:main}, repeated below. This will complete the proof of \Cref{thm:localglobal}.
+\lemmain*
+
+\begin{proof}
+    We prove the statement by induction on \(q\).
+    For \(q=0\) this is trivial, so assume it holds for \(q-1\), and we prove it for \(q\).
+    As Duplicator  does not lose in step (1) of the strongly local \((k,q)\)-game by assumption, they also do not lose in step (1) of the global \((k,q)\)-game. 
+    
+In step (2) of the global \((k,q)\)-game,
+    by symmetry, assume that Spoiler plays a vertex \(a \in V(A)\).
+    We will find a vertex \(b\in V(B)\)
+    with the following two properties: 
+    \begin{enumerate}[label=({\itshape\roman*})]
+        \item\label{cond:dist}  For all  $i \in\set{1,\ldots, \ell}$,
+        \begin{equation*}%
+            \dist^A(a_i,a) \le \rho(k+1,q-1) \quad\iff\quad \dist^B(b_i,b) \le \rho(k+1,q-1) .
+         \end{equation*}
+        
+         \item\label{cond:win} Let \(a_{\ell+1}\coloneqq a\) and \(b_{\ell+1} \coloneqq  b\).
+         Let \(D\) be the graph
+            with vertex set \(\{1,\dots,\ell+1\}\) where two vertices \(i,j\) are adjacent
+            if and only if \(\dist^A(a_i,a_j) \le \rho(k+1,q-1)\).
+            Let $C_0$ be
+            the connected component of $D$ containing $\ell+1$, and let 
+            $\bar a^0$ and $\bar b^0$ be the subtuples of $\bar a a$ and $\bar bb$ induced by $C_0$.
+            Then Duplicator wins the strongly local $(k+1,q-1)$-game on $(A,B,\bar a^0,\bar b^0)$.
+    \end{enumerate}
+     
+    \noindent
+We first argue that those two properties 
+ensure that Duplicator wins the global $(k+1,q-1)$-game on $(A,B,\bar aa,\bar bb)$, as required. 
+The following claim implies that  Duplicator's response $b$ passes the condition in step (1) in that game.
+\begin{claim}\label{cl:step1}
+    $\atp_{k+1,q-1}(A, \tup aa)=\atp_{k+1,q-1}(B, \tup bb)$
+\end{claim}
+\begin{claimproof}
+Since $\atp_{k,q}(A, \tup a)=\atp_{k,q}(B, \tup b)$,
+ it is enough to argue that for all $r\le \rho(k+1,q-1)$ we have
+\begin{align}
+    \dist^A(a,a_i)\le r&\iff \dist^B(b,b_i)\le r\label{eq:dist-atom1}\qquad\text{for all $i\in\set{1,\ldots,\ell}$}\\
+    \dist^A(a,Y)< r&\iff \dist^B(b,Y)< r\label{eq:dist-atom2}\qquad\text{for all $Y\in\sigma_1$}.
+\end{align}
+
+By $\atp_{k,q}(A, \tup a)=\atp_{k,q}(B, \tup b)$ and \ref{cond:dist}, for all $i,j\in\set{1,\ldots,\ell+1}$, we have:
+$$\dist^A(a_i,a_j)\le \rho(k+1,q-1)\iff \dist^B(b_i,b_j)\le \rho(k+1,q-1).$$
+Therefore, in property \ref{cond:win} above, 
+defining the connected component $C_0$ of $D$
+basing on distances in $A$, or in distances in $B$, yields to an equivalent condition.
+
+We prove the equivalences \eqref{eq:dist-atom1} and \eqref{eq:dist-atom2}. By symmetry (due to the observation above), it is enough to prove the rightwards implications. 
+Fix  $i\in\set{1,\ldots,\ell}$ and $r\le \rho(k+1,q-1)$, and suppose that  $\dist^A(a,a_i)\le r$.
+We argue that $\dist^A(b,b_i)\le r$.
+By \ref{cond:dist}, we have that 
+$\dist^A(b,b_i)\le \rho(k+1,q-1)$.
+Then $i$ belongs to the connected component $C_0$ of $D$, considered in condition \ref{cond:win}. 
+In particular, $a_i\in \bar a^0$ and $b_i\in \bar b^0$.
+As Duplicator wins the strongly local $(k+1,q-1)$-game on $(A,B,\bar a^0,\bar b^0)$, 
+we have that $\atp_{k+1,q-1}(A,a_i a)=\atp_{k+1,q-1}(B,b_i b)$. Therefore, 
+$\dist^A(a,a_i)\le r$ implies $\dist^A(b,b_i)\le r$.
+This proves the equivalence \eqref{eq:dist-atom1}.
+Similarly, \eqref{eq:dist-atom2} follows as $\atp_{k+1,q-1}(A,a)=\atp_{k+1,q-1}(B,b)$.
+\end{claimproof}
+
+\begin{claim}\label{cl:sloco}
+    Duplicator wins the strongly local $(k+1,q-1)$-game on $(A,B,\bar aa,\bar bb)$.
+\end{claim}
+\begin{claimproof}
+Duplicator does not loose in step (1) of the  game, by Claim~\ref{cl:step1}.
+In Step (2.a), Spoiler picks some connected component $C'$ of the graph $D'$ 
+with vertex set $\set{1,\ldots,\ell+1}$ and edges connecting pairs $i,j$ such that $\dist^A(a_i,a_j)\le \rho(k+1,q-1)$.
+Let $\bar a'$ and $\bar b'$ be the subtuples of $\bar aa$ and $\bar bb$ induced by $C'$.
+We argue that 
+Duplicator wins the strongly local $(k+1,q-1)$-game on $(A,B,\bar a',\bar b')$.
+This ensures that in the upcoming Step (2.b),
+Duplicator has a winning response to each move of Spoiler, proving the claim.
+
+
+
+We consider two cases.
+Suppose $\ell+1\in C'$. By  property \ref{cond:win}, Duplicator wins the strongly local $(k+1,q-1)$-game on $(A,B,\bar a',\bar b')$. 
+
+Suppose now that $\ell+1\notin C'$.
+Let  $D''$ be the graph with vertex set $\set{1,\ldots,\ell}$ and edges connecting pairs $i,j$ such that $\dist^A(a_i,a_j)\le \rho(k,q)$.
+Then $D'[\set{1,\ldots,\ell}]$ is a subgraph of $D''$, so there is a unique connected component $C''$ of $D''$ containing $C'$. 
+By assumption that Duplicator wins the strongly local $(k,q)$-game on $(A,B,\bar a,\bar b)$, it follows that  Duplicator wins the strongly local $(k+1,q-1)$-game on $(A,B,\bar a[C''],\bar b[C''])$, where $\bar a[C''],\bar b[C'']$ denote the subtuples of $\bar a$ and $\bar b$ induced by $C''$.
+As $\bar a'$ and $\bar b'$ are subtuples of $\bar a[C'']$ and $\bar b[C'']$ induced by $C'$,
+it follows that Duplicator wins the strongly local $(k+1,q-1)$-game on $(A,B,\bar a',\bar b')$.
+\end{claimproof}
+
+
+By \Cref{cl:sloco}, \Cref{obs:stphered}, and induction, Duplicator  also wins the global \((k+1,q-1)\)-game on \((A,B,\bar a a,\bar b b)\).
+    Since $a\in V(A)$ is arbitrary, this proves that Duplicator wins the global $(k,q)$-game on $(A,B,\bar a,\bar b)$, as required.
+
+    \medskip
+
+It therefore remains to prove that for every $a\in V(A)$ there is a vertex $b\in V(B)$ satisfying the properties \ref{cond:dist} and \ref{cond:win}.
+We consider two cases, depending on where the vertex $a\in V(A)$ is played.
+
+    \textbf{Near case.} Assume \(\dist^A(a,\bar a) \le \rho(k,q)-\rho(k+1,q-1)\).
+    Then \(a\) is close enough, so that Spoiler may play \(a\) in the strongly local \((k,q)\)-game on \((A,B,\bar a,\bar b)\).
+    Let $b$ be Duplicator's response to $a$, according to the winning strategy in the strongly local $(k,q)$-game on $(A,B,\bar a,\bar b)$ provided with the assumption of the lemma. Conditions \ref{cond:dist} and \ref{cond:win} follow easily.
+
+    \textbf{Far case.} Assume \(\dist^A(a,\bar a) > \rho(k,q)-\rho(k+1,q-1)\).
+    In particular, also $\dist^A(a,\bar a)>\rho(k+1,q-1)$, so the tuple \(\bar a^0\) considered in condition \ref{cond:win} consists solely of $a$.
+    We will show in the upcoming \Cref{claim:farsimilarvertex} that Duplicator can choose a response \(b\)
+    with \(\dist^B(b,\bar b) > \rho(k+1,q-1)\) such that 
+    $\tp_{k+1,q-1}(A,a)=
+\tp_{k+1,q-1}(B,b)$. 
+Then Duplicator wins the strongly local \((k+1,q-1)\)-game on \((A,B,a,b)\), 
+by \Cref{lem:localtype} and \Cref{lem:local-slocal}. Conditions \ref{cond:dist} and \ref{cond:win}
+    follow.
+
+\bigskip
+    It thus remains to prove the following.
+
+
+    \begin{claim}\label{claim:farsimilarvertex}
+    Let \(a \in V(A)\) with \(\dist^A(a,\bar a) > \rho(k,q)-\rho(k+1,q-1)\).
+    There is a vertex \(b\in V(B)\) with \(\dist^B(b,\bar b) > \rho(k+1,q-1)\)
+    and $\tp_{k+1,q-1}(A,a)=
+\tp_{k+1,q-1}(B,b)$.
+    \end{claim}
+    \begin{claimproof}
+    Define sets \(X_A\) and \(X_B\) as
+    \begin{align*}
+         X_A &\coloneqq  \{ v \in V(A) \mid \tp_{k+1,q-1}(A,v) = \tp_{k+1,q-1}(A,a)\}, \\
+         X_B &\coloneqq  \{ v \in V(B) \mid \tp_{k+1,q-1}(B,v) = \tp_{k+1,q-1}(A,a)\}.
+    \end{align*}
+
+\noindent 
+We show that there exists a vertex  \(b\in X_B\) with $\dist^B(b,\bar b)>\rho(k+1,q-1)$.
+
+
+By assumption, we have that 
+    \(a \in X_A\) and \[\dist^A(a,\bar a) > \rho(k,q)-\rho(k+1,q-1) = 13^{k} \rho(k+1,q-1).\]
+    In order to apply \Cref{lem:scatter} with \(h = \rho(k+1,q-1)\)
+    we check each of its three requirements.
+    \begin{enumerate}
+        \item The atomic type constraints in step (1) of the game ensure that the first requirement is met, as $\rho(k,q)\ge 13^\ell\cdot\rho(k+1,q-1)$.
+        \item We argue that for every \(i\in\set{1,\ldots,\ell}\),
+            \[
+                \dist^B(b_i,X_B) \le \rho(k+1,q-1) \Rightarrow \dist^A(a_i,X_A) \le \rho(k+1,q-1).
+            \]
+            Suppose there is $b'\in X_B$ with $\dist^B(b_i,b')\le \rho(k+1,q-1)$.
+            If Spoiler plays \(b'\),
+            then Duplicator's winning response in the strongly local \((k,q)\)-game 
+            at \((A,B,\bar a,\bar b)\) gives \(a'\) with \(\dist(a_i,a') \le \rho(k+1,q-1)\).
+            As removing vertices obviously only helps Duplicator,
+            they in particular win the strongly local \((k+1,q-1)\)-game on \((A,B,a',b')\).
+            By induction and \Cref{obs:stphered}, they also win the global \((k+1,q-1)\)-game on \((A,B,a',b')\).
+            By \Cref{lem:globaltype}, \(\tp_{k+1,q-1}(A,a') = \tp_{k+1,q-1}(B,b')\), and thus \(a' \in X_A\).
+        \item 
+            To prove the third requirement, we select a formula \(\phi(x)\) with distance rank \((k+1, q-1)\) such that
+            \(X_A = \{ v \in V(A) \mid A \models \phi(v)\}\) and \(X_B = \{ v \in V(B) \mid
+            B \models \phi(v)\}\). Specifically, \(\phi(x)\) is defined as the
+            conjunction of all (finitely many, up to equivalence) formulas of distance rank \((k+1, q-1)\) occurring in \(\tp_{k+1, q-1}(A, a)\). Given that \(\stp_{k, q}(A) = \stp_{k, q}(B)\) and \(q > 0\),
+            the corresponding scatter type entries for \(\phi\) ensure that \(X_A\) and \(X_B\)
+            each contain two inclusionwise maximal \(r\)-scattered sets that are either of
+            equal size or have sizes greater than \(k+q \ge \ell\).
+
+    \end{enumerate}
+    As $a\in X_A$ and  \(\dist^A(a,\tup a)>13^k \rho(k+1,q-1)\),
+    by the contrapositive of \Cref{lem:scatter},
+    there is some \(b \in X_B\) with \(\dist^B(b,\tup b)>\rho(k+1,q-1)\).
+    As $b\in X_B$, we have $\tp_{k+1,q-1}(A,a)=
+     \tp_{k+1,q-1}(B,b)$.
+    This proves \Cref{claim:farsimilarvertex}, and concludes \Cref{lem:main} and \Cref{thm:localglobal}.
+\end{claimproof}
+\end{proof}
+
+
+
+
+
+
+
+\subsection{Maintaining local types under Gaifman increasing modifications}\label{sec:updating-local}
+
+
+Fix a signature $\sigma$, and let 
+    $\phi(\bar x)$ be a unary or binary $\sigma$-formula.
+    For a $\sigma$-structure~$\str A$, denote by  $\str A\ast \phi$ the structure
+     obtained from $\str A$ 
+     by expanding it with a fresh relation symbol of arity $|\bar x|$, interpreted as $\phi^{\str A}\coloneqq\setof{\tup a\in V(\str A)^{|\bar x|}}{\str A\models\phi(\tup a)}$.  
+     For $k\ge 2$ and unary or binary $\sigma$-formulas $\phi_1,\ldots,\phi_k$,
+     inductively define $\str A\ast\phi_1\ast\cdots\ast\phi_k\coloneqq (\str A\ast \phi_1\ast\cdots\ast\phi_{k-1})\ast\phi_k$.
+
+\begin{definition}[Gaifman increasing modification]
+     A \emph{Gaifman increasing modification} of a $\sigma$-structure $\str A$ 
+      is a (binary) reduct $\str B$ of $\str A\ast \phi_1\ast\phi_2\ldots\ast\phi_k$,
+      for some quantifier-free $\sigma$-formulas $\phi_1,\ldots,\phi_k$
+      such that the Gaifman graph of $\str A$ is contained in the Gaifman graph of  $\str B$. (If the Gaifman graphs of $\str A$ and $\str B$ are equal, then $\str B$ is a Gaifman \emph{preserving} modification of $\str A$.)
+      The \emph{order} of the modification is the total length of the formulas $\phi_1,\ldots,\phi_k$ plus the number of relations that were removed 
+      in the reduct $\str B$ of $\str A$.
+  \end{definition}
+  
+We extend the concept of \emph{radius-\(r\) width} from graphs to binary structures.
+
+\begin{definition}\label{def:strucreach}
+    For a $\sigma$-structure $\str A$ and $r\in\N$, define 
+    the \emph{radius-$r$ width} of $\str A$ as 
+    $$\max_{a\in V(\str A)}\big|\reach^\str A_r(a)\big|,$$
+    where 
+    $$\reach^A_r(a) \coloneqq  \{ Y \in \sigma_1 \mid A \models \dist(a,Y) \le r \}.$$
+\end{definition}
+    
+
+The main result of this section is the following.
+
+\begin{proposition}\label{thm:modification}
+    Fix $\ell,k,q,w\in\N$ with $k\ge 1$, and a binary signature $\sigma$.
+    Let $r=\rho(k,q)$.
+    There is an algorithm which takes as input 
+    \begin{itemize}
+         \item a $\sigma$-structure $\str A$ of radius-$2r$ width at most $w$,
+         \item its Gaifman increasing modification $\str B$ of order $\ell$ and radius-\(2r\) width at most \(w\), and
+         \item \(\bigl(\ltp_{k,q}(\str A, a):a\in V(\str A)\bigr),\)
+    \end{itemize}
+    and computes
+    $\bigl(\ltp_{k,q}(\str B, b):b\in V(\str B)\bigr)$
+    in time $O_{k,q,w,\ell,\sigma_2}(|V(\str B)|+|E(\str B)|)$.
+\end{proposition}
+
+
+We first address issues related to representing the considered objects 
+in the memory of a RAM machine.
+\begin{remark}(Representation in machine model)\label{rem:representation}
+\begin{itemize}
+    \item The $\sigma$-structure $\str A$ is represented by 
+  the adjacency matrix of each binary relation $R\in\sigma_2$,
+  and the list representation of each unary relation $U\in \sigma_1$ with $U^\str A\neq\emptyset$.
+\item 
+We assume that the structure $\str B$ is represented symbolically,
+by providing quantifier-free formulas $\phi_1,\ldots,\phi_k$ 
+and the list of relations that are removed from $\str A\ast\phi_1\ast\cdots\ast\phi_k$ to obtain~$\str B$, whose joint size is bounded by $\ell$.
+\item
+  The local type $\ltp_{k,q}(a)$ involves only unary predicates 
+in $\reach_{r}^{\str A}(a)\subset \sigma_1$
+and the binary predicates in $\sigma_2$.
+In particular, if $\str A$ has radius-$r$ width at most $w$,
+then this local type involves at most $w+|\sigma_2|$ relation symbols.
+For representation reasons, we assume that 
+the unary predicates occurring in $\reach_r^{\str A}(a)$ are 
+re-indexed as $U_1,\ldots,U_w$, via any injective mapping from $\reach_r^{\str A}(a)$
+to $\set{U_1,\ldots,U_w}$.
+Thanks to this, by \Cref{obs:typebound},
+for $a\in V(\str A)$, the local type $\ltp_{k,q}(a)$ can be viewed as an element of a fixed, finite set $Q$,
+depending only on $q,w$, and $\sigma$. All functions $f\from Q\to Q$ can be therefore assumed to be computable in time $O_{q,k,w,\sigma_2}(1)$.
+\end{itemize}
+\end{remark}
+
+
+
+
+
+
+\medskip
+Before proving \Cref{thm:modification},
+we start with considering its two special cases:
+when $\str B$ is a Gaifman \emph{preserving} modification of $\str A$,
+and when $\str B=\str A\ast\bigl(\alpha(x)\land \beta(y)\bigr)$
+for quantifier-free formulas $\alpha$ and $\beta$.
+The general case will reduce easily to those two special cases.
+
+The first case of Gaifman preserving modifications follows using standard techniques.
+
+\begin{lemma}\label{lem:reduct}
+The statement of  \Cref{thm:modification} holds when $\str B$ is a Gaifman preserving modification of $\str A$.
+  \end{lemma}
+  \begin{proof}
+    As $\str B$ is a Gaifman preserving modification of $\str A$, the truth value of distance atoms is preserved.
+It follows that for each $a\in V(\str A)$, the type
+  $\ltp_{k,q}(\str B,a)$ can be obtained from $\ltp_{k,q}(\str A,a)$ by a simple rewriting.
+  The conclusion follows.
+  \end{proof}
+
+The interesting special case is when $\str B=\str A\ast (\alpha(x)\land \beta(y))$.
+Essentially, this is similar to performing a resolve operation (as in construction sequences) between the sets $\alpha^\str A$ and $\beta^\str A$ in $\str A$.
+This lemma constitutes the most important step of our model checking algorithm.
+The first half of the proof is necessary boilerplate, while the second half, where we rewrite the \(\dist(x,y)\) and \(\dist(x,Y)\) atoms,
+contains the central idea.
+
+\begin{lemma}\label{lem:connect}
+The statement of    \Cref{thm:modification} holds when $\str B=\str A\ast\phi$,
+where $\phi(x,y)=\alpha(x)\land \beta(y)$, for some quantifier-free formulas $\alpha(x),\beta(y)$ of total length $\ell$.
+\end{lemma}
+\begin{proof}
+As part of this proof, we will use \Cref{lem:localglobaltypes} to compute global types from local types.
+But as \Cref{lem:localglobaltypes} has a high run time dependence on the signature, and the signature of \(A\) is unbounded,
+we first have to define an appropriate reduct with a bounded signature.
+To this end, in linear time find any $a_0\in \alpha^\str A$ and $b_0\in\beta^\str A$.
+Otherwise, if no such $a_0$ or $b_0$ exists then $\phi^\str A=\emptyset$ and the conclusion is trivial.
+Let $$\sigma^*\coloneqq \reach^{\str B}_{2r}(a_0)\cup \reach^{\str B}_{2r}(b_0)\subset \sigma_1.$$
+Then $|\sigma^*|\le 2w$, as $\str B$ has radius-$2r$ width at most $w$.
+Moreover, the set $\sigma^*$ can be computed in time \(O(|V(A)|+|E(A)|)\) using a breadth-first search.
+
+  Let $A^*\coloneqq A[\sigma^*]$ and \(B^* \coloneqq  B[\sigma^*]\) be the $(\sigma^*\cup\sigma_2)$-reducts of $\str A$ and \(\str B\).
+  Denote by $\dist^A(b,\alpha\lor\beta)$ the minimum distance, in the Gaifman graph of $A$, between $b$ and any element $a\in V(A)$ with $A\models \alpha(a)\lor\beta(a)$.
+  We now argue that for all $b\in V(\str B)$,
+  \[
+      \ltp_{k,q}(\str B,b)=\begin{cases}\tp_{k,q}(\str B[\reach_r^\str A(b)],b)&\text{if }\dist^{\str A}(b,\alpha\lor \beta)\ge r\\
+          \ltp_{k,q}(B^*,b)&\text{if }\dist^{\str A}(b,\alpha\lor \beta)< r.
+      \end{cases}
+  \]
+  Indeed, if $\dist^{\str A}(b,\alpha\lor \beta)\ge r$, then $\reach_{r}^\str B(b)=\reach_{r}^\str A(b)$, proving the first case.
+  Otherwise,
+  by symmetry we may assume that there is some \(a \in \alpha^A\) with \(\dist^A(b,a) < r\).
+  Then any predicate in \(\reach_r^{\str B}(b)\) can be reached from \(b_0\) via at most \(2r\) steps in the Gaifman graph of \(B\) by
+  first taking one step to \(a\), then up to \(r-1\) steps to \(b\) and then up to \(r\) steps to the predicate in \(\reach_r^B(b)\).
+  Thus, $\reach_{r}^\str B(b)\subset \sigma^*$, proving the second case.
+
+
+  Hence, we reduced the computation of \(\ltp_{k,q}(\str B,b)\) 
+  to the computation of \(\ltp_{k,q}(\str B^*,b)\) and 
+  \(\tp_{k,q}(\str B[\reach_r^\str A(b)],b)\).
+  Moreover, as $\ltp_{k,q}(B^*,b)$ is the subset of those formulas in  $\tp_{k,q}(B^*,b)$ 
+  which only mention unary predicates in $\reach^{B^*}_r(a)$, it thus suffices to compute
+  \[
+      \bigl(\tp_{k,q}(B^*,b):b\in V(\str B)\bigr) \quad\text{and}\quad 
+      \bigl(\tp_{k,q}(B[\reach_r^{\str A }(b)],b):b\in V(\str B)\bigr).
+  \]
+  We will focus on computing the left-hand side, as the right-hand side can be computed analogously.
+  As \(A^*\) is a reduct of \(A\), it is trivial to compute \(\ltp_{k,q}(A^*, a)\) from \(\ltp_{k,q}(A,a)\) by simply removing all formulas that use unary predicates outside \(\sigma^*\).
+  Given that, by \Cref{lem:localglobaltypes}, we can further compute in time
+  $O_{k,q,|\sigma^*|,|\sigma_2|}(|V(\str A)|+|E(A)|)$ 
+  $$\bigl(\tp_{k,q}(A^*,a):a\in V(\str A)\bigr).$$
+
+
+  In the remainder, we will compute \(\tp_{k,q}(\str B^*, a)\) from \(\tp_{k,q}(A^*, a)\) for all \(a \in V(A)\).
+  This is the most important conceptual step of this lemma.
+  This step is also the whole reason why we include unary distance atoms in the definition of dist-FO.
+    To this end, observe the following equality that lets us express for all vertices \(a,b\) the distance atoms in \(B^*\) via distance atoms in \(A^*\).
+    \begin{multline*}%
+        \dist^{B^*}(a,b) \le r ~\iff~\\ \left(\dist^{A^*}(a,b) \le r\right) \quad \lor \bigvee_{\substack{r_1,r_2\in [r-1]\\r_1+1+r_2=r}} \left(\dist^{A^*}(a,\alpha^{\str A^*}) \le r_1\right) \land \left(\dist^{A^*}(b,\beta^{\str A^*}) \le r_2\right).
+    \end{multline*}
+    Crucially, the right hand side only uses distance atoms with radius at most \(r\), and thus
+    for any formula, substituting a distance atom \(\dist(x,y) \le r\) by the corresponding distance atom on the right side
+    of the above equivalence
+    does not change the distance rank of the formula.
+
+    Similarly, for all vertices \(a\) and unary relation symbols \(Y\in \sigma^*\),
+    \begin{multline*}%
+      \dist^{B^*}(a,Y) < r ~\iff~\left(\dist^{A^*}(a,Y) < r\right)\lor\\ \left(\dist^{A^*}(a,\alpha^{A^*}) < (r - 1 - \dist^{A^*}(\beta^{A^*},Y)) \right)
+                            \lor  \left(\dist^{A}(a,\beta^{A^*}) < (r - 1 - \dist^{A^*}(\alpha^{A^*},Y)) \right).
+    \end{multline*}
+    Here, the right-hand sides of the inequalities are numerical constants that can be computed by a breadth-first search for each \(Y\in \sigma^*\) in time \(O_{l}(|V(A)|+|E(A)|)\).
+    Thus, similar rank preserving substitutions can also be done for distance atoms of the form \(\dist(x,Y) < r\).
+
+    Finally, for all $a\in V(\str B^*)$,
+    to decide whether a formula is in the type $\tp_{k,q}(B^*,a)$,
+    it suffices to replace the
+    distance atoms according to the above equivalences, and to replace the newly introduced relation with the formula \(\alpha \land \beta\) itself,
+    and to then check if the resulting formula is in the type $\tp_{k,q}(A^*,a)$.
+    Here, we crucially use the fact that this rewriting does not increase the distance rank $(k,q)$ of the considered formulas.
+\end{proof}
+
+
+
+
+
+
+
+
+We now prove \Cref{thm:modification} in the general case.
+\begin{proof}
+    
+
+
+
+
+Without loss of generality, and by \Cref{lem:reduct},
+we may assume that $\str B$ is of the form $\str A\ast\phi$ for some 
+quantifier-free formula $\phi(x,y)$ of size at most $\ell$.
+Rewrite $\phi(x,y)$ into disjunctive normal form.
+It is enough to consider the case where $\phi(x,y)$ has only one disjunct,
+because if $\phi=\phi_1\lor\ldots\lor\phi_s$, 
+then  $\str A\ast \phi$ is a Gaifman preserving modification of 
+$\str A\ast\phi_1\ast\cdots\ast\phi_{s}$, 
+so  using \Cref{lem:reduct} we can reduce to the case when $\phi$ has one disjunct.
+
+So assume that $\phi(x,y)$ is a conjunction of literals (atomic formulas or their negations).
+If $\phi(x,y)$ involves at least one conjunct of the form $R(x,y)$, for some $R\in\sigma_2\cup\set{=}$, 
+then in fact $\str A\ast\phi$ is a Gaifman preserving modification of $\str A$,
+and we are done, again by \Cref{lem:reduct}.
+
+Otherwise, 
+ $\phi(x,y)$ is of the form 
+$$\phi(x,y)\ =\ \alpha(x)\land\beta(y)\land \neg R_1(x,y)\land \cdots\land \neg R_s(x,y),$$
+for some 
+quantifier-free formulas $\alpha(x)$ and $\beta(y)$,
+and some binary relations $R_1,\ldots,R_s\in\sigma_2\cup\set{=}$.
+Then the Gaifman graphs of $\str B=\str A\ast \phi$ and of
+$\str B'\coloneqq \str A\ast (\alpha(x)\land\beta (y))$ are equal.
+It follows that $\str B$ and $\str B'$ have equal radius-$r$ width.
+Moreover, $\str B$ is a Gaifman preserving modification of $\str B'$.
+The conclusion follows from \Cref{lem:connect} and \Cref{lem:reduct}.
+\end{proof}
+
+We also state a generalization of \Cref{thm:modification} for tuples, although without the algorithmic part. 
+\begin{lemma}
+    \label{lem:modification-tuples}
+    Fix $k,q\in\N$, a $\sigma$-structure \(\str A\), and a Gaifman increasing modification \(\str B\).
+    Then for every tuple $\tup a$ of at most $k$ elements of $A$, the local type $\ltp_{k,q}(\str B,\tup a)$ depends only on $\ltp_{k,q}(\str A,\tup a)$.
+    More precisely, there is a function $F$ such that $\ltp_{k,q}(\str B,\tup a)=F(\ltp_{k,q}(\str A,\tup a))$, for every tuple of at most $k$ elements of $A$.
+\end{lemma}
+\begin{proof}
+    The proof follows exactly the same steps as the proof of \Cref{thm:modification}. All those arguments lift to the case of tuples, at the cost of higher running times of the algorithms. As \Cref{lem:modification-tuples} does not mention running times, the conclusion holds.
+\end{proof}
+
+
+
