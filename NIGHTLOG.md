@@ -2914,3 +2914,40 @@ apart. EnterWorktree based the worktree on a stale ref — reset to
 main before seeding. Remaining P2: separate (Lem 8), farQuant
 (Lem 12), locality + normalForm assembly, then the locality axiom
 discharge.
+
+## ND-MC P2 session 2 — exL-guard finding, surface decision escalated — 2026-07-28
+Supervisor pre-flight for separate/farQuant found the P2 blocker
+before any track launched: the frozen `exL` guard reads the whole
+typed context, but the source's local quantifier (tex 495–548) guards
+over an explicitly chosen variable set recorded at formula formation.
+Session 1's counterexamples were the symptom; Lem 12 is where it
+binds — condition (2a) and the cluster-intersection tests (tex 1067,
+1097) embed a one-variable capsule β into the k+1 context, which is
+exactly the unsound operation, and the "write the guards out as
+atoms" repair is arithmetically impossible: guard radii run to
+ρ⁺ = 9^k·ρ⁻ while the atom budget at the same rank is ρ⁻, with no
+slack anywhere in the schedule (concrete inexpressible instance at
+rank (1,2) in the decision note). The frozen locality AND normalForm
+axioms are judged most likely false as stated — scatterFml's rename
+placement has the same disease. Escalation:
+`plans/nowhere-dense-model-checking/exl-guard-decision.md` asks Jan
+to endorse `exL (r : ℕ) (g : Finset (Fin k))` — the source-faithful
+guard-set reading; whole-context is the g = univ special case; the
+≤-relaxed radius deviation stays. Prospective build on branch
+`nd-mc-exl-guard` (NOT merged to main): supervisor-written DistFO.lean
+revision (concepts green; ScatterSentences/Locality/NormalForm compile
+with zero text changes), two Opus tracks reworked the only affected
+proof modules — SemLocal (pattern-widening only, public statements
+verbatim) and SyntaxLemmas (sat_rename/satWithin_rename/
+sat_congr_of_usesOnly now UNCONDITIONAL, UsesOnly counts guard sets
+via ↑g ⊆ s, counterexample section deleted, 725 → 578 lines). Both
+first-build green; `lax build` gate OK; kernel axioms
+propext/choice/Quot.sound only. Design record for the remaining P2
+(`p2-remaining-design.md`): separate in reindexed per-side contexts
+(no substitution, no UsesOnly in the statement — supersedes the
+session-1 sketch), farQuant source-verbatim with the sound capsule
+rename, assembly plan incl. BC-algebra and sat_scatterFml; session
+split (a) separate (b) farQuant (c) BC-algebra + scatterFml, then
+serialized assembly. P2 is PAUSED on Jan's endorsement of the
+revised surface; if endorsed, the rework is already done and the
+campaign resumes at zero extra cost.
