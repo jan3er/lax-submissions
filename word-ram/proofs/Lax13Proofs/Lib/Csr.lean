@@ -146,7 +146,7 @@ theorem Csr.offArr (hc : Csr o t nv ns V off tgt σ) : σ.arrs o = arrOf (nv + 1
 theorem Csr.tgtArr (hc : Csr o t nv ns V off tgt σ) : σ.arrs t = arrOf ns tgt := hc.2.1
 
 /-- The offsets do not decrease, one step at a time. -/
-theorem Csr.step (hc : Csr o t nv ns V off tgt σ) (hi : i < nv) : off i ≤ off (i + 1) :=
+theorem Csr.off_le_succ (hc : Csr o t nv ns V off tgt σ) (hi : i < nv) : off i ≤ off (i + 1) :=
   hc.2.2.1 i hi
 
 /-- The last offset is the number of slots. -/
@@ -165,7 +165,7 @@ theorem Csr.mono (hc : Csr o t nv ns V off tgt σ) (hik : i ≤ k) (hk : k ≤ n
             subst this; exact le_rfl
   | succ k ih =>
       by_cases hik' : i ≤ k
-      · exact le_trans (ih hik' (by omega)) (hc.step (by omega))
+      · exact le_trans (ih hik' (by omega)) (hc.off_le_succ (by omega))
       · have : i = k + 1 := by omega
         subst this; exact le_rfl
 
@@ -307,7 +307,7 @@ theorem sum_rowLen (hc : Csr o t nv ns V off tgt σ) (k : ℕ) (hk : k ≤ nv) :
       have hk' : k ≤ nv := by omega
       rw [Finset.sum_range_succ, ih hk']
       have h₁ : off 0 ≤ off k := hc.mono (by omega) hk'
-      have h₂ : off k ≤ off (k + 1) := hc.step (by omega)
+      have h₂ : off k ≤ off (k + 1) := hc.off_le_succ (by omega)
       simp only [rowLen]
       omega
 

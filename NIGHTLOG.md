@@ -2758,6 +2758,29 @@ from `run_step`; bracket-argument specs instead of an attribute set;
 notes, with the P4 handoff: `Lib` postconditions as `abbrev`,
 operations as `Spec`s consumed through `run_vcg [·]`.
 
+## IMP+ toolkit P4 — the data-structure library — 2026-07-28
+`Lax13Proofs/Lib/` lands in four reviewed commits (P4a–P4d): `Basic`
+(shared cell update + the machine-run demo driver), `Ind`, `Stack`,
+`Trail`, `Queue`, `Csr` — ~2,850 lines, each module an `arrOf`-cheap
+abstraction relation, name-parameterized `Com` operations with one
+`Spec` apiece, and a worked example `#guard`-checked through the
+compiler and the machine. Four Opus subagents wrote them against the
+shape note fixed in `Ind`'s header; the supervisor re-read every line
+at the end (one rename: `Csr.step` → `Csr.off_le_succ`). Consumer
+evidence drove three plan deviations, all recorded: Queue's `advance`
+split into `front`+`advance`, `drain` a body-open combinator over
+`while_potential`, Trail logging bare indices with undo-to-zero. The
+kit's loops: `Trail.unwind` (`while_count`, one `Spec` with the loop
+inside), `Queue.drain_spec` and `Csr.rowScan_spec`/`ownerScan_spec` —
+the last hiding the two-term amortized potential from the caller
+entirely. P4 acceptance passed for real: `rowLoop_run` re-proved
+through `rowScan_spec` with its statement byte-for-byte unchanged,
+elaboration neutral; five of the repo's seven scan-shaped loops are
+direct combinator instances. All three packages green, zero `sorry`.
+Next: P5, the Lax11 CC pilot retrofit behind the 40% gate; three
+pre-P5 flags (tryClose state-restore, run_vcg first-match spec
+selection, Phases3's local `Queue` name) in the plan's P4 as-built.
+
 ## Nowhere dense MC — campaign plan rev 1 — 2026-07-28
 The campaign for "FO model checking is FPT on nowhere dense classes"
 is planned: `plans/nowhere-dense-model-checking/nd-mc-plan.md`. Route:

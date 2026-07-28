@@ -310,7 +310,7 @@ registered, `pull-db` broken) is unresolved and untouched by this work.
 - [x] **P1 frame rule — done, both acceptance tests passed.**
 - [x] **P2 spec triples — done, acceptance passed.**
 - [x] **P3 `run_vcg` tactic — done, acceptance passed.**
-- [ ] P4 data-structure library
+- [x] **P4 data-structure library — done, both acceptance criteria passed.**
 - [ ] P5 pilot retrofit (Lax11 CC) — **gate: ≤ 40% of 1,655 lines**
 - [ ] P6 remaining retrofits
 - [ ] P7 pins and drafts (registration excluded, JAN-FLAG)
@@ -546,13 +546,126 @@ Metaprogramming notes for whoever touches `Tactic.lean` next:
 `Lax13Proofs.Imp.Expr` collides with `Lean.Expr`, so the walk writes
 both fully qualified.
 
+### P4, as built (2026-07-28)
+
+`word-ram/proofs/Lax13Proofs/Lib/` — `Basic`, `Ind`, `Stack`, `Trail`,
+`Queue`, `Csr` plus the `Lib.lean` aggregator, ~2,850 lines, imported
+from `Lax13Proofs.lean`. Green with zero `sorry` across all three
+packages; built as four Opus-subagent units (Ind, Stack+Trail, Queue,
+Csr), each reviewed and committed separately (P4a–P4d), plus a
+supervisor read-through of every line at the end.
+
+**The shape.** Fixed by unit 1 and written into `Lib/Ind.lean`'s
+header as a numbered note (points 0–7) that later units followed
+verbatim; read it before writing a sixth module. The load-bearing
+choices: per-module namespaces inside `Lib` (`Ind.test`, `Stack.push`,
+`Queue.push` coexist); relations are plain `def`s over `arrOf` + a
+pointwise cell function with every pointwise invariant *inside* the
+relation (the `Finset`/`List` views of the plan's table are derived
+sections, never the relation — same resolution as P1's `Bool`/`Prop`
+and for the same cost reason); operations are `Com` defs parameterized
+in every name they touch; each exports one `Spec` plus its four frame
+facts as `@[simp]` (call-site names are bound variables, so `simp`,
+not `decide`); pre/postconditions are `abbrev`s; every array read's
+obligations are pre-loaded via `Spec.pre` in **both** `getD` forms and
+scalar bounds in state form (the two refinements units 1–2 paid for);
+every relation ships `of_eq` + `setVar_iff` or composites cannot
+close; every module ends in a worked example `#guard`-checked
+**through the compiler and the machine** via `Lib.runOut`.
+
+**The modules, and the consumer-evidenced deviations.**
+
+- `Ind`: test/mark/unmark at cost 3; the 0/1 bound lives in the
+  relation so every op's word obligation is `1 < B`.
+- `Stack`: push/pop/peek at cost 7/7/5; capacity and entry bound in
+  the relation; `setTop`/`raise` exported as push's halves
+  because *neither consumer has a single-array stack* (three or four
+  arrays share one top; a parallel push is n stores + one bump).
+- `Trail`: logs **indices into one companion array**, undo writes
+  `0` — no (index, old-value) pairs, because no consumer has them.
+  `unwind` is the kit's first exported loop: `Spec.while_count`, cost
+  `12·(h−base) + 4`, one `Spec` with the loop inside.
+- `Queue`: the plan's `advance` ships as `front` + `advance`, because
+  in both consumers the head read and the head bump are separated by
+  the whole row scan (their comments say why); `drain` is a
+  **combinator with the body open** over `Spec.while_potential` — the
+  turn cost is the dequeued vertex's degree, so `while_count` cannot
+  state it.
+- `Csr`: relation over two arrays and *no scalar* (its `setVar_iff`
+  is unconditional; `of_eq` is free across every mark/label store);
+  `owner_lt`/`owner_unique`/`off_lt` replace the hand-derived
+  `hult`/`owner_unique`/`hOB` of both drivers. One `Com` (`scan`), two
+  combinators: `rowScan_spec` (per-row, `(Kb+4)·len + 4`, step in
+  `∃ K'` form so it nests as a `Queue.drain_spec` step) and
+  `ownerScan_spec` (two-pointer amortized; the caller declares
+  `Δj`/`Δu`/cost per turn and **never writes the potential**). Neither
+  combinator mentions the relation — forced by the acceptance test,
+  since `rowLoop_run` has no offsets array in its hypotheses; the
+  relation supplies the combinators' inputs as separate lemmas.
+  `loadRow`/`slot` shipped beyond the plan's two ops (every site opens
+  with them); `loadRow_spec` is the kit's one hand-written spec — its
+  second read follows a write of `j`, and the general rule is recorded
+  in the module header: *a read of a scalar after a write to another
+  scalar in the same block must enter `run_vcg` as one handed `Spec`*.
+
+**Acceptance — both passed.** Every module's `#guard` example runs
+the compiled machine program (`Ind` `[1,0]`/32 steps, `Stack`
+`[7,7,5]`/64, `Trail` `[1,1,0,0]`/143, `Queue` `[5,5,7]`/90, `Csr`
+`[0,1,0,2,1,0,2,1]`/301). And the Csr criterion was demonstrated for
+real: **`rowLoop_run` is re-proved through `rowScan_spec` with its
+statement byte-for-byte unchanged** — proof 220 → 202 lines (the
+`while_potential` plumbing left; the ~180 lines of mark/trail
+bookkeeping are caller content and stayed), `Phases.lean` elaboration
+neutral (20.5/38.6 s before, 21.3/38.4 s after, 3 samples).
+
+**Survey evidence for P5's gate** (from the Csr unit): of the seven
+scan-shaped loops at the six sites, five are direct instances of the
+two Csr combinators (`rowLoop_run` retrofitted; `rowScan3_run`,
+CC's `scan_run`, `descendScan_run`'s outer loop, VC's `scan_run`
+covered); `drain3_run` is `Queue.drain_spec` with a Csr row scan as
+its body, and `rootSweep_run` is a counter loop (`Spec.forRange`
+territory), not a CSR scan.
+
+**Timings.** Per-file elaboration: Ind 4.5 s, Stack 5.4 s, Trail
+7.9 s, Queue 5.7 s, Csr 6.4 s; `word-ram/proofs` no-op ~2 s; full
+`vertex-cover-ladder/proofs` 1 min 39 s against P3's 1 min 52 s. Both
+downstream packages import kit modules, not the root, so `Lib` reaches
+them only when a retrofit asks it to (verified by trace: nothing
+downstream rebuilds).
+
+**Supervisor review (Jan's request).** Every line of the session's
+output re-read at the end. One change made: `Csr.step` renamed
+`Csr.off_le_succ` — it collided semantically with `Queue.step` (an
+operation lemma) and with its own module's step vocabulary. Flags left
+open, in priority order for a pre-P5 look:
+
+1. **`tryClose` in `Tactic.lean`**: a deferred obligation whose
+   discharger partially succeeds surfaces as a hard error instead of a
+   leftover goal (hit by units 1 and 2, worked around by point-5
+   pre-loading everywhere). Root-cause before P5 leans on the tactic
+   at scale.
+2. **`run_vcg [·]` matches handed specs by command text, first match
+   wins**: a block using one operation twice with the same names takes
+   the first spec both times and fails loudly but confusingly.
+   Match-and-pop (ordered consumption) is the candidate fix.
+3. **Lax15 `Phases3.lean` has a local `structure Queue`**: the P6
+   rung-C retrofit will hit the P2 ambiguous-term failure mode if it
+   `open`s the Lib namespace; rename the local one first.
+
 ## Handoff notes
 
-The next session picks up at P4, the data-structure library
-(`Lax13Proofs/Lib/`). The P3 and P2 as-built notes above carry the
-interface it builds against: operations exported as `Spec`s over
-named `Com` defs, postconditions as `abbrev`, consumed downstream
-through `run_vcg [·]` plus `Spec.seq`/`Spec.frame`.
+The next session picks up at **P5, the pilot retrofit of the Lax11 CC
+driver** (`CC`, `CCPhases`, `CCGraph`, `CCSearch`, `CCSweep`,
+`CCMain`, 1,655 lines), behind the hard gate: **≤ 40% of 1,655
+lines or stop and bring the design back to Jan.** The P4 as-built
+note above carries the retrofit recipe the Csr unit left: the drain
+body decomposes as `Queue.front_spec` + `Csr.loadRow_spec` +
+`Csr.rowScan_spec` + `Queue.advance_spec` under `Queue.drain_spec`;
+build the `Csr` relation once from `SearchEnv`'s fields and carry it
+with `of_eq`; `Csr.off_lt`/`Csr.lt` replace `hOB`/`hTB`; keep the row
+scan's cost a *term* at the drain step. Address flag 1 (and ideally 2)
+above before or at the start of P5. Statements of exported theorems do
+not change; only proofs do.
 Working model, per Jan: **Fable supervises, Opus subagents write the
 Lean.** Concretely — the supervisor holds the plan, decides scope and
 acceptance, runs the builds and commits; each proof-shaped unit (one
