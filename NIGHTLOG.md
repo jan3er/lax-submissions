@@ -2777,3 +2777,20 @@ half re-forecast). Five open questions for Jan: id slot (Lax3/Lax4),
 bound form, colored-graph-level locality surface, citable-concept
 set, batch-form splitter game. Nothing built; no submission folder
 yet; the references fetch (gks, mw, rploc) is P0's first task.
+
+## Nowhere dense MC — plan rev 2: isolation, not removal — 2026-07-28
+Jan's call, same session: the splitter isolates its batch — incident
+edges deleted, vertices kept, win = edgeless arena — instead of
+removing it. Vertices never disappear, so rev 1's substitution
+readout (virtual vertices) and the avoid-W side conditions of the
+removal translation are gone; the per-level translation is one exact
+quantifier-free atom rewrite through W-membership, old-neighbor and
+capped-distance-profile colors, with the capped W-distance matrix
+selecting among finitely many precomputed formula variants; the base
+case is "edgeless arena: evaluate by lookup"; on the RAM the graph is
+materialized once and every arena is a vertex mask + isolation bits +
+profile arrays, wound back by Trail. Locality still applies at every
+arena — profile disjuncts are not new-metric guards — so the mutual
+typeTables/sentenceEval shape stays. D1, D8–D11, L2–L4, budgets and
+R2 rewritten in the plan; Q5 resolved (isolation game is the surfaced
+concept); estimate down to 30–48 sessions.

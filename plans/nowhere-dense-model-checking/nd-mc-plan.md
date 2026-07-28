@@ -1,4 +1,27 @@
-# Nowhere dense model checking plan (rev 1 — proposed, 2026-07-28)
+# Nowhere dense model checking plan (rev 2 — proposed, 2026-07-28)
+
+Rev 2 (Jan, in session): **the splitter isolates instead of removes.**
+Splitter's move deletes the incident edges of its batch W and keeps
+the vertices; the game is won when the arena is edgeless. Vertices
+never disappear, which deletes the two worst objects of rev 1 in one
+stroke: the substitution readout (no virtual vertices — a tuple may
+sit on W and the same rewrite covers it) and the avoid-W side
+conditions of the removal translation. The per-level translation
+becomes one exact, quantifier-free rewrite of adjacency and distance
+atoms through recorded colors (W-membership, old-neighbor marks,
+capped distance profiles, with the capped W-distance matrix selecting
+among finitely many precomputed formula variants); the recursion's
+base case becomes "arena edgeless: evaluate by color lookup"; and on
+the RAM the graph is materialized once — every arena is a vertex mask
++ isolation bits + profile arrays, undone by the toolkit's Trail.
+D1, D8–D11, L2–L4, the step budgets and risk R2 are rewritten below;
+Q5 is resolved (the isolation game is the surfaced concept). What
+rev 2 does *not* change: locality is still applied at every arena —
+the profile disjunct of a rewritten guard is not a distance guard in
+the new metric, so per-level re-localization stays, and with it the
+mutual typeTables/sentenceEval shape.
+
+Rev 1 (2026-07-28): initial plan.
 
 Goal: **first-order model checking is fixed-parameter tractable on
 nowhere dense graph classes** (Grohe–Kreutzer–Siebertz), on the Lax13
@@ -44,7 +67,7 @@ Ch. 11–12 for cover-based recursion bookkeeping, if GKS §8 fights us).
 |-----|--------------|
 | arXiv 2606.23180 (Dreier–Toruńczyk, fetched, → `references/rploc`) | the whole logic engine: distFO, distance rank, horizon functions, scatter sentences, Thm 1 (locality), Cor 7 (normal form), Lem 5/8/9/11/12 |
 | GKS, JACM 2017 (arXiv 1311.3899, **to fetch** in P0) | §6 sparse neighborhood covers (existence + computation), §8 algorithm assembly (to be rebuilt on the new engine), §4 splitter game bounds as cross-check |
-| sparsity notes ed2019 ch. 4 §4 (`references/sparsity-lectures`) | (ℓ,m,r)-splitter game Def 4.1; Lem 4.2 "nowhere dense ⇒ Splitter wins", proved from UQW with an explicit path-maintenance strategy — the same notes Lax12 formalizes, same definitional universe |
+| sparsity notes ed2019 ch. 4 §4 (`references/sparsity-lectures`) | (ℓ,m,r)-splitter game Def 4.1; Lem 4.2 "nowhere dense ⇒ Splitter wins", proved from UQW with an explicit path-maintenance strategy — the same notes Lax12 formalizes, same definitional universe. We adapt both to the isolation variant (rev 2): the strategy isolates the same path systems it used to delete |
 | arXiv 2502.18065 v1→v2 (merge-width MC, **to fetch** in P0) | how the locality theorem is consumed downstream; formula-table conventions |
 | Lax12, Lax13, Lax11 (this repo) | see reuse survey |
 
@@ -122,10 +145,13 @@ axiom exists_almostLinearTime_program_modelChecking :
 ## Decision record
 
 - **D1 (route).** Logic engine = 2606.23180 verbatim; assembly = GKS
-  §8 rebuilt on it; splitter game in the (ℓ,m,r) batch form of notes
-  ed2019 Def 4.1 with the UQW-based win proof (Lem 4.2) on top of
-  Lax12's `uniformlyQuasiWide_of_nowhereDense`. GKS §5 eliminated by
-  greedy scatter choice; GKS §7 eliminated by the locality theorem.
+  §8 rebuilt on it; splitter game in the **isolation variant** (rev 2)
+  of the (ℓ,m,r) batch form of notes ed2019 Def 4.1 — splitter's batch
+  keeps its vertices and loses its incident edges, the win condition
+  is an edgeless arena — with the UQW-based win proof (Lem 4.2,
+  adapted) on top of Lax12's `uniformlyQuasiWide_of_nowhereDense`.
+  GKS §5 eliminated by greedy scatter choice; GKS §7 eliminated by
+  the locality theorem; GKS's vertex removal eliminated by isolation.
 - **D2 (one submission).** Single new submission (working folder name
   `nowhere-dense-model-checking`; id: Q1) requiring the Lax12, Lax13,
   Lax11 concept packages. The locality theorem is a citable concept
@@ -174,40 +200,52 @@ axiom exists_almostLinearTime_program_modelChecking :
   manipulates only the graph, color arrays, and truth tables. This
   works because the pipeline stays inside the **binary fragment**
   (no unary distance atoms): input FO has none, and the locality
-  rewriting, the removal translation and the substitution readout
-  introduce none — a closure lemma proves it. Rewritten formulas
-  reference fresh color *slots* whose graph-dependent *interpretation*
-  (distance classes to removed vertices) is computed at runtime.
-- **D9 (recursion shape).** Mutual recursion descending the splitter
-  game tree, on colored arenas: `typeTables` (which of the finitely
-  many single-variable local formulas hold at each vertex) and
+  rewriting and the isolation rewrite introduce none — a closure
+  lemma proves it. Rewritten formulas reference fresh color *slots*
+  whose graph-dependent *interpretation* (W-membership, old-neighbor
+  marks, capped distance profiles to the isolated batch) is computed
+  at runtime; the only other graph-dependent datum is the capped
+  W-distance matrix, ranging over a bounded set that indexes a finite
+  family of precomputed formula variants — the program measures the
+  matrix and selects the variant.
+- **D9 (recursion shape).** Mutual recursion descending the isolation
+  splitter game tree, on colored arenas that all share the original
+  vertex numbering: `typeTables` (which of the finitely many
+  single-variable local formulas hold at each vertex) and
   `sentenceEval` (truth of a sentence list). At each arena: locality
   theorem → scatter sentences over local β's + trivial local
   sentences; scatter evaluated by the Fin-order greedy over β-tables;
   β-tables by sparse cover, per cluster the splitter batch W (≤ m
-  vertices, strategy from notes Lem 4.2), the **removal translation**
-  (distance atoms re-expanded through W by color lookups — sound for
-  bound and free variables avoiding W), and the **substitution
-  readout** for vertices of W (guards at a removed vertex become color
-  atoms; drank preserved; result is a sentence over the sub-arena,
-  evaluated by the same recursion). Game bound ℓ terminates every
-  branch with an empty arena. This is the GKS §8 role, re-derived; P0
-  checks it against their text before anything freezes.
+  vertices, strategy from notes Lem 4.2), then the **isolation
+  rewrite**: W's incident edges are deleted and the atoms translated
+  exactly — adjacency through W-membership and old-neighbor colors,
+  distance atoms through capped distance profiles, the capped
+  W-distance matrix selecting the formula variant (D8). The rewrite
+  is uniform in the tuple — vertices of W included, no case split,
+  no readout — and preserves drank and radii. Its profile disjuncts
+  are not distance guards in the new metric, so the next level's
+  locality application re-localizes them; isolated vertices fall out
+  of subsequent covers and evaluate by lookup. The game bound ℓ ends
+  every branch at an edgeless arena, where every formula evaluates by
+  color-table lookup. This is the GKS §8 role, re-derived; P0 checks
+  it against their text before anything freezes.
 - **D10 (cover layer).** Sparse neighborhood covers as their own
   def-concept (radius r, spread 2r, degree) + theorem-concept
   "existence with degree ≤ wcol_{2r}" (ordering-based construction) —
-  composing with Lax12's wcol theorem to degree n^ε. The
-  ordering/cover *computation* on the RAM follows GKS §6 (P0 pins the
-  exact subroutine; see R1).
+  composing with Lax12's wcol theorem to degree n^ε. Arenas are
+  subgraphs of members in the full sense — vertex subsets *and* edge
+  deletions — which is precisely the `⊑`-uniformity Lax12's wcol and
+  density theorems already carry. The ordering/cover *computation* on
+  the RAM follows GKS §6 (P0 pins the exact subroutine; see R1).
 - **D11 (concept surface).** Definitions: `FO`, colored graphs +
   walk-distance API, `DistFO` + `Sat` + `DRank` + horizon, scatter
   choice + scatter sentences, splitter game, neighborhood covers.
   Citable theorems: **locality theorem** (Thm 1 of 2606.23180, with
-  Cor 7 as companion), **splitter-game win** (notes Lem 4.2 / GKS Thm
-  4.2), **sparse cover existence** (GKS §6), **headline C0**. Four
-  independently endorsable claims; obligations parallelize across
-  night campaigns. Internals (separation lemma, removal translation,
-  evaluator) stay proofs-side.
+  Cor 7 as companion), **splitter-game win** (isolation form; notes
+  Lem 4.2 / GKS Thm 4.2), **sparse cover existence** (GKS §6),
+  **headline C0**. Four independently endorsable claims; obligations
+  parallelize across night campaigns. Internals (separation lemma,
+  isolation rewrite, evaluator) stay proofs-side.
 - **D12 (milestone gate).** Hard review gate with Jan after P4 (math
   core complete, before RAM work): statements frozen, feasibility of
   the RAM half re-judged with measured elaboration costs in hand.
@@ -234,39 +272,54 @@ Layer L1 — locality engine (2606.23180, proofs-side unless noted):
    — Cor 7 via `maxChoice`. **Concept axiom discharged here.**
 
 Layer L2 — sparse combinatorics:
-7. `SplitterGame` def (ℓ,m,r batch form); win monotonicity under
-   arena shrinking.
-8. `splitterWins_of_nowhereDense` — from Lax12 UQW, notes Lem 4.2:
-   ℓ = N_r(2s_r+1), m = ℓ(r+1), path-maintenance strategy. Strategy
-   is an explicit function (BFS paths to prior connector vertices) —
-   the same object the RAM later implements. **Concept.**
+7. `SplitterGame` def (isolation form: splitter's batch keeps its
+   vertices and loses its incident edges; win = edgeless arena;
+   (ℓ,m,r) batch parameters); win monotone under `⊑`-subarenas
+   (vertex subsets and edge deletions — one lemma, both moves only
+   help the splitter).
+8. `splitterWins_of_nowhereDense` — from Lax12 UQW, notes Lem 4.2
+   adapted to isolation: ℓ = N_r(2s_r+1), m = ℓ(r+1); the
+   path-maintenance strategy isolates the maintained path systems,
+   cutting the same connections deletion did, and the lingering
+   isolated vertices sit outside every later ball. Strategy is an
+   explicit function (BFS paths to prior connector vertices) — the
+   same object the RAM later implements. **Concept.** (The removal
+   form and the round-slack equivalence between the two games stay
+   proofs-side, only if a source cross-check wants them.)
 9. `NeighborhoodCover` def; `cover_of_wcol` — clusters from
    weak-reachability sets of an ordering, degree ≤ wcol_{2r}, spread
    2r; + Lax12 wcol ⇒ degree ≤ c·n^ε. **Concept.**
 
 Layer L3 — abstract algorithm (proofs-side):
-10. `removeBatch` — the removal translation: truth over arena A of a
-    binary-fragment formula at a tuple avoiding W equals truth over
-    A − W with distance-class colors of W, drank preserved, radius
-    preserved. All-variables version (bound variables too).
-11. `substReadout` — virtual-vertex elimination: β(w) for w ∈ W
-    becomes a sentence over A − W (guards at w → color atoms;
-    quantifier split z = w / z ≠ w), drank preserved.
-12. `evaluator` — the D9 mutual recursion, by strong induction on
+10. `isolateBatch` — the isolation rewrite: truth over arena A of a
+    binary-fragment formula at **any** tuple equals truth, over A
+    with W's incident edges deleted, of the translated formula —
+    given the recorded colors (W-membership, old-neighbor marks,
+    capped distance profiles) and the formula variant selected by
+    the capped W-distance matrix. Drank and radii preserved; bound
+    and free variables uniformly; no avoid-W hypotheses, no virtual
+    vertices. One lemma where rev 1 had two.
+11. `evaluator` — the D9 mutual recursion, by strong induction on
     game depth; correctness: at every arena it computes exactly
-    `Sat`-truth (greedy scatter choice carried uniformly).
-13. `reduction` — FO qr q ↪ distFO drank (0,q); top-level assembly:
+    `Sat`-truth (greedy scatter choice carried uniformly). Base:
+    edgeless arenas evaluate by color-table lookup.
+12. `reduction` — FO qr q ↪ distFO drank (0,q); top-level assembly:
     math-core checkpoint theorem "the evaluator decides φ on every
     graph satisfying the promise" (no time bound — internal, the P4
     exit criterion).
 
 Layer L4 — RAM realization (Lax13 toolkit):
-14. Primitives: truncated BFS (visited-trail; cost = edges touched),
-    distance-class coloring, arena materialization (CSR sub-extract).
-15. Ordering + cover program (GKS §6; R1).
+14. Primitives: truncated BFS over the masked CSR (skips isolation
+    bits; queue + visited-trail; cost = edges touched),
+    distance-profile arrays (m BFS runs per cluster), vertex masks
+    for arenas. The graph is materialized **once**; every arena is
+    masks + profiles, wound back by Trail on return — no CSR
+    re-extraction, no vertex renumbering.
+15. Ordering + cover program (GKS §6; R1) — on the masked view.
 16. Recursion driver: bounded-depth (ℓ unrolled or toolkit stack),
-    per-arena: cover pass, per-cluster splitter batch (BFS), color
-    pass, table cascade; greedy scatter pass; boolean combination.
+    per-arena: cover pass, per-cluster splitter batch (BFS), profile
+    pass, matrix-measured variant select, table cascade; greedy
+    scatter pass; boolean combination.
 17. Cost accounting: recursion tree × per-level n^(1+ε) via Lax12
     density + cover degree; one shared "cost algebra" module for the
     c·m^(1+ε) sums (patterns from Lax12/Lax5 asymptotics), then C0.
@@ -277,10 +330,11 @@ Layer L4 — RAM realization (Lax13 toolkit):
   Fetch GKS 1311.3899 and merge-width 2502.18065 sources into
   `references/` (`gks`, `mw`; 2606.23180 → `references/rploc`, README
   with fetch date + license each). Write `nd-mc-design.md` here
-  settling, against the fetched texts: (a) the exact removal
-  translation + substitution readout statements (D9's crux: how GKS
-  §8 reads types at removed vertices, and that our color-lookup
-  variant matches); (b) the cover-computation subroutine of GKS §6,
+  settling, against the fetched texts: (a) the exact isolation
+  rewrite statement — profile colors, matrix-indexed variants, the
+  uniform-tuple claim — cross-checked against how GKS §8 reads types
+  at removed vertices (our rewrite must recover everything theirs
+  does); (b) the cover-computation subroutine of GKS §6,
   as pseudocode with its cost argument; (c) the binary-fragment
   closure claim across all rewriting stages; (d) the radius schedule
   (expected constant ρ* = ρ⁻(1,q) across levels — verify no growth);
@@ -298,17 +352,17 @@ Layer L4 — RAM realization (Lax13 toolkit):
   DRank monotonicity = Obs 4/6). Then `farQuant`, `locality`,
   `normalForm` serialized on (a)+(b)+(c). Acceptance: locality
   concept discharged, zero sorry, no statement drift.
-- [ ] **P3 — splitter + covers** (3–5 sessions). L2 items 7–9;
+- [ ] **P3 — splitter + covers** (2–4 sessions). L2 items 7–9;
   both theorem concepts discharged against Lax12 assumptions.
   Strategy stated as a function with its win proof (constructiveness
-  is what L4 consumes).
-- [ ] **P4 — abstract evaluator** (6–10 sessions). L3 items 10–13,
+  is what L4 consumes); win monotonicity under `⊑`.
+- [ ] **P4 — abstract evaluator** (4–7 sessions). L3 items 10–12,
   ending at the math-core checkpoint theorem. **Gate: D12 review —
   frozen statements, re-judged L4 budget.**
 - [ ] **P5 — RAM primitives** (3–5 sessions). L4 item 14 as `Lib`
   citizens (Spec + run_vcg consumption; coordinate with the IMP+
-  toolkit plan — BFS/trail may land there as P4/P5 library items and
-  be consumed here).
+  toolkit plan — masked BFS over queue/trail may land there as
+  library items and be consumed here).
 - [ ] **P6 — ordering + cover program** (4–7 sessions; R1 risk
   peak, design fixed since P0).
 - [ ] **P7 — driver, scatter pass, cost algebra, C0** (6–10
@@ -324,9 +378,11 @@ best-paper award for, with the algorithm actually implemented. Against
 the Courcelle yardstick (17 sessions): the logic engine alone is
 Courcelle-sized but purely syntactic (the paper is 12 pages of
 self-contained rewriting, unusually well matched to Lean); the math
-core P0–P4 lands around 18–30 sessions; the RAM half P5–P7 another
-13–22 with the toolkit amortizing the glue. Call it **35–55 sessions**
-end to end, with the D12 gate as the honest re-forecast point. What
+core P0–P4 lands around 15–26 sessions; the RAM half P5–P7 another
+13–20 with the toolkit amortizing the glue and the graph materialized
+once (rev 2: arenas are masks + profiles, never re-extracted). Call
+it **30–48 sessions** end to end, with the D12 gate as the honest
+re-forecast point. What
 makes it *possible* at all is that four load-bearing walls already
 stand endorsed and proved: nowhere denseness, UQW, subpolynomial wcol,
 subpolynomial density (Lax12), and the machine + verification toolkit
@@ -335,9 +391,11 @@ subpolynomial density (Lax12), and the machine + verification toolkit
 Risks: **R1** cover computation within n^(1+ε) on the RAM — the one
 place the source might hide algorithmic detail; P0 confronts it first,
 and its fallback (a coarser but still n^ε-degree construction) changes
-no statement, only constants. **R2** removal/readout design — new
-writing (no paper states it over distFO); P0 fixes the statements, Jan
-sanity-checks before P4 consumes them. **R3** real-exponent cost sums —
+no statement, only constants. **R2** the isolation rewrite — still new
+writing (no paper states it over distFO), but rev 2 shrank it to one
+uniform-tuple lemma with no readout and no avoid-W side conditions;
+what remains is the profile/matrix bookkeeping, fixed in P0's design
+note and sanity-checked by Jan before P4 consumes it. **R3** real-exponent cost sums —
 mitigated by one shared cost-algebra module and Lax12's existing
 c·m^ε patterns. **R4** elaboration performance of formula-heavy proofs
 — the rewriting functions are never evaluated on concrete sentences;
@@ -363,6 +421,6 @@ for exactly that.
   toward C0.)
 - **Q4.** Concept surface per D11 (four citable theorems) — confirm,
   or trim to C0 + locality only?
-- **Q5.** Splitter game surfaced in the (ℓ,m,r) batch form (what the
-  win proof and the algorithm actually use), with the m = 1 variant
-  omitted — OK?
+- **Q5.** ~~Splitter game form~~ — **resolved by rev 2**: the
+  isolation-form (ℓ,m,r) batch game is the surfaced concept; the
+  removal form appears at most proofs-side for source cross-checks.
