@@ -3010,3 +3010,18 @@ concept axioms discharged, zero sorry, no statement drift. Note for
 polish (non-blocking): FarQuant carries private copies of a few BC
 helpers; could later import BCAlgebra instead. Next: P3 splitter +
 covers (plan L2 items 7–9), on the now-live locality interface.
+
+
+## IMP+ toolkit — P7 done, campaign closed — 2026-07-28
+Jan chose option (a): P6 out of scope, close via P7. Sibling path
+requires kept (Jan, mid-P7) — the wave submit orders folders along
+them and the pin is the submitted repo rev. The full pipeline caught
+one violation package builds miss (root module must import the Lib
+submodules individually; fixed). Wave Lax13 -> Lax11 -> Lax15
+submitted as drafts at rev 5733671, all three confirmed in the draft
+state; registration untouched per the JAN-FLAG. The campaign closes
+with the kit consumer-tested and faster everywhere, and the ND-MC
+RAM phases (P5-P7) are now un-gated. Operating guidance for them,
+from the pilot: write machine code in Spec form from the start —
+group consecutive phases into one handed spec, state invariants once
+— and the hand-off tax that killed the retrofit gate never arises.

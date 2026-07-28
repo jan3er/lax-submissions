@@ -328,7 +328,41 @@ registered, `pull-db` broken) is unresolved and untouched by this work.
 - [x] P6 remaining retrofits — **declared OUT OF SCOPE** (owner decision,
   Jan, 2026-07-28: option (a) of the P5 verdict). The kit's economics
   favor new code written in `Spec` form; the retrofits stop at the pilot.
-- [ ] P7 pins and drafts — **in progress** (registration excluded, JAN-FLAG)
+- [x] **P7 pins and drafts — done; campaign CLOSED 2026-07-28.**
+  Registration untouched, per the JAN-FLAG.
+
+### P7, as built (2026-07-28)
+
+Option (a) of the P5 verdict, chosen by Jan: P6 out of scope, close via
+P7. Two findings on the way, neither structural:
+
+- **Sibling path requires stay** (Jan's call, mid-P7). The archive
+  submits several folders of one repo as a wave ordered
+  dependencies-first along exactly those requires, so the "pin" is the
+  repo revision the wave is submitted at — no lakefile edits.
+- The full `lax build` pipeline caught a **root-module violation** the
+  package-level builds never see: `Lax13Proofs.lean` must import every
+  module of its package individually, and the P4/P5 `Lib` submodules
+  were reachable only through the aggregator. Fixed; worth remembering
+  that per-package `lake build` green is weaker than pipeline green.
+
+All three submissions pass the full local pipeline (the
+proofs-require "discouraged" warnings are the accepted, by-design
+ones). Wave submitted as **drafts** at repo rev `5733671`
+(`Lax13 → Lax11 → Lax15`, job `d377127870951f164be5090cfd686fdc`);
+server reports all three **in the draft state**. `lax submit
+--register` was not run and remains blocked on Jan's fresh, explicit
+confirmation.
+
+**Campaign result, one paragraph.** The machine level is a library:
+frame rule, `Spec` triples with tape and counter rules, the `run_vcg`
+symbolic executor (ordered spec consumption, prefix matching), and
+seven `Lib` data-structure modules, all consumer-tested by the CC
+pilot, all faster to elaborate than the hand proofs they replace. The
+pilot's economics finding — retrofits pay only where symbolic-execution
+glue dominates; new code written in `Spec` form avoids the hand-off tax
+entirely — is recorded in the P5 section and is the operating guidance
+for the ND-MC RAM phases, which this closure un-gates.
 
 ### P1, as built (2026-07-28)
 
