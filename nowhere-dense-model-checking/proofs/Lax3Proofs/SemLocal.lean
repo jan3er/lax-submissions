@@ -52,14 +52,15 @@ first-order sentence such as ∃x (x = x) tells the two apart. It does not
 bite here, because on *local* sentences `Sat` and `SatWithin ∅` cannot
 be told apart. With no free variables there is no atom to write down at
 all — the atoms take variables from the empty `Fin 0` — and a local
-quantifier is guarded by a disjunction over the free variables, which is
-empty and therefore false; so a local sentence is a boolean combination
-of formulas that are false under `Sat` and false under `SatWithin ∅`
-alike, for the same reason. That reading of `exL` at `k = 0` is the
-frozen semantics of `Lax3.DistFO` and is deliberate there. Dropping the
-hypothesis is therefore a strengthening, and the `k = 0` case needs no
-separate argument: the induction below never inspects `k`, and its
-local-quantifier case is vacuous when there is no free variable to
+quantifier is guarded by a disjunction over the variables of its guard
+set, which is a `Finset (Fin 0)` and hence empty, so the guard is false;
+so a local sentence is a boolean combination of formulas that are false
+under `Sat` and false under `SatWithin ∅` alike, for the same reason.
+That reading of `exL` at `k = 0` is the frozen semantics of
+`Lax3.DistFO` and is deliberate there. Dropping the hypothesis is
+therefore a strengthening, and the `k = 0` case needs no separate
+argument: the induction below never inspects `k`, and its
+local-quantifier case is vacuous when there is no variable at all to
 supply a guard.
 
 The unrestricted-quantifier case of the induction is discharged by
@@ -149,8 +150,8 @@ theorem drank_of_and_right {L k k' q : ℕ} {φ ψ : DistFO L k} (h : DRank k' q
 /-- A local quantifier of distance rank `(k', q)` has a positive
 quantifier budget, guards at radius at most ρ⁺ one level in, and has a
 body of distance rank one level in. -/
-theorem exists_drank_of_exL {L k k' q r : ℕ} {φ : DistFO L (k + 1)}
-    (h : DRank k' q (DistFO.exL r φ)) :
+theorem exists_drank_of_exL {L k k' q r : ℕ} {g : Finset (Fin k)} {φ : DistFO L (k + 1)}
+    (h : DRank k' q (DistFO.exL r g φ)) :
     ∃ q', q = q' + 1 ∧ DRank (k' + 1) q' φ ∧ r ≤ rhoPlus (k' + 1) q' := by
   cases h with
   | exL h hr => exact ⟨_, rfl, h, hr⟩
@@ -202,15 +203,17 @@ private theorem sat_iff_satWithin_aux {L n : ℕ} (G : SimpleGraph (Fin n))
     intro k' q m D hloc _ _
     -- `IsLocal` is `False` at an unrestricted quantifier
     exact False.elim hloc
-  | exL r ψ ih =>
+  | exL r g ψ ih =>
     -- the induction generalized the arity; `k` names it in this case
     rename_i k
     intro k' q m D hloc hφ hD
     obtain ⟨q', rfl, hψ, hr⟩ := exists_drank_of_exL hφ
     -- the guard radius is below the horizon of the whole formula
     have hrle : r ≤ rhoMinus k' (q' + 1) := hr.trans (rhoPlus_le_rhoMinus k' q')
-    -- One telescoping step: whichever free variable guarded the new vertex `v`,
-    -- the invariant survives the extension of the tuple by `v`.
+    -- One telescoping step: whichever variable of the guard set `g` put the new
+    -- vertex `v` in range, the invariant survives the extension of the tuple by
+    -- `v`. Membership in `g` plays no role beyond naming a variable of the
+    -- tuple, so the step is stated for an arbitrary index.
     have key : ∀ (i : Fin k) (v : Fin n), WithinDist G r (m i) v →
         ∀ j : Fin (k + 1),
           ball G (rhoMinus (k' + 1) q') ((Fin.snoc m v : Fin (k + 1) → Fin n) j) ⊆ D := by
@@ -227,13 +230,14 @@ private theorem sat_iff_satWithin_aux {L n : ℕ} (G : SimpleGraph (Fin n))
         rw [Fin.snoc_castSucc]
         exact (ball_mono_radius G (m i') (rhoMinus_succ_left_le k' q')).trans (hD i')
     constructor
-    · rintro ⟨v, ⟨i, hiv⟩, hsat⟩
+    · rintro ⟨v, ⟨i, hig, hiv⟩, hsat⟩
       exact ⟨v, hD i (withinDist_mono_radius hrle hiv),
-        ⟨i, withinDistIn_of_withinDist hrle (hD i) hiv⟩,
+        ⟨i, hig, withinDistIn_of_withinDist hrle (hD i) hiv⟩,
         (ih (k' + 1) q' (Fin.snoc m v) D hloc hψ (key i v hiv)).mp hsat⟩
-    · rintro ⟨v, -, ⟨i, hiv⟩, hsat⟩
+    · rintro ⟨v, -, ⟨i, hig, hiv⟩, hsat⟩
       have hiv' : WithinDist G r (m i) v := withinDist_of_withinDistIn hiv
-      exact ⟨v, ⟨i, hiv'⟩, (ih (k' + 1) q' (Fin.snoc m v) D hloc hψ (key i v hiv')).mpr hsat⟩
+      exact ⟨v, ⟨i, hig, hiv'⟩,
+        (ih (k' + 1) q' (Fin.snoc m v) D hloc hψ (key i v hiv')).mpr hsat⟩
 
 /-- **Semantic locality, in the form the induction proves.** A local
 formula of distance rank `(k', q)` cannot tell the graph apart from the
