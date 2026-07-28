@@ -240,25 +240,6 @@ theorem Rep.of_vars_eq {τ' : Env} (h : Rep n m O T C τ) (harrs : τ'.arrs = τ
     by rw [hbud, h5], by rw [hans, h6], by rw [htop, h7], by rw [htt, h8],
     by rw [harrs]; exact h9, by rw [harrs]; exact h10, by rw [harrs]; exact h11⟩
 
-/-! ### Reading a loop condition -/
-
-/-- The loop condition of every loop here compares two scalars; this is
-what its truth value says. -/
-theorem lt_of_condLt_true {x y : String} {ρ : Env}
-    (h : (Cond.lt (.var x) (.var y)).evalB B ρ = some true) : ρ.vars x < ρ.vars y := by
-  simp only [evalB_condLt_iff, evalB_var_iff] at h
-  obtain ⟨a, b, ⟨rfl, -⟩, ⟨rfl, -⟩, hr⟩ := h
-  simpa using hr.symm
-
-/-- And this is what its falsity says. -/
-theorem le_of_condLt_false {x y : String} {ρ : Env}
-    (h : (Cond.lt (.var x) (.var y)).evalB B ρ = some false) : ρ.vars y ≤ ρ.vars x := by
-  simp only [evalB_condLt_iff, evalB_var_iff] at h
-  obtain ⟨a, b, ⟨rfl, -⟩, ⟨rfl, -⟩, hr⟩ := h
-  have := hr.symm
-  simp only [decide_eq_false_iff_not, not_lt] at this
-  exact this
-
 /-! ### The pop's unwind loop
 
 The loop that takes the top frame's marks back off. It runs from a
@@ -817,96 +798,100 @@ theorem slotStep_eq :
         .skip)
       (.assign "j" (.add (.var "j") (.lit 1))) := rfl
 
+/-- The counting half's verdict: the block was counted here, or it was
+already counted or not residual and the two registers stand. Named,
+because the composite specification below states it again. -/
+abbrev CountVerdict (ρ ρ' : Env) : Prop :=
+  (ρ.vars "cnted" = 0 ∧ ρ.vars "u" < ρ.vars "w" ∧
+      ρ'.vars "ro" = ρ.vars "ro" + 1 ∧ ρ'.vars "cnted" = 1) ∨
+  (¬ (ρ.vars "cnted" = 0 ∧ ρ.vars "u" < ρ.vars "w") ∧
+      ρ'.vars "ro" = ρ.vars "ro" ∧ ρ'.vars "cnted" = ρ.vars "cnted")
+
+/-- The distinct-target half's verdict: the block's first unmarked
+target is recorded, or a later one repeats it, or a later one differs
+and the flag is up with a witness. -/
+abbrev SeenVerdict (ρ ρ' : Env) : Prop :=
+  (ρ.vars "seen" = 0 ∧ ρ'.vars "seen" = 1 ∧ ρ'.vars "t1" = ρ.vars "w" ∧
+      ρ'.vars "found" = ρ.vars "found" ∧ ρ'.vars "v" = ρ.vars "v") ∨
+  (ρ.vars "seen" ≠ 0 ∧ ρ.vars "w" = ρ.vars "t1" ∧ ρ'.vars "seen" = ρ.vars "seen" ∧
+      ρ'.vars "t1" = ρ.vars "t1" ∧ ρ'.vars "found" = ρ.vars "found" ∧
+      ρ'.vars "v" = ρ.vars "v") ∨
+  (ρ.vars "seen" ≠ 0 ∧ ρ.vars "w" ≠ ρ.vars "t1" ∧ ρ'.vars "seen" = ρ.vars "seen" ∧
+      ρ'.vars "t1" = ρ.vars "t1" ∧ ρ'.vars "found" = 1 ∧
+      ((ρ.vars "found" = 0 ∧ ρ'.vars "v" = ρ.vars "u") ∨
+        (ρ.vars "found" = 1 ∧ ρ'.vars "v" = ρ.vars "v")))
+
 /-- **The counting half.** It raises `ro` exactly on an uncounted block
-whose slot names a larger vertex, and touches nothing but `ro` and
-`cnted`. -/
-theorem countBlock_run {ρ : Env} (h1B : 1 < B) (hcB : ρ.vars "cnted" < B)
-    (huB : ρ.vars "u" < B) (hwB : ρ.vars "w" < B)
-    (hroB : ρ.vars "cnted" = 0 → ρ.vars "u" < ρ.vars "w" → ρ.vars "ro" + 1 < B) :
-    ∃ ρ' K, Run B countBlock ρ ρ' K ∧ K ≤ 20 ∧ ρ'.arrs = ρ.arrs ∧ ρ'.inp = ρ.inp ∧
-      ρ'.out = ρ.out ∧ (∀ y, y ≠ "ro" → y ≠ "cnted" → ρ'.vars y = ρ.vars y) ∧
-      ((ρ.vars "cnted" = 0 ∧ ρ.vars "u" < ρ.vars "w" ∧
-          ρ'.vars "ro" = ρ.vars "ro" + 1 ∧ ρ'.vars "cnted" = 1) ∨
-       (¬ (ρ.vars "cnted" = 0 ∧ ρ.vars "u" < ρ.vars "w") ∧
-          ρ'.vars "ro" = ρ.vars "ro" ∧ ρ'.vars "cnted" = ρ.vars "cnted")) := by
+whose slot names a larger vertex.
+
+Stated as a `Spec`, which is what makes the next lemma but one possible.
+What the block leaves alone is *not* stated: `countBlock.wvars` is
+`["ro", "cnted"]`, and `Spec.frame` hands a caller the other four
+conditions off the syntax. -/
+theorem countBlock_spec (h1B : 1 < B) :
+    Spec B (fun ρ => ρ.vars "cnted" < B ∧ ρ.vars "u" < B ∧ ρ.vars "w" < B ∧
+        (ρ.vars "cnted" = 0 → ρ.vars "u" < ρ.vars "w" → ρ.vars "ro" + 1 < B))
+      countBlock CountVerdict 20 := by
+  rintro ρ ⟨hcB, huB, hwB, hroB⟩
   by_cases hc0 : ρ.vars "cnted" = 0
   · by_cases hlt : ρ.vars "u" < ρ.vars "w"
     · have hroB' := hroB hc0 hlt
-      refine ⟨(ρ.setVar "ro" (ρ.vars "ro" + 1)).setVar "cnted" 1, 20,
+      exact ⟨(ρ.setVar "ro" (ρ.vars "ro" + 1)).setVar "cnted" 1,
         (Run.ite_true ((evalB_condEq (evalB_var hcB) (evalB_lit (by omega))).trans
             (by simp [hc0]))
           (Run.ite_true ((evalB_condLt (evalB_var huB) (evalB_var hwB)).trans
               (by simp [hlt]))
             (Run.seq (Run.assign (v := ρ.vars "ro" + 1) (by simp; omega))
               (Run.assign (v := 1) (by simp; omega))))).mono (by simp),
-        le_rfl, rfl, rfl, rfl, ?_, Or.inl ⟨hc0, hlt, by simp, by simp⟩⟩
-      intro y h1 h2
-      simp [h1, h2]
-    · refine ⟨ρ, 20, (Run.ite_true ((evalB_condEq (evalB_var hcB) (evalB_lit (by omega))).trans
+        Or.inl ⟨hc0, hlt, by simp, by simp⟩⟩
+    · exact ⟨ρ, (Run.ite_true ((evalB_condEq (evalB_var hcB) (evalB_lit (by omega))).trans
           (by simp [hc0]))
           (Run.ite_false ((evalB_condLt (evalB_var huB) (evalB_var hwB)).trans
             (by simp [hlt])) Run.skip)).mono (by simp),
-        le_rfl, rfl, rfl, rfl, fun y _ _ => rfl,
         Or.inr ⟨fun h => hlt h.2, rfl, rfl⟩⟩
-  · refine ⟨ρ, 20, (Run.ite_false ((evalB_condEq (evalB_var hcB) (evalB_lit (by omega))).trans
-        (by simp [hc0])) Run.skip).mono (by simp),
-      le_rfl, rfl, rfl, rfl, fun y _ _ => rfl, Or.inr ⟨fun h => hc0 h.1, rfl, rfl⟩⟩
+  · exact ⟨ρ, (Run.ite_false ((evalB_condEq (evalB_var hcB) (evalB_lit (by omega))).trans
+      (by simp [hc0])) Run.skip).mono (by simp),
+      Or.inr ⟨fun h => hc0 h.1, rfl, rfl⟩⟩
 
 /-- **The distinct-target half.** On the block's first unmarked slot it
 records the target in `t1`; on a later one it raises the flag exactly
 when the target differs, keeping the witness the flag already has. -/
-theorem seenBlock_run {ρ : Env} (h1B : 1 < B) (hsB : ρ.vars "seen" < B)
-    (htB : ρ.vars "t1" < B) (hwB : ρ.vars "w" < B) (hfB : ρ.vars "found" < B)
-    (hf01 : ρ.vars "found" ≤ 1) (huB : ρ.vars "u" < B) :
-    ∃ ρ' K, Run B seenBlock ρ ρ' K ∧ K ≤ 30 ∧ ρ'.arrs = ρ.arrs ∧ ρ'.inp = ρ.inp ∧
-      ρ'.out = ρ.out ∧
-      (∀ y, y ≠ "seen" → y ≠ "t1" → y ≠ "found" → y ≠ "v" → ρ'.vars y = ρ.vars y) ∧
-      ((ρ.vars "seen" = 0 ∧ ρ'.vars "seen" = 1 ∧ ρ'.vars "t1" = ρ.vars "w" ∧
-          ρ'.vars "found" = ρ.vars "found" ∧ ρ'.vars "v" = ρ.vars "v") ∨
-       (ρ.vars "seen" ≠ 0 ∧ ρ.vars "w" = ρ.vars "t1" ∧ ρ'.vars "seen" = ρ.vars "seen" ∧
-          ρ'.vars "t1" = ρ.vars "t1" ∧ ρ'.vars "found" = ρ.vars "found" ∧
-          ρ'.vars "v" = ρ.vars "v") ∨
-       (ρ.vars "seen" ≠ 0 ∧ ρ.vars "w" ≠ ρ.vars "t1" ∧ ρ'.vars "seen" = ρ.vars "seen" ∧
-          ρ'.vars "t1" = ρ.vars "t1" ∧ ρ'.vars "found" = 1 ∧
-          ((ρ.vars "found" = 0 ∧ ρ'.vars "v" = ρ.vars "u") ∨
-            (ρ.vars "found" = 1 ∧ ρ'.vars "v" = ρ.vars "v")))) := by
+theorem seenBlock_spec (h1B : 1 < B) :
+    Spec B (fun ρ => ρ.vars "seen" < B ∧ ρ.vars "t1" < B ∧ ρ.vars "w" < B ∧
+        ρ.vars "found" < B ∧ ρ.vars "found" ≤ 1 ∧ ρ.vars "u" < B)
+      seenBlock SeenVerdict 30 := by
   have hrec : ∀ σ : Env, σ.vars "found" < B → σ.vars "u" < B →
-      ∃ σ' K, Run B recordFound σ σ' K ∧ K ≤ 15 ∧ σ'.arrs = σ.arrs ∧ σ'.inp = σ.inp ∧
-        σ'.out = σ.out ∧ (∀ y, y ≠ "found" → y ≠ "v" → σ'.vars y = σ.vars y) ∧
+      ∃ σ' K, Run B recordFound σ σ' K ∧ K ≤ 15 ∧
         ((σ.vars "found" = 0 ∧ σ'.vars "found" = 1 ∧ σ'.vars "v" = σ.vars "u") ∨
           (σ.vars "found" ≠ 0 ∧ σ'.vars "found" = σ.vars "found" ∧
             σ'.vars "v" = σ.vars "v")) := by
     intro σ hfσ huσ
     by_cases hf0 : σ.vars "found" = 0
-    · refine ⟨(σ.setVar "found" 1).setVar "v" (σ.vars "u"), 15,
+    · exact ⟨(σ.setVar "found" 1).setVar "v" (σ.vars "u"), 15,
         (Run.ite_true ((evalB_condEq (evalB_var hfσ) (evalB_lit (by omega))).trans
             (by simp [hf0]))
           (Run.seq (Run.assign (v := 1) (by simp; omega))
             (Run.assign (v := σ.vars "u") (by simp; omega)))).mono (by simp),
-        le_rfl, rfl, rfl, rfl, ?_, Or.inl ⟨hf0, by simp, by simp⟩⟩
-      intro y h1 h2
-      simp [h1, h2]
+        le_rfl, Or.inl ⟨hf0, by simp, by simp⟩⟩
     · exact ⟨σ, 15, (Run.ite_false ((evalB_condEq (evalB_var hfσ) (evalB_lit (by omega))).trans
         (by simp [hf0])) Run.skip).mono (by simp),
-        le_rfl, rfl, rfl, rfl, fun y _ _ => rfl, Or.inr ⟨hf0, rfl, rfl⟩⟩
+        le_rfl, Or.inr ⟨hf0, rfl, rfl⟩⟩
+  rintro ρ ⟨hsB, htB, hwB, hfB, hf01, huB⟩
   by_cases hs0 : ρ.vars "seen" = 0
-  · refine ⟨(ρ.setVar "seen" 1).setVar "t1" (ρ.vars "w"), 30,
+  · exact ⟨(ρ.setVar "seen" 1).setVar "t1" (ρ.vars "w"),
       (Run.ite_true ((evalB_condEq (evalB_var hsB) (evalB_lit (by omega))).trans
           (by simp [hs0]))
         (Run.seq (Run.assign (v := 1) (by simp; omega))
           (Run.assign (v := ρ.vars "w") (by simp; omega)))).mono (by simp),
-      le_rfl, rfl, rfl, rfl, ?_, Or.inl ⟨hs0, by simp, by simp, by simp, by simp⟩⟩
-    intro y h1 h2 h3 h4
-    simp [h1, h2]
+      Or.inl ⟨hs0, by simp, by simp, by simp, by simp⟩⟩
   · by_cases hwt : ρ.vars "w" = ρ.vars "t1"
-    · refine ⟨ρ, 30, (Run.ite_false ((evalB_condEq (evalB_var hsB) (evalB_lit (by omega))).trans
+    · exact ⟨ρ, (Run.ite_false ((evalB_condEq (evalB_var hsB) (evalB_lit (by omega))).trans
           (by simp [hs0]))
           (Run.ite_false ((evalB_condLt (evalB_var hwB) (evalB_var htB)).trans (by simp [hwt]))
             (Run.ite_false ((evalB_condLt (evalB_var htB) (evalB_var hwB)).trans
               (by simp [hwt])) Run.skip))).mono (by simp),
-        le_rfl, rfl, rfl, rfl, fun y _ _ _ _ => rfl,
         Or.inr (Or.inl ⟨hs0, hwt, rfl, rfl, rfl, rfl⟩)⟩
-    · obtain ⟨ρ', K, hrun, hK, harr, hinp, hout, hfr, hcase⟩ := hrec ρ hfB huB
+    · obtain ⟨ρ', K, hrun, hK, hcase⟩ := hrec ρ hfB huB
       have hgoal : ∃ K', Run B (.ite (.lt (.var "w") (.var "t1")) recordFound
           (.ite (.lt (.var "t1") (.var "w")) recordFound .skip)) ρ ρ' K' ∧ K' ≤ 24 := by
         rcases Nat.lt_or_ge (ρ.vars "w") (ρ.vars "t1") with h | h
@@ -917,14 +902,65 @@ theorem seenBlock_run {ρ : Env} (h1B : 1 < B) (hsB : ρ.vars "seen" < B)
             (Run.ite_true ((evalB_condLt (evalB_var htB) (evalB_var hwB)).trans
               (by simp; omega)) hrun), by simp; omega⟩
       obtain ⟨K', hrun', hK'⟩ := hgoal
-      refine ⟨ρ', 30, (Run.ite_false ((evalB_condEq (evalB_var hsB)
+      refine ⟨ρ', (Run.ite_false ((evalB_condEq (evalB_var hsB)
         (evalB_lit (by omega))).trans (by simp [hs0])) hrun').mono (by simp; omega),
-        le_rfl, harr, hinp, hout, fun y h1 h2 h3 h4 => hfr y h3 h4, Or.inr (Or.inr ?_)⟩
-      have hsu : ρ'.vars "seen" = ρ.vars "seen" := hfr "seen" (by decide) (by decide)
-      have htu : ρ'.vars "t1" = ρ.vars "t1" := hfr "t1" (by decide) (by decide)
+        Or.inr (Or.inr ?_)⟩
+      have hsu : ρ'.vars "seen" = ρ.vars "seen" := hrun.frame_var "seen" (by decide)
+      have htu : ρ'.vars "t1" = ρ.vars "t1" := hrun.frame_var "t1" (by decide)
       rcases hcase with ⟨hf0, hf1, hv⟩ | ⟨hf0, hf1, hv⟩
       · exact ⟨hs0, hwt, hsu, htu, hf1, Or.inl ⟨hf0, hv⟩⟩
       · exact ⟨hs0, hwt, hsu, htu, by omega, Or.inr ⟨by omega, hv⟩⟩
+
+/-- **A residual slot's two halves, composed.** `countBlock` then
+`seenBlock`, assembled by `Spec.seq` out of the two specifications above
+and nothing else — no `obtain`, no reassembled `refine`.
+
+The composite is stated entirely in the environment the slot started in.
+That is what `Spec.frame` buys: the intermediate state is not mentioned,
+because each half's registers are carried across the other half by the
+frame rule — `seen`, `t1`, `w`, `found`, `v` and `u` past `countBlock`,
+`ro` and `cnted` past `seenBlock`, all by `decide` on the syntax. Doing
+it by hand is six equations at the call site, once per register. -/
+theorem countSeenBlock_spec (h1B : 1 < B) :
+    Spec B (fun ρ => ρ.vars "cnted" < B ∧ ρ.vars "u" < B ∧ ρ.vars "w" < B ∧
+        ρ.vars "seen" < B ∧ ρ.vars "t1" < B ∧ ρ.vars "found" < B ∧ ρ.vars "found" ≤ 1 ∧
+        (ρ.vars "cnted" = 0 → ρ.vars "u" < ρ.vars "w" → ρ.vars "ro" + 1 < B))
+      (.seq countBlock seenBlock)
+      (fun ρ ρ' => CountVerdict ρ ρ' ∧ SeenVerdict ρ ρ') 50 :=
+  (((countBlock_spec h1B).frame.pre
+      (fun _ h => ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.2.2.2.2⟩)).seq (seenBlock_spec h1B).frame
+    -- the second half's precondition, carried across the first by its frame
+    (fun ρ ρ₂ hP hQ => ⟨by rw [hQ.2.1 "seen" (by decide)]; exact hP.2.2.2.1,
+      by rw [hQ.2.1 "t1" (by decide)]; exact hP.2.2.2.2.1,
+      by rw [hQ.2.1 "w" (by decide)]; exact hP.2.2.1,
+      by rw [hQ.2.1 "found" (by decide)]; exact hP.2.2.2.2.2.1,
+      by rw [hQ.2.1 "found" (by decide)]; exact hP.2.2.2.2.2.2.1,
+      by rw [hQ.2.1 "u" (by decide)]; exact hP.2.1⟩)
+    -- and each half's verdict, carried across the other the same way
+    (fun ρ ρ₂ ρ' _ hQ hQ' => by
+      have hro : ρ'.vars "ro" = ρ₂.vars "ro" := hQ'.2.1 "ro" (by decide)
+      have hcn : ρ'.vars "cnted" = ρ₂.vars "cnted" := hQ'.2.1 "cnted" (by decide)
+      have hse : ρ₂.vars "seen" = ρ.vars "seen" := hQ.2.1 "seen" (by decide)
+      have ht1 : ρ₂.vars "t1" = ρ.vars "t1" := hQ.2.1 "t1" (by decide)
+      have hw : ρ₂.vars "w" = ρ.vars "w" := hQ.2.1 "w" (by decide)
+      have hfo : ρ₂.vars "found" = ρ.vars "found" := hQ.2.1 "found" (by decide)
+      have hv : ρ₂.vars "v" = ρ.vars "v" := hQ.2.1 "v" (by decide)
+      have hu : ρ₂.vars "u" = ρ.vars "u" := hQ.2.1 "u" (by decide)
+      constructor
+      · rcases hQ.1 with ⟨h1, h2, h3, h4⟩ | ⟨h1, h2, h3⟩
+        · exact Or.inl ⟨h1, h2, by rw [hro, h3], by rw [hcn, h4]⟩
+        · exact Or.inr ⟨h1, by rw [hro, h2], by rw [hcn, h3]⟩
+      · rcases hQ'.1 with ⟨h1, h2, h3, h4, h5⟩ | ⟨h1, h2, h3, h4, h5, h6⟩ |
+          ⟨h1, h2, h3, h4, h5, h6⟩
+        · exact Or.inl ⟨by rw [← hse]; exact h1, h2, by rw [h3, hw],
+            by rw [h4, hfo], by rw [h5, hv]⟩
+        · exact Or.inr (Or.inl ⟨by rw [← hse]; exact h1, by rw [← hw, ← ht1]; exact h2,
+            by rw [h3, hse], by rw [h4, ht1], by rw [h5, hfo], by rw [h6, hv]⟩)
+        · refine Or.inr (Or.inr ⟨by rw [← hse]; exact h1, by rw [← hw, ← ht1]; exact h2,
+            by rw [h3, hse], by rw [h4, ht1], h5, ?_⟩)
+          rcases h6 with ⟨ha, hb⟩ | ⟨ha, hb⟩
+          · exact Or.inl ⟨by rw [← hfo]; exact ha, by rw [hb, hu]⟩
+          · exact Or.inr ⟨by rw [← hfo]; exact ha, by rw [hb, hv]⟩)).mono (by omega)
 
 /-! ### The descend scan
 
@@ -1259,9 +1295,11 @@ theorem descendScan_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
             (ρ₁.setVar "w" (target g (ρ₁.vars "j"))) = some true := by
           rw [hcondmark _ "w" hmarkρ₂ (by rw [hvw]; exact htjn), hvw]
           simp [hMKw]
-        obtain ⟨ρ₃, K₃, r₃, hK₃, ha₃, hi₃, ho₃, hv₃, hcase₃⟩ :=
-          countBlock_run (B := B) (ρ := ρ₁.setVar "w" (target g (ρ₁.vars "j")))
-            h1B (by simp; omega) (by simp; omega) (by rw [hvw]; omega) (by
+        obtain ⟨ρ₄, rblk, hcase₃, hcase₄⟩ :=
+          (countSeenBlock_spec (B := B) h1B).run
+            (σ := ρ₁.setVar "w" (target g (ρ₁.vars "j")))
+            ⟨by simp; omega, by simp; omega, by rw [hvw]; omega, by simp; omega,
+              by simp; omega, by simp; omega, by simp; omega, by
               intro hc0 hltw
               have hnotmem : (⟨ρ₁.vars "u", hu⟩ : Fin n) ∉ ResOwners g M (ρ₁.vars "j") := by
                 intro hmem
@@ -1276,32 +1314,19 @@ theorem descendScan_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
                 rw [hins, Finset.card_insert_of_notMem hnotmem]
               have := hcardle (ρ₁.vars "j" + 1)
               simp only [vars_setVar, if_neg (show ¬ ("ro" = "w") by decide)]
-              omega)
-        have hv₃u : ρ₃.vars "u" = ρ₁.vars "u" := by
-          rw [hv₃ "u" (by decide) (by decide)]; simp
-        have hv₃w : ρ₃.vars "w" = target g (ρ₁.vars "j") := by
-          rw [hv₃ "w" (by decide) (by decide), hvw]
-        obtain ⟨ρ₄, K₄, r₄, hK₄, ha₄, hi₄, ho₄, hv₄, hcase₄⟩ :=
-          seenBlock_run (B := B) (ρ := ρ₃) h1B
-            (by rw [hv₃ "seen" (by decide) (by decide)]; simp; omega)
-            (by rw [hv₃ "t1" (by decide) (by decide)]; simp; omega)
-            (by rw [hv₃w]; omega)
-            (by rw [hv₃ "found" (by decide) (by decide)]; simp; omega)
-            (by rw [hv₃ "found" (by decide) (by decide)]; simp; omega)
-            (by rw [hv₃u]; omega)
+              omega⟩
         have hj₄ : ρ₄.vars "j" = ρ₁.vars "j" := by
-          rw [hv₄ "j" (by decide) (by decide) (by decide) (by decide),
-            hv₃ "j" (by decide) (by decide)]
-          simp
+          rw [rblk.frame_var "j" (by decide)]; simp
         have hu₄ : ρ₄.vars "u" = ρ₁.vars "u" := by
-          rw [hv₄ "u" (by decide) (by decide) (by decide) (by decide),
-            hv₃ "u" (by decide) (by decide)]
-          simp
+          rw [rblk.frame_var "u" (by decide)]; simp
+        have hv₃w : (ρ₁.setVar "w" (target g (ρ₁.vars "j"))).vars "w" =
+            target g (ρ₁.vars "j") := hvw
+        have hv₃u : (ρ₁.setVar "w" (target g (ρ₁.vars "j"))).vars "u" = ρ₁.vars "u" := by simp
         have rslot : Run B slotStep ρ₁ (ρ₄.setVar "j" (ρ₁.vars "j" + 1)) 90 :=
           (Run.seq
-            (Run.ite_true hcu (Run.seq rw₁ (Run.ite_true hcw (Run.seq r₃ r₄))))
+            (Run.ite_true hcu (Run.seq rw₁ (Run.ite_true hcw rblk)))
             (Run.assign (v := ρ₁.vars "j" + 1) (by
-              simp [hj₄]; omega))).mono (by simp; omega)
+              simp [hj₄]; omega))).mono (by simp)
         refine ⟨ρ₄.setVar "j" (ρ₁.vars "j" + 1), K₁ + 90, Run.seq r₁ rslot, ?_, ?_⟩
         · -- the invariant, after a residual slot
           have hju : (ρ₄.setVar "j" (ρ₁.vars "j" + 1)).vars "u" = ρ₁.vars "u" := by
@@ -1309,30 +1334,27 @@ theorem descendScan_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
           have hjj : (ρ₄.setVar "j" (ρ₁.vars "j" + 1)).vars "j" = ρ₁.vars "j" + 1 := by simp
           have hmk : (⟨(ρ₄.setVar "j" (ρ₁.vars "j" + 1)).vars "u", hju ▸ hu⟩ : Fin n) =
               ⟨ρ₁.vars "u", hu⟩ := Fin.ext hju
-          have hro₄ : (ρ₄.setVar "j" (ρ₁.vars "j" + 1)).vars "ro" = ρ₃.vars "ro" := by
-            rw [vars_setVar, if_neg (by decide), hv₄ "ro" (by decide) (by decide)
-              (by decide) (by decide)]
-          have hcn₄ : (ρ₄.setVar "j" (ρ₁.vars "j" + 1)).vars "cnted" = ρ₃.vars "cnted" := by
-            rw [vars_setVar, if_neg (by decide), hv₄ "cnted" (by decide) (by decide)
-              (by decide) (by decide)]
+          have hro₄ : (ρ₄.setVar "j" (ρ₁.vars "j" + 1)).vars "ro" = ρ₄.vars "ro" := by simp
+          have hcn₄ : (ρ₄.setVar "j" (ρ₁.vars "j" + 1)).vars "cnted" = ρ₄.vars "cnted" := by
+            simp
           have hse₄ : (ρ₄.setVar "j" (ρ₁.vars "j" + 1)).vars "seen" = ρ₄.vars "seen" := by
             simp
           have ht1₄ : (ρ₄.setVar "j" (ρ₁.vars "j" + 1)).vars "t1" = ρ₄.vars "t1" := by simp
           have hfo₄ : (ρ₄.setVar "j" (ρ₁.vars "j" + 1)).vars "found" = ρ₄.vars "found" := by
             simp
           have hvv₄ : (ρ₄.setVar "j" (ρ₁.vars "j" + 1)).vars "v" = ρ₄.vars "v" := by simp
-          have hseenρ₃ : ρ₃.vars "seen" = ρ₁.vars "seen" := by
-            rw [hv₃ "seen" (by decide) (by decide)]; simp
-          have ht1ρ₃ : ρ₃.vars "t1" = ρ₁.vars "t1" := by
-            rw [hv₃ "t1" (by decide) (by decide)]; simp
-          have hfoundρ₃ : ρ₃.vars "found" = ρ₁.vars "found" := by
-            rw [hv₃ "found" (by decide) (by decide)]; simp
-          have hvρ₃ : ρ₃.vars "v" = ρ₁.vars "v" := by
-            rw [hv₃ "v" (by decide) (by decide)]; simp
+          have hseenρ₃ : (ρ₁.setVar "w" (target g (ρ₁.vars "j"))).vars "seen" =
+            ρ₁.vars "seen" := by simp
+          have ht1ρ₃ : (ρ₁.setVar "w" (target g (ρ₁.vars "j"))).vars "t1" =
+            ρ₁.vars "t1" := by simp
+          have hfoundρ₃ : (ρ₁.setVar "w" (target g (ρ₁.vars "j"))).vars "found" =
+            ρ₁.vars "found" := by simp
+          have hvρ₃ : (ρ₁.setVar "w" (target g (ρ₁.vars "j"))).vars "v" =
+            ρ₁.vars "v" := by simp
           refine ⟨fun y hy => ?_,
-            by rw [arrs_setVar, ha₄, ha₃, arrs_setVar, harrs],
-            by rw [inp_setVar, hi₄, hi₃, inp_setVar, hinp],
-            by rw [out_setVar, ho₄, ho₃, out_setVar, hout], ?_, ?_, ?_, ?_,
+            by rw [arrs_setVar, rblk.frame_arrs_eqOn (by decide), arrs_setVar, harrs],
+            by rw [inp_setVar, rblk.frame_inp (by decide), inp_setVar, hinp],
+            by rw [out_setVar, rblk.out_eq (by decide), out_setVar, hout], ?_, ?_, ?_, ?_,
             by rw [hju]; exact hun, by rw [hju, hjj]; omega, by rw [hju, hjj]; omega,
             by rw [hjj]; omega, ?_, ?_, ?_, ?_⟩
           · exact (rslot.frame_var_sub y wvars_slotStep_sub hy).trans (hfr y hy)

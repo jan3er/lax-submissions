@@ -308,7 +308,7 @@ registered, `pull-db` broken) is unresolved and untouched by this work.
 ## Progress log
 
 - [x] **P1 frame rule — done, both acceptance tests passed.**
-- [ ] P2 spec triples
+- [x] **P2 spec triples — done, acceptance passed.**
 - [ ] P3 `run_step` tactic
 - [ ] P4 data-structure library
 - [ ] P5 pilot retrofit (Lax11 CC) — **gate: ≤ 40% of 1,655 lines**
@@ -407,9 +407,87 @@ in the *statement* (four conjuncts and one parameter off `readLoop_run`
 and `ReadInv`, ~14 lines of proof) and in not having to re-establish
 frames when phases compose. The line win the campaign is after is P2–P4.
 
+### P2, as built (2026-07-28)
+
+`word-ram/proofs/Lax13Proofs/Spec.lean`, imported from `Lax13Proofs.lean`
+and by `Lax15Proofs/Program.lean`. Green with zero `sorry` across all
+three packages.
+
+`Spec B P c Q K` is the rev-1 definition unchanged. What shipped with
+it: `Spec.run` and **`Spec.of_exists`** (the bridge from the existing
+`∃ ρ' K, Run … ∧ K ≤ … ∧ Q` phase-lemma shape, which every retrofit will
+cross), `mono`, `conseq`, `pre`, `post`, `frame`, `skip`, `assign`,
+`store`, `seq`, `seq'`, `ite`, `while_potential`, `while_count` and
+`forRange`.
+
+Three shape decisions, all reversible:
+
+1. **`Spec.frame` strengthens a postcondition rather than being a rule
+   with a frame premise.** `h.frame` conjoins all four frame conditions
+   — `wvars`, `warrs`, `reads`, `NoWrite` — onto `Q`, asking the caller
+   nothing. A user picks the one wanted with `by decide`. This is what
+   makes the composite below mention no intermediate state.
+2. **The loop rules keep `Run.while_potential`'s step obligation
+   verbatim**, existential cost and all. A `Spec`'s single `K` cannot
+   express a per-turn cost that varies, and that is exactly what an
+   amortized loop needs, so the potential stays where it works and the
+   `Spec` packages only the *exported* constant.
+3. **`Spec.forRange` is stated over `while x < m do c`, not over a new
+   `Com` combinator.** Every flat scan in the repo already has that
+   syntax; a combinator would have meant editing program text and every
+   cost proof underneath it. The caller owes a body spec that moves `x`
+   up by one, and `x ≤ N`, `x, m < B`; it owes neither a potential nor a
+   variant, and gets back `σ'.vars x = N` rather than a failed condition
+   to read again.
+
+`lt_of_condLt_true` and `le_of_condLt_false` **moved into the kit** from
+`Lax15Proofs/Phases.lean`, where they had been sitting as local lemmas
+with eighteen uses across three files. `Spec.forRange` needs them, they
+are about `Cond` and not about vertex cover, and the move is invisible
+at the call sites — but note the failure mode it caused on the way:
+until the Lax15 copies were deleted, every use was an *ambiguous term*
+error, not a shadowing warning.
+
+**Acceptance — passed.** `countBlock_run` and `seenBlock_run` are now
+`countBlock_spec` and `seenBlock_spec`, and `countSeenBlock_spec` is
+their composition, built by
+
+    ((countBlock_spec h1B).frame.pre …).seq (seenBlock_spec h1B).frame hmid hpost
+
+with `hmid` and `hpost` written entirely in frame lookups
+(`hQ.2.1 "seen" (by decide)`) — no `obtain`, no reassembled `refine`,
+no `Run` mentioned. The composite is stated **in the slot's initial
+environment only**: the intermediate state is gone, because each half's
+registers cross the other half by the frame rule. The two verdicts are
+named (`CountVerdict`, `SeenVerdict`, `abbrev` so that `rcases` still
+sees the disjunction) rather than written twice.
+
+`descendScan_run`'s residual-slot branch consumes the composite: two
+`obtain`s became one, and the six hand-written translations from the
+intermediate environment (`hseenρ₃`, `ht1ρ₃`, `hfoundρ₃`, `hvρ₃`,
+`hv₃u`, `hv₃w`) became `by simp` against the `setVar` that is now the
+only thing between the two environments. The arrays, the input and the
+output tape come off `rblk` by `frame_arrs_eqOn` / `frame_inp` /
+`out_eq`, all `by decide`.
+
+**Numbers.** `Phases.lean` +22 lines net (the two `abbrev` verdicts and
+the composite's own statement, against 25 lines saved at the call site
+and 14 by the two lemmas leaving for the kit); `Spec.lean` is 300 lines
+including its header. Elaboration: `Lax15Proofs.Phases` 18 s before and
+after, full `vertex-cover-ladder/proofs` 1 min 55 s against the 2 min
+41 s recorded in P1 — no regression, and the interface costs nothing at
+elaboration time.
+
+The line win is still ahead: P2 pays when phases are *written* in
+`Spec`, not when one composition is retrofitted. What P2 proves is that
+a real pair of phase lemmas fits the interface and composes as a term.
+
 ## Handoff notes
 
-The next session picks up at P2.
+The next session picks up at P3, the `run_step` tactic. `Spec.assign` /
+`Spec.seq` / `Spec.ite` are the rules it should be emitting, and
+`Spec.of_exists` is how it can be introduced under an existing phase
+lemma without restating it.
 Working model, per Jan: **Fable supervises, Opus subagents write the
 Lean.** Concretely — the supervisor holds the plan, decides scope and
 acceptance, runs the builds and commits; each proof-shaped unit (one
