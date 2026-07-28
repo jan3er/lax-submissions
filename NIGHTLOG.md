@@ -3011,6 +3011,20 @@ polish (non-blocking): FarQuant carries private copies of a few BC
 helpers; could later import BCAlgebra instead. Next: P3 splitter +
 covers (plan L2 items 7–9), on the now-live locality interface.
 
+## IMP+ toolkit — P7 done, campaign closed — 2026-07-28
+Jan chose option (a): P6 out of scope, close via P7. Sibling path
+requires kept (Jan, mid-P7) — the wave submit orders folders along
+them and the pin is the submitted repo rev. The full pipeline caught
+one violation package builds miss (root module must import the Lib
+submodules individually; fixed). Wave Lax13 -> Lax11 -> Lax15
+submitted as drafts at rev 5733671, all three confirmed in the draft
+state; registration untouched per the JAN-FLAG. The campaign closes
+with the kit consumer-tested and faster everywhere, and the ND-MC
+RAM phases (P5-P7) are now un-gated. Operating guidance for them,
+from the pilot: write machine code in Spec form from the start —
+group consecutive phases into one handed spec, state invariants once
+— and the hand-off tax that killed the retrofit gate never arises.
+
 ## ND-MC P3 — splitter game + covers discharged, P3 complete in one session — 2026-07-28
 Jan: "continue with the nowhere dense plan … full authority"; session
 branch fast-forwarded onto main (5733671) first. Supervised session,
@@ -3041,3 +3055,4 @@ discharges as registered, build-output.json carries all four
 conclusions. P3 acceptance met in 1 session of the budgeted 2–4.
 Commit 064c51e. Next: P4 abstract evaluator (L3 items 10–12,
 isolation rewrite first — R2), D12 gate with Jan after.
+
