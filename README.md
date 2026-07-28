@@ -29,7 +29,7 @@ Submission directories currently in this repository:
 - `sparsity-lectures/` — **Lax12**: nowhere denseness, uniform
   quasi-wideness, shallow-minor density, the generalized coloring
   numbers, and neighborhood complexity, in the statement forms of the
-  Pilipczuk–Pilipczuk sparsity lecture notes (fifteen concepts; the
+  Pilipczuk–Siebertz sparsity lecture notes (fifteen concepts; the
   headline weak-coloring theorem is concluded by a glue proof assuming
   the four chain statements, and the almost-linear neighborhood
   complexity of nowhere dense classes assumes it in turn). Depends on

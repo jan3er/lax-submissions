@@ -39,9 +39,9 @@ number, which closes the chain.
 # Attribution
 
 The statement is Lemma 2.6 of Chapter 2 of the sparsity lecture notes of
-Pilipczuk and Pilipczuk (2019/20 edition).  The proof is a port of the
-formalization accompanying those notes, whose per-order version is
-`Lax12Proofs.OrderedParameterBounds.wcol_le_of_scol`.
+Pilipczuk and Siebertz (numbering of the 2019/20 edition).  The proof is
+a port of the formalization accompanying those notes, whose per-order
+version is `Lax12Proofs.OrderedParameterBounds.wcol_le_of_scol`.
 -/
 theorem wcol_le_of_scol {n : ℕ} (G : SimpleGraph (Fin n)) (r : ℕ) :
     wcol G r ≤ 1 + r * (scol G r - 1) ^ r := by

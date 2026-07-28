@@ -48,7 +48,7 @@ rest on; they *assume* it, from two upstream submissions, so that the
 dependency is visible in the archive's proof network. Uniform quasi-wideness
 of nowhere dense classes, and their almost linear neighborhood complexity,
 are assumed from the *Sparsity Lectures* submission (Lax12), which
-formalizes the lecture notes of Pilipczuk, Pilipczuk and Siebertz; Ramsey's
+formalizes the lecture notes of Pilipczuk and Siebertz; Ramsey's
 theorem for colourings of pairs and its order-type form for tuples are
 assumed from the *Finite Ramsey* submission (Lax14). Inside this submission
 the same discipline applies: the terminal step of the headline proof

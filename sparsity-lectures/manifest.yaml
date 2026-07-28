@@ -9,10 +9,11 @@ authors:
 bibEntries:
   - |
     @misc{pilipczuk-sparsity-notes,
-      author = {Marcin Pilipczuk and Micha{\l} Pilipczuk},
-      title  = {Sparsity --- lecture notes for the course ``Sparsity'', winter term 2019/20},
+      author = {Micha{\l} Pilipczuk and Sebastian Siebertz},
+      title  = {Sparsity --- lecture notes for the course ``Sparsity''},
       year   = {2020},
       note   = {University of Warsaw, Faculty of Mathematics, Informatics and Mechanics.
+                Cited by the numbering of the winter term 2019/20 edition;
                 Chapter~1 compiled 2020-01-24; Chapter~2 compiled 2019-11-22;
                 Chapter~4 compiled 2019-12-12},
       url    = {https://www.mimuw.edu.pl/~mp248287/sparsity2/}

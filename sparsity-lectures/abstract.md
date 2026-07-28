@@ -1,9 +1,9 @@
 This submission states the core sparsity theory of nowhere dense graph
 classes, largely in the development of the lecture notes *Sparsity* of
-Pilipczuk, Pilipczuk and Siebertz: nowhere dense classes are uniformly
-quasi-wide, the shallow minors of their members have subpolynomial edge
-density, an edge-density bound on shallow topological minors bounds
-admissibility, admissibility bounds the strong coloring number, the strong
+Pilipczuk and Siebertz: nowhere dense classes are uniformly quasi-wide,
+the shallow minors of their members have subpolynomial edge density, an
+edge-density bound on shallow topological minors bounds admissibility,
+admissibility bounds the strong coloring number, the strong
 coloring number bounds the weak coloring number, and — as the composition
 of the last four — nowhere dense classes have subpolynomial weak coloring
 numbers. Weak coloring numbers control how many distinct traces vertex
@@ -74,11 +74,11 @@ two Ramsey statements of the submission *Finite Ramsey Theorems for Pairs
 and Tuples*, so that dependency is visible on the archive as well.
 
 Except for the neighborhood-complexity theorem, all material is from the
-lecture notes *Sparsity* taught at the University of Warsaw; the numbering
-above follows the 2019/20 edition of Marcin Pilipczuk and Michał
-Pilipczuk, whose 2017/18 predecessor by Michał Pilipczuk and Sebastian
-Siebertz carries the same statements under sequential numbering. The
-neighborhood-complexity bound is due to Eickmeyer, Giannopoulou, Kreutzer,
-Kwon, Pilipczuk, Rabinovich and Siebertz; the radius-1 derivation from the
-weak coloring numbers formalized here follows Corollary 6b of Dreier,
+lecture notes *Sparsity* of Michał Pilipczuk and Sebastian Siebertz,
+taught at the University of Warsaw; the numbering above follows the
+2019/20 edition of the course, whose 2017/18 predecessor carries the same
+statements under sequential numbering. The neighborhood-complexity bound
+is due to Eickmeyer, Giannopoulou, Kreutzer, Kwon, Pilipczuk, Rabinovich
+and Siebertz; the radius-1 derivation from the weak coloring numbers
+formalized here follows Corollary 6b of Dreier,
 Mählmann, McCarty, Pilipczuk and Toruńczyk.

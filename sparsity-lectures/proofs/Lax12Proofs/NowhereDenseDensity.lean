@@ -42,9 +42,9 @@ the notes themselves record immediately after the theorem.
 # Attribution
 
 The statement is Theorem 3.1 of Chapter 1 of the sparsity lecture notes
-of Pilipczuk and Pilipczuk (2019/20 edition), whose presented proof is
-credited there to Zdeněk Dvořák.  The proof is a port of the
-formalization accompanying those notes, whose threshold version is
+of Pilipczuk and Siebertz (numbering of the 2019/20 edition), whose
+presented proof is credited there to Zdeněk Dvořák.  The proof is a port
+of the formalization accompanying those notes, whose threshold version is
 `Lax12Proofs.DensityOfShallowMinors.nd_subpolynomial_density`.
 -/
 theorem hasSubpolynomialDensity_of_nowhereDense (C : GraphClass)

@@ -4,7 +4,7 @@ Goal: the vendored catalog port in
 `monadic-dependence-neighborhood-complexity/proofs/Lax5Proofs/Source/Catalog/SparsityLectures/`
 (~7k lines, 19 modules) becomes its own submission **`sparsity-lectures/`**
 (id allocated by `lax init`; called **LaxS** below). Everything in it is from
-the sparsity lecture notes of Pilipczuk, Pilipczuk, Siebertz — hence the name.
+the sparsity lecture notes of Pilipczuk and Siebertz — hence the name.
 Three deliverables:
 
 1. **Standalone concepts for the gems hidden in the proofs** — uniform
@@ -1416,7 +1416,7 @@ Resulting Lax5 proof network, previously invisible:
   the deliberate nominal duplication of the shallow-minor and
   weak-coloring definitions across the two submissions and that the
   transport is definitional.
-- `manifest.yaml`: optionally add a bibEntry for the Pilipczuk–Pilipczuk–Siebertz
+- `manifest.yaml`: optionally add a bibEntry for the Pilipczuk–Siebertz
   lecture notes, which are now an external dependency rather than vendored
   source. No other key changes (`id`, pins, authors unchanged).
 

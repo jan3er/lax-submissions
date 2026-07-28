@@ -8,8 +8,8 @@ extracted with `pdftotext -layout`; math re-typeset in LaTeX-ish ASCII).
 
 **Primary (the one the vendored code cites).**
 
-> Marcin Pilipczuk, Michał Pilipczuk. *Sparsity* — lecture notes for the
-> course "Sparsity", winter term 2019/20, Faculty of Mathematics,
+> Michał Pilipczuk, Sebastian Siebertz. *Sparsity* — lecture notes for the
+> course "Sparsity", as taught in winter term 2019/20, Faculty of Mathematics,
 > Informatics and Mechanics, University of Warsaw.
 > Course page: <https://www.mimuw.edu.pl/~mp248287/sparsity2/>
 > Chapters (individual PDFs), with the compilation date printed on the
@@ -26,8 +26,13 @@ extracted with `pdftotext -layout`; math re-typeset in LaTeX-ish ASCII).
 
 The 2019/20 edition is the one whose numbering matches the vendored code:
 its Chapter 2 contains **Lemma 2.5**, **Lemma 2.6**, **Corollary 2.7**
-exactly as cited. Instructors on the 2019/20 page are *Marcin Pilipczuk
-and Michał Pilipczuk*; the notes carry no author line inside the PDFs.
+exactly as cited. The notes carry no author line inside the PDFs; the
+instructors listed on the 2019/20 course page are *Marcin Pilipczuk and
+Michał Pilipczuk*, but the notes themselves are the work of **Michał
+Pilipczuk and Sebastian Siebertz** (Marcin Pilipczuk only stood in for
+the course that year, per Jan Dreier 2026-07-28), so that is the
+attribution used throughout the repository — the 2019/20 edition is cited
+only because its numbering is the one the statements follow.
 
 **Secondary (previous edition).**
 
@@ -49,10 +54,11 @@ web search turns up only the two course pages. Suggested manifest
 
 ```
 @misc{pilipczuk-sparsity-notes,
-  author = {Marcin Pilipczuk and Micha{\l} Pilipczuk},
-  title  = {Sparsity --- lecture notes for the course ``Sparsity'', winter term 2019/20},
+  author = {Micha{\l} Pilipczuk and Sebastian Siebertz},
+  title  = {Sparsity --- lecture notes for the course ``Sparsity''},
   year   = {2020},
   note   = {University of Warsaw, Faculty of Mathematics, Informatics and Mechanics.
+            Cited by the numbering of the winter term 2019/20 edition;
             Chapter~1 compiled 2020-01-24; Chapter~2 compiled 2019-11-22;
             Chapter~4 compiled 2019-12-12},
   url    = {https://www.mimuw.edu.pl/~mp248287/sparsity2/}

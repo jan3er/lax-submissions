@@ -38,9 +38,9 @@ monotone in the admissibility, which closes the chain.
 # Attribution
 
 The statement is Lemma 2.5 of Chapter 2 of the sparsity lecture notes of
-Pilipczuk and Pilipczuk (2019/20 edition).  The proof is a port of the
-formalization accompanying those notes, whose per-order version is
-`Lax12Proofs.ScolByAdm.scol_le_one_add_adm_sub_one_pow`.
+Pilipczuk and Siebertz (numbering of the 2019/20 edition).  The proof is
+a port of the formalization accompanying those notes, whose per-order
+version is `Lax12Proofs.ScolByAdm.scol_le_one_add_adm_sub_one_pow`.
 -/
 theorem scol_le_of_adm {n : ℕ} (G : SimpleGraph (Fin n)) (r : ℕ) :
     scol G r ≤ 1 + (adm G r - 1) ^ r := by

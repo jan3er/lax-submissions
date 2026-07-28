@@ -50,9 +50,9 @@ assumed rather than reproved here.
 # Attribution
 
 The statement is Lemma 3.4 of Chapter 4 of the sparsity lecture notes of
-Pilipczuk and Pilipczuk (2019/20 edition), the hard direction of their
-Theorem 3.2.  The proof is a port of the formalization accompanying those
-notes, whose type-polymorphic version is
+Pilipczuk and Siebertz (numbering of the 2019/20 edition), the hard
+direction of their Theorem 3.2.  The proof is a port of the formalization
+accompanying those notes, whose type-polymorphic version is
 `Lax12Proofs.QuasiWidenessInduction.nd_implies_uqw`.
 -/
 theorem uniformlyQuasiWide_of_nowhereDense (C : GraphClass) (h : NowhereDense C) :

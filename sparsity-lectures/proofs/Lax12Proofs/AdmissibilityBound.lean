@@ -46,9 +46,9 @@ over permutations — is then bounded by `Nat.sInf_le`.
 # Attribution
 
 The statement is Lemma 3.2 of Chapter 2 of the sparsity lecture notes of
-Pilipczuk and Pilipczuk (2019/20 edition), with the radius index shifted
-by one.  The proof is a port of the formalization accompanying those
-notes, whose per-order version is
+Pilipczuk and Siebertz (numbering of the 2019/20 edition), with the
+radius index shifted by one.  The proof is a port of the formalization
+accompanying those notes, whose per-order version is
 `Lax12Proofs.AdmByDensity.adm_le_of_topGrad_bound`.
 -/
 theorem adm_le_of_hasTopologicalDensityAtMost {n : ℕ} (G : SimpleGraph (Fin n))
