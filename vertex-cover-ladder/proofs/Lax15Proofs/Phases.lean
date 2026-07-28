@@ -1,6 +1,7 @@
 import Lax15Proofs.Config
 import Lax15Proofs.Program
 import Lax13Proofs.Tactic
+import Lax13Proofs.Lib.Csr
 
 /-!
 The inner loops, run.
@@ -461,19 +462,11 @@ theorem rowLoop_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
   have hend : offset g ((v : ℕ) + 1) ≤ 2 * m := by
     have := offset_le hg (show (v : ℕ) + 1 ≤ n from v.2)
     omega
-  have hstep : ∀ ρ, RowInv g v M tb TR τ ρ →
-      (Cond.lt (.var "j") (.var "jend")).evalB B ρ = some true →
+  have hstep : ∀ ρ, RowInv g v M tb TR τ ρ → ρ.vars "j" < offset g ((v : ℕ) + 1) →
       ∃ ρ' K, Run B rowStep ρ ρ' K ∧ RowInv g v M tb TR τ ρ' ∧
-        1 + (Cond.lt (Expr.var "j") (Expr.var "jend")).size + K +
-          40 * (offset g ((v : ℕ) + 1) - ρ'.vars "j") ≤
-            40 * (offset g ((v : ℕ) + 1) - ρ.vars "j") := by
+        ρ'.vars "j" = ρ.vars "j" + 1 ∧ K ≤ 30 := by
     rintro ρ ⟨hfr, harr, hinp, hout, hlo, hhi, l, hnd, hmem, htt', ⟨MKl, hmarkl, hMKl⟩,
-      ⟨TRl, htraill, hTRlo, hTRhi⟩⟩ hcond
-    have hjendρ : ρ.vars "jend" = offset g ((v : ℕ) + 1) := by
-      rw [hfr "jend" (by decide) (by decide) (by decide), hjend]
-    have hjlt : ρ.vars "j" < offset g ((v : ℕ) + 1) := by
-      have := lt_of_condLt_true hcond
-      omega
+      ⟨TRl, htraill, hTRlo, hTRhi⟩⟩ hjlt
     have hj2m : ρ.vars "j" < 2 * m := by omega
     have htgtρ : ρ.arrs "tgt" = arrOf (2 * m) T := by
       rw [harr "tgt" (by decide) (by decide), htgt]
@@ -536,7 +529,7 @@ theorem rowLoop_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
       have hvtt : ρ₃.vars "tt" = tb + (l ++ [w]).length := by simp [hρ₃, hρ₂]; omega
       refine ⟨ρ₃, 30, (Run.seq r₁ (Run.seq (Run.ite_true hc r₂)
           (Run.assign (v := ρ.vars "j" + 1) (by simp [hρ₂, hρ₁]; omega)))).mono (by simp),
-        ?_, ?_⟩
+        ?_, hvj, le_rfl⟩
       · refine ⟨?_, ?_, by simp [hρ₃, hρ₂, hρ₁, hinp], by simp [hρ₃, hρ₂, hρ₁, hout],
           by omega, by omega, l ++ [w], hndapp, ?_, hvtt, ⟨?_, ?_, ?_⟩, ?_⟩
         · intro y h1 h2 h3
@@ -590,8 +583,6 @@ theorem rowLoop_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
               rw [if_pos rfl]
               congr 1
               simp
-      · simp only [size_condLt, size_var, hvj]
-        omega
     · -- an already marked target: the slot contributes nothing
       have hwin : w ∈ M ∪ l.toFinset := by
         have := mem_of_indicator_ne hMKl hwlt hMKw
@@ -607,7 +598,7 @@ theorem rowLoop_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
       have hvj : ρ₃.vars "j" = ρ.vars "j" + 1 := by simp [hρ₃]
       refine ⟨ρ₃, 30, (Run.seq r₁ (Run.seq (Run.ite_false hc Run.skip)
           (Run.assign (v := ρ.vars "j" + 1) (by simp [hρ₁]; omega)))).mono (by simp),
-        ?_, ?_⟩
+        ?_, hvj, le_rfl⟩
       · refine ⟨?_, ?_, by simp [hρ₃, hρ₁, hinp], by simp [hρ₃, hρ₁, hout],
           by omega, by omega, l, hnd, ?_, by simp [hρ₃, hρ₁]; omega,
           ⟨MKl, by simp [hρ₃, hρ₁, hmarkl], hMKl⟩,
@@ -634,18 +625,15 @@ theorem rowLoop_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
               rcases Finset.mem_union.1 hwin with h | h
               · exact absurd h hx1
               · exact List.mem_toFinset.1 h
-      · simp only [size_condLt, size_var, hvj]
-        omega
-  obtain ⟨τ', K, hrun, ⟨hfr', harr', hinp', hout', hlo', hhi', l, hnd', hmem', htt'',
-      ⟨MK', hmark', hMK'⟩, ⟨TR', htrail', hTRlo', hTRhi'⟩⟩, hfalse, hpay⟩ :=
-    Run.while_potential (B := B) (b := Cond.lt (.var "j") (.var "jend")) (c := rowStep)
-      (RowInv g v M tb TR τ) (fun ρ => 40 * (offset g ((v : ℕ) + 1) - ρ.vars "j"))
+  obtain ⟨τ', hrun, ⟨hfr', harr', hinp', hout', hlo', hhi', l, hnd', hmem', htt'',
+      ⟨MK', hmark', hMK'⟩, ⟨TR', htrail', hTRlo', hTRhi'⟩⟩, hjeq⟩ :=
+    (Lib.Csr.rowScan_spec B (50 * (n + 2 * m + 1)) (offset g ((v : ℕ) + 1)) 30 "j" "jend"
+      rowStep (P := fun ρ => ρ = τ) (RowInv g v M tb TR τ) (by omega)
       (fun ρ hρ => by
         obtain ⟨hfr, -, -, -, -, hhi, -⟩ := hρ
-        refine evalB_condLt_vars (by omega) ?_
-        rw [hfr "jend" (by decide) (by decide) (by decide), hjend]
-        omega)
-      hstep ⟨fun y _ _ _ => rfl, fun a _ _ => rfl, rfl, rfl, by omega,
+        exact ⟨by rw [hfr "jend" (by decide) (by decide) (by decide), hjend], hhi⟩)
+      hstep
+      (fun ρ hρ => by subst hρ; exact ⟨fun y _ _ _ => rfl, fun a _ _ => rfl, rfl, rfl, by omega,
         by rw [hj]; exact offset_mono' hg (by omega) v.2, [], List.nodup_nil,
         (by
           intro x
@@ -653,31 +641,26 @@ theorem rowLoop_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
           rintro - ⟨p, hp1, hp2, -⟩
           omega),
         by simpa using htt, ⟨MK, hmark, by simpa using hMK⟩,
-        ⟨TR, htrail, fun i _ => rfl, by simp⟩⟩
-  · have hjend' : τ'.vars "jend" = offset g ((v : ℕ) + 1) := by
-      rw [hfr' "jend" (by decide) (by decide) (by decide), hjend]
-    have hjeq : τ'.vars "j" = offset g ((v : ℕ) + 1) := by
-      have := le_of_condLt_false hfalse
-      omega
-    refine ⟨τ', l, MK', TR', K, hrun, hnd', ?_, htt'', hmark', hMK', htrail', hTRlo',
-      hTRhi', harr', hfr', hinp', hout', ?_⟩
-    · ext x
-      rw [List.mem_toFinset, hmem' x, hjeq]
-      constructor
-      · rintro ⟨hx, p, hp1, hp2, hp3⟩
-        obtain ⟨ha, hb, hadj⟩ := adjn_of_slot hg v.2 hp1 hp2
-        refine mem_resNbhd.2 ⟨?_, hx⟩
-        have : (⟨target g p, hb⟩ : Fin n) = x := Fin.ext hp3
-        rw [← this]
-        simpa using hadj
-      · intro hx
-        obtain ⟨j₀, h₁, h₂, h₃, -⟩ := exists_slot_of_mem_resNbhd hg hx
-        exact ⟨(mem_resNbhd.1 hx).2, j₀, h₁, h₂, h₃⟩
-    · have h₀ : 40 * (offset g ((v : ℕ) + 1) - τ.vars "j") ≤ 40 * (2 * m) := by
-        have : offset g ((v : ℕ) + 1) - τ.vars "j" ≤ 2 * m := by omega
-        omega
-      simp only [size_condLt, size_var] at hpay
-      omega
+        ⟨TR, htrail, fun i _ => rfl, by simp⟩⟩)
+      (fun ρ hρ => by
+        have hjρ : ρ.vars "j" = offset g (v : ℕ) := by rw [hρ]; exact hj
+        have h₀ : (30 + 4) * (offset g ((v : ℕ) + 1) - ρ.vars "j") ≤ 34 * (2 * m) :=
+          Nat.mul_le_mul_left 34 (by rw [hjρ]; omega)
+        omega)).run rfl
+  refine ⟨τ', l, MK', TR', 50 * (n + 2 * m + 1), hrun, hnd', ?_, htt'', hmark', hMK',
+    htrail', hTRlo', hTRhi', harr', hfr', hinp', hout', le_rfl⟩
+  ext x
+  rw [List.mem_toFinset, hmem' x, hjeq]
+  constructor
+  · rintro ⟨hx, p, hp1, hp2, hp3⟩
+    obtain ⟨ha, hb, hadj⟩ := adjn_of_slot hg v.2 hp1 hp2
+    refine mem_resNbhd.2 ⟨?_, hx⟩
+    have : (⟨target g p, hb⟩ : Fin n) = x := Fin.ext hp3
+    rw [← this]
+    simpa using hadj
+  · intro hx
+    obtain ⟨j₀, h₁, h₂, h₃, -⟩ := exists_slot_of_mem_resNbhd hg hx
+    exact ⟨(mem_resNbhd.1 hx).2, j₀, h₁, h₂, h₃⟩
 
 /-! ### The descend scan: what one slot does to the counts
 

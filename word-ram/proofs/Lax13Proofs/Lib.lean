@@ -3,6 +3,7 @@ import Lax13Proofs.Lib.Ind
 import Lax13Proofs.Lib.Stack
 import Lax13Proofs.Lib.Trail
 import Lax13Proofs.Lib.Queue
+import Lax13Proofs.Lib.Csr
 
 /-!
 The data-structure library: one module per structure, each an
@@ -16,5 +17,10 @@ follow. `Lib/Stack.lean` is the search stack of both drivers, and
 loop is the first loop the kit exports as a `Spec`. `Lib/Queue.lean` is
 the breadth-first queue of the two search drivers; its `drain` is the
 first loop the kit exports with the *body* left to the caller, since in
-both consumers the body is the algorithm.
+both consumers the body is the algorithm. `Lib/Csr.lean` is the
+offsets-and-targets block structure every adjacency list in the repo is
+stored in, and its two scans — one row, and the whole array with the
+owner pointer advancing — are the most-copied loops here; both are
+combinators with the body open, and the second is where the amortized
+potential of an owner-advancing pass stops being the caller's problem.
 -/
