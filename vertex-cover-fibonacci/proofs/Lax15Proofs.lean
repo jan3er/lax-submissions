@@ -3,6 +3,7 @@ import Lax15Proofs.Config3
 import Lax15Proofs.Loop
 import Lax15Proofs.Loop3
 import Lax15Proofs.Main
+import Lax15Proofs.Main3
 import Lax15Proofs.Phases
 import Lax15Proofs.Phases3
 import Lax15Proofs.Program
