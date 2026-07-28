@@ -8,5 +8,12 @@ import Lax13Proofs.Frame
 import Lax13Proofs.Spec
 import Lax13Proofs.Tactic
 import Lax13Proofs.Lib
+import Lax13Proofs.Lib.Basic
+import Lax13Proofs.Lib.Ind
+import Lax13Proofs.Lib.Stack
+import Lax13Proofs.Lib.Trail
+import Lax13Proofs.Lib.Queue
+import Lax13Proofs.Lib.Csr
+import Lax13Proofs.Lib.Fill
 import Lax13Proofs.Transfer
 import Lax13Proofs.Smoke
