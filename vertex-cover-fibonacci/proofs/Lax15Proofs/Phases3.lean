@@ -1173,4 +1173,138 @@ theorem dedupCount_run (h1B : 1 < B) (hnB : n < B) (h2B : 2 < B) {ρ : Env}
             Or.inr ⟨rfl, rfl, hs0, Or.inr (Or.inr ⟨hs2', by rw [← hw]; exact hwt1,
               by rw [← hw]; exact hwt2⟩)⟩⟩
 
+/-! ### The solver's row scan
+
+One dequeued vertex, its whole block. `resTgts` is the set of residual
+targets the block has shown below the pointer — what the visited set
+grows by, and what the toggle halves the upward edges of. The dedup's
+registers are tied to it by cardinality, which is how the scan knows a
+target is new. Three distinct targets cannot occur: `resTgts` would be
+a third residual neighbour of `u`, which `ThinBlocks3` has excluded.
+That is where the solver's hypothesis is spent, and the only place. -/
+
+/-- The residual targets of the block of `o` named below the slot `J`. -/
+def resTgts (g : List ℕ) {n : ℕ} (M : Finset (Fin n)) (o : Fin n) (J : ℕ) :
+    Finset (Fin n) :=
+  Finset.univ.filter fun x => x ∉ M ∧ ∃ p ∈ Finset.range J, offset g (o : ℕ) ≤ p ∧
+    target g p = (x : ℕ)
+
+theorem mem_resTgts {o : Fin n} {J : ℕ} {x : Fin n} :
+    x ∈ resTgts g M o J ↔ x ∉ M ∧ ∃ p, offset g (o : ℕ) ≤ p ∧ p < J ∧
+      target g p = (x : ℕ) := by
+  simp only [resTgts, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_range]
+  constructor
+  · rintro ⟨h1, p, hp, h2, h3⟩
+    exact ⟨h1, p, h2, hp, h3⟩
+  · rintro ⟨h1, p, h2, hp, h3⟩
+    exact ⟨h1, p, hp, h2, h3⟩
+
+@[simp] theorem resTgts_start {o : Fin n} : resTgts g M o (offset g (o : ℕ)) = ∅ := by
+  ext x
+  simp only [mem_resTgts, Finset.notMem_empty, iff_false, not_and]
+  rintro - ⟨p, h1, h2, -⟩
+  omega
+
+/-- A slot whose target is marked contributes nothing. -/
+theorem resTgts_succ_of_marked {o : Fin n} {J : ℕ} (h : target g J ∈ markedVals M) :
+    resTgts g M o (J + 1) = resTgts g M o J := by
+  ext x
+  simp only [mem_resTgts]
+  constructor
+  · rintro ⟨h1, p, h2, h3, h4⟩
+    refine ⟨h1, p, h2, ?_, h4⟩
+    rcases Nat.lt_or_ge p J with hp | hp
+    · exact hp
+    · exact absurd (show (x : ℕ) ∈ markedVals M by rw [← h4, show p = J by omega]; exact h)
+        (fun hx => h1 ((mem_markedVals_iff x.2).1 hx))
+  · rintro ⟨h1, p, h2, h3, h4⟩
+    exact ⟨h1, p, h2, by omega, h4⟩
+
+/-- A slot whose target is unmarked adds it. -/
+theorem resTgts_succ_of_unmarked {o : Fin n} {J : ℕ} (hlo : offset g (o : ℕ) ≤ J)
+    (htn : target g J < n) (h : target g J ∉ markedVals M) :
+    resTgts g M o (J + 1) = insert (⟨target g J, htn⟩ : Fin n) (resTgts g M o J) := by
+  ext x
+  simp only [mem_resTgts, Finset.mem_insert]
+  constructor
+  · rintro ⟨h1, p, h2, h3, h4⟩
+    rcases Nat.lt_or_ge p J with hp | hp
+    · exact Or.inr ⟨h1, p, h2, hp, h4⟩
+    · exact Or.inl (Fin.ext (by rw [← h4, show p = J by omega]))
+  · rintro (rfl | ⟨h1, p, h2, h3, h4⟩)
+    · exact ⟨fun hx => h ((mem_markedVals_iff htn).2 hx), J, hlo, by omega, rfl⟩
+    · exact ⟨h1, p, h2, by omega, h4⟩
+
+/-- Past the last slot of the block, the residual targets are the
+residual neighbourhood. -/
+theorem resTgts_end (hg : EncodesGraph g n G) {o : Fin n} :
+    resTgts g M o (offset g ((o : ℕ) + 1)) = ResNbhd G M o := by
+  ext x
+  rw [mem_resTgts]
+  constructor
+  · rintro ⟨hx, p, hp1, hp2, hp3⟩
+    obtain ⟨y, hy1, hy2⟩ := exists_mem_resNbhd_of_slot (M := M) hg hp1 hp2
+      (fun hm => hx ((mem_markedVals_iff x.2).1 (hp3 ▸ hm)))
+    rwa [show x = y from Fin.ext (by rw [hy1, hp3])]
+  · intro hx
+    obtain ⟨p, h1, h2, h3, h4⟩ := exists_slot_of_mem_resNbhd hg hx
+    exact ⟨(mem_resNbhd.1 hx).2, p, h1, h2, h3⟩
+
+/-- The invariant of the row scan. -/
+def RowInv3 (g : List ℕ) {n : ℕ} (M V : Finset (Fin n)) (u : Fin n) (Q : ℕ → ℕ)
+    (head tl s0 tog0 : ℕ) (σ ν : Env) : Prop :=
+  (∀ y, y ≠ "s" → y ≠ "tog" → y ≠ "tl" → y ≠ "seen" → y ≠ "t1" → y ≠ "t2" →
+      y ≠ "j" → y ≠ "w" → ν.vars y = σ.vars y) ∧
+  (∀ a, a ≠ "vis" → a ≠ "q" → ν.arrs a = σ.arrs a) ∧ ν.inp = σ.inp ∧ ν.out = σ.out ∧
+  offset g (u : ℕ) ≤ ν.vars "j" ∧ ν.vars "j" ≤ offset g ((u : ℕ) + 1) ∧
+  ν.vars "seen" ≤ 2 ∧ ν.vars "t1" ≤ n ∧ ν.vars "t2" ≤ n ∧ ν.vars "tog" ≤ 1 ∧
+  ν.vars "s" ≤ s0 + 1 ∧
+  (resTgts g M u (ν.vars "j")).card = ν.vars "seen" ∧
+  (1 ≤ ν.vars "seen" → ∃ x ∈ resTgts g M u (ν.vars "j"), (x : ℕ) = ν.vars "t1") ∧
+  (ν.vars "seen" = 2 → (∃ x ∈ resTgts g M u (ν.vars "j"), (x : ℕ) = ν.vars "t2") ∧
+    ν.vars "t1" ≠ ν.vars "t2") ∧
+  ν.vars "s" = s0 + (((resTgts g M u (ν.vars "j")).filter
+      (fun x : Fin n => (u : ℕ) < (x : ℕ))).card + 1 - tog0) / 2 ∧
+  ν.vars "tog" = (((resTgts g M u (ν.vars "j")).filter
+      (fun x : Fin n => (u : ℕ) < (x : ℕ))).card + tog0) % 2 ∧
+  ∃ VIS' Q' : ℕ → ℕ, ν.arrs "vis" = arrOf n VIS' ∧
+    Indicator (V ∪ resTgts g M u (ν.vars "j")) VIS' ∧
+    ν.arrs "q" = arrOf n Q' ∧ Queue (V ∪ resTgts g M u (ν.vars "j")) Q' head
+      (ν.vars "tl") ∧ (∀ i < tl, Q' i = Q i) ∧ tl ≤ ν.vars "tl" ∧ ν.vars "tl" ≤ n
+
+theorem resTgts_mono {o : Fin n} {J J' : ℕ} (h : J ≤ J') :
+    resTgts g M o J ⊆ resTgts g M o J' := by
+  intro x hx
+  obtain ⟨h1, p, h2, h3, h4⟩ := mem_resTgts.1 hx
+  exact mem_resTgts.2 ⟨h1, p, h2, by omega, h4⟩
+
+/-! #### What is left of the row scan
+
+`rowScan3_run` — one dequeued vertex, its whole block — is the next
+lemma, and `RowInv3` above is its invariant, stated in the form its
+proof wants. What it has to conclude, and what the drain will consume:
+
+    ∃ ρ' VIS' Q' K, Run B (.while (.lt (.var "j") (.var "jend")) solveSlot) ρ ρ' K ∧
+      … frame conditions … ∧
+      Indicator (V ∪ ResNbhd G M u) VIS' ∧ Queue (V ∪ ResNbhd G M u) Q' head (ρ'.vars "tl") ∧
+      ρ'.vars "s" = ρ.vars "s" + (c + 1 - ρ.vars "tog") / 2 ∧
+      ρ'.vars "tog" = (c + ρ.vars "tog") % 2 ∧
+      K ≤ 300 * (offset g ((u : ℕ) + 1) - offset g (u : ℕ)) + 10
+
+with `c = ((ResNbhd G M u).filter (fun x => (u : ℕ) < (x : ℕ))).card`, the
+edges of `u` counted at their smaller endpoint. The `(c + 1 - tog) / 2`
+is the halving toggle in closed form: with `e` edges counted since the
+root, `s` has grown by `⌈e/2⌉` and `tog = e % 2`, and adding `c` more
+raises `⌈e/2⌉` by exactly that.
+
+Three facts carry the step, and all three are already here:
+`dedupCount_run` for the slot, `resTgts_succ_of_unmarked` /
+`resTgts_succ_of_marked` for the set of recorded targets, and — for the
+branch where the dedup reports a *third* distinct target —
+`resTgts_mono` together with `resTgts_end`, which put three residual
+targets inside `ResNbhd G M u` and so contradict the standing
+`resDeg ≤ 2`. The cost shape is per-block, which is what lets the drain
+amortize: each vertex is expanded at most once, so the blocks summed
+over a drain are at most `2m`. -/
+
 end Lax15Proofs.VC3
