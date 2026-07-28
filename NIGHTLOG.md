@@ -3056,3 +3056,40 @@ conclusions. P3 acceptance met in 1 session of the budgeted 2–4.
 Commit 064c51e. Next: P4 abstract evaluator (L3 items 10–12,
 isolation rewrite first — R2), D12 gate with Jan after.
 
+
+## ND-MC P4 — math core complete, checkpoint proved, D12 passed as-built — 2026-07-28
+Jan (before bed): "keep on going until ndmc is complete" — full
+authority, D12 to be passed as a record, not a pause. Four Opus
+tracks (three parallel, evaluator serialized on the rewrite).
+Supervisor design work before briefing found and fixed a rank gap in
+design §(a): translating a local guard into distance atoms inside the
+body violates drank (ρ⁺(k+1,q) > ρ⁻(k+1,q)); the shipped iso keeps
+the surviving guard as a genuine exL and adds a color-guarded exU
+case for near-batch witnesses — colors are rank-free, so drank is
+preserved exactly. Second supervisor delta: iso is total on DistFO
+(cumulative profile + per-color distance families; the unary atom
+becomes one color lookup), deleting the binary-fragment closure
+obligation. Isolate.lean (896) — sat_iso against recorded cumulative
+colors on the isolated arena, riding WalkDistance's
+withinDist_deleteVerts_or_through as built for it in P1; drank_iso
+exact; radiiLe_of_drank in the sharp two-hypothesis form (supervisor
+mid-flight correction; the naive bound is false at the antidiagonal
+boundary). Relativize.lean (336) — β↾cluster with marker color and
+pre-intersected coloring, sat_rel unconditional in the tuple.
+Reduction.lean (147) — toDistFO, satisfaction + qr→drank(k',q).
+Evaluator.lean (760) — tablesLocal/tablesNonlocal by (budget, phase),
+rank-free bodies choosing cover (CoverConstruction), batch
+(splitterWins_succ_iff right disjunct), slot packings
+(castAdd/natAdd/finProdFinEquiv); correctness chain semLocal sandwich
+→ sat_rel → sat_iso → splitterWins_anti into budget−1, under the
+antidiagonal invariant k'+q' ≤ q_top (all radii ≤ ρ⁻(0,q_top); the
+agent's one-step antidiagonal normalization is needed — H2 is tight
+at k'=q_top=1); sentence phase collapsed to inline Fin-order greedy
+scatter over local tables. Checkpoint evaluator_decides: kernel three
++ Lax12 UQW only, both lean_verify'd. Full lax build green (2016 +
+2034 jobs), audit clean, zero sorry. P4 done in 1 session of 4–7
+budgeted; commits 5d2d9a8 + d9b3d47. D12 as-built record in the plan
+(statements frozen since P2's exL revision; no elaboration hotspots;
+RAM half proceeds). Deferred to P7: edgeless-arena unary evaluation
+lemma. Next: P5 RAM primitives on the closed IMP+ toolkit (Spec form
+from the start), then P6 (R1 risk peak), P7 (driver + cost + C0), P8.

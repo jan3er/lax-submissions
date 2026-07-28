@@ -409,9 +409,42 @@ Layer L4 — RAM realization (Lax13 toolkit):
   lemmas of `SplitterWins`/`deleteVerts` (namespace-audit
   discipline). Acceptance met: full `lax build` green, audit clean,
   zero sorry, no statement drift.
-- [ ] **P4 — abstract evaluator** (4–7 sessions). L3 items 10–12,
-  ending at the math-core checkpoint theorem. **Gate: D12 review —
-  frozen statements, re-judged L4 budget.**
+- [x] **P4 — abstract evaluator** — done 2026-07-28, 1 session (three
+  parallel + one serialized Opus track). L3 items 10–12 with three
+  as-built deltas over design §(a), all strengthenings: (1) `iso` is
+  **total on DistFO** — cumulative profile colors plus a per-color
+  cumulative distance family absorb the unary atom, so the
+  binary-fragment closure obligation of D8/(c) is gone; (2) the §(a)
+  guard translation had a genuine rank gap (ρ⁺(k+1,q) > ρ⁻(k+1,q)) —
+  fixed by the two-case `exL` translation (guard kept as `exL` in the
+  new metric ∨ color-guarded `exU` for near-batch witnesses; colors
+  are rank-free, so drank is preserved exactly); (3) the sentence
+  phase of D9 collapses — scatter atoms evaluate inline as Fin-order
+  greedy over the local table of their β at the same arena, so the
+  recursion is two functions on (budget, phase), not three. Modules:
+  Isolate (sat_iso/drank_iso/radiiLe_of_drank), Relativize (β↾cluster
+  with marker color, sat_rel uniform in the tuple), Reduction
+  (toDistFO + rank), Evaluator (recursion + correctness under the
+  antidiagonal invariant k'+q' ≤ q_top keeping all radii ≤
+  ρ⁻(0,q_top); checkpoint `evaluator_decides`, kernel three + Lax12
+  UQW only). Deferred to P7: the edgeless-arena unary evaluation
+  (base case is `Sat` math-side, a color-lookup algorithm
+  machine-side).
+
+  **D12 as-built record (gate passed on Jan's overnight mandate
+  "keep going until ndmc is complete"; flagged for morning review).**
+  Statements frozen: the concept surface is untouched since the P2
+  guard-set `exL` revision — P3/P4 were proofs-only; the four
+  discharged theorem concepts carry exactly the intended assumption
+  footprints (locality/normalForm/covers: none; splitter win: Lax12
+  UQW; checkpoint: Lax12 UQW). Elaboration costs measured: every P4
+  module elaborates in ≤ ~4 s incremental, full proofs package 2034
+  jobs with no hotspots — R4 is not binding. L4 re-judgment: the
+  evaluator names the exact objects the program must materialize
+  (clusterOf/centerOf/HasBatch batch/enumOf/stepArena/stepColoring/
+  stepFormula), the P3 strategy functions realize HasBatch, and the
+  toolkit closed with Spec-form guidance — the RAM half proceeds on
+  plan (P5–P7), risk concentrated in P6/R1 as budgeted.
 
 **Cross-campaign gate (rev 3): P5–P7 start only once
 `word-ram/imp-toolkit-plan.md` is closed** (its P4 library through P7
