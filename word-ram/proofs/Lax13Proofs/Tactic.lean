@@ -193,6 +193,53 @@ theorem seq (B : ℕ) (c d : Com) (σ σ' σ'' : Env) (K K' : ℕ)
     (h : Run B c σ σ' K) (h' : Run B d σ' σ'' K') :
     Run B (.seq c d) σ σ'' (K + K') := h.seq h'
 
+/-! #### A specification that covers a prefix of a block
+
+Program text is right-nested: `a; (b; (c; d))`. So a specification about
+*two* commands is about no node of a three-command block — it is about
+`.seq a b`, which the block does not contain — and a walk that can only
+match a whole node or a suffix cannot use it. `Csr.loadRow_spec` is
+exactly that specification, and the block it was written for opens with
+a command of its own.
+
+`SeqSplit p r w` says that the block `w` runs the commands of `p`, in
+order, and then `r`; `seq_split` is the `seq` rule for that
+decomposition. Inverting a `seq` is what makes it work, and `Run` is not
+an inductive — it is a cost bound over `BigStepB` — so the inversion
+happens at the level the semantics is defined on. -/
+
+/-- `SeqSplit p r w`: the block `w` runs the commands of `p` and then
+`r`. Both are right-nested; what `p` does not have is a last command
+ending the block. -/
+inductive SeqSplit : Com → Com → Com → Prop
+  /-- The prefix's last command, with the remainder behind it. -/
+  | one (a r : Com) : SeqSplit a r (.seq a r)
+  /-- One more command in front of the prefix. -/
+  | cons (a p r w : Com) (h : SeqSplit p r w) : SeqSplit (.seq a p) r (.seq a w)
+
+/-- **Taking a `seq` apart.** The two halves' costs are known only to add
+up to at most the whole's, since a `Run`'s cost is a bound and not a
+value. -/
+theorem seq_inv (B : ℕ) (c d : Com) (σ σ'' : Env) (K : ℕ) (h : Run B (.seq c d) σ σ'' K) :
+    ∃ σ' K₁ K₂, Run B c σ σ' K₁ ∧ Run B d σ' σ'' K₂ ∧ K₁ + K₂ ≤ K := by
+  obtain ⟨k, hk, hbs⟩ := h
+  cases hbs with
+  | seq h₁ h₂ => exact ⟨_, _, _, ⟨_, le_rfl, h₁⟩, ⟨_, le_rfl, h₂⟩, hk⟩
+
+/-- **Stepping over a prefix.** A run of the prefix and a run of what
+follows it make a run of the block they split, at the sum of their
+costs — which is `seq` again, rebracketed as often as the prefix is
+long. -/
+theorem seq_split (B : ℕ) (p r w : Com) (hs : SeqSplit p r w) :
+    ∀ (σ σ₁ σ₂ : Env) (K₁ K₂ : ℕ), Run B p σ σ₁ K₁ → Run B r σ₁ σ₂ K₂ →
+      Run B w σ σ₂ (K₁ + K₂) := by
+  induction hs with
+  | one a r => intro σ σ₁ σ₂ K₁ K₂ h₁ h₂; exact h₁.seq h₂
+  | cons a p r w _ ih =>
+      intro σ σ₁ σ₂ K₁ K₂ h₁ h₂
+      obtain ⟨σ', Ka, Kb, ha, hb, hk⟩ := seq_inv B a p σ σ₁ K₁ h₁
+      exact (ha.seq (ih σ' σ₁ σ₂ Kb K₂ hb h₂)).mono (by omega)
+
 theorem ite_true (B : ℕ) (b : Cond) (c d : Com) (σ σ' : Env) (K : ℕ)
     (hb : b.evalB B σ = some true) (h : Run B c σ σ' K) :
     Run B (.ite b c d) σ σ' (1 + b.size + K) := Run.ite_true hb h
@@ -280,8 +327,16 @@ verbatim, or the precondition after the environment chain is collapsed. -/
 def sideTac : TacticM (TSyntax `tactic) := `(tactic| first | omega | (simp <;> omega))
 
 /-- The discharger for the one arithmetic goal the walk creates itself,
-`accumulated cost ≤ announced cost`, on concrete syntax. -/
-def costTac : TacticM (TSyntax `tactic) := `(tactic| first | simp | (simp <;> omega) | omega)
+`accumulated cost ≤ announced cost`, on concrete syntax.
+
+`simp` normalizes the sizes of the expressions the walk went through to
+numerals and `omega` does the arithmetic. The two must be tried
+*together*: a `simp` that leaves the goal open still succeeds as a
+tactic, so `first | simp | (simp <;> omega)` never reaches its second
+branch, and an announced cost with a term in it — `30 * deg x v + 19`,
+where the walk stepped over a loop whose cost is that term — was
+reported as an unprovable cost bound rather than handed to `omega`. -/
+def costTac : TacticM (TSyntax `tactic) := `(tactic| first | (simp <;> omega) | simp | omega)
 
 /-- The discharger for the one obligation that is not arithmetic: that
 the input tape a `read` is about is not exhausted. `omega` knows nothing
@@ -398,6 +453,45 @@ private def pickSpec (cfg : Cfg) (c : Lean.Expr) (specs : Array Lean.Expr) :
       return some (h, args, specs)
   return none
 
+/-! #### Blocks as lists of commands
+
+What a prefix match needs: the commands of a right-nested block in
+order, the block back from a nonempty list of them, and the `SeqSplit`
+derivation that says a given prefix of the list is followed by the rest.
+All three are syntax, so they are `Lean.Expr` surgery and no `MVarId` is
+involved beyond reading the local context. -/
+
+/-- The commands of a right-nested block, in order: `a; (b; c)` gives
+`[a, b, c]`. Anything that is not a `seq` is a block of one command. -/
+private partial def flattenSeq (c : Lean.Expr) : MetaM (Array Lean.Expr) := do
+  let c ← whnf c
+  match c.getAppFnArgs with
+  | (``Lax13Proofs.Imp.Com.seq, #[c₁, c₂]) => return #[c₁] ++ (← flattenSeq c₂)
+  | _ => return #[c]
+
+private def mkSeq (a b : Lean.Expr) : Lean.Expr :=
+  mkApp2 (mkConst ``Lax13Proofs.Imp.Com.seq) a b
+
+/-- The right-nested block of a nonempty list of commands. -/
+private def nestSeq (cs : Array Lean.Expr) : Lean.Expr :=
+  cs.pop.foldr mkSeq cs[cs.size - 1]!
+
+/-- The derivation that the nonempty prefix `ps` is followed by `r`,
+together with the block the two of them split. Built from the prefix's
+last command outwards, which is the direction `SeqSplit.cons` adds
+commands in. -/
+private def mkSplit (ps : Array Lean.Expr) (r : Lean.Expr) : Lean.Expr × Lean.Expr :=
+  let last := ps[ps.size - 1]!
+  let rec go (i : Nat) (p w h : Lean.Expr) : Lean.Expr × Lean.Expr :=
+    match i with
+    | 0 => (h, w)
+    | i + 1 =>
+        let a := ps[i]!
+        go i (mkSeq a p) (mkSeq a w)
+          (mkAppN (mkConst ``RunStep.SeqSplit.cons) #[a, p, r, w, h])
+  go (ps.size - 1) last (mkSeq last r)
+    (mkAppN (mkConst ``RunStep.SeqSplit.one) #[last, r])
+
 mutual
 
 /-- If one of the supplied specifications is about this command, use it:
@@ -420,6 +514,41 @@ partial def useSpec (cfg : Cfg) (mv : MVarId) (c σ : Lean.Expr) (specs : Array 
   let #[s₂] ← s₁.mvarId.cases hAnd | throwError "run_vcg: cannot open {ty}"
   let #[hrun, _] := s₂.fields | throwError "run_vcg: cannot open {ty}"
   return some (← kont s₂.mvarId σ' Ks hrun rest)
+
+/-- **A specification about a prefix of this block.** The block's
+commands are assembled into prefixes — two commands, then three, and so
+on, stopping one short of the whole block, which the caller has already
+tried as a node — and each prefix is offered to the specifications the
+walk still carries. The first prefix one of them is about is stepped
+over by it; what follows the prefix is then walked as a block of its
+own, and the two are joined by `RunStep.seq_split`.
+
+Shortest prefix first, and specifications in the order they were handed
+over: a two-command specification therefore wins over a three-command
+one about the same opening, and nothing here changes what a whole node
+or a single command matches. -/
+partial def usePrefix (cfg : Cfg) (mv : MVarId) (c₁ c₂ σ : Lean.Expr)
+    (specs : Array Lean.Expr)
+    (kont : MVarId → Lean.Expr → Lean.Expr → Lean.Expr → Array Lean.Expr →
+      TacticM (List MVarId)) :
+    TacticM (Option (List MVarId)) := do
+  let cs ← mv.withContext do return #[c₁] ++ (← flattenSeq c₂)
+  for k in [2:cs.size] do
+    let ps := cs.extract 0 k
+    let p := nestSeq ps
+    let r := nestSeq (cs.extract k cs.size)
+    unless (← mv.withContext <| pickSpec cfg p specs).isSome do continue
+    let (hs, w) := mkSplit ps r
+    return ← useSpec cfg mv p σ specs fun mv₁ σ₁ K₁ h₁ specs₁ =>
+      exec cfg mv₁ r σ₁ specs₁ fun mv₂ σ₂ K₂ h₂ specs₂ => do
+        let val := mkAppN (mkConst ``RunStep.seq_split)
+          #[cfg.B, p, r, w, hs, σ, σ₁, σ₂, K₁, K₂, h₁, h₂]
+        let (h, ty, mv₃) ← mkHave mv₂ `hrun val
+        let mv₃ ← dropRun mv₃ h₁
+        let mv₃ ← dropRun mv₃ h₂
+        let (σ', K) ← runParts ty
+        kont mv₃ σ' K h specs₂
+  return none
 
 /-- Walk `c` from `σ`, and hand the continuation the goal it is left
 with, the environment the command ends in, the cost it accumulated, the
@@ -473,6 +602,10 @@ partial def exec (cfg : Cfg) (mv : MVarId) (c σ : Lean.Expr) (specs : Array Lea
       let (σ', K) ← runParts ty
       kont mv σ' K h specs
   | (``Lax13Proofs.Imp.Com.seq, #[c₁, c₂]) =>
+      -- A handed specification about a *prefix* of this block wins over
+      -- walking its first command alone: the block is right-nested, so a
+      -- specification about two commands is about no node of it.
+      if let some gs ← usePrefix cfg mv c₁ c₂ σ specs kont then return gs
       exec cfg mv c₁ σ specs fun mv₁ σ₁ K₁ h₁ specs₁ =>
         exec cfg mv₁ c₂ σ₁ specs₁ fun mv₂ σ₂ K₂ h₂ specs₂ => do
           let val := mkAppN (mkConst ``RunStep.seq) #[cfg.B, c₁, c₂, σ, σ₁, σ₂, K₁, K₂, h₁, h₂]
@@ -599,6 +732,17 @@ one. So a block that runs one operation twice under the same variable
 names is proved by handing over two specifications, `run_vcg [first,
 second]`, and they are used left to right — which is the only way to say
 anything different about the two occurrences.
+
+**A specification may cover a prefix of a block.** Program text is
+right-nested — `a; (b; (c; d))` — so a specification about two commands
+is about no *node* of a longer block. At each block the walk therefore
+assembles the block's commands into prefixes, shortest first, and offers
+each to the specifications it still carries before walking the block's
+first command alone; the prefix a specification is about is stepped over
+by it, and the rest of the block is walked. That is what lets a
+two-command kit operation — `Csr.loadRow`, whose second read follows its
+first write — enter in the middle of a block whose other commands the
+walk handles itself.
 
 Consumption runs along a path, not across the program: the two branches
 of an `ite` each start from the specifications that reached the `ite`,
@@ -830,6 +974,36 @@ example (B : ℕ) :
     Spec B (fun ρ => ρ.vars "n" = 0 ∧ 2 < B) (.seq bump bump)
       (fun _ ρ' => ρ'.vars "n" = 2) 8 := by
   run_vcg [bump_at B 0, bump_at B 1] <;> omega
+
+/-- Two commands as one sub-program — the shape of `Csr.loadRow`, whose
+pair of reads is one specification because the second reads a scalar the
+first wrote. -/
+def bump2 : Com := .seq bump bump
+
+theorem bump2_spec (B : ℕ) :
+    Spec B (fun ρ => ρ.vars "n" + 2 < B) bump2
+      (fun ρ ρ' => ρ'.vars "n" = ρ.vars "n" + 2) 8 := by
+  run_vcg [bump_spec B] <;> omega
+
+/-- **A specification covering a prefix of the block.** The block is
+`bump; (bump; d := 1)`, so the two `bump`s are not a node of it — they
+are a prefix, and matching a handed specification against nodes alone
+would walk into them. `run_vcg` assembles the prefix, steps over it with
+`bump2_spec`, and walks the assignment that is left. -/
+example (B : ℕ) :
+    Spec B (fun ρ => ρ.vars "n" + 2 < B ∧ 1 < B)
+      (.seq bump (.seq bump (.assign "d" (.lit 1))))
+      (fun ρ ρ' => ρ'.vars "n" = ρ.vars "n" + 2 ∧ ρ'.vars "d" = 1) 10 := by
+  run_vcg [bump2_spec B] <;> simp_all
+
+/-- The prefix match does not disturb the order specifications are
+consumed in: the two-command specification takes the first two commands
+and the one-command specifications that follow it are still matched left
+to right against what is left. -/
+example (B : ℕ) :
+    Spec B (fun ρ => ρ.vars "n" = 0 ∧ 4 < B) (.seq bump (.seq bump (.seq bump bump)))
+      (fun _ ρ' => ρ'.vars "n" = 4) 16 := by
+  run_vcg [bump2_spec B, bump_at B 2, bump_at B 3] <;> omega
 
 /-- A value bound the walk cannot get at: the element an array read
 produces is below `B` for a reason the precondition does not carry, so

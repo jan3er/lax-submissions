@@ -416,23 +416,43 @@ theorem advance_spec (B cap V h t : ℕ) (a hd tl : String) (f : ℕ → ℕ) :
 The loop is the caller's, body and all — see this file's header. What
 the combinator supplies is the loop condition, which the relation
 decides, and the exit fact `head = tail`, which the false condition
-alone does not give. -/
+alone does not give.
 
-/-- **Draining the queue.** From any state satisfying an invariant that
-carries a queue, `while head < tail do c` runs to a state satisfying the
-invariant with the queue empty, at a cost bounded by the potential at
-entry plus the loop's last test. The step obligation is
-`Run.while_potential`'s — existential cost and all, since the cost of a
-turn is the dequeued entry's, and no constant per turn bounds it — with
-the loop condition already read as an inequality between the two
-pointers. -/
-theorem drain_spec (B cap V K : ℕ) (a hd tl : String) (c : Com)
-    {P : Env → Prop} (I : Env → Prop) (Φ : Env → ℕ)
+It ships in two forms over one proof. `drain_run` is the primitive and
+says what `Run.while_potential` says — the cost is the potential's drop
+plus the last test — which is what a drain nested inside a further
+amortized loop needs, since it has to hand the credit its own potential
+still holds on to whoever is paying. `drain_spec` is that with the
+credit given up for a constant, which is what a `Spec` has to announce
+and what a caller who pays for nothing else wants. Both potentials are
+the caller's parameter `Φ`, so neither form exposes anything the other
+hides. -/
+
+/-- **Draining the queue, relationally.** From any state satisfying an
+invariant that carries a queue, `while head < tail do c` runs to a state
+satisfying the invariant with the queue empty, and the cost is bounded
+by the potential's *drop* plus the loop's last test.
+
+This is the primitive form, and it is the one a drain that sits inside a
+*further* amortized loop needs: an outer loop's turn owes its own
+potential a bound on what the inner loop cost, and `K ≤ Φ σ + 4` — what
+the `Spec` below announces — throws away the credit `Φ σ'` still holds.
+`Run.while_potential` gives the drop and this hands it on; the `Spec` is
+the same statement with the exit credit dropped, for a caller who is not
+paying anyone else.
+
+The step obligation is `Run.while_potential`'s — existential cost and
+all, since the cost of a turn is the dequeued entry's, and no constant
+per turn bounds it — with the loop condition already read as an
+inequality between the two pointers. -/
+theorem drain_run (B cap V : ℕ) (a hd tl : String) (c : Com)
+    (I : Env → Prop) (Φ : Env → ℕ)
     (hIQ : ∀ σ, I σ → ∃ f h t, Queue a hd tl cap V h t f σ) (hcapB : cap < B)
     (hstep : ∀ σ, I σ → σ.vars hd < σ.vars tl →
       ∃ σ' K', Run B c σ σ' K' ∧ I σ' ∧ 4 + K' + Φ σ' ≤ Φ σ)
-    (hPI : ∀ σ, P σ → I σ) (hK : ∀ σ, P σ → Φ σ + 4 ≤ K) :
-    Spec B P (drain hd tl c) (fun _ σ' => I σ' ∧ σ'.vars hd = σ'.vars tl) K := by
+    {σ : Env} (hI : I σ) :
+    ∃ σ' K, Run B (drain hd tl c) σ σ' K ∧ I σ' ∧ σ'.vars hd = σ'.vars tl ∧
+      K + Φ σ' ≤ Φ σ + 4 := by
   have hbounds : ∀ σ, I σ → σ.vars hd ≤ σ.vars tl ∧ σ.vars tl < B := by
     intro σ hI
     obtain ⟨f, h, t, hq⟩ := hIQ σ hI
@@ -441,15 +461,33 @@ theorem drain_spec (B cap V K : ℕ) (a hd tl : String) (c : Com)
     have h₃ := hq.le
     have h₄ := hq.le_cap
     omega
-  refine (Spec.while_potential (b := .lt (.var hd) (.var tl)) I Φ
-    (fun σ hI => evalB_condLt_vars (by have := hbounds σ hI; omega) (hbounds σ hI).2)
-    (fun σ hI hc => ?_) hPI (fun σ hσ => by have := hK σ hσ; simp; omega)).post ?_
-  · obtain ⟨σ', K', hrun, hI', hpay⟩ := hstep σ hI (lt_of_condLt_true hc)
-    exact ⟨σ', K', hrun, hI', by simpa using hpay⟩
-  · rintro σ σ' - ⟨hI', hfalse⟩
-    have h₁ := le_of_condLt_false hfalse
-    have h₂ := (hbounds σ' hI').1
-    exact ⟨hI', by omega⟩
+  obtain ⟨σ', K, hrun, hI', hfalse, hpay⟩ :=
+    Run.while_potential (B := B) (b := .lt (.var hd) (.var tl)) (c := c) I Φ
+      (fun σ hI => evalB_condLt_vars (by have := hbounds σ hI; omega) (hbounds σ hI).2)
+      (fun σ hI hc => by
+        obtain ⟨σ', K', hrun, hI', hpay⟩ := hstep σ hI (lt_of_condLt_true hc)
+        exact ⟨σ', K', hrun, hI', by simpa using hpay⟩)
+      hI
+  have h₁ := le_of_condLt_false hfalse
+  have h₂ := (hbounds σ' hI').1
+  exact ⟨σ', K, hrun, hI', by omega, by simpa using hpay⟩
+
+/-- **Draining the queue.** The same loop as a specification: the cost
+is the potential at entry plus the loop's last test, and the exit credit
+of `drain_run` is given up in exchange for a constant a caller can
+announce. -/
+theorem drain_spec (B cap V K : ℕ) (a hd tl : String) (c : Com)
+    {P : Env → Prop} (I : Env → Prop) (Φ : Env → ℕ)
+    (hIQ : ∀ σ, I σ → ∃ f h t, Queue a hd tl cap V h t f σ) (hcapB : cap < B)
+    (hstep : ∀ σ, I σ → σ.vars hd < σ.vars tl →
+      ∃ σ' K', Run B c σ σ' K' ∧ I σ' ∧ 4 + K' + Φ σ' ≤ Φ σ)
+    (hPI : ∀ σ, P σ → I σ) (hK : ∀ σ, P σ → Φ σ + 4 ≤ K) :
+    Spec B P (drain hd tl c) (fun _ σ' => I σ' ∧ σ'.vars hd = σ'.vars tl) K := by
+  intro σ hσ
+  obtain ⟨σ', K', hrun, hI', hhd, hpay⟩ :=
+    drain_run B cap V a hd tl c I Φ hIQ hcapB hstep (hPI σ hσ)
+  have := hK σ hσ
+  exact ⟨σ', hrun.mono (by omega), hI', hhd⟩
 
 /-! ### The worked example
 

@@ -1,6 +1,7 @@
 import Lax11Proofs.CCGraph
 import Lax11Proofs.CCPhases
 import Lax13Proofs.Lib.Csr
+import Lax13Proofs.Lib.Queue
 
 /-!
 The search: scanning one block, emptying the queue, and the sweep over
@@ -36,14 +37,19 @@ the slot counter, whose bound is the amortization argument itself and
 is therefore passed in as `sc₀ + deg x v ≤ 2 * m` where the scan needs
 it.
 
-Two things here are the kit's rather than this driver's. The body of
-the scan is walked by `run_vcg`, so what is left of `scanBody_run` is
-what the two paths *did*; and the scan itself is `Csr.rowScan_spec`,
-which supplies the loop condition, the exit fact `j = off (v+1)` and
-the cost of thirty a slot. The three reads that open `expandBody` are
-still written out: they are a chain, the index of each being the value
-the one before read, and stating their obligations for the walk costs
-what building their `Run`s costs.
+Everything below the invariants is the kit's. The body of the scan is
+walked by `run_vcg`, so what is left of `scanBody_run` is what the two
+paths *did*; the scan itself is `Csr.rowScan_spec`, which supplies the
+loop condition, the exit fact `j = off (v+1)` and the cost of thirty a
+slot; `expandBody` is walked end to end, its two offset reads entering
+as `Csr.loadRow_spec`, a specification about a *prefix* of the block
+rather than a node of it; and the search loop is `Queue.drain_run`,
+which supplies the loop condition and the exit fact `head = tail`.
+
+What none of that saves is the hand-off: a step that enters by a
+specification gives back a state the walk knows nothing else about, so
+every field of `ScanInv` and of `DrainInv` has to be re-established in
+it. That, and not the reads, is what the length of this file is.
 -/
 
 namespace Lax11Proofs.CC
@@ -303,8 +309,8 @@ theorem scanBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
   · -- already labelled, and by this search, so nothing is written
     have hLw : L w = u := by
       have := (hB.lab w hwn).resolve_left (show ¬ L w = n by omega); omega
-    refine ⟨⟨L, Q, ⟨by simp [hn], by simp [hup], by simp [hoff],
-      by simp [htgt], by simp [hlab], by simp [hq]⟩, by simpa using hL, by simp [hhead],
+    refine ⟨⟨L, Q, by simp [SearchEnv, hn, hup, hoff, htgt, hlab, hq],
+      by simpa using hL, by simp [hhead],
       by simp [hht], hqv, by simp [hvv], by simp [hje], by simp; omega, by simp; omega,
       by simp [hsc]; omega, ?_, hq₀⟩, by simp⟩
     intro j' hj₁' hj₂'
@@ -350,9 +356,10 @@ def DrainInv (x : List ℕ) (n m u : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ �
     τ.vars "sc" = ∑ i ∈ Finset.range (τ.vars "head"), deg x (Q i)
 
 /-- Taking one vertex off the queue and scanning its block: the cost is
-thirty per slot of that block and nineteen besides. The three reads are
-written out rather than walked (see this file's header); the scan enters
-as one step, by its specification. -/
+thirty per slot of that block and nineteen besides. The block is walked
+end to end — the two offset reads in the middle of it are
+`Csr.loadRow_spec`, matched against a *prefix* — and the scan is handed
+over stated so that what it gives back is what this turn owes. -/
 theorem expandBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     (hO : ∀ i ≤ n, O i = offset x i) (hT : ∀ j < 2 * m, T j = target x j) (hu : u < n)
     (hnB : n < B) (hmB : 2 * m < B)
@@ -364,13 +371,13 @@ theorem expandBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
       K ≤ 30 * deg x (Q (τ.vars "head")) + 19 ∧ DrainInv x n m u G O T τ' ∧
       τ'.vars "head" = τ.vars "head" + 1 ∧
       τ'.vars "sc" = τ.vars "sc" + deg x (Q (τ.vars "head")) := by
-  obtain ⟨hn, hup, hoff, htgt, hlab, hq⟩ := hSE
+  obtain ⟨hn, hup, hoff, htgt, hlab, hq⟩ := id hSE
   have hB := hL.base
-  have hheadn : τ.vars "head" < n := by have := hB.tl; omega
+  have htln := hB.tl
+  have hheadn : τ.vars "head" < n := by omega
   obtain ⟨v, hvdef⟩ : ∃ v, Q (τ.vars "head") = v := ⟨_, rfl⟩
   rw [hvdef]
   have hvn : v < n := hvdef ▸ (hB.qmem _ hht).1
-  have htln := hB.tl
   -- the block of the vertex just dequeued is paid for out of the target array
   have hsum : τ.vars "sc" + deg x v ≤ 2 * m := by
     have hstep : ∑ i ∈ Finset.range (τ.vars "head" + 1), deg x (Q i) ≤ 2 * m := by
@@ -379,102 +386,109 @@ theorem expandBody_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
         (fun i hi j hj h => hB.qinj i (by omega) j (by omega) h)
     rw [Finset.sum_range_succ, hvdef] at hstep
     omega
-  have hoffv : offset x v ≤ 2 * m := hm ▸ offset_le hx (by omega)
-  have hoffv' : offset x (v + 1) ≤ 2 * m := hm ▸ offset_le hx (by omega)
-  -- read the vertex, its block start and its block end
-  have e₁ : (Expr.get "q" (.var "head")).evalB B τ = some v := by
-    simp [hq, getElem?_arrOf Q hheadn, hvdef]; omega
-  have e₂ : (Expr.get "off" (.var "v")).evalB B (τ.setVar "v" v) = some (offset x v) := by
-    simp [hoff, getElem?_arrOf O (show v < n + 1 by omega), hO v (by omega)]; omega
-  have e₃ : (Expr.get "off" (.add (.var "v") (.lit 1))).evalB B
-      ((τ.setVar "v" v).setVar "j" (offset x v)) = some (offset x (v + 1)) := by
-    simp [hoff, getElem?_arrOf O (show v + 1 < n + 1 by omega), hO (v + 1) (by omega)]
-    omega
-  -- the scan
-  have hI₃ : ScanInv x n m u v (τ.vars "head") (τ.vars "sc") G O T Q
-      (((τ.setVar "v" v).setVar "j" (offset x v)).setVar "jend" (offset x (v + 1))) :=
-    ⟨L, Q, ⟨by simp [hn], by simp [hup], by simp [hoff], by simp [htgt],
-        by simp [hlab], by simp [hq]⟩, by simpa using hL, by simp, by simpa using hht,
-      hvdef, by simp, by simp, by simp,
-      by simpa using offset_mono' hx (Nat.le_succ v) (show v + 1 ≤ n by omega),
-      by simp, by intro j' h₁ h₂; simp at h₂; omega, fun i _ => rfl⟩
-  obtain ⟨τ₄, hscan, hI₄, hj₄⟩ :=
-    (scan_spec (B := B) hx hm hT hu hvn hnB hmB hsum (Q₀ := Q)).run ⟨hI₃, by simp⟩
-  obtain ⟨L', Q', ⟨hn', hup', hoff', htgt', hlab', hq'⟩, hL', hhead', hht', hqv',
-    hvv', hje', hjge', hjle', hsc', hscanned, hq₀'⟩ := hI₄
-  have htl' := hL'.base.tl
-  have hscv : τ₄.vars "sc" = τ.vars "sc" + deg x v := by rw [hsc', hj₄, deg]
-  refine ⟨τ₄.setVar "head" (τ.vars "head" + 1), _,
-    Run.seq (Run.assign (v := v) e₁)
-      (Run.seq (Run.assign (v := offset x v) e₂)
-        (Run.seq (Run.assign (v := offset x (v + 1)) e₃)
-          (Run.seq hscan (Run.assign (v := τ.vars "head" + 1) (by simp [hhead']; omega))))),
-    by simp; omega,
-    ⟨L', Q', ⟨by simp [hn'], by simp [hup'], by simp [hoff'], by simp [htgt'],
-      by simp [hlab'], by simp [hq']⟩, ?_, ?_⟩,
-    by simp, by simpa using hscv⟩
-  · -- the search is live one step further along
-    have hLv : L' v = u := by rw [← hqv']; exact hL'.cur _ le_rfl hht'
-    refine ⟨⟨hL'.base.lab, by simp; omega, by simpa using hL'.base.tl,
-      by simpa using hL'.base.qmem, by simpa using hL'.base.qall,
-      by simpa using hL'.base.qinj, ?_⟩,
-      hL'.done, hL'.low, hL'.root, ?_⟩
-    · intro i hi j hj₁ hj₂
-      simp at hi
-      rcases Nat.lt_or_ge i (τ.vars "head") with h | h
-      · exact hL'.base.exp i h j hj₁ hj₂
-      · have hie : i = τ.vars "head" := by omega
-        subst hie
-        rw [hqv'] at hj₁ hj₂ ⊢
-        rw [hLv]
-        exact hscanned j hj₁ (by rw [hj₄]; exact hj₂)
-    · intro i hi₁ hi₂
-      simp at hi₁ hi₂
-      exact hL'.cur i (by omega) hi₂
-  · -- the count of scanned slots is the sum over the queue
-    show τ₄.vars "sc" = ∑ i ∈ Finset.range (τ.vars "head" + 1), deg x (Q' i)
-    rw [Finset.sum_range_succ,
-      Finset.sum_congr rfl fun i hi => by rw [hq₀' i (Finset.mem_range.1 hi)],
-      ← hsc, hqv', hsc', hj₄, deg]
+  -- the offsets and the targets are the kit's block structure
+  have hcsr : Csr "off" "tgt" n (2 * m) n O T τ :=
+    ⟨hoff, htgt, fun i hi => by
+        rw [hO i (by omega), hO (i + 1) (by omega)]; exact hx.offset_mono i hi,
+      by rw [hO n le_rfl, hx.offset_last, hm],
+      fun p hp => by rw [hT p hp]; exact hx.target_lt p (by omega)⟩
+  -- what the read at the head of the queue owes
+  have hrv : (τ.arrs "q").getD (τ.vars "head") 0 = v := by
+    rw [hq, getD_arrOf Q hheadn, hvdef]
+  have hrv' : (τ.arrs "q")[τ.vars "head"]?.getD 0 = v := by
+    rw [← List.getD_eq_getElem?_getD]; exact hrv
+  have hqlen : τ.vars "head" < (τ.arrs "q").length := by rw [hq, length_arrOf]; omega
+  have hvB : (τ.arrs "q").getD (τ.vars "head") 0 < B := by rw [hrv]; omega
+  -- the scan, saying what the turn owes: the invariant one vertex on
+  have hscan : Spec B
+      (fun σ => ScanInv x n m u v (τ.vars "head") (τ.vars "sc") G O T Q σ ∧
+        σ.vars "j" = offset x v)
+      (.while (.lt (.var "j") (.var "jend")) scanBody)
+      (fun _ σ' => DrainInv x n m u G O T (σ'.setVar "head" (τ.vars "head" + 1)) ∧
+        σ'.vars "head" = τ.vars "head" ∧ σ'.vars "sc" = τ.vars "sc" + deg x v ∧
+        σ'.vars "head" + 1 < B) (30 * deg x v + 4) :=
+    (scan_spec hx hm hT hu hvn hnB hmB hsum (Q₀ := Q)).post fun _ σ' _ hQ => by
+      obtain ⟨⟨L', Q', hSE', hL', hhead', hht', hqv',
+        hvv', hje', hjge', hjle', hsc', hscanned, hq₀'⟩, hj₄⟩ := hQ
+      have htl' := hL'.base.tl
+      have hscv : σ'.vars "sc" = τ.vars "sc" + deg x v := by rw [hsc', hj₄, deg]
+      rw [hhead']
+      refine ⟨⟨L', Q', by simpa [SearchEnv] using hSE', ?_, ?_⟩, rfl, hscv, by omega⟩
+      · -- the search is live one step further along
+        have hLv : L' v = u := by rw [← hqv']; exact hL'.cur _ le_rfl hht'
+        refine ⟨⟨hL'.base.lab, by simp; omega, by simpa using hL'.base.tl,
+          by simpa using hL'.base.qmem, by simpa using hL'.base.qall,
+          by simpa using hL'.base.qinj, ?_⟩,
+          hL'.done, hL'.low, hL'.root, ?_⟩
+        · intro i hi j hj₁ hj₂
+          simp at hi
+          rcases Nat.lt_or_ge i (τ.vars "head") with h | h
+          · exact hL'.base.exp i h j hj₁ hj₂
+          · have hie : i = τ.vars "head" := by omega
+            subst hie
+            rw [hqv'] at hj₁ hj₂ ⊢
+            rw [hLv]
+            exact hscanned j hj₁ (by rw [hj₄]; exact hj₂)
+        · intro i hi₁ hi₂
+          simp at hi₁ hi₂
+          exact hL'.cur i (by omega) hi₂
+      · -- the count of scanned slots is the sum over the queue
+        show σ'.vars "sc" = ∑ i ∈ Finset.range (τ.vars "head" + 1), deg x (Q' i)
+        rw [Finset.sum_range_succ,
+          Finset.sum_congr rfl fun i hi => by rw [hq₀' i (Finset.mem_range.1 hi)],
+          ← hsc, hqv', hsc', hj₄, deg]
+  run_vcg [Csr.loadRow_spec B n (2 * m) n "off" "tgt" "v" "j" "jend" O T
+      (by decide) (by decide), hscan]
+  · -- what the block did is what the scan handed back
+    simp_all
+  · -- the two offset reads: a row of the structure, and its number a word
+    exact ⟨⟨by simpa using hcsr, by omega, hmB⟩, by simp [hrv']; omega, by simp [hrv']; omega⟩
+  · -- the scan starts at the top of the block, in the state the reads left
+    obtain ⟨-, -, -, rfl⟩ := ‹Csr.LoadRowPost "off" "tgt" "v" "j" "jend" n (2 * m) n O T _ _›
+    exact ⟨⟨L, Q, by simpa [SearchEnv] using hSE, by simpa using hL, by simp,
+      by simpa using hht, hvdef, by simp [hrv'], by simp [hrv', hO (v + 1) (by omega)],
+      by simp [hrv', hO v (by omega)],
+      (by simpa [hrv', hO v (by omega)] using
+        offset_mono' hx (Nat.le_succ v) (show v + 1 ≤ n by omega)),
+      by simp [hrv', hO v (by omega)],
+      by intro j' h₁ h₂; simp [hrv', hO v (by omega)] at h₂; omega, fun i _ => rfl⟩,
+      by simp [hrv', hO v (by omega)]⟩
 
 /-- **The search.** The queue is emptied, and the whole cost of doing
 so is paid out of the potential — including the scans, whose cost no
-constant per turn of the loop could bound. -/
+constant per turn of the loop could bound. The loop is the kit's
+`Queue.drain_run`: the queue supplies the loop condition and the exit
+fact `head = tail`, and what is left here is the one thing that is this
+algorithm's, that a turn pays for itself. The relational form is the one
+to use, since the sweep this loop sits in draws on the same potential
+and needs back the credit the queue still holds. -/
 theorem drain_run (hx : EncodesGraph x n G) (hm : edgeCount x = m)
     (hO : ∀ i ≤ n, O i = offset x i) (hT : ∀ j < 2 * m, T j = target x j) (hu : u < n)
     (hnB : n < B) (hmB : 2 * m < B)
     {τ : Env} (hI : DrainInv x n m u G O T τ) :
     ∃ (τ' : Env) (K : ℕ), Run B drain τ τ' K ∧ DrainInv x n m u G O T τ' ∧
       τ'.vars "head" = τ'.vars "tail" ∧ K + Pot n m τ' ≤ Pot n m τ + 4 := by
-  obtain ⟨τ', K, hrun, hI', hfalse, hpay⟩ :=
-    Run.while_potential (B := B) (b := Cond.lt (.var "head") (.var "tail")) (c := expandBody)
-      (DrainInv x n m u G O T) (Pot n m)
-      (fun σ hσ => by
-        obtain ⟨L', Q', -, hLive, -⟩ := hσ
-        have hhd := hLive.base.hd
-        have htl := hLive.base.tl
-        exact evalB_condLt_vars (by omega) (by omega))
-      (fun σ hσ hc => by
-        obtain ⟨L₁, Q₁, hSE, hLive, hsum⟩ := hσ
-        obtain ⟨σ', K, hrun, hK, hI', hhead', hsc'⟩ :=
-          expandBody_run hx hm hO hT hu hnB hmB hSE hLive (lt_of_condLt_true hc) hsum
-        refine ⟨σ', K, hrun, hI', ?_⟩
-        obtain ⟨L₂, Q₂, -, hLive', hsum'⟩ := hI'
-        have hhd := hLive'.base.hd
-        have htl := hLive'.base.tl
-        have h2m : σ'.vars "sc" ≤ 2 * m := by
-          rw [hsum', ← hm]
-          exact sum_deg_queue hx (fun i hi => (hLive'.base.qmem i (by omega)).1)
-            (fun i hi j hj h => hLive'.base.qinj i (by omega) j (by omega) h)
-        have hhd0 := hLive.base.hd
-        have htl0 := hLive.base.tl
-        simp only [Pot, size_condLt, size_var]
-        omega)
-      hI
-  refine ⟨τ', K, hrun, hI', ?_, by simpa using hpay⟩
-  obtain ⟨L₁, Q₁, -, hL₁, -⟩ := hI'
-  have := hL₁.base.hd
-  have := le_of_condLt_false hfalse
-  omega
+  refine Queue.drain_run B n n "q" "head" "tail" expandBody (DrainInv x n m u G O T)
+    (Pot n m) (fun σ hσ => ?_) hnB (fun σ hσ hlt => ?_) hI
+  · -- the invariant carries a queue: the labelled vertices, in arrival order
+    obtain ⟨L₁, Q₁, ⟨-, -, -, -, -, hq⟩, hLive, -⟩ := hσ
+    exact ⟨Q₁, σ.vars "head", σ.vars "tail", hq, rfl, rfl, hLive.base.hd, hLive.base.tl,
+      fun i hi => (hLive.base.qmem i hi).1⟩
+  · -- a turn pays for itself out of the potential
+    obtain ⟨L₁, Q₁, hSE, hLive, hsum⟩ := hσ
+    obtain ⟨σ', K, hrun, hK, hI', hhead', hsc'⟩ :=
+      expandBody_run hx hm hO hT hu hnB hmB hSE hLive hlt hsum
+    refine ⟨σ', K, hrun, hI', ?_⟩
+    obtain ⟨L₂, Q₂, -, hLive', hsum'⟩ := hI'
+    have hhd := hLive'.base.hd
+    have htl := hLive'.base.tl
+    have h2m : σ'.vars "sc" ≤ 2 * m := by
+      rw [hsum', ← hm]
+      exact sum_deg_queue hx (fun i hi => (hLive'.base.qmem i (by omega)).1)
+        (fun i hi j hj h => hLive'.base.qinj i (by omega) j (by omega) h)
+    have hhd0 := hLive.base.hd
+    have htl0 := hLive.base.tl
+    simp only [Pot]
+    omega
 
 end Lax11Proofs.CC
