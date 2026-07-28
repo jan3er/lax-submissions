@@ -42,7 +42,7 @@ theorem ccCom_solves (n : ℕ) (G : SimpleGraph (Fin n)) (w : ℕ) :
   ok := ccCom_ok
   inp := fun _ hx _ hv => mem_lt_length hx.1 hv
   run := fun x hx => by
-    obtain ⟨σ', K, hrun, hout, hK⟩ := ccCom_run hx.1 rfl le_rfl
+    obtain ⟨σ', K, hrun, hK, hout⟩ := ccCom_run hx.1 rfl le_rfl
     exact ⟨ccExt n (edgeCount x), σ', hrun.mono hK, hout⟩
 
 /--
