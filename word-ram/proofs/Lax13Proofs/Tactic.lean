@@ -198,20 +198,53 @@ structure Cfg where
   B : Lean.Expr
   /-- Deferred `_ < B` (and array-range) obligations, in walk order. -/
   side : IO.Ref (Array MVarId)
-  /-- Specifications the caller supplied, tried at every command before
-  its syntax is looked at. -/
+  /-- Every specification the caller supplied, in the order given. The
+  walk consumes this list as it goes — see `useSpec` — and carries the
+  part still unconsumed separately; this field is the whole of it, kept
+  for the error message. -/
   specs : Array Lean.Expr := #[]
 
+private def errorCount (log : MessageLog) : Nat :=
+  log.unreported.foldl (init := 0) fun n m => if m.severity matches .error then n + 1 else n
+
 /-- Close a goal with the standard discharger, reporting whether it
-worked and leaving the state untouched when it did not. -/
+worked and leaving the state untouched — including the message log —
+when it did not.
+
+Three things have to be got right, and the obvious spelling gets none of
+them.
+
+* **The attempt must not be allowed to recover.** `Lean.Elab.Tactic.run`
+  starts a *fresh* tactic context, and `Context.recover` defaults to
+  `true` there, so a `withoutRecover` on the outside has no effect. With
+  recovery on, a discharger that gets part of the way — `simp` normalizes
+  the goal, the `omega` behind `<;>` then fails — does not fail: the `<;>`
+  elaborator logs `omega`'s error and `admitGoal`s the obligation with
+  `sorryAx`, then throws the abort exception. So the recover flag is
+  cleared *inside* `run`.
+* **An abort is not a success.** `run` catches the abort exception on
+  purpose and answers with the unsolved goals, which after `admitGoal` is
+  the empty list. An empty goal list is therefore not evidence that the
+  obligation was proved; that the assignment is free of `sorryAx` is.
+* **The message log is part of the state.** An error logged by a recovered
+  failure survives an exception, so a failed attempt is checked for new
+  errors and `SavedState.restore` — which does roll the log back — puts
+  them away.
+
+Together these are what makes an undischargeable obligation come back as
+a goal for the user instead of as an error at the `run_vcg` call. -/
 def tryClose (g : MVarId) (stx : TSyntax `tactic) : TacticM Bool := do
   let s ← saveState
-  try
-    let gs ← Lean.Elab.Tactic.run g (evalTactic stx)
-    if gs.isEmpty then return true else s.restore; return false
-  catch _ =>
-    s.restore
-    return false
+  let errs := errorCount (← Core.getMessageLog)
+  let ok ←
+    try
+      let gs ← Lean.Elab.Tactic.run g (withoutRecover (evalTactic stx))
+      if !gs.isEmpty then pure false
+      else if errorCount (← Core.getMessageLog) > errs then pure false
+      else pure !(← instantiateMVars (mkMVar g)).hasSorry
+    catch _ => pure false
+  unless ok do s.restore
+  return ok
 
 /-- The discharger for a value-bound obligation: the precondition
 verbatim, or the precondition after the environment chain is collapsed. -/
@@ -295,54 +328,86 @@ private def runParts (ty : Lean.Expr) : MetaM (Lean.Expr × Lean.Expr) := do
   | (``Run, #[_, _, _, σ', K]) => return (σ', K)
   | _ => throwError "run_vcg: not a Run judgment: {ty}"
 
+/-- Is `h` a `Spec` at the walk's bound about the command `c`? If so, its
+five arguments. -/
+private def specAbout (cfg : Cfg) (c h : Lean.Expr) : MetaM (Option (Array Lean.Expr)) := do
+  let ty ← instantiateMVars (← inferType h)
+  let (``Spec, args@#[Bs, _, cs, _, _]) := ty.getAppFnArgs | return none
+  unless ← isDefEq Bs cfg.B do return none
+  unless ← isDefEq cs c do return none
+  return some args
+
+/-- The specification to step over `c` with, and what is left of the
+list after it: **the first one not yet consumed**. Two commands with the
+same text therefore take two different specifications, in the order they
+were handed over.
+
+When every specification about `c` has already been consumed the first
+one is reused, and the list is left alone. That is what lets a phase
+that a block invokes `n` times be handed over once — the reading a
+single specification for a repeated call has to have — while `n`
+specifications for `n` calls are still matched up in order. -/
+private def pickSpec (cfg : Cfg) (c : Lean.Expr) (specs : Array Lean.Expr) :
+    MetaM (Option (Lean.Expr × Array Lean.Expr × Array Lean.Expr)) := do
+  for i in [:specs.size] do
+    let h := specs[i]!
+    if let some args ← specAbout cfg c h then
+      return some (h, args, specs.extract 0 i ++ specs.extract (i + 1) specs.size)
+  for h in cfg.specs do
+    if let some args ← specAbout cfg c h then
+      return some (h, args, specs)
+  return none
+
 mutual
 
 /-- If one of the supplied specifications is about this command, use it:
 its precondition becomes an obligation, its postcondition a hypothesis,
-and the walk resumes in the state it left. -/
-partial def useSpec (cfg : Cfg) (mv : MVarId) (c σ : Lean.Expr)
-    (kont : MVarId → Lean.Expr → Lean.Expr → Lean.Expr → TacticM (List MVarId)) :
+and the walk resumes in the state it left, with that specification
+struck off the list it carries. -/
+partial def useSpec (cfg : Cfg) (mv : MVarId) (c σ : Lean.Expr) (specs : Array Lean.Expr)
+    (kont : MVarId → Lean.Expr → Lean.Expr → Lean.Expr → Array Lean.Expr →
+      TacticM (List MVarId)) :
     TacticM (Option (List MVarId)) := mv.withContext do
-  for h in cfg.specs do
-    let ty ← instantiateMVars (← inferType h)
-    let (``Spec, #[Bs, P, cs, Q, Ks]) := ty.getAppFnArgs | continue
-    unless ← isDefEq Bs cfg.B do continue
-    unless ← isDefEq cs c do continue
-    let hP ← mkFreshExprSyntheticOpaqueMVar (← whnfR (mkApp P σ))
-    cfg.side.modify (·.push hP.mvarId!)
-    let use := mkAppN (mkConst ``RunStep.use) #[Bs, P, cs, Q, Ks, h, σ, hP]
-    let (hex, _, mv) ← mkHave mv `hspec use
-    let .fvar hexF := hex | throwError "run_vcg: internal error"
-    let #[s₁] ← mv.cases hexF | throwError "run_vcg: cannot open {ty}"
-    let #[σ', .fvar hAnd] := s₁.fields | throwError "run_vcg: cannot open {ty}"
-    let #[s₂] ← s₁.mvarId.cases hAnd | throwError "run_vcg: cannot open {ty}"
-    let #[hrun, _] := s₂.fields | throwError "run_vcg: cannot open {ty}"
-    return some (← kont s₂.mvarId σ' Ks hrun)
-  return none
+  let some (h, #[Bs, P, cs, Q, Ks], rest) ← pickSpec cfg c specs | return none
+  let ty ← instantiateMVars (← inferType h)
+  let hP ← mkFreshExprSyntheticOpaqueMVar (← whnfR (mkApp P σ))
+  cfg.side.modify (·.push hP.mvarId!)
+  let use := mkAppN (mkConst ``RunStep.use) #[Bs, P, cs, Q, Ks, h, σ, hP]
+  let (hex, _, mv) ← mkHave mv `hspec use
+  let .fvar hexF := hex | throwError "run_vcg: internal error"
+  let #[s₁] ← mv.cases hexF | throwError "run_vcg: cannot open {ty}"
+  let #[σ', .fvar hAnd] := s₁.fields | throwError "run_vcg: cannot open {ty}"
+  let #[s₂] ← s₁.mvarId.cases hAnd | throwError "run_vcg: cannot open {ty}"
+  let #[hrun, _] := s₂.fields | throwError "run_vcg: cannot open {ty}"
+  return some (← kont s₂.mvarId σ' Ks hrun rest)
 
 /-- Walk `c` from `σ`, and hand the continuation the goal it is left
-with, the environment the command ends in, the cost it accumulated, and
-the hypothesis carrying the derivation. An `ite` calls the continuation
-once per branch; the goals of all branches are concatenated. -/
-partial def exec (cfg : Cfg) (mv : MVarId) (c σ : Lean.Expr)
-    (kont : MVarId → Lean.Expr → Lean.Expr → Lean.Expr → TacticM (List MVarId)) :
+with, the environment the command ends in, the cost it accumulated, the
+hypothesis carrying the derivation, and the specifications still
+unconsumed. An `ite` calls the continuation once per branch — each
+branch starting from the same specifications, since the branches are
+alternative paths and not successive commands; the goals of all branches
+are concatenated. -/
+partial def exec (cfg : Cfg) (mv : MVarId) (c σ : Lean.Expr) (specs : Array Lean.Expr)
+    (kont : MVarId → Lean.Expr → Lean.Expr → Lean.Expr → Array Lean.Expr →
+      TacticM (List MVarId)) :
     TacticM (List MVarId) := do
   -- A supplied specification wins over the syntax: that is how a loop, or
   -- a phase already proved, is stepped over instead of unfolded.
-  if let some r ← useSpec cfg mv c σ kont then return r
+  if let some r ← useSpec cfg mv c σ specs kont then return r
   let c ← mv.withContext <| whnf c
   match c.getAppFnArgs with
   | (``Lax13Proofs.Imp.Com.skip, _) =>
       let val := mkAppN (mkConst ``RunStep.skip) #[cfg.B, σ]
       let (h, ty, mv) ← mkHave mv `hrun val
       let (σ', K) ← runParts ty
-      kont mv σ' K h
+      kont mv σ' K h specs
   | (``Lax13Proofs.Imp.Com.assign, #[x, e]) =>
       let (v, he) ← evalE cfg mv σ e
       let val := mkAppN (mkConst ``RunStep.assign) #[cfg.B, σ, x, e, v, he]
       let (h, ty, mv) ← mkHave mv `hrun val
       let (σ', K) ← runParts ty
-      kont mv σ' K h
+      kont mv σ' K h specs
   | (``Lax13Proofs.Imp.Com.store, #[a, i, e]) =>
       let (idx, hi) ← evalE cfg mv σ i
       let (v, he) ← evalE cfg mv σ e
@@ -352,16 +417,16 @@ partial def exec (cfg : Cfg) (mv : MVarId) (c σ : Lean.Expr)
       let val := mkAppN (mkConst ``RunStep.store) #[cfg.B, σ, a, i, e, idx, v, hi, he, hidx]
       let (h, ty, mv) ← mkHave mv `hrun val
       let (σ', K) ← runParts ty
-      kont mv σ' K h
+      kont mv σ' K h specs
   | (``Lax13Proofs.Imp.Com.seq, #[c₁, c₂]) =>
-      exec cfg mv c₁ σ fun mv₁ σ₁ K₁ h₁ =>
-        exec cfg mv₁ c₂ σ₁ fun mv₂ σ₂ K₂ h₂ => do
+      exec cfg mv c₁ σ specs fun mv₁ σ₁ K₁ h₁ specs₁ =>
+        exec cfg mv₁ c₂ σ₁ specs₁ fun mv₂ σ₂ K₂ h₂ specs₂ => do
           let val := mkAppN (mkConst ``RunStep.seq) #[cfg.B, c₁, c₂, σ, σ₁, σ₂, K₁, K₂, h₁, h₂]
           let (h, ty, mv₃) ← mkHave mv₂ `hrun val
           let mv₃ ← dropRun mv₃ h₁
           let mv₃ ← dropRun mv₃ h₂
           let (σ', K) ← runParts ty
-          kont mv₃ σ' K h
+          kont mv₃ σ' K h specs₂
   | (``Lax13Proofs.Imp.Com.ite, #[b, c₁, c₂]) =>
       let bw ← mv.withContext <| whnf b
       let (e₁, e₂, trueRule, falseRule, isEq) ← match bw.getAppFnArgs with
@@ -381,20 +446,27 @@ partial def exec (cfg : Cfg) (mv : MVarId) (c σ : Lean.Expr)
         let mvB := sB.mvarId
         let hc := mkFVar sB.fvarId
         let hb := mkAppN (mkConst rule) #[cfg.B, σ, e₁, e₂, m, n, h₁, h₂, hc]
-        exec cfg mvB body σ fun mv' σ' K' h' => do
+        exec cfg mvB body σ specs fun mv' σ' K' h' specs' => do
           let rule' := if pos then ``RunStep.ite_true else ``RunStep.ite_false
           let val := mkAppN (mkConst rule') #[cfg.B, b, c₁, c₂, σ, σ', K', hb, h']
           let (h, ty, mv'') ← mkHave mv' `hrun val
           let mv'' ← dropRun mv'' h'
           let (σ'', K) ← runParts ty
-          kont mv'' σ'' K h
+          kont mv'' σ'' K h specs'
       let gsT ← branch sT trueRule c₁ true
       let gsF ← branch sF falseRule c₂ false
       return gsT ++ gsF
   | _ =>
-      throwError "run_vcg: no rule for {c}\n\
-        (a loop or a tape operation is stepped over by handing run_vcg a Spec \
-        for it: `run_vcg [my_loop_spec]`)"
+      let hint :=
+        if cfg.specs.isEmpty then
+          m!"(a loop or a tape operation is stepped over by handing run_vcg a Spec \
+            for it: `run_vcg [my_loop_spec]`)"
+        else
+          m!"(no specification handed to run_vcg is about it: {specs.size} of \
+            {cfg.specs.size} still unconsumed on this path, and none of the {cfg.specs.size} \
+            has this command. A loop or a tape operation is stepped over only by a Spec \
+            whose command is syntactically the one here.)"
+      throwError "run_vcg: no rule for {c}\n{hint}"
 
 end
 
@@ -454,11 +526,38 @@ straight off the precondition. `simp_all` and `omega` are what close
 them; `run_vcg <;> simp_all <;> omega` is the whole proof of a block
 whose postcondition is a case analysis.
 
+An obligation the discharger cannot close *entirely* is handed back
+whole, in the state it arose in: a discharger that gets part of the way
+leaves nothing behind, and never reports its failure as an error at the
+`run_vcg` call.
+
 `run_vcg [h₁, h₂]` walks around the commands `h₁` and `h₂` specify
 instead of into them. That is how a `while` — whose invariant and
 potential are content, not bookkeeping — and a phase already proved
 enter a block: each becomes one step, owing its precondition and giving
-back its postcondition. -/
+back its postcondition.
+
+**The specifications are consumed in order.** At each command the walk
+takes the first specification in the list that is about *that* command,
+and strikes it off; the next command with the same text takes the next
+one. So a block that runs one operation twice under the same variable
+names is proved by handing over two specifications, `run_vcg [first,
+second]`, and they are used left to right — which is the only way to say
+anything different about the two occurrences.
+
+Consumption runs along a path, not across the program: the two branches
+of an `ite` each start from the specifications that reached the `ite`,
+because they are alternatives and not successive commands.
+
+Once every specification about a command has been consumed, a further
+occurrence of that command reuses the first of them. That is what lets a
+phase a block invokes `n` times be specified once — `run_vcg [phase]`
+for `phase; phase` says the same thing about both — while `n`
+specifications for `n` occurrences are still matched up in order.
+
+A `while`, or any other command the walk has no rule for, with no
+specification about it is an error naming the command, and says how many
+of the specifications handed over are still unconsumed. -/
 syntax (name := runVcg) "run_vcg" (" [" term,* "]")? : tactic
 
 open RunVCG in
@@ -505,7 +604,7 @@ open RunVCG in
               | none => throwError "run_vcg: unexpected goal shape:\n{body'}"
         | none => throwError "run_vcg: unexpected goal shape:\n{body}"
   let cfg : Cfg := { B := B, side := side, specs := specs }
-  let main ← exec cfg mv c σ fun mv' σf Kf hrun => mv'.withContext do
+  let main ← exec cfg mv c σ specs fun mv' σf Kf hrun _ => mv'.withContext do
     let leTy ← mkAppM ``LE.le #[Kf, K]
     let leM ← mkFreshExprSyntheticOpaqueMVar leTy
     let runTerm := mkAppN (mkConst ``RunStep.mono) #[B, c, σ, σf, Kf, K, hrun, leM]
@@ -623,6 +722,43 @@ example (B : ℕ) (loop : Com)
     Spec B (fun ρ => ρ.vars "n" < B ∧ 1 < B) (.seq loop (.assign "d" (.lit 1)))
       (fun _ ρ' => ρ'.vars "n" = 0 ∧ ρ'.vars "d" = 1) 102 := by
   run_vcg [hloop] <;> simp_all
+
+/-- Two occurrences of one sub-program, told apart. `bump_at` says what
+`bump` does from a *named* starting value, so the two occurrences want
+two different instances of it, and `run_vcg` consumes them left to
+right: the first `bump` is stepped over by `bump_at B 0` and the second
+by `bump_at B 1`. Matching by command text alone would take the first
+one twice — `bump` is literally the same term in both positions — and
+leave the second occurrence claiming to start from `0`. -/
+theorem bump_at (B n : ℕ) :
+    Spec B (fun ρ => ρ.vars "n" = n ∧ n + 1 < B) bump
+      (fun _ ρ' => ρ'.vars "n" = n + 1) 4 := by
+  run_vcg; simp_all
+
+example (B : ℕ) :
+    Spec B (fun ρ => ρ.vars "n" = 0 ∧ 2 < B) (.seq bump bump)
+      (fun _ ρ' => ρ'.vars "n" = 2) 8 := by
+  run_vcg [bump_at B 0, bump_at B 1] <;> omega
+
+/-- A value bound the walk cannot get at: the element an array read
+produces is below `B` for a reason the precondition does not carry, so
+neither `omega` nor `simp` then `omega` closes `_ < B`. It comes back as
+a goal, in the state it arose in, and the reader discharges it — the
+walk's other two obligations here, `ρ.vars "i" < B` for the index and
+`ρ.vars "i" < (ρ.arrs "a").length` for the range, `omega` still reads
+straight off the precondition.
+
+This is the case a partially-succeeding discharger used to lose: `simp`
+would normalize `List.getD` to `getElem?`, `omega` would fail on the
+normalized goal, and the failure surfaced as an error at `run_vcg`
+rather than as this goal. -/
+example (B : ℕ) (helem : ∀ ρ : Env, (ρ.arrs "a").getD (ρ.vars "i") 0 < B) :
+    Spec B (fun ρ => ρ.vars "i" < B ∧ ρ.vars "i" < (ρ.arrs "a").length)
+      (.assign "y" (.get "a" (.var "i")))
+      (fun ρ ρ' => ρ'.vars "y" = (ρ.arrs "a").getD (ρ.vars "i") 0) 5 := by
+  run_vcg
+  · simp
+  · exact helem _
 
 end Example
 
