@@ -2830,3 +2830,25 @@ nowhere-dense-model-checking, Lax4 left free for a future merge-width
 submission; real-ε side-condition bound; colored-graph locality
 surface; four citable theorems), all revisable until the P1
 statement freeze.
+
+## IMP+ toolkit — P5 pilot done, gate missed, campaign paused for Jan — 2026-07-28
+Supervised session (Fable orchestrating, five Opus units): pre-P5
+tactic flags fixed (tryClose swallowed partially-failed dischargers —
+root cause in Lean's Tactic.run resetting recover; handed specs now
+consumed in order), then the Lax11 CC driver retrofitted end to end
+in five commits (P5a–P5e) with two mid-pilot kit units filling
+consumer-driven gaps: tape rules + Lib/Fill + forRangeZero, then
+seq-prefix spec matching + relational Queue.drain_run (+ costTac and
+mdata bug fixes). Jan re-cut the gate mid-flight onto the glue split:
+four glue files ≤ 505 (40% of 1,263). They landed at 1,152 — missed
+2.3×, so P6 is not started, per plan. The pilot's real product is the
+category split: symbolic-execution glue shrinks 33–42% (run_vcg),
+composition shrinks when phases are GROUPED into one prefix-matched
+spec (ccCom_run −39%), but invariant hand-off across opaque spec
+states can cost more than the reads the kit removes (expandBody +11,
+recorded in-file), and ~330 lines of the four files are mathematics
+no machine kit touches. Elaboration got faster at every site, no
+exceptions. Exported statements byte-identical throughout. Verdict,
+six open kit gaps, and three options (recommend: close the retrofit
+arm, go to P7, un-gate ND-MC RAM — the kit's economics favor new
+code written in Spec form) are in the plan's P5 as-built section.
