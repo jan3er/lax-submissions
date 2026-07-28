@@ -2,9 +2,17 @@
 
 Process history of the submissions in this repository: statement designs,
 proof-pipeline surveys, per-campaign plans, and overnight relay briefs.
-Every file here is closed — its status line is in its own header. Folder
-names mirror the submission directories at the repo root. New campaigns
-start their plan and brief files here, not at the root.
+Each file carries its status in its own header. Folder names mirror the
+submission directories at the repo root. New campaigns start their plan
+and brief files here, not at the root.
+
+**Open campaigns**
+
+| plan | what |
+|------|------|
+| `word-ram/imp-toolkit-plan.md` | make the machine level of IMP+ a library — frame rule, spec triples, a symbolic-execution tactic, and a data-structure kit in `Lax13Proofs`, so a new algorithm costs its mathematics and not its glue. Proofs-only; no concept surface moves. |
+
+Everything else is closed.
 
 The live cross-campaign log stays at the root (`NIGHTLOG.md`) and cites
 these files by their original root-level names. The map:
