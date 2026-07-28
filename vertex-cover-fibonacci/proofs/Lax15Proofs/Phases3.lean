@@ -1679,4 +1679,226 @@ theorem rowScan3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
   simp only [size_condLt, size_var] at hpay
   omega
 
+/-! ### Clearing the visited array
+
+Every solver call starts by zeroing `vis`; only the first could skip it,
+since fresh arrays are zeroed. -/
+
+/-- **The clearing pass.** One walk over `vis` writes `0` everywhere,
+leaving the visited set empty and nothing but the counter moved. -/
+theorem clearVis_run (h1B : 1 < B) (hnB : n < B) {VIS : ℕ → ℕ} {σ : Env}
+    (hvis : σ.arrs "vis" = arrOf n VIS) (hn : σ.vars "n" = n) :
+    ∃ (τ' : Env) (VIS' : ℕ → ℕ) (K : ℕ), Run B clearVis σ τ' K ∧
+      τ'.inp = σ.inp ∧ τ'.out = σ.out ∧
+      (∀ a, a ≠ "vis" → τ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "i" → τ'.vars y = σ.vars y) ∧
+      τ'.arrs "vis" = arrOf n VIS' ∧ Indicator (∅ : Finset (Fin n)) VIS' ∧
+      K ≤ 20 * n + 10 := by
+  have r₀ : Run B (.assign "i" (.lit 0)) σ (σ.setVar "i" 0) 2 :=
+    (Run.assign (v := 0) (evalB_lit (by omega))).mono (by simp)
+  obtain ⟨τ', K, hrun, ⟨hfr, harr, hinp, hout, hile, VIS', hvis', hzero⟩,
+      hfalse, hpay⟩ :=
+    Run.while_pot (B := B) (b := Cond.lt (.var "i") (.var "n"))
+      (σ := σ.setVar "i" 0)
+      (c := .seq (.store "vis" (.var "i") (.lit 0))
+        (.assign "i" (.add (.var "i") (.lit 1))))
+      (fun ν => (∀ y, y ≠ "i" → ν.vars y = σ.vars y) ∧
+        (∀ a, a ≠ "vis" → ν.arrs a = σ.arrs a) ∧ ν.inp = σ.inp ∧ ν.out = σ.out ∧
+        ν.vars "i" ≤ n ∧ ∃ VIS', ν.arrs "vis" = arrOf n VIS' ∧
+          ∀ x < ν.vars "i", VIS' x = 0)
+      (fun ν => 20 * (n - ν.vars "i"))
+      (fun ν hν => by
+        obtain ⟨hfr, -, -, -, hile, -⟩ := hν
+        refine evalB_condLt_vars (by omega) ?_
+        rw [hfr "n" (by decide), hn]
+        omega)
+      (by
+        rintro ν ⟨hfr, harr, hinp, hout, hile, VISν, hvisν, hzero⟩ hcond
+        have hnν : ν.vars "n" = n := by rw [hfr "n" (by decide), hn]
+        have hilt : ν.vars "i" < n := by
+          have := lt_of_condLt_true hcond
+          omega
+        refine ⟨(ν.setArr "vis" (ν.vars "i") 0).setVar "i" (ν.vars "i" + 1), 7,
+          (Run.seq (Run.store (idx := ν.vars "i") (v := 0) (evalB_var (by omega))
+              (evalB_lit (by omega)) (by rw [hvisν, length_arrOf]; exact hilt))
+            (Run.assign (v := ν.vars "i" + 1) (by simp; omega))).mono (by simp),
+          ⟨?_, ?_, by simp [hinp], by simp [hout], by simp; omega,
+            fun x => if x = ν.vars "i" then 0 else VISν x, ?_, ?_⟩, by simp; omega⟩
+        · intro y hy
+          rw [vars_setVar, if_neg hy, vars_setArr]
+          exact hfr y hy
+        · intro a ha
+          rw [arrs_setVar, arrs_setArr, if_neg ha]
+          exact harr a ha
+        · rw [arrs_setVar, arrs_setArr, if_pos rfl, hvisν, set_arrOf]
+        · intro x hx
+          rw [vars_setVar, if_pos rfl] at hx
+          by_cases hxi : x = ν.vars "i"
+          · simp [hxi]
+          · simp only [if_neg hxi]
+            exact hzero x (by omega))
+      ⟨fun y hy => by simp [hy], fun a _ => by simp, by simp, by simp, by simp,
+        VIS, by simpa using hvis, by simp⟩
+  have hin : τ'.vars "i" = n := by
+    have h1 : τ'.vars "n" = n := by rw [hfr "n" (by decide), hn]
+    have := le_of_condLt_false hfalse
+    omega
+  refine ⟨τ', VIS', 20 * n + 10, (Run.seq r₀ hrun).mono ?_, hinp, hout, harr, hfr,
+    hvis', ?_, le_rfl⟩
+  · simp only [size_condLt, size_var] at hpay
+    omega
+  · intro x hx
+    rw [if_neg (Finset.notMem_empty _)]
+    exact hzero x (by omega)
+
+/-! ### One dequeued vertex
+
+`expandBody3_run` is `rowScan3_run` with the block set up: the queue
+gives the vertex, the offset array gives the two ends of its block, and
+the per-row registers are reset. -/
+
+/-- Moving the head past a vertex that is on the queue. -/
+theorem Queue.advance {V : Finset (Fin n)} {Q : ℕ → ℕ} {head tl : ℕ}
+    (h : Queue V Q head tl) (hh : head + 1 ≤ tl) : Queue V Q (head + 1) tl :=
+  ⟨h.card, hh, h.mem, h.all, h.inj⟩
+
+/-- **One turn of the drain.** The vertex at the head of the queue is
+dequeued and its whole block scanned: the visited set and the queue grow
+by its residual neighbourhood and the toggle counts its upward edges. -/
+theorem expandBody3_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
+    (hO : ∀ i ≤ n, O i = offset g i) (hT : ∀ p < 2 * m, T p = target g p)
+    (h1B : 1 < B) (h2B : 2 < B) (hnB : n + 1 < B) (hmB : 2 * m < B)
+    {V : Finset (Fin n)} {MK VIS Q : ℕ → ℕ} {head tl : ℕ} {σ : Env}
+    (hthin : ∀ v : Fin n, v ∉ M → resDeg G M v ≤ 2) (hVM : ∀ v ∈ V, v ∉ M)
+    (hoff : σ.arrs "off" = arrOf (n + 1) O)
+    (hmark : σ.arrs "mark" = arrOf n MK) (hMK : Indicator M MK)
+    (htgt : σ.arrs "tgt" = arrOf (2 * m) T)
+    (hvis : σ.arrs "vis" = arrOf n VIS) (hVIS : Indicator V VIS)
+    (hq : σ.arrs "q" = arrOf n Q) (hQ : Queue V Q head tl)
+    (hhead : σ.vars "head" = head) (htl : σ.vars "tl" = tl) (hlt : head < tl)
+    (htog : σ.vars "tog" ≤ 1) (hsB : σ.vars "s" + 2 < B) :
+    ∃ (τ' : Env) (VIS' Q' : ℕ → ℕ) (u : Fin n) (K : ℕ),
+      Run B expandBody3 σ τ' K ∧ (u : ℕ) = Q head ∧ u ∈ V ∧
+      τ'.inp = σ.inp ∧ τ'.out = σ.out ∧
+      (∀ a, a ≠ "vis" → a ≠ "q" → τ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "s" → y ≠ "tog" → y ≠ "tl" → y ≠ "seen" → y ≠ "t1" → y ≠ "t2" →
+        y ≠ "j" → y ≠ "w" → y ≠ "u" → y ≠ "jend" → y ≠ "head" →
+        τ'.vars y = σ.vars y) ∧
+      τ'.vars "head" = head + 1 ∧
+      τ'.arrs "vis" = arrOf n VIS' ∧ Indicator (V ∪ ResNbhd G M u) VIS' ∧
+      τ'.arrs "q" = arrOf n Q' ∧
+      Queue (V ∪ ResNbhd G M u) Q' (head + 1) (τ'.vars "tl") ∧
+      (∀ i < tl, Q' i = Q i) ∧ tl ≤ τ'.vars "tl" ∧ τ'.vars "tl" ≤ n ∧
+      τ'.vars "s" = σ.vars "s" +
+        (((ResNbhd G M u).filter (fun x : Fin n => (u : ℕ) < (x : ℕ))).card + 1 -
+          σ.vars "tog") / 2 ∧
+      τ'.vars "tog" =
+        (((ResNbhd G M u).filter (fun x : Fin n => (u : ℕ) < (x : ℕ))).card +
+          σ.vars "tog") % 2 ∧
+      τ'.vars "tog" ≤ 1 ∧
+      K ≤ 300 * (offset g ((u : ℕ) + 1) - offset g (u : ℕ)) + 60 := by
+  classical
+  obtain ⟨u, huval, huV⟩ := hQ.mem head (by omega)
+  have huM : u ∉ M := hVM u huV
+  have hun : (u : ℕ) < n := u.2
+  have htln : tl ≤ n := hQ.tl_le
+  have hOu : O (u : ℕ) = offset g (u : ℕ) := hO _ (by omega)
+  have hOu1 : O ((u : ℕ) + 1) = offset g ((u : ℕ) + 1) := hO _ (by omega)
+  have hoffu : offset g (u : ℕ) ≤ 2 * m := by
+    have := offset_le hg (show (u : ℕ) ≤ n by omega); omega
+  have hoffu1 : offset g ((u : ℕ) + 1) ≤ 2 * m := by
+    have := offset_le hg (show (u : ℕ) + 1 ≤ n by omega); omega
+  -- the six assignments that set the block up
+  have hsetup : ∃ ρ : Env, ρ.arrs = σ.arrs ∧ ρ.inp = σ.inp ∧ ρ.out = σ.out ∧
+      (∀ y, y ≠ "u" → y ≠ "j" → y ≠ "jend" → y ≠ "seen" → y ≠ "t1" → y ≠ "t2" →
+        ρ.vars y = σ.vars y) ∧
+      ρ.vars "u" = (u : ℕ) ∧ ρ.vars "j" = offset g (u : ℕ) ∧
+      ρ.vars "jend" = offset g ((u : ℕ) + 1) ∧ ρ.vars "seen" = 0 ∧
+      ρ.vars "t1" = 0 ∧ ρ.vars "t2" = 0 ∧
+      ∀ (c : Com) (ρ'' : Env) (Kc : ℕ), Run B c ρ ρ'' Kc →
+        Run B (.seq (.assign "u" (.get "q" (.var "head")))
+          (.seq (.assign "j" (.get "off" (.var "u")))
+            (.seq (.assign "jend" (.get "off" (.add (.var "u") (.lit 1))))
+              (.seq (.assign "seen" (.lit 0))
+                (.seq (.assign "t1" (.lit 0)) (.seq (.assign "t2" (.lit 0)) c))))))
+          σ ρ'' (25 + Kc) := by
+    refine ⟨(((((σ.setVar "u" (u : ℕ)).setVar "j" (offset g (u : ℕ))).setVar "jend"
+        (offset g ((u : ℕ) + 1))).setVar "seen" 0).setVar "t1" 0).setVar "t2" 0,
+      by simp, by simp, by simp, ?_, by simp, by simp, by simp,
+      by simp, by simp, by simp, ?_⟩
+    · intro y h1 h2 h3 h4 h5 h6
+      simp [h1, h2, h3, h4, h5, h6]
+    · intro c ρ'' Kc hc
+      refine (Run.seq (Run.assign (v := (u : ℕ)) (evalB_get (k := head)
+          (by rw [← hhead]; exact evalB_var (by omega))
+          (by rw [hq, getElem?_arrOf Q (show head < n by omega), huval]) (by omega)))
+        (Run.seq (Run.assign (v := offset g (u : ℕ)) (evalB_get (k := (u : ℕ))
+            (evalB_var (by simp; omega))
+            (by simp only [arrs_setVar]; rw [hoff, getElem?_arrOf O (by omega), hOu])
+            (by omega)))
+          (Run.seq (Run.assign (v := offset g ((u : ℕ) + 1))
+              (evalB_get (k := (u : ℕ) + 1)
+              (evalB_bin (evalB_var (by simp; omega)) (evalB_lit (by omega))
+                (by simp; omega))
+              (by simp only [arrs_setVar]; rw [hoff, getElem?_arrOf O (by omega), hOu1])
+              (by omega)))
+            (Run.seq (Run.assign (v := 0) (evalB_lit (by omega)))
+              (Run.seq (Run.assign (v := 0) (evalB_lit (by omega)))
+                (Run.seq (Run.assign (v := 0) (evalB_lit (by omega))) hc)))))).mono ?_
+      simp
+      omega
+  obtain ⟨σ₆, harr₆, hinp₆, hout₆, hfr₆, hu₆, hj₆, hjend₆, hseen₆, ht1₆, ht2₆,
+    hcont⟩ := hsetup
+  obtain ⟨τ₀, VIS', Q', K₀, hrun₀, hinp₀, hout₀, harr₀, hfr₀, hvis₀, hVIS₀, hq₀,
+      hQ₀, hQpre₀, htlge₀, htln₀, hs₀, htg₀, hK₀⟩ :=
+    rowScan3_run (B := B) (V := V) (u := u) (MK := MK) (VIS := VIS) (Q := Q)
+      (head := head) (tl := tl) (σ := σ₆) hg hm hT h1B h2B (by omega) hmB
+      (hthin u huM) (by rw [harr₆]; exact hmark) hMK (by rw [harr₆]; exact htgt)
+      (by rw [harr₆]; exact hvis) hVIS (by rw [harr₆]; exact hq) hQ
+      (by rw [hfr₆ "tl" (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide)]; exact htl)
+      hu₆ hj₆ hjend₆ hseen₆ ht1₆ ht2₆
+      (by rw [hfr₆ "tog" (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide)]; exact htog)
+      (by rw [hfr₆ "s" (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide)]; exact hsB)
+  have hhead₀ : τ₀.vars "head" = head := by
+    rw [hfr₀ "head" (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide),
+      hfr₆ "head" (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide)]
+    exact hhead
+  have r₇ : Run B (.assign "head" (.add (.var "head") (.lit 1))) τ₀
+      (τ₀.setVar "head" (head + 1)) 4 :=
+    (Run.assign (v := head + 1) (by simp [hhead₀]; omega)).mono (by simp)
+  refine ⟨τ₀.setVar "head" (head + 1), VIS', Q', u,
+    300 * (offset g ((u : ℕ) + 1) - offset g (u : ℕ)) + 60,
+    (hcont _ _ _ (Run.seq hrun₀ r₇)).mono (by omega),
+    huval, huV, ?_, ?_, ?_, ?_, by simp,
+    by simpa using hvis₀, hVIS₀, by simpa using hq₀, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+    le_rfl⟩
+  · rw [inp_setVar, hinp₀, hinp₆]
+  · rw [out_setVar, hout₀, hout₆]
+  · intro a h1 h2
+    rw [arrs_setVar, harr₀ a h1 h2, harr₆]
+  · intro y h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11
+    rw [vars_setVar, if_neg h11, hfr₀ y h1 h2 h3 h4 h5 h6 h7 h8,
+      hfr₆ y h9 h7 h10 h4 h5 h6]
+  · rw [show (τ₀.setVar "head" (head + 1)).vars "tl" = τ₀.vars "tl" by simp]
+    exact hQ₀.advance (by omega)
+  · exact hQpre₀
+  · rw [show (τ₀.setVar "head" (head + 1)).vars "tl" = τ₀.vars "tl" by simp]
+    exact htlge₀
+  · rw [show (τ₀.setVar "head" (head + 1)).vars "tl" = τ₀.vars "tl" by simp]
+    exact htln₀
+  · rw [vars_setVar, if_neg (show ¬ ("s" = "head") by decide), hs₀,
+      hfr₆ "s" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
+      hfr₆ "tog" (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide)]
+  · rw [vars_setVar, if_neg (show ¬ ("tog" = "head") by decide), htg₀,
+      hfr₆ "tog" (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide)]
+  · rw [vars_setVar, if_neg (show ¬ ("tog" = "head") by decide), htg₀]
+    omega
+
 end Lax15Proofs.VC3
