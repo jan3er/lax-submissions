@@ -8,3 +8,4 @@ import Lax3Proofs.Separation
 import Lax3Proofs.FarQuant
 import Lax3Proofs.BCAlgebra
 import Lax3Proofs.ScatterFml
+import Lax3Proofs.Assembly
