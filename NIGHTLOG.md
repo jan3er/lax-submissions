@@ -1413,3 +1413,1302 @@ four original concept files were not opened.
 surface. It survives `simp only [Op.decode, …, dif_pos h]` unharmed, but
 it is worth knowing that a future `decide`-heavy proof about `decode`
 would see a beta-redex where it used to see a `Fin.mk`.
+
+## VC session 1 — 2026-07-27 (Jan-supervised session, full-authority)
+Milestone: V1 + V2 + V3 done; V4 partial (scaffolding green)
+Commits: ea32152 pure model (VCSpec) · 46c1897 program + smoke (VC) ·
+2316dc1 scan lemma (VCScan) · 3bf9dbd outer-loop scaffolding (VCLoop)
+State: Plan rev 1 re-verified by hand before executing — VC4 arithmetic
+and the J transitions all check; one gap found and closed: reading
+`off[u+1]` needs `u < n`, derived from the invariant `off[u] ≤ j < 2m`.
+VCSpec: Ok/bridge/branch/cover-on-exhaustion, cons-form config (top at
+head, `Alt`/`stackPot` recurse with bud as accumulator — push/flip/pop
+near-rfl), six `inv_*` preservation + six `pot_*` drop lemmas. VC:
+vcCom, layout (18 scalars, 6 arrays, L.const = 37), vcCom_ok, nine
+#guard smoke tests all correct (triangle/star/P4/edgeless/empty/
+malformed; step counts 121–2376). VCScan: flat scan (no inner loop —
+design decision, same algorithm) under while_pot, pot 50(2m−j)+50(n−u),
+cost 100m+50n+10, dichotomy conclusion. VCLoop so far: Rep (stack
+arrays bottom-up = frames.reverse), indicator lemmas, stackPotB/potN
+numeric potential + phasesOf decode, potN_eq agreement. All green,
+warning-free, mark array needs no init loop (zeroed arrays, marker 0).
+Next: VCLoop `outerBody_run` — six-case body transition lemma (descend
+cases contain scan_run; K ≤ 100m+50n+100), then `searchLoop_run` via
+while_pot with Φ = (100m+50n+104)·potN; then V5 assembly (read phase =
+CC pattern + one read into "bud", write ans, computesInTime_of_run,
+endgame constant ~37·(4·104+slack)) and V6 wrap-up.
+Decisions: (1) scan flattened to a single loop (if j < off[u+1] then
+slot else u+1) — proof restructure, not an algorithm change; (2) config
+stack cons-form with top at head, Rep does the reversal; (3) Inv's done
+clause strengthened to also pin ans ≤ 1 so the answer is determined;
+(4) k read directly into "bud", no "k" scalar.
+
+## VC session 2 — 2026-07-27 13:21 UTC
+Milestone: V4a — done
+Commits: b33656d Lax11 vc: the outer-loop body — six transitions, one lemma
+State: `VCLoop.lean` now carries `descendBody_run`, `backtrackBody_run`
+and `outerBody_run` with the contract's signatures verbatim; all six
+cases (found / stuck / push; fail / flip / pop) discharged, `lake build`
+green across `proofs/`, warning-free, zero `sorry`,
+`lean_verify Lax11Proofs.VC.outerBody_run` → propext, Classical.choice,
+Quot.sound only. K-bounds achieved are exactly the contract's, on the
+nose as numerals (`le_rfl` closes each): descend `100*m + 50*n + 96`,
+backtrack `96`, outer `100*m + 50*n + 100`. So V4b's loop potential
+factor `100*m + 50*n + 104` stands unchanged. Actual costs are much
+smaller (descend ≤ scan + 38, backtrack ≤ 34); the slack is deliberate.
+Next: V4b — `searchLoop_run` via `Run.while_pot` with
+`Φ = (100*m + 50*n + 104) * potN (τ.vars "mode") (τ.vars "bud")
+(phasesOf τ)`, using `potN_eq` to cross to `pot` and `outerBody_run` as
+the step; then V5 assembly.
+Decisions: (1) No deviation from the contract — signatures, case
+analysis and bounds are as written; the milestone really was assembly.
+(2) Two Lean-level notes for whoever writes V4b. `rw [hfrs] at hstk`
+fails with a motive error on Rep's stack clause (the binder
+`hi : i < C.frames.length` occurs in the `getElem` proof); `simp only
+[hfrs] at hstk` goes through. And `rw [mem_marked_flip …]` fails the
+same way inside an `if` (the `Decidable` instance depends on the
+proposition) — `dsimp only` to reduce the projection of the
+configuration literal, then `simp only [mem_marked_flip …]`, works.
+(3) The failure-exit case keeps `C.frames` rather than `[]` in the new
+configuration (they are equal by the case hypothesis); this matches
+`inv_fail`'s statement and saves a rewrite.
+
+## VC session 3 — 2026-07-27 14:12 UTC
+Milestone: V4b — done
+Commits: 2bf1ba8 Lax11 vc: the outer loop — while_pot over the tree potential
+State: `VCLoop.lean` closes with `searchLoop_run`, the contract's
+signature verbatim: one `Run.while_pot` on invariant `I τ := ∃ C, Rep …
+∧ Inv … ∧ τ.inp = σ.inp ∧ τ.out = σ.out` and potential `Φ τ =
+(100*m + 50*n + 104) * potN (τ.vars "mode") (τ.vars "bud") (phasesOf
+τ)`, with `outerBody_run` as the step and `potN_eq` crossing to `pot` at
+both ends. Final bound as contracted: `K ≤ (100*m + 50*n + 104) *
+pot C₀ + 4`. `lake build` green across `proofs/`, warning-free, zero
+`sorry`, `lean_verify Lax11Proofs.VC.searchLoop_run` → propext,
+Classical.choice, Quot.sound only.
+Next: V5 assembly — read phase (CC pattern + one read into "bud"),
+`searchLoop_run`, write `ans`, `computesInTime_of_run`; the constant
+arithmetic starts from `(100*m + 50*n + 104) * pot C₀ + 4` with
+`pot C₀ = fPot k + 1 ≤ 4 * 2^k`.
+Decisions: (1) No deviation from the contract — signature, proof shape
+and bounds are as written; the factor `104` needed no raising, since
+V4a shipped `outerBody_run` at exactly `100*m + 50*n + 100` and the test
+costs `1 + Cond.size = 4`. (2) One Lean-level note for later sessions:
+passing the `hstep` argument of `Run.while_pot` inline as `(fun τ hτ hc
+=> ?_)` inside an `obtain … := …` silently drops the hole (the second
+bullet then reports "no goals"); state `hstep` as a standalone `have`
+with the loop rule's payment inequality spelled out — including the
+literal `1 + (Cond.lt (Expr.var "mode") (Expr.lit 2)).size` — and pass
+it by name. (3) The payment arithmetic is kept away from `omega`'s
+nonlinear blind spot by pre-deriving `Nat.mul_le_mul_left _ hpot` and
+`rw [Nat.mul_succ]`, then rewriting both `potN`s to `pot`; `omega` sees
+only atoms after that.
+
+## VC session 4 — 2026-07-27 15:04 UTC
+Milestone: V5 — done. **The vertex cover statement is discharged.**
+Commits: 7be9bba Lax11 vc: the 2^k discharge — assembly, endgame, constant 33300
+State: `VCMain.lean` carries `vcExt`, `const_eq : layout.const = 37`,
+`vcCom_run` and the proof-package theorem
+`Lax11Proofs.VCMain.exists_fptTime_program_vertexCover`, statement
+verbatim from the concept — checked by `example : … = Lax11.VertexCover
+.exists_fptTime_program_vertexCover := rfl`, which typechecks, so the
+two types are definitionally equal. The five VC modules are appended to
+the root `Lax11Proofs.lean` in order (`VCSpec`, `VC`, `VCScan`,
+`VCLoop`, `VCMain`), `lake build` green across `proofs/`, zero `sorry`,
+`lean_diagnostic_messages` on `VCMain.lean` returns an empty list — no
+warnings. `lean_verify Lax11Proofs.VCMain.exists_fptTime_program_vertexCover`
+→ `{"axioms":["propext","Classical.choice","Quot.sound"],"warnings":[]}`.
+**Achieved constant: c = 33300** (= 37 · 900), the literal numeral in
+the witness `⟨vcProgram, 33300, …⟩`; `vcCom_run`'s IMP+ bound is
+`900 * 2^k * (|x| + 1)`.
+Next: V6 wrap-up (Jan-visible): `abstract.md` final paragraph, `notes.md`,
+`lax submit`. No Lean work remains on this ladder.
+Decisions: (1) One deviation from the contract, sanctioned by its own
+text: `VCMain.lean` imports `Lax11Proofs.CCSweep` in addition to
+`Lax11Proofs.VCLoop`, because `getD_take` / `getD_drop` /
+`getD_cons_cons` live there and `VCLoop`'s chain does not reach it.
+Everything else — `vcExt`, `const_eq = 37`, the `900` in `vcCom_run`,
+the `⟨vcProgram, 37 * 900⟩` witness — is exactly as contracted; the
+whole file compiled on the first build with no failed attempts.
+(2) The arithmetic recipe that avoids `omega`'s nonlinear blind spot:
+mono the loop run to `816 * (2^k * (5 + n + 2*m)) + 4` (from
+`Nat.mul_le_mul` of `100m + 50n + 104 ≤ 204*(5 + n + 2*m)` and
+`pot_init_le`), then in the cost goal `rw [hlen2, Nat.mul_assoc]`,
+supply `hQ : 5 + n + 2*m ≤ 2^k * (5 + n + 2*m)` from
+`Nat.le_mul_of_pos_left _ (Nat.two_pow_pos k)`, and
+`generalize 2 ^ k * (5 + n + 2*m) = Q at hQ ⊢` — after which `omega`
+sees a purely linear goal. Read phase is `12n + 24m + 39` and the write
+is `2`, so the slack from `816` to `900` is roughly ten times what is
+needed; nothing was fought for.
+(3) `EncodesInstance` destructures as `⟨g, rfl, hg⟩` and then `subst`s
+`g = n :: m :: rest`, so the whole proof works on the literal tape
+`n :: m :: rest ++ [k]`; `edgeCount (g ++ [k]) = edgeCount g` comes from
+`List.getElem?_append_left (show 1 < g.length …)` off `length_eq`.
+(4) The concept's `open Classical in` is inert here: `ℕ∞` has a real
+`DecidableLE`, so `VCSpec.ans_eq`'s `if` and the concept's `if` pick the
+same instance, and `VCMain` needs no `open Classical`.
+
+## VC session 5 — 2026-07-27 13:39 UTC (= 15:39 local; the "UTC" stamps on the earlier VC entries were local time)
+Milestone: V6 — done. **>>> FOR JAN'S MORNING REVIEW <<<**
+Commits: 142da71 Lax11 vc: wrap-up — abstract and notes record the discharge
+State: The Lax11 vertex cover statement is discharged end to end and the
+submission's outward-facing record now says so.
+**Achieved constant: c = 33300 = 37 · 900** — `layout.const = 37` machine
+steps per IMP+ statement, times the IMP+ bound `900 * 2^k * (|x| + 1)`.
+`lean_verify Lax11Proofs.VCMain.exists_fptTime_program_vertexCover` →
+propext, Classical.choice, Quot.sound only.
+The campaign, seven commits: b369ffa (plan rev 1), ea32152 (pure model),
+46c1897 (program + smoke), 2316dc1 (scan lemma), 3bf9dbd (outer-loop
+scaffolding), b33656d (outer-loop body), 7be9bba (assembly + endgame),
+plus tonight's 142da71 (wrap-up). Four of them landed tonight (b33656d,
+2bf1ba8 = the `while_pot` outer loop, 7be9bba, 142da71).
+Three edits: (1) `abstract.md` final paragraph rewritten — the statement
+is discharged, not open; search tree in the same while-language, same
+loop rule, the potential and where `2^k` enters, constant 33300 spelled
+out as 37 × 900. (2) `notes.md` vertex-cover bullet rewritten in the
+style of the CC bullet: statement items still in the concept's
+`# Formalization notes`, proof items now in `VCMain.lean`'s conclusion
+annotation under `# What the program is allowed to help itself to` and
+`# Attribution`; the "open obligation" sentence is gone. (3) `lax build`
+in `ram-linear-time/` — both packages green (988 + 3008 jobs), and
+`build-output.json` records `Lax11Proofs.VCMain.exists_fptTime_program_
+vertexCover` with `conclusion: Lax11.VertexCover.exists_fptTime_program_
+vertexCover`, `assumptions: []`, and sections `Proof strategy` / `What
+the program is allowed to help itself to` / `Attribution`. The file is
+gitignored, so nothing of it was staged. No `.lean` and no `concepts/`
+file was touched.
+Next: **`lax submit` is Jan's call — deliberately not run.** No Lean work
+remains on this ladder; phase 2 (φ^k) is sketched in `vc-ladder-plan.md`
+and needs Jan's gate on VC6.
+Decisions (things Jan may want to undo):
+(1) The abstract's closing paragraph is my prose in Jan's register — the
+wording most open to revision is the last sentence, where I kept Jan's
+original "what is proved and what is merely stated is said plainly …"
+and added "the statement joined the surface before it had a proof, which
+is what the archive's decoupling of concepts from proofs is for", so the
+paragraph's old point survives now that no obligation is open. Cut it if
+it reads as self-congratulation.
+(2) I quoted the constant in the abstract as "33300: thirty-seven machine
+steps per statement of the compiled program, times `900·2^k(|x|+1)`
+statements", matching the CC paragraph's habit of quoting 2604 with its
+per-input-number gloss. If the factorization is too much detail for an
+abstract, the first clause stands alone.
+(3) I did not mention the achieved constant in `notes.md` — it lives in
+the abstract and in the `VCMain` docstring, and `notes.md` is a map, not
+a ledger.
+
+## VCF session 1 — 20:41 UTC
+Milestone: S0 — done
+Commits: aa8359a `Lax15 vcfib: scaffold — concept surface, pins, packages build green`
+State: `lax init vertex-cover-fibonacci` reached the archive server and
+allocated **Lax15** (not provisional). Scaffold gave LICENSE (Apache 2.0,
+byte-identical to `ram-linear-time/LICENSE`), a `.gitignore` covering
+`build-output.json`, `lake-manifest.json` and `.lake/`, and mathlib
+pre-provisioned in both packages. Written: lakefile pins per VF1 (concepts:
+mathlib c5ea003, Lax13 @ 2087642 word-ram/concepts, Lax11 @ 0bbcfec
+ram-linear-time/concepts; proofs: those plus `../concepts`, Lax13Proofs @
+2087642, Lax11Proofs @ 0bbcfec), manifest (title *Vertex Cover in Fibonacci
+Time*, Jan + Fable, CyganEtAl2015 + DowneyFellows1999), abstract draft,
+`concepts/Lax15/VertexCover.lean` with the plan's statement verbatim plus
+frontmatter/prose/`# Formalization notes`, root modules, and a placeholder
+`proofs/Lax15Proofs/Basic.lean`. Both packages `lake build` green, zero
+sorry: concepts 24 s (1032 jobs), proofs 62 s (2987 jobs) — the dep build
+was fast because only the transitive closure of `Lax13Proofs.Reasoning` and
+`Lax11Proofs.VCSpec` is needed, nowhere near the feared 20–60 min.
+Next: S1 — the pure graph lemmas (`ResNbhd`, `resDeg`, `ResEdges`, lemmas
+1–3) in a new `Lax15Proofs` module.
+Decisions:
+(1) `lax init` writes a `lake-manifest.json` listing mathlib only, and lake
+then refuses to build with `dependency 'Lax11' not in manifest; use lake
+update`. I did **not** run `lake update`: I deleted the (gitignored)
+`lake-manifest.json` in each package and let `lake build` re-resolve from
+the lakefile, which pins every Lax rev exactly. The regenerated manifests
+record exactly the six intended revs. Flagging it because the brief forbids
+`lake update` and this is the adjacent move; a future session that adds a
+dependency should do the same rather than reach for `lake update`.
+(2) The plan's prose says `fib (k+2) ≈ 1.9·φ^k`; the true factor is
+`φ²/√5 ≈ 1.17`. I did not put a number in the concept — the notes say
+"a fixed multiple of φ^k". Worth fixing in `vc-fib-plan.md` if the figure
+is reused in the S7 abstract.
+(3) The concept's Formalization notes say the admissible set is character
+for character Lax11's, so the improved bound is claimed on exactly the same
+instances. That is a promise the S6 assembly must keep: the fitting
+condition stays `c * (x.length + k + 1) ≤ 2 ^ w`, with the *same* `c` as
+the time bound.
+
+## VCF session 2 — 21:05 UTC
+Milestone: S1 — done (items 1–5 all landed), with a **plan-level finding
+the orchestrator must resolve before S3/S4**.
+Commits: 80adfd3 `Lax15 vcfib: residual graph side — early exit, matching
+bound, vertex branch`
+State: `Lax15Proofs/Residual.lean` (green, zero sorry, only the three
+background axioms), root module now imports it plus `Repeats.lean`; the
+scaffold stub `Basic.lean` is gone. Contents: `ResNbhd`/`resDeg`/
+`ResEdges` with membership API, disjointness and antitonicity;
+`ok_of_card_resEdges_le` (plan lemma 1, witness `M ∪ image Sym2.inf` —
+`Sym2.inf` from `Mathlib.Data.Sym.Sym2.Order` is a cleaner endpoint pick
+than `Quot.out`, and `Sym2.inf_eq_inf_and_sup_eq_sup` gives injectivity
+for free); `not_ok_of_lt_card_resEdges` (lemma 2, hypothesis
+`∀ v ∉ M, resDeg ≤ 1`); `ok_branch_resNbhd` (lemma 3, exactly the plan's
+statement, `2 ≤ resDeg` indeed not needed — the ← direction goes through
+a new `ok_of_ok_union : Ok (M ∪ N) b → Ok M (b + N.card)`); and the CSR
+transport: `ResSlots` (slot count, parameterized by a bound `J` so the
+scan's invariant can use it directly), `ResOwners` (the same count capped
+at one slot per block), `ThinBlocks`/`ThinSlots`, `thinBlocks_iff`,
+`exists_two_slots_iff`, and the four card comparisons.
+
+**The finding (VF3 is not implementable as written).** The Lax11 concept
+surface deliberately admits encodings that list a neighbour of a vertex
+several times ("A graph with an edge has encodings of every length"), and
+the plan's descend scan is not repeat-proof:
+
+  * `Repeats.lean` proves, machine-checked, that
+    `g = [2,2,0,2,4,1,1,0,0]` encodes the one-edge graph on `Fin 2` with
+    the block of vertex 0 naming vertex 1 *twice*. Every vertex has
+    residual degree 1, yet vertex 0 has two slots with unmarked targets.
+  * So the plan's found-test (per-owner *count* of unmarked slots reaches
+    2) fires at a vertex of residual degree 1. T4 then pushes, and at the
+    flip T6 needs `2 ≤ d` for the drop `(f (b−2) + 2) − f (b−d) − 1 ≥ 1`;
+    with `d = 1` the potential *rises*. This is not only a proof gap: on
+    the family "k disjoint edges, every block listing its neighbour
+    twice" (|x| = 6k+3) the planned program branches binary to depth k,
+    i.e. 2^k steps against a claimed `c·fib(k+2)·(|x|+1)` — the bound is
+    violated for large k. The algorithm is *correct*, just not Fibonacci.
+  * Fixing the found-test to "two unmarked slots with **different**
+    targets" (O(1) per slot: keep the block's first unmarked target in a
+    register) makes it exactly `∃ v ∉ M, 2 ≤ resDeg M v` —
+    `exists_two_slots_iff` — but then T2 breaks instead: the slot count
+    `re` still overcounts (2k for a k-matching), so `re > bud` no longer
+    implies `¬ Ok`. That direction needs the *capped* count: one
+    increment per block, at its first unmarked slot with `u < tgt` — that
+    is `ResOwners`, which is `≤ card ResEdges` always and `=` on a
+    matching (`card_resOwners_le_card_resEdges`,
+    `card_resEdges_le_card_resOwners`).
+  * Recommended repair, cheapest that keeps every transition sound and
+    the potential intact (orchestrator's call, it changes VF3): one
+    counter `re` = the capped count, one flag `found` = distinct-target
+    test, and the descend rules become: `found` → branch (or, at
+    `bud = 0`, backtrack — a branching vertex gives an uncovered edge);
+    `¬found` → `re ≤ bud` yes, else no. The early-YES test on the
+    *uncapped* slot count may be kept as a fast path (it stays sound:
+    `card_resEdges_le_card_resSlots`), but it is not needed.
+Next: orchestrator decides the VF3 repair (recommendation above), then
+S2 — the config side — proceeds unchanged: it needs `ok_branch_resNbhd`,
+`not_ok_of_lt_card_resEdges`, `ok_of_card_resEdges_le` and nothing from
+the transport section. S2 is independent of the repair and can start now.
+Decisions:
+(1) All residual definitions are `noncomputable` under `open Classical
+in`; no `DecidableRel G.Adj` variable anywhere. This keeps S2/S4
+statements instance-free, at the cost of the defs never `#eval`-ing —
+the S3 smoke tests run the *program*, not these, so nothing is lost.
+(2) `Repeats.lean` was added to the package rather than left in a
+scratch file: it is a fact about the encoding, true whatever S3 does with
+it, and it is the evidence for the finding above. Delete it if the
+orchestrator considers the surface too wide.
+(3) `ResSlots` is a `Finset (Fin n × ℕ)` of (owner, slot) pairs and not a
+`Finset ℕ` of slots: no owner function has to be defined, and the scan's
+partial count over `j < J` is the same definition with a smaller `J`. If
+S4 would rather count over `Finset.range J` with an owner read off the
+offsets, that transport is not proved here.
+
+## VCF session 3 — 21:23 UTC
+Milestone: S2 — done (all four deliverables, flip included)
+Commits: 135259b `Lax15 vcfib: config side — frames, invariant, potential,
+eight transitions`
+State: `Lax15Proofs/Config.lean` (green, zero sorry, three background
+axioms only; whole package builds in ~6 s on top of the warm dep build).
+Contents: `Frame` (`v, b, phase, S`) and `Config` (`frames, mode, bud,
+ans`), `trail`/`marked` (the plan's `P_i` is `marked` of the frames below
+a frame, `M` is `marked` of all — the list is top-first, so no index
+arithmetic ever appears), `Healthy G k` with its consequences
+(`head_disjoint`, `head_ne_nil`, `trail_nodup`, `card_marked`,
+`trail_length_le : (trail fs).length ≤ n`, `length_le : fs.length ≤ n`)
+and the two pointwise mark-update lemmas `mem_marked_flip` /
+`mem_marked_pop` that S5 will need for the mark-array writes; `Alt`, `J`,
+`j_init`, `ans_eq`; `fPot b = 4 * Nat.fib (b+2) - 3` with `fPot_zero`,
+`fPot_one`, `fPot_succ_succ`, `one_le_fPot`, `fPot_mono`, `fPot_push`,
+`stackPot`, `pot`, `pot_init`, `pot_init_le ≤ 4 * fib (k+2)`, and the
+machine-side mirror `stackPotN`/`potN` with `pot_eq_potN` (the crossing
+equation is *not* deferred: the stack arrays hold `(b_i, phase_i)` and
+that is all the potential reads). Eight transitions `step_yes`,
+`step_no`, `step_stuck`, `step_push`, `step_exhausted`, `step_flip`,
+`step_flip_infeasible`, `step_pop`, each concluding
+`J G k C' ∧ pot C' + 1 ≤ pot C`.
+Next: S3 — the program `vcfCom` + `#eval` smoke tests (VF3 rev 2 rules).
+Decisions:
+(1) Because a phase-one frame marks a whole neighbourhood, stack depth is
+no longer budget spent, so each frame stores its own `b` and neither
+`Alt` nor `stackPot` threads a budget through the recursion (unlike
+Lax11's). That is also what makes `potN` cheap: `stkB` and `stkP` are
+exactly its arguments.
+(2) The descend budget equation `bud + (trail frames).length = k` is in
+`J` **only in descend mode**. In backtrack mode `bud` is dead — the flip
+and the pop both overwrite it from the frame's stored `b` — and after an
+infeasible flip (T7) the relation is genuinely false (the trail grew by
+`d` while `bud` stayed `b`). `step_flip_infeasible` and `step_pop`
+therefore quantify over an arbitrary new `bud'`.
+(3) The flip lemmas take any `l` with `l.Nodup` and
+`l.toFinset = ResNbhd G (P_i) v_i`: order and the CSR's freedom to name
+neighbours in any order never reach the pure side. T6 came out near-`rfl`
+as the plan predicted — one `Finset.union_comm` and an `Or` shuffle.
+(4) The plan's arithmetic checks out with **no deviation**. Exact drops:
+T4 push (`fPot (b-1) + fPot (b-2) + 3 ≤ fPot b`, equality at every `b ≥ 1`
+including the truncated `b = 1` case `1 + 1 + 3 = 5`), T5, T8, and T6 when
+`d = 2`. Slack: T1 (`fPot bud + 1`), T2 (`fPot bud`), T3 (exactly
+`fPot 0 = 1`, so exact too), T6 with `d > 2`, T7 (two units). Numerically
+sanity-checked: `fPot` = 1, 5, 9, 17, 29, 49 and a push/push/backtrack/
+flip/pop trace drops 18 → 17 → 16 → 11 → 10 → … as designed.
+
+## VCF session 4 — 21:46 UTC
+Milestone: S3 — done (program, `vcfCom_ok`, and the full smoke list green)
+Commits: 0bcb6f3 `Lax15 vcfib: the program and its smoke tests`
+State: `Lax15Proofs/Program.lean` (green, zero sorry, three background
+axioms), added to the root module. `vcfCom` is the plan's VF3 rev 2
+algorithm verbatim: read phase copied from Lax11's `vcCom`; outer
+`while mode < 2`; `descendScan` = one pass `j ∈ [0, 2m)` with the inner
+`ownerAdvance` loop (`off[u+1] < j+1`) resetting `seen`/`t1`/`cnted`,
+`slotStep` counting the owner into `ro` once (guarded by `cnted` and
+`u < w`) and raising `found`/`v` on an unmarked target different from
+`t1`; then the four-way case; `backtrackBody` = exhausted / `flipFrame`
+(unmark, restore `bud` from `stkB`, row scan marking onto the trail,
+`stkP[sp] := 1`, feasibility `d < bud+1`) / `popFrame` (unwind loop,
+restore `bud`, `top := top-1`); `write ans`. Layout: 26 scalars, arrays
+`off tgt mark trail stkV stkB stkT stkP`, 4 temps. Every name and the
+statement shape are documented in the file's header comment (lines
+4–140; the scalar table is lines 51–91, the statement layout 93–139) —
+S4/S5 should read that as the ground truth.
+All eighteen smoke instances answer as the plan predicts, asserted with
+`#guard` (a wrong answer was checked to break the build). Step counts:
+triangle 3030 / 2415 (k=1/2), P4 3120 / 2505, K1,3 2357 (k=1), C4 3862 /
+4294, C5 7990 / 5483 (k=2/3), 2K2 1142 / 1107, K4 7512 / 6127 (k=2/3),
+edgeless 200, empty 144, malformed 129 (halts on the exhausted tape).
+Repeat encodings: `[2,2,0,2,4,1,1,0,0]` + k gives 0 at 1028 steps and 1
+at 993. The doubled-slot matching family (e disjoint edges, every slot
+listed twice, budgets e-1 / e) is linear: e = 3 → 2800 / 2765
+(|x| = 22), e = 5 → 4572 / 4537 (|x| = 34), e = 8 → 7230 / 7195
+(|x| = 53), i.e. 127, 134, 136 steps per input letter and no push ever.
+Lax11's `vcCom` on the same two: 6934 and 52554 steps (it branches).
+On shared instances Lax11 is a constant factor cheaper (triangle k=2:
+1662 vs 2415; C5 k=3: 3898 vs 5483) — eight arrays cost more per array
+access and the descend scan has no early exit.
+Next: S4 — the inner-loop Run lemmas (descend scan, flip row scan, pop
+unmark loop) against `Program.lean`'s three `while`s.
+Decisions:
+(1) Two deviations from the plan's prose, both documented in the header.
+`flipFrame` unmarks `mark[pv]` rather than `mark[trail[tb]]` (equal under
+frame health, and it saves S5 an appeal to `trail[tb] = v`). And the
+branch witness is kept *first* by guarding the assignment with
+`found = 0`, as the plan says, even though S4's invariant would accept
+an arbitrary witness.
+(2) `ownerAdvance` is a genuine inner `while`, per the plan, so the
+descend scan is two nested `while_pot`s and not one: outer potential in
+`2m − j`, inner in `n − u`. Note the inner loop has no `u < n` guard — on
+a valid encoding `off` is nondecreasing with `off[n] = 2m > j`, so `u`
+stops below `n`; on a malformed word that got past the read phase it
+would spin (the machine wraps addresses, it never traps). Every malformed
+word I could construct halts in the read phase, and the smoke word does.
+If S4/S5 would rather not carry that, the guard is a one-line change —
+but it turns the loop's exit condition into a disjunction.
+(3) Fuel and word length of the smoke runner: `runOut 16 3000000`. The
+`#eval`s are cheap (the largest is 7230 steps) but the machine's memory
+is a closure chain, so long runs get quadratic — that is why Lax11's
+`vcCom` was not run on the eight-edge instance.
+
+## VCF session 5 — 01:12 UTC
+Milestone: S4 — done (all three inner-loop Run lemmas plus the Rep layer)
+Commits: 6cd8e6e `Lax15 vcfib: inner-loop run lemmas — Rep, descend scan,
+row scan, unwind`
+State: `Lax15Proofs/Phases.lean` (1607 lines, green, zero sorry, three
+background axioms), added to the root module. Signatures S5 consumes
+verbatim:
+- `Rep (n m : ℕ) (O T : ℕ → ℕ) (C : Config n) (τ : Env) : Prop` with
+  projections `Rep.m2/off/tgt/mode/bud/ans/top/tt/mark/trail/stk` and
+  `Rep.of_vars_eq` (arrays + the six scalars fixed ⇒ Rep transports).
+- `descendScan_run (hg) (hm : edgeCount g = m) (hO) (hT) (h1B : 1 < B)
+  (hnB : n < B) (hmB : 2*m < B) (hRep : Rep n m O T C τ) : ∃ τ' K,
+  Run B descendScan τ τ' K ∧ Rep n m O T C τ' ∧ arrs/inp/out fixed ∧
+  τ'.vars "ro" = (ResOwners g (marked C.frames) (2*edgeCount g)).card ∧
+  ((found = 0 ∧ ThinBlocks g (marked C.frames)) ∨ (found = 1 ∧ ∃ v : Fin n,
+  (v:ℕ) = τ'.vars "v" ∧ v ∉ marked C.frames ∧ 2 ≤ resDeg G _ v)) ∧
+  K ≤ 250 * (n + 2*m + 1)`.
+- `rowLoop_run (hg) (hm) (hT) (h1B) (hnB) (hmB) {v MK TR tb τ}
+  (hcard : M.card = tb) (hmark) (hMK : Indicator M MK) (htrail) (htgt)
+  (hj : j = offset g v) (hjend : jend = offset g (v+1)) (htt : tt = tb) :
+  ∃ τ' l MK' TR' K, Run B rowLoop τ τ' K ∧ l.Nodup ∧
+  l.toFinset = ResNbhd G M v ∧ tt' = tb + l.length ∧ mark = Indicator
+  (M ∪ l.toFinset) ∧ trail below tb fixed ∧ TR' (tb+i) = l[i] ∧ frames ∧
+  K ≤ 50 * (n + 2*m + 1)`  (`rowLoop`/`unwindLoop` are the `while`s of
+  `flipFrame`/`popFrame`, tied to them by `flipFrame_eq`/`popFrame_eq`).
+- `unwind_run (h1B) (hnB) {S MK TR tb τ} (hnd : S.Nodup)
+  (hdisj : Disjoint S.toFinset M) (hmark) (hMK : Indicator (S.toFinset ∪ M)
+  MK) (htrail) (hTR : TR (tb+i) = S[i]) (htb) (htt : tt = tb + S.length)
+  (hbnd : tb + S.length ≤ n) : ∃ τ' MK' K, Run B unwindLoop τ τ' K ∧
+  tt' = tb ∧ Indicator M MK' ∧ frames ∧ K ≤ 50 * (n + 1)`.
+Cost numerals shipped: descend scan `250·(n+2m+1)` (potential
+`200·(2m−j) + 100·(n−u)`), row scan `50·(n+2m+1)` (potential
+`40·(off(v+1)−j)`), unwind `50·(n+1)` (potential `30·(tt−tb)`).
+Next: S5 — the outer body (`outerBody_run`), case split on mode/branch
+against these three.
+Decisions:
+(1) **Trail orientation** (S5 must mirror): the array is `trailArr fs =
+trail fs.reverse` — bottom frame first, each frame's marks in the order
+it made them — so a push appends at the end and a pop truncates. The
+`Rep` clause is stated against `trailVals` (the same list as `ℕ`) and
+only over `[0, (trail C.frames).length)`; nothing above the height is
+constrained. Stack arrays bottom-up (`C.frames.reverse[i]`), extents
+`n+1` for `trail`/`stkV`/`stkB`/`stkT`/`stkP`, `n` for `mark`, per
+Program.lean's header. Frame `i`'s stored base is `base fs i =
+(trail (fs.drop (fs.length − i))).length`, with `base_top` and
+`base_cons` the two lemmas a push/pop needs.
+(2) The descend scan is `Rep`-level; the flip's row scan and the pop's
+unwind loop are **array-level**, like Lax11's `scan_run` — mid-body they
+represent no configuration (marks already those of the frames below
+while the frame is still on the stack). S5 reassembles `Rep` from the
+`Indicator`/trail conclusions; `indicator_set_one`/`indicator_set_zero`
+are there for the flip's single unmark of `pv`, which I left to S5 (it
+is one `Run.store`).
+(3) Two lemmas S1 did not have, proved in Phases.lean and worth a look:
+`two_le_resDeg_of_slots` — the per-vertex form of `exists_two_slots_iff`
+(the ∃-form cannot name the witness the scan found, which `step_push`
+needs), and `resOwners_succ_of_residual`/`_of_not`, one slot's effect on
+`ResOwners`. If a later session wants them upstream they belong next to
+`exists_two_slots_iff`.
+(4) The guard-free owner advance (S3's note 2) needed no guard: the
+invariant clause `j ≤ offset (u+1)` both stops the loop and makes the
+reset of `seen`/`t1`/`cnted` sound (the advance can only step onto a
+block that starts exactly at `j`). No change to the program.
+
+## VCF session 6 — 04:12 UTC
+Milestone: S5 — done (the whole outer body, all eight transitions)
+Commits: 179742a `Lax15 vcfib: outer body — the eight transitions, run`
+State: `Lax15Proofs/Loop.lean` (776 lines, green, zero sorry, three
+background axioms), added to the root module; whole package builds in
+~25 s on the warm dep build. Three theorems S6 consumes:
+- `descendBody_run (hg) (hm) (hO) (hT) (h2B : 2 < B) (hnB : n + 1 < B)
+  (hmB : 2*m < B) (hkB : k + 1 < B) {C τ} (hRep : Rep n m O T C τ)
+  (hJ : J G k C) (hmode : C.mode = 0) : ∃ C' τ' K, Run B descendBody τ τ' K
+  ∧ Rep n m O T C' τ' ∧ J G k C' ∧ pot C' + 1 ≤ pot C ∧ τ'.inp = τ.inp ∧
+  τ'.out = τ.out ∧ K ≤ 500 * (n + 2*m + 1)`
+- `backtrackBody_run` — same hypotheses with `C.mode = 1`, same
+  conclusion for `backtrackBody`, same numeral.
+- `outerBody_run` — same hypotheses with `C.mode < 2`, conclusion for
+  `outerBody`, `K ≤ 510 * (n + 2*m + 1)`.
+Plus three reusable helpers in the same file: `getElem_reverse_top` /
+`getElem_reverse_lt` (the bottom-up stack order past a push, Lax11's
+lemmas re-proved here since `VCLoop` is not imported), `Rep.of_frames_eq`
+(a transition that leaves the stack alone transports `Rep`; the shape is
+`Rep … ⟨C.frames, mode, bud, ans⟩ τ'`, which is exactly what T1/T2/T3/T5
+produce), and `card_resOwners_le`.
+Next: S6 — `Run.while_pot` with `Φ = U·(x.length+1)·potN`, the read
+phase, `write ans`, `computesInTime_of_run`, the endgame theorem.
+Decisions:
+(1) **The value bound moved.** S4's lemmas take `n < B`; the body needs
+`n + 1 < B` (the push writes `top + 1` and `tt + 1`) and `k + 1 < B` (the
+two comparisons `ro < bud + 1` and `d < bud + 1` evaluate `bud + 1`, and
+`bud ≤ k`). Both are free from the admissibility condition
+`c * (x.length + k + 1) ≤ 2^w`. The four hypotheses of the body are
+therefore `2 < B`, `n + 1 < B`, `2m < B`, `k + 1 < B` — S6 must supply
+these, not Lax11's `k < B`.
+(2) The plan's T-table needed no repair: every semantic guard discharged
+from the scan verdict plus S1. T1/T2 go through
+`card_resOwners_le_card_resEdges` and `card_resEdges_le_card_resOwners`
+(the second needs `thinBlocks_iff` first), which pin `ro` to
+`(ResEdges).card` exactly in the ¬found case; T3 takes the uncovered edge
+out of `2 ≤ resDeg` by `Finset.card_pos`. Nothing in `Config.lean` or
+`Phases.lean` had to change.
+(3) Two Lean-level traps worth carrying forward. Deeply nested
+`Run.seq`/`Run.ite` terms over `set`-bound environments blow the whnf
+heartbeat limit: build each phase as its own `have` (`rflip`, `rpop`,
+`rback`) with an explicit `K₁ + numeral` cost and the elaborations stay
+small. And `if_neg (by decide)` / `if_pos rfl` inside `simp only`/`rw`
+lists either leaves a metavariable or silently fails to fire — use a
+named hypothesis (`if_neg h`), a `show`-typed proof, or plain `simp`.
+(4) `unwind_run` needs `(B := B)` passed explicitly: `B` occurs in none
+of its hypotheses except `1 < B`/`n < B`, so an `obtain` without an
+expected type leaves it a metavariable and the `by omega`s fail. Also,
+the `Rep` binder `i < (trail C'.frames).length` does not reduce to
+`i < (trail fs).length` for `omega` — restate it with a `have`.
+
+## VCF session 7 — 23:24 UTC (clock reading; the box is behind sessions 5–6)
+Milestone: S6 — done (loop, assembly, endgame theorem, all four deliverables)
+Commits: 12fddcc `Lax15 vcfib: assembly and endgame — the loop, the read
+phase, the theorem`
+State: `Lax15Proofs/Main.lean` (green, zero sorry, `lean_verify` on the
+endgame gives propext / Classical.choice / Quot.sound only,
+`lean_diagnostic_messages` empty), added to the root module. The whole
+`proofs/` package builds in ~6 s on the warm dep build; `concepts/`
+untouched and still green (1032 jobs). Contents, in order:
+- `framesOf` (the stack's `(b, phase)` list read totally off `stkB`/`stkP`
+  below `top`), `framesOf_eq`, `potN_eq` — the decode, one
+  `List.ext_getElem`, exactly the `VCLoop` shape.
+- `searchLoop_run` — `Run.while_pot` at scale `514 * (n + 2m + 1)`
+  (`510` for the body, `4` for the test), conclusion
+  `K ≤ 514 * (n + 2m + 1) * pot C₀ + 4`.
+- `vcfExt` (`tgt ↦ 2m`, `mark ↦ n`, everything else `↦ n+1`), `const_eq :
+  vcfLayout.const = 43`, `mem_lt_length_add`, `vcfCom_run` (end-to-end
+  `Run` on every encoded instance, `K ≤ 2100 * fib (k+2) * (|x|+1)`),
+  `vcfCom_solves`, and `exists_fibTime_program_vertexCover` with the
+  conclusion frontmatter and the `@thm = @axiom := rfl` identity check
+  against `Lax15.VertexCover.exists_fibTime_program_vertexCover`.
+**Achieved constant: `c = 90300 = 43 · 2100`.** `43 = vcfLayout.const =
+3 · (8 − 1 + 3) + 13` — eight arrays, so one index computation is ten
+instructions and the machine pays 43 steps per unit of IMP+ cost.
+`2100` is the IMP+ cost per `fib (k+2)` per input letter: `2056 =
+514 · 4` from the loop (`514 · (n+2m+1)` per turn against
+`pot C₀ ≤ 4 · fib (k+2)`, and `n+2m+1 ≤ |x|+1`), plus `44` of slack
+absorbing the read phase (`12n + 24m + 35`), the `write`, and the loop
+rule's `+4`. Same fitting condition and same admissible set as Lax11's,
+whose constant was `33300 = 37 · 900`; ours is 2.7× larger, all of it in
+the two extra arrays and the flat descend scan, none of it in `k`.
+Next: S7 — wrap-up (abstract.md final, notes.md, `lax build`, Jan
+summary). No `lax submit` (VF8).
+Decisions:
+(1) The endgame landed on the first serious elaboration: three fixable
+errors (two missing `open Lax11Proofs` / `import Lax15.VertexCover`, one
+`omega` that needed `4 + n + 2m + k ≤ B` hoisted out of `hB` before the
+value bounds instead of `simp at hB` inside each). S5's whnf trap never
+fired — the read phase's eight `Run.seq`s over `set` environments
+elaborate fine, as they do in Lax11's `VCMain`; the trap is specific to
+nesting `Run.ite` inside them.
+(2) The identity check is written `example : @exists_fibTime_program_
+vertexCover = @Lax15.VertexCover.exists_fibTime_program_vertexCover :=
+rfl`. `Eq` forces the two types to be defeq, so this typechecks only if
+the proved statement *is* the concept's proposition; `rfl` then closes it
+by proof irrelevance. Cheaper and stronger than restating the type, and
+it also certifies that the `Decidable` instance in the concept's
+`if G.vertexCoverNum ≤ (k : ℕ∞)` (under `open Classical in`) is the same
+one the proof side infers.
+(3) Nothing in the kit assumed a power-of-two potential, as the plan
+hoped: `while_pot` and the `omega` recipe took `Nat.fib (k+2)` with
+`Nat.fib_pos.2` in place of `Nat.two_pow_pos` and no other change.
+(4) For S7's abstract: the honest headline numbers are `fib (k+2)`
+leaves, `c = 90300`, and the measured step counts of S3 — Lax11 is a
+constant factor *cheaper* on small shared instances (triangle k=2: 1662
+vs 2415) and catastrophically worse where the base bites (the doubled
+five-edge matching: 52554 vs 4572). Worth one sentence; the claim is
+about the exponent, not about the constant.
+
+## VCF session 8 — 23:33 UTC
+Milestone: S7 — done (all five deliverables; the Fibonacci rung is
+finished and staged for Jan)
+Commits: 72fffb8 `Lax15 vcfib: wrap-up — abstract, notes, README entry`
+
+### For Jan, in the morning
+
+**Lax15 `vertex-cover-fibonacci/` is complete: statement *and* proof.**
+Vertex cover is decided on the word RAM within
+`c · fib(k+2) · (|x|+1)` steps — the base of the exponential lowered
+from 2 to the golden ratio (`fib(k+2) ≈ 1.17 · φ^k`, φ ≈ 1.618) by
+branching on a vertex of residual degree ≥ 2 instead of on an edge.
+Same machine, same encoding, same admissible set as Lax11's `2^k`
+statement, character for character, so the two bounds are claims about
+literally the same inputs: this sharpens that rung, it does not unsay
+it. Achieved constant **`c = 90300 = 43 · 2100`** (43 machine steps per
+IMP+ statement from the eight-array layout; 2100 IMP+ statements per
+`fib(k+2)` per input letter). `lax build vertex-cover-fibonacci` green
+(concepts 1032 jobs, proofs 2998), `build-output.json` records the
+conclusion `Lax15.VertexCover.exists_fibTime_program_vertexCover` with
+**empty assumptions**; `lean_verify` on the endgame theorem gives the
+three background axioms only; zero `sorry` anywhere.
+
+The whole campaign, in order:
+- aa8359a S0 scaffold — concept surface, pins, both packages green
+- 80adfd3 S1 residual graph side (early exit / matching bound / vertex
+  branch) — *and* the repeat-encoding finding that repaired VF3
+- 135259b S2 config side — frames, invariant `J`, potential, the eight
+  transitions
+- 0bcb6f3 S3 the program `vcfCom` and eighteen `#guard`ed smoke tests
+- 6cd8e6e S4 inner-loop run lemmas — `Rep`, descend scan, row scan,
+  unwind
+- 179742a S5 the outer body — all eight transitions, run
+- 12fddcc S6 assembly and endgame — the loop, the read phase, the
+  theorem
+- 72fffb8 S7 wrap-up — `abstract.md`, `notes.md`, README entry
+
+Deliberately left for you, none of it blocking:
+- **`lax submit vertex-cover-fibonacci`** — not run tonight (VF8). The
+  draft is ready; submitting is your call, and registering it will need
+  Lax11 and Lax13 registered first (the build warns about both).
+- **Title and register review.** Manifest title is *Vertex Cover in
+  Fibonacci Time*; authors Jan Dreier + Claude Fable 5. `abstract.md` is
+  rewritten from the S0 draft (it now says the proof ships) and
+  `notes.md` is new — both in the register of `ram-linear-time`'s.
+- **Nothing is provisional.** `lax init` reached the server, so the id
+  **Lax15 was server-allocated**, not guessed; no id fix-up is pending.
+- README's `ram-linear-time` entry still describes Lax11 as carrying "a
+  word-RAM surface", which the Lax13 extraction moved out. Left alone —
+  not this task's file to rewrite, but worth a line when you next touch
+  it.
+
+State: three files changed this session (`vertex-cover-fibonacci/
+abstract.md`, `vertex-cover-fibonacci/notes.md`, `README.md`); no Lean
+edits, no concept edits, no generated files staged. `build-output.json`
+refreshed and left untracked as intended.
+Next: nothing on rung A. The orchestrator proceeds to a **rung B**
+attempt (1.4656^k, branch on degree ≥ 3 with a path/cycle solver) as a
+*second* campaign inside this same submission — a second theorem concept
+with its own named recurrence. Rung A's files are finished and will not
+be touched by it.
+Decisions:
+(1) The abstract carries three numbers a reader could check and one
+comparison: `fib(k+2) ≈ 1.17·φ^k` (the plan's "1.9" was wrong and is not
+used), `c = 90300` against Lax11's `33300`, and the honest admission
+that the `2^k` driver is the *cheaper* program on small instances —
+followed by the doubled five-edge matching, where Lax11's `vcCom` takes
+52554 steps and this one 4572. The sentence that carries the whole
+framing is "This one sharpens that one; it does not unsay it."
+(2) `notes.md` is a map, not a ledger, exactly as `ram-linear-time`'s:
+it points at the module docstrings and at the `Main.lean` conclusion
+annotation rather than repeating them, and the achieved constant appears
+only in the abstract and in that annotation.
+(3) The README entry spends most of its length on the relationship to
+Lax11 (same admissible set, sharpening not replacing), because that is
+the one thing a reader scanning the list could get wrong.
+
+## VCF session 9 — 00:06 UTC
+Milestone: B1 — done (all five deliverables; the abort valve is cleared
+in one session, no second session needed)
+Commits: d185064 `Lax15 vcfib: rung B solver, pure side — the
+maximum-degree-two cost` (`Lax15Proofs/Solver.lean`, 966 lines, plus the
+root-module import)
+State: `lake build` green in `vertex-cover-fibonacci/proofs/` (3003
+jobs), zero sorry, `lean_verify` on `ok_iff_compCost_le` and
+`thinBlocks3_iff` gives the three background axioms only. Namespace
+`Lax15Proofs.VC3`; rung A files untouched. What B2–B5 consume:
+- `R G M : SimpleGraph (Fin n)` (`Adj a c ↔ G.Adj a c ∧ a ∉ M ∧ c ∉ M`),
+  ties `edgeFinset_R : (R G M).edgeFinset = ResEdges G M`,
+  `degree_R (hv : v ∉ M) : (R G M).degree v = resDeg G M v`,
+  `degree_R_of_mem`, `degree_R_le_two`.
+- `compEdges H C` (`{e ∈ H.edgeFinset | H.connectedComponentMk e.inf = C}`)
+  with `mem_compEdges`, `sum_card_compEdges`, `sum_card_compEdges_R`;
+  `compCost' H = ∑ C, ((compEdges H C).card + 1) / 2`,
+  `compCost G M = compCost' (R G M)`, `compCost_eq_zero_iff`.
+- `not_ok_of_lt_compCost (hdeg : ∀ v ∉ M, resDeg G M v ≤ 2)
+  (hb : b < compCost G M) : ¬ Ok G M b`;
+  `ok_of_compCost_le (hdeg) (hb : compCost G M ≤ b) : Ok G M b`;
+  `ok_iff_compCost_le (hdeg) : Ok G M b ↔ compCost G M ≤ b`.
+- transport: `three_le_resDeg_of_slots` (six slot bounds, three unmarked
+  targets, three disequalities ⇒ `3 ≤ resDeg G M o`), `ThinBlocks3`,
+  `thinBlocks3_iff : ThinBlocks3 g M ↔ ∀ v ∉ M, resDeg G M v ≤ 2`,
+  `resDeg_le_two_of_thinBlocks3`.
+Next: B2 — potential and transitions (`Lax15Proofs/Config3.lean`), per
+the plan. Nothing from B1 is deferred.
+Decisions:
+(1) **The plan's upper-bound induction rule is wrong as written and was
+replaced.** `vc-rung-b-plan.md` says to delete a degree-two vertex of an
+edge-bearing component and cites `⌈e₁/2⌉ + ⌈e₂/2⌉ + 1 ≤ ⌈e_C/2⌉` for
+`e₁ + e₂ = e_C − 2`; that inequality is false at `e₁ = e₂ = 1`
+(`1+1+1 > 2`), and the five-vertex path realizes it — deleting the
+middle vertex of `a−b−v−c−d` leaves two single edges, cost 2 either
+way, so the step buys nothing. The two rules that do work: (i) if some
+vertex has degree one, isolate its *neighbour* — the degree-one vertex
+becomes isolated, so at most one piece keeps edges; (ii) otherwise every
+degree is 0 or 2, isolate any endpoint of an edge — its two neighbours
+stay in one piece, because otherwise the piece of one of them would be a
+component with exactly one odd degree, which the handshake lemma forbids.
+Case (ii) is the only place any real graph theory enters, and it needs
+the handshake lemma *per component*: `sum_degree_comp`, proved by
+restricting `H` to one component (`restrictComp`) and calling mathlib's
+`sum_degrees_eq_twice_card_edges` on the restriction.
+(2) Deletion is `isolate H v` (drop the edges at `v`, keep the vertex),
+as the brief suggested: the vertex type never changes, so `H` and
+`isolate H v` have components in the same family and `liftComp`/`fiber`
+can compare them. The component bookkeeping is one lemma
+(`compCost'_isolate_succ_le`): away from `v` the fibre is a singleton
+with the same edges, so the whole comparison reduces to `v`'s own
+component, which `split_bound` handles.
+(3) Decidability: two file-local instances (`DecidableRel H.Adj`,
+`DecidableEq H.ConnectedComponent`) fix one derivation of every
+finiteness instance, so mathlib's `edgeFinset`/`degree`/`Fintype
+ConnectedComponent` lemmas apply syntactically. They are `local`, so
+nothing leaks; every exported statement is instance-free except the
+`edgeFinset`/`degree` ties, and `sum_card_compEdges_R` /
+`compCost_eq_zero_iff` are stated in `ResEdges` so B4 can count without
+them.
+(4) The two bounds pin `compCost` to the exact vertex cover number of a
+maximum-degree-two graph (they are only jointly satisfiable if it is),
+which is the internal consistency check the pure side gets in place of
+`#guard`s — every definition here is noncomputable.
+
+## VCF session 10 — 00:13 UTC
+Milestone: B2 — done (all five deliverables, first-build green)
+Commits: 8dce72b `Lax15 vcfib: rung B potential and transitions — the
+branch recurrence` (`Lax15Proofs/Config3.lean`, 380 lines, plus the root
+module import)
+State: `lake build` green in `vertex-cover-fibonacci/proofs/` (3004
+jobs), zero sorry, `#print axioms` on `step3_push`/`step3_flip`/
+`pot3_init_le` gives the three background axioms only. Namespace
+`Lax15Proofs.VC3`; rung A files untouched. What B3–B5 consume:
+- `branchCount : ℕ → ℕ` with the concept's equation shapes verbatim
+  (`| 0 => 1 | 1 => 2 | 2 => 3 | (b+3) => branchCount (b+2) +
+  branchCount b`), `branchCount_zero/one/two` and `branchCount_add_three`
+  all `@[simp]`, `branchCount_pos`, `branchCount_le_succ`,
+  `branchCount_mono`. Values 1,2,3,4,6,9,13,19,28 (checked by `#eval`).
+- `fPot3 b = 4 * branchCount b - 3` (values 1,5,9,13,21,33,49,73,109):
+  `fPot3_zero/one/two`, `fPot3_add_three` (exact), `one_le_fPot3`,
+  `fPot3_mono`, `fPot3_le_of_le`, `fPot3_push (1 ≤ b) : fPot3 (b-1) +
+  fPot3 (b-3) + 3 ≤ fPot3 b`, and the two truncation identities
+  `fPot3_push_one`, `fPot3_push_two`.
+- `stackPot3`, `pot3`, `stackPotN3`, `potN3 (mode bud) (frs)`,
+  `pot3_eq_potN3`, `pot3_init : pot3 ⟨[],0,k,a⟩ = fPot3 k + 1`,
+  `pot3_init_le : … ≤ 4 * branchCount k`.
+- `Sharp G : List (Frame n) → Prop` (`| [] => True | f :: fs =>
+  (f.phase = false → 3 ≤ resDeg G (marked fs) f.v) ∧ Sharp G fs`) with
+  `sharp_cons`, `Sharp.head`, `Sharp.tail`; `J3 G k C := J G k C ∧
+  Sharp G C.frames`, `J3.j`, `J3.sharp`, `j3_init`, `ans3_eq`.
+- the eight wrappers `step3_yes/no/stuck/push/exhausted/flip/
+  flip_infeasible/pop`, each concluding `J3 G k C' ∧ pot3 C' + 1 ≤
+  pot3 C`, with rung A's argument lists except: `step3_no` takes a plain
+  `¬ Ok G (marked C.frames) C.bud`, and `step3_push` takes
+  `3 ≤ resDeg G (marked C.frames) v`.
+Next: B3 — the program `vcf3Com` and its smoke tests
+(`Lax15Proofs/Program3.lean`), per the plan.
+Decisions:
+(1) **Seven of the eight `J`-halves are projected from S2 with `.1`, as
+the plan hoped.** Only `step3_no` is restated (three lines from `J`'s
+definition): S2's `step_no` bakes the counting guards `hdeg`/`hlt` into
+its hypotheses and derives `¬ Ok` internally, so it does not factor
+through a plain-`¬Ok` core. The solver's NO verdict now feeds `step3_no`
+directly, which is what B1's `not_ok_of_lt_compCost` produces.
+(2) **Every drop the plan calls exact is exact.** `fPot3_push` is an
+equality at every `b ≥ 1` — `5 = 1 + (1+2) + 1` at `b = 1` and
+`9 = 5 + (1+2) + 1` at `b = 2`, the recurrence above that — so the push
+drop is exactly one; so are stuck, exhausted, pop, and the flip at
+`d = 3`. The `−3` and the `+2` are load-bearing at exactly the places
+rung A's were. Nothing needed loosening.
+(3) The extra invariant clause is `Sharp`, quantified over frames the
+way `Healthy` is (structural recursion with the below-frame marking
+`marked fs`), not as a list-index quantifier — so it projects and
+reassembles with `.1`/`.2` in every wrapper, and its preservation is one
+term per transition. The feasible flip is the only consumer:
+`Sharp.head` supplies `3 ≤ d`, which is what makes `fPot3 (b − d) ≤
+fPot3 (b − 3)` and thus the drop.
+
+## VCF session 11 — 00:50 UTC
+Milestone: B3 — done (all four deliverables; every guard green on the
+first run, no disagreement with the hand-derivations, nothing blocking)
+Commits: 522d846 `Lax15 vcfib: rung B program and smoke — branch at
+three, solve the rest` (`Lax15Proofs/Program3.lean`, 493 lines, plus the
+root module import)
+State: `lake build` green in `vertex-cover-fibonacci/proofs/` (3005
+jobs), zero sorry, no warnings; rung A files untouched. Namespace
+`Lax15Proofs.VC3`. What B4/B5 consume — the header comment of
+`Program3.lean` is the ground truth, with the full name/layout table and
+a pseudocode transcript of every block marked (A) where it is rung A's:
+- reused **by name**: `readLoop`, `VC.pushFrame`, `VC.backtrackBody`
+  (hence `VC.flipFrame`/`VC.popFrame`/`VC.rowStep`), `VC.recordFound`.
+- re-typed: `ownerAdvance3`, `slotStep3`, `descendScan3` — the scan's
+  per-owner register set changed (`t2` replaces `cnted`, `ro` is gone),
+  so rung A's `ownerAdvance` would leave `t2` stale across owners.
+- new: `neTest`, `dedupStep first second third` (the one dedup, used by
+  both scans), `clearVis`, `countPush`, `solveSlot`, `expandBody3`,
+  `drain3`, `rootStep`, `solveBlock`, `descendBody3`, `outerBody3`,
+  `vcf3Com`, `vcf3Layout`, `vcf3Program`, `vcf3Com_ok`, `test`.
+- layout: rung A's 26 scalars less `ro`/`cnted`, plus `t2`, `head`,
+  `tl`, `s`, `tog`, `r` (30); arrays plus `vis`, `q` (10); temps 4.
+Next: B4 — the two scan Run lemmas (`Lax15Proofs/Phases3.lean`):
+`descendScan3_run` and `solve_run`. Split B4a/B4b if `solve_run` needs
+its own session, as the plan allows.
+Decisions:
+(1) **No early exit in `descendScan3`** — the scan runs the full pass,
+as rung A's does. The counter-forcing idiom was available and is
+rejected on three grounds: the cost bound is identical (one pass over
+`2m` slots, which the potential already pays for), the loop invariant
+stays the plain "`found` says whether some owner below `j` has three
+distinct unmarked targets" instead of carrying a disjunction for the
+forced state, and the scan stays syntactically parallel to rung A's
+`descendScan`, whose Run lemma B4 can then imitate line for line.
+(2) The `seen/t1/t2` dedup is **one parameterized definition**,
+`dedupStep first second third`, used by both scans; they differ only in
+the commands hung on the first, second and third distinct target
+(`skip, skip, recordFound` in the descend scan; `countPush, countPush,
+skip` in the solver). B4's two Run lemmas cannot be single-sourced —
+the actions differ — but the shape they walk is literally the same
+term, which is the most the watch item can buy. A third distinct target
+in the solver is **skipped, not counted**, so `s` never exceeds the
+residual edge count even off the invariant; B4 shows the branch
+unreachable.
+(3) The queue is not reset between components (the CC idiom): `head`
+and `tl` are set once per solver call and are monotone across its
+components, with `vis` set before every enqueue, so `tl ≤ n` and `q`
+has extent `n`. The toggle `tog`, by contrast, **is** reset at each
+root — that is what makes `s` a sum of ceilings rather than one
+ceiling, and `C₄ + C₆` is the guard that would catch a lapse (it would
+answer `4` instead of `5`).
+(4) Step counts, all first-run and all agreeing with hand-derivation.
+Rung B: K₅ 14649 (`no`, k=3) / 12846 (`yes`, k=4); C₇ 7016 / 6981;
+C₄+C₆ 9944 / 9909; K₄ 7442 / 6628; triangle+P₃+C₄ 9236 / 9201; bull
+6618 / 5804; K₁,₄ 4511; P₄ 3358 / 3323; doubled 2K₂ 3780 / 3745;
+repeat word 1974 / 1939; edgeless 712; empty 172; malformed halts at
+137. Against rung A on the same words: **C₇ 17937 / 9776 (A) against
+7016 / 6981 (B)** — the clean win, rung A branching through a Fibonacci
+tree where rung B answers at the first leaf. `K₅` is 14782 / 12437 (A)
+against 14649 / 12846 (B): a near tie, rung B ahead on the `no` and
+behind on the `yes`, because both push three times on `K₅` at `k = 4`
+and rung B additionally pays for a solver pass at the leaf. Rung A wins
+the small constants: `K₄` 7512 / 6127 vs 7442 / 6628, `P₄` 3120 / 2505
+vs 3358 / 3323, repeat word 1028 / 993 vs 1974 / 1939, doubled `2K₂`
+1914 / 1879 vs 3780 / 3745. Two structural reasons, both expected and
+both recorded in the file: rung A fuses its matching leaf into the
+branching scan while rung B needs a second pass, and the layout has ten
+arrays rather than eight, so every array access costs more machine
+steps. Nothing here touches the asymptotics; the abstract's honest
+comparison against Lax11 will want the same treatment at B7.
+
+## VCF session 12 — 01:10 UTC
+Milestone: B4 — partial (deliverable 1 done; `solve_run` split off, see Next)
+Commits: ec4ac2f `Lax15 vcfib: rung B descend scan — the branching test at
+three` (`Lax15Proofs/Phases3.lean`, new file + root import), ee322e5 `Lax15
+vcfib: the solver's queue, its count and its dedup`, 2c558be `Lax15 vcfib:
+the row scan's set of recorded targets`
+State: `lake build` green in `vertex-cover-fibonacci/proofs/` (3006 jobs),
+zero sorry, `#print axioms` on `descendScan3_run`/`countPush_run`/
+`dedupCount_run` gives the three background axioms only; rung A untouched.
+`Lax15Proofs/Phases3.lean` (1290 lines) holds, in order:
+- `neTest_ne`/`neTest_eq`, `dedupFound_run` (the shared dedup with the
+  descend scan's actions: five outcomes, only the five registers move).
+- `SeenInv`/`thin_of_seenInv`/`pigeon3`, `ThinBelow`/`thinBelow_succ`/
+  `thinBlocks3_of_thinBelow`, `Scanned3`, `ScanInv3`, and
+  **`descendScan3_run`** — signature and numeral verbatim below.
+- `Queue` (structure: card, hd, mem, all, inj) with `tl_le`, `tl_lt`,
+  `push`; `countPush_run` (≤ 60); `dedupCount_run` (≤ 200).
+- `resTgts` + `mem_resTgts`, `resTgts_start`, `resTgts_succ_of_marked`,
+  `resTgts_succ_of_unmarked`, `resTgts_end`, `resTgts_mono`; `RowInv3`.
+Next: B4b — `rowScan3_run` (its exact conclusion, cost shape and proof plan
+are written out in `Phases3.lean` under "What is left of the row scan"),
+then `drain3`/`rootStep`/`clearVis` and `solve_run`.
+Decisions:
+(1) **`descendScan3_run` is done and B5 can consume it now.** Statement:
+`(hg : EncodesGraph g n G) (hm : edgeCount g = m) (hO : ∀ i ≤ n, O i =
+offset g i) (hT : ∀ p < 2*m, T p = target g p) (h1B : 1 < B) (hnB : n < B)
+(hmB : 2*m < B) {C : Config n} {τ : Env} (hRep : Rep n m O T C τ) : ∃ τ' K,
+Run B descendScan3 τ τ' K ∧ Rep n m O T C τ' ∧ τ'.arrs = τ.arrs ∧ τ'.inp =
+τ.inp ∧ τ'.out = τ.out ∧ ((τ'.vars "found" = 0 ∧ ThinBlocks3 g (marked
+C.frames)) ∨ (τ'.vars "found" = 1 ∧ ∃ v : Fin n, (v:ℕ) = τ'.vars "v" ∧ v ∉
+marked C.frames ∧ 3 ≤ resDeg G (marked C.frames) v)) ∧ **K ≤ 800 * (n + 2*m
++ 1)**`. Rung A's `Rep` was reused with no change at all: the scan moves
+only `Scanned3` names (j, u, w, found, v, seen, t1, t2) and no array, so
+`Rep.of_vars_eq` transports it exactly as on rung A. No rung-A file needed
+touching, and none was.
+(2) The scan's invariant carries `SeenInv` — "the registers describe the
+current block exactly" — **only while the flag is down**. It cannot survive
+the slot that raises the flag (that slot's target is by construction outside
+`{t1, t2}`), and it is not wanted afterwards: once `found = 1` the verdict is
+the witness already recorded, and `recordFound` keeps the first one. Guarding
+the clause by `found = 0` is what makes the four dedup outcomes uniform.
+Rung A's `ro`/`cnted` half of the invariant simply disappears.
+(3) The solver's lower blocks are green and their statements are final:
+`countPush_run` yields `Indicator (insert w V) VIS'` and `Queue (insert w V)
+Q' head tl'` *in both branches* (an already-visited target makes `insert w V
+= V`), which is what keeps the row scan's bookkeeping to one shape;
+`dedupCount_run` reports the third-distinct branch (`ρ' = ρ ∧ seen = 2 ∧ w ≠
+t1 ∧ w ≠ t2`) rather than refuting it, because the refutation needs the
+block-level `resTgts ⊆ ResNbhd` and belongs to the row scan.
+(4) **The toggle in closed form** (this is the arithmetic B4b needs, checked
+on paper): with `e` edges counted since the toggle's reset, `s` has grown by
+`⌈e/2⌉` and `tog = e % 2`; counting `c` more takes `s` to `s + (c + 1 −
+tog)/2` and `tog` to `(c + tog) % 2`. Both are `omega`-provable per step
+(`omega` handles `/2` and `%2`), and the per-row `c` is
+`((ResNbhd G M u).filter (fun x => (u:ℕ) < (x:ℕ))).card`.
+(5) **The cost of the solver must be amortized against `2m` by hand**: the
+rung-B program has no slot counter (`sc`) where the CC campaign put one, so
+the drain's `while_pot` potential has to read the queue array —
+`60 * (2m − Σ_{i < head} blockLen (q i)) + 60 * (n − head)` — and the fact
+that the sum stays `≤ 2m` is exactly `Queue.inj` plus the blocks being
+disjoint intervals of `[0, 2m)`. `rowScan3_run`'s cost is therefore stated
+per block (`≤ 300 * (offset (u+1) − offset u) + 10`) and not as a constant.
+This is the one place where B4b's shape differs from `CCSearch.lean`'s.
+(6) `rowScan3_run` was written in full and reverted rather than left
+half-proved: the mathematics went through (all three case analyses close),
+what did not converge in the time left was rewrite plumbing around
+`Env.setVar` under `set` — the goals came back delta-expanded and the
+`rw [e_j]`-style steps missed. B4b should build that lemma's clauses with
+`simp only [vars_setVar]` normalisation (rung A's idiom) instead of naming
+the updated environment with `set`, and should prove `hcardnew`/`hsnew`/
+`htognew` as `have`s *before* the `refine` — that part was already working.
+
+## VCF session 13 — 01:45 UTC
+Milestone: B4b — partial (three of five lemmas; `solve_run` did **not**
+land, see Decisions (1) for the continue/abort call)
+Commits: 6323e0e `Lax15 vcfib: the solver's row scan — one block of one
+dequeued vertex`, 016d681 `Lax15 vcfib: the clearing pass and one turn of
+the drain`, c4051f3 `Lax15 vcfib: the drain and the sweep, written out`
+State: `lake build` green in `vertex-cover-fibonacci/proofs/` (3006 jobs),
+zero sorry, no warnings; rung A untouched. `Lax15Proofs/Phases3.lean` is
+now 1900 lines and holds, past session 12's material:
+- `eq_singleton_of_card_one` / `eq_pair_of_card_two`;
+- **`rowScan3_run`** — `while j < jend do solveSlot` over one block, cost
+  `≤ 300 * (offset g (u+1) - offset g u) + 10`, concluding
+  `Indicator (V ∪ ResNbhd G M u) VIS'`,
+  `Queue (V ∪ ResNbhd G M u) Q' head (τ'.vars "tl")`,
+  `s' = s + (c + 1 - tog) / 2`, `tog' = (c + tog) % 2` with
+  `c = ((ResNbhd G M u).filter (fun x => (u:ℕ) < (x:ℕ))).card`;
+- **`clearVis_run`** (cost `≤ 20*n + 10`, needs `σ.vars "n" = n`);
+- `Queue.advance`; **`expandBody3_run`** (one turn of the drain: dequeue,
+  set the block up, scan it, `head := head + 1`; cost
+  `≤ 300 * (offset g (u+1) - offset g u) + 60`);
+- a doc section **"What is left of the solver"** with the full design of
+  the three remaining lemmas — invariants, potentials, the pure-side
+  identity — so the next session executes instead of re-deriving.
+Next: B4c — `drain3_run` (the queue-reading potential, and the identity
+`∑_{v ∈ C} c v = (compEdges C).card`), then B4d — the root sweep and
+`solve_run`. Both are specified verbatim in that doc section.
+Decisions:
+(1) **Recommendation: `continue`, with a hard checkpoint.** The remaining
+solver work is ~2 sessions (B4c drain, B4d sweep + `solve_run`), then B5
+~1, B6 ~1–2, B7 ~0.5 — call it 4.5–5.5 sessions against the ~5 that fit
+before the 06:00 local cutoff at the observed ~25 min cadence. That is a
+coin flip, and it is a *free* coin flip: rung B is invisible to the
+endorsement surface until B6 lands the concept, so a campaign that stops
+half-way costs nothing but the sessions, and everything committed is
+green. The honest checkpoint: **if `solve_run` is not green by ~02:40
+UTC, stop and go to B7-style wrap-up**, because B5 and B6 together cannot
+be done in under three sessions and B6 is the only milestone that changes
+what is endorsed.
+(2) `solve_run`'s shape is **changed** from the brief's, deliberately, and
+the change is recorded in the file. It must conclude a run of the *whole*
+`solveBlock`, final `ite` included — not of a `solveCore` prefix. Reason:
+`solveBlock` is right-nested as `seq clearVis (seq … (seq rootLoop ite))`,
+so a lemma about the prefix `seq clearVis (seq … rootLoop)` cannot be
+composed with a run of the `ite` without a `Run` re-association, which
+would need `BigStepB` inversion. Consuming it is *easier* this way: B5
+does `Run.seq hscan (Run.ite_true … hsolve)` exactly as rung A's
+`descendBody_run` does, and gets `Rep` of the new configuration directly.
+The same trap bit `expandBody3_run`: its six set-up assignments are
+packaged as a **continuation** lemma (`∀ c ρ'' Kc, Run B c ρ ρ'' Kc →
+Run B (a₁; a₂; …; a₆; c) σ ρ'' (25 + Kc)`), not as a block, which is the
+idiom to reuse wherever a program block is right-nested.
+(3) `solve_run` needs `τ.vars "n" = n`, a hypothesis rung A never wanted:
+`Rep` is silent about `"n"`, and both `clearVis` and the root sweep
+compare against it. B5/B6 must thread it from the read phase. It is the
+one interface surprise found this session.
+(4) Session 12's repair advice (decision (6) of its entry) was right and
+was followed: no `set` for the updated environments, `simp only
+[vars_setVar]` normalisation, and `hcardnew`/`hsnew`/`htognew` proved as
+`have`s before the `refine`. `rowScan3_run` then went through in four
+build rounds. The one arithmetic trap worth recording: the invariant
+clause `s ≤ s₀ + 1` is **not** provable from the old closed form plus the
+`countPush` disjunct — it needs the *new* closed form together with
+`card ≤ 2`, so `hsnew` has to be proved before the clause that uses it.
+
+## VCF session 14 — 02:20 UTC
+Milestone: B4c — **done**. `solve_run` is green; B4 is closed.
+Commits: 5e89f59 `Lax15 vcfib: the drain, and what one component
+contributes`, cb43771 `Lax15 vcfib: the root sweep — every component met
+exactly once`, 60d71dc `Lax15 vcfib: the solver block, run whole`,
+f911e3f `Lax15 vcfib: point the solver's design note at the file that
+executes it`
+State: `lake build` green in `vertex-cover-fibonacci/proofs/` (3007
+jobs), zero sorry, no warnings; `#print axioms solve_run` gives the three
+background axioms only; rung A untouched. The new file
+`Lax15Proofs/Sweep3.lean` (≈960 lines, imported from the root module)
+holds, in order:
+- `upDeg`, `compVerts`, `eq_mk_inf_sup`, `notMem_of_mem_compVerts`,
+  `card_fiber_compEdges`, **`sum_upDeg_compVerts`** (the pure identity),
+  `mem_of_reachable_closed`, `sum_upDeg_le_comp`;
+- `blockLen`, `sum_blockLen_range`, `sum_blockLen_le`, `sum_range_queue`,
+  `qsum`/`qsum_eq` (the queue-reading potential's vocabulary);
+- **`drain3_run`**, **`visComps`**/`sum_comp_le`/
+  `resNbhd_subset_compVerts`/**`rootSweep_run`**, `rep_of_solver`,
+  **`solve_run`**.
+Next: B5 — `outerBody3_run` in `Lax15Proofs/Loop3.lean`. `solve_run` is
+consumed exactly as rung A's `descendBody_run` consumes its leaf lemmas:
+`Run.seq hscan (Run.ite_true hfound hsolve)`.
+Decisions:
+(1) **`solve_run`'s signature, verbatim, for B5**:
+`(hg : EncodesGraph g n G) (hm : edgeCount g = m) (hO : ∀ i ≤ n, O i =
+offset g i) (hT : ∀ p < 2*m, T p = target g p) (h1B : 1 < B) (h2B : 2 < B)
+(hnB : n + 2 < B) (hmB : 2*m < B) {C : Config n} {τ : Env}
+(hRep : Rep n m O T C τ) (hbudB : C.bud + 1 < B) (hn : τ.vars "n" = n)
+(hthin : ThinBlocks3 g (marked C.frames))
+(hvisE : ∃ VIS, τ.arrs "vis" = arrOf n VIS)
+(hqE : ∃ Q, τ.arrs "q" = arrOf n Q) : ∃ τ' K, Run B solveBlock τ τ' K ∧
+τ'.inp = τ.inp ∧ τ'.out = τ.out ∧ τ'.vars "n" = n ∧
+(∃ VIS' Q', τ'.arrs "vis" = arrOf n VIS' ∧ τ'.arrs "q" = arrOf n Q') ∧
+τ'.vars "s" = compCost G (marked C.frames) ∧
+((compCost G (marked C.frames) ≤ C.bud ∧ Rep n m O T ⟨C.frames,2,C.bud,1⟩ τ') ∨
+ (¬ compCost G (marked C.frames) ≤ C.bud ∧ Rep n m O T ⟨C.frames,1,C.bud,C.ans⟩ τ'))
+∧ **K ≤ 700 * (n + 2*m + 1)**`.
+(2) **Three interface facts B5/B6 must thread**, none of them in rung A's
+`Rep`: `τ.vars "n" = n`, and the two array extents `vis`/`q`. All three
+are set by the read phase and preserved by every block (stores use
+`List.set`, which preserves length), and `solve_run` hands all three back,
+so the outer loop can carry them as a side invariant next to `Rep`. The
+`n + 2 < B` is one tighter than rung A's `n + 1 < B` — it pays for
+`s ≤ n` at the last comparison; the endgame constant swallows it.
+(3) The plan put these lemmas in `Phases3.lean`; they are in a **new
+file** `Sweep3.lean` instead, purely for iteration speed (editing
+`Phases3.lean` recompiles 1900 lines on every round). `Phases3.lean`'s
+design note now points at it. B5's `Loop3.lean` imports `Sweep3.lean`.
+(4) The design in session 13's note went through **unchanged** in
+substance; two shape choices are worth recording. The drain's invariant
+carries *two* queues over the same array — `Queue V Q head tl` for the
+visited set and `Queue W Q head head` for the expanded prefix — which
+makes the toggle's closed form a sum over a `Finset` rather than over
+queue indices, and makes `W = V` at the exit a cardinality argument. The
+sweep indexes its cost by `visComps V := V.image (connectedComponentMk ·)`
+rather than by the brief's `P r`; an unmarked unvisited root inserts
+exactly one new component, and at `r = n` the unmet components carry no
+unmarked vertex hence no edge, so `Finset.sum_subset` finishes.
+(5) Lean traps met, for whoever writes B5. `Run.assign`/`Run.ite_*`
+inside a `refine`'s anonymous constructor leave the command as a
+metavariable and `.mono (by simp; omega)` then fails on `Cond.size`
+atoms: build the whole run as a **`have` with the target type
+`Run B <block> τ τ' K` spelled out**, then `.mono`. `set x := e with h`
+is a trap in `simp only` rewrites (the `have`s built from it do not fire);
+prefer explicit `have e1 : ρ.vars "head" = … := by simp` and `rw`.
+`Rep.of_frames_eq` does **not** apply here — it wants `τ'.arrs = τ.arrs`
+and the solver writes `vis`/`q` — hence `rep_of_solver`, which takes the
+per-array frame; B5 wants the same for anything that touches an array.
+
+## VCF session 15 — 02:30 UTC
+Milestone: B5 — **done**. `outerBody3_run` is green; B5 is closed.
+Commits: 1cda358 `Lax15 vcfib: rung B outer body — one turn of the search,
+eight transitions`
+State: `lake build` green in `vertex-cover-fibonacci/proofs/` (3008 jobs),
+zero sorry, no warnings; `#print axioms outerBody3_run` gives the three
+background axioms only; rung A untouched. New file
+`Lax15Proofs/Loop3.lean` (≈610 lines, imported from the root module,
+namespace `Lax15Proofs.VC3`) holds `SideInv` with `n_eq`/`vis`/`q`/
+`transport`, `descendBody3_run`, `backtrackBody3_run`, `outerBody3_run`.
+One numeral for all eight cases: `1600 * (n + 2*m + 1)` for the two
+bodies, `1610 * (n + 2*m + 1)` for `outerBody3_run`.
+Next: B6 — the concept `concepts/Lax15/VertexCoverBranch.lean`, the
+`while_pot` loop over `pot3` with `Rep ∧ SideInv ∧ J3` as invariant, the
+assembly (rung A's read phase, which must additionally deliver
+`SideInv`), and the endgame.
+Decisions:
+(1) **`outerBody3_run`'s signature, verbatim, for B6**:
+`(hg : EncodesGraph g n G) (hm : edgeCount g = m) (hO : ∀ i ≤ n, O i =
+offset g i) (hT : ∀ p < 2*m, T p = target g p) (h2B : 2 < B)
+(hnB : n + 2 < B) (hmB : 2*m < B) (hkB : k + 1 < B) {C : Config n}
+{τ : Env} (hRep : Rep n m O T C τ) (hside : SideInv n τ) (hJ : J3 G k C)
+(hmode : C.mode < 2) : ∃ (C' : Config n) (τ' : Env) (K : ℕ),
+Run B outerBody3 τ τ' K ∧ Rep n m O T C' τ' ∧ SideInv n τ' ∧ J3 G k C' ∧
+pot3 C' + 1 ≤ pot3 C ∧ τ'.inp = τ.inp ∧ τ'.out = τ.out ∧
+K ≤ 1610 * (n + 2*m + 1)`.
+`SideInv n τ := τ.vars "n" = n ∧ (∃ VIS, τ.arrs "vis" = arrOf n VIS) ∧
+(∃ Q, τ.arrs "q" = arrOf n Q)` — the packaging of session 14's three
+interface facts, with `SideInv.transport` (`"n"`, `vis`, `q` unchanged ⇒
+carried) for the read phase and anything else that has to move it.
+(2) **`descendScan3_run` gained a conclusion clause**: `∀ y, ¬ Scanned3 y
+→ τ'.vars y = τ.vars y`, inserted after `τ'.out = τ.out` and before the
+verdict disjunction. It was already in the invariant (`hfr'`), just not
+exported; without it `"n"` cannot cross the scan. Anyone destructuring
+that lemma must add the extra binder.
+(3) The value bound is rung A's with `hnB : n + 1 < B` raised to
+`n + 2 < B` (session 14's note); nothing else changed, and every rung-A
+`by omega` side condition went through unchanged.
+(4) The backtrack half could **not** reuse rung A's `backtrackBody_run`:
+that lemma existentially quantifies the new configuration, so which of
+T5–T8 fired is not recoverable, and `J3`/`pot3` need to know. The proof
+is therefore rung A's, copied and re-bookkept — the `Com`, the row scan,
+the unwind loop and every `Run` step are identical, only `step_*` became
+`step3_*` and `hJ.x` became `hJ.j.x`. If a third rung ever happens, the
+right move is to factor rung A's backtrack into four per-case lemmas.
+(5) No Lean traps this session: rung A's `refine (Run.seq …).mono ?_`
+idiom worked as written, session 14's metavariable trap did not bite
+because the command is fixed by the goal in every case here. The whole
+file compiled on the second attempt (the first missed
+`import Lax15Proofs.Config3` — nothing else imports it).
+
+## VCF session 16 — 02:39 UTC
+Milestone: B6 — **done**. The rung-B concept is on the surface and
+discharged in the same commit; rung B is complete but for B7's wrap-up.
+Commits: efe81a6 `Lax15 vcfib: rung B concept and endgame — the branch
+count, discharged`
+State: `lake build` green in `vertex-cover-fibonacci/concepts/` (1033
+jobs) and `proofs/` (3010 jobs), zero sorry, no warnings, diagnostics
+clean on both new files; rung A untouched.
+- **Concept** `concepts/Lax15/VertexCoverBranch.lean`, namespace
+  `Lax15.VertexCoverBranch`, imported from the concepts root. One def,
+  `branchCount` (the plan's four equations verbatim), and one axiom,
+  `exists_branchTime_program_vertexCover`, statement verbatim from
+  `vc-rung-b-plan.md`. Imports are rung A's less `Mathlib.Data.Nat.Fib.
+  Basic`, which nothing in the file uses. Prose in the rung-A register:
+  the deg-3 branching rule, why the count is stated by its defining
+  recurrence rather than a rounded power of β ≈ 1.4656, the
+  max-degree-two leaf and its `⌈e/2⌉` per component, and
+  `branchCount k ≤ fib (k+2)` with the two value lists. `# Formalization
+  notes` carry the initials-are-the-exact-leaf-counts item and the
+  admissible-set-unchanged item.
+- **Endgame** `proofs/Lax15Proofs/Main3.lean` (≈470 lines, namespaces
+  `Lax15Proofs.VC3` and `Lax15Proofs.VC3Main`, in the proofs root):
+  `potN3_eq`, `searchLoop3_run`, `vcf3Ext`, `const3_eq`,
+  `branchCount_eq`, `vcf3Com_run`, `vcf3Com_solves`,
+  `exists_branchTime_program_vertexCover` with the house conclusion
+  frontmatter, and the `example := rfl` identity check.
+- `#print axioms` on the endgame: `propext`, `Classical.choice`,
+  `Quot.sound` — the three background axioms only.
+**Achieved constant: 318500**, factored `49 · 6500`. `49` is
+`vcf3Layout.const` (ten arrays, so one index computation is twelve
+instructions); `6500` is the IMP+ cost per entry of the word, itself
+`1614 · 4 + 44`: `1610` for a turn of `outerBody3_run`, `4` for the
+loop test, times the four units of `pot3 ⟨[], 0, k, 0⟩ ≤ 4·branchCount k`,
+plus `44` of slack that swallows the read phase (`12n + 24m + 37`) and
+the loop rule's `+4`. Rung A's constant was `90300 = 43 · 2100`.
+Next: B7 — abstract, notes, README second-rung updates, `lax build`,
+morning block. No submit (VF8 stands).
+Decisions:
+(1) **`branchCount` did NOT bridge by `rfl`.** `example (b : ℕ) :
+VC3.branchCount b = Lax15.VertexCoverBranch.branchCount b := rfl` fails
+with a type mismatch even though the two definitions have identical
+equations — the structural-recursion elaborations do not unify at a
+variable argument. `branchCount_eq` proves it by
+`induction b using branchCount.induct` (three `rfl` base cases, then
+`rw [branchCount_add_three, ih1, ih2]; rfl`, the final `rfl` being the
+concept side's equation at `b + 3`, which *does* reduce because the
+constructors are exposed). The endgame states the theorem against the
+concept's `branchCount` and rewrites with `branchCount_eq` in the single
+`hT` obligation of `computesInTime_of_solves`. The plan's watch item
+"the two must be definitionally identical so the endgame's `rfl`
+identity check survives" was over-cautious: the identity check compares
+*statements*, and the statement uses the concept's def, so it passes
+regardless.
+(2) The whole file compiled on the **first** attempt. Rung A's
+`Main.lean` is a complete template: the only edits were `vcfExt →
+vcf3Ext` with `vis`/`q` at extent `n` (so `hrest₇` grew two more
+hypotheses and `hvis₇`/`hq₇` were split out), one extra `hn₇` for
+`SideInv`'s `"n"` clause, `SideInv` threaded through the loop invariant
+and the `hstep` obligation, `hJ'.x → hJ'.j.x` throughout, and the
+numerals. Session 15's `descendScan3_run` extra binder never surfaced —
+nothing here destructures it.
+(3) Nothing is open on the mathematics. The surface is now two theorem
+concepts and one definition; `notes.md` and `abstract.md` still describe
+one, which is exactly B7's job.
+
+## VCF session 17 — 02:44 UTC
+Milestone: B7 — done (all six deliverables; the night is closed)
+Commits: 205723b `Lax15 vcfib: night wrap-up — two rungs, abstract, notes,
+retitle` (`vertex-cover-fibonacci/abstract.md`, `notes.md`,
+`manifest.yaml`, root `README.md`; no Lean edits, no generated files
+staged, no `lax submit`)
+
+### For Jan, in the morning
+
+**Lax15 `vertex-cover-fibonacci/` carries two theorem concepts and
+discharges both.** Vertex cover on the word RAM, same machine, same
+encoding, same admissible set as Lax11's `2^k` statement — character for
+character, so all three bounds are claims about literally the same
+inputs — with the base of the exponential lowered twice:
+
+- `Lax15.VertexCover.exists_fibTime_program_vertexCover` —
+  `c · fib(k+2) · (|x|+1)`, base φ ≈ 1.618 (`fib(k+2) ≈ 1.17·φ^k`),
+  **c = 90300 = 43 · 2100**. Branch on a vertex of residual degree ≥ 2;
+  the leaf is a matching, answered by counting.
+- `Lax15.VertexCoverBranch.exists_branchTime_program_vertexCover` —
+  `c · branchCount k · (|x|+1)`, base the real root β ≈ 1.4656 of
+  `x³ = x² + 1`, **c = 318500 = 49 · 6500**. Branch only at residual
+  degree ≥ 3; the leaf has maximum residual degree 2, i.e. paths and
+  cycles, and is solved exactly by one BFS sweep summing `⌈e/2⌉` over
+  components. `branchCount k ≤ fib (k+2)` everywhere, strict from k = 3
+  (1,2,3,4,6,9,13,19,28 against 1,2,3,5,8,13,21,34,55).
+
+`lax build vertex-cover-fibonacci` green (concepts 1033 jobs, proofs
+3010); `build-output.json` records **both** conclusions with **empty
+assumptions**; `#print axioms` on both endgames gives `propext`,
+`Classical.choice`, `Quot.sound` only; zero `sorry` anywhere; every
+rung-A file untouched by the rung-B campaign.
+
+The night, in order:
+- Rung A (fib), sessions 1–8: aa8359a scaffold · 80adfd3 residual graph
+  side · 135259b config side · 0bcb6f3 program + smoke · 6cd8e6e
+  inner-loop run lemmas · 179742a outer body · 12fddcc assembly and
+  endgame · 72fffb8 wrap-up.
+- Rung B (branchCount), sessions 9–16: d185064 solver pure side ·
+  8dce72b potential and transitions · 522d846 program + smoke · ec4ac2f
+  descend scan · ee322e5, 2c558be, 6323e0e, 016d681, c4051f3, 5e89f59,
+  cb43771, 60d71dc, f911e3f the solver, block by block · 1cda358 outer
+  body · efe81a6 concept + endgame.
+- This session: 205723b wrap-up.
+
+**Two plan-level corrections were found and machine-checked on the way.**
+Both were errors in the plans, not in the formalization, and both are
+recorded where they were found:
+1. *(session 2, rung A)* VF3's descend test was **unsound for the claimed
+   bound**. The Lax11 encoding may name a neighbour of a vertex several
+   times, so counting unmarked *slots* branches at a vertex of residual
+   degree 1, where the Fibonacci recurrence fails: on `k` disjoint edges
+   with every slot doubled the planned program searches a `2^k` tree
+   against a claimed `c·fib(k+2)·(|x|+1)`. The algorithm was correct, just
+   not Fibonacci. Repair (VF3 rev 2, implemented): the test compares
+   *targets*, and the residual edge count is capped at one per block. The
+   smallest witness, a nine-number word, is `Repeats.lean` in the proof
+   package — a permanent machine-checked warning.
+2. *(session 9, rung B)* B1's upper-bound induction rule — "delete a
+   degree-two vertex" — is **false**: `⌈e₁/2⌉ + ⌈e₂/2⌉ + 1 ≤ ⌈e_C/2⌉`
+   fails at `e₁ = e₂ = 1`, and the five-vertex path realizes it. The
+   corrected rule, proved: isolate the *neighbour* of a degree-one vertex
+   if one exists, else every degree in an edge-bearing component is 2 (by
+   the handshake lemma per component) and any endpoint of an edge works.
+
+Deliberately left for you, none of it blocking:
+- **`lax submit vertex-cover-fibonacci`** — not run, per VF8. The draft
+  is ready; submitting is your call, and registering will need Lax11 and
+  Lax13 registered first (the build warns about both).
+- **The retitle is the orchestrator's call and you should veto it
+  freely.** `manifest.yaml` now says **"Vertex Cover Below Two to the k"**
+  instead of *"Vertex Cover in Fibonacci Time"*, under your "push the
+  base as far as possible" mandate: with two rungs on the surface the old
+  title names only the weaker one. It is one line in `manifest.yaml`,
+  trivially revertible, and nothing depends on it. The directory name
+  stays `vertex-cover-fibonacci/`.
+- **Two abstract wording flags carried from session 8**, both still live:
+  (a) the asymptotic gloss is `fib(k+2) ≈ 1.17·φ^k` — the figure `1.9`
+  that appears in `vc-fib-plan.md`'s prose is simply wrong (the constant
+  is `φ²/√5`) and is used nowhere; (b) the abstract admits in its own
+  voice that the `2^k` driver is the *cheaper program* on small shared
+  instances and that each rung buys its smaller base by paying a larger
+  constant (33300 → 90300 → 318500). Both are honesty calls, not facts in
+  dispute — say the word and either can be softened or cut.
+- **One concrete measured pair now in the abstract**, so a reader can
+  check the claim is about the exponent and not the constant: the
+  seven-cycle at k = 3 takes 17937 steps under the fib program and 7016
+  under the branch program.
+- README's `ram-linear-time` entry still describes Lax11 as carrying "a
+  word-RAM surface", which the Lax13 extraction moved out. Flagged in
+  session 8, still true, still left alone — not this campaign's file to
+  rewrite.
+
+**The machine model was never touched.** VF5 held all night: no
+multiplication and no division in either program, `fib` and `branchCount`
+are never computed at run time, and nothing outside
+`vertex-cover-fibonacci/` was edited by any of the seventeen sessions.
+
+State: four files changed this session, committed; `NIGHTLOG.md` appended
+and left unstaged as the protocol requires; `build-output.json` refreshed
+and untracked.
+Next: nothing. The night's plan is complete — `vc-fib-plan.md` and
+`vc-rung-b-plan.md` are both closed. The next action is Jan's:
+`lax submit vertex-cover-fibonacci`, or the retitle veto.
+Decisions:
+(1) The abstract was **extended, not rewritten**: the rung-A framing
+sentences that carry the whole story ("This one sharpens that one; it
+does not unsay it", the quantifier-order paragraph, the
+falsifiable-at-every-k argument) are kept verbatim or lightly
+generalized to three rungs, and two paragraphs were added — the deg-3
+rule with its `⌈e/2⌉` leaf, and the constants ladder with the measured
+pair. The repeat-encoding subtlety survives as one sentence inside the
+constants paragraph rather than as its own.
+(2) `notes.md` splits the module map into two per-rung sections and adds
+a bullet on **where `branchCount` lives and why**: inside the theorem
+concept as the claim-local object (the `ccLabels` placement rule), and on
+the surface at all only because mathlib names the sequence nowhere — the
+first self-defined object this ladder has needed.
+(3) The README entry keeps its emphasis on the relationship to Lax11 (the
+one thing a list-scanner could get wrong) and adds the second rung in the
+style of the multi-concept entries, naming the count and its base.
+
+## VCF orchestrator coda — 2026-07-28 04:47 CEST
+The relay is closed: 17 Opus sessions, 24 commits (aa8359a..205723b),
+zero sorry anywhere, both rungs discharged and wrapped 74 minutes
+before the 06:00 cutoff. Planning artifacts left untracked for Jan,
+house-style: `vc-fib-plan.md`, `vc-rung-b-plan.md`,
+`vc-fib-night-brief.md`.
+Decisions I own (not the sessions): opening the concept-surface gate
+under Jan's evening mandate; VF3 rev 2 after session 2's finding; the
+rung-B go at 03:00 and the go-on at session 13's checkpoint; the
+retitle to "Vertex Cover Below Two to the k". All flagged inline where
+they bind; all trivially revertible.
+Memory updated (`vc-ladder-lax15`). Nothing was submitted; the machine
+model was never touched; rung C (folding/struction) remains sketched
+only.
