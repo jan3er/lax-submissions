@@ -796,4 +796,178 @@ theorem rootSweep_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
   omega
 
 
+/-! ### The solver block
+
+`clearVis`, the four counters, the sweep, and the comparison against
+the budget. The final `ite` is inside: a lemma about the prefix could
+not be recomposed with a run of the `ite` without re-associating `Run`,
+so the block is run whole and the outer body consumes it with a single
+`Run.seq`. -/
+
+/-- The solver writes `vis` and `q` and nothing else the representation
+names, so it transports `Rep` exactly as a leaf transition does. -/
+theorem rep_of_solver {C : Config n} {τ τ' : Env} {mode bud ans : ℕ}
+    (h : Rep n m O T C τ) (harrs : ∀ a, a ≠ "vis" → a ≠ "q" → τ'.arrs a = τ.arrs a)
+    (hm2 : τ'.vars "m2" = τ.vars "m2") (htop : τ'.vars "top" = τ.vars "top")
+    (htt : τ'.vars "tt" = τ.vars "tt") (hmode : τ'.vars "mode" = mode)
+    (hbud : τ'.vars "bud" = bud) (hans : τ'.vars "ans" = ans) :
+    Rep n m O T ⟨C.frames, mode, bud, ans⟩ τ' := by
+  obtain ⟨h1, h2, h3, -, -, -, h7, h8, h9, h10, h11⟩ := h
+  obtain ⟨MK, hmk1, hmk2⟩ := h9
+  obtain ⟨TR, htr1, htr2⟩ := h10
+  obtain ⟨SV, SB, ST, SP, hv1, hv2, hv3, hv4, hv5⟩ := h11
+  exact ⟨by rw [hm2, h1], by rw [harrs "off" (by decide) (by decide), h2],
+    by rw [harrs "tgt" (by decide) (by decide), h3], hmode, hbud, hans,
+    by rw [htop]; exact h7, by rw [htt]; exact h8,
+    ⟨MK, by rw [harrs "mark" (by decide) (by decide)]; exact hmk1, hmk2⟩,
+    ⟨TR, by rw [harrs "trail" (by decide) (by decide)]; exact htr1, htr2⟩,
+    ⟨SV, SB, ST, SP, by rw [harrs "stkV" (by decide) (by decide)]; exact hv1,
+      by rw [harrs "stkB" (by decide) (by decide)]; exact hv2,
+      by rw [harrs "stkT" (by decide) (by decide)]; exact hv3,
+      by rw [harrs "stkP" (by decide) (by decide)]; exact hv4, hv5⟩⟩
+
+/-- **The solver block.** From a represented state whose residual graph
+is thin, the block computes `compCost` into `s` and dispatches on the
+budget: within it the search answers yes, outside it the branch is
+abandoned. -/
+theorem solve_run (hg : EncodesGraph g n G) (hm : edgeCount g = m)
+    (hO : ∀ i ≤ n, O i = offset g i) (hT : ∀ p < 2 * m, T p = target g p)
+    (h1B : 1 < B) (h2B : 2 < B) (hnB : n + 2 < B) (hmB : 2 * m < B)
+    {C : Config n} {τ : Env} (hRep : Rep n m O T C τ) (hbudB : C.bud + 1 < B)
+    (hn : τ.vars "n" = n) (hthin : ThinBlocks3 g (marked C.frames))
+    (hvisE : ∃ VIS, τ.arrs "vis" = arrOf n VIS)
+    (hqE : ∃ Q, τ.arrs "q" = arrOf n Q) :
+    ∃ (τ' : Env) (K : ℕ), Run B solveBlock τ τ' K ∧
+      τ'.inp = τ.inp ∧ τ'.out = τ.out ∧ τ'.vars "n" = n ∧
+      (∃ VIS' Q', τ'.arrs "vis" = arrOf n VIS' ∧ τ'.arrs "q" = arrOf n Q') ∧
+      τ'.vars "s" = compCost G (marked C.frames) ∧
+      ((compCost G (marked C.frames) ≤ C.bud ∧
+          Rep n m O T ⟨C.frames, 2, C.bud, 1⟩ τ') ∨
+       (¬ compCost G (marked C.frames) ≤ C.bud ∧
+          Rep n m O T ⟨C.frames, 1, C.bud, C.ans⟩ τ')) ∧
+      K ≤ 700 * (n + 2 * m + 1) := by
+  classical
+  obtain ⟨VIS, hvis⟩ := hvisE
+  obtain ⟨Q, hq⟩ := hqE
+  obtain ⟨MK, hmark, hMK⟩ := hRep.mark
+  have hthin2 : ∀ v : Fin n, v ∉ marked C.frames → resDeg G (marked C.frames) v ≤ 2 :=
+    resDeg_le_two_of_thinBlocks3 hg hthin
+  obtain ⟨σ₀, VIS₀, K₀, hrun₀, hinp₀, hout₀, harr₀, hfr₀, hvis₀, hVIS₀, hK₀⟩ :=
+    clearVis_run (B := B) (n := n) (VIS := VIS) h1B (by omega) hvis hn
+  -- the four counters
+  have hσ₄ : ∃ σ₄ : Env, σ₄.arrs = σ₀.arrs ∧ σ₄.inp = σ₀.inp ∧ σ₄.out = σ₀.out ∧
+      (∀ y, y ≠ "s" → y ≠ "head" → y ≠ "tl" → y ≠ "r" → σ₄.vars y = σ₀.vars y) ∧
+      σ₄.vars "s" = 0 ∧ σ₄.vars "head" = 0 ∧ σ₄.vars "tl" = 0 ∧ σ₄.vars "r" = 0 ∧
+      ∀ (c : Com) (ρ : Env) (Kc : ℕ), Run B c σ₄ ρ Kc →
+        Run B (.seq (.assign "s" (.lit 0)) (.seq (.assign "head" (.lit 0))
+          (.seq (.assign "tl" (.lit 0)) (.seq (.assign "r" (.lit 0)) c))))
+          σ₀ ρ (20 + Kc) := by
+    refine ⟨(((σ₀.setVar "s" 0).setVar "head" 0).setVar "tl" 0).setVar "r" 0,
+      by simp, by simp, by simp, ?_, by simp, by simp, by simp, by simp, ?_⟩
+    · intro y h1 h2 h3 h4; simp [h1, h2, h3, h4]
+    · intro c ρ Kc hc
+      exact (Run.seq (Run.assign (v := 0) (evalB_lit (by omega)))
+        (Run.seq (Run.assign (v := 0) (evalB_lit (by omega)))
+          (Run.seq (Run.assign (v := 0) (evalB_lit (by omega)))
+            (Run.seq (Run.assign (v := 0) (evalB_lit (by omega))) hc)))).mono (by simp; omega)
+  obtain ⟨σ₄, ha₄, hi₄, ho₄, hf₄, hs₄, hhead₄, htl₄, hr₄, hcont₄⟩ := hσ₄
+  obtain ⟨τ₁, K₁, hrun₁, hinp₁, hout₁, harr₁, hfr₁, ⟨VIS₁, Q₁, hvis₁, hq₁⟩, hcost₁,
+      hsn₁, hK₁⟩ :=
+    rootSweep_run (B := B) (M := marked C.frames) (MK := MK) (VIS := VIS₀) (Q := Q)
+      (σ := σ₄) hg hm hO hT h1B h2B hnB hmB hthin2
+      (by rw [ha₄, harr₀ "off" (by decide)]; exact hRep.off)
+      (by rw [ha₄, harr₀ "mark" (by decide)]; exact hmark) hMK
+      (by rw [ha₄, harr₀ "tgt" (by decide)]; exact hRep.tgt)
+      (by rw [ha₄]; exact hvis₀) hVIS₀
+      (by rw [ha₄, harr₀ "q" (by decide)]; exact hq)
+      hhead₄ htl₄ hr₄ hs₄ (by rw [hf₄ "n" (by decide) (by decide) (by decide) (by decide),
+        hfr₀ "n" (by decide)]; exact hn)
+  -- the frame, from `τ` all the way to `τ₁`
+  have harrτ : ∀ a, a ≠ "vis" → a ≠ "q" → τ₁.arrs a = τ.arrs a := by
+    intro a h1 h2
+    rw [harr₁ a h1 h2, ha₄, harr₀ a h1]
+  have hfrτ : ∀ y, y ≠ "s" → y ≠ "tog" → y ≠ "tl" → y ≠ "seen" → y ≠ "t1" → y ≠ "t2" →
+      y ≠ "j" → y ≠ "w" → y ≠ "u" → y ≠ "jend" → y ≠ "head" → y ≠ "r" → y ≠ "i" →
+      τ₁.vars y = τ.vars y := by
+    intro y h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13
+    rw [hfr₁ y h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12,
+      hf₄ y h1 h11 h3 h12, hfr₀ y h13]
+  have hbud₁ : τ₁.vars "bud" = C.bud := by
+    rw [hfrτ "bud" (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide)]
+    exact hRep.bud
+  have hsB : τ₁.vars "s" < B := by omega
+  have hc : (Cond.lt (.var "s") (.add (.var "bud") (.lit 1))).evalB B τ₁
+      = some (decide (τ₁.vars "s" < C.bud + 1)) := by
+    refine (evalB_condLt (evalB_var hsB) (evalB_bin (evalB_var (by omega))
+      (evalB_lit (by omega)) (by simp [hbud₁]; omega))).trans ?_
+    simp [hbud₁]
+  have hinpτ : τ₁.inp = τ.inp := by rw [hinp₁, hi₄, hinp₀]
+  have houtτ : τ₁.out = τ.out := by rw [hout₁, ho₄, hout₀]
+  have hnτ : τ₁.vars "n" = n := by
+    rw [hfrτ "n" (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide)]
+    exact hn
+  by_cases hok : compCost G (marked C.frames) ≤ C.bud
+  · have hrunall : Run B solveBlock τ ((τ₁.setVar "ans" 1).setVar "mode" 2)
+        (K₀ + K₁ + 60) := by
+      refine (Run.seq hrun₀ (hcont₄ _ _ _ (Run.seq hrun₁
+        (Run.ite_true (by rw [hc]; simp; omega)
+          (Run.seq (Run.assign (x := "ans") (v := 1) (evalB_lit (by omega)))
+            (Run.assign (x := "mode") (v := 2) (evalB_lit (by omega)))))))).mono ?_
+      simp
+      omega
+    refine ⟨(τ₁.setVar "ans" 1).setVar "mode" 2, K₀ + K₁ + 60, hrunall,
+      by simp [hinpτ], by simp [houtτ], by simp [hnτ],
+      ⟨VIS₁, Q₁, by simpa using hvis₁, by simpa using hq₁⟩, by simpa using hcost₁,
+      Or.inl ⟨hok, ?_⟩, by omega⟩
+    refine rep_of_solver hRep (fun a h1 h2 => by simp [harrτ a h1 h2]) ?_ ?_ ?_
+      (by simp) (by simp [hbud₁]) (by simp)
+    · simp only [vars_setVar, if_neg (by decide : ¬ ("m2" = "mode")),
+        if_neg (by decide : ¬ ("m2" = "ans"))]
+      exact hfrτ "m2" (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide)
+    · simp only [vars_setVar, if_neg (by decide : ¬ ("top" = "mode")),
+        if_neg (by decide : ¬ ("top" = "ans"))]
+      exact hfrτ "top" (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide)
+    · simp only [vars_setVar, if_neg (by decide : ¬ ("tt" = "mode")),
+        if_neg (by decide : ¬ ("tt" = "ans"))]
+      exact hfrτ "tt" (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide)
+  · have hrunall : Run B solveBlock τ (τ₁.setVar "mode" 1) (K₀ + K₁ + 60) := by
+      refine (Run.seq hrun₀ (hcont₄ _ _ _ (Run.seq hrun₁
+        (Run.ite_false (by rw [hc]; simp; omega)
+          (Run.assign (x := "mode") (v := 1) (evalB_lit (by omega))))))).mono ?_
+      simp
+      omega
+    refine ⟨τ₁.setVar "mode" 1, K₀ + K₁ + 60, hrunall,
+      by simp [hinpτ], by simp [houtτ], by simp [hnτ],
+      ⟨VIS₁, Q₁, by simpa using hvis₁, by simpa using hq₁⟩, by simpa using hcost₁,
+      Or.inr ⟨hok, ?_⟩, by omega⟩
+    refine rep_of_solver hRep (fun a h1 h2 => by simp [harrτ a h1 h2]) ?_ ?_ ?_
+      (by simp) (by simp [hbud₁]) ?_
+    · simp only [vars_setVar, if_neg (by decide : ¬ ("m2" = "mode"))]
+      exact hfrτ "m2" (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide)
+    · simp only [vars_setVar, if_neg (by decide : ¬ ("top" = "mode"))]
+      exact hfrτ "top" (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide)
+    · simp only [vars_setVar, if_neg (by decide : ¬ ("tt" = "mode"))]
+      exact hfrτ "tt" (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide)
+    · simp only [vars_setVar, if_neg (by decide : ¬ ("ans" = "mode"))]
+      exact (hfrτ "ans" (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide)).trans hRep.ans
+
+
 end Lax15Proofs.VC3
