@@ -2846,3 +2846,35 @@ notes' Lem 4.2 constant slip (2s+1 vs 2s+2) recorded; isolation-form
 win proof checked against Lax12's walk-based `deleteVerts` UQW —
 zero impedance. Gate open: Jan reads the design note; P1 does not
 start before that.
+
+## ND-MC P1 session 1 — 2026-07-28
+Gate cleared: Jan approved the design note; plan rev 4 folds its
+three deltas (D8 variant family dropped for profile colors, D4 sharp
+ρ* = ρ⁻(0,q) schedule, R1 = augmentation density theorem in P6).
+Lax3 claimed (`lax init --id Lax3`, the reserved slot), packages
+scaffolded, path-requires on Lax12/Lax13/Lax11, manifest + draft
+abstract. Full L0 concept surface written and green: ColoredGraphs
+(Coloring, WithinDist, ball), FirstOrder (FO/rank/Sat), DistFO
+(rhoMinus/rhoPlus, syntax incl. exL with syntactic guard radius,
+Sat, rename, DRank predicate with ≤-relaxed guard — source Obs 4
+forces it, recorded in notes — IsLocal, WithinDistIn, SatWithin,
+SemanticallyLocal), ScatterSentences (ScatterChoice per (G,r,X),
+maxChoice + greedyChoice both with real spec proofs, ScatterSentence
++ Sat + DRank), Locality (BC reification + `locality` axiom),
+NormalForm (verum/conj/exUs/scatterFml + `normalForm` axiom; split
+from Locality for the one-statement rule), SplitterGame
+(SplitterWins by recursion on the round budget — kernel rejects the
+∀/∃ nested inductive; both moves are Lax12 deleteVerts),
+NowhereDenseSplitter (`splitterWins_of_nowhereDense`),
+NeighborhoodCovers (IsNeighborhoodCover, center-indexed),
+NeighborhoodCoverBound (`exists_neighborhoodCover_degree_wcol`,
+class-free wcol-degree form), ModelChecking (C0 verbatim from the
+plan, Courcelle idiom + real-ε T bound). Proofs-side: WalkDistance
+API incl. the metric-kernel decomposition
+`withinDist_deleteVerts_or_through`. Opus wrote units A and B; the
+supervisor wrote C and D and reviewed everything against the
+sources. `lax build` green end to end; axiom audit: exactly the five
+declared axioms (locality, normalForm, splitter win, cover bound,
+C0) + propext/choice/Quot.sound. Next: Jan endorse-reviews the
+surface — the P1 statement freeze — then P2 (locality engine, three
+Opus tracks).

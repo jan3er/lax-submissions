@@ -1,4 +1,22 @@
-# Nowhere dense model checking plan (rev 3 — accepted, 2026-07-28)
+# Nowhere dense model checking plan (rev 4 — P0 gate cleared, 2026-07-28)
+
+Rev 4 (2026-07-28): **Jan read the design note and approved; the P0
+gate is cleared and P1 starts.** The three deltas proposed at the end
+of `nd-mc-design.md` fold in: (1) **D8 tightened** — the capped
+W-distance matrix and its precomputed formula-variant family are
+dropped; capped distance profiles as colors on *all* vertices (batch
+included) subsume them, and the variant family is demoted to a
+fallback inside R2. (2) **D4 sharpened** — flat radius schedule with
+sharp cap ρ* = ρ⁻(0,q), table locality radius ρ⁻(1,q−1), game
+constants per the design note's (d) table (the notes' Lem 4.2 `2s+1`
+→ `2s+2` slip recorded there). (3) **R1 renamed to its kernel** — the
+augmentation density theorem (in-degree bound for transitive-fraternal
+augmentations, NO05), sitting in P6 with a 3–5 session budget,
+patterned on Lax12's `Densification`; cover *existence* (D10) is
+dischargeable from Lax12 wcol alone, so P3 carries no part of R1. No
+change to the concept surface, C0, the gates, or the phase order; the
+D8/D9/D4/R1 texts below stand as rev 2/3 wrote them, read through
+these deltas — the design note is the precise statement of record.
 
 Rev 3 (Jan, in session — wrap-up; **the plan is accepted, execution
 starts next session at P0**): two changes. First, the RAM half is
@@ -346,7 +364,8 @@ Layer L4 — RAM realization (Lax13 toolkit):
 
 ## Steps
 
-- [ ] **P0 — sources and design notes** (1–2 sessions, no Lean).
+- [x] **P0 — sources and design notes** (DONE 2026-07-28 @ 6e87f84;
+  gate cleared same day, deltas folded at rev 4).
   Fetch GKS 1311.3899 and merge-width 2502.18065 sources into
   `references/` (`gks`, `mw`; 2606.23180 → `references/rploc`, README
   with fetch date + license each). Write `nd-mc-design.md` here

@@ -1,0 +1,40 @@
+specVersion: "1"
+id: Lax3
+leanVersion: "v4.30.0"
+mathlibVersion: "c5ea00351c28e24afc9f0f84379aa41082b1188f"
+title: "First-Order Model Checking on Nowhere Dense Graph Classes in Almost Linear Time"
+authors:
+  - name: Jan Dreier
+  - name: Claude Fable 5 (Anthropic)
+bibEntries:
+  - |
+    @article{GroheKreutzerSiebertz2017,
+      author  = {Grohe, Martin and Kreutzer, Stephan and Siebertz, Sebastian},
+      title   = {Deciding First-Order Properties of Nowhere Dense Graphs},
+      journal = {Journal of the ACM},
+      volume  = {64},
+      number  = {3},
+      pages   = {17:1--17:32},
+      year    = {2017},
+      doi     = {10.1145/3051095},
+      note    = {Cited by the section numbering of the arXiv version,
+                 arXiv:1311.3899}
+    }
+  - |
+    @misc{DreierTorunczyk2026,
+      author        = {Dreier, Jan and Toru{\'n}czyk, Szymon},
+      title         = {A Rank-Preserving Locality Theorem},
+      year          = {2026},
+      eprint        = {2606.23180},
+      archivePrefix = {arXiv}
+    }
+  - |
+    @misc{pilipczuk-sparsity-notes,
+      author = {Micha{\l} Pilipczuk and Sebastian Siebertz},
+      title  = {Sparsity --- lecture notes for the course ``Sparsity''},
+      year   = {2020},
+      note   = {University of Warsaw, Faculty of Mathematics, Informatics and Mechanics.
+                Cited by the numbering of the winter term 2019/20 edition;
+                Chapter~4 compiled 2019-12-12},
+      url    = {https://www.mimuw.edu.pl/~mp248287/sparsity2/}
+    }

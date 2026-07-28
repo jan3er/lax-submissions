@@ -1,0 +1,11 @@
+import Lax3.ColoredGraphs
+import Lax3.FirstOrder
+import Lax3.DistFO
+import Lax3.ScatterSentences
+import Lax3.Locality
+import Lax3.NormalForm
+import Lax3.SplitterGame
+import Lax3.NowhereDenseSplitter
+import Lax3.NeighborhoodCovers
+import Lax3.NeighborhoodCoverBound
+import Lax3.ModelChecking
