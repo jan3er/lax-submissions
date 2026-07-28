@@ -9,3 +9,7 @@ import Lax3Proofs.FarQuant
 import Lax3Proofs.BCAlgebra
 import Lax3Proofs.ScatterFml
 import Lax3Proofs.Assembly
+import Lax3Proofs.SplitterBasics
+import Lax3Proofs.SplitterMono
+import Lax3Proofs.SplitterWin
+import Lax3Proofs.CoverConstruction
