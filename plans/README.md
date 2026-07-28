@@ -11,6 +11,7 @@ and brief files here, not at the root.
 | plan | what |
 |------|------|
 | `word-ram/imp-toolkit-plan.md` | make the machine level of IMP+ a library — frame rule, spec triples, a symbolic-execution tactic, and a data-structure kit in `Lax13Proofs`, so a new algorithm costs its mathematics and not its glue. Proofs-only; no concept surface moves. |
+| `nowhere-dense-model-checking/nd-mc-plan.md` | FO model checking is FPT on nowhere dense classes (GKS), rebuilt on the Dreier–Toruńczyk rank-preserving locality theorem (arXiv 2606.23180) instead of the broken GKS locality; splitter game + sparse covers on top of Lax12, RAM realization on Lax13/Lax11. Rev 1 proposed — awaiting Jan's answers to Q1–Q5 and the P0 design gate. |
 
 Everything else is closed.
 

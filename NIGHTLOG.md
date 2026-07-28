@@ -2757,3 +2757,23 @@ from `run_step`; bracket-argument specs instead of an attribute set;
 `< B` goals deferred individually) recorded in the plan's P3 as-built
 notes, with the P4 handoff: `Lib` postconditions as `abbrev`,
 operations as `Spec`s consumed through `run_vcg [·]`.
+
+## Nowhere dense MC — campaign plan rev 1 — 2026-07-28
+The campaign for "FO model checking is FPT on nowhere dense classes"
+is planned: `plans/nowhere-dense-model-checking/nd-mc-plan.md`. Route:
+the Dreier–Toruńczyk rank-preserving locality theorem (arXiv
+2606.23180, syntactic rewriting) replaces the ugly-and-broken GKS
+rank-preserving Gaifman machinery, and its greedy scatter sentences
+delete the distance-r independent set subroutine (GKS §5) outright;
+the assembly is the splitter game in the notes-ch. 4 UQW form on top
+of Lax12's endorsed theorems (UQW, subpolynomial wcol, density),
+sparse neighborhood covers from wcol orderings, and a Lax13/Lax11 RAM
+realization consuming the IMP+ toolkit. Headline C0 mirrors the
+Courcelle house form with an n^(1+ε) side-condition bound and
+`Lax12.NowhereDense` verbatim as hypothesis. Nine phases P0–P8 with
+gates after P0 (design note checked against the to-be-fetched GKS
+§6/§8 sources), P1 (surface freeze), and P4 (math core done, RAM
+half re-forecast). Five open questions for Jan: id slot (Lax3/Lax4),
+bound form, colored-graph-level locality surface, citable-concept
+set, batch-form splitter game. Nothing built; no submission folder
+yet; the references fetch (gks, mw, rploc) is P0's first task.
