@@ -3010,3 +3010,34 @@ concept axioms discharged, zero sorry, no statement drift. Note for
 polish (non-blocking): FarQuant carries private copies of a few BC
 helpers; could later import BCAlgebra instead. Next: P3 splitter +
 covers (plan L2 items 7–9), on the now-live locality interface.
+
+## ND-MC P3 — splitter game + covers discharged, P3 complete in one session — 2026-07-28
+Jan: "continue with the nowhere dense plan … full authority"; session
+branch fast-forwarded onto main (5733671) first. Supervised session,
+three parallel Opus tracks on a supervisor-written design that
+expands the design note's isolation-form recipe into a full formal
+decomposition (checked against Lax12's exact UQW statement before
+briefing). SplitterBasics.lean (supervisor) — Iff.rfl clause lemmas
+for SplitterWins/deleteVerts so no tactic ever touches a concept
+name. SplitterMono.lean — win antitone under ≤-subarenas via the
+round_le edge comparison (batch cut to the smaller ball), plus
+budget/batch monotonicity; L2 item 7. SplitterWin.lean (692 lines) —
+splitterWins_of_nowhereDense discharged with ℓ = N(2s+2),
+m = ℓ(r+1): strategy as functions (pathSet choice-walks, genSet,
+batch = genSet ∩ ball, nextArena), Reached histories newest-first
+with suffix-based invariants (isolation permanent, live picks in
+every earlier ball, picks nodup), extraction by chronological
+orderEmbOfFin pairing → s+1 disjoint pair-paths → one avoids S →
+DistIndependent contradiction; notes' 2s+1 → 2s+2 slip fixed as the
+concept notes record; assumptions exactly
+[Lax12.NowhereDenseUQW.uniformlyQuasiWide_of_nowhereDense]. L2
+item 8. CoverConstruction.lean — exists_neighborhoodCover_degree_wcol
+discharged kernel-only: clusters are wreach-fibers of a
+Nat.sInf_mem-attained ordering; degree is the wreach bound read
+backwards, covering via the π-minimal ball vertex and a two-sided
+support-in-ball cut; L2 item 9. Gates: full lax build green
+(concepts 2016 + proofs 2029 jobs), audit clean, lean_verify on both
+discharges as registered, build-output.json carries all four
+conclusions. P3 acceptance met in 1 session of the budgeted 2–4.
+Commit 064c51e. Next: P4 abstract evaluator (L3 items 10–12,
+isolation rewrite first — R2), D12 gate with Jan after.

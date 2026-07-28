@@ -395,10 +395,20 @@ Layer L4 — RAM realization (Lax13 toolkit):
   (`Lax3Proofs.Assembly.locality`/`normalForm`, assumptions: []);
   acceptance met: zero sorry, no statement drift beyond the recorded
   revision.
-- [ ] **P3 — splitter + covers** (2–4 sessions). L2 items 7–9;
-  both theorem concepts discharged against Lax12 assumptions.
-  Strategy stated as a function with its win proof (constructiveness
-  is what L4 consumes); win monotonicity under `⊑`.
+- [x] **P3 — splitter + covers** — done 2026-07-28, 1 session
+  (three parallel Opus tracks). L2 items 7–9 as designed:
+  `SplitterMono` (win antitone under `≤`-subarenas — one lemma covers
+  both moves since vertex restriction is `deleteVerts` of the
+  complement — plus budget/batch monotonicity), `SplitterWin`
+  (discharge against Lax12 UQW only; strategy surfaced proofs-side as
+  functions `pathSet`/`genSet`/`batch`/`nextArena` with `Reached` and
+  the reusable `splitterWins_of_reached` — the objects L4's program
+  correctness consumes; `2s+1 → 2s+2` slip fixed as recorded),
+  `CoverConstruction` (wreach fibers of an `Nat.sInf_mem`-attained
+  ordering; kernel-only). `SplitterBasics` holds the `Iff.rfl` clause
+  lemmas of `SplitterWins`/`deleteVerts` (namespace-audit
+  discipline). Acceptance met: full `lax build` green, audit clean,
+  zero sorry, no statement drift.
 - [ ] **P4 — abstract evaluator** (4–7 sessions). L3 items 10–12,
   ending at the math-core checkpoint theorem. **Gate: D12 review —
   frozen statements, re-judged L4 budget.**
