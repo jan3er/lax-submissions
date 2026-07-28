@@ -17,17 +17,13 @@ path = "../concepts"
 # the word RAM: the machine and timed computation of submission Lax13
 [[require]]
 name = "Lax13"
-git = "https://github.com/lax-archive/lax-submissions"
-rev = "2087642ed59a81b55a1f1bc09141933368edd97a"
-subDir = "word-ram/concepts"
+path = "../../word-ram/concepts"
 
 # the word RAM's verified compilation pipeline, reused as proved
 # theorems (deliberate proofs-package dependency)
 [[require]]
 name = "Lax13Proofs"
-git = "https://github.com/lax-archive/lax-submissions"
-rev = "2087642ed59a81b55a1f1bc09141933368edd97a"
-subDir = "word-ram/proofs"
+path = "../../word-ram/proofs"
 
 [[lean_lib]]
 name = "Lax11Proofs"

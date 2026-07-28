@@ -13,17 +13,13 @@ rev = "c5ea00351c28e24afc9f0f84379aa41082b1188f"
 # the word RAM: the machine and timed computation of submission Lax13
 [[require]]
 name = "Lax13"
-git = "https://github.com/lax-archive/lax-submissions"
-rev = "2087642ed59a81b55a1f1bc09141933368edd97a"
-subDir = "word-ram/concepts"
+path = "../../word-ram/concepts"
 
 # the graph encoding and the instance format of submission Lax11, whose
 # 2^k statement this one improves on
 [[require]]
 name = "Lax11"
-git = "https://github.com/lax-archive/lax-submissions"
-rev = "fe86cc7d55006345af9fc205269ad12ab9b796c1"
-subDir = "ram-linear-time/concepts"
+path = "../../ram-linear-time/concepts"
 
 [[lean_lib]]
 name = "Lax15"

@@ -17,6 +17,4 @@ name = "Lax5"
 # neighborhood-complexity definitions of submission Lax12
 [[require]]
 name = "Lax12"
-git = "https://github.com/lax-archive/lax-submissions"
-rev = "d4dd676639ed202c8dd966194bfe6588ca2e9b84"
-subDir = "sparsity-lectures/concepts"
+path = "../../sparsity-lectures/concepts"
