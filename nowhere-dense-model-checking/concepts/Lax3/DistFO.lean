@@ -1,5 +1,6 @@
 import Lax3.ColoredGraphs
 import Mathlib.Data.Fin.Tuple.Basic
+import Mathlib.Data.Finset.Image
 
 /-!
 ---
@@ -10,7 +11,8 @@ Distance logic extends first-order logic by two families of *distance
 atoms* — the distance between two variables is at most *r*, and the
 distance from a variable to a color class is smaller than *r* — and by
 *local quantification*, an existential quantifier that ranges only over
-the vertices within a given radius of the free variables. As a logic it
+the vertices within a given radius of a recorded set of the variables
+in scope. As a logic it
 is no stronger than first-order logic: over a fixed signature, "the
 distance between *x* and *y* is at most *r*" is already first-order
 expressible, and a local quantifier is an ordinary quantifier
@@ -84,14 +86,27 @@ Satisfaction is total, environments are `Fin k → Fin n`, and binders
 extend the environment at the last position; see `Lax3.FirstOrder` for
 that discussion, which applies verbatim.
 
-The guard of a local quantifier is the source's shorthand
-dist(x̄, *y*) ≤ *r* = ⋁ᵢ dist(*xᵢ*, *y*) ≤ *r*, a disjunction over the
-free variables. With `k = 0` that disjunction is empty, so a local
-quantifier of a sentence is vacuously false. This is the intended
-reading and the base case the design relies on: a sentence has no
-vertex to be local to, and the locality theorem's sentence case
-produces scatter sentences precisely because local quantification
-cannot help there.
+The guard of a local quantifier carries its variable set in the
+syntax: `exL r g φ` ranges over the vertices within distance *r* of
+the variables in the finite set `g`. This is the source's guard
+dist(x̄, *y*) ≤ *r* = ⋁_{x ∈ x̄} dist(*x*, *y*) ≤ *r* read as the
+source writes it: the set x̄ is chosen when the formula is formed
+("we write φ(x̄) to indicate that x̄ *contains* the free variables of
+φ") and does not change when the formula later occurs inside a larger
+one. Recording the set is what makes that stability true here as
+well — placing a one-variable formula at a bound variable of a wider
+formula, as the locality theorem's proof and the normal form's
+written-out scatter sentences both do, keeps its guards reading that
+one variable, and renaming is sound with no side conditions because
+the guard set travels along. A guard over everything in scope is the
+special case `g = univ`; the earlier revision of this file had only
+that case, which widens a formula's guards whenever the context
+grows, and under which the placement just described is unsound. With
+`g = ∅` the guard is an empty disjunction, so the quantifier is
+vacuously false — in particular a local quantifier over a sentence's
+empty context has no vertex to be local to, and the locality
+theorem's sentence case produces scatter sentences precisely because
+local quantification cannot help there.
 
 The unary distance atom is strict, dist(*x*, *Y*) < *r*, as in the
 source; the binary one is not. The asymmetry is the source's and is
@@ -162,19 +177,21 @@ inductive DistFO (L : ℕ) : ℕ → Type
   bound at the last index. -/
   | exU {k : ℕ} (φ : DistFO L (k + 1)) : DistFO L k
   /-- Local quantification: there is a vertex within distance `r` of
-  some free variable satisfying `φ`, bound at the last index. The
-  radius is part of the syntax; which radii are admissible at a given
-  distance rank is the business of `DRank`. -/
-  | exL {k : ℕ} (r : ℕ) (φ : DistFO L (k + 1)) : DistFO L k
+  some variable in the guard set `g` satisfying `φ`, bound at the last
+  index. The radius and the guard set are part of the syntax; which
+  radii are admissible at a given distance rank is the business of
+  `DRank`, and the guard set is unconstrained there, as in the
+  source. -/
+  | exL {k : ℕ} (r : ℕ) (g : Finset (Fin k)) (φ : DistFO L (k + 1)) : DistFO L k
 
 variable {L n : ℕ}
 
 /-- Satisfaction of a formula in the `L`-colored graph `(G, col)` under
 the environment `m`. A binary distance atom is a walk-length bound, a
 unary one asks for a color-class vertex strictly nearer than `r`, and a
-local quantifier ranges over the vertices within `r` of some free
-variable — an empty condition, hence unsatisfiable, when there are
-none. -/
+local quantifier ranges over the vertices within `r` of some variable
+in its guard set — an empty condition, hence unsatisfiable, when the
+set is empty. -/
 def Sat (G : SimpleGraph (Fin n)) (col : Coloring n L) :
     {k : ℕ} → (Fin k → Fin n) → DistFO L k → Prop
   | _, m, .adj i j => G.Adj (m i) (m j)
@@ -185,12 +202,14 @@ def Sat (G : SimpleGraph (Fin n)) (col : Coloring n L) :
   | _, m, .not φ => ¬ Sat G col m φ
   | _, m, .and φ ψ => Sat G col m φ ∧ Sat G col m ψ
   | _, m, .exU φ => ∃ v : Fin n, Sat G col (Fin.snoc m v) φ
-  | _, m, .exL r φ =>
-      ∃ v : Fin n, (∃ i, WithinDist G r (m i) v) ∧ Sat G col (Fin.snoc m v) φ
+  | _, m, .exL r g φ =>
+      ∃ v : Fin n, (∃ i ∈ g, WithinDist G r (m i) v) ∧ Sat G col (Fin.snoc m v) φ
 
 /-- Renaming of variables along `f`. Under a binder the renaming is
 lifted to `Fin (k + 1) → Fin (k' + 1)` by sending the bound variable —
-the last index — to the new last index. -/
+the last index — to the new last index. The guard set of a local
+quantifier is mapped along `f`, so a guard keeps naming the same
+variables it named before. -/
 def rename : {k k' : ℕ} → (Fin k → Fin k') → DistFO L k → DistFO L k'
   | _, _, f, .adj i j => .adj (f i) (f j)
   | _, _, f, .eq i j => .eq (f i) (f j)
@@ -200,7 +219,8 @@ def rename : {k k' : ℕ} → (Fin k → Fin k') → DistFO L k → DistFO L k'
   | _, _, f, .not φ => .not (rename f φ)
   | _, _, f, .and φ ψ => .and (rename f φ) (rename f ψ)
   | _, k', f, .exU φ => .exU (rename (Fin.snoc (fun i => (f i).castSucc) (Fin.last k')) φ)
-  | _, k', f, .exL r φ => .exL r (rename (Fin.snoc (fun i => (f i).castSucc) (Fin.last k')) φ)
+  | _, k', f, .exL r g φ =>
+      .exL r (g.image f) (rename (Fin.snoc (fun i => (f i).castSucc) (Fin.last k')) φ)
 
 /-- `DRank k' q φ` says that `φ` has distance rank `(k', q)`: its
 quantifier rank is at most `q`, every distance atom in it has radius at
@@ -234,9 +254,9 @@ inductive DRank {L : ℕ} : ℕ → ℕ → {k : ℕ} → DistFO L k → Prop
       DRank k' (q + 1) (.exU φ)
   /-- A local quantifier has distance rank `(k', q + 1)` when its body
   has distance rank `(k' + 1, q)` and it guards at radius at most
-  `ρ⁺(k' + 1, q)`. -/
-  | exL {k' q k : ℕ} {r : ℕ} {φ : DistFO L (k + 1)} (h : DRank (k' + 1) q φ)
-      (hr : r ≤ rhoPlus (k' + 1) q) : DRank k' (q + 1) (.exL r φ)
+  `ρ⁺(k' + 1, q)`. The guard set is unconstrained. -/
+  | exL {k' q k : ℕ} {r : ℕ} {g : Finset (Fin k)} {φ : DistFO L (k + 1)}
+      (h : DRank (k' + 1) q φ) (hr : r ≤ rhoPlus (k' + 1) q) : DRank k' (q + 1) (.exL r g φ)
 
 /-- A formula is local when it uses no unrestricted quantification. -/
 def IsLocal : {k : ℕ} → DistFO L k → Prop
@@ -248,7 +268,7 @@ def IsLocal : {k : ℕ} → DistFO L k → Prop
   | _, .not φ => IsLocal φ
   | _, .and φ ψ => IsLocal φ ∧ IsLocal ψ
   | _, .exU _ => False
-  | _, .exL _ φ => IsLocal φ
+  | _, .exL _ _ φ => IsLocal φ
 
 /-- The vertices `u` and `v` are within distance `d` *inside* `D`: some
 walk from `u` to `v` has length at most `d` and stays in `D`. This is
@@ -272,8 +292,8 @@ def SatWithin (D : Set (Fin n)) (G : SimpleGraph (Fin n)) (col : Coloring n L) :
   | _, m, .not φ => ¬ SatWithin D G col m φ
   | _, m, .and φ ψ => SatWithin D G col m φ ∧ SatWithin D G col m ψ
   | _, m, .exU φ => ∃ v ∈ D, SatWithin D G col (Fin.snoc m v) φ
-  | _, m, .exL r φ =>
-      ∃ v ∈ D, (∃ i, WithinDistIn D G r (m i) v) ∧ SatWithin D G col (Fin.snoc m v) φ
+  | _, m, .exL r g φ =>
+      ∃ v ∈ D, (∃ i ∈ g, WithinDistIn D G r (m i) v) ∧ SatWithin D G col (Fin.snoc m v) φ
 
 /-- A formula is semantically `r`-local when its truth on a tuple never
 depends on the vertices further than `r` from that tuple: satisfaction
