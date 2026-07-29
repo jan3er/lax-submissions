@@ -664,14 +664,21 @@ the passes never initialise — the three offset arrays a counting sort
 accumulates into, the engine's own two, and the four stamps — required
 zeroed, which is what the machine's memory already says.
 
-The engine's arrays `tgt`, `itg`, `bv` and `bn` are cut to `nf`, the
-fraternity graph's own slot count, and not to the width: `RamElim`'s
-`ElimPre` pins them to exactly the slot count it is called at, so a
-caller that materializes a graph of data-dependent size must allocate
-them at that size. This is the one place where the engine's input
-surface does not compose, and it is why `nf` is a parameter here with
-`fratSlots D = nf` as a hypothesis rather than a number the round
-picks. -/
+The engine's *scratch* — the in-list targets `itg` and the bucket
+arena `bv`/`bn` — is asked for at the width `W`, which is what a caller
+that allocates once can give: `RamElim.ElimPre` takes those three at a
+caller-chosen width with the call's slot count only a lower bound, so
+`fratSlots D < augWidth n d ≤ W` is all this round has to say to run
+the engine on a fraternity graph whose size is data-dependent.
+
+The one array still cut to `nf` is `tgt`, the fraternity graph itself:
+`RamElim.ElimPre` pins the *input* block structure to exactly the slot
+count of the call, because the engine reads it through the kit's `Csr`
+relation, which couples the target array's length to the last offset.
+That is why `nf` is a parameter here with `fratSlots D = nf` as a
+hypothesis rather than a number the round picks, and it is the whole of
+what remains of the coupling this surface used to have on four
+arrays. -/
 def AugPre (n nf W : ℕ) (DO DT : ℕ → ℕ) (σ : Env) : Prop :=
   σ.vars "n" = n ∧
   σ.arrs "doff" = arrOf (n + 1) DO ∧ σ.arrs "dtg" = arrOf W DT ∧
@@ -683,9 +690,9 @@ def AugPre (n nf W : ℕ) (DO DT : ℕ → ℕ) (σ : Env) : Prop :=
   (∃ g, σ.arrs "elm" = arrOf n g ∧ ∀ j < n, g j = 0) ∧
   (∃ g, σ.arrs "rnk" = arrOf n g) ∧ (∃ g, σ.arrs "idg" = arrOf n g) ∧
   (∃ g, σ.arrs "bh" = arrOf (n + 1) g ∧ ∀ j ≤ n, g j = 0) ∧
-  (∃ g, σ.arrs "bv" = arrOf (n + nf + 1) g) ∧ (∃ g, σ.arrs "bn" = arrOf (n + nf + 1) g) ∧
+  (∃ g, σ.arrs "bv" = arrOf (n + W + 1) g) ∧ (∃ g, σ.arrs "bn" = arrOf (n + W + 1) g) ∧
   (∃ g, σ.arrs "ioff" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "ifl" = arrOf n g) ∧
-  (∃ g, σ.arrs "itg" = arrOf nf g) ∧
+  (∃ g, σ.arrs "itg" = arrOf W g) ∧
   (∃ g, σ.arrs "noff" = arrOf (n + 1) g ∧ ∀ j ≤ n, g j = 0) ∧
   (∃ g, σ.arrs "nfl" = arrOf n g) ∧ (∃ g, σ.arrs "ntg" = arrOf W g) ∧
   (∃ g, σ.arrs "stf" = arrOf n g ∧ ∀ j < n, g j = 0) ∧
@@ -740,7 +747,7 @@ at. This is `RamElim.Implements` with the call's own data quantified
 away, so that discharging that one obligation discharges this
 hypothesis at every use. -/
 def ElimAvail (B n : ℕ) (F : SimpleGraph (Fin n)) : Prop :=
-  ∀ (ns : ℕ) (M O T : ℕ → ℕ), RamElim.Implements B n ns F M O T
+  ∀ (ns W : ℕ) (M O T : ℕ → ℕ), RamElim.Implements B n ns W F M O T
 
 /-- **The one thing this file leaves open.** `augCom` is exhibited,
 compiled and run — the worked example below checks the block structure

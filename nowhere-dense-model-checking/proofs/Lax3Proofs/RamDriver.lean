@@ -1113,23 +1113,71 @@ def augRelinkCom (W : ℕ) : Com :=
               (.seq (fillCom "sta" (.lit 0))
                 (.seq (fillCom "std" (.lit 0)) (fillCom "ste" (.lit 0)))))))))
 
-/-- The symmetric closure of the last round's in-lists, in
-compressed-row form: what the final elimination is run on. -/
-def symCom : Com :=
-  .seq (fillUpto "off" (.add (.var "n") (.lit 1)) (.lit 0)) (fillCom "tgt" (.lit 0))
+/-- **The block structure, put out of the way.** The ordering phase runs
+two eliminations and `R` augmentation rounds, and every one of them
+materializes its own graph in `off`/`tgt` — which is where the level's
+own block structure lives, and which every other pass of the level
+reads. So the phase opens by copying it into the reserved pair
+`gof`/`gtg` and closes by copying it back.
 
-/-- **The ordering pass at depth `j`.** One elimination to orient the
-arena, `R` augmentation rounds, the symmetric closure of the result, a
-final elimination, and the inversion of its rank array. -/
+The bound of the target copy is a *runtime* number: the block structure
+has `2·m` slots, where `m` is the edge count the decode left in the
+scalar `"m"`, and no sub-program of the driver assigns that scalar. That
+is why `LevelPre` carries `σ.vars "m" + σ.vars "m" = ns` — the copy
+cannot be written without it, and nothing else in the level needs to
+know how many slots the structure has. -/
+def saveCsr : Com :=
+  .seq (copyUpto "off" "gof" (.add (.var "n") (.lit 1)))
+    (copyUpto "tgt" "gtg" (.add (.var "m") (.var "m")))
+
+/-- And back. -/
+def restoreCsr : Com :=
+  .seq (copyUpto "gof" "off" (.add (.var "n") (.lit 1)))
+    (copyUpto "gtg" "tgt" (.add (.var "m") (.var "m")))
+
+/-- **The re-zeroing tail.** Eight flat passes, one per clause of
+`OrderMem`'s zeroing half: the elimination flags and the bucket heads
+the two eliminations left used, the two counting-sort accumulators, and
+the four stamps. Without it a level's exit state is not a level's entry
+state — the engines ask for those arrays zeroed and a `Run` cannot
+un-write them — so the level below could not be entered a second time,
+and no level could hand its own state back to the level above. -/
+def orderZeroCom : Com :=
+  .seq (fillCom "elm" (.lit 0))
+    (.seq (fillUpto "bh" (.add (.var "n") (.lit 1)) (.lit 0))
+      (.seq (fillUpto "ooff" (.add (.var "n") (.lit 1)) (.lit 0))
+        (.seq (fillUpto "noff" (.add (.var "n") (.lit 1)) (.lit 0))
+          (.seq (fillCom "stf" (.lit 0))
+            (.seq (fillCom "sta" (.lit 0))
+              (.seq (fillCom "std" (.lit 0)) (fillCom "ste" (.lit 0))))))))
+
+/-- **The ordering pass at depth `j`.** The block structure saved, one
+elimination to orient the arena, `R` augmentation rounds, the structure
+restored, a final elimination, the inversion of its rank array, and the
+re-zeroing tail.
+
+The final elimination is taken on the level's *own* arena and not on the
+augmented one, and that is a consequence of the one coupling
+`Lax3Proofs.RamElim.ElimPre` still has: the input block structure is
+read through the reasoning kit's `Csr` relation, which pins the target
+array's length to the last offset, so a graph can only be eliminated in
+an array of exactly its own slot count. The augmented graph has more
+arcs than the input, so it does not fit the level's `tgt`. Nothing in
+the driver's *correctness* notices — `OrderImplements` promises only
+that `ord` orders some permutation, and `RamCover.cover_spec` produces a
+neighborhood cover from any of them — but the cover's *degree*, and
+hence the driver's cost, is what the augmentation is for, so a wave that
+computes the cost has to widen that surface first. -/
 def orderCom (R W j : ℕ) : Com :=
-  .seq (copyCom (alvName j) "alv")
-    (.seq RamElim.elimCom
-      (.seq (copyUpto "ioff" "doff" (.add (.var "n") (.lit 1)))
-        (.seq (copyUpto "itg" "dtg" (.lit W))
-          (.seq (foldRange (fun _ => .seq RamAugment.augCom (augRelinkCom W)) R)
-            (.seq symCom
-              (.seq (fillCom "alv" (.lit 1))
-                (.seq RamElim.elimCom ordCom)))))))
+  .seq saveCsr
+    (.seq (copyCom (alvName j) "alv")
+      (.seq RamElim.elimCom
+        (.seq (copyUpto "ioff" "doff" (.add (.var "n") (.lit 1)))
+          (.seq (copyUpto "itg" "dtg" (.lit W))
+            (.seq (foldRange (fun _ => .seq RamAugment.augCom (augRelinkCom W)) R)
+              (.seq restoreCsr
+                (.seq (fillCom "alv" (.lit 1))
+                  (.seq RamElim.elimCom (.seq ordCom orderZeroCom)))))))))
 
 /-! ### One cluster
 
@@ -1433,25 +1481,63 @@ theorem TablesSized.run {B q_top cap mb n : ℕ} {φ : Lax3.FirstOrder.FO 0} {c 
     {σ σ' : Env} {K : ℕ} (h : TablesSized q_top cap mb φ n σ) (hr : Run B c σ σ' K) :
     TablesSized q_top cap mb φ n σ' := fun j => (h j).run hr
 
+/-- **The memory the ordering pass addresses**, on top of the level's
+own: the scratch arrays of `Lax3Proofs.RamElim.ElimPre` and of
+`Lax3Proofs.RamAugment.AugPre`, at the width the driver allocates them
+at, with the accumulators, the elimination flags, the bucket heads and
+the four stamps zeroed — which is what a machine's fresh memory already
+says.
+
+`ns ≤ W` is the first conjunct because it is what makes the rest of the
+list coherent: `gtg` holds the level's own block structure, whose slot
+count is `ns`, while the engines' scratch is `W` wide, and every call of
+`Lax3Proofs.RamElim.elimCom` this level makes is at a slot count at most
+`ns`. It is carried here rather than as a side condition of the phases
+because it has to survive the level, like everything else in this
+clause. -/
+def OrderMem (n ns W : ℕ) (σ : Env) : Prop :=
+  ns ≤ W ∧
+  Sized [("doff", n + 1), ("dtg", W), ("ooff", n + 1), ("otg", W), ("ofl", n),
+      ("gof", n + 1), ("gtg", ns), ("ffl", n), ("deg", n), ("rnk", n), ("idg", n),
+      ("bh", n + 1), ("bv", n + W + 1), ("bn", n + W + 1), ("ioff", n + 1), ("ifl", n),
+      ("itg", W), ("noff", n + 1), ("nfl", n), ("ntg", W), ("elm", n),
+      ("stf", n), ("sta", n), ("std", n), ("ste", n)] σ ∧
+    (∀ v ∈ σ.arrs "elm", v = 0) ∧ (∀ v ∈ σ.arrs "bh", v = 0) ∧
+    (∀ v ∈ σ.arrs "ooff", v = 0) ∧ (∀ v ∈ σ.arrs "noff", v = 0) ∧
+    (∀ v ∈ σ.arrs "stf", v = 0) ∧ (∀ v ∈ σ.arrs "sta", v = 0) ∧
+    (∀ v ∈ σ.arrs "std", v = 0) ∧ (∀ v ∈ σ.arrs "ste", v = 0)
+
 /-- The block structure, the two masks and the memory of a depth, as
 the machine holds them. Everything a level reads and nothing it writes,
 together with the two clauses no statement about *sets* carries: that
 the arrays the passes below address are there at the lengths they
-address them at, and that the two masks hold words. -/
-def LevelPre (B n : ℕ) (cap mb : ℕ) (ns : ℕ) (O T : ℕ → ℕ) (j : ℕ) (M Gm : ℕ → ℕ)
+address them at, and that the two masks hold words.
+
+Two of the clauses are the ordering phase's and are here rather than in
+`OrderImplements` because they have to *survive* the level, and a phase
+obligation cannot say that. `σ.vars "m" + σ.vars "m" = ns` is the slot
+count as the machine holds it — the number `saveCsr` copies, and the one
+scalar of the decode no sub-program of the driver assigns.
+`OrderMem n ns W σ` is the engines' scratch at the width `W` the program
+text allocates it at, with the accumulators, the flags and the stamps
+zeroed; `orderCom`'s re-zeroing tail is what puts the second half back,
+and `Lax3Proofs.RamElim.ElimPre`'s scratch width is what makes the
+first half statable at one `W` for calls of several slot counts. -/
+def LevelPre (B n : ℕ) (cap mb : ℕ) (ns W : ℕ) (O T : ℕ → ℕ) (j : ℕ) (M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (σ : Env) : Prop :=
   σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
     σ.arrs (alvName j) = arrOf n M ∧ σ.arrs (gamName j) = arrOf n Gm ∧
     (∀ c < sigL cap mb j, σ.arrs (colName j c) = arrOf n (C c)) ∧
-    (∀ z < n, M z < B) ∧ (∀ z < n, Gm z < B) ∧ LevelMem B n σ
+    (∀ z < n, M z < B) ∧ (∀ z < n, Gm z < B) ∧ LevelMem B n σ ∧
+    σ.vars "m" + σ.vars "m" = ns ∧ OrderMem n ns W σ
 
 /-- What a level leaves: its tables, and everything it was handed,
 untouched. The second half is what makes the levels compose — a level
 above reads its own masks and colours after the level below has run. -/
 def LevelPost (B q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) {n : ℕ}
-    (G : SimpleGraph (Fin n)) (ns : ℕ) (O T : ℕ → ℕ) (j : ℕ) (M Gm : ℕ → ℕ)
+    (G : SimpleGraph (Fin n)) (ns W : ℕ) (O T : ℕ → ℕ) (j : ℕ) (M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (_σ σ' : Env) : Prop :=
-  LevelPre B n cap mb ns O T j M Gm C σ' ∧ TablesSized q_top cap mb φ n σ' ∧
+  LevelPre B n cap mb ns W O T j M Gm C σ' ∧ TablesSized q_top cap mb φ n σ' ∧
     TableInv q_top cap mb φ G j M C σ'
 
 /-! ### The obligations
@@ -1515,7 +1601,7 @@ variable (B)
 /-- The elimination engine, available at every arena and slot count the
 driver calls it at. -/
 def ElimAvail (n : ℕ) : Prop :=
-  ∀ (F : SimpleGraph (Fin n)) (ns : ℕ) (M O T : ℕ → ℕ), RamElim.Implements B n ns F M O T
+  ∀ (F : SimpleGraph (Fin n)) (ns W : ℕ) (M O T : ℕ → ℕ), RamElim.Implements B n ns W F M O T
 
 /-- The augmentation round, available at every orientation the driver
 calls it at. -/
@@ -1528,23 +1614,6 @@ calls it at. -/
 def CoverAvail (cap ns : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) : Prop :=
   ∀ (A₀ ord : ℕ → ℕ) (π : Equiv.Perm (Fin n)),
     RamCover.Implements B n ns G A₀ O T ord π cap
-
-/-- **The memory the ordering pass addresses**, on top of the level's
-own: the scratch arrays of `Lax3Proofs.RamElim.ElimPre` and of
-`Lax3Proofs.RamAugment.AugPre`, at the width the driver allocates them
-at, with the accumulators, the elimination flags, the bucket heads and
-the four stamps zeroed — which is what a machine's fresh memory already
-says. -/
-def OrderMem (n ns W : ℕ) (σ : Env) : Prop :=
-  Sized [("doff", n + 1), ("dtg", W), ("ooff", n + 1), ("otg", W), ("ofl", n),
-      ("gof", n + 1), ("gtg", ns), ("ffl", n), ("deg", n), ("rnk", n), ("idg", n),
-      ("bh", n + 1), ("bv", n + W + 1), ("bn", n + W + 1), ("ioff", n + 1), ("ifl", n),
-      ("itg", W), ("noff", n + 1), ("nfl", n), ("ntg", W), ("elm", n),
-      ("stf", n), ("sta", n), ("std", n), ("ste", n)] σ ∧
-    (∀ v ∈ σ.arrs "elm", v = 0) ∧ (∀ v ∈ σ.arrs "bh", v = 0) ∧
-    (∀ v ∈ σ.arrs "ooff", v = 0) ∧ (∀ v ∈ σ.arrs "noff", v = 0) ∧
-    (∀ v ∈ σ.arrs "stf", v = 0) ∧ (∀ v ∈ σ.arrs "sta", v = 0) ∧
-    (∀ v ∈ σ.arrs "std", v = 0) ∧ (∀ v ∈ σ.arrs "ste", v = 0)
 
 /-- **The decode.** That `decodeCom` reads the tape encoding into the
 block structure and opens the root arena with everything alive.
@@ -1568,13 +1637,23 @@ the phase writes, at the lengths it writes them at: an out-of-range
 store is *stuck* in IMP+ rather than defaulted, and the phase's first
 act is a store into `off`, so without it the obligation is refuted by
 the state whose arrays are all empty. The value bounds are the same
-rule at the expressions: at `B = 0` nothing evaluates. -/
-def DecodeImplements (x : List ℕ) (G : SimpleGraph (Fin n)) (ns : ℕ)
+rule at the expressions: at `B = 0` nothing evaluates.
+
+Two clauses are handed straight back. `σ'.vars "m"` is the edge count
+the second read left, and it is exposed here because the ordering
+phase's block-structure copies are bounded by it and by nothing else in
+reach — `saveCsr`'s target bound is `2·m` — so `LevelPre` carries it and
+somebody has to produce it. `OrderMem` is a frame condition and not a
+walk: the phase writes `off`, `tgt` and the two masks of depth zero, and
+the engines' scratch is none of them. -/
+def DecodeImplements (x : List ℕ) (G : SimpleGraph (Fin n)) (ns W : ℕ)
     (O T : ℕ → ℕ) (K : ℕ) : Prop :=
   (∀ v ∈ x, v < B) → n + 1 < B → ns < B →
-    Spec B (fun σ => DecodeMem n ns σ ∧ σ.inp = x ∧ σ.out = []) decodeCom
+    Spec B (fun σ => DecodeMem n ns σ ∧ OrderMem n ns W σ ∧ σ.inp = x ∧ σ.out = [])
+      decodeCom
       (fun _ σ' => σ'.out = [] ∧ CsrGraph G ns O T ∧
         σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf ns T ∧
+        σ'.vars "m" + σ'.vars "m" = ns ∧ OrderMem n ns W σ' ∧
         (∃ M, σ'.arrs (alvName 0) = arrOf n M ∧ ∀ v < n, M v = 1) ∧
         (∃ Gm, σ'.arrs (gamName 0) = arrOf n Gm ∧ ∀ v < n, Gm v = 1)) K
 
@@ -1582,12 +1661,16 @@ def DecodeImplements (x : List ℕ) (G : SimpleGraph (Fin n)) (ns : ℕ)
 order array of an ordering of the depth's arena along which the cover
 has the degree `Lax3Proofs.CoverDegree.exists_cover_degree` bounds.
 
-It splits along its five phases.
+It splits along its seven phases.
 
+* `saveCsr` is two `copyUpto`s, the second of them bounded by `2·m` —
+  which is the slot count, by `LevelPre`'s scalar clause.
 * The first `RamElim.elimCom` enters through `RamElim.elim_spec`, whose
   `Implements` is `ElimAvail`'s; its postcondition `RamElim.ElimPost`
   hands back an orientation of the arena with its in-lists, which is the
-  chain's round zero.
+  chain's round zero. The engine's scratch is addressed at the width `W`
+  `OrderMem` allocates it at and the call's slot count is the level's
+  own, which is what `RamElim.ElimPre`'s width parameter is for.
 * The `R` rounds enter through `RamAugment.augment_spec`, whose
   `Implements` is `AugAvail`'s and whose `ElimAvail` is this one's; the
   chain they build is collected by `RamAugment.isAugChain_succ` and
@@ -1595,11 +1678,15 @@ It splits along its five phases.
   `W` is cut to is `CoverDegree.joint_le`'s closed form.
 * `augRelinkCom` is the composition surface of `RamAugment`: two copies
   and seven fills, all `Fill.loop_spec`.
-* `symCom` is the counting sort that materializes the last round's graph
-  undirected, so that the final elimination reads a `RamElim.CsrSimple`.
+* `restoreCsr` puts the level's own block structure back, and the final
+  `RamElim.elimCom` is run on it: see `orderCom`'s docstring for why the
+  augmented graph cannot be the one eliminated, and why nothing in this
+  postcondition notices.
 * The final `RamElim.elimCom` gives the ranking, and `ordCom` inverts it;
   `RamCover.ordersBy_rankPerm` is the one line that turns the rank array
   and its inverse into `RamCover.OrdersBy`.
+* `orderZeroCom` is eight `Fill.loop_spec`s, and what it is for is the
+  next paragraph.
 
 The postcondition says only that the array orders *some* permutation,
 and that is deliberate: nothing in the driver's **correctness** depends
@@ -1611,37 +1698,41 @@ cover, hence the driver's cost, which
 pass builds. That bound therefore belongs to the cost `K` and to the
 wave that computes it, not here.
 
-**The one memory clause not folded in.** `OrderMem` below is what the
-two engines address and the level's own state does not — the twenty-odd
-scratch arrays of `Lax3Proofs.RamAugment.AugPre` and of
-`Lax3Proofs.RamElim.ElimPre`, with the accumulators, the flags and the
-stamps zeroed — and it is *not* a conjunct of this obligation, because
-it cannot be one until two things change together.
+**The engines' scratch is now the level's own.** `OrderMem` — the
+twenty-five scratch arrays of `Lax3Proofs.RamAugment.AugPre` and of
+`Lax3Proofs.RamElim.ElimPre`, at the width `W`, with the accumulators,
+the flags and the stamps zeroed — is a conjunct of `LevelPre` and so
+appears on *both* sides of this obligation. Three things had to happen
+together for that.
 
-* Its lengths are cut to the augmentation width `W`, so carrying it
-  across a level means carrying `W` in `LevelPre`, and hence in every
-  obligation and every phase `Prop` below. That is a signature change
-  and not a repair.
-* `orderCom` does not restore the zeroing: the final `RamElim.elimCom`
-  leaves `elm` and `bh` used, and there is no re-zeroing tail after it.
-  So `OrderMem` at the exit is *false* of the program as written, and a
-  level cannot hand it to the level below. A re-zeroing tail — nine
-  `fillCom`s, the shape `augRelinkCom` already has — is the program
-  repair that comes with the signature change.
+* `Lax3Proofs.RamElim.ElimPre` takes the in-list targets and the bucket
+  arena at a caller-chosen width with the call's slot count only a lower
+  bound. Without that, a state whose scratch is `W` wide satisfies no
+  call whose graph has fewer slots, and `OrderMem` is not statable at one
+  `W` at all.
+* `LevelPre` carries `W`, and with it every obligation and every phase
+  `Prop` here.
+* `orderZeroCom` restores the zeroing the two eliminations and the
+  counting sorts consumed. Without it `OrderMem` at the exit is false of
+  the program, and a level could not hand its state back.
 
-`Lax3Proofs.RamElim.ElimPre`'s pinning of `tgt`, `itg`, `bv` and `bn`
-to *exactly* the slot count of the call is the third half of the same
-knot: the fraternity graph's slot count is data-dependent, so a caller
-that allocates once, at `W`, cannot satisfy it. Relaxing that pinning
-to "at least the slot count" is what makes `OrderMem` statable at `W`
-at all. -/
+One coupling is left, and it is `tgt`'s. `RamElim`'s *input* block
+structure is read through the reasoning kit's `Csr` relation, which pins
+the target array's length to the last offset, so the graph an engine
+eliminates must occupy the array exactly. That is why `RamAugment.AugPre`
+still asks for `tgt` at the fraternity graph's own slot count, and why
+`orderCom` restores the level's structure before its final elimination
+instead of eliminating the augmented graph. Widening it means widening
+`tgt` in `RamBfs`, `RamCover`, `RamScatter` and `RamBfsPaths` too, since
+all four pin it at `ns`; it is a wave of its own, and it buys the cover's
+degree bound and nothing else. -/
 def OrderImplements (n R W cap mb ns j : ℕ) (O T : ℕ → ℕ)
     (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
   WordBound B n ns cap → n + W + 1 < B →
   ElimAvail B n → AugAvail B n →
-    Spec B (fun σ => LevelPre B n cap mb ns O T j M Gm C σ)
+    Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ)
       (orderCom R W j)
-      (fun σ σ' => LevelPre B n cap mb ns O T j M Gm C σ' ∧
+      (fun σ σ' => LevelPre B n cap mb ns W O T j M Gm C σ' ∧
         σ'.out = σ.out ∧
         ∃ (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ),
           σ'.arrs "ord" = arrOf n ord ∧ RamCover.OrdersBy n π ord) K
@@ -1655,13 +1746,13 @@ itself is `RamCover.cover_spec` at the ordering the previous obligation
 produced, whose own `Implements` is `CoverAvail`'s. The copy is what
 makes the destructiveness of the pass harmless — it kills the centres in
 `alv`, which is the *copy* of `alvName j`. -/
-def CoverImplements (cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
+def CoverImplements (cap mb ns W j : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
     (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ) (K : ℕ) : Prop :=
   WordBound B n ns cap →
   CoverAvail B cap ns G O T → RamCover.OrdersBy n π ord →
-    Spec B (fun σ => LevelPre B n cap mb ns O T j M Gm C σ ∧ σ.arrs "ord" = arrOf n ord)
+    Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧ σ.arrs "ord" = arrOf n ord)
       (.seq (copyCom (alvName j) "alv") (RamCover.coverCom cap))
-      (fun σ σ' => LevelPre B n cap mb ns O T j M Gm C σ' ∧ σ'.out = σ.out ∧
+      (fun σ σ' => LevelPre B n cap mb ns W O T j M Gm C σ' ∧ σ'.out = σ.out ∧
         σ'.arrs "ord" = arrOf n ord ∧ RamCover.CoverPost G M π ord cap σ σ') K
 
 /-! ### The readback of one cluster
@@ -1702,24 +1793,39 @@ It splits along the turn's six passes.
   expansion chain: `oldCom` for `slotOld`, `pdCom` for `slotPd`, `puCom`
   for `slotPu`.
 * The nested driver enters as the hypothesis `inner`, exactly as
-  `RamElim.Implements` enters `RamAugment.Implements`.
+  `RamElim.Implements` enters `RamAugment.Implements` — but only at the
+  masks the descent can produce, which is the point of the game
+  invariant below.
 * The scatter atoms enter through `RamScatter.scatter_spec`, one call per
   atom, at the depth-`(j+1)` table row of the atom's own formula, and the
-  readback through `Lax3Proofs.RamDriverCluster.ReadbackStep`. -/
-def ClusterStepImplements (q_top cap mb ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
-    (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ)
+  readback through `Lax3Proofs.RamDriverCluster.ReadbackStep`.
+
+**The game invariant.** The turn is handed `PlayOk` at its own depth and
+the nested driver only at masks that have it one depth down, so the turn
+owes the descent step of the invariant: the arena its `alvName (j+1)`
+cuts out is a cluster step of its own, and `playOk_stepArenaP` is that
+step — at the ball the expansion chain built in the *game* arena and the
+batch `batchCom` produced, which is `SplitterWinOracle.batchO` of the
+recorded play. That is why the driver carries two masks per depth and
+why `descendCom` writes `gamName (j+1)` from `gamName j`: the equality
+`nextArenaO` needs is exact only if the ball is taken in the game arena,
+and `ballStage`'s parity is what makes the chain end in the ball's own
+array. -/
+def ClusterStepImplements (q_top cap mb ns W j : ℕ) (φ : Lax3.FirstOrder.FO 0)
+    (G : SimpleGraph (Fin n)) (Or : PathOracle n (2 * cap)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ)
+    (C : ℕ → ℕ → ℕ)
     (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ) (inner : Com) (Kin K : ℕ) : Prop :=
-  WordBound B n ns cap →
-  (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ),
-      Spec B (fun σ => LevelPre B n cap mb ns O T (j + 1) M' Gm' C' σ ∧
+  WordBound B n ns cap → PlayOk cap Or G j (masked G M) →
+  (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ), PlayOk cap Or G (j + 1) (masked G M') →
+      Spec B (fun σ => LevelPre B n cap mb ns W O T (j + 1) M' Gm' C' σ ∧
           TablesSized q_top cap mb φ n σ) inner
-        (fun σ σ' => LevelPost B q_top cap mb φ G ns O T (j + 1) M' Gm' C' σ σ' ∧
+        (fun σ σ' => LevelPost B q_top cap mb φ G ns W O T (j + 1) M' Gm' C' σ σ' ∧
           σ'.out = σ.out) Kin) →
-    Spec B (fun σ => LevelPre B n cap mb ns O T j M Gm C σ ∧
+    Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧
         TablesSized q_top cap mb φ n σ ∧ σ.arrs "ord" = arrOf n ord ∧
         σ.vars "c" < n ∧ RamCover.CoverPost G M π ord cap σ σ)
       (clusterCom q_top cap mb φ j inner)
-      (fun σ σ' => LevelPre B n cap mb ns O T j M Gm C σ' ∧
+      (fun σ σ' => LevelPre B n cap mb ns W O T j M Gm C σ' ∧
         TablesSized q_top cap mb φ n σ' ∧ σ'.out = σ.out ∧
         σ'.vars "c" = σ.vars "c" ∧
         ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length), ∃ Tb : ℕ → ℕ,
@@ -1762,13 +1868,13 @@ without which the walk's stores have no derivation; `rep` at
 `2 ^ sigL cap mb ℓ` is the representative system `reprCom` builds, and
 the environment slots are the base evaluator's own — one per free
 variable of the deepest formula, which `envDepth` bounds. -/
-def BaseImplements (q_top cap mb ns ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0)
+def BaseImplements (q_top cap mb ns W ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
   WordBound B n ns cap → 2 ^ sigL cap mb ℓ < B → masked G M = ⊥ →
-    Spec B (fun σ => LevelPre B n cap mb ns O T ℓ M Gm C σ ∧
+    Spec B (fun σ => LevelPre B n cap mb ns W O T ℓ M Gm C σ ∧
         TablesSized q_top cap mb φ n σ ∧ Sized [("rep", 2 ^ sigL cap mb ℓ)] σ)
       (baseCom q_top cap mb ℓ φ)
-      (fun σ σ' => LevelPost B q_top cap mb φ G ns O T ℓ M Gm C σ σ' ∧ σ'.out = σ.out) K
+      (fun σ σ' => LevelPost B q_top cap mb φ G ns W O T ℓ M Gm C σ σ' ∧ σ'.out = σ.out) K
 
 open Classical in
 /-- **The sentence readback.** That `sentenceCom` writes the one bit the
@@ -1781,10 +1887,10 @@ is the set the atom speaks about. The write is `Spec.write` at `bcExpr`
 of the combination, whose local atoms are the *constants*
 `Evaluator.localSentenceEval` decides at construction time. What the bit
 means is `sat_iff_eval_sentence`, proved above. -/
-def SentenceImplements (q_top cap mb ns : ℕ) (φ : Lax3.FirstOrder.FO 0)
+def SentenceImplements (q_top cap mb ns W : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
   WordBound B n ns cap → (∀ v < n, M v ≠ 0) →
-    Spec B (fun σ => LevelPre B n cap mb ns O T 0 M Gm C σ ∧
+    Spec B (fun σ => LevelPre B n cap mb ns W O T 0 M Gm C σ ∧
         TableInv q_top cap mb φ G 0 M C σ ∧ σ.out = [])
       (sentenceCom q_top cap mb φ)
       (fun _ σ' => ∃ h : ∃ q' : ℕ, q' ≤ q_top ∧
@@ -1807,7 +1913,11 @@ along the fuel.
 
 * At `j = ℓ` it is `BaseImplements`, and the hypothesis that hypothesis
   wants — that the arena is edgeless — is `eq_bot_of_playOk_full` at the
-  game invariant the levels above maintained.
+  game invariant this obligation now carries: `PlayOk` at the depth, of
+  the depth's own work arena. That is the whole reason the invariant is
+  a parameter here rather than a side condition somewhere: a level hands
+  it down to its clusters and gets the base case out of it at the
+  bottom, and no phase obligation has to mention the splitter game.
 * Below `ℓ` it is `OrderImplements`, `CoverImplements`, and
   `Spec.forRangeZero` over the centres with `ClusterStepImplements` as
   its body, the nested driver entering that body as its own hypothesis.
@@ -1817,10 +1927,12 @@ along the fuel.
   vertices by `sat_iff_eval_step` at the cluster it processed and the
   batch its searches produced. -/
 def LevelImplements (q_top cap mb R ℓ W ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
-    (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
-  Spec B (fun σ => LevelPre B n cap mb ns O T j M Gm C σ ∧ TablesSized q_top cap mb φ n σ)
+    (G : SimpleGraph (Fin n)) (Or : PathOracle n (2 * cap)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ)
+    (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
+  PlayOk cap Or G j (masked G M) →
+  Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧ TablesSized q_top cap mb φ n σ)
     (driverAt q_top cap mb R ℓ W φ j)
-    (fun σ σ' => LevelPost B q_top cap mb φ G ns O T j M Gm C σ σ' ∧ σ'.out = σ.out) K
+    (fun σ σ' => LevelPost B q_top cap mb φ G ns W O T j M Gm C σ σ' ∧ σ'.out = σ.out) K
 
 end Obligations
 
@@ -1877,24 +1989,25 @@ sentence, evaluated over the constants its local atoms are and the greedy
 scatter values its scatter atoms are, is the sentence's truth value.
 That is `sat_iff_eval_sentence`, and it is the only step of this proof
 that is not composition. -/
-theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
+theorem driver_correct (Or : PathOracle n (2 * cap)) (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
     (hB : WordBound B n ns cap) (hxB : ∀ v ∈ x, v < B)
-    (hdec : DecodeImplements B x G ns O T Kd)
+    (hdec : DecodeImplements B x G ns W O T Kd)
     (hlev : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ), (∀ v < n, M v ≠ 0) →
-      LevelImplements B q_top cap mb R ℓ W ns 0 φ G O T M Gm C Kl)
+      LevelImplements B q_top cap mb R ℓ W ns 0 φ G Or O T M Gm C Kl)
     (hsent : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
-      SentenceImplements B q_top cap mb ns φ G O T M Gm C Ks) :
-    Spec B (fun σ => DecodeMem n ns σ ∧ LevelMem B n σ ∧ TablesSized q_top cap mb φ n σ ∧
-        σ.inp = x ∧ σ.out = [])
+      SentenceImplements B q_top cap mb ns W φ G O T M Gm C Ks) :
+    Spec B (fun σ => DecodeMem n ns σ ∧ LevelMem B n σ ∧ OrderMem n ns W σ ∧
+        TablesSized q_top cap mb φ n σ ∧ σ.inp = x ∧ σ.out = [])
       (driverRoot q_top cap mb R ℓ W φ)
       (fun _ σ' => σ'.out = [if Lax3.FirstOrder.Sat G Fin.elim0 φ then 1 else 0])
       (Kd + (Kl + Ks)) := by
   classical
   refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨hdm, hmem, htsz, hinp, hout⟩ := hσ
+  obtain ⟨hdm, hmem, hordmem, htsz, hinp, hout⟩ := hσ
   -- the decode
-  obtain ⟨σ₁, hrun₁, hout₁, hcsr, hn₁, hoff₁, htgt₁, ⟨M, hM₁, hMone⟩, ⟨Gm, hGm₁, hGmone⟩⟩ :=
-    (hdec hxB hB.succ_lt hB.ns_lt).run ⟨hdm, hinp, hout⟩
+  obtain ⟨σ₁, hrun₁, hout₁, hcsr, hn₁, hoff₁, htgt₁, hm₁, hordmem₁,
+      ⟨M, hM₁, hMone⟩, ⟨Gm, hGm₁, hGmone⟩⟩ :=
+    (hdec hxB hB.succ_lt hB.ns_lt).run ⟨hdm, hordmem, hinp, hout⟩
   -- the memory the decode was handed is the memory the level is handed
   have hmem₁ : LevelMem B n σ₁ := levelMem_run hrun₁ hmem
   have htsz₁ : TablesSized q_top cap mb φ n σ₁ := htsz.run hrun₁
@@ -1906,9 +2019,14 @@ theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
   have hcolempty : ∀ c < sigL cap mb 0, σ₁.arrs (colName 0 c) = arrOf n (fun _ => 0) := by
     intro c hc
     exact absurd hc (by rw [sigL_zero]; omega)
+  -- the game invariant at the root: nothing has been played
+  have hMG : masked G M = G := RamElim.masked_of_all_alive G hMpos
+  have hplay₀ : PlayOk cap Or G 0 (masked G M) := by
+    rw [hMG]; exact playOk_zero Or G
   obtain ⟨σ₂, hrun₂, ⟨hpre₂, -, htab₂⟩, hout₂⟩ :=
-    (hlev M Gm (fun _ _ => 0) hMpos).run
-      (σ := σ₁) ⟨⟨hn₁, hoff₁, htgt₁, hM₁, hGm₁, hcolempty, hMB, hGmB, hmem₁⟩, htsz₁⟩
+    (hlev M Gm (fun _ _ => 0) hMpos hplay₀).run
+      (σ := σ₁) ⟨⟨hn₁, hoff₁, htgt₁, hM₁, hGm₁, hcolempty, hMB, hGmB, hmem₁, hm₁,
+        hordmem₁⟩, htsz₁⟩
   -- the sentence readback
   obtain ⟨σ₃, hrun₃, hcond, hout₃⟩ :=
     (hsent M Gm (fun _ _ => 0) hB hMpos).run (σ := σ₂) ⟨hpre₂, htab₂, by rw [hout₂, hout₁]⟩
@@ -1917,7 +2035,6 @@ theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
   rw [hout₃]
   congr 1
   refine if_congr ?_ rfl rfl
-  have hMG : masked G M = G := RamElim.masked_of_all_alive G hMpos
   have hglue := sat_iff_eval_sentence (mb := mb) (cap := cap) hrank (masked G M)
     (colRead n (fun _ _ => 0) (sigL cap mb 0)) hcond
   exact hglue.symm.trans (by rw [hMG])

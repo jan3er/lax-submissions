@@ -389,15 +389,17 @@ of the obligation itself, so the theorem closes it as it stands.
 The block structure the two loops leave is the encoding's own, by
 `RamBfs.csrGraph_of_encodesGraph`, and the arena the two fills open has
 every vertex alive. -/
-theorem decodeImplements {B n ns K : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ} {x : List ℕ}
+theorem decodeImplements {B n ns Ws K : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
+    {x : List ℕ}
     (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
     (hO : ∀ i ≤ n, O i = offset x i) (hT : ∀ j < ns, T j = target x j)
     (hK : decodeCost n ns ≤ K) :
-    RamDriver.DecodeImplements B x G ns O T K := by
+    RamDriver.DecodeImplements B x G ns Ws O T K := by
   intro hxB hnB hnsB
   subst hns
   refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨⟨hoffL, htgtL, halvL, hgamL⟩, hinp, hout⟩ := hσ
+  obtain ⟨⟨hoffL, htgtL, halvL, hgamL⟩, ⟨hOle, hOsz, hz₁, hz₂, hz₃, hz₄, hz₅, hz₆, hz₇, hz₈⟩,
+    hinp, hout⟩ := hσ
   -- the word: the two header entries, the offsets, the targets
   have hlen := hx.length_eq
   obtain ⟨rest, hxr⟩ : ∃ rest, x = n :: edgeCount x :: rest := by
@@ -503,8 +505,20 @@ theorem decodeImplements {B n ns K : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ �
       ⟨by rw [hfa₇ _ (by decide), hall _ (by decide) (by decide)]; exact hgamL, hn₇⟩
   have hfa₈ : ∀ a, a ≠ RamDriver.gamName 0 → σ₈.arrs a = σ₇.arrs a := fun a ha =>
     r₈.frame_arr a (by rw [warrs_fillCom]; simpa using ha)
-  refine ⟨σ₈, _, r₁.seq (r₂.seq (r₃.seq (r₄.seq (r₅.seq (r₆.seq (r₇.seq r₈)))))), ?_, ?_, ?_, ?_,
-    ?_, ?_, ?_, ?_⟩
+  -- everything but the four arrays the phase writes comes back untouched
+  have hall₈ : ∀ a, a ≠ "off" → a ≠ "tgt" → a ≠ RamDriver.alvName 0 →
+      a ≠ RamDriver.gamName 0 → σ₈.arrs a = σ.arrs a := by
+    intro a h1 h2 h3 h4
+    rw [hfa₈ a h4, hfa₇ a h3, hall a h1 h2]
+  have hm₈ : σ₈.vars "m" = edgeCount x := by
+    rw [r₈.frame_var "m" (by rw [wvars_fillCom]; decide),
+      r₇.frame_var "m" (by rw [wvars_fillCom]; decide),
+      hfv₆ "m" (by decide) (by decide), hσ₅]
+    simpa using hm₄
+  have rall : Run B RamDriver.decodeCom σ σ₈ _ :=
+    r₁.seq (r₂.seq (r₃.seq (r₄.seq (r₅.seq (r₆.seq (r₇.seq r₈))))))
+  refine ⟨σ₈, _, rall, ?_, ?_, ?_, ?_,
+    ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [decodeCost] at hK; omega
   · rw [r₈.out_eq (noWrite_fillCom ..), r₇.out_eq (noWrite_fillCom ..)]; exact ho₆
   · exact csrGraph_of_encodesGraph hx hO hT
@@ -515,6 +529,16 @@ theorem decodeImplements {B n ns K : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ �
     exact arrOf_congr fun i hi => by rw [hO₄ i hi, hyd i hi, hO i (by omega)]
   · rw [hfa₈ _ (by decide), hfa₇ _ (by decide), htgt₆]
     exact arrOf_congr fun j hj => by rw [hT₆ j hj, hzd j hj, hT j hj]
+  · rw [hm₈]; omega
+  · exact ⟨hOle, hOsz.run rall,
+      by rw [hall₈ "elm" (by decide) (by decide) (by decide) (by decide)]; exact hz₁,
+      by rw [hall₈ "bh" (by decide) (by decide) (by decide) (by decide)]; exact hz₂,
+      by rw [hall₈ "ooff" (by decide) (by decide) (by decide) (by decide)]; exact hz₃,
+      by rw [hall₈ "noff" (by decide) (by decide) (by decide) (by decide)]; exact hz₄,
+      by rw [hall₈ "stf" (by decide) (by decide) (by decide) (by decide)]; exact hz₅,
+      by rw [hall₈ "sta" (by decide) (by decide) (by decide) (by decide)]; exact hz₆,
+      by rw [hall₈ "std" (by decide) (by decide) (by decide) (by decide)]; exact hz₇,
+      by rw [hall₈ "ste" (by decide) (by decide) (by decide) (by decide)]; exact hz₈⟩
   · exact ⟨M, by rw [hfa₈ _ (by decide)]; exact halv₇, hM₇⟩
   · exact ⟨Gm, hgam₈, hGm₈⟩
 
@@ -584,7 +608,7 @@ section Sentence
 open Lax3.DistFO Lax3.Locality Lax3.ScatterSentences
 open Lax3Proofs.FormulaTables
 
-variable {q_top cap mb n ns B : ℕ} {φ : Lax3.FirstOrder.FO 0} {G : SimpleGraph (Fin n)}
+variable {q_top cap mb n ns Ws B : ℕ} {φ : Lax3.FirstOrder.FO 0} {G : SimpleGraph (Fin n)}
   {O T M : ℕ → ℕ} {C : ℕ → ℕ → ℕ}
 
 /-- The value of one scatter atom of the top sentence in the root
@@ -630,10 +654,10 @@ asks for beyond the tables is `RamDriver.LevelMem`, which
 `RamDriver.TableInv`'s bit clause together with `1 < B`. So the
 sentence obligation needs no memory conjunct of its own. -/
 theorem rootMem_of_levelPre {Gm : ℕ → ℕ} {σ : Env} (h1B : 1 < B)
-    (hlev : RamDriver.LevelPre B n cap mb ns O T 0 M Gm C σ)
+    (hlev : RamDriver.LevelPre B n cap mb ns Ws O T 0 M Gm C σ)
     (htab : RamDriver.TableInv q_top cap mb φ G 0 M C σ) :
     RootMem q_top cap mb B n φ σ := by
-  obtain ⟨-, -, -, -, -, -, -, -, hsz, hd, hq⟩ := hlev
+  obtain ⟨-, -, -, -, -, -, -, -, ⟨hsz, hd, hq⟩, -, -⟩ := hlev
   refine ⟨hsz.length (p := ("alv", n)) (by simp), hsz.length (p := ("tab", n)) (by simp),
     hsz.length (p := ("dist", n)) (by simp), hd,
     hsz.length (p := ("q", n)) (by simp), hq,
@@ -868,7 +892,7 @@ theorem sentenceImplements {Kb K : ℕ} {Gm : ℕ → ℕ}
       s.r + 1 < B ∧ s.t < B ∧ atomCost n ns s.t ≤ Kb)
     (hK : Kb * (bcAtomsOf₀ q_top (Reduction.toDistFO (L := sigL cap mb 0) φ)).2.length + 1 +
       (1 + (sentenceExpr q_top cap mb φ).size) ≤ K) :
-    RamDriver.SentenceImplements B q_top cap mb ns φ G O T M Gm C K := by
+    RamDriver.SentenceImplements B q_top cap mb ns Ws φ G O T M Gm C K := by
   intro hB _
   have hnB : n < B := hB.n_lt
   have hnsB : ns < B := hB.ns_lt
@@ -879,7 +903,7 @@ theorem sentenceImplements {Kb K : ℕ} {Gm : ℕ → ℕ}
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hlev, htabInv, hout⟩ := hσ
   have hmem : RootMem q_top cap mb B n φ σ := rootMem_of_levelPre h1B hlev htabInv
-  obtain ⟨hn, hoff, htgt, halv0, -, -, hMB, -, -⟩ := hlev
+  obtain ⟨hn, hoff, htgt, halv0, -, -, hMB, -, -, -, -⟩ := hlev
   -- the scatter atoms
   obtain ⟨σ₁, r₁, -, hout₁, -, hval₁⟩ :=
     (rootScatter_aux (Kb := Kb) hcsr hnB hnsB hMB h1B
