@@ -2,6 +2,8 @@ import Lax13Proofs.Refine.Cost.ACost
 import Lax13Proofs.Refine.NREST.Basic
 import Lax13Proofs.Refine.NREST.Pw
 import Lax13Proofs.Refine.NREST.Sanity
+import Lax13Proofs.Refine.NREST.DataRefinement
+import Lax13Proofs.Refine.NREST.TimeRefinement
 
 /-!
 The refinement tower: a fidelity-first port of the Isabelle NREST/Sepref
@@ -29,6 +31,20 @@ This is P1's first slice — the currency type and the NREST monad core:
   D4): `#guard` spot checks and Plausible property checks of those laws
   at a finite carrier.
 
+and P1's second slice — the two refinement operators the tower composes:
+
+* `Refine/NREST/DataRefinement.lean` — `conc_fun` / `⇓R` and `abs_fun`
+  (`Data_Refinement.thy`), the `br` relation constructor, the bind and
+  consume refinement rules, `nrest_rel`.
+* `Refine/NREST/TimeRefinement.lean` — `timerefine` / `⇓C`,
+  `timerefineA`, the `wfR`/`wfR'`/`wfR''` finite-support predicates, the
+  exchange-rate composition `pp`, the identity rate `TId`
+  (`Time_Refinement.thy`), and the `⇓R`/`⇓C` commutation of
+  `NREST_Main.thy`.
+
+Each of the two carries its own executable gate, in the `Sanity`
+namespace of `Sanity.lean`.
+
 Still to come in P1, per design record §3: `Rec`, `Combinators`,
-`DataRefinement`, `TimeRefinement`, `BackwardsReasoning`.
+`BackwardsReasoning`.
 -/
