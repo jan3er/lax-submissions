@@ -3365,3 +3365,64 @@ exact-size explicit expanders (P0 spike, GG default, h→λ fallback).
 Ledger seeded L1–L7 (finite counting, symbolic constants until P7,
 Hadamard-only composition, word-RAM NP). No Lean was written; no
 existing campaign touched.
+
+## Refinement tower P3 — 2026-07-29 (same day as P2; one session vs 2–3 budget)
+Milestone: P3 COMPLETE, acceptance passed.
+Commits: 600d985 (deep SL extracts), bb7ff84 (wave A), 0c19fee (wave
+B), 888efde (wave C); governance 88fb046 earlier the same evening (full
+authority delegated — this and later phases run without interim review
+flags; ledger/D-flag discipline unchanged, now serving the final
+evaluation).
+State: the IR and its credit-carrying separation logic exist end to
+end under Refine/Ir/{Syntax,Semantics,Assn,Wp,Triples,Attrs,SepSolver}
++ Examples/ArrayFill. Wave A: Val=ℕ, binops ARE Imp.Bop (reused),
+16 "ir.*" currencies, deterministic BigStep charging one currency per
+op, evalFuel twin equivalent both directions, out-of-range stuck.
+Wave B: AFP sep-algebra class stack with Tsa/Pi/Prod/ACost instances;
+carrier (scalar cells × array cells) × ECost — §10.1 default taken,
+runs consume finite Cost, balances ℕ∞; ¤/¤¤ for the source's $/$$
+($ is Lean-illegal); generic_wp as a one-field class (frame/cons by
+instance = the source's interpretation); ALL SIX cost_framework locale
+axioms proved at (leCostECost, minusECost) — assumptions became
+theorems; wp over BigStep, wp_seq = wp_bind; per-op credit triples in
+ll_load_rule's mould, exact + GC forms; while_triple =
+llc_while_annot_rule, invariant carries the credits (ESOP'21). R=Unit:
+IR statements return nothing, results are read from destination cells
+(design §5 updated accordingly this session — the P4 target now names
+the destination cell). Arrays are ONE indivisible cell (no sep_set_img
+— no IR op splits an array). Wave C: Frame_Infer.thy whole — tags +
+four structural rules 1:1, the ML search loop as a TacticM solver
+(start/extract/round/end kept; rotations_tac as O(k) index selection;
+credits by numeral arithmetic; GC absorbs greedily at the back;
+entails_refl first at end instantiates the frame metavariable from the
+residue; no HOU anywhere); five rule DBs as attributes incl. vcg_rules
+populated with the op rules; failure messages name the unmatched
+conjunct, #guard_msgs-pinned.
+Acceptance (plan criterion met): hand-proved credit triples for array
+get/set/fill as concrete IR programs — get pays exactly 1·ir.aget, set
+1·ir.aset, fill (n+1)·ir.while + n·ir.aset + n·ir.add — with ALL frame
+reasoning through the fri solver (zero manual sepConj/ac_rfl/rotation
+steps in the acceptance file); the n=3 fill run derived from the exact
+triple down to BigStep, full 16-currency vector #guard-pinned;
+Plausible cost-as-function-of-n on the executable twin;
+fill_no_wrong_cost: a wrong vector admits no derivation, by
+determinism.
+Verification: lake build 3,007 jobs green; lax audit OK from archive
+root (the inside-proofs false-fail bit once again — ROOT ONLY); axioms
+⊆ {propext, Classical.choice, Quot.sound} on 49 spot-checks; zero
+sorries anywhere.
+Supervisor review events: one wave-B header defect caught and fixed
+pre-commit (D-l claimed $c Lean-legal while the code correctly uses
+¤c); wave C untouched-clean on review. Spend-limit interruption mid
+wave B; resumed agent finished from transcript with no loss.
+Backlog → P4: goal-side ∃ᵃ not solver-handled (port fri_exI if
+needed); fri_red_rules declared + populated but the round loop doesn't
+enumerate it yet (~20 lines); sepImp has no consumer; no PRECOND/PRIO
+side-condition registry (Autoref's declare_solver is the wiring
+point); solver is first-match-wins, no cross-round backtracking
+(complete while fri_rules={refl}); x:=y⊕y needs monadify's
+duplicate-arg split; inres still unported (P2 carry-over).
+Next session: P4 — hn_refine + the Sepref phase pipeline under the
+source's own phase names (design §3 map, §5's updated hnRefine as the
+target; budget 3–5 sessions; extraction of Sepref/Basic + monadify +
+translate first).

@@ -314,6 +314,75 @@ of overnight work — set expectations by the budget, not the recent luck.
 
 ## Progress log
 
+- **2026-07-29 (late) — P3 COMPLETE (one session, under the 2–3-session
+  budget) — acceptance passed.** Three waves + one extraction, commits
+  600d985/bb7ff84/0c19fee/888efde. Extraction:
+  `p3-sl-deep-extracts.md` (byte-exact `cost_framework` locale,
+  `Frame_Infer.thy`, `Basic_VCG` surface, AFP sep-algebra chain,
+  `ll_load/ll_store` + range rules). **Wave A** `Ir/{Syntax,Semantics}`
+  (D-a…D-i): `Val = ℕ`, binops ARE `Imp.Bop` (reused, not copied),
+  16 `"ir.*"` currencies, `Cost = ACost String ℕ`, deterministic
+  `BigStep` charging one currency per op, `evalFuel` twin proved
+  equivalent both directions, out-of-range access stuck. **Wave B**
+  `Ir/{Assn,Wp,Triples}` (2,408 l, D-j…D-x): AFP class stack
+  `PreSepAlgebra→SepAlgebra→StrongerSepAlgebra→UniqueZeroSepAlgebra`
+  with `Tsa`/Pi/Prod/`ACost` instances (D-j: typeclass surface is the
+  source's own compositional carrier); carrier `AState = (Cells Val ×
+  Cells (List Val)) × ECost` — §10.1 default taken, runs consume
+  finite `Cost`, balances are `ℕ∞` (D-e); `¤c`/`¤¤n k` for the
+  source's `$`/`$$` (D-l — `$` is Lean's antiquotation token; one
+  header defect fixed in supervisor review); locales rendered per
+  D-o/D-p: `generic_wp` a one-field class (frame/cons rules inherited
+  by instance as the source inherits by interpretation), and **all six
+  `cost_framework` locale axioms PROVED at `(leCostECost,
+  minusECost)`** — the locale's assumptions became theorems; `wp` over
+  `BigStep` with `wp_comm_inf` from determinism, per-op equations,
+  `wp_seq` = the source's `wp_bind`; per-op credit triples exact + GC
+  forms, `while_triple` = `llc_while_annot_rule` with
+  invariant-carried credits (ESOP'21 discipline, D-x); D-q: IR
+  statements have no result value → generic layer at `R = Unit`,
+  results read from destination cells (design §5 updated post-hoc,
+  this entry's session). Arrays are ONE cell, not a `sep_set_img`
+  family (D-m — no IR op splits an array; index side conditions are
+  `i < xs.length`). **Wave C** `Ir/{Attrs,SepSolver}` +
+  `Examples/ArrayFill` (1,985 l, D-y…D-ak): `Frame_Infer.thy` whole —
+  tags + four structural rules 1:1, the ML search loop as a `TacticM`
+  solver keeping start/extract/round/end, `rotations_tac` as O(k)
+  index selection through the same `fri_prems_cong` (D-y), credits by
+  numeral arithmetic with ge/le reductions (D-aa), GC absorbs credits
+  greedily at the back (D-ab), `entails_refl` first at end — the frame
+  metavariable is instantiated by the residue, **no HOU anywhere**;
+  five rule DBs as attributes (`fri_prepare_simps/fri_rules/
+  fri_red_rules/fri_end_rules/vcg_rules`, the last populated with the
+  IR op rules, closing wave B's D-u); `#guard_msgs`-pinned failure
+  messages naming the unmatched conjunct. **Acceptance (the plan's
+  criterion, met): hand-proved credit-carrying triples for array
+  get/set/fill** — concrete IR programs, exact vectors (`get` =
+  1·ir.aget; `set` = 1·ir.aset; `fill` = (n+1)·ir.while + n·ir.aset +
+  n·ir.add via an invariant carrying `k • payload`), ALL frame
+  reasoning solver-discharged (zero manual `sepConj`/`ac_rfl`/rotation
+  steps in the acceptance file), the n=3 run derived from the exact
+  triple down to `BigStep` with the full 16-currency vector
+  `#guard`-pinned, Plausible cost-as-function-of-n on the `evalFuel`
+  twin, and `fill_no_wrong_cost` (a wrong vector admits no derivation,
+  by determinism). Verification: 3,007 jobs green, lax audit OK from
+  archive root, axioms ⊆ {propext, Classical.choice, Quot.sound} on
+  49 spot-checked decls across waves, wall-clocks recorded in
+  reports (SepSolver 7.1 s full / 2.4 s net of gate). **P4 handoff**
+  (also in `SepSolver.lean`'s header + wave reports): entry points
+  `fri`/`fri_core`/`ir_frame`/`ir_frame_gc`, `irTriple_frame`/
+  `irHtriple_frame` (= `htriple_vcg_frame_erule`), state readers
+  `ptoVar_of_frame` etc., shapers `irTriple_pure`/`irTriple_ex`;
+  gaps: goal-side `∃ᵃ` not solver-handled (port `fri_exI` if needed),
+  `fri_red_rules` populated but not yet enumerated by the round loop
+  (~20 l), `sepImp` has no consumer, no `PRECOND`/`PRIO` registry
+  (`declare_solver` is the wiring point), solver never backtracks
+  across rounds (complete while `fri_rules` = {refl}; revisit if P4
+  registers overlapping rules), `x := y ⊕ y` needs monadify's
+  duplicate-arg split, `inres` still unported (P2 carry-over).
+  **P4 starts next session** at design §3's Sepref map + §5's updated
+  `hnRefine`.
+
 - **2026-07-29 (late) — GOVERNANCE: full project authority delegated
   to the supervising agent** (Jan, in-session: "i fully give up
   authority on this project, its all yours, you do not need to flag
