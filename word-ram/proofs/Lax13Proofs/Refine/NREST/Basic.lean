@@ -404,6 +404,45 @@ noncomputable def bindT [CompleteLattice γ] [Add γ] (m : NRest α γ) (f : α 
     bindT (rest X) f =
       sSup { n | ∃ (x : α) (t : γ), X x = (t : WithBot γ) ∧ n = consume (f x) t } := rfl
 
+/-! ### `consumea`
+
+The source's one-result "pay this and continue" computation, and the
+rewriting of `consume` as a bind against it. `consumea` sits in
+`NREST.thy` next to `consume`, which is why it sits here; P1 defined it
+in `Combinators.lean` because this file was frozen for that slice
+(`Combinators.lean`'s decision C6), and P2 wave A moved it up.
+
+The two *statements* are P1's, unchanged. `consume_alt2`'s **proof** had
+to change: P1 proved it through `Pw.lean`'s `bindT_rest_eq_iSup`, which
+sits above this file, so the same fact is read off `bindT_rest`'s own
+set comprehension instead — at `Unit` that comprehension is a singleton,
+which is what P1's `iSup_unique` step was also using. -/
+
+open Classical in
+/-- The source's `consumea T = SPECT [() ↦ T]`. -/
+noncomputable def consumea [CompleteLattice γ] (T : γ) : NRest Unit γ :=
+  rest (single () (T : WithBot γ))
+
+@[simp] theorem consumea_ne_fail [CompleteLattice γ] (T : γ) :
+    consumea T ≠ (fail : NRest Unit γ) := rest_ne_fail _
+
+/-- The source's `consume_alt2`: charging a cost is binding against
+`consumea`. -/
+theorem consume_alt2 [CompleteLattice γ] [AddMonoid γ] (M : NRest α γ) (T : γ) :
+    consume M T = bindT (consumea T) fun _ => M := by
+  rw [consumea, bindT_rest]
+  have hset : {n : NRest α γ | ∃ (x : Unit) (t : γ),
+      single () (T : WithBot γ) x = (t : WithBot γ) ∧ n = consume M t} = {consume M T} := by
+    ext n
+    constructor
+    · rintro ⟨⟨⟩, t, ht, rfl⟩
+      rw [single_self, WithBot.coe_inj] at ht
+      rw [ht]
+      exact rfl
+    · rintro rfl
+      exact ⟨(), T, by simp, rfl⟩
+  rw [hset, sSup_singleton]
+
 open Classical in
 /-- The source's `iASSERT`: run `ret ()` if `Φ` holds, fail otherwise. -/
 noncomputable def iAssert [CompleteLattice γ] (ret : Unit → NRest α γ) (Φ : Prop) : NRest α γ :=

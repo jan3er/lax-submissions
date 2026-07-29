@@ -160,13 +160,19 @@ written `-ᵣ`, and mathlib's `Sub` is left alone. This is a *refutation
 found while porting*, and it is the one place where taking mathlib's
 "obvious" operation would have silently broken the calculus.
 
-**B2 — three `ACost` instances live here, not in `ACost.lean`.** The
+**B2 — resolved: the cost-carrier material moved to `ACost.lean`.** The
 source's `minus_acost_alt` and the `times_acost_def` of its
 `acost :: needname_zero` instantiation belong beside the other pointwise
-operations, but `ACost.lean` is frozen for this slice, so
-`ACost.instResSub`, `ACost.instSub`, `ACost.instMul` and
-`ACost.toFun_iInf` sit here. They should move up when `ACost.lean` is
-next touched.
+operations, but `ACost.lean` was frozen for P1's third slice, so
+`ResSub` itself, `ACost.instResSub`, `ACost.instSub`, `ACost.instMul`
+and `ACost.toFun_iInf` were declared here. **P2 wave A moved them up to
+`Cost/ACost.lean`**, names, statements and proofs unchanged, together
+with the `-ᵣ` notation, the `ℕ∞` instance, the `enat_resSub_*` lemmas
+and the four `#guard`s recording delta B1's counterexample. This file
+uses them all through its existing import chain; nothing stated here
+changed. What stays is what `NREST_Type_Classes.thy` puts here: the
+classes `Nonneg` / `Needname` / `Drm` / `NeednameZero` and their `enat`
+and `acost` instances.
 
 **B3 — HOL sort constraints become instance parameters.** HOL bundles
 the operations into the class (`class needname = complete_lattice +
@@ -252,7 +258,11 @@ premises read `b = true` / `b = false`).
 * The `inres` section (`inres`, `nofailT_bindT`, `gwp_mono_alt`, …):
   `Pw.lean` already carries `nofailT`/`inresT` and
   `pw_bindT_nofailT`; `inres` is the `t`-free projection of `inresT` and
-  belongs beside them when `Pw.lean` is next touched.
+  belongs beside them when it is ported. P1 ported *none* of that
+  section, so P2 wave A's relocation pass found nothing to move: the
+  `t`-free projection still awaits a port from the source text (whose
+  statements are not in either extract file), and when it lands it lands
+  in `Pw.lean`, not here.
 * `VCG_Case_Splitter` (the ML case splitter) and `NREST_Automation`'s
   `sc_solve` / `norm_cost` / `norm_pp`: automation, P2 material.
 
@@ -293,77 +303,6 @@ two `#guard`s are the recorded counterexample of delta B1.
 namespace Lax13Proofs.Refine
 
 variable {α β γ κ : Type}
-
-/-! ### HOL's `minus` class, and why it cannot be mathlib's `Sub` -/
-
-/-- HOL's `minus` type class: the subtraction the `needname`/`drm`
-classes of `NREST_Type_Classes.thy` are stated over. Written `-ᵣ`.
-
-**Substrate delta B1.** mathlib's `Sub ℕ∞` is *truncated* subtraction,
-so `⊤ - ⊤ = 0`. Isabelle's `enat` subtraction is
-`a - b = (case a of enat x ⇒ (case b of enat y ⇒ enat (x-y) | ∞ ⇒ 0) | ∞ ⇒ ∞)`,
-so `∞ - ∞ = ∞`, and the whole `gwp` theory rests on the `needname`
-axiom `top - a = top`. Under mathlib's `-` the ported
-`minus_p_m_bindT` is refutable (see the module header). The operation is
-therefore declared as its own class — HOL's `minus` is its own class
-too — and mathlib's `Sub` is left alone. -/
-class ResSub (γ : Type) where
-  /-- The source's `a - b` on a resource algebra. -/
-  resSub : γ → γ → γ
-
-@[inherit_doc] infixl:65 " -ᵣ " => ResSub.resSub
-
-/-- Isabelle's `enat` subtraction, verbatim: `∞ - b = ∞`, truncated
-subtraction below `∞`. -/
-instance instResSubENat : ResSub ℕ∞ := ⟨fun a b => if a = ⊤ then ⊤ else a - b⟩
-
-theorem enat_resSub_def (a b : ℕ∞) : a -ᵣ b = if a = ⊤ then ⊤ else a - b := rfl
-
-@[simp] theorem enat_top_resSub (b : ℕ∞) : (⊤ : ℕ∞) -ᵣ b = ⊤ := by
-  simp [enat_resSub_def]
-
-/-- Below `∞` the source's subtraction *is* mathlib's. -/
-theorem enat_resSub_of_ne_top {a : ℕ∞} (h : a ≠ ⊤) (b : ℕ∞) : a -ᵣ b = a - b := by
-  simp [enat_resSub_def, h]
-
-@[simp] theorem enat_resSub_zero (a : ℕ∞) : a -ᵣ (0 : ℕ∞) = a := by
-  rcases eq_or_ne a ⊤ with rfl | h
-  · simp
-  · rw [enat_resSub_of_ne_top h, tsub_zero]
-
-namespace ACost
-
-/-! ### The pointwise operations the classes need
-
-The source's `minus_acost_alt` and the `times_acost_def` of its
-`needname_zero` instantiation. `ACost.lean` is frozen for this slice,
-so they live here (substrate delta B2). -/
-
-/-- The source's subtraction on `acost`, pointwise. -/
-instance instResSub [ResSub γ] : ResSub (ACost κ γ) :=
-  ⟨fun a b => ⟨fun k => a.toFun k -ᵣ b.toFun k⟩⟩
-
-@[simp] theorem toFun_resSub [ResSub γ] (a b : ACost κ γ) (k : κ) :
-    (a -ᵣ b).toFun k = a.toFun k -ᵣ b.toFun k := rfl
-
-/-- mathlib's `Sub`, pointwise. This is *not* the source's `minus` on a
-resource algebra (delta B1); it exists because the `While` rule's energy
-annotations live in `ACost κ ℕ`, where the two agree. -/
-instance instSub [Sub γ] : Sub (ACost κ γ) :=
-  ⟨fun a b => ⟨fun k => a.toFun k - b.toFun k⟩⟩
-
-@[simp] theorem toFun_sub [Sub γ] (a b : ACost κ γ) (k : κ) :
-    (a - b).toFun k = a.toFun k - b.toFun k := rfl
-
-/-- The source's `times_acost_def`, from the `acost :: needname_zero`
-instantiation: `a * b = acostC (λx. the_acost a x * the_acost b x)`. -/
-instance instMul [Mul γ] : Mul (ACost κ γ) :=
-  ⟨fun a b => ⟨fun k => a.toFun k * b.toFun k⟩⟩
-
-@[simp] theorem toFun_mul [Mul γ] (a b : ACost κ γ) (k : κ) :
-    (a * b).toFun k = a.toFun k * b.toFun k := rfl
-
-end ACost
 
 /-! ### The resource type classes of `NREST_Type_Classes.thy`
 
@@ -540,12 +479,6 @@ The source's `instantiation acost :: (type, needname) needname` and
 proved currency by currency exactly as the source proves them. -/
 
 namespace ACost
-
-/-- `⨅`, currency by currency; the `⨆` counterpart is `ACost.lean`'s
-`toFun_iSup`, which that file needed and this one needs the dual of. -/
-@[simp] theorem toFun_iInf [CompleteLattice γ] {ι : Sort*} (F : ι → ACost κ γ) (k : κ) :
-    (⨅ i, F i).toFun k = ⨅ i, (F i).toFun k := by
-  rw [iInf, toFun_sInf, iInf_range]
 
 instance instNonneg [LE γ] [Zero γ] [Nonneg γ] : Nonneg (ACost κ γ) :=
   ⟨fun _ => le_def.mpr fun _ => Nonneg.needname_nonneg _⟩
@@ -1766,21 +1699,15 @@ executable twins with *proved* agreement, so that a `#guard` about the
 twin is a `#guard` about `gwp`. The carrier is `Sanity.lean`'s
 `NRest (Fin 3) ℕ∞`.
 
-The first two `#guard`s below are the recorded counterexample of delta
-B1: mathlib's `Sub ℕ∞` and Isabelle's `enat` subtraction disagree at
-`⊤ - ⊤`, which is exactly the point the `needname` axiom `top - a = top`
-lives at. -/
+The recorded counterexample of delta B1 — mathlib's `Sub ℕ∞` and
+Isabelle's `enat` subtraction disagree at `⊤ - ⊤`, which is exactly the
+point the `needname` axiom `top - a = top` lives at — travelled with
+`ResSub` to `Cost/ACost.lean` in P2 wave A (delta B2); it is the four
+`#guard`s at the head of that file. -/
 
 namespace Sanity
 
 open Plausible
-
--- Delta B1, checked by computation: the two subtractions differ, and the
--- source's is the one the `needname` axiom asks for.
-#guard ((⊤ : ℕ∞) -ᵣ (⊤ : ℕ∞)) = (⊤ : ℕ∞)
-#guard ((⊤ : ℕ∞) - (⊤ : ℕ∞)) = (0 : ℕ∞)
-#guard ((5 : ℕ∞) -ᵣ (2 : ℕ∞)) = (3 : ℕ∞)
-#guard ((2 : ℕ∞) -ᵣ (5 : ℕ∞)) = (0 : ℕ∞)
 
 /-- Executable `⊓` on `WithBot ℕ∞`, decided by the (computable) order. -/
 def minE (u v : WithBot ℕ∞) : WithBot ℕ∞ := if u ≤ v then u else v

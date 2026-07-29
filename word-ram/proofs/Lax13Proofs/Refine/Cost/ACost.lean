@@ -48,9 +48,74 @@ along `ACost.toFun` with `Function.Injective.completeLattice`, which
 keeps the `LE`/`LT` instances declared here (it takes them as
 parameters), so no order diamond is introduced: the `PartialOrder`
 coming out of `CompleteLattice` is the one declared below.
+
+## Relocated here by P2 wave A
+
+`NREST/BackwardsReasoning.lean`'s delta B2 recorded that the cost
+carrier's *subtractive* structure had been parked in that file only
+because this one was frozen for P1's third slice. It now lives here,
+names, statements and proofs unchanged: HOL's `minus` class `ResSub`
+(written `-ᵣ`, with its `ℕ∞` instance, its `enat_resSub_*` lemmas and
+the `#guard` counterexample that records *why* it is not mathlib's
+`Sub` — delta B1 there), the pointwise `ACost` instances `instResSub`,
+`instSub` and `instMul`, and `ACost.toFun_iInf`. The resource type
+classes that are *stated over* `-ᵣ` (`Needname`, `Drm`, `NeednameZero`
+and their instances) stay in `BackwardsReasoning.lean`, which is where
+`NREST_Type_Classes.thy` puts them.
 -/
 
 namespace Lax13Proofs.Refine
+
+/-! ### HOL's `minus` class, and why it cannot be mathlib's `Sub`
+
+Relocated here by P2 wave A from `NREST/BackwardsReasoning.lean`, whose
+delta B2 recorded that this is pure cost-carrier material parked one
+file too far down because `ACost.lean` was frozen for P1's third slice.
+Names, statements and proofs are unchanged; `BackwardsReasoning.lean`
+reaches them through its existing import chain. -/
+
+/-- HOL's `minus` type class: the subtraction the `needname`/`drm`
+classes of `NREST_Type_Classes.thy` are stated over. Written `-ᵣ`.
+
+**Substrate delta B1.** mathlib's `Sub ℕ∞` is *truncated* subtraction,
+so `⊤ - ⊤ = 0`. Isabelle's `enat` subtraction is
+`a - b = (case a of enat x ⇒ (case b of enat y ⇒ enat (x-y) | ∞ ⇒ 0) | ∞ ⇒ ∞)`,
+so `∞ - ∞ = ∞`, and the whole `gwp` theory rests on the `needname`
+axiom `top - a = top`. Under mathlib's `-` the ported
+`minus_p_m_bindT` is refutable (see `NREST/BackwardsReasoning.lean`'s
+module header). The operation is therefore declared as its own class —
+HOL's `minus` is its own class too — and mathlib's `Sub` is left
+alone. -/
+class ResSub (γ : Type) where
+  /-- The source's `a - b` on a resource algebra. -/
+  resSub : γ → γ → γ
+
+@[inherit_doc] infixl:65 " -ᵣ " => ResSub.resSub
+
+/-- Isabelle's `enat` subtraction, verbatim: `∞ - b = ∞`, truncated
+subtraction below `∞`. -/
+instance instResSubENat : ResSub ℕ∞ := ⟨fun a b => if a = ⊤ then ⊤ else a - b⟩
+
+theorem enat_resSub_def (a b : ℕ∞) : a -ᵣ b = if a = ⊤ then ⊤ else a - b := rfl
+
+@[simp] theorem enat_top_resSub (b : ℕ∞) : (⊤ : ℕ∞) -ᵣ b = ⊤ := by
+  simp [enat_resSub_def]
+
+/-- Below `∞` the source's subtraction *is* mathlib's. -/
+theorem enat_resSub_of_ne_top {a : ℕ∞} (h : a ≠ ⊤) (b : ℕ∞) : a -ᵣ b = a - b := by
+  simp [enat_resSub_def, h]
+
+@[simp] theorem enat_resSub_zero (a : ℕ∞) : a -ᵣ (0 : ℕ∞) = a := by
+  rcases eq_or_ne a ⊤ with rfl | h
+  · simp
+  · rw [enat_resSub_of_ne_top h, tsub_zero]
+
+-- Delta B1, checked by computation: the two subtractions differ, and the
+-- source's is the one the `needname` axiom asks for.
+#guard ((⊤ : ℕ∞) -ᵣ (⊤ : ℕ∞)) = (⊤ : ℕ∞)
+#guard ((⊤ : ℕ∞) - (⊤ : ℕ∞)) = (0 : ℕ∞)
+#guard ((5 : ℕ∞) -ᵣ (2 : ℕ∞)) = (3 : ℕ∞)
+#guard ((2 : ℕ∞) -ᵣ (5 : ℕ∞)) = (0 : ℕ∞)
 
 /-- A cost: a valuation of the currencies `κ` in the resource algebra
 `γ`. The source's `('a, 'b) acost = acostC (the_acost: 'a ⇒ 'b)`. -/
@@ -95,6 +160,36 @@ instance instAddMonoid [AddMonoid γ] : AddMonoid (ACost κ γ) :=
 instance instAddCommMonoid [AddCommMonoid γ] : AddCommMonoid (ACost κ γ) :=
   Function.Injective.addCommMonoid ACost.toFun toFun_injective rfl (fun _ _ => rfl)
     (fun _ _ => rfl)
+
+/-! ### The subtractive and multiplicative structure, pointwise
+
+The source's `minus_acost_alt` and the `times_acost_def` of its
+`acost :: needname_zero` instantiation. Relocated here by P2 wave A;
+`NREST/BackwardsReasoning.lean`'s delta B2 is what parked them there. -/
+
+/-- The source's subtraction on `acost`, pointwise. -/
+instance instResSub [ResSub γ] : ResSub (ACost κ γ) :=
+  ⟨fun a b => ⟨fun k => a.toFun k -ᵣ b.toFun k⟩⟩
+
+@[simp] theorem toFun_resSub [ResSub γ] (a b : ACost κ γ) (k : κ) :
+    (a -ᵣ b).toFun k = a.toFun k -ᵣ b.toFun k := rfl
+
+/-- mathlib's `Sub`, pointwise. This is *not* the source's `minus` on a
+resource algebra (delta B1); it exists because the `While` rule's energy
+annotations live in `ACost κ ℕ`, where the two agree. -/
+instance instSub [Sub γ] : Sub (ACost κ γ) :=
+  ⟨fun a b => ⟨fun k => a.toFun k - b.toFun k⟩⟩
+
+@[simp] theorem toFun_sub [Sub γ] (a b : ACost κ γ) (k : κ) :
+    (a - b).toFun k = a.toFun k - b.toFun k := rfl
+
+/-- The source's `times_acost_def`, from the `acost :: needname_zero`
+instantiation: `a * b = acostC (λx. the_acost a x * the_acost b x)`. -/
+instance instMul [Mul γ] : Mul (ACost κ γ) :=
+  ⟨fun a b => ⟨fun k => a.toFun k * b.toFun k⟩⟩
+
+@[simp] theorem toFun_mul [Mul γ] (a b : ACost κ γ) (k : κ) :
+    (a * b).toFun k = a.toFun k * b.toFun k := rfl
 
 /-! ### The order, pointwise -/
 
@@ -173,6 +268,12 @@ instance instCompleteLattice [CompleteLattice γ] : CompleteLattice (ACost κ γ
 @[simp] theorem toFun_iSup [CompleteLattice γ] {ι : Sort*} (F : ι → ACost κ γ) (k : κ) :
     (⨆ i, F i).toFun k = ⨆ i, (F i).toFun k := by
   rw [iSup, toFun_sSup, iSup_range]
+
+/-- `⨅`, currency by currency; the `⨆` counterpart is `ACost.lean`'s
+`toFun_iSup`, which that file needed and this one needs the dual of. -/
+@[simp] theorem toFun_iInf [CompleteLattice γ] {ι : Sort*} (F : ι → ACost κ γ) (k : κ) :
+    (⨅ i, F i).toFun k = ⨅ i, (F i).toFun k := by
+  rw [iInf, toFun_sInf, iInf_range]
 
 /-! ### One unit of one currency -/
 

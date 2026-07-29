@@ -4,6 +4,8 @@ import Lax13Proofs.Refine.NREST.Pw
 import Lax13Proofs.Refine.NREST.Sanity
 import Lax13Proofs.Refine.NREST.Rec
 import Lax13Proofs.Refine.NREST.Combinators
+import Lax13Proofs.Refine.Autoref.Attrs
+import Lax13Proofs.Refine.Autoref.Relators
 import Lax13Proofs.Refine.NREST.DataRefinement
 import Lax13Proofs.Refine.NREST.TimeRefinement
 import Lax13Proofs.Refine.NREST.BackwardsReasoning
@@ -25,10 +27,12 @@ This is P1's first two slices — the currency type, the NREST monad
 core, and the recursion/loop combinators built on it:
 
 * `Refine/Cost/ACost.lean` — `('a,'b) acost` (`Abstract_Cost.thy`),
-  pointwise algebra and lattice, `cost n x`, and `ECost`.
+  pointwise algebra and lattice, `cost n x`, `ECost`, and the resource
+  subtraction `ResSub` / `-ᵣ` of `NREST_Type_Classes.thy` with its `ℕ∞`
+  and `acost` instances.
 * `Refine/NREST/Basic.lean` — the `nrest` datatype, its complete
-  lattice, and `RETURNT` / `SPEC` / `consume` / `bindT` / `ASSERT`
-  (`NREST.thy`).
+  lattice, and `RETURNT` / `SPEC` / `consume` / `consumea` / `bindT` /
+  `ASSERT` (`NREST.thy`).
 * `Refine/NREST/Pw.lean` — `nofailT`, `inresT`, the pointwise
   principles, monotonicity, and the four monad laws at the source's own
   carriers.
@@ -40,7 +44,7 @@ core, and the recursion/loop combinators built on it:
   `refine_mono` seed lemmas, and the fuel approximants that make the
   fixed point executably checkable (`NREST.thy`, `RefineG_Domain.thy`,
   `Refine_Mono_Prover.thy`).
-* `Refine/NREST/Combinators.lean` — `consumea`, `MIf` / `monadic_If`,
+* `Refine/NREST/Combinators.lean` — `MIf` / `monadic_If`,
   `whileT` / `whileIET` / `monadic_WHILEIT`, and `FOREACH`
   (`NREST.thy`; `FOREACH` from AFP `NREST`'s `Refine_Foreach.thy`,
   which is where it exists at all).
@@ -72,7 +76,21 @@ and P1's third slice — backwards reasoning and the abstract VCG:
   `lift_acost` from `Enat_Cost.thy`). Its header records the one
   refutation the port turned up: mathlib's truncated `Sub ℕ∞` does not
   satisfy the `needname` axiom `top - a = top`, so the source's own
-  subtraction is declared here as `ResSub`.
+  subtraction is used, under the name `ResSub` (declared in
+  `Cost/ACost.lean`).
+
+and P2's first wave — relators and the shared rule-database attributes:
+
+* `Refine/Autoref/Attrs.lean` — the `relator_props`, `param` and
+  `refine_rel_defs` databases (design record §10 default 3; a Lean
+  attribute is unavailable to its own defining module, so the tags live
+  in a module of their own).
+* `Refine/Autoref/Relators.lean` — the relator zoo of AFP
+  `Automatic_Refinement`'s `Relators.thy`: `relComp`, `SingleValued`,
+  `br` (relocated from `DataRefinement.lean`), and `funRel` (`→ᵣ`),
+  `prodRel` (`×ᵣ`), `optionRel`, `sumRel`, `listRel` with `fun_relI` /
+  `fun_relD` / `list_rel_induct` and the `[relator_props]` mono family.
+  Pure HOL, one layer below the monad: it imports no `NREST` module.
 
 and P1's acceptance program, design record §10.4:
 

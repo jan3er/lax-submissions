@@ -1,4 +1,5 @@
 import Lax13Proofs.Refine.NREST.Sanity
+import Lax13Proofs.Refine.Autoref.Relators
 
 /-!
 Data refinement for `NRest`: the concretisation operator `⇓R`.
@@ -97,16 +98,19 @@ membership statements `(c, a) ∈ R`: the source's own spelling
 (design record F3). `⇓R : NRest α γ → NRest β γ` therefore takes an
 *abstract* program to a *concrete* one.
 
-**S2 — relation composition and single-valuedness are P2 material,
-pulled forward.** `relComp` (Isabelle's `R O S`) and `SingleValued`
-(Isabelle's `single_valued`) belong to `Autoref/Relators.lean` by the
+**S2 — relation composition, single-valuedness and `br` live in
+`Autoref/Relators.lean`.** `relComp` (Isabelle's `R O S`),
+`SingleValued` (Isabelle's `single_valued`), `br` and the pure-relation
+lemmas about them (`mem_relComp`, `mem_br_iff`, `mem_br`, `br_id`,
+`br_chain`, `br_singleValued`, `singleValued_diagonal`,
+`NRest.singleValued_relComp`) belong to `Autoref/Relators.lean` by the
 design record's module map (§7), but `conc_fun_chain`, `nrest_rel_comp`
 and the `_sv` lemmas of *this* source file cannot be stated without
-them. They are defined here, verbatim from Isabelle's `Relation` theory
-(`r O s = {(x,z). ∃y. (x,y)∈r ∧ (y,z)∈s}`,
-`single_valued r = (∀x y. (x,y)∈r ⟶ (∀z. (x,z)∈r ⟶ y=z))`), and P2
-should move them rather than restate them. `br` is pulled forward for
-the same reason and from the source quoted above.
+them. P1 therefore defined them here and recorded that P2 should move
+them rather than restate them; **P2 wave A did the move**, with every
+fully qualified name unchanged, and this file now reaches them through
+`import Lax13Proofs.Refine.Autoref.Relators`. Nothing stated below
+changed.
 
 **S3 — `Id` is `Set.diagonal`.** Isabelle's `Id = {(a,a)|a}` is
 mathlib's `Set.diagonal`; `conc_Id` is stated with that name.
@@ -162,60 +166,6 @@ is not ported.
 namespace Lax13Proofs.Refine
 
 variable {α β δ γ κ : Type}
-
-/-! ### Relation-level helpers pulled forward from P2 (delta S2) -/
-
-/-- Isabelle's relation composition `R O S`, at the concrete-first
-convention of design record F3: `(c, a) ∈ relComp R S` when some
-intermediate `b` has `(c, b) ∈ R` and `(b, a) ∈ S`. -/
-def relComp (R : Set (β × δ)) (S : Set (δ × α)) : Set (β × α) :=
-  {p | ∃ b, (p.1, b) ∈ R ∧ (b, p.2) ∈ S}
-
-@[simp] theorem mem_relComp {R : Set (β × δ)} {S : Set (δ × α)} {c : β} {a : α} :
-    (c, a) ∈ relComp R S ↔ ∃ b, (c, b) ∈ R ∧ (b, a) ∈ S := Iff.rfl
-
-/-- Isabelle's `single_valued`: every concrete value is related to at
-most one abstract value. -/
-def SingleValued (R : Set (β × α)) : Prop :=
-  ∀ c a a', (c, a) ∈ R → (c, a') ∈ R → a = a'
-
-/-- The source's `build_rel α I`, abbreviated `br`: the relation of an
-abstraction function `f` together with a concrete-side invariant `I`. -/
-def br (f : β → α) (I : β → Prop) : Set (β × α) := {p | p.2 = f p.1 ∧ I p.1}
-
-/-- The source's `in_br_conv`. -/
-@[simp] theorem mem_br_iff {f : β → α} {I : β → Prop} {c : β} {a : α} :
-    (c, a) ∈ br f I ↔ a = f c ∧ I c := Iff.rfl
-
-/-- The source's `brI`. -/
-theorem mem_br {f : β → α} {I : β → Prop} {c : β} {a : α} (ha : a = f c) (hI : I c) :
-    (c, a) ∈ br f I := ⟨ha, hI⟩
-
-/-- The source's `br_id`, with `Id` read as `Set.diagonal` (delta S3). -/
-@[simp] theorem br_id : br (id : α → α) (fun _ => True) = Set.diagonal α := by
-  ext p; simp [br, Set.diagonal, eq_comm]
-
-/-- The source's `br_chain`. -/
-theorem br_chain (g : β → δ) (J : β → Prop) (f : δ → α) (I : δ → Prop) :
-    relComp (br g J) (br f I) = br (f ∘ g) (fun s => J s ∧ I (g s)) := by
-  ext p
-  obtain ⟨c, a⟩ := p
-  simp only [mem_relComp, mem_br_iff, Function.comp_apply]
-  constructor
-  · rintro ⟨b, ⟨rfl, hJ⟩, ⟨rfl, hI⟩⟩
-    exact ⟨rfl, hJ, hI⟩
-  · rintro ⟨rfl, hJ, hI⟩
-    exact ⟨g c, ⟨rfl, hJ⟩, ⟨rfl, hI⟩⟩
-
-/-- The source's `br_sv`. -/
-theorem br_singleValued (f : β → α) (I : β → Prop) : SingleValued (br f I) := by
-  rintro c a a' ⟨ha, -⟩ ⟨ha', -⟩
-  exact ha.trans ha'.symm
-
-/-- `Id` is single-valued, in the `Set.diagonal` spelling. -/
-theorem singleValued_diagonal : SingleValued (Set.diagonal α) := by
-  rintro c a a' ha ha'
-  exact ha.symm.trans ha'
 
 namespace NRest
 
@@ -450,14 +400,6 @@ theorem concFun_rest_apply_of_notMem_domain [CompleteLattice γ] {R : Set (β ×
   refine le_antisymm (sSup_le ?_) bot_le
   rintro u ⟨a, ha, rfl⟩
   exact absurd ha (hc a)
-
-/-- Single-valuedness is preserved by composition (the source's
-`single_valued_relcomp`, used in `Data_Refinement.thy`). -/
-theorem singleValued_relComp {R : Set (β × δ)} {S : Set (δ × α)}
-    (hR : SingleValued R) (hS : SingleValued S) : SingleValued (relComp R S) := by
-  rintro c a a' ⟨b, hb, hba⟩ ⟨b', hb', hb'a⟩
-  rw [hR c b b' hb hb'] at hba
-  exact hS b' a a' hba hb'a
 
 /-! ### Refinement of `returnT`, `rest` and `spec` -/
 

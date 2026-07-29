@@ -153,11 +153,17 @@ definition: `SPEC_REST_emb'_conv` says `SPEC P t = REST (emb' P t)`, so
 `emb Q t` *is* `NRest.spec Q (fun _ => t)` of `Basic.lean`, and that is
 what `FOREACHoci` uses.
 
-**C6 (`consumea` lands here).** `consumea` sits in `NREST.thy` next to
-`consume`, i.e. logically in `Basic.lean`; it is defined here instead
-because `Basic.lean` is frozen for this slice and `consume_alt2` is what
-`monadic_WHILEIT_RECT'_conv` runs on. It should move up when `Basic` is
-next touched.
+**C6 (`consumea` landed here, and has since moved).** `consumea` sits in
+`NREST.thy` next to `consume`, i.e. logically in `Basic.lean`; P1
+defined it here instead because `Basic.lean` was frozen for that slice
+and `consume_alt2` is what `monadic_WHILEIT_RECT'_conv` runs on. **P2
+wave A moved both up to `Basic.lean`**, names unchanged
+(`NRest.consumea`, `NRest.consumea_ne_fail`, `NRest.consume_alt2`);
+this file still uses them, now through its existing import chain.
+`consume_alt2`'s proof had to change: `Basic.lean` sits below
+`Pw.lean`, so `bindT_rest_eq_iSup` is not available there and the same
+fact is read off `bindT_rest`'s set comprehension directly, which at
+`Unit` is a singleton. The statement is untouched.
 
 **C7 (the D4 gate).** As in `Rec.lean` (substrate decision S6): the
 fuel approximants of `Rec.lean`, the executable twins of `Sanity.lean`,
@@ -171,26 +177,6 @@ namespace Lax13Proofs.Refine
 namespace NRest
 
 variable {α β γ σ ε κ : Type}
-
-/-! ### `consumea`
-
-The source's one-result "pay this and continue" computation, and the
-rewriting of `consume` as a bind against it (substrate decision C6). -/
-
-open Classical in
-/-- The source's `consumea T = SPECT [() ↦ T]`. -/
-noncomputable def consumea [CompleteLattice γ] (T : γ) : NRest Unit γ :=
-  rest (single () (T : WithBot γ))
-
-@[simp] theorem consumea_ne_fail [CompleteLattice γ] (T : γ) :
-    consumea T ≠ (fail : NRest Unit γ) := rest_ne_fail _
-
-/-- The source's `consume_alt2`: charging a cost is binding against
-`consumea`. -/
-theorem consume_alt2 [CompleteLattice γ] [AddMonoid γ] (M : NRest α γ) (T : γ) :
-    consume M T = bindT (consumea T) fun _ => M := by
-  rw [consumea, bindT_rest_eq_iSup, iSup_unique]
-  simp
 
 /-! ### Monadic `if`
 
