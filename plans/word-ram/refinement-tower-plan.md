@@ -314,6 +314,35 @@ of overnight work — set expectations by the budget, not the recent luck.
 
 ## Progress log
 
+- **2026-07-29 — P1 wave 2 landed: Rec, Combinators, DataRefinement,
+  TimeRefinement (two Opus satellites in parallel worktrees).**
+  `Rec.lean` (581 l): `RECT = if mono2 B then gfp B x else ⊤` verbatim,
+  lattice gfp with no ccpo machinery (the source derives everything
+  downstream from the gfp form); fuel approximants make the fixed point
+  kernel-checkable. `Combinators.lean` (617 l): `MIf`/`whileT`/
+  `monadic_WHILEIT` per `NREST.thy`; FOREACH is absent from the cost
+  artifact — ported from AFP `Refine_Foreach.thy` (pre-currency, ℕ∞).
+  `DataRefinement.lean` (873 l): `⇓R`/`concFun`, `br`, `nrest_rel`,
+  bind/consume refinement rules; **`pw_conc_inres` is refutable under
+  the same-carrier `inresT` reading** (witness recorded in the module
+  header) — only the true direction ported, the source's hypothesis-
+  free `bindT_refine` shape used instead; substrate mismatch, not a
+  source defect. `TimeRefinement.lean` (1081 l): `⇓C`/`timerefineA`,
+  `wfR`/`wfR'`/`wfR''`, `pp` composition, `TId`, `timerefine_bindT_ge`
+  (proof shortened past the source's `limRef` chain, statement
+  unchanged), `⇓R`/`⇓C` commutation from `NREST_Main.thy` as an
+  inequality (no equality exists — `⇓C` is not Sup-continuous). All
+  green: 2974 jobs, lax audit from root OK, axioms clean, D4 gates ran
+  on all four files (one agent-authored gate assertion falsified and
+  corrected — never-exiting loop over an empty-result body is
+  `SUCCEEDT`, not `FAILT`). Elaboration: 13.4 s + 21.6 s. Backlog from
+  deviation flags: move `relComp`/`SingleValued`/`br` to
+  `Autoref/Relators.lean` in P2; move `consumea`/`consume_alt2` into
+  `Basic.lean` next time it thaws; upstream candidates
+  `finsum_comm_of_support`, unbundled `gfp`, the `WithBot` lemma trio.
+  Remaining P1: `BackwardsReasoning` (gwp + `needname`/`drm` classes),
+  then the abstract masked-BFS acceptance.
+
 - **2026-07-29 — P1 slice 1 landed (same session as P0).** `Refine/`
   exists: `Cost/ACost.lean` (currency type, pointwise lattice, `cost`,
   `ECost`), `NREST/Basic.lean` (`NRest` with the source's order and

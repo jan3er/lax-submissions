@@ -3221,3 +3221,26 @@ if/while rules against the no-cost twin's shapes (noted in design.md).
 Next: wave 2 satellites in parallel worktrees — Rec+Combinators,
 DataRefinement+TimeRefinement — then BackwardsReasoning, then the
 abstract masked-BFS P1 acceptance.
+
+## Refinement tower P1 wave 2 — Rec/Combinators + Data/TimeRefinement — 2026-07-29
+Milestone: P1 wave 2 (four satellite files, two parallel Opus agents in
+seeded worktrees) — done, merged, green.
+Files: Refine/NREST/{Rec,Combinators,DataRefinement,TimeRefinement}
+(.lean, 581+617+873+1081 lines). Build 2974 jobs, lax audit OK (from
+archive root — running lax from inside a package dir false-fails with
+submission-scaffolding violations; audit only from root), axioms clean
+everywhere, elaboration 13.4+21.6 s.
+Fidelity events worth Jan's eye: (1) DataRefinement — the source's
+pw_conc_inres is REFUTABLE under our same-carrier inresT reading;
+witness in the module header; true direction ported, hypothesis-free
+bindT_refine shape used. (2) FOREACH absent from the cost artifact;
+ported pre-currency from AFP Refine_Foreach at ℕ∞. (3) ⇓R/⇓C
+commutation is an inequality only. (4) One agent-authored D4 gate
+assertion Plausible-falsified and corrected (SUCCEEDT loop wrinkle) —
+refute-before-prove catching authored-obligation bugs again.
+Integration protocol worked: satellites branch from frozen-API main,
+one commit each, import-block union merges, verify, ff. Backlog: br/
+relComp/SingleValued move to P2 Relators; consumea to Basic on thaw;
+upstream candidates finsum_comm_of_support, unbundled gfp, WithBot
+trio. Next: BackwardsReasoning (gwp + needname/drm), then the abstract
+masked-BFS P1 acceptance program.
