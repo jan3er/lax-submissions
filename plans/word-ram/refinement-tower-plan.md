@@ -314,6 +314,27 @@ of overnight work — set expectations by the budget, not the recent luck.
 
 ## Progress log
 
+- **2026-07-29 — P1 slice 1 landed (same session as P0).** `Refine/`
+  exists: `Cost/ACost.lean` (currency type, pointwise lattice, `cost`,
+  `ECost`), `NREST/Basic.lean` (`NRest` with the source's order and
+  complete lattice built the source's way — mathlib has no
+  `CompleteLattice (WithTop β)` to transport across; `returnT`/`spec`/
+  `consume`/`bindT`/`assert` verbatim shapes), `NREST/Pw.lean`
+  (`nofailT`/`inresT`, pw suite, `consume`/`bindT` monotonicity, the
+  four monad laws at the source's own generality per F7),
+  `NREST/Sanity.lean` (D4 gate: decidable finite instance, executable
+  twins with proved agreement theorems, 13 `#guard`s + 6 Plausible
+  `#test`s, negative controls confirm the harness discriminates — no
+  divergence from source found). Build green 2970 jobs, `lax` audit
+  passes, `#print axioms` clean on the laws; elaboration wall-clock
+  31.7 s for the five new modules (recorded per house rule). Agent
+  deviations D-a…D-i all reviewed and accepted, none touching ported
+  judgment shapes; three local `WithBot` lemmas are upstream-candidate
+  mathlib gaps. Remaining P1: `Rec`, `Combinators`, `DataRefinement`,
+  `TimeRefinement` (satellite-parallel now that the `NRest` API is
+  frozen), then `BackwardsReasoning` (+ the `needname`/`drm` class
+  port), then the abstract masked-BFS acceptance program.
+
 - **2026-07-29 — P0 complete (one session, at budget's lower bound).**
   Deliverables: `refinement-tower/design.md` (the design record —
   pinned sources, component-by-component maps for P1–P6, `hn_refine`

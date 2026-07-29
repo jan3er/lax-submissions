@@ -17,3 +17,8 @@ import Lax13Proofs.Lib.Csr
 import Lax13Proofs.Lib.Fill
 import Lax13Proofs.Transfer
 import Lax13Proofs.Smoke
+import Lax13Proofs.Refine
+import Lax13Proofs.Refine.Cost.ACost
+import Lax13Proofs.Refine.NREST.Basic
+import Lax13Proofs.Refine.NREST.Pw
+import Lax13Proofs.Refine.NREST.Sanity

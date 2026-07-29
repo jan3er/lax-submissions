@@ -3195,3 +3195,29 @@ fully verified, the driver correct modulo a converging set of walk
 obligations whose every defect is now a precise, falsification-gated
 repair item. Landed on main at session close.
 
+## Refinement tower P1 slice 1 — NREST core landed green — 2026-07-29
+Milestone: P1 slice 1 (ACost + NRest + Pw + Sanity) — done.
+Files: word-ram/proofs/Lax13Proofs/Refine/{Cost/ACost,NREST/Basic,
+NREST/Pw,NREST/Sanity}.lean + Refine.lean aggregator (~1,520 lines).
+State: build green (2970 jobs), lax audit passes, zero sorry, #print
+axioms on all four monad laws = propext/Classical.choice/Quot.sound.
+bindT is the source's Sup-of-consume formula verbatim; laws at the
+source's own generality (left id generic; right id + assoc at ℕ∞ and
+ACost κ ℕ∞ — F7). D4 gate ran: 13 #guards + 6 Plausible #tests over
+executable twins with proved agreement theorems (noncomputable sSup
+can't #eval; twins are the sanctioned fallback and kernel-honest);
+negative controls found planted bugs in 5 and 13 shrinks, so the
+harness discriminates. No source divergence found. Elaboration 31.7 s
+for the five modules. Opus-agent deviations D-a…D-i reviewed, all
+accepted (biggest: no CompleteLattice (WithTop β) in mathlib, so the
+lattice is built the source's way — completeLatticeOfSup over the
+source's sSup formula; ⊤ = fail and ⊥ = rest ⊥ are rfl). Upstream
+candidates: withBot_map_add, withBot_eq_bot_or_coe, the WithBot
+add-Sup-continuity transfer.
+Parallel: P2–P4 source deep-read done by a second agent (byte-exact
+extract files p2/p3/p4-*.md, committed d0a1ac7); finding: the cost
+artifact has NO control-flow hnr rules — P4 must derive cost-carrying
+if/while rules against the no-cost twin's shapes (noted in design.md).
+Next: wave 2 satellites in parallel worktrees — Rec+Combinators,
+DataRefinement+TimeRefinement — then BackwardsReasoning, then the
+abstract masked-BFS P1 acceptance.
