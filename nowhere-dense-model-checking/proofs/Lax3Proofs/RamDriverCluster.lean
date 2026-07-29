@@ -1009,12 +1009,21 @@ centre, so at the exit every vertex has had its own turn, and
 The carrier is no longer asked to be nonempty: `RamDriver.TablesSized`
 is the depth's table arrays at the carrier's length, carried by the
 level's own precondition, so the loop no longer has to *produce* that
-fact from a turn having been taken. -/
+fact from a turn having been taken.
+
+The block structure is asked for in the *simple* form
+`RamElim.CsrSimple` — `RamBfs.CsrGraph` with no row naming a vertex
+twice — because that is what the ordering phase's two eliminations need
+and what `RamDriver.OrderImplements` therefore takes; the cover phase
+and the cluster step take the weaker `CsrGraph`, and get it from
+`hcsr.csr`. Nothing between the root and here can bridge the two, so the
+clause is data of the input encoding. -/
 theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s : ℕ}
     {φ : Lax3.FirstOrder.FO 0}
     {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
     {Ko Kc Ks Kl : ℕ → ℕ}
-    (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B) (hcsr : CsrGraph G ns O T)
+    (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B)
+    (hcsr : RamElim.CsrSimple G ns O T)
     (helim : ElimAvail B n) (haug : AugAvail B n) (hcovav : CoverAvail B cap ns G O T)
     (hQ : ∀ Pt : Set (Fin n), N (2 * s + 2) ≤ Pt.ncard →
       ∃ S Bd : Set (Fin n), S.ncard ≤ s ∧ Bd ⊆ Pt \ S ∧ 2 * s + 2 ≤ Bd.ncard ∧
@@ -1075,7 +1084,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
         hσ.2.2.2.congr (fun a _ => hctr₁ a) (fun a _ => hgam₁ a)
       -- the cover pass
       obtain ⟨σ₂, hr₂, hlev₂, hout₂, hctr₂, hgam₂, Xoff, Xmem, asg, mm, hheld₂⟩ :=
-        (hcover j hjl M Gm C π ord hB hcsr hcovav hordby).run
+        (hcover j hjl M Gm C π ord hB hcsr.csr hcovav hordby).run
           ⟨hlev₁, hord₁, fun z hz => hordby.lt hz⟩
       have htsz₂ : TablesSized q_top cap mb φ n σ₂ := htsz₁.run hr₂
       have hbarr₂ : BaseArrs B q_top cap mb ℓ φ σ₂ := hbarr₁.run hr₂
@@ -1087,7 +1096,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
             PlayRec B cap G j M Gm τ ∧
             CoverHeld n j G M π ord cap Xoff Xmem asg mm τ ∧ τ.vars (curName j) < n)
           (clusterCom q_top cap mb φ j (driverAt q_top cap mb R ℓ W φ (j + 1))) _ (Ks j) :=
-        spec_conj (hstep j hjl M Gm C π ord Xoff Xmem asg mm hB hcsr hbit hinner)
+        spec_conj (hstep j hjl M Gm C π ord Xoff Xmem asg mm hB hcsr.csr hbit hinner)
           (hframe j hjl M Gm C π ord Xoff Xmem asg mm hinner)
       have hbody : Spec B
           (fun τ =>

@@ -398,7 +398,8 @@ theorem decodeImplements {B n ns Ws K : ℕ} {G : SimpleGraph (Fin n)} {O T : �
   intro hxB hnB hnsB
   subst hns
   refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨⟨hoffL, htgtL, halvL, hgamL⟩, ⟨hOle, hOsz, hz₁, hz₂, hz₃, hz₄, hz₅, hz₆, hz₇, hz₈⟩,
+  obtain ⟨⟨hoffL, htgtL, halvL, hgamL⟩,
+    ⟨hOle, hOsz, hz₁, hz₂, hz₃, hz₄, hz₅, hz₆, hz₇, hz₈, hw₁, hw₂⟩,
     hinp, hout⟩ := hσ
   -- the word: the two header entries, the offsets, the targets
   have hlen := hx.length_eq
@@ -538,7 +539,8 @@ theorem decodeImplements {B n ns Ws K : ℕ} {G : SimpleGraph (Fin n)} {O T : �
       by rw [hall₈ "stf" (by decide) (by decide) (by decide) (by decide)]; exact hz₅,
       by rw [hall₈ "sta" (by decide) (by decide) (by decide) (by decide)]; exact hz₆,
       by rw [hall₈ "std" (by decide) (by decide) (by decide) (by decide)]; exact hz₇,
-      by rw [hall₈ "ste" (by decide) (by decide) (by decide) (by decide)]; exact hz₈⟩
+      by rw [hall₈ "ste" (by decide) (by decide) (by decide) (by decide)]; exact hz₈,
+      run_mem_arrs_lt rall "itg" hw₁, run_mem_arrs_lt rall "ntg" hw₂⟩
   · exact ⟨M, by rw [hfa₈ _ (by decide)]; exact halv₇, hM₇⟩
   · exact ⟨Gm, hgam₈, hGm₈⟩
 

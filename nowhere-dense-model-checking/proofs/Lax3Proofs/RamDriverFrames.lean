@@ -188,13 +188,14 @@ theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
   have hfv : ∀ y : String, y ∉ c.wvars → σ'.vars y = σ.vars y :=
     fun y hy => hrun.frame_var y hy
   obtain ⟨⟨⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCB, hlmem, hdep, hmvar,
-    hnsW, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste⟩, hplayrec,
+    hnsW, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste, hitg, hntg⟩, hplayrec,
     hord, hxoff, hxmem, hasg, hxp, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, halv', hAlvB, hmask,
       hgam', hGamB⟩, hwrange, hwa⟩, hcol', hcolbit', hcolread', htab'⟩ := h
   refine ⟨⟨⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCB, levelMem_run hrun hlmem,
       hdep.run hrun, ?_,
-      hnsW, hosz.run hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
+      hnsW, hosz.run hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+      run_mem_arrs_lt hrun "itg" hitg, run_mem_arrs_lt hrun "ntg" hntg⟩,
     hplayrec.congr (fun a _ => hfv (ctrName a) (hVctr a))
       (fun a _ => hfa (gamName a) (gamName_notMem_scratchArrs a)),
     ?_, ?_, ?_, ?_, ?_, hmn, hordlt, hcout⟩,
@@ -924,13 +925,14 @@ theorem innerFrames {ℓ : ℕ} {inner : Com} {Kin : ℕ}
     fun y hy => hrun.frame_var y hy
   obtain ⟨⟨-, -, -, -, -, hcol', -⟩,
     ⟨⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCB, hlmem, hdep, hmvar,
-      hnsW, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste⟩, hplayrec,
+      hnsW, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste, hitg, hntg⟩, hplayrec,
       hord, hxoff, hxmem, hasg, hxp, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, halv', hAlvB, hmask,
       hgam', hGamB⟩, hwrange, hwa⟩, -, -⟩ := hσ
   refine ⟨σ', hrun, ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCB, levelMem_run hrun hlmem,
       hdep.run hrun, ?_,
-      hnsW, hosz.run hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
+      hnsW, hosz.run hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+      run_mem_arrs_lt hrun "itg" hitg, run_mem_arrs_lt hrun "ntg" hntg⟩,
     hplayrec.congr (fun a _ => hfv (ctrName a) (hVctr a))
       (fun a _ => hfa (gamName a) (_root_.Or.inr (_root_.Or.inr (_root_.Or.inr ⟨a, rfl⟩)))),
     ?_, ?_, ?_, ?_, ?_, hmn, hordlt, hcout⟩,

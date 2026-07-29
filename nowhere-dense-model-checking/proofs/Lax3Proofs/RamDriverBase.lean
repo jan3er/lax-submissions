@@ -365,10 +365,10 @@ theorem sized_setArr {l : List (String × ℕ)} {σ : Env} {a : String} {idx v :
 
 /-- The engines' scratch is untouched by a table write, for the same
 reason and at every one of its twenty-five arrays. -/
-theorem orderMem_setArr_tab {n ns Ws : ℕ} {σ : Env} (h : OrderMem n ns Ws σ)
-    (j i idx v : ℕ) : OrderMem n ns Ws (σ.setArr (tabName j i) idx v) := by
-  obtain ⟨hle, hsz, h1, h2, h3, h4, h5, h6, h7, h8⟩ := h
-  refine ⟨hle, sized_setArr hsz, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+theorem orderMem_setArr_tab {B n ns Ws : ℕ} {σ : Env} (h : OrderMem B n ns Ws σ)
+    (j i idx v : ℕ) : OrderMem B n ns Ws (σ.setArr (tabName j i) idx v) := by
+  obtain ⟨hle, hsz, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := h
+  refine ⟨hle, sized_setArr hsz, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals
     first
     | (rw [arrs_setArr, if_neg (lit_ne_tabName (q := "elm") (by decide) j i)]; exact h1)
@@ -379,6 +379,8 @@ theorem orderMem_setArr_tab {n ns Ws : ℕ} {σ : Env} (h : OrderMem n ns Ws σ)
     | (rw [arrs_setArr, if_neg (lit_ne_tabName (q := "sta") (by decide) j i)]; exact h6)
     | (rw [arrs_setArr, if_neg (lit_ne_tabName (q := "std") (by decide) j i)]; exact h7)
     | (rw [arrs_setArr, if_neg (lit_ne_tabName (q := "ste") (by decide) j i)]; exact h8)
+    | (rw [arrs_setArr, if_neg (lit_ne_tabName (q := "itg") (by decide) j i)]; exact h9)
+    | (rw [arrs_setArr, if_neg (lit_ne_tabName (q := "ntg") (by decide) j i)]; exact h10)
 
 /-- Writing a table leaves the level's surface alone. -/
 theorem levelPre_setArr_tab {B cap mb ns Ws j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {σ : Env}

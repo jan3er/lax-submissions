@@ -1424,10 +1424,45 @@ def orderZeroCom : Com :=
             (.seq (fillCom "sta" (.lit 0))
               (.seq (fillCom "std" (.lit 0)) (fillCom "ste" (.lit 0))))))))
 
+/-- **The scratch the second elimination needs back.** The two arrays
+`Lax3Proofs.RamElim.ElimPre` asks for *zeroed* and
+`Lax3Proofs.RamElim.elimCom` does not itself initialise: the elimination
+flags and the bucket heads. Everything else the engine reads it writes
+first, so nothing else has to be restored between two calls.
+
+This is the first two clauses of `orderZeroCom`, and the argument that
+docstring makes about a level's exit is the same one: an IMP+ run cannot
+un-write an array, so a second call of an engine that asks for a zeroed
+array has to be preceded by the fills that zero it. -/
+def elimRezeroCom : Com :=
+  .seq (fillCom "elm" (.lit 0)) (fillUpto "bh" (.add (.var "n") (.lit 1)) (.lit 0))
+
 /-- **The ordering pass at depth `j`.** The block structure saved, one
 elimination to orient the arena, `R` augmentation rounds, the structure
-restored, a final elimination, the inversion of its rank array, and the
-re-zeroing tail.
+restored, the elimination scratch re-zeroed, a final elimination, the
+inversion of its rank array, and the re-zeroing tail.
+
+**Session repair (wave D4), reviewable.** `elimRezeroCom` was not there,
+and without it the pass had *no run at all* for `n ≥ 1`, so
+`OrderImplements` was refuted rather than merely unproved. The two
+`RamElim.elimCom` calls had nothing between them that re-zeroes `elm` or
+`bh`: `orderZeroCom` is the pass's *last* command, and `augRelinkCom` —
+the one thing that does run between rounds — zeroes `ooff`, `off`,
+`noff` and the four stamps and neither of these two. The first call
+leaves `elm[w] = 1` at every extracted vertex and `bh` holding its own
+bucket heads, so in the second call `RamElim.elimLoop` pops every slot,
+finds it flagged, and drops it: the counter `cnt` never moves, the test
+`cnt < n` never fails, the pointer `mind` climbs, and at `mind = n + 1`
+the read `bh[mind]` is out of range — which in IMP+ is stuck, not
+defaulted. Any state satisfying `LevelPre` at `n = 1` was a
+counterexample.
+
+The insertion is the minimal one: exactly the `elm` and `bh` fills, and
+not the whole of `orderZeroCom`, because those two are the only clauses
+of `RamElim.ElimPre` that ask for a *value* rather than a length —
+`ooff` and `noff` are the rank inversion's accumulators, which the two
+eliminations never touch, and the four stamps are the augmentation's.
+It changes no arena, no ordering and no postcondition, only the cost.
 
 The final elimination is taken on the level's *own* arena and not on the
 augmented one, and that is a consequence of the one coupling
@@ -1450,7 +1485,9 @@ def orderCom (R W j : ℕ) : Com :=
             (.seq (foldRange (fun _ => .seq RamAugment.augCom (augRelinkCom W)) R)
               (.seq restoreCsr
                 (.seq (fillCom "alv" (.lit 1))
-                  (.seq RamElim.elimCom (.seq (ordCom (ordName j)) orderZeroCom)))))))))
+                  (.seq elimRezeroCom
+                    (.seq RamElim.elimCom
+                      (.seq (ordCom (ordName j)) orderZeroCom))))))))))
 
 /-! ### One cluster
 
@@ -1845,8 +1882,21 @@ count is `ns`, while the engines' scratch is `W` wide, and every call of
 `Lax3Proofs.RamElim.elimCom` this level makes is at a slot count at most
 `ns`. It is carried here rather than as a side condition of the phases
 because it has to survive the level, like everything else in this
-clause. -/
-def OrderMem (n ns W : ℕ) (σ : Env) : Prop :=
+clause.
+
+**The two word clauses** (wave D4; see `OrderImplements` for the
+counterexample they answer). `orderCom` copies the *whole* of the
+in-list target array — `copyUpto "itg" "dtg" (.lit W)`, and
+`augRelinkCom`'s `copyUpto "ntg" "dtg" (.lit W)` between rounds — while
+an elimination fills only the `m ≤ ns` cells its own arcs occupy. The
+tail above `m` is whatever the memory held, and a cell at or above the
+word bound has no bounded evaluation, so without this clause the phase
+has no run and the obligation is refuted. It is the same kind of clause
+as the eight zeroing ones and true for the same reason: a machine's
+memory holds words. Neither clause is a frame condition — a bounded run
+stores only words, so `run_mem_arrs_lt` carries both across any pass —
+which is what lets them sit in a clause a level hands back. -/
+def OrderMem (B n ns W : ℕ) (σ : Env) : Prop :=
   ns ≤ W ∧
   Sized [("doff", n + 1), ("dtg", W), ("ooff", n + 1), ("otg", W), ("ofl", n),
       ("gof", n + 1), ("gtg", ns), ("ffl", n), ("deg", n), ("rnk", n), ("idg", n),
@@ -1856,7 +1906,8 @@ def OrderMem (n ns W : ℕ) (σ : Env) : Prop :=
     (∀ v ∈ σ.arrs "elm", v = 0) ∧ (∀ v ∈ σ.arrs "bh", v = 0) ∧
     (∀ v ∈ σ.arrs "ooff", v = 0) ∧ (∀ v ∈ σ.arrs "noff", v = 0) ∧
     (∀ v ∈ σ.arrs "stf", v = 0) ∧ (∀ v ∈ σ.arrs "sta", v = 0) ∧
-    (∀ v ∈ σ.arrs "std", v = 0) ∧ (∀ v ∈ σ.arrs "ste", v = 0)
+    (∀ v ∈ σ.arrs "std", v = 0) ∧ (∀ v ∈ σ.arrs "ste", v = 0) ∧
+    (∀ v ∈ σ.arrs "itg", v < B) ∧ (∀ v ∈ σ.arrs "ntg", v < B)
 
 /-- The block structure, the two masks and the memory of a depth, as
 the machine holds them. Everything a level reads and nothing it writes,
@@ -1882,7 +1933,7 @@ def LevelPre (B n : ℕ) (cap mb : ℕ) (ns W : ℕ) (O T : ℕ → ℕ) (j : �
     (∀ z < n, M z < B) ∧ (∀ z < n, Gm z < B) ∧
     (∀ c < sigL cap mb j, ∀ z < n, C c z ≤ 1) ∧
     LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
-    σ.vars "m" + σ.vars "m" = ns ∧ OrderMem n ns W σ
+    σ.vars "m" + σ.vars "m" = ns ∧ OrderMem B n ns W σ
 
 /-- What a level leaves: its tables, and everything it was handed,
 untouched. The second half is what makes the levels compose — a level
@@ -2087,11 +2138,11 @@ the engines' scratch is none of them. -/
 def DecodeImplements (x : List ℕ) (G : SimpleGraph (Fin n)) (ns W : ℕ)
     (O T : ℕ → ℕ) (K : ℕ) : Prop :=
   (∀ v ∈ x, v < B) → n + 1 < B → ns < B →
-    Spec B (fun σ => DecodeMem n ns σ ∧ OrderMem n ns W σ ∧ σ.inp = x ∧ σ.out = [])
+    Spec B (fun σ => DecodeMem n ns σ ∧ OrderMem B n ns W σ ∧ σ.inp = x ∧ σ.out = [])
       decodeCom
       (fun _ σ' => σ'.out = [] ∧ CsrGraph G ns O T ∧
         σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf ns T ∧
-        σ'.vars "m" + σ'.vars "m" = ns ∧ OrderMem n ns W σ' ∧
+        σ'.vars "m" + σ'.vars "m" = ns ∧ OrderMem B n ns W σ' ∧
         (∃ M, σ'.arrs (alvName 0) = arrOf n M ∧ ∀ v < n, M v = 1) ∧
         (∃ Gm, σ'.arrs (gamName 0) = arrOf n Gm ∧ ∀ v < n, Gm v = 1)) K
 
@@ -2165,18 +2216,33 @@ instead of eliminating the augmented graph. Widening it means widening
 all four pin it at `ns`; it is a wave of its own, and it buys the cover's
 degree bound and nothing else.
 
-`CsrGraph G ns O T` is a hypothesis for the reason it is one of
-`CoverImplements`: without it the obligation is **refutable**. `saveCsr`'s
-very first read is `tgt[off[z]]`, and nothing else in the precondition
-bounds either — at `B = 4` the offsets `O = fun _ => 4` are not words, the
-read has no bounded evaluation, and no run exists. The same hypothesis is
-what makes the two `RamElim.elimCom` calls applicable at all, since
-`ElimAvail` speaks about a graph and the level has only a block
-structure. It buys nothing about the *result*: the postcondition still
-mentions only the ordering. -/
+`RamElim.CsrSimple G ns O T` is a hypothesis for the reason `CsrGraph`
+is one of `CoverImplements`, and one reason more. Without a graph the
+obligation is **refutable**: `saveCsr`'s very first read is
+`tgt[off[z]]`, and nothing else in the precondition bounds either — at
+`B = 4` the offsets `O = fun _ => 4` are not words, the read has no
+bounded evaluation, and no run exists. And it is what makes the two
+`RamElim.elimCom` calls applicable at all, since `ElimAvail` speaks
+about a graph and the level has only a block structure.
+
+Why the *simple* form. `RamElim.Implements` takes `RamElim.CsrSimple`,
+which is `CsrGraph` with "no row names a vertex twice" added, and that
+clause is what `RamElim.card_liveSlots` needs to read a degree off a
+row: a block structure listing a neighbour twice is a `CsrGraph`, is not
+a `CsrSimple`, and counts that neighbour twice into `deg`. Wave D1 gave
+this obligation `CsrGraph`, which is what `saveCsr`'s copies and the
+cover pass need but is strictly weaker than what the eliminations need,
+and nothing in the driver bridges the two. `Lax11.GraphEncoding` does
+not either — its own note records that repetitions in a block are
+deliberately *not* forbidden, the encoding being the dumbest possible
+input format — so the clause is data of the input word, produced at the
+root and threaded down through `RamDriverCluster.levelImplements`.
+
+It buys nothing about the *result*: the postcondition still mentions
+only the ordering. -/
 def OrderImplements (n R W cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
     (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
-  WordBound B n ns cap mb → CsrGraph G ns O T → n + W + 1 < B →
+  WordBound B n ns cap mb → RamElim.CsrSimple G ns O T → n + W + 1 < B →
   ElimAvail B n → AugAvail B n →
     Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ)
       (orderCom R W j)
@@ -2480,7 +2546,7 @@ theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
     (hsent : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
       SentenceImplements B q_top cap mb ns W φ G O T M Gm C Ks) :
     Spec B (fun σ => DecodeMem n ns σ ∧ LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
-        OrderMem n ns W σ ∧ TablesSized q_top cap mb φ n σ ∧
+        OrderMem B n ns W σ ∧ TablesSized q_top cap mb φ n σ ∧
         BaseArrs B q_top cap mb ℓ φ σ ∧ σ.inp = x ∧ σ.out = [])
       (driverRoot q_top cap mb R ℓ W φ)
       (fun _ σ' => σ'.out = [if Lax3.FirstOrder.Sat G Fin.elim0 φ then 1 else 0])

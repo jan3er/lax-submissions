@@ -224,10 +224,11 @@ variable {B n cap mb ns Ws j K : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ 
   {σ σ' : Env} {c : Com}
 
 /-- **The engines' scratch, across a pass.** Only the eight zeroed
-accumulators have to be named: the lengths cross by themselves. -/
-theorem orderMem_congr (h : OrderMem n ns Ws σ) (hr : Run B c σ σ' K)
+accumulators have to be named: the lengths cross by themselves, and so
+do the two word clauses, since a bounded run stores only words. -/
+theorem orderMem_congr (h : OrderMem B n ns Ws σ) (hr : Run B c σ σ' K)
     (hz : ∀ a ∈ (["elm", "bh", "ooff", "noff", "stf", "sta", "std", "ste"] : List String),
-      σ'.arrs a = σ.arrs a) : OrderMem n ns Ws σ' :=
+      σ'.arrs a = σ.arrs a) : OrderMem B n ns Ws σ' :=
   ⟨h.1, h.2.1.run hr, by rw [hz "elm" (by simp)]; exact h.2.2.1,
     by rw [hz "bh" (by simp)]; exact h.2.2.2.1,
     by rw [hz "ooff" (by simp)]; exact h.2.2.2.2.1,
@@ -235,7 +236,9 @@ theorem orderMem_congr (h : OrderMem n ns Ws σ) (hr : Run B c σ σ' K)
     by rw [hz "stf" (by simp)]; exact h.2.2.2.2.2.2.1,
     by rw [hz "sta" (by simp)]; exact h.2.2.2.2.2.2.2.1,
     by rw [hz "std" (by simp)]; exact h.2.2.2.2.2.2.2.2.1,
-    by rw [hz "ste" (by simp)]; exact h.2.2.2.2.2.2.2.2.2⟩
+    by rw [hz "ste" (by simp)]; exact h.2.2.2.2.2.2.2.2.2.1,
+    run_mem_arrs_lt hr "itg" h.2.2.2.2.2.2.2.2.2.2.1,
+    run_mem_arrs_lt hr "ntg" h.2.2.2.2.2.2.2.2.2.2.2⟩
 
 /-- **The depth's state, across a pass.** -/
 theorem levelPre_congr (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (hr : Run B c σ σ' K)
