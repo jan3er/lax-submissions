@@ -7,6 +7,7 @@ import Lax13Proofs.Refine.NREST.Combinators
 import Lax13Proofs.Refine.NREST.DataRefinement
 import Lax13Proofs.Refine.NREST.TimeRefinement
 import Lax13Proofs.Refine.NREST.BackwardsReasoning
+import Lax13Proofs.Refine.Examples.Bfs
 
 /-!
 The refinement tower: a fidelity-first port of the Isabelle NREST/Sepref
@@ -73,6 +74,15 @@ and P1's third slice — backwards reasoning and the abstract VCG:
   satisfy the `needname` axiom `top - a = top`, so the source's own
   subtraction is declared here as `ResSub`.
 
-P1's remaining item is the acceptance program of design record §10.4
-(abstract masked depth-capped BFS against `bfs_spec`'s vocabulary).
+and P1's acceptance program, design record §10.4:
+
+* `Refine/Examples/Bfs.lean` — the masked depth-capped BFS of
+  `Lax3Proofs.RamBfs`, specified as one `NRest.spec` (the
+  threshold-iff postcondition, an explicit currency budget) and
+  refined abstract-to-abstract by `gwp_specifies_I` + `refine_vcg`,
+  with the classical frontier invariant and a touched-only energy
+  annotation on the `whileIET` term. Its header records the package
+  adjustment of §10.4 (mathlib graph vocabulary in place of Lax3's,
+  the postcondition shape unchanged so P7 consumes it) and its own
+  executable D4 gate.
 -/
