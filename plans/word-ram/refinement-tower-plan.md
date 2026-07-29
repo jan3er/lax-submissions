@@ -1,8 +1,9 @@
 # Refinement tower plan — a Sepref/NREST port for the word RAM
 
-Rev 1, 2026-07-29. **Status: DRAFT — awaiting Jan's review; nothing
-started.** Once accepted, this document is the contract: implementing
-sessions follow it, deviations need an owner decision first.
+Rev 2, 2026-07-29 (rev 1 earlier the same day). **Status: OPEN —
+accepted by Jan 2026-07-29, all four JAN-FLAGs resolved; P0 is the next
+session's work.** This document is the contract: implementing sessions
+follow it, deviations need an owner decision first.
 
 **Working model** (unchanged from the IMP+ toolkit campaign): Fable
 supervises — plan, sequencing, review, acceptance calls, commits — and
@@ -116,7 +117,10 @@ extracts go to `plans/word-ram/refinement-tower/`.
   credits the tower carries.
 - **ND-MC finishes on the current kit.** No replatforming mid-campaign;
   this tower does not block, touch, or wait for ND-MC files. Namespace
-  isolation is total (own subtree, no edits outside it).
+  isolation is total (own subtree, no edits outside it). The two
+  campaigns run **in parallel** (Jan, 2026-07-29): this one is not
+  gated on ND-MC's C0, and its sessions operate in their own worktrees
+  alongside the ND-MC ones.
 - The IMP+ plan's "aliasing-free environment beats separation logic"
   finding **stands for the bottom layer** and is *not* contradicted:
   IMP+ keeps its aliasing-free environment. The tower's SL lives at the
@@ -288,21 +292,20 @@ of overnight work — set expectations by the budget, not the recent luck.
   and its unmet side condition; a tool that fails opaquely spends the
   scarce resource this campaign exists to save.
 
-## JAN-FLAGs (owner decisions, collected)
+## JAN-FLAGs (all resolved by Jan, 2026-07-29)
 
-1. **Package placement.** Recommendation: `word-ram/proofs/Lax13Proofs/
-   Refine/` — helper-only, reachable via the established sibling-requires
-   pattern, no new package plumbing. Alternative: a fresh non-submission
-   package directory (cleaner separation, new plumbing, breaks the
-   one-directory-per-submission convention).
-2. **The P7 gate numbers** (≤ 400 authored lines, zero hand frame
-   clauses). Tighten or loosen before P1 starts.
-3. **Sequencing vs ND-MC.** Recommendation: start after ND-MC's C0 lands,
-   keeping supervision bandwidth on the flagship; parallel worktree
-   operation is possible if Jan prefers overlap.
-4. **P0's design record is a hard review gate** — confirm, or waive to a
-   post-hoc review if overnight cadence matters more.
+1. **Package placement: `word-ram/proofs/Lax13Proofs/Refine/`** —
+   helper-only, reachable via the established sibling-requires pattern,
+   no new package plumbing. (Recommendation accepted.)
+2. **P7 gate as proposed**: authored ≤ 400 lines, zero hand-written
+   frame/memory clauses, exported Spec shape consumable by `RamCover`
+   unchanged. (Recommendation accepted.)
+3. **Sequencing: NOT blocked by ND-MC** — Jan overrode the
+   start-after-C0 recommendation; execution can begin next session, in
+   parallel with the ND-MC campaign, each in its own worktree.
+4. **P0's design record is a hard review gate** — confirmed. P0 writes
+   no Lean; Jan reviews the design record before P1 starts.
 
 ## Progress log
 
-(empty — campaign not started)
+(campaign accepted 2026-07-29; P0 next)
