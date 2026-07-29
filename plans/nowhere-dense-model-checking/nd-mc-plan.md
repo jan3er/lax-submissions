@@ -527,19 +527,42 @@ not to a premature P5.
   coverPass_spec one line), CoverImplements + CsrGraph, hcolread and
   hplay threaded into the surfaces (satellite hypotheses deleted).
   (4) exU untouched as documented. (5) tgt widening still deferred.
-  **Then wave C**: DescendStep (ball chain in gamName, guarded batch
-  fold, mask equations, playRec_succ) + ColourStep (three slot
-  families) at RamDriverCluster.lean:571/:624; RamAugment.Implements
-  (ten passes; route in RamDriverOrder's final section);
-  OrderImplements (7 phases; ordCom_spec + csr copies landed);
-  CoverImplements — now the seven-pass `coverPhase` walk (6 flat
-  copies around coverPass_spec; closure moved here from A3 since W1
-  rebuilt the phase); BaseImplements from RamDriverBot.base_spec;
-  LevelImplements/Sentence/Decode instantiation; final driver_correct
-  instantiation needs a concrete oracle satisfying `OracleGuarded`.
-  **Then the cost wave**: touched-only (Trail-backed) cost forms —
-  mandatory, full-array inits × n arenas = n² ([[touched-only-costs]])
-  — the GKS recurrence, the Spec→ComputesInTime bridge, C0
+  **Waves C/D/E — CORRECTNESS HALF CLOSED 2026-07-29 (session 2,
+  commits dc1ca67…9d28d4b, ten waves).** Every obligation of the
+  driver stack is discharged and the end-to-end checkpoint is proved:
+  **`RamDriverRoot.driverRoot_decides_sentence`** — the driver's
+  output bit equals `Sat G φ`, at R = 0, costs parametric; hypotheses
+  are only the input word (+ `CsrSimple` — the Lax11 encoding
+  explicitly permits repeated targets, so nodup is root input data),
+  the parameter equations, `hQ` (UQW at radius 2·cap, a hypothesis
+  over Lax12 *definitions* — the endorsed Lax12 axioms enter only
+  when C0 derives `hQ` from nowhere-denseness), and cost side
+  conditions. Kernel three exactly, lean_verify'd. Session findings
+  (eleven falsification-caught defects, all counterexampled, two as
+  compiled theorems in `RamDriverWrites`): bits-not-words twice, two
+  in-place-aliasing spec gaps, `OrderImplements` word/graph gaps,
+  `OrderMem` itg/ntg words, `ElimMem` drops the rank bound (bridged
+  freeze-preservingly by `elimRank_spec`/`elimCert_spec`; proper
+  repair = one conjunct + export, recorded), `orderCom` PROGRAM BUG
+  (second elimination on un-re-zeroed elm/bh had NO RUN — repaired by
+  `elimRezeroCom`, review-marked), `clusterFrames` circularity (fixed
+  via `InnerAvail`), two over-strong `TurnFrozen` clauses. Design
+  pivots: **the path-oracle layer was deleted** — `SplitterWinRec`'s
+  recorded-batch game replaced it (machine specs are existential;
+  oracle-function batches provably underivable — C₄ witness;
+  faithfulness absorbed into `splitterWins_of_reachedR`), and the
+  augment walk (`RamDriverAugment`, 5277 lines over three
+  continuations) closed hypothesis-free with the in/out-degree
+  exchange `slotCnt_out_eq` as its one non-obvious cost fact.
+  **Then the cost wave** (next session): (1) solve the Kl/Ks
+  recursion; (2) touched-only retrofit — LOAD-BEARING, the recursion
+  as stated is n^ℓ since per-turn phases charge the whole arena
+  ([[touched-only-costs]]; `clusterLoad`'s 16n² first); (3) R > 0:
+  the two tgt couplings in `OrderImplements`'s docstring (fratSlots D
+  > ns, K₁,₄ witness; W vs in-degrees) — this buys the cover-degree
+  bound; (4) derive `hQ` from Lax12 UQW (brings in the endorsed
+  axioms as intended); (5) `ElimMem` one-conjunct repair + delete
+  both re-sequencing bridges; (6) the Spec→ComputesInTime bridge, C0
   discharged.
 - [ ] **P8 — polish and draft submission** (1–2 sessions).
   abstract.md, manifest, `lax build`, plans/NIGHTLOG records, draft

@@ -3195,3 +3195,36 @@ fully verified, the driver correct modulo a converging set of walk
 obligations whose every defect is now a precise, falsification-gated
 repair item. Landed on main at session close.
 
+
+## ND-MC P7 correctness half CLOSED — end-to-end checkpoint proved — 2026-07-29 (session 2)
+Jan: "continue with the ndmc plan, all changes from last session are
+approved"; later "credit reset, continue but wrap up at a convenient
+point." Ten supervised Opus waves (A3, C1–C3, D1–D4, E1–E1c, E2), all
+committed individually (dc1ca67…9d28d4b). Result: EVERY obligation of
+the driver stack is discharged and
+`RamDriverRoot.driverRoot_decides_sentence` is proved — the RAM
+driver's output bit equals Sat G φ at R = 0, costs parametric,
+hypotheses only input-word data (+ CsrSimple as root datum), parameter
+equations, hQ (UQW over Lax12 definitions; endorsed axioms enter when
+C0 derives hQ), and cost side conditions. Kernel three exactly.
+Eleven falsification-caught defects this session, every one with a
+recorded counterexample (two landed as theorems in RamDriverWrites):
+the standouts are the orderCom PROGRAM BUG (second elimination on
+un-re-zeroed elm/bh — no run existed; repaired by elimRezeroCom,
+review-marked in the docstring) and the DescendStep SPEC mismatch
+(machine path buffers are existential, oracle-function batches
+underivable — C₄ witness), which forced the session's one design
+pivot: the path-oracle layer was deleted wholesale and replaced by
+SplitterWinRec's recorded-batch game (faithfulness absorbed into
+splitterWins_of_reachedR). The augment walk closed hypothesis-free
+over three continuations (RamDriverAugment, 5277 lines;
+slotCnt_out_eq is the load-bearing cost exchange). Supervisor review
+caught one interface defect the gates missed (playRec_succ's
+∀-over-unrecorded-rounds hstep). For Jan's review: the two program
+repairs (per-depth cover/ord/cursor names in A3; elimRezeroCom in
+D4), the SplitterWinRec pivot, OrderMem gaining B, CsrSimple as root
+input data. Cost wave next (frontier in plan P7): solve the Kl/Ks
+recursion, touched-only retrofit (LOAD-BEARING — recursion as stated
+is n^ℓ), R > 0 tgt widenings for the cover degree, derive hQ, ElimMem
+cleanup, ComputesInTime bridge, C0. Full lax gate green at every
+commit; 3444 jobs, zero sorry throughout.
