@@ -18,6 +18,8 @@ import Lax13Proofs.Refine.Autoref.BindingsHOL
 import Lax13Proofs.Refine.NREST.DataRefinement
 import Lax13Proofs.Refine.NREST.TimeRefinement
 import Lax13Proofs.Refine.NREST.BackwardsReasoning
+import Lax13Proofs.Refine.Ir.Syntax
+import Lax13Proofs.Refine.Ir.Semantics
 import Lax13Proofs.Refine.Examples.Bfs
 import Lax13Proofs.Refine.Examples.AutorefTutorial
 
@@ -167,6 +169,32 @@ one place and a reader can check a file against one Isabelle theory:
   boundary), the generic layer under `PRIO_TAG_GEN_ALGO`, `autoref_hd`,
   `autoref_list_eq` with its `GEN_OP` premise, the `autoref_op_pat`
   rules, and structural expansion with the `STRUCT_EQ` solver.
+
+and P3's wave A — the IR, the one layer of the tower the sources do not
+have (ledger D2/D3), whose *rule granularity* — one op, one currency,
+one future `hn_refine` rule — is what P4's fidelity consumes:
+
+* `Refine/Ir/Syntax.lean` — the deep three-address syntax of design
+  record §6: `Val`, `Operand` (cells and literals), `Cond`
+  (`eq` / `lt`), and `Com` — `const`, `copy`, the nine `binop`s (IMP+'s
+  own `Bop`, reused so that "exactly IMP+'s `Bop`" is true by
+  construction), `aget`, `aset`, `seq` / `ite` / `while` and `skip` —
+  together with the sixteen op currencies (`ir.add`, …) that the
+  semantics charges, wave B's triples pay in and P5's price map is
+  indexed by. Its header records what is deliberately *absent*
+  (alloc/free, tapes, calls and recursion, `len`) with the ledger entry
+  for each, and pins by `#guard` every arithmetic convention the IR
+  inherits from the machine.
+* `Refine/Ir/Semantics.lean` — `State` (partial, tape-free, aliasing-free
+  by names) and the cost-indexed big-step relation `BigStep c s s' κ`
+  over `ACost String ℕ`, mirroring `Imp.BigStep` construct for
+  construct: determinism, the inversion suite the wave-B `wp` unfolds
+  against, cost additivity over `seq`, the loop's guard unfolding, and
+  the frame-shaped invariants that no op grows the name space or resizes
+  an array. Its D4 gate is the fuel-indexed evaluator `evalFuel` with
+  agreement in both directions, three programs pinned by final state and
+  exact cost vector, Plausible property checks of the loop's cost as a
+  function of its iteration count, and two negative controls.
 
 and P2's acceptance:
 

@@ -38,5 +38,7 @@ import Lax13Proofs.Refine.Autoref.BindingsHOL
 import Lax13Proofs.Refine.NREST.DataRefinement
 import Lax13Proofs.Refine.NREST.TimeRefinement
 import Lax13Proofs.Refine.NREST.BackwardsReasoning
+import Lax13Proofs.Refine.Ir.Syntax
+import Lax13Proofs.Refine.Ir.Semantics
 import Lax13Proofs.Refine.Examples.Bfs
 import Lax13Proofs.Refine.Examples.AutorefTutorial
