@@ -23,7 +23,10 @@ import Lax13Proofs.Refine.Ir.Semantics
 import Lax13Proofs.Refine.Ir.Assn
 import Lax13Proofs.Refine.Ir.Wp
 import Lax13Proofs.Refine.Ir.Triples
+import Lax13Proofs.Refine.Ir.Attrs
+import Lax13Proofs.Refine.Ir.SepSolver
 import Lax13Proofs.Refine.Examples.Bfs
+import Lax13Proofs.Refine.Examples.ArrayFill
 import Lax13Proofs.Refine.Examples.AutorefTutorial
 
 /-!
@@ -238,6 +241,44 @@ from `Sep_Generic_Wp.thy`, `Sep_Algebra_Add.thy`, `Frame_Infer.thy` and
   wave A's `roundtrip`, runs it end to end at wave A's own state, drives
   wave A's `countdown` through the loop rule with per-iteration credits,
   and shows that a triple with too few credits is not derivable.
+
+and P3's wave C — frame inference and the phase's acceptance:
+
+* `Refine/Ir/Attrs.lean` — the five rule databases of `Frame_Infer.thy`
+  and `Basic_VCG.thy` (`fri_prepare_simps`, `fri_rules`,
+  `fri_red_rules`, `fri_end_rules`, `vcg_rules`), declared in a module
+  of their own for the import-time constraint P1's delta B7 documents.
+* `Refine/Ir/SepSolver.lean` — the port of `thys/lib/Frame_Infer.thy`:
+  the tags `FRI_END` / `FRAME_INFER` / `FRAME` / `ENTAILS` /
+  `IsSepRed`, the four structural rules `fri_prepare` / `fri_end` /
+  `fri_step_rl` / `fri_reduce_rl` with `fri_startI`'s two entry clauses,
+  the credit reductions (`is_sep_red` at `¤¤n j` versus `¤¤n k`), the
+  `GC` absorption chain, `fri_extract`, and the `start / extract /
+  round / end` search loop as a `MetaM` proof-term builder — rotation
+  rendered as an index-selection permutation equality through
+  `fri_prems_cong`, no higher-order unification anywhere. Its user
+  surface is `fri` (both front ends), `ir_entails`, `fri_trace`, and
+  `ir_frame` / `ir_frame_gc`, the latter two applying a triple through
+  `irTriple_frame` / `irHtriple_frame` — the triple-level form of
+  `htriple_vcg_frame_erule`, whose two side conditions are one `fri`
+  call each. It registers wave B's `aget_rule_pure` and its own
+  `aset_rule_pure` into `vcg_rules` for P4. Its D4 gate closes
+  six- and seven-conjunct entailments under nontrivial permutations,
+  splits credits across the turnstile in both directions, absorbs
+  leftovers into `GC`, and pins four failure messages with
+  `#guard_msgs` through a `#fri_report` command that runs the solver on
+  a synthetic goal and leaves nothing in the environment.
+* `Refine/Examples/ArrayFill.lean` — P3's acceptance: the array get,
+  set and fill *programs*, with credit-carrying triples whose frame
+  reasoning goes through the solver and nowhere else (no
+  `sepConj_assoc` chain, no `ac_rfl`, no `irSTATE_rot`). `fill` is
+  `while i < n do { A[i] := v; i := i + one }`, proved by
+  `while_triple` against an invariant carrying `k` copies of the
+  per-iteration payload `ir.while + ir.aset + ir.add`; its triple's
+  credit vector is `(n+1)·ir.while + n·ir.aset + n·ir.add`. Its gate
+  runs the triple down to a `BigStep` at a concrete state with the cost
+  vector `#guard`-pinned, and checks the cost-as-a-function-of-`n`
+  claim on wave A's executable twin with Plausible.
 
 and P2's acceptance:
 
