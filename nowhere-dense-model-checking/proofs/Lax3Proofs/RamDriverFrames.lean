@@ -38,31 +38,29 @@ and the table clause is the readback's own, moved back to the turn's
 entry by `tabName_notMem_warrs_turn` — that the descent, the padding,
 the colouring and the scatter phase write no table.
 
-# What the driver still owes
+# What the driver used to owe
 
-Three conjuncts that the obligations as stated do not carry are
-hypotheses here, and each names a repair the assembly needs.
+The three conjuncts this file once carried as hypotheses are now in the
+surface, and all three theorems consume them from it.
 
-* `hcolread` in `scatterStep`: the palette the depth-`(j+1)` colour
-  arrays hold is the cluster step's, which is
-  `RamDriverCluster.ColourStep`'s last clause. `ScatterStep` quantifies
-  `C'` without it, and so does `RamDriverBase.readbackStep`, which owes
-  it for the same reason.
-* `hplay` in `clusterFrames`: `ClusterFrames`'s hypothesis about `inner`
-  is guarded by `RamDriver.PlayOk` one depth down, and its precondition
-  carries no play, so the turn cannot run the nested call.
-  `RamDriver.ClusterStepImplements` takes that hypothesis;
-  `ClusterFrames` does not.
-* `hA`, `hV` in `innerFrames` and `hinnerTab` in `clusterFrames`:
-  `RamDriver.driverAt … (j+1)` does **not** satisfy them. Above the
-  bottom it is `RamDriver.orderCom`, which writes `ord`;
-  `RamCover.coverCom`, which writes `xoff`, `xmem`, `asg` and assigns
-  `xp`; and a loop opened by `.assign "c" (.lit 0)`. `CoverHeld` pins the
-  first four, and the readback reads `c` for the centre it is writing at,
-  so a level clobbers the state of the level that called it. The cover's
-  answers and the centre cursor have to become per-depth names, or be
-  saved and restored around the nested call, before these three can be
-  discharged at the driver.
+* `hcolread` is gone from `scatterStep` and from
+  `RamDriverBase.readbackStep`: `RamDriverCluster.ScatterStep` and
+  `ReadbackStep` carry the palette equation — and the bit clause beside
+  it — in their own preconditions, which is where
+  `RamDriverCluster.ColourStep` leaves them.
+* `hplay` is gone from `clusterFrames`: `RamDriverCluster.ClusterFrames`
+  now takes the same hypothesis about `inner` that
+  `RamDriver.ClusterStepImplements` takes, and `RamDriver.PlayRec` — the
+  recorded play — is a conjunct of `RamDriverCluster.TurnPre`, so the
+  turn can run the nested call and hand the record back.
+* `hA`, `hV` in `innerFrames` and `hinnerTab` in `clusterFrames` are now
+  *true* of `RamDriver.driverAt … (j + 1)`. The clash they recorded is
+  repaired at the program: the ordering pass writes `ordName j`, the
+  cover's answers are copied into `xofName j`, `xmmName j`, `asgName j`
+  and `xpName j` by `RamDriver.coverSave`, and the centre cursor is
+  `curName j`. A nested level touches none of them, so `TurnFrozen` and
+  the four scalar side conditions are frame conditions of the recursion
+  and not obstructions to it.
 -/
 
 namespace Lax3Proofs.RamDriverFrames
@@ -96,6 +94,11 @@ theorem notMem_scratchArrs_of_underscore {a : String} (h : '_' ∈ a.toList) :
   simp only [scratchArrs, List.mem_cons, List.not_mem_nil, or_false]
   rintro (rfl | rfl | rfl | rfl | rfl) <;> simp at h
 
+theorem underscore_notMem_prefixed {p : String} (hp : '_' ∉ p.toList) (k : ℕ) :
+    '_' ∉ (p ++ toString k).toList := by
+  simp only [String.toList_append, List.mem_append, not_or]
+  exact ⟨hp, by simp⟩
+
 theorem alvName_notMem_scratchArrs (j : ℕ) : alvName j ∉ scratchArrs := by
   simp [scratchArrs, alvName, String.ext_iff]
 
@@ -114,7 +117,7 @@ theorem batName_notMem_scratchArrs (j : ℕ) : batName j ∉ scratchArrs := by
 theorem underscore_mem_colName (j c : ℕ) : '_' ∈ (colName j c).toList := by
   rw [colName]
   simp only [String.toList_append, List.mem_append]
-  exact Or.inl (Or.inr (by simp))
+  exact _root_.Or.inl (_root_.Or.inr (by simp))
 
 theorem colName_notMem_scratchArrs (j c : ℕ) : colName j c ∉ scratchArrs :=
   notMem_scratchArrs_of_underscore (underscore_mem_colName j c)
@@ -125,7 +128,7 @@ theorem tabName_notMem_scratchArrs (j i : ℕ) : tabName j i ∉ scratchArrs :=
 theorem underscore_mem_flgName (j i k : ℕ) : '_' ∈ (flgName j i k).toList := by
   rw [flgName]
   simp only [String.toList_append, List.mem_append]
-  exact Or.inl (Or.inr (by simp))
+  exact _root_.Or.inl (_root_.Or.inr (by simp))
 
 theorem flgName_ne_lit (j i k : ℕ) {q : String} (h : '_' ∉ q.toList) : flgName j i k ≠ q :=
   fun he => h (he ▸ underscore_mem_flgName j i k)
@@ -147,6 +150,7 @@ theorem flgName_inj {j i k j' i' k' : ℕ} (h : flgName j i k = flgName j' i' k'
 /-! ### What the scatter phase carries -/
 
 variable {B q_top cap mb ns Ws j : ℕ} {φ : Lax3.FirstOrder.FO 0} {G : SimpleGraph (Fin n)}
+  {Or : PathOracle n (2 * cap)}
   {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
   {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ} {X W : Set (Fin n)} {w : Fin mb → Fin n}
   {Alv' Gam' : ℕ → ℕ} {C' : ℕ → ℕ → ℕ}
@@ -155,12 +159,16 @@ variable {B q_top cap mb ns Ws j : ℕ} {φ : Lax3.FirstOrder.FO 0} {G : SimpleG
 turn's own state, the cluster's data, and the next depth's palette and
 tables. The fold over the atoms carries it from one call to the next. -/
 def ScatPre (B q_top cap mb ns Ws j : ℕ) (φ : Lax3.FirstOrder.FO 0) {n : ℕ}
-    (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
+    (G : SimpleGraph (Fin n)) (Or : PathOracle n (2 * cap))
+    (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
     (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (X W : Set (Fin n)) (w : Fin mb → Fin n)
     (Alv' Gam' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ) (σ : Env) : Prop :=
-  TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ ∧
+  TurnPre B n cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m σ ∧
     ClusterData n mb j B G M X W w Alv' Gam' σ ∧
     (∀ c < sigL cap mb (j + 1), σ.arrs (colName (j + 1) c) = arrOf n (C' c)) ∧
+    (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) ∧
+    colRead n C' (sigL cap mb (j + 1)) =
+      stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w ∧
     TableInv q_top cap mb φ G (j + 1) Alv' C' σ
 
 /-- **The state the scatter phase carries survives every call it
@@ -171,24 +179,30 @@ and the fixed ones are elsewhere. The three scalars are the carrier, the
 slot count and the cover's cursor, which no sub-program of the phase
 assigns. -/
 theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
-    (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+    (h : ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' σ)
     (hrun : Run B c σ σ' K) (hA : ∀ a ∈ c.warrs, a ∈ scratchArrs)
-    (hV : ∀ y ∈ ["n", "m", "xp"], y ∉ c.wvars) :
-    ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+    (hV : ∀ y ∈ ["n", "m"], y ∉ c.wvars)
+    (hVctr : ∀ a : ℕ, ctrName a ∉ c.wvars) (hVxp : xpName j ∉ c.wvars) :
+    ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' σ' := by
   have hfa : ∀ a : String, a ∉ scratchArrs → σ'.arrs a = σ.arrs a :=
     fun a ha => hrun.frame_arr a (fun hmem => ha (hA a hmem))
-  obtain ⟨⟨⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hlmem, hmvar,
-    hnsW, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste⟩,
-    hord, hxoff, hxmem, hasg, hxp, hmn, hcout⟩,
-    ⟨⟨⟨Xa, hXa, hXaS⟩, ⟨Wa, hWa, hWaS⟩, ⟨Ra, hRa, hRaS, hRaB⟩, halv', hAlvB, hmask,
-      hgam', hGamB⟩, hwrange, hwa⟩, hcol', htab'⟩ := h
-  refine ⟨⟨⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, levelMem_run hrun hlmem, ?_,
+  have hfv : ∀ y : String, y ∉ c.wvars → σ'.vars y = σ.vars y :=
+    fun y hy => hrun.frame_var y hy
+  obtain ⟨⟨⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCB, hlmem, hdep, hmvar,
+    hnsW, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste⟩, hplayrec,
+    hord, hxoff, hxmem, hasg, hxp, hmn, hordlt, hcout⟩,
+    ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, halv', hAlvB, hmask,
+      hgam', hGamB⟩, hwrange, hwa⟩, hcol', hcolbit', hcolread', htab'⟩ := h
+  refine ⟨⟨⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCB, levelMem_run hrun hlmem,
+      hdep.run hrun, ?_,
       hnsW, hosz.run hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
-    ?_, ?_, ?_, ?_, ?_, hmn, hcout⟩,
-    ⟨⟨⟨Xa, ?_, hXaS⟩, ⟨Wa, ?_, hWaS⟩, ⟨Ra, ?_, hRaS, hRaB⟩, ?_, hAlvB, hmask, ?_, hGamB⟩,
-      hwrange, ?_⟩, ?_, ?_⟩
+    hplayrec.congr (fun a _ => hfv (ctrName a) (hVctr a))
+      (fun a _ => hfa (gamName a) (gamName_notMem_scratchArrs a)),
+    ?_, ?_, ?_, ?_, ?_, hmn, hordlt, hcout⟩,
+    ⟨⟨⟨Xa, ?_, hXaS, hXaB⟩, ⟨Wa, ?_, hWaS, hWaB⟩, ⟨Ra, ?_, hRaS, hRaB⟩, ?_, hAlvB, hmask,
+      ?_, hGamB⟩, hwrange, ?_⟩, ?_, hcolbit', hcolread', ?_⟩
   · rw [hrun.frame_var "n" (hV "n" (by simp))]; exact hn
   · rw [hfa "off" (by decide)]; exact hoff
   · rw [hfa "tgt" (by decide)]; exact htgt
@@ -204,11 +218,11 @@ theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
   · rw [hfa "sta" (by decide)]; exact hsta
   · rw [hfa "std" (by decide)]; exact hstd
   · rw [hfa "ste" (by decide)]; exact hste
-  · rw [hfa "ord" (by decide)]; exact hord
-  · rw [hfa "xoff" (by decide)]; exact hxoff
-  · rw [hfa "xmem" (by decide)]; exact hxmem
-  · rw [hfa "asg" (by decide)]; exact hasg
-  · rw [hrun.frame_var "xp" (hV "xp" (by simp))]; exact hxp
+  · rw [hfa _ (by simp [ordName, scratchArrs, String.ext_iff])]; exact hord
+  · rw [hfa _ (by simp [xofName, scratchArrs, String.ext_iff])]; exact hxoff
+  · rw [hfa _ (by simp [xmmName, scratchArrs, String.ext_iff])]; exact hxmem
+  · rw [hfa _ (by simp [asgName, scratchArrs, String.ext_iff])]; exact hasg
+  · rw [hfv _ hVxp]; exact hxp
   · rw [hfa _ (cluName_notMem_scratchArrs j)]; exact hXa
   · rw [hfa _ (batName_notMem_scratchArrs j)]; exact hWa
   · rw [hfa _ (resName_notMem_scratchArrs j)]; exact hRa
@@ -318,35 +332,35 @@ theorem notMem_wvars_copy {y src dst : String} (h : y ≠ "i") : y ∉ (copyCom 
 variable {σ : Env}
 
 theorem ScatPre.n_eq
-    (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+    (h : ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' σ) : σ.vars "n" = n := h.1.1.1
 
 theorem ScatPre.off
-    (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+    (h : ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' σ) : σ.arrs "off" = arrOf (n + 1) O := h.1.1.2.1
 
 theorem ScatPre.tgt
-    (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+    (h : ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' σ) : σ.arrs "tgt" = arrOf ns T := h.1.1.2.2.1
 
 theorem ScatPre.mem
-    (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
-      Alv' Gam' C' σ) : LevelMem B n σ := h.1.1.2.2.2.2.2.2.2.2.1
+    (h : ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
+      Alv' Gam' C' σ) : LevelMem B n cap mb σ := h.1.1.2.2.2.2.2.2.2.2.2.1
 
 theorem ScatPre.alvA
-    (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+    (h : ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' σ) : σ.arrs (alvName (j + 1)) = arrOf n Alv' := h.2.1.1.2.2.2.1
 
 theorem ScatPre.alvB
-    (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+    (h : ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' σ) : ∀ z, z < n → Alv' z < B := h.2.1.1.2.2.2.2.1
 
 theorem ScatPre.tab
-    (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
-      Alv' Gam' C' σ) : TableInv q_top cap mb φ G (j + 1) Alv' C' σ := h.2.2.2
+    (h : ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
+      Alv' Gam' C' σ) : TableInv q_top cap mb φ G (j + 1) Alv' C' σ := h.2.2.2.2.2
 
 theorem ScatPre.data
-    (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+    (h : ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' σ) : ClusterData n mb j B G M X W w Alv' Gam' σ := h.2.1
 
 open Classical in
@@ -367,11 +381,11 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1B 
     (i k : ℕ) {σs : ScatterSentence (sigL cap mb (j + 1))}
     (hβ : σs.β ∈ tablesAt q_top cap mb φ (j + 1)) (hrB : σs.r + 1 < B) (htB : σs.t < B)
     {Kb : ℕ} (hKb : RamDriverIO.atomCost n ns σs.t ≤ Kb) :
-    Spec B (ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+    Spec B (ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
         Alv' Gam' C')
       (atomCom q_top cap mb φ j i k σs)
-      (fun σ σ' => ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m
-          X W w Alv' Gam' C' σ' ∧ σ'.out = σ.out ∧ σ'.vars "c" = σ.vars "c" ∧
+      (fun σ σ' => ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m
+          X W w Alv' Gam' C' σ' ∧ σ'.out = σ.out ∧ σ'.vars (curName j) = σ.vars (curName j) ∧
         (∀ i' k', ¬(i' = i ∧ k' = k) →
           σ'.vars (flgName j i' k') = σ.vars (flgName j i' k')) ∧
         σ'.vars (flgName j i k) ≤ 1 ∧
@@ -389,7 +403,7 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1B 
     (RamDriverIO.copy_spec (B := B) (n := n) (src := alvName (j + 1)) (dst := "alv")
       (alvName_ne_alv (j + 1)) Alv' hnB (fun z hz => hpre.alvB z hz)).run (σ := σ)
       ⟨hpre.n_eq, hpre.alvA, hlmem.1.length (p := ("alv", n)) (by simp)⟩
-  have hlmem₁ : LevelMem B n σ₁ := levelMem_run r₁ hlmem
+  have hlmem₁ : LevelMem B n cap mb σ₁ := levelMem_run r₁ hlmem
   -- the atom's own table row, into the name the pass reads
   obtain ⟨σ₂, r₂, hn₂, -, htab₂⟩ :=
     (RamDriverIO.copy_spec (B := B) (n := n)
@@ -398,7 +412,7 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1B 
       ⟨hn₁, by rw [r₁.frame_arr _ (notMem_warrs_copy
           (RamDriverBase.tabName_ne_lit _ _ (by decide)))]; exact hTbA,
         hlmem₁.1.length (p := ("tab", n)) (by simp)⟩
-  have hlmem₂ : LevelMem B n σ₂ := levelMem_run r₂ hlmem₁
+  have hlmem₂ : LevelMem B n cap mb σ₂ := levelMem_run r₂ hlmem₁
   -- the pass
   obtain ⟨σ₃, r₃, hflag₃, hle₃⟩ :=
     (RamScatter.scatter_spec (G := G) (M := Alv') (Tab := Tb) (O := O) (T := T)
@@ -424,15 +438,25 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1B 
         (RamScatter.scatterCost n ns σs.t + (1 + (Expr.var "flag").size)))) :=
     r₁.seq (r₂.seq (r₃.seq r₄))
   refine ⟨_, _, rall, by rw [RamDriverIO.atomCost] at hKb; simp only [Expr.size]; omega,
-    hpre.run rall (warrs_atomCom_sub q_top cap mb φ j i k σs) ?_, ?_, ?_, ?_, ?_, ?_⟩
+    hpre.run rall (warrs_atomCom_sub q_top cap mb φ j i k σs) ?_ ?_ ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro y hy
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hy
-    rcases hy with rfl | rfl | rfl <;>
+    rcases hy with rfl | rfl <;>
       exact notMem_wvars_atomCom (by decide) (by decide) (by decide)
+  · intro a
+    exact notMem_wvars_atomCom (by rw [ctrName]; exact underscore_notMem_prefixed (by decide) a)
+      (by simp [ctrName, String.ext_iff])
+      (RamDriverIO.notMem_of_append (p := "ctr") (s := toString a) (by decide))
+  · exact notMem_wvars_atomCom (by rw [xpName]; exact underscore_notMem_prefixed (by decide) j)
+      (by simp [xpName, String.ext_iff])
+      (RamDriverIO.notMem_of_append (p := "xq") (s := toString j) (by decide))
   · rw [out_setVar, r₃.out_eq (RamDriverIO.noWrite_scatterCom ..),
       r₂.out_eq (by rw [RamDriverIO.copyCom_eq]; exact RamDriverIO.noWrite_fillCom ..),
       r₁.out_eq (by rw [RamDriverIO.copyCom_eq]; exact RamDriverIO.noWrite_fillCom ..)]
-  · exact rall.frame_var "c" (notMem_wvars_atomCom (by decide) (by decide) (by decide))
+  · exact rall.frame_var _ (notMem_wvars_atomCom
+      (by rw [curName]; exact underscore_notMem_prefixed (by decide) j)
+      (by simp [curName, String.ext_iff])
+      (RamDriverIO.notMem_of_append (p := "cu") (s := toString j) (by decide)))
   · exact fun i' k' hik => rall.frame_var _ (flgName_notMem_wvars_atomCom hik)
   · rw [vars_setVar, if_pos rfl]; exact hle₃
   · rw [vars_setVar, if_pos rfl]
@@ -454,11 +478,11 @@ theorem atoms_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1B
     ∀ (l : List (ScatterSentence (sigL cap mb (j + 1)))) (k₀ : ℕ),
       (∀ σs ∈ l, σs.β ∈ tablesAt q_top cap mb φ (j + 1) ∧ σs.r + 1 < B ∧ σs.t < B ∧
         RamDriverIO.atomCost n ns σs.t ≤ Kb) →
-      Spec B (ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+      Spec B (ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
           Alv' Gam' C')
         (foldIdx (fun k σs => atomCom q_top cap mb φ j i k σs) k₀ l)
-        (fun σ σ' => ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m
-            X W w Alv' Gam' C' σ' ∧ σ'.out = σ.out ∧ σ'.vars "c" = σ.vars "c" ∧
+        (fun σ σ' => ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m
+            X W w Alv' Gam' C' σ' ∧ σ'.out = σ.out ∧ σ'.vars (curName j) = σ.vars (curName j) ∧
           (∀ i' k', (i' ≠ i ∨ ∀ p < l.length, k' ≠ k₀ + p) →
             σ'.vars (flgName j i' k') = σ.vars (flgName j i' k')) ∧
           ∀ p, ∀ _ : p < l.length,
@@ -471,7 +495,7 @@ theorem atoms_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1B
   induction l with
   | nil =>
       intro k₀ _
-      refine (Spec.skip (B := B) (P := ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord
+      refine (Spec.skip (B := B) (P := ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord
         Xoff Xmem asg m X W w Alv' Gam' C')).post ?_ |>.mono (by simp)
       rintro σ σ' hσ rfl
       exact ⟨hσ, rfl, rfl, fun _ _ _ => rfl, fun p hp => absurd hp (by simp)⟩
@@ -489,13 +513,13 @@ theorem atoms_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1B
           · exact fun hc => h hc.1
           · exact fun hc => h 0 (by simp) (by omega)
         · rcases hik with h | h
-          · exact Or.inl h
-          · exact Or.inr fun p hp => by
+          · exact _root_.Or.inl h
+          · exact _root_.Or.inr fun p hp => by
               have := h (p + 1) (by simp only [List.length_cons]; omega); omega
       · intro p hp
         match p with
         | 0 =>
-            rw [Nat.add_zero, hfl'' i k₀ (Or.inr fun p _ => by omega)]
+            rw [Nat.add_zero, hfl'' i k₀ (_root_.Or.inr fun p _ => by omega)]
             exact ⟨hle', hval'⟩
         | q + 1 =>
             rw [show k₀ + (q + 1) = k₀ + 1 + q from by omega]
@@ -518,11 +542,11 @@ theorem blocks_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1
       (∀ β ∈ l, ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
         σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n ns σs.t ≤ Kb) →
       (∀ β ∈ l, Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki) →
-      Spec B (ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+      Spec B (ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
           Alv' Gam' C')
         (foldIdx (fun i β => RamDriver.scatterCom q_top cap mb φ j i β) i₀ l)
-        (fun σ σ' => ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m
-            X W w Alv' Gam' C' σ' ∧ σ'.out = σ.out ∧ σ'.vars "c" = σ.vars "c" ∧
+        (fun σ σ' => ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m
+            X W w Alv' Gam' C' σ' ∧ σ'.out = σ.out ∧ σ'.vars (curName j) = σ.vars (curName j) ∧
           (∀ i' k', (∀ p < l.length, i' ≠ i₀ + p) →
             σ'.vars (flgName j i' k') = σ.vars (flgName j i' k')) ∧
           ∀ p, ∀ hp : p < l.length,
@@ -538,7 +562,7 @@ theorem blocks_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1
   induction l with
   | nil =>
       intro i₀ _ _ _
-      refine (Spec.skip (B := B) (P := ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord
+      refine (Spec.skip (B := B) (P := ScatPre B q_top cap mb ns Ws j φ G Or O T M Gm C π ord
         Xoff Xmem asg m X W w Alv' Gam' C')).post ?_ |>.mono (by simp)
       rintro σ σ' hσ rfl
       exact ⟨hσ, rfl, rfl, fun _ _ _ => rfl, fun p hp => absurd hp (by simp)⟩
@@ -558,7 +582,7 @@ theorem blocks_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1
       · intro i' k' hik
         rw [hfl'' i' k' (fun p hp => by
             have := hik (p + 1) (by simp only [List.length_cons]; omega); omega),
-          hfl' i' k' (Or.inl (by have := hik 0 (by simp); omega))]
+          hfl' i' k' (_root_.Or.inl (by have := hik 0 (by simp); omega))]
       · intro p hp
         match p with
         | 0 =>
@@ -593,20 +617,22 @@ the depth-`(j+1)` table row of the atom's own formula — which
 the two copies the calling convention asks for and followed by the
 atom's flag. -/
 theorem scatterStep {Kb Ki K : ℕ}
-    (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap)
-    (hcolread : colRead n C' (sigL cap mb (j + 1)) =
-      stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w)
+    (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
     (hbnd : ∀ β ∈ tablesAt q_top cap mb φ j, ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
       σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n ns σs.t ≤ Kb)
     (hcost : ∀ β ∈ tablesAt q_top cap mb φ j,
       Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki)
     (hK : Ki * (tablesAt q_top cap mb φ j).length + 1 ≤ K) :
-    ScatterStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+    ScatterStep B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' K := by
-  refine ((blocks_spec hcsr hB.n_lt hB.ns_lt hB.one_lt hcolread
-    (tablesAt q_top cap mb φ j) 0 (fun _ hβ => hβ) hbnd hcost).post ?_).mono hK
-  rintro σ σ' - ⟨hpre', hout, hc, -, hval⟩
-  exact ⟨hpre'.1, hpre'.2.1, hpre'.2.2.1, hpre'.2.2.2, hout, hc,
+  refine Spec.of_exists fun σ hσ => ?_
+  obtain ⟨hturn, hdata, hcolarr, hcolbit, hcolread, htab⟩ := hσ
+  obtain ⟨σ', hrun, hpre', hout, hc, -, hval⟩ :=
+    (blocks_spec hcsr hB.n_lt hB.ns_lt hB.one_lt hcolread
+      (tablesAt q_top cap mb φ j) 0 (fun _ hβ => hβ) hbnd hcost).run
+      ⟨hturn, hdata, hcolarr, hcolbit, hcolread, htab⟩
+  exact ⟨σ', _, hrun, hK, hpre'.1, hpre'.2.1,
+    hpre'.2.2.1, hpre'.2.2.2.2.2, hout, hc,
     fun i hi σs hσs => by simpa using hval i hi σs hσs⟩
 
 /-! ### The scatter phase's own frame
@@ -672,11 +698,6 @@ padding and the scatter phase write is a literal or a prefixed name
 without one, while every array the colouring writes is a colour name,
 whose prefix is not a table's. -/
 
-theorem underscore_notMem_prefixed {p : String} (hp : '_' ∉ p.toList) (k : ℕ) :
-    '_' ∉ (p ++ toString k).toList := by
-  simp only [String.toList_append, List.mem_append, not_or]
-  exact ⟨hp, by simp⟩
-
 theorem tabName_ne_colName (d i e c : ℕ) : tabName d i ≠ colName e c := by
   simp [tabName, colName, String.ext_iff]
 
@@ -722,6 +743,15 @@ theorem warrs_bfsPathCom (r : ℕ) :
 theorem underscore_notMem_bfsPath :
     ∀ a ∈ (RamBfsPaths.bfsPathCom 0).warrs, '_' ∉ a.toList := by decide
 
+theorem warrs_bfsParCom (r : ℕ) :
+    (RamBfsPaths.bfsParCom r).warrs = (RamBfsPaths.bfsParCom 0).warrs := rfl
+
+theorem underscore_notMem_bfsPar :
+    ∀ a ∈ (RamBfsPaths.bfsParCom 0).warrs, '_' ∉ a.toList := by decide
+
+theorem underscore_notMem_extractPath :
+    ∀ a ∈ RamBfsPaths.extractPathCom.warrs, '_' ∉ a.toList := by decide
+
 /-- Every array the descent writes is a literal or a prefixed name, and
 neither carries the separator. -/
 theorem underscore_notMem_warrs_descendCom (cap j : ℕ) :
@@ -749,10 +779,12 @@ theorem underscore_notMem_warrs_descendCom (cap j : ℕ) :
     simp only [ancestorStep, Com.warrs, List.mem_append, List.nil_append,
       RamDriverIO.copyCom_eq, RamDriverIO.warrs_fillCom, List.mem_cons,
       List.not_mem_nil, or_false, warrs_markPath] at ha
-    rcases ha with rfl | h | rfl
+    rcases ha with rfl | h | h
     · decide
-    · rw [warrs_bfsPathCom] at h; exact underscore_notMem_bfsPath _ h
-    · exact hbat
+    · rw [warrs_bfsParCom] at h; exact underscore_notMem_bfsPar _ h
+    · rcases h with h | rfl
+      · exact underscore_notMem_extractPath _ h
+      · exact hbat
   have hbatch : ∀ a ∈ (batchCom cap j).warrs, '_' ∉ a.toList := by
     intro a ha
     simp only [batchCom, Com.warrs, List.mem_append, List.mem_cons, List.not_mem_nil,
@@ -866,67 +898,79 @@ driver runs: the block structure, the cover's three answers, the
 accumulators a level's exit has to have re-zeroed, the two masks and the
 palette of the depth, and the cluster's own five. -/
 def TurnFrozen (j : ℕ) (a : String) : Prop :=
-  a ∈ ["off", "tgt", "ord", "xoff", "xmem", "asg", "wa", "elm", "bh", "ooff", "noff",
+  a ∈ ["off", "tgt", "wa", "elm", "bh", "ooff", "noff",
       "stf", "sta", "std", "ste"] ∨
-    a ∈ [alvName j, gamName j, cluName j, resName j, batName j,
-      alvName (j + 1), gamName (j + 1)] ∨
-    ∃ c, a = colName j c ∨ a = colName (j + 1) c
+    a ∈ [alvName j, cluName j, resName j, batName j, alvName (j + 1),
+      ordName j, xofName j, xmmName j, asgName j] ∨
+    (∃ c, a = colName j c ∨ a = colName (j + 1) c) ∨ (∃ b, a = gamName b)
 
 /-- **The frame of the nested driver, discharged from its syntax.** -/
-theorem innerFrames {inner : Com} {Kin : ℕ}
+theorem innerFrames {ℓ : ℕ} {inner : Com} {Kin : ℕ}
     (hterm : ∀ σ : Env,
       LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σ ∧
-        TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ ∧
+        TurnPre B n cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m σ ∧
         ClusterData n mb j B G M X W w Alv' Gam' σ ∧
-        TablesSized q_top cap mb φ n σ →
+        TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
+        PlayRec B cap Or G (j + 1) Alv' Gam' σ →
       ∃ σ', Run B inner σ σ' Kin)
     (hA : ∀ a : String, TurnFrozen j a → a ∉ inner.warrs)
-    (hV : ∀ y ∈ ["n", "m", "xp", "c"], y ∉ inner.wvars) :
-    RamDriverCluster.InnerFrames B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m
-      X W w Alv' Gam' C' inner Kin := by
+    (hV : ∀ y ∈ ["n", "m"], y ∉ inner.wvars)
+    (hVctr : ∀ a : ℕ, ctrName a ∉ inner.wvars) (hVxp : xpName j ∉ inner.wvars)
+    (hVcur : curName j ∉ inner.wvars) :
+    RamDriverCluster.InnerFrames B q_top cap mb ns Ws ℓ j φ G Or O T M Gm C π ord
+      Xoff Xmem asg m X W w Alv' Gam' C' inner Kin := by
   intro σ hσ
   obtain ⟨σ', hrun⟩ := hterm σ hσ
   have hfa : ∀ a : String, TurnFrozen j a → σ'.arrs a = σ.arrs a :=
     fun a ha => hrun.frame_arr a (hA a ha)
+  have hfv : ∀ y : String, y ∉ inner.wvars → σ'.vars y = σ.vars y :=
+    fun y hy => hrun.frame_var y hy
   obtain ⟨⟨-, -, -, -, -, hcol', -⟩,
-    ⟨⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hlmem, hmvar,
-      hnsW, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste⟩,
-      hord, hxoff, hxmem, hasg, hxp, hmn, hcout⟩,
-    ⟨⟨⟨Xa, hXa, hXaS⟩, ⟨Wa, hWa, hWaS⟩, ⟨Ra, hRa, hRaS, hRaB⟩, halv', hAlvB, hmask,
-      hgam', hGamB⟩, hwrange, hwa⟩, -⟩ := hσ
-  refine ⟨σ', hrun, ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, levelMem_run hrun hlmem, ?_,
+    ⟨⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCB, hlmem, hdep, hmvar,
+      hnsW, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste⟩, hplayrec,
+      hord, hxoff, hxmem, hasg, hxp, hmn, hordlt, hcout⟩,
+    ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, halv', hAlvB, hmask,
+      hgam', hGamB⟩, hwrange, hwa⟩, -, -⟩ := hσ
+  refine ⟨σ', hrun, ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCB, levelMem_run hrun hlmem,
+      hdep.run hrun, ?_,
       hnsW, hosz.run hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
-    ?_, ?_, ?_, ?_, ?_, hmn, hcout⟩,
-    ⟨⟨⟨Xa, ?_, hXaS⟩, ⟨Wa, ?_, hWaS⟩, ⟨Ra, ?_, hRaS, hRaB⟩, ?_, hAlvB, hmask, ?_, hGamB⟩,
-      hwrange, ?_⟩, ?_, ?_⟩
+    hplayrec.congr (fun a _ => hfv (ctrName a) (hVctr a))
+      (fun a _ => hfa (gamName a) (_root_.Or.inr (_root_.Or.inr (_root_.Or.inr ⟨a, rfl⟩)))),
+    ?_, ?_, ?_, ?_, ?_, hmn, hordlt, hcout⟩,
+    ⟨⟨⟨Xa, ?_, hXaS, hXaB⟩, ⟨Wa, ?_, hWaS, hWaB⟩, ⟨Ra, ?_, hRaS, hRaB⟩, ?_, hAlvB, hmask,
+      ?_, hGamB⟩, hwrange, ?_⟩, ?_, ?_⟩
   · rw [hrun.frame_var "n" (hV "n" (by simp))]; exact hn
-  · rw [hfa "off" (Or.inl (by simp))]; exact hoff
-  · rw [hfa "tgt" (Or.inl (by simp))]; exact htgt
-  · rw [hfa _ (Or.inr (Or.inl (by simp)))]; exact halvj
-  · rw [hfa _ (Or.inr (Or.inl (by simp)))]; exact hgamj
-  · intro cc hcc; rw [hfa _ (Or.inr (Or.inr ⟨cc, Or.inl rfl⟩))]; exact hcolj cc hcc
+  · rw [hfa "off" (_root_.Or.inl (by simp))]; exact hoff
+  · rw [hfa "tgt" (_root_.Or.inl (by simp))]; exact htgt
+  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact halvj
+  · rw [hfa _ (_root_.Or.inr (_root_.Or.inr (_root_.Or.inr ⟨j, rfl⟩)))]; exact hgamj
+  · intro cc hcc
+    rw [hfa _ (_root_.Or.inr (_root_.Or.inr (_root_.Or.inl ⟨cc, _root_.Or.inl rfl⟩)))]
+    exact hcolj cc hcc
   · rw [hrun.frame_var "m" (hV "m" (by simp))]; exact hmvar
-  · rw [hfa "elm" (Or.inl (by simp))]; exact helm
-  · rw [hfa "bh" (Or.inl (by simp))]; exact hbh
-  · rw [hfa "ooff" (Or.inl (by simp))]; exact hooff
-  · rw [hfa "noff" (Or.inl (by simp))]; exact hnoff
-  · rw [hfa "stf" (Or.inl (by simp))]; exact hstf
-  · rw [hfa "sta" (Or.inl (by simp))]; exact hsta
-  · rw [hfa "std" (Or.inl (by simp))]; exact hstd
-  · rw [hfa "ste" (Or.inl (by simp))]; exact hste
-  · rw [hfa "ord" (Or.inl (by simp))]; exact hord
-  · rw [hfa "xoff" (Or.inl (by simp))]; exact hxoff
-  · rw [hfa "xmem" (Or.inl (by simp))]; exact hxmem
-  · rw [hfa "asg" (Or.inl (by simp))]; exact hasg
-  · rw [hrun.frame_var "xp" (hV "xp" (by simp))]; exact hxp
-  · rw [hfa _ (Or.inr (Or.inl (by simp)))]; exact hXa
-  · rw [hfa _ (Or.inr (Or.inl (by simp)))]; exact hWa
-  · rw [hfa _ (Or.inr (Or.inl (by simp)))]; exact hRa
-  · rw [hfa _ (Or.inr (Or.inl (by simp)))]; exact halv'
-  · rw [hfa _ (Or.inr (Or.inl (by simp)))]; exact hgam'
-  · rw [hfa "wa" (Or.inl (by simp))]; exact hwa
-  · intro cc hcc; rw [hfa _ (Or.inr (Or.inr ⟨cc, Or.inr rfl⟩))]; exact hcol' cc hcc
-  · exact hrun.frame_var "c" (hV "c" (by simp))
+  · rw [hfa "elm" (_root_.Or.inl (by simp))]; exact helm
+  · rw [hfa "bh" (_root_.Or.inl (by simp))]; exact hbh
+  · rw [hfa "ooff" (_root_.Or.inl (by simp))]; exact hooff
+  · rw [hfa "noff" (_root_.Or.inl (by simp))]; exact hnoff
+  · rw [hfa "stf" (_root_.Or.inl (by simp))]; exact hstf
+  · rw [hfa "sta" (_root_.Or.inl (by simp))]; exact hsta
+  · rw [hfa "std" (_root_.Or.inl (by simp))]; exact hstd
+  · rw [hfa "ste" (_root_.Or.inl (by simp))]; exact hste
+  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact hord
+  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact hxoff
+  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact hxmem
+  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact hasg
+  · rw [hfv _ hVxp]; exact hxp
+  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact hXa
+  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact hWa
+  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact hRa
+  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact halv'
+  · rw [hfa _ (_root_.Or.inr (_root_.Or.inr (_root_.Or.inr ⟨j + 1, rfl⟩)))]; exact hgam'
+  · rw [hfa "wa" (_root_.Or.inl (by simp))]; exact hwa
+  · intro cc hcc
+    rw [hfa _ (_root_.Or.inr (_root_.Or.inr (_root_.Or.inl ⟨cc, _root_.Or.inr rfl⟩)))]
+    exact hcol' cc hcc
+  · exact hfv _ hVcur
 
 /-! ### What one turn leaves alone
 
@@ -953,57 +997,63 @@ exactly that hypothesis; `ClusterFrames` is missing it. -/
 
 open Classical in
 /-- **What one cluster leaves alone, discharged.** -/
-theorem clusterFrames {Or : PathOracle n (2 * cap)} {inner : Com}
+theorem clusterFrames {ℓ : ℕ} {Or : PathOracle n (2 * cap)} {inner : Com}
     {Kd Ke Kc Kin Ks Kr K : ℕ}
-    (hplay : PlayOk cap Or G j (masked G M))
+    (hcsr : CsrGraph G ns O T) (hguard : OracleGuarded cap Or)
+    (hB : WordBound B n ns cap mb)
     (hdes : DescendStep B cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m Kd)
     (henum : ∀ X W Alv' Gam',
-      EnumStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' Ke)
+      EnumStep B cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' Ke)
     (hcol : ∀ X W w Alv' Gam',
-      ColourStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W w Alv' Gam' Kc)
+      ColourStep B cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m X W w Alv' Gam' Kc)
     (hfr : ∀ X W w Alv' Gam' C',
-      RamDriverCluster.InnerFrames B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m
-        X W w Alv' Gam' C' inner Kin)
+      RamDriverCluster.InnerFrames B q_top cap mb ns Ws ℓ j φ G Or O T M Gm C π ord
+        Xoff Xmem asg m X W w Alv' Gam' C' inner Kin)
     (hscat : ∀ X W w Alv' Gam' C',
-      ScatterStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+      ScatterStep B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
         Alv' Gam' C' Ks)
     (hread : ∀ X W w Alv' Gam' C',
-      ReadbackStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+      ReadbackStep B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
         Alv' Gam' C' Kr)
     (hinnerTab : ∀ i, tabName j i ∉ inner.warrs)
     (hK : Kd + (Ke + (Kc + (Kin + (Ks + Kr)))) ≤ K) :
-    RamDriverCluster.ClusterFrames B q_top cap mb ns Ws j φ G Or O T M Gm C π ord
+    RamDriverCluster.ClusterFrames B q_top cap mb ns Ws ℓ j φ G Or O T M Gm C π ord
       Xoff Xmem asg m inner Kin K := by
   classical
   intro hinner
   refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨hlev, htsz, hcov, hcn⟩ := hσ
-  have hturn : TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ := ⟨hlev, hcov⟩
+  obtain ⟨hlev, htsz, hbarr, hplay, hcov, hcn⟩ := hσ
+  have hturn : TurnPre B n cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m σ :=
+    ⟨hlev, hplay, hcov⟩
   obtain ⟨σ₁, hr₁, hturn₁, hout₁, hc₁, hwa₁, X, W, Alv', Gam', hball, hWne, hWcard,
-      hbat₁, hplayd⟩ := hdes.run ⟨hturn, hcn⟩
-  have hplay' : PlayOk cap Or G (j + 1) (masked G Alv') := by
-    rw [hbat₁.2.2.2.2.2.1]; exact hplayd hplay
-  obtain ⟨σ₂, hr₂, hturn₂, hout₂, hc₂, w, hdat₂⟩ :=
-    (henum X W Alv' Gam').run ⟨hturn₁, hbat₁, hWne, hWcard, hwa₁⟩
-  obtain ⟨σ₃, hr₃, hturn₃, hdat₃, hout₃, hc₃, C', hcolarr₃, hcolread₃⟩ :=
-    (hcol X W w Alv' Gam').run ⟨hturn₂, hdat₂⟩
+      hbat₁, hplay₁⟩ := (hdes hcsr hguard hB).run ⟨hturn, hcn⟩
+  obtain ⟨σ₂, hr₂, hturn₂, hplay₂, hout₂, hc₂, w, hdat₂⟩ :=
+    (henum X W Alv' Gam').run ⟨hturn₁, hbat₁, hplay₁, hWne, hWcard, hwa₁⟩
+  obtain ⟨σ₃, hr₃, hturn₃, hdat₃, hplay₃, hout₃, hc₃, C', hcolarr₃, hcolbit₃, hcolread₃⟩ :=
+    (hcol X W w Alv' Gam').run ⟨hturn₂, hdat₂, hplay₂⟩
   have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σ₃ := by
-    obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, hmem₃⟩ := hturn₃.1
+    obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, -, hmem₃, hdep₃, hm₃, hom₃⟩ := hturn₃.1
     obtain ⟨-, -, -, halv₃, hAlvB, -, hgam₃, hGamB⟩ := hdat₃.1
-    exact ⟨hn₃, hoff₃, htgt₃, halv₃, hgam₃, hcolarr₃, hAlvB, hGamB, hmem₃⟩
+    exact ⟨hn₃, hoff₃, htgt₃, halv₃, hgam₃, hcolarr₃, hAlvB, hGamB,
+      fun c hc z hz => lt_of_le_of_lt (hcolbit₃ c hc z hz) hB.one_lt, hmem₃, hdep₃, hm₃, hom₃⟩
   have htsz₃ : TablesSized q_top cap mb φ n σ₃ := (htsz.run hr₁).run hr₂ |>.run hr₃
+  have hbarr₃ : BaseArrs B q_top cap mb ℓ φ σ₃ := ((hbarr.run hr₁).run hr₂).run hr₃
   obtain ⟨σ₄, hr₄, ⟨⟨-, -, htab₄⟩, hout₄⟩, hturn₄, hdat₄, hcolarr₄, hc₄⟩ :=
-    (RamDriverCluster.spec_conj ((hinner Alv' Gam' C' hplay').pre (fun _ h => ⟨h.1, h.2.2.2⟩))
-      (hfr X W w Alv' Gam' C')).run (σ := σ₃) ⟨hlevin, hturn₃, hdat₃, htsz₃⟩
+    (RamDriverCluster.spec_conj ((hinner Alv' Gam' C' hcolbit₃).pre
+        (fun _ h => ⟨h.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2⟩))
+      (hfr X W w Alv' Gam' C')).run (σ := σ₃)
+      ⟨hlevin, hturn₃, hdat₃, htsz₃, hbarr₃, hplay₃⟩
   have htsz₄ : TablesSized q_top cap mb φ n σ₄ := htsz₃.run hr₄
   obtain ⟨σ₅, hr₅, hturn₅, hdat₅, hcolarr₅, htab₅, hout₅, hc₅, hflag₅⟩ :=
-    (hscat X W w Alv' Gam' C').run (σ := σ₄) ⟨hturn₄, hdat₄, hcolarr₄, htab₄⟩
+    (hscat X W w Alv' Gam' C').run (σ := σ₄)
+      ⟨hturn₄, hdat₄, hcolarr₄, hcolbit₃, hcolread₃, htab₄⟩
   have htsz₅ : TablesSized q_top cap mb φ n σ₅ := htsz₄.run hr₅
-  have hc₅₀ : σ₅.vars "c" = σ.vars "c" := by rw [hc₅, hc₄, hc₃, hc₂, hc₁]
+  have hc₅₀ : σ₅.vars (curName j) = σ.vars (curName j) := by rw [hc₅, hc₄, hc₃, hc₂, hc₁]
   obtain ⟨σ₆, hr₆, hturn₆, hout₆, hc₆, hrb₆⟩ :=
     (hread X W w Alv' Gam' C').run (σ := σ₅)
-      ⟨hturn₅, hdat₅, hcolarr₅, htab₅, htsz₅, by rw [hc₅₀]; exact hcn, hflag₅⟩
-  refine ⟨σ₆, _, hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq (hr₅.seq hr₆)))), hK, hturn₆.2,
+      ⟨hturn₅, hdat₅, hcolarr₅, hcolbit₃, hcolread₃, htab₅, htsz₅,
+        by rw [hc₅₀]; exact hcn, hflag₅⟩
+  refine ⟨σ₆, _, hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq (hr₅.seq hr₆)))), hK, hturn₆.2.2,
     fun i hi Tb Tb₀ harr harr₀ v hv => ?_⟩
   obtain ⟨hfd, hfe, hfc, hfs⟩ := tabName_notMem_warrs_turn q_top cap mb φ j j i
   have hframe : σ₅.arrs (tabName j i) = σ.arrs (tabName j i) := by

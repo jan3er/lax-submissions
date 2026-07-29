@@ -51,30 +51,24 @@ tabled formula is local, by
 `reprCom` would mean recording `k + 1` vertices per row; nothing above
 depends on that being done.
 
-# What is left, and what it needs
+# What is left
 
 `RamDriver.BaseImplements` itself is **not** discharged here. What
 remains is the translation of `base_spec` into that surface — the frame
 of `RamDriver.LevelPre` across the pass, which the four syntactic
-lemmas above deliver, and the two clauses the surface is missing:
+lemmas above deliver. The two clauses the surface was missing are now
+conjuncts of it:
 
 * **the colour cells are bits** (`∀ c < sigL cap mb ℓ, ∀ v < n,
-  C c v ≤ 1`). The scan compares colour *cells*, so the rows it
-  distinguishes are numeric, and `2 ^ sigL cap mb ℓ` bounds their number
-  only on bits. Every pass that writes a colour array writes a bit, so
-  this is a clause missing from those passes' postconditions rather than
-  a property missing from the program; it is a hypothesis on parameters,
-  in the manner of `RamDriverBase.readbackStep`'s `hcolread`.
-* **the base evaluator's memory** (`BaseMem`). `botCom` stores the guard
-  set of every local quantifier into a candidate array of its own name,
-  and `BaseImplements`'s precondition sizes only the representative
-  table: `Sized [("rep", 2 ^ sigL cap mb ℓ)]`. An out-of-range store has
-  no derivation in IMP+, so the obligation as stated is refuted by the
-  state whose candidate arrays are empty, exactly as
-  `RamDriver.LevelMem`'s absence would refute a level. `BotMem`/`BaseMem`
-  is that missing clause, stated here, and the surface has to grow by
-  it — as does `LevelImplements`, whose precondition carries neither it
-  nor the `rep` clause.
+  C c v ≤ 1`) is a hypothesis of `RamDriver.BaseImplements` and of
+  `RamDriver.LevelImplements`, produced one depth at a time by
+  `RamDriverCluster.ColourStep`, whose postcondition now carries it;
+* **the base evaluator's memory** is `RamDriver.BaseArrs`, the
+  representative table at `2 ^ sigL cap mb ℓ` together with
+  `RamDriver.BaseMem` — the candidate array of every local quantifier of
+  every formula of the bottom table. Both are lengths, so `BaseArrs.run`
+  carries them down the recursion and back; `RamDriver.BotMem` and
+  `botMem_of_length` live at the surface for the same reason.
 -/
 
 namespace Lax3Proofs.RamDriverBot
@@ -836,44 +830,12 @@ It is also never reached — every tabled formula is local, by
 def BotEnv (n L jd : ℕ) (C : ℕ → ℕ → ℕ) (σ : Env) : Prop :=
   ∀ c < L, σ.arrs (colName jd c) = arrOf n (C c)
 
-/-- **The memory of the generated evaluator**: the candidate array of
-every local quantifier of the formula, at the width the quantifier's
-guard set is loaded at, that width being a word.
-
-Nothing below produces this clause: the arrays are named by the
-generated code and by nothing else, and an out-of-range store has no
-derivation in IMP+, so it is a precondition of the walk exactly as
-`RamDriver.LevelMem` is of a level. -/
-def BotMem (B : ℕ) {L : ℕ} : {k : ℕ} → DistFO L k → String → Env → Prop
-  | _, .adj _ _, _, _ => True
-  | _, .eq _ _, _, _ => True
-  | _, .color _ _, _, _ => True
-  | _, .distLe _ _ _, _, _ => True
-  | _, .distColorLt _ _ _, _, _ => True
-  | _, .not ψ, out, σ => BotMem B ψ (out ++ "a") σ
-  | _, .and ψ χ, out, σ => BotMem B ψ (out ++ "a") σ ∧ BotMem B χ (out ++ "b") σ
-  | _, .exU _, _, _ => True
-  | _, .exL _ g ψ, out, σ =>
-      g.card < B ∧ g.card ≤ (σ.arrs (out ++ "g")).length ∧ BotMem B ψ (out ++ "a") σ
-
-/-- **The memory clause survives any run**, since a run cannot change
-the length of an array. -/
-theorem botMem_of_length {B L : ℕ} {σ σ' : Env}
-    (hlen : ∀ a, (σ'.arrs a).length = (σ.arrs a).length) :
-    ∀ {k : ℕ} (ψ : DistFO L k) (out : String), BotMem B ψ out σ → BotMem B ψ out σ' := by
-  intro k ψ
-  induction ψ with
-  | adj i j => intro out _; trivial
-  | eq i j => intro out _; trivial
-  | color c i => intro out _; trivial
-  | distLe r i j => intro out _; trivial
-  | distColorLt r c i => intro out _; trivial
-  | not ψ ih => intro out h; exact ih (out ++ "a") h
-  | and ψ χ ihψ ihχ => intro out h; exact ⟨ihψ (out ++ "a") h.1, ihχ (out ++ "b") h.2⟩
-  | exU ψ ih => intro out _; trivial
-  | exL r g ψ ih =>
-    intro out h
-    exact ⟨h.1, by rw [hlen]; exact h.2.1, ih (out ++ "a") h.2.2⟩
+/-! `RamDriver.BotMem` is the memory clause of the generated evaluator —
+the candidate array of every local quantifier, at the width its guard
+set is loaded at. It lives at the surface rather than here because it is
+a *precondition* of `RamDriver.BaseImplements`, and `RamDriver.BaseArrs`
+packages it with the representative table. `RamDriver.botMem_of_length`
+is that it survives any run. -/
 
 /-- The cost of a fragment: a constant per connective, and one turn of a
 guard scan per guard entry. -/
@@ -1521,12 +1483,6 @@ def BaseTabOk (q_top cap mb ℓ n : ℕ) (φ : Lax3.FirstOrder.FO 0) (C : ℕ �
     ∀ v : Fin n, (v : ℕ) < bd i → Tb (v : ℕ) ≤ 1 ∧
       (Tb (v : ℕ) ≠ 0 ↔ Sat (⊥ : SimpleGraph (Fin n)) (colRead n C (sigL cap mb ℓ)) (fun _ => v)
         (tablesAt q_top cap mb φ ℓ)[i])
-
-/-- **The memory of the base pass**: the generated evaluator's candidate
-arrays, at every formula of the bottom table. -/
-def BaseMem (B q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) (σ : Env) : Prop :=
-  ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ ℓ).length),
-    BotMem B (tablesAt q_top cap mb φ ℓ)[i] "bb" σ
 
 /-- Everything the base pass reads and never writes, together with what
 it has written so far. -/

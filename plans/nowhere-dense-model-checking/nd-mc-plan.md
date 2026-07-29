@@ -496,28 +496,51 @@ not to a premature P5.
   clauses, word bounds, bits, Sized, PlayOk threading, ball-chain
   aliasing, CSR save/restore, width threading with zero proof-body
   rewrites in RamElim).
-  **Remaining — assembly wave A3** (single owner; gate every
-  repaired surface with [[refute-before-prove]] falsification BEFORE
-  new proof attempts): (1) the cross-depth clobbering driver bug —
-  the nested driver writes the shared cover arrays and centre cursor
-  (per-depth names or A2's save/restore pattern); (2) play-recording
-  invariant on LevelPre tying PlayOk's existential rounds to the
-  recorded ctr/gam state + the unreachable-ancestor guard in the
-  batch phase; (3) the collected clause repairs (indicator/ord
-  bounds, per-cluster arrays into LevelMem, mb < B, BaseMem + rep
-  into BaseImplements/LevelImplements, colour-cells-are-bits,
-  CoverState word clauses + CoverImplements CsrGraph, colour-equation
-  threading into ScatterStep); (4) optional: fix the unreachable exU
-  branch (k+1 representatives per row); (5) the deferred tgt
-  widening (orderCom currently eliminates the level's own structure —
-  costs the cover-degree story only). **Then wave C**: DescendStep/
-  ColourStep against the repaired surfaces (the chain/expansion core
-  is landed), RamAugment.Implements (ten passes; route recorded),
-  OrderImplements and baseImplements compositions, final
-  driver_correct instantiation. **Then the cost wave**: touched-only
-  (Trail-backed) cost forms — mandatory, full-array inits × n arenas
-  = n² ([[touched-only-costs]]) — the GKS recurrence, the
-  Spec→ComputesInTime bridge, C0 discharged.
+  **Assembly wave A3 — done 2026-07-29** (single Opus owner, 9 files,
+  +1295/−778, engines byte-identical, falsification-gated). As built:
+  (1) clobbering fixed by **per-depth names** (`ordName`/`xofName`/
+  `xmmName`/`asgName`/`xpName`/`curName`; save/restore was rejected as
+  cost-fatal — caller-arena-sized per-turn copies are the n² the
+  touched-only mandate forbids); RamCover untouched, its answers
+  copied once per level by `coverPhase`'s `coverSave`; the Frames
+  debts `hA`/`hV`/`hinnerTab` are now satisfiable by `driverAt (j+1)`.
+  (2) The guard alone was NOT sound: `PathOracle` does not make an
+  unreachable ancestor's contribution vacuous, so the guarded batch
+  needs `OracleGuarded` (oracle offers ∅ off `WithinDist`, matching
+  the RamBfsPaths recipe) threaded through DescendStep/
+  ClusterStepImplements/levelImplements. Play recording: `RecordsPlay`
+  (list-matched — the `ℕ → Fin n` draft was refutable at n = 0, gate
+  caught it) + `PlayRec` in **equality form** (`ReachedO` at the game
+  arena itself; ≤ could never descend), REPLACING PlayOk end to end
+  (`playOk_of_playRec` keeps the capital); `playRec_zero/_succ/.congr`
+  landed. Supervisor review fixed `playRec_succ`'s interface: `hstep`
+  now premised on `RecordsPlay σ j rounds`, not bare length (`batchO`
+  varies with rounds' arenas/connectors, so the ∀-length form was
+  undischargeable by the walk). (3) All clause repairs landed:
+  BatchData words (EnumStep CLOSED outright), LevelPre colour words,
+  CoverHeld ord index bound (chosen over OrdersBy — weaker,
+  sufficient), `DepthMem` all-depths memory (TablesSized shape; a
+  layout wave must cut it to j ≤ ℓ), LevelMem + par/path/wa,
+  WordBound ∧ mb < B, BotMem/BaseArrs into BaseImplements AND
+  LevelImplements + colour-bits hypothesis, CoverState + B + word
+  pair (coverTurnImplements now IS RamCover.Implements;
+  coverPass_spec one line), CoverImplements + CsrGraph, hcolread and
+  hplay threaded into the surfaces (satellite hypotheses deleted).
+  (4) exU untouched as documented. (5) tgt widening still deferred.
+  **Then wave C**: DescendStep (ball chain in gamName, guarded batch
+  fold, mask equations, playRec_succ) + ColourStep (three slot
+  families) at RamDriverCluster.lean:571/:624; RamAugment.Implements
+  (ten passes; route in RamDriverOrder's final section);
+  OrderImplements (7 phases; ordCom_spec + csr copies landed);
+  CoverImplements — now the seven-pass `coverPhase` walk (6 flat
+  copies around coverPass_spec; closure moved here from A3 since W1
+  rebuilt the phase); BaseImplements from RamDriverBot.base_spec;
+  LevelImplements/Sentence/Decode instantiation; final driver_correct
+  instantiation needs a concrete oracle satisfying `OracleGuarded`.
+  **Then the cost wave**: touched-only (Trail-backed) cost forms —
+  mandatory, full-array inits × n arenas = n² ([[touched-only-costs]])
+  — the GKS recurrence, the Spec→ComputesInTime bridge, C0
+  discharged.
 - [ ] **P8 — polish and draft submission** (1–2 sessions).
   abstract.md, manifest, `lax build`, plans/NIGHTLOG records, draft
   `lax submit` (never `--register`; freeze-consent rule).

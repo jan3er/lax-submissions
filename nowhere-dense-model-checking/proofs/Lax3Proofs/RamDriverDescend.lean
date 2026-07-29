@@ -39,71 +39,49 @@ needs to hand a depth's state on.
   `RamDriverCluster.TurnPre` and the descent's data, carried across a
   pass off the frame rule's equations.
 
-# What is *not* proved, and why
+# The five surface repairs, and what is left
 
-`RamDriverCluster.DescendStep`, `ColourStep` and `EnumStep` are **not
-provable as stated**. Each of them is a `Spec` of the bounded semantics
-whose precondition does not say enough about memory for the program
-text to run at all — an out-of-range read has no value in IMP+ and a
-read of a cell at or above the word bound has none either — and one of
-them is short of a semantic invariant as well. Precisely:
+`RamDriverCluster.EnumStep` is now **proved** (`enumStep`): the clause
+it was short of — that the batch indicator's cells are words — is a
+conjunct of `RamDriverCluster.BatchData`, and `enumStepW` is the walk
+with it named as `MaskWords`. `DescendStep` and `ColourStep` are still
+open, but for symbolic execution alone; every clause they used to be
+missing is in the surface. The five, and where each went:
 
-1. **Indicator cells are not known to be words.** `BatchData` pins what
-   `cluName j` and `batName j` *mark* (`markSet n Xa = X`) and says
-   nothing about their cells, while `resName j`, `alvName (j+1)` and
-   `gamName (j+1)` all carry `∀ k < n, · k < B`. `enumBatch`'s first
-   read is `bat[z]`, so `EnumStep` fails on the missing clause alone.
-   The repair is two conjuncts in `BatchData`; `MaskWords` below is the
-   same statement in the form that crosses a run
-   (`RamDriver.run_mem_arrs_lt`), and `enumStep_of_maskWords` is the
-   obligation modulo it. The colour arrays of `LevelPre` are missing
-   the same clause — `oldCom` multiplies `colName j c` by `cluName j` —
-   and so is the ordering `ord` of `RamDriverCluster.CoverHeld`, whose
-   cell `descendCom` reads into the connector on its first line:
-   `RamCover.CoverOut` bounds `xmem` (`mem_lt`) and `asg` (`asg_lt`)
-   and says nothing about `ord`, which `OrdersBy` — not carried by
-   `CoverHeld` — is what would.
-2. **The per-cluster arrays are not known to exist.** Nothing in
-   `LevelPre`, `LevelMem` or `TurnPre` says that `cluName j`,
-   `resName j`, `balName j`, `balAltName j`, `batName j`,
-   `alvName (j+1)`, `gamName (j+1)` or the depth-`(j+1)` colour arrays
-   `colName (j+1) c` are present at the carrier's length, and every one
-   of them is *stored into* by `descendCom` or `colourCom`. A level's
-   memory clause has to name them, exactly as `LevelMem` names the
-   fixed scratch of the sub-programs; the colour family is the one that
-   grows with the depth (`c < sigL cap mb (j+1)`).
-3. **The recorded play is not in the state.** `descendCom`'s batch
-   phase searches, for every earlier round `a < j`, from `ctrName a` in
-   the game mask `gamName a` — arrays and scalars of *earlier* depths,
-   which `TurnPre` does not mention at all, so for `j ≥ 1` the copy
-   `copyCom (gamName a) "alv"` has no derivation. Worse, `PlayOk`'s
-   rounds are existentially quantified, so even with the arrays present
-   nothing connects `ctrName a`/`gamName a` to the play the hypothesis
-   produces, and `batchO Or rounds P v ⊆ W` — what
-   `RamDriver.playOk_succ` needs of the batch — cannot be derived. The
-   repair is an invariant that records the play in the state (the
-   connectors, the game masks, and that they are the rounds of the
-   `ReachedO` witness), carried by `LevelPre` and descended by the turn.
-4. **An unreachable ancestor is stuck.** `RamBfsPaths.bfsPath_spec` is
-   conditional on `WithinDist (masked G M) (2·cap) s t`, and
-   `SplitterWinOracle.genSetO` asks for the oracle's path from *every*
-   earlier connector, reachable or not. In the bounded semantics
-   `extractPathCom` then walks back `dist[t] + 1 > 2·cap + 1` cells and
-   stores outside the buffer, which has no derivation — the machine's
-   flat memory tolerates this and IMP+ does not. Either the program
-   needs a guard (`if dist[tv] ≤ 2·cap then …`) or the batch phase
-   needs the reachability of every ancestor as an invariant.
-5. **`mb < B` is nowhere.** `enumBatch`'s second loop tests against the
-   literal `mb`, which the bounded semantics evaluates only below the
-   word bound, and `RamDriver.WordBound` bounds `n * n + ns + 2·cap + 2`
-   and not `mb`. It is a hypothesis of `enumStepW` here; it belongs in
-   `WordBound`.
+1. **Indicator cells are words.** `BatchData` now carries
+   `∀ k < n, Xa k < B` at `cluName j` and `∀ k < n, Wa k < B` at
+   `batName j`, beside the ones `resName j` already had;
+   `RamDriver.LevelPre` carries `∀ c < sigL cap mb j, ∀ z < n, C c z < B`
+   for the colour arrays `oldCom` multiplies; and
+   `RamDriverCluster.CoverHeld` carries `∀ z < n, ord z < n`, which with
+   `n < B` is what `descendCom`'s first read of the ordering needs.
+2. **The per-cluster arrays exist.** `RamDriver.DepthMem`, a conjunct of
+   `LevelPre`, sizes every per-depth array of *every* depth — the
+   cluster indicator, the restricted mask, the ball's two halves, the
+   batch, the ordering, the cover's three copies, and the colour family
+   `colName j c` for `c < sigL cap mb j`. It is depth-independent for
+   the reason `RamDriver.TablesSized` is: a level runs the level below
+   it, which stores into the arrays of *its* depth.
+3. **The recorded play is in the state.** `RamDriver.PlayRec` is the
+   invariant: the connectors `ctrName a` and the game masks `gamName a`
+   of every `a < j` are there, hold vertices and words, and — off the
+   dead branch — *are* the rounds of a `ReachedO` play whose position is
+   the depth's own game arena. `RamDriver.playRec_succ` is the descent
+   step and `RamDriver.playOk_of_playRec` the bridge to the old
+   invariant. `DescendStep`'s last clause is now `PlayRec` one depth
+   down, and `EnumStep`/`ColourStep` carry it across.
+4. **The unreachable ancestor is guarded.** `RamDriver.ancestorStep`
+   runs the search and the walk back separately, the second only under
+   `dist[tv] < 2·cap + 1`. `RamDriver.OracleGuarded` — the oracle offers
+   `∅` at pairs the arena does not connect, which is the instantiation
+   `Lax3Proofs.RamBfsPaths`'s recipe prescribes — is what makes the
+   guarded batch `genSetO` exactly and not a subset.
+5. **`mb < B`** is the second conjunct of `RamDriver.WordBound`, and
+   `enumStepW` reads it off `WordBound.mb_lt`.
 
-None of the five is a defect of the *algorithm*: each is a clause a
-precondition owes, and (3) and (4) are invariants the descent has to
-carry. They are recorded here rather than repaired because the
-obligation surfaces live in `Lax3Proofs.RamDriver` and
-`Lax3Proofs.RamDriverCluster`.
+What is left of `DescendStep` and `ColourStep` is symbolic execution:
+the ball's chain, the batch phase's fold over the earlier rounds, and
+the three slot families of the colouring.
 -/
 
 namespace Lax3Proofs.RamDriverDescend
@@ -193,20 +171,24 @@ theorem levelPre_congr (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (hr : Run
   ⟨by rw [hn]; exact h.1, by rw [hoff]; exact h.2.1, by rw [htgt]; exact h.2.2.1,
     by rw [halv]; exact h.2.2.2.1, by rw [hgam]; exact h.2.2.2.2.1,
     fun c' hc' => by rw [hcol c' hc']; exact h.2.2.2.2.2.1 c' hc',
-    h.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.1, levelMem_run hr h.2.2.2.2.2.2.2.2.1,
-    by rw [hm]; exact h.2.2.2.2.2.2.2.2.2.1,
-    orderMem_congr h.2.2.2.2.2.2.2.2.2.2 hr hz⟩
+    h.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.1,
+    levelMem_run hr h.2.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2.2.1.run hr,
+    by rw [hm]; exact h.2.2.2.2.2.2.2.2.2.2.2.1,
+    orderMem_congr h.2.2.2.2.2.2.2.2.2.2.2.2 hr hz⟩
 
 variable {G : SimpleGraph (Fin n)} {π : Equiv.Perm (Fin n)} {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ}
 
 /-- **The cover's three answers, across a pass.** -/
-theorem coverHeld_congr (h : CoverHeld n G M π ord cap Xoff Xmem asg m σ)
-    (hord : σ'.arrs "ord" = σ.arrs "ord") (hxoff : σ'.arrs "xoff" = σ.arrs "xoff")
-    (hxmem : σ'.arrs "xmem" = σ.arrs "xmem") (hasg : σ'.arrs "asg" = σ.arrs "asg")
-    (hxp : σ'.vars "xp" = σ.vars "xp") : CoverHeld n G M π ord cap Xoff Xmem asg m σ' :=
+theorem coverHeld_congr (h : CoverHeld n j G M π ord cap Xoff Xmem asg m σ)
+    (hord : σ'.arrs (ordName j) = σ.arrs (ordName j))
+    (hxoff : σ'.arrs (xofName j) = σ.arrs (xofName j))
+    (hxmem : σ'.arrs (xmmName j) = σ.arrs (xmmName j))
+    (hasg : σ'.arrs (asgName j) = σ.arrs (asgName j))
+    (hxp : σ'.vars (xpName j) = σ.vars (xpName j)) :
+    CoverHeld n j G M π ord cap Xoff Xmem asg m σ' :=
   ⟨by rw [hord]; exact h.1, by rw [hxoff]; exact h.2.1, by rw [hxmem]; exact h.2.2.1,
     by rw [hasg]; exact h.2.2.2.1, by rw [hxp]; exact h.2.2.2.2.1, h.2.2.2.2.2.1,
-    h.2.2.2.2.2.2⟩
+    h.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2⟩
 
 variable {X W : Set (Fin n)} {Alv' Gam' : ℕ → ℕ}
 
@@ -547,16 +529,18 @@ the array leaves behind, and it survives every pass by
 
 /-- `RamDriverCluster.EnumStep`, with the word clause its precondition
 owes. -/
-def EnumStepW (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ)
+def EnumStepW (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n)) (Or : PathOracle n (2 * cap))
+    (O T M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ)
     (X W : Set (Fin n)) (Alv' Gam' : ℕ → ℕ) (K : ℕ) : Prop :=
-  Spec B (fun σ => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ ∧
-      BatchData n j B G M X W Alv' Gam' σ ∧
+  Spec B (fun σ => TurnPre B n cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m σ ∧
+      BatchData n j B G M X W Alv' Gam' σ ∧ PlayRec B cap Or G (j + 1) Alv' Gam' σ ∧
       W.Nonempty ∧ W.ncard ≤ mb ∧ (∃ g, σ.arrs "wa" = arrOf mb g) ∧
       MaskWords B (batName j) σ)
     (enumBatch (batName j) mb)
-    (fun σ σ' => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
-      σ'.out = σ.out ∧ σ'.vars "c" = σ.vars "c" ∧
+    (fun σ σ' => TurnPre B n cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m σ' ∧
+      PlayRec B cap Or G (j + 1) Alv' Gam' σ' ∧
+      σ'.out = σ.out ∧ σ'.vars (curName j) = σ.vars (curName j) ∧
       ∃ w : Fin mb → Fin n, ClusterData n mb j B G M X W w Alv' Gam' σ') K
 
 /-! The three frame readings of the pass, on its syntax. -/
@@ -572,14 +556,16 @@ theorem noWrite_enumBatch (bat : String) (mb : ℕ) : (enumBatch bat mb).NoWrite
   simp [enumBatch, Com.NoWrite]
 
 /-- **The padding, discharged.** -/
-theorem enumStepW {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)} {O T M Gm : ℕ → ℕ}
+theorem enumStepW {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)}
+    {Or : PathOracle n (2 * cap)} {O T M Gm : ℕ → ℕ}
     {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)} {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ}
     {X W : Set (Fin n)} {Alv' Gam' : ℕ → ℕ}
-    (hB : WordBound B n ns cap) (hmbB : mb < B) (hK : 20 * n + 12 * mb + 30 ≤ K) :
-    EnumStepW B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' K := by
+    (hB : WordBound B n ns cap mb) (hK : 20 * n + 12 * mb + 30 ≤ K) :
+    EnumStepW B cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' K := by
+  have hmbB : mb < B := hB.mb_lt
   intro σ hσ
-  obtain ⟨⟨hlev, hheld⟩, hbat, hne, hcard, ⟨gwa, hwa⟩, hmw⟩ := hσ
-  obtain ⟨Wa, hWaarr, hWs⟩ := hbat.2.1
+  obtain ⟨⟨hlev, hplayrec, hheld⟩, hbat, hplay', hne, hcard, ⟨gwa, hwa⟩, hmw⟩ := hσ
+  obtain ⟨Wa, hWaarr, hWs, -⟩ := hbat.2.1
   have hbatwa : batName j ≠ "wa" := by simp [batName, String.ext_iff]
   obtain ⟨σ', hr, ⟨E, hwa', hltE, hcovE⟩, hfv, hfa, -, hout⟩ :=
     ((enumBatch_spec B n mb Wa (batName j) hbatwa hB.one_lt hB.n_lt hmbB
@@ -598,10 +584,23 @@ theorem enumStepW {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)} {O T M Gm
       (fun a ha => hav a (by
         simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
         rcases ha with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide)),
-    coverHeld_congr hheld (hav "ord" (by decide)) (hav "xoff" (by decide))
-      (hav "xmem" (by decide)) (hav "asg" (by decide))
-      (hvv "xp" (by decide) (by decide) (by decide))⟩,
-    hout (noWrite_enumBatch _ _), hvv "c" (by decide) (by decide) (by decide),
+    hplayrec.congr
+      (fun a _ => hvv (ctrName a) (by simp [ctrName, String.ext_iff])
+        (by simp [ctrName, String.ext_iff]) (by simp [ctrName, String.ext_iff]))
+      (fun a _ => hav (gamName a) (by simp [gamName, String.ext_iff])),
+    coverHeld_congr hheld (hav _ (by simp [ordName, String.ext_iff]))
+      (hav _ (by simp [xofName, String.ext_iff]))
+      (hav _ (by simp [xmmName, String.ext_iff]))
+      (hav _ (by simp [asgName, String.ext_iff]))
+      (hvv _ (by simp [xpName, String.ext_iff]) (by simp [xpName, String.ext_iff])
+        (by simp [xpName, String.ext_iff]))⟩,
+    hplay'.congr
+      (fun a _ => hvv (ctrName a) (by simp [ctrName, String.ext_iff])
+        (by simp [ctrName, String.ext_iff]) (by simp [ctrName, String.ext_iff]))
+      (fun a _ => hav (gamName a) (by simp [gamName, String.ext_iff])),
+    hout (noWrite_enumBatch _ _),
+    hvv _ (by simp [curName, String.ext_iff]) (by simp [curName, String.ext_iff])
+      (by simp [curName, String.ext_iff]),
     fun i => ⟨E (i : ℕ), (hltE (i : ℕ) i.isLt).1⟩, ?_, ?_, ?_⟩
   · exact batchData_congr hbat (hav _ (by simp [cluName, String.ext_iff])) (hav _ hbatwa)
       (hav _ (by simp [resName, String.ext_iff])) (hav _ (by simp [alvName, String.ext_iff]))
@@ -618,20 +617,23 @@ theorem enumStepW {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)} {O T M Gm
   · rw [hwa']
     exact arrOf_congr (fun i hi => by rw [dif_pos hi])
 
-/-- **The obligation itself**, from the walk and the one clause the
-surface owes. The hypothesis is exactly the missing conjunct of
-`RamDriverCluster.BatchData`, quantified over the states the obligation
-speaks about; a `BatchData` carrying `∀ k < n, Wa k < B` discharges it
-by `MaskWords` at the array it names, and nothing else in this file
-changes. -/
-theorem enumStep_of_maskWords {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)}
+/-- **The obligation itself, discharged.** The clause the surface used
+to owe is now a conjunct of `RamDriverCluster.BatchData` — `∀ k < n,
+Wa k < B` at the batch indicator — and `MaskWords` reads it off the
+array `BatchData` names, so nothing is left over. -/
+theorem enumStep {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)}
+    {Or : PathOracle n (2 * cap)}
     {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
     {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ} {X W : Set (Fin n)} {Alv' Gam' : ℕ → ℕ}
-    (hB : WordBound B n ns cap) (hmbB : mb < B) (hK : 20 * n + 12 * mb + 30 ≤ K)
-    (hmw : ∀ σ : Env, BatchData n j B G M X W Alv' Gam' σ → MaskWords B (batName j) σ) :
-    EnumStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' K :=
-  (enumStepW hB hmbB hK).pre (fun _ hσ => ⟨hσ.1, hσ.2.1, hσ.2.2.1, hσ.2.2.2.1, hσ.2.2.2.2,
-    hmw _ hσ.2.1⟩)
+    (hB : WordBound B n ns cap mb) (hK : 20 * n + 12 * mb + 30 ≤ K) :
+    EnumStep B cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' K :=
+  (enumStepW hB hK).pre (fun _ hσ => by
+    obtain ⟨hturn, hbat, hplay, hne, hcard, hwa⟩ := hσ
+    obtain ⟨Wa, hWaarr, -, hWaB⟩ := hbat.2.1
+    refine ⟨hturn, hbat, hplay, hne, hcard, hwa, fun v hv => ?_⟩
+    rw [hWaarr] at hv
+    obtain ⟨k, hk, rfl⟩ := List.mem_map.1 hv
+    exact hWaB k (List.mem_range.1 hk))
 
 end Enum
 

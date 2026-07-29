@@ -792,8 +792,19 @@ def CoverPre (n ns : ℕ) (O T A₀ ord : ℕ → ℕ) (σ : Env) : Prop :=
 carried by the four arrays it writes, with the arrays it only reads
 frozen and the two scratch arrays of the search at their lengths. The
 counter and the write pointer are read off the environment, so that the
-loop rule owns them. -/
-def CoverState {n : ℕ} (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ) (π : Equiv.Perm (Fin n))
+loop rule owns them.
+
+**The two word clauses.** The bounded semantics has no value for a cell
+at or above the word bound, and the pass reads two arrays whose cells
+nothing else here pins: the mask `alv`, whose first read is
+`RamBfs.seedSrc`'s `.get "alv" (.var "src")` — `CoverInv.mask` says only
+which of its cells are *zero* — and the distance array `dist`, read at
+every vertex by the emission scan while `RamBfs.bfs_spec` characterizes
+it only below the cap. Without them `Implements` below is refuted by the
+state whose mask holds `B` at its single vertex, which `CoverInv`
+tolerates and the semantics does not. Both are preserved by any bounded
+run, so carrying them costs a line per turn. -/
+def CoverState (B : ℕ) {n : ℕ} (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ) (π : Equiv.Perm (Fin n))
     (ns : ℕ) (O T ord : ℕ → ℕ) (r : ℕ) (σ : Env) : Prop :=
   ∃ Xoff Xmem asg M : ℕ → ℕ,
     σ.vars "n" = n ∧
@@ -802,6 +813,7 @@ def CoverState {n : ℕ} (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ) (π : Eq
     (∃ g, σ.arrs "dist" = arrOf n g) ∧ (∃ g, σ.arrs "q" = arrOf n g) ∧
     σ.arrs "asg" = arrOf n asg ∧
     σ.arrs "xoff" = arrOf (n + 1) Xoff ∧ σ.arrs "xmem" = arrOf (n * n) Xmem ∧
+    (∀ v ∈ σ.arrs "alv", v < B) ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
     CoverInv G A₀ π ord r (σ.vars "c") (σ.vars "xp") Xoff Xmem asg M
 
 /-- **What the pass leaves**: the cluster arena in compressed-row form,
@@ -815,23 +827,37 @@ def CoverPost {n : ℕ} (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ) (π : Equ
     σ'.arrs "asg" = arrOf n asg ∧ σ'.vars "xp" = m ∧ m ≤ n * n ∧
     CoverOut G A₀ π ord r m Xoff Xmem asg
 
-theorem CoverState.n_eq {σ : Env} (h : CoverState G A₀ π ns O T ord r σ) :
+theorem CoverState.n_eq {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
     σ.vars "n" = n := by
   obtain ⟨-, -, -, -, hn, -⟩ := h
   exact hn
 
-theorem CoverState.c_le {σ : Env} (h : CoverState G A₀ π ns O T ord r σ) :
+theorem CoverState.c_le {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
     σ.vars "c" ≤ n := by
-  obtain ⟨Xoff, Xmem, asg, M, -, -, -, -, -, -, -, -, -, -, hI⟩ := h
+  obtain ⟨Xoff, Xmem, asg, M, -, -, -, -, -, -, -, -, -, -, -, -, hI⟩ := h
   exact hI.pos_le
+
+/-- The mask's cells are words, which is what the search's own `hMB`
+asks of the arena a turn runs against. -/
+theorem CoverState.alv_lt {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
+    ∀ v ∈ σ.arrs "alv", v < B := by
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, halv, -⟩ := h
+  exact halv
+
+/-- And so are the distance array's, which the emission scan reads at
+every vertex. -/
+theorem CoverState.dist_lt {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
+    ∀ v ∈ σ.arrs "dist", v < B := by
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, hd, -⟩ := h
+  exact hd
 
 /-- **The specification comes off the invariant.** Nothing in this
 proof knows about the program: it is `CoverInv.out`, read once, at the
 state the loop exits in. -/
-theorem coverPost_of_state (hord : OrdersBy n π ord) {σ σ' : Env}
-    (h : CoverState G A₀ π ns O T ord r σ') (hc : σ'.vars "c" = n) :
+theorem coverPost_of_state {B : ℕ} (hord : OrdersBy n π ord) {σ σ' : Env}
+    (h : CoverState B G A₀ π ns O T ord r σ') (hc : σ'.vars "c" = n) :
     CoverPost G A₀ π ord r σ σ' := by
-  obtain ⟨Xoff, Xmem, asg, M, -, -, -, -, -, -, -, hasg, hxoff, hxmem, hI⟩ := h
+  obtain ⟨Xoff, Xmem, asg, M, -, -, -, -, -, -, -, hasg, hxoff, hxmem, -, -, hI⟩ := h
   rw [hc] at hI
   exact ⟨Xoff, Xmem, asg, σ'.vars "xp", hxoff, hxmem, hasg, rfl, hI.ptr_le, hI.out hord⟩
 
@@ -866,8 +892,8 @@ def Implements (B n ns : ℕ) (G : SimpleGraph (Fin n)) (A₀ O T ord : ℕ → 
     (π : Equiv.Perm (Fin n)) (r : ℕ) : Prop :=
   RamBfs.CsrGraph G ns O T → OrdersBy n π ord → n * n + ns + 2 * r + 2 < B →
     (∀ z < n, A₀ z < B) →
-    Spec B (fun σ => CoverState G A₀ π ns O T ord r σ ∧ σ.vars "c" < n) (centreStep r)
-      (fun σ σ' => CoverState G A₀ π ns O T ord r σ' ∧ σ'.vars "c" = σ.vars "c" + 1)
+    Spec B (fun σ => CoverState B G A₀ π ns O T ord r σ ∧ σ.vars "c" < n) (centreStep r)
+      (fun σ σ' => CoverState B G A₀ π ns O T ord r σ' ∧ σ'.vars "c" = σ.vars "c" + 1)
       (centreCost n ns)
 
 /-- **The cover pass of Grohe–Kreutzer–Siebertz §6.** Handed a block
@@ -892,7 +918,8 @@ walked in place. -/
 theorem cover_spec {B : ℕ} (h : Implements B n ns G A₀ O T ord π r)
     (hcsr : RamBfs.CsrGraph G ns O T) (hord : OrdersBy n π ord)
     (hB : n * n + ns + 2 * r + 2 < B) (hA : ∀ z < n, A₀ z < B) :
-    Spec B (CoverPre n ns O T A₀ ord) (coverCom r) (CoverPost G A₀ π ord r)
+    Spec B (fun σ => CoverPre n ns O T A₀ ord σ ∧ (∀ v ∈ σ.arrs "dist", v < B))
+      (coverCom r) (CoverPost G A₀ π ord r)
       (coverCost n ns) := by
   -- what the fill may touch, read off its syntax: the counter and `asg`
   have hwv : ∀ y, y ≠ "i" → y ∉ initAsg.wvars := by
@@ -906,7 +933,13 @@ theorem cover_spec {B : ℕ} (h : Implements B n ns G A₀ O T ord π r)
         _ ≤ n * n := Nat.mul_le_mul_left n h₀
   have hnB : n < B := by omega
   refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨hn, hoff, htgt, halv, hordarr, hdist, hq, ⟨ga, hasg⟩, ⟨gx, hxoff⟩, ⟨gm, hxmem⟩⟩ := hσ
+  obtain ⟨⟨hn, hoff, htgt, halv, hordarr, hdist, hq, ⟨ga, hasg⟩, ⟨gx, hxoff⟩, ⟨gm, hxmem⟩⟩,
+    hdw⟩ := hσ
+  -- the two word clauses at entry: the mask's from `hA`, the search's from the caller
+  have halvw : ∀ v ∈ σ.arrs "alv", v < B := fun v hv => by
+    rw [halv] at hv
+    obtain ⟨k, hk, rfl⟩ := List.mem_map.1 hv
+    exact hA k (List.mem_range.1 hk)
   -- the fill: the kit's array pass, with the sentinel as the cell function
   obtain ⟨σ₁, hrun₁, ⟨⟨g₁, hasg₁, hg₁⟩, -⟩, hfv, hfa, -, -⟩ :=
     ((Fill.loop_spec B n "asg" "i" "n" (.var "n") (fun _ => n) (by decide) hnB
@@ -923,7 +956,7 @@ theorem cover_spec {B : ℕ} (h : Implements B n ns G A₀ O T ord π r)
     Run.store (evalB_lit (by omega)) (evalB_lit (by omega))
       (by rw [hxoff₂, length_arrOf]; omega)
   -- the three commands before the loop are exactly `CoverInv.init`
-  have hstart : CoverState G A₀ π ns O T ord r
+  have hstart : CoverState B G A₀ π ns O T ord r
       (((σ₁.setVar "xp" 0).setArr "xoff" 0 0).setVar "c" 0) := by
     obtain ⟨gd, hgd⟩ := hdist
     obtain ⟨gq, hgq⟩ := hq
@@ -937,12 +970,20 @@ theorem cover_spec {B : ℕ} (h : Implements B n ns G A₀ O T ord π r)
       ⟨gq, by simp [hfa "q" (hwa _ (by decide)), hgq]⟩,
       by simp [hasg₁],
       by simp [hxoff₂, set_arrOf_eq_upd],
-      by simp [hfa "xmem" (hwa _ (by decide)), hxmem], ?_⟩
+      by simp [hfa "xmem" (hwa _ (by decide)), hxmem],
+      by
+        have he : (((σ₁.setVar "xp" 0).setArr "xoff" 0 0).setVar "c" 0).arrs "alv"
+            = σ.arrs "alv" := by simp [hfa "alv" (hwa _ (by decide))]
+        rw [he]; exact halvw,
+      by
+        have he : (((σ₁.setVar "xp" 0).setArr "xoff" 0 0).setVar "c" 0).arrs "dist"
+            = σ.arrs "dist" := by simp [hfa "dist" (hwa _ (by decide))]
+        rw [he]; exact hdw, ?_⟩
     simp only [vars_setVar, vars_setArr]
     exact CoverInv.init (fun _ _ => rfl) (upd_self gx 0 0) hg₁
   -- the loop, against the invariant of the pass
   obtain ⟨σ₄, hrun₄, hst, hcn⟩ :=
-    (Spec.forRangeZero (B := B) "c" "n" (CoverState G A₀ π ns O T ord r) n (centreCost n ns)
+    (Spec.forRangeZero (B := B) "c" "n" (CoverState B G A₀ π ns O T ord r) n (centreCost n ns)
       hnB (fun _ hτ => hτ.c_le) (fun _ hτ => hτ.n_eq) (h hcsr hord hB hA)).run
       (σ := (σ₁.setVar "xp" 0).setArr "xoff" 0 0) hstart
   have hcost : (10 + (Expr.var "n").size) * n + 6 +

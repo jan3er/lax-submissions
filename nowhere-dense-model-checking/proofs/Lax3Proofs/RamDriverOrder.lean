@@ -397,10 +397,9 @@ theorem emitLoop_warrs (r : ℕ) : (RamCover.emitLoop r).warrs = ["xmem", "asg"]
 kill, and the two commands that close the block. -/
 theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n π ord)
     (hB : n * n + ns + 2 * r + 2 < B) :
-    Spec B (fun σ => CoverState G A₀ π ns O T ord r σ ∧ σ.vars "c" < n ∧ CoverWords B σ)
+    Spec B (fun σ => CoverState B G A₀ π ns O T ord r σ ∧ σ.vars "c" < n)
       (RamCover.centreStep r)
-      (fun σ σ' => CoverState G A₀ π ns O T ord r σ' ∧ σ'.vars "c" = σ.vars "c" + 1 ∧
-        CoverWords B σ')
+      (fun σ σ' => CoverState B G A₀ π ns O T ord r σ' ∧ σ'.vars "c" = σ.vars "c" + 1)
       (RamCover.centreCost n ns) := by
   have hnnB : n * n < B := by omega
   have hnB : n < B := lt_of_le_of_lt (RamDriver.le_mul_self n) hnnB
@@ -408,7 +407,8 @@ theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n 
   have hrB : 2 * r + 1 < B := by omega
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨⟨Xoff, Xmem, asg, M, hn, hoff, htgt, hordarr, halv, ⟨gd, hdist⟩, ⟨gq, hq⟩,
-    hasgarr, hxoffarr, hxmemarr, hI⟩, hc, hW⟩ := hσ
+    hasgarr, hxoffarr, hxmemarr, halvw, hdistw, hI⟩, hc⟩ := hσ
+  have hW : CoverWords B σ := ⟨halvw, hdistw⟩
   have hv : ord (σ.vars "c") < n := hord.lt hc
   have hMB : ∀ z < n, M z < B := fun z hz => lt_of_mem_words hW.1 halv hz
   have hxp₀ : σ.vars "xp" + n ≤ n * n := by
@@ -525,12 +525,13 @@ theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n 
     (fun w hw => by rw [hrule₃ w hw, hz₃, if_pos hw, emitCell])
     (fun u _ => upd_apply _ _ _ _)
   -- the state the turn leaves
-  refine ⟨σ₆, _, h1.seq (hrun₂.seq (hrun₃.seq (h4.seq (h5.seq h6)))), ?_, ?_, ?_,
-    (hW.run (h1.seq (hrun₂.seq (hrun₃.seq (h4.seq (h5.seq h6))))))⟩
+  have hW₆ : CoverWords B σ₆ :=
+    hW.run (h1.seq (hrun₂.seq (hrun₃.seq (h4.seq (h5.seq h6)))))
+  refine ⟨σ₆, _, h1.seq (hrun₂.seq (hrun₃.seq (h4.seq (h5.seq h6)))), ?_, ?_, ?_⟩
   · simp only [size_get, size_var, RamCover.centreCost]
     omega
   · refine ⟨upd Xoff (σ.vars "c" + 1) (σ₃.vars "xp"), Xm', as', upd M (ord (σ.vars "c")) 0, ?_,
-      ?_, ?_, ?_, ?_, ⟨D, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩
+      ?_, ?_, ?_, ?_, ⟨D, ?_⟩, ?_, ?_, ?_, ?_, hW₆.1, hW₆.2, ?_⟩
     · rw [hσ₆, vars_setArr, hσ₅, vars_setVar, if_neg (by decide), hσ₄, vars_setArr]; exact hn₃
     · rw [hσ₆, arrs_setArr, if_neg (by decide), hσ₅, arrs_setVar, hσ₄, arrs_setArr,
         if_neg (by decide)]; exact c3
@@ -560,13 +561,13 @@ theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n 
 
 /-! ### The obligation, and the repair it names
 
-`RamCover.Implements` is this walk with the two word clauses of
-`CoverWords` dropped from both sides of the triple, and the two are not
-missing for the same reason.
+`RamCover.Implements` is exactly this walk: the two word clauses are
+now conjuncts of `RamCover.CoverState` itself, and they are there
+because without them the obligation is **refutable**.
 
-The mask clause makes the obligation **refutable**. Take `n = 1`,
-`A₀ 0 = 1`, and a mask array holding `B` at the single vertex:
-`RamCover.CoverState` holds, since its only clause about the mask —
+The mask clause is the sharp one. Take `n = 1`, `A₀ 0 = 1`, and a mask
+array holding `B` at the single vertex: every other clause of
+`RamCover.CoverState` holds, since its only statement about the mask —
 `RamCover.CoverInv.mask` — says which cells are *zero* and this one is
 not; and `RamBfs.seedSrc`'s `.get "alv" (.var "src")` then has no
 bounded evaluation, so `RamCover.centreStep` has no `Run` from that
@@ -577,121 +578,39 @@ words — `RamBfs.initDist` writes `2r + 1` into all of them before the
 search starts, and the search only lowers them — but
 `RamBfs.bfs_spec`'s postcondition characterizes the distance array only
 *below the cap*, so a cell holding the sentinel is left unbounded and
-the emission scan's `.get "dist" (.var "z")` cannot be justified. Either
-`RamCover.CoverState` carries the clause, as here, or
-`RamBfs.bfs_spec` gains `∀ w < n, D w ≤ d + 1`; the first is one line
-and the second touches every caller of the search.
+the emission scan's `.get "dist" (.var "z")` cannot be justified.
+Carrying it in the invariant is one line; the alternative —
+`RamBfs.bfs_spec` gaining `∀ w < n, D w ≤ d + 1` — touches every caller
+of the search.
 
-`coverTurnImplements` is therefore that obligation with `CoverWords`
-carried, which is the shape a later wave should give
-`RamCover.CoverState` itself: two conjuncts,
-`(∀ v ∈ σ.arrs "alv", v < B)` and `(∀ v ∈ σ.arrs "dist", v < B)`, with
-`B` added to `RamCover.CoverState`'s parameters. Nothing else in
-`RamCover` moves — `RamCover.CoverInv.step` and `RamCover.CoverInv.out`
-never mention the environment — and `RamCover.cover_spec` establishes
-both at entry from its own `hA` and one new hypothesis on `dist`, which
-is what `coverPass_spec` below does.
+Neither clause costs the loop anything: both are preserved by any
+bounded run (`RamDriver.run_mem_arrs_lt`), `RamCover.CoverInv.step` and
+`CoverInv.out` never mention the environment, and `RamCover.cover_spec`
+establishes both at entry from its own `hA` and one hypothesis on
+`dist`, which every caller has — at the driver it is
+`RamDriver.LevelMem`'s own conjunct. `CoverWords` survives above only as
+the shorthand this walk carries its two clauses in. -/
 
-Until then `coverPass_spec` is what a caller wants anyway: it is
-`RamCover.cover_spec`'s conclusion with no `Implements` hypothesis at
-all, so `coverImplements` discharges the driver's own obligation
-without the surface repair. -/
-
-/-- **The turn obligation**, `RamCover.Implements` with the word
-clauses its invariant omits. -/
-def TurnImplements (B n ns : ℕ) (G : SimpleGraph (Fin n)) (A₀ O T ord : ℕ → ℕ)
-    (π : Equiv.Perm (Fin n)) (r : ℕ) : Prop :=
-  CsrGraph G ns O T → OrdersBy n π ord → n * n + ns + 2 * r + 2 < B → (∀ z < n, A₀ z < B) →
-    Spec B (fun σ => CoverState G A₀ π ns O T ord r σ ∧ σ.vars "c" < n ∧ CoverWords B σ)
-      (RamCover.centreStep r)
-      (fun σ σ' => CoverState G A₀ π ns O T ord r σ' ∧ σ'.vars "c" = σ.vars "c" + 1 ∧
-        CoverWords B σ')
-      (RamCover.centreCost n ns)
-
-/-- **The single-turn walk of the cover pass, discharged.** -/
+/-- **The single-turn walk of the cover pass, discharged**: this is
+`RamCover.Implements` itself, with no clause left over. -/
 theorem coverTurnImplements (B n ns : ℕ) (G : SimpleGraph (Fin n)) (A₀ O T ord : ℕ → ℕ)
-    (π : Equiv.Perm (Fin n)) (r : ℕ) : TurnImplements B n ns G A₀ O T ord π r :=
+    (π : Equiv.Perm (Fin n)) (r : ℕ) : RamCover.Implements B n ns G A₀ O T ord π r :=
   fun hcsr hord hB _ => centreStep_spec hcsr hord hB
 
 /-! ### The whole pass
 
-`RamCover.cover_spec` with its `Implements` hypothesis discharged and
-the `dist` word clause added to the precondition: the fill that clears
-the assignments, the two commands that open the cluster arena, and the
-loop over the centres against `RamCover.CoverInv`. -/
+`RamCover.cover_spec` with its `Implements` hypothesis discharged: the
+fill that clears the assignments, the two commands that open the cluster
+arena, and the loop over the centres against `RamCover.CoverInv`. Since
+the walk of the turn is now the obligation verbatim, this is one
+application. -/
 
 /-- **The cover pass of Grohe–Kreutzer–Siebertz §6, walked.** -/
 theorem coverPass_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n π ord)
     (hB : n * n + ns + 2 * r + 2 < B) (hA : ∀ z < n, A₀ z < B) :
     Spec B (fun σ => CoverPre n ns O T A₀ ord σ ∧ (∀ v ∈ σ.arrs "dist", v < B))
-      (RamCover.coverCom r) (CoverPost G A₀ π ord r) (RamCover.coverCost n ns) := by
-  have hwv : ∀ y, y ≠ "i" → y ∉ RamCover.initAsg.wvars := by
-    intro y hy; simp [RamCover.initAsg, Fill.put, Com.wvars, hy]
-  have hwa : ∀ a, a ≠ "asg" → a ∉ RamCover.initAsg.warrs := by
-    intro a ha; simp [RamCover.initAsg, Fill.put, Com.warrs, ha]
-  have hnn : n ≤ n * n := RamDriver.le_mul_self n
-  have hnB : n < B := by omega
-  refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨⟨hn, hoff, htgt, halv, hordarr, hdist, hq, ⟨ga, hasg⟩, ⟨gx, hxoff⟩, ⟨gm, hxmem⟩⟩,
-    hdw⟩ := hσ
-  have hW₀ : CoverWords B σ := ⟨fun v hv => by
-      rw [halv] at hv
-      obtain ⟨k, hk, rfl⟩ := List.mem_map.1 hv
-      exact hA k (List.mem_range.1 hk), hdw⟩
-  -- the fill: the kit's array pass, with the sentinel as the cell function
-  obtain ⟨σ₁, hrun₁, ⟨⟨g₁, hasg₁, hg₁⟩, -⟩, hfv, hfa, -, -⟩ :=
-    ((Fill.loop_spec B n "asg" "i" "n" (.var "n") (fun _ => n) (by decide) hnB
-      (fun τ _ hm _ => by
-        have hev := evalB_var (B := B) (x := "n") (σ := τ) (by rw [hm]; omega)
-        rwa [hm] at hev)).frame).run (σ := σ) ⟨⟨ga, hasg⟩, hn⟩
-  -- the write pointer, and the first offset
-  have hrun₂ : Run B (.assign "xp" (.lit 0)) σ₁ (σ₁.setVar "xp" 0) (1 + (Expr.lit 0).size) :=
-    Run.assign (evalB_lit (by omega))
-  have hxoff₂ : (σ₁.setVar "xp" 0).arrs "xoff" = arrOf (n + 1) gx := by
-    rw [arrs_setVar, hfa "xoff" (hwa _ (by decide))]; exact hxoff
-  have hrun₃ : Run B (.store "xoff" (.lit 0) (.lit 0)) (σ₁.setVar "xp" 0)
-      ((σ₁.setVar "xp" 0).setArr "xoff" 0 0) (1 + (Expr.lit 0).size + (Expr.lit 0).size) :=
-    Run.store (evalB_lit (by omega)) (evalB_lit (by omega))
-      (by rw [hxoff₂, length_arrOf]; omega)
-  -- the three commands before the loop are exactly `CoverInv.init`
-  have hstart : CoverState G A₀ π ns O T ord r
-      (((σ₁.setVar "xp" 0).setArr "xoff" 0 0).setVar "c" 0) := by
-    obtain ⟨gd, hgd⟩ := hdist
-    obtain ⟨gq, hgq⟩ := hq
-    refine ⟨upd gx 0 0, gm, g₁, A₀,
-      by simp [hfv "n" (hwv _ (by decide)), hn],
-      by simp [hfa "off" (hwa _ (by decide)), hoff],
-      by simp [hfa "tgt" (hwa _ (by decide)), htgt],
-      by simp [hfa "ord" (hwa _ (by decide)), hordarr],
-      by simp [hfa "alv" (hwa _ (by decide)), halv],
-      ⟨gd, by simp [hfa "dist" (hwa _ (by decide)), hgd]⟩,
-      ⟨gq, by simp [hfa "q" (hwa _ (by decide)), hgq]⟩,
-      by simp [hasg₁],
-      by simp [hxoff₂, set_arrOf_eq_upd],
-      by simp [hfa "xmem" (hwa _ (by decide)), hxmem], ?_⟩
-    simp only [vars_setVar, vars_setArr]
-    exact RamCover.CoverInv.init (fun _ _ => rfl) (upd_self gx 0 0) hg₁
-  have hWstart : CoverWords B (((σ₁.setVar "xp" 0).setArr "xoff" 0 0).setVar "c" 0) :=
-    (((hW₀.run hrun₁).run hrun₂).run hrun₃).setVar "c" 0
-  -- the loop, against the invariant of the pass together with the word clauses
-  obtain ⟨σ₄, hrun₄, ⟨hst, -⟩, hcn⟩ :=
-    (Spec.forRangeZero (B := B) "c" "n"
-      (fun τ => CoverState G A₀ π ns O T ord r τ ∧ CoverWords B τ) n
-      (RamCover.centreCost n ns) hnB (fun _ hτ => hτ.1.c_le) (fun _ hτ => hτ.1.n_eq)
-      (((centreStep_spec hcsr hord hB).pre (fun _ h => ⟨h.1.1, h.2, h.1.2⟩)).post
-        (fun _ _ _ h => ⟨⟨h.1, h.2.2⟩, h.2.1⟩))).run
-      (σ := (σ₁.setVar "xp" 0).setArr "xoff" 0 0) ⟨hstart, hWstart⟩
-  have hcost : (10 + (Expr.var "n").size) * n + 6 +
-      ((1 + (Expr.lit 0).size) + ((1 + (Expr.lit 0).size + (Expr.lit 0).size) +
-        ((RamCover.centreCost n ns + 4) * n + 6))) ≤ RamCover.coverCost n ns := by
-    simp only [size_lit, size_var, RamCover.centreCost, RamCover.coverCost]
-    have e₁ : (100 * n + 50 * ns + 100 + 4) * n = 100 * (n * n) + 50 * (n * ns) + 104 * n := by
-      ring
-    have e₂ : 100 * n * n = 100 * (n * n) := by ring
-    have e₃ : 50 * n * ns = 50 * (n * ns) := by ring
-    omega
-  exact ⟨σ₄, _, (hrun₁.seq (hrun₂.seq (hrun₃.seq hrun₄))).mono hcost, le_rfl,
-    RamCover.coverPost_of_state hord hst hcn⟩
+      (RamCover.coverCom r) (CoverPost G A₀ π ord r) (RamCover.coverCost n ns) :=
+  RamCover.cover_spec (coverTurnImplements B n ns G A₀ O T ord π r) hcsr hord hB hA
 
 /-! ### A scan against an arbitrary bound
 
@@ -841,45 +760,47 @@ theorem exists_preimage_of_inj {n : ℕ} {R : ℕ → ℕ} (hR : ∀ v < n, R v 
   exact ⟨v, Finset.mem_range.1 hv, hvc⟩
 
 /-- **`RamDriver.ordCom` inverts the rank array into an ordering.** -/
-theorem ordCom_spec {B n : ℕ} {R : ℕ → ℕ} (hnB : n < B) (hR : ∀ v < n, R v < n)
+theorem ordCom_spec {B n : ℕ} {R : ℕ → ℕ} (dst : String) (hdr : dst ≠ "rnk")
+    (hnB : n < B) (hR : ∀ v < n, R v < n)
     (hinj : ∀ v < n, ∀ w < n, R v = R w → v = w) :
     Spec B
-      (fun σ => σ.vars "n" = n ∧ σ.arrs "rnk" = arrOf n R ∧ (∃ g, σ.arrs "ord" = arrOf n g))
-      RamDriver.ordCom
+      (fun σ => σ.vars "n" = n ∧ σ.arrs "rnk" = arrOf n R ∧ (∃ g, σ.arrs dst = arrOf n g))
+      (RamDriver.ordCom dst)
       (fun _ σ' => σ'.vars "n" = n ∧ σ'.arrs "rnk" = arrOf n R ∧
         ∃ (π : Equiv.Perm (Fin n)) (ordv : ℕ → ℕ),
-          σ'.arrs "ord" = arrOf n ordv ∧ OrdersBy n π ordv)
+          σ'.arrs dst = arrOf n ordv ∧ OrdersBy n π ordv)
       (12 * n + 6) := by
   -- the invariant: the positions below the counter have been inverted
   have hbody : Spec B
-      (fun σ => (∃ g, σ.vars "n" = n ∧ σ.arrs "rnk" = arrOf n R ∧ σ.arrs "ord" = arrOf n g ∧
+      (fun σ => (∃ g, σ.vars "n" = n ∧ σ.arrs "rnk" = arrOf n R ∧ σ.arrs dst = arrOf n g ∧
         σ.vars "z" ≤ n ∧ ∀ v < σ.vars "z", g (R v) = v) ∧ σ.vars "z" < n)
-      (.seq (.store "ord" (.get "rnk" (.var "z")) (.var "z"))
+      (.seq (.store dst (.get "rnk" (.var "z")) (.var "z"))
         (.assign "z" (.add (.var "z") (.lit 1))))
       (fun σ σ' => (∃ g, σ'.vars "n" = n ∧ σ'.arrs "rnk" = arrOf n R ∧
-        σ'.arrs "ord" = arrOf n g ∧ σ'.vars "z" ≤ n ∧ ∀ v < σ'.vars "z", g (R v) = v) ∧
+        σ'.arrs dst = arrOf n g ∧ σ'.vars "z" ≤ n ∧ ∀ v < σ'.vars "z", g (R v) = v) ∧
         σ'.vars "z" = σ.vars "z" + 1) 8 := by
     refine Spec.of_exists fun σ hσ => ?_
     obtain ⟨⟨g, hn, hrnk, hordv, -, hinvv⟩, hz⟩ := hσ
     have hRz : R (σ.vars "z") < n := hR _ hz
-    have h1 : Run B (.store "ord" (.get "rnk" (.var "z")) (.var "z")) σ
-        (σ.setArr "ord" (R (σ.vars "z")) (σ.vars "z")) (1 + 2 + 1) := by
-      have h := Run.store (B := B) (σ := σ) (a := "ord") (i := .get "rnk" (.var "z"))
+    have h1 : Run B (.store dst (.get "rnk" (.var "z")) (.var "z")) σ
+        (σ.setArr dst (R (σ.vars "z")) (σ.vars "z")) (1 + 2 + 1) := by
+      have h := Run.store (B := B) (σ := σ) (a := dst) (i := .get "rnk" (.var "z"))
         (e := .var "z")
         (evalB_get (evalB_var (by omega)) (by rw [hrnk, getElem?_arrOf R hz]) (by omega))
         (evalB_var (by omega)) (by rw [hordv, length_arrOf]; exact hRz)
       simpa using h
     have h2 : Run B (.assign "z" (.add (.var "z") (.lit 1)))
-        (σ.setArr "ord" (R (σ.vars "z")) (σ.vars "z"))
-        ((σ.setArr "ord" (R (σ.vars "z")) (σ.vars "z")).setVar "z" (σ.vars "z" + 1)) (1 + 3) := by
-      have h := Run.assign (B := B) (σ := σ.setArr "ord" (R (σ.vars "z")) (σ.vars "z"))
+        (σ.setArr dst (R (σ.vars "z")) (σ.vars "z"))
+        ((σ.setArr dst (R (σ.vars "z")) (σ.vars "z")).setVar "z" (σ.vars "z" + 1)) (1 + 3) := by
+      have h := Run.assign (B := B) (σ := σ.setArr dst (R (σ.vars "z")) (σ.vars "z"))
         (x := "z") (e := .add (.var "z") (.lit 1))
         (evalB_bin (evalB_var (by rw [vars_setArr]; omega)) (evalB_lit (by omega))
           (by simp only [Bop.apply_add, vars_setArr]; omega))
       rw [Bop.apply_add, vars_setArr] at h
       simpa using h
     refine ⟨_, _, h1.seq h2, by omega,
-      ⟨upd g (R (σ.vars "z")) (σ.vars "z"), by simp [hn], by simp [hrnk], ?_, by simp; omega,
+      ⟨upd g (R (σ.vars "z")) (σ.vars "z"), by simp [hn],
+        by rw [arrs_setVar, arrs_setArr, if_neg (Ne.symm hdr)]; exact hrnk, ?_, by simp; omega,
         ?_⟩, by simp⟩
     · rw [arrs_setVar, arrs_setArr, if_pos rfl, hordv, set_arrOf_eq_upd]
     · intro v hv
@@ -890,7 +811,7 @@ theorem ordCom_spec {B n : ℕ} {R : ℕ → ℕ} (hnB : n < B) (hR : ∀ v < n,
       · have : v = σ.vars "z" := by omega
         rw [this, upd_self]
   refine ((Spec.forRangeZero (B := B) "z" "n"
-    (fun σ => ∃ g, σ.vars "n" = n ∧ σ.arrs "rnk" = arrOf n R ∧ σ.arrs "ord" = arrOf n g ∧
+    (fun σ => ∃ g, σ.vars "n" = n ∧ σ.arrs "rnk" = arrOf n R ∧ σ.arrs dst = arrOf n g ∧
       σ.vars "z" ≤ n ∧ ∀ v < σ.vars "z", g (R v) = v) n 8 hnB
     (fun _ h => by obtain ⟨-, -, -, -, hzz, -⟩ := h; exact hzz)
     (fun _ h => by obtain ⟨-, hnn, -⟩ := h; exact hnn) hbody).pre ?_).post ?_
@@ -1049,16 +970,17 @@ are `RamDriver.AugAvail` under `foldRange`, collected by
 obligation and is the wave that computes the cover's degree, not this
 one.
 
-**One more surface gap, in passing.** `RamDriver.CoverImplements` has
-no `RamBfs.CsrGraph G ns O T` hypothesis and none of its other
-hypotheses supplies one — `RamDriver.CoverAvail` is
-`RamCover.Implements`, which *takes* that hypothesis — so its
-postcondition `RamCover.CoverPost G …` speaks about a graph the
-program has never been told about, and the obligation is refutable by
-any `G` disagreeing with `O`/`T`. It needs the same one-line repair as
-`RamCover.CoverState`: add `RamBfs.CsrGraph G ns O T` to its
-hypotheses, after which `coverPass_spec` discharges it, since
-`RamDriver.LevelPre` supplies the mask bound and `RamDriver.LevelMem`
-the `dist` bound that `CoverWords` asks for. -/
+**The cover phase** (`RamDriver.CoverImplements`). Its surface gap is
+repaired — it now takes `RamBfs.CsrGraph G ns O T`, without which its
+postcondition spoke about a graph the program had never been told about
+and any `G` disagreeing with `O`/`T` refuted it — but the obligation is
+no longer one application of `coverPass_spec`, because the phase is no
+longer one call. `RamDriver.coverPhase` is the depth's ordering into
+`ord`, the depth's mask into `alv`, the pass, and the four copies of
+`RamDriver.coverSave` that make the answers the depth's own; the middle
+one is `coverPass_spec` (`RamDriver.LevelPre` supplies the mask bound
+and `RamDriver.LevelMem` the `dist` bound), and the six around it are
+`copyUpto_spec` and `copyCom_spec` at contexts `LevelMem` and
+`RamDriver.DepthMem` provide. -/
 
 end Lax3Proofs.RamDriverOrder

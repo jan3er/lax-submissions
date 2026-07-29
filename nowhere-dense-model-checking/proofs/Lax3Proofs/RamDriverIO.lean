@@ -657,7 +657,7 @@ theorem rootMem_of_levelPre {Gm : ℕ → ℕ} {σ : Env} (h1B : 1 < B)
     (hlev : RamDriver.LevelPre B n cap mb ns Ws O T 0 M Gm C σ)
     (htab : RamDriver.TableInv q_top cap mb φ G 0 M C σ) :
     RootMem q_top cap mb B n φ σ := by
-  obtain ⟨-, -, -, -, -, -, -, -, ⟨hsz, hd, hq⟩, -, -⟩ := hlev
+  obtain ⟨-, -, -, -, -, -, -, -, -, ⟨hsz, hd, hq⟩, -, -, -⟩ := hlev
   refine ⟨hsz.length (p := ("alv", n)) (by simp), hsz.length (p := ("tab", n)) (by simp),
     hsz.length (p := ("dist", n)) (by simp), hd,
     hsz.length (p := ("q", n)) (by simp), hq,

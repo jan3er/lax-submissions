@@ -93,6 +93,7 @@ open Lax3Proofs.RamDriver
 open Lax3Proofs.RamDriverCluster (TurnPre CoverHeld ClusterData ScatVal atomVal ReadbackStep
   masked_alv_eq)
 open Lax3Proofs.RamBfs (masked)
+open Lax3Proofs.SplitterWinOracle (PathOracle)
 open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
 
 /-! ### The names of the driver are injective
@@ -289,7 +290,7 @@ theorem readbackCom_eq (q_top cap mb j : ℕ) (φ : Lax3.FirstOrder.FO 0) :
     readbackCom q_top cap mb φ j =
       .seq (.assign "z" (.lit 0))
         (.while (.lt (.var "z") (.var "n"))
-          (.seq (.ite (.eq (.get "asg" (.var "z")) (.var "c"))
+          (.seq (.ite (.eq (.get (asgName j) (.var "z")) (.var (curName j)))
                   (foldIdx (fun i β =>
                       .store (tabName j i) (.var "z") (rbCell q_top cap mb φ j i β)) 0
                     (tablesAt q_top cap mb φ j))
@@ -337,8 +338,8 @@ vertex. -/
 def RbBase (B q_top cap mb ns Ws j : ℕ) {n : ℕ} (φ : Lax3.FirstOrder.FO 0) (O T M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (asg : ℕ → ℕ) (cc : ℕ) (ou : List ℕ)
     (val : Fin n → ℕ → StepAtom cap mb j → Prop) (σ : Env) : Prop :=
-  LevelPre B n cap mb ns Ws O T j M Gm C σ ∧ σ.arrs "asg" = arrOf n asg ∧
-    (∀ v < n, asg v < B) ∧ σ.vars "c" = cc ∧ cc < B ∧ σ.out = ou ∧
+  LevelPre B n cap mb ns Ws O T j M Gm C σ ∧ σ.arrs (asgName j) = arrOf n asg ∧
+    (∀ v < n, asg v < B) ∧ σ.vars (curName j) = cc ∧ cc < B ∧ σ.out = ou ∧
     ∀ (v : Fin n) (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length)
         (h : ∃ q' : ℕ, q' + 1 ≤ q_top ∧
           DRank 1 q' (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])),
@@ -384,9 +385,9 @@ theorem orderMem_setArr_tab {n ns Ws : ℕ} {σ : Env} (h : OrderMem n ns Ws σ)
 theorem levelPre_setArr_tab {B cap mb ns Ws j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {σ : Env}
     (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (i idx v : ℕ) :
     LevelPre B n cap mb ns Ws O T j M Gm C (σ.setArr (tabName j i) idx v) := by
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, ⟨hsz, hd, hq⟩, hm, hord⟩ := h
-  refine ⟨h1, ?_, ?_, ?_, ?_, ?_, h7, h8, ⟨?_, ?_, ?_⟩, hm,
-    orderMem_setArr_tab hord j i idx v⟩
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, ⟨hsz, hd, hq⟩, hdep, hm, hord⟩ := h
+  refine ⟨h1, ?_, ?_, ?_, ?_, ?_, h7, h8, h9, ⟨hsz.setArr _ idx v, ?_, ?_⟩,
+    hdep.setArr _ idx v, hm, orderMem_setArr_tab hord j i idx v⟩
   · rw [arrs_setArr, if_neg (by simp [tabName, String.ext_iff])]; exact h2
   · rw [arrs_setArr, if_neg (by simp [tabName, String.ext_iff])]; exact h3
   · rw [arrs_setArr, if_neg (by simp [tabName, alvName, String.ext_iff])]; exact h4
@@ -394,21 +395,6 @@ theorem levelPre_setArr_tab {B cap mb ns Ws j : ℕ} {O T M Gm : ℕ → ℕ} {C
   · intro c hc
     rw [arrs_setArr, if_neg (by simp [tabName, colName, String.ext_iff])]
     exact h6 c hc
-  · intro p hp
-    rw [arrs_setArr, if_neg (by
-      revert hp
-      simp only [List.mem_cons, List.not_mem_nil, or_false]
-      rintro (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl)
-      · exact lit_ne_tabName (q := "alv") (by decide) j i
-      · exact lit_ne_tabName (q := "tab") (by decide) j i
-      · exact lit_ne_tabName (q := "dist") (by decide) j i
-      · exact lit_ne_tabName (q := "q") (by decide) j i
-      · exact lit_ne_tabName (q := "exc") (by decide) j i
-      · exact lit_ne_tabName (q := "asg") (by decide) j i
-      · exact lit_ne_tabName (q := "ord") (by decide) j i
-      · exact lit_ne_tabName (q := "xoff") (by decide) j i
-      · exact lit_ne_tabName (q := "xmem") (by decide) j i)]
-    exact hsz p hp
   · rw [arrs_setArr, if_neg (lit_ne_tabName (q := "dist") (by decide) j i)]; exact hd
   · rw [arrs_setArr, if_neg (lit_ne_tabName (q := "q") (by decide) j i)]; exact hq
 
@@ -416,9 +402,10 @@ theorem levelPre_setArr_tab {B cap mb ns Ws j : ℕ} {O T M Gm : ℕ → ℕ} {C
 theorem levelPre_setVar_z {B cap mb ns Ws j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {σ : Env}
     (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (k : ℕ) :
     LevelPre B n cap mb ns Ws O T j M Gm C (σ.setVar "z" k) := by
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, ⟨hsz, hd, hq⟩, hm, hle, hosz, hz⟩ := h
-  exact ⟨by rw [vars_setVar, if_neg (by decide)]; exact h1, h2, h3, h4, h5, h6, h7, h8,
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, ⟨hsz, hd, hq⟩, hdep, hm, hle, hosz, hz⟩ := h
+  exact ⟨by rw [vars_setVar, if_neg (by decide)]; exact h1, h2, h3, h4, h5, h6, h7, h8, h9,
     ⟨fun p hp => by simpa using hsz p hp, by simpa using hd, by simpa using hq⟩,
+    hdep.setVar _ k,
     by rw [vars_setVar, if_neg (by decide)]; exact hm,
     hle, fun p hp => by simpa using hosz p hp, by simpa using hz⟩
 
@@ -445,7 +432,7 @@ theorem rbBase_setArr_tab {B q_top cap mb ns Ws j : ℕ} {φ : Lax3.FirstOrder.F
     RbBase B q_top cap mb ns Ws j φ O T M Gm C asg cc ou val (σ.setArr (tabName j i) idx v) := by
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := h
   refine ⟨levelPre_setArr_tab h1 i idx v, ?_, h3, h4, h5, h6, ?_⟩
-  · rw [arrs_setArr, if_neg (by simp [tabName, String.ext_iff])]; exact h2
+  · rw [arrs_setArr, if_neg (by simp [tabName, asgName, String.ext_iff])]; exact h2
   · intro w p hp hr a ha
     obtain ⟨u, hu1, hueval, huiff⟩ := h7 w p hp hr a ha
     refine ⟨u, hu1, ?_, huiff⟩
@@ -460,7 +447,7 @@ theorem rbBase_setVar_z {B q_top cap mb ns Ws j : ℕ} {φ : Lax3.FirstOrder.FO 
     RbBase B q_top cap mb ns Ws j φ O T M Gm C asg cc ou val (σ.setVar "z" k) := by
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := h
   refine ⟨levelPre_setVar_z h1 k, h2, h3, ?_, h5, h6, ?_⟩
-  · rw [vars_setVar, if_neg (by decide)]; exact h4
+  · rw [vars_setVar, if_neg (by simp [curName, String.ext_iff])]; exact h4
   · intro w p hp hr a ha
     obtain ⟨u, hu1, hueval, huiff⟩ := h7 w p hp hr a ha
     exact ⟨u, hu1, by rw [setVar_setVar_same]; exact hueval, huiff⟩
@@ -625,17 +612,17 @@ theorem one_le_blockCost (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) (j p :
 
 /-- The assignment test of the readback's loop: the vertex is the one
 the cover assigned to the centre being processed. -/
-theorem evalB_asgCond {B : ℕ} {asg : ℕ → ℕ} {cc z₀ : ℕ} {σ : Env}
-    (hasg : σ.arrs "asg" = arrOf n asg) (hasgB : ∀ v < n, asg v < B)
-    (hc : σ.vars "c" = cc) (hcB : cc < B) (hz : σ.vars "z" = z₀) (hz₀ : z₀ < n) (hn : n < B) :
-    ∃ b, (Cond.eq (.get "asg" (.var "z")) (.var "c")).evalB B σ = some b ∧
+theorem evalB_asgCond {B j : ℕ} {asg : ℕ → ℕ} {cc z₀ : ℕ} {σ : Env}
+    (hasg : σ.arrs (asgName j) = arrOf n asg) (hasgB : ∀ v < n, asg v < B)
+    (hc : σ.vars (curName j) = cc) (hcB : cc < B) (hz : σ.vars "z" = z₀) (hz₀ : z₀ < n) (hn : n < B) :
+    ∃ b, (Cond.eq (.get (asgName j) (.var "z")) (.var (curName j))).evalB B σ = some b ∧
       (b = true ↔ asg z₀ = cc) := by
   have hzB : σ.vars "z" < B := by omega
   refine evalB_condEq_isSome (m := asg z₀) (n := cc) ?_ ?_
   · refine evalB_get (evalB_var hzB) ?_ (hasgB z₀ hz₀)
     rw [hz, hasg]
     exact getElem?_arrOf _ hz₀
-  · have h := evalB_var (x := "c") (σ := σ) (B := B) (by omega)
+  · have h := evalB_var (x := curName j) (σ := σ) (B := B) (by omega)
     rwa [hc] at h
 
 /-- The invariant of the readback's loop: the tables are right at every
@@ -654,7 +641,7 @@ theorem body_spec {B q_top cap mb ns Ws j : ℕ} {φ : Lax3.FirstOrder.FO 0} {O 
     {val : Fin n → ℕ → StepAtom cap mb j → Prop} {T₀ : ℕ → ℕ → ℕ} (hB : 1 < B) (hn : n < B) :
     Spec B (fun σ => RbInv B q_top cap mb ns Ws j φ O T M Gm C asg cc ou val T₀ σ ∧
         σ.vars "z" < n)
-      (.seq (.ite (.eq (.get "asg" (.var "z")) (.var "c"))
+      (.seq (.ite (.eq (.get (asgName j) (.var "z")) (.var (curName j)))
               (foldIdx (fun i β =>
                   .store (tabName j i) (.var "z") (rbCell q_top cap mb φ j i β)) 0
                 (tablesAt q_top cap mb φ j))
@@ -668,7 +655,7 @@ theorem body_spec {B q_top cap mb ns Ws j : ℕ} {φ : Lax3.FirstOrder.FO 0} {O 
   -- the conditional
   have hite : Spec B
       (fun σ => RbInv B q_top cap mb ns Ws j φ O T M Gm C asg cc ou val T₀ σ ∧ σ.vars "z" < n)
-      (.ite (.eq (.get "asg" (.var "z")) (.var "c"))
+      (.ite (.eq (.get (asgName j) (.var "z")) (.var (curName j)))
         (foldIdx (fun i β => .store (tabName j i) (.var "z") (rbCell q_top cap mb φ j i β)) 0
           (tablesAt q_top cap mb φ j)) .skip)
       (fun σ σ' => RbBase B q_top cap mb ns Ws j φ O T M Gm C asg cc ou val σ' ∧
@@ -851,18 +838,17 @@ theorem flgName_ne_z (j i k : ℕ) : flgName j i k ≠ "z" := by
 
 /-- **The readback of one cluster, discharged.** -/
 theorem readbackStep {B q_top cap mb ns Ws j : ℕ} {n : ℕ} {φ : Lax3.FirstOrder.FO 0}
-    {G : SimpleGraph (Fin n)} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
+    {G : SimpleGraph (Fin n)} {Or : PathOracle n (2 * cap)}
+    {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
     {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ} {X W : Set (Fin n)} {w : Fin mb → Fin n}
     {Alv' Gam' : ℕ → ℕ} {C' : ℕ → ℕ → ℕ} {K : ℕ} (hB : 1 < B) (hn : n < B)
-    (hcolread : colRead n C' (sigL cap mb (j + 1)) =
-      stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w)
     (hK : rbCost q_top cap mb φ j n ≤ K) :
-    ReadbackStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+    ReadbackStep B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' K := by
   classical
   intro σ hσ
-  obtain ⟨hturn, hdata, hcolarr, htabinv, htsz, hcn, hflag⟩ := hσ
-  have hcB : σ.vars "c" < B := lt_trans hcn hn
+  obtain ⟨hturn, hdata, hcolarr, hcolbit, hcolread, htabinv, htsz, hcn, hflag⟩ := hσ
+  have hcB : σ.vars (curName j) < B := lt_trans hcn hn
   -- the depth's own tables are there, and this names their cells
   set T₀ : ℕ → ℕ → ℕ := fun i v => (σ.arrs (tabName j i)).getD v 0 with hT₀def
   have hsz : ∀ (i : ℕ), i < (tablesAt q_top cap mb φ j).length →
@@ -873,7 +859,7 @@ theorem readbackStep {B q_top cap mb ns Ws j : ℕ} {n : ℕ} {φ : Lax3.FirstOr
     refine arrOf_congr fun v hv => ?_
     rw [hT₀def]
     simp only [hg, getD_arrOf _ hv]
-  obtain ⟨hlevel, hordA, hxoffA, hxmemA, hasgA, hxpA, hmn, hcout⟩ := hturn
+  obtain ⟨hlevel, hplayrec, hordA, hxoffA, hxmemA, hasgA, hxpA, hmn, hordlt, hcout⟩ := hturn
   have hasgB : ∀ v < n, asg v < B := fun v hv => lt_trans (hcout.asg_lt v hv) hn
   -- the atoms of every tabled formula, at every vertex
   have hatom : ∀ (v : Fin n) (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length)
@@ -914,7 +900,7 @@ theorem readbackStep {B q_top cap mb ns Ws j : ℕ} {n : ℕ} {φ : Lax3.FirstOr
   -- the walk
   obtain ⟨σ', hrun, ⟨hbase', htab'⟩, hfv, hfa, -, -⟩ :=
     (readback_spec (ns := ns) (O := O) (T := T) (M := M) (Gm := Gm) (C := C) (asg := asg)
-      (cc := σ.vars "c") (ou := σ.out) (T₀ := T₀)
+      (cc := σ.vars (curName j)) (ou := σ.out) (T₀ := T₀)
       (val := fun v _ a => atomVal (stepArenaP (masked G M) X w)
         (stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w) v a)
       hB hn).frame.run (σ := σ)
@@ -923,12 +909,21 @@ theorem readbackStep {B q_top cap mb ns Ws j : ℕ} {n : ℕ} {φ : Lax3.FirstOr
     fun a hane => hfa a (fun hm => by
       obtain ⟨i, hi⟩ := mem_warrs_readbackCom hm
       exact hane i hi)
-  refine ⟨σ', hrun.mono hK, ⟨hbase'.1, ?_, ?_, ?_, hbase'.2.1, ?_, hmn, hcout⟩,
+  have hframeV : ∀ x : String, x ≠ "z" → σ'.vars x = σ.vars x :=
+    fun x hxne => hfv x (not_mem_wvars_readbackCom hxne)
+  refine ⟨σ', hrun.mono hK, ⟨hbase'.1,
+    hplayrec.congr (fun a _ => hframeV (ctrName a) (by simp [ctrName, String.ext_iff]))
+      (fun a _ => hframeA (gamName a) (fun i => Ne.symm (by
+        simp [tabName, gamName, String.ext_iff]))),
+    ?_, ?_, ?_, hbase'.2.1, ?_, hmn, hordlt, hcout⟩,
     hbase'.2.2.2.2.2.1, hbase'.2.2.2.1, ?_⟩
-  · rw [hframeA "ord" (fun i => Ne.symm (tabName_ne_lit j i (by decide)))]; exact hordA
-  · rw [hframeA "xoff" (fun i => Ne.symm (tabName_ne_lit j i (by decide)))]; exact hxoffA
-  · rw [hframeA "xmem" (fun i => Ne.symm (tabName_ne_lit j i (by decide)))]; exact hxmemA
-  · rw [hfv "xp" (not_mem_wvars_readbackCom (by decide))]; exact hxpA
+  · rw [hframeA (ordName j) (fun i => Ne.symm (by
+      simp [tabName, ordName, String.ext_iff]))]; exact hordA
+  · rw [hframeA (xofName j) (fun i => Ne.symm (by
+      simp [tabName, xofName, String.ext_iff]))]; exact hxoffA
+  · rw [hframeA (xmmName j) (fun i => Ne.symm (by
+      simp [tabName, xmmName, String.ext_iff]))]; exact hxmemA
+  · rw [hframeV (xpName j) (by simp [xpName, String.ext_iff])]; exact hxpA
   · intro i hi
     obtain ⟨Tb, hTb, hTb0, hTbval⟩ := htab' i hi
     exact ⟨Tb, T₀ i, hTb, hsz i hi, hTb0, fun v hv => hTbval v v.isLt hv⟩
