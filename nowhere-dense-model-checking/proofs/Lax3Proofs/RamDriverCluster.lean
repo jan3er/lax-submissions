@@ -514,7 +514,7 @@ cluster-restricted mask and the two masks of the next depth, each named
 with what it is worth. -/
 def BatchData (n j B : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ)
     (X W : Set (Fin n)) (Alv' Gam' : ℕ → ℕ) (σ : Env) : Prop :=
-  (∃ Xa, σ.arrs (cluName j) = arrOf n Xa ∧ markSet n Xa = X ∧ ∀ k, k < n → Xa k < B) ∧
+  (∃ Xa, σ.arrs (cluName j) = arrOf n Xa ∧ markSet n Xa = X ∧ ∀ k, k < n → Xa k ≤ 1) ∧
     (∃ Wa, σ.arrs (batName j) = arrOf n Wa ∧ markSet n Wa = W ∧ ∀ k, k < n → Wa k < B) ∧
     (∃ Ra, σ.arrs (resName j) = arrOf n Ra ∧
       masked G Ra = deleteVerts (masked G M) Xᶜ ∧ ∀ k, k < n → Ra k < B) ∧
@@ -619,11 +619,20 @@ arithmetic is `RamDriver.oldIdx`, `pdIdx` and `puIdx` — the numeric
 values of `FormulaTables.oldSlots`, `pdSlots` and `puSlots`, so no
 packing appears in the program text. The postcondition is stated as the
 one equation those three walks add up to: the colouring the arrays hold
-is `RamDriver.stepColoringP`. -/
+is `RamDriver.stepColoringP`.
+
+`CsrGraph G ns O T` and `WordBound B n ns cap mb` prefix the obligation
+for the reason they prefix `DescendStep`: the expansion chains of the
+three slot families read the block structure, and nothing in the
+precondition ties `O` and `T` to `G`. Without them the obligation is
+**refutable** — its postcondition speaks about `masked G M`, the program
+has been told only about `O` and `T`, and any `G` disagreeing with the
+block structure refutes it. -/
 def ColourStep (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n)) (Or : PathOracle n (2 * cap))
     (O T M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ)
     (X W : Set (Fin n)) (w : Fin mb → Fin n) (Alv' Gam' : ℕ → ℕ) (K : ℕ) : Prop :=
+  CsrGraph G ns O T → WordBound B n ns cap mb →
   Spec B (fun σ => TurnPre B n cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m σ ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ ∧ PlayRec B cap Or G (j + 1) Alv' Gam' σ)
     (colourCom cap mb j)
@@ -817,13 +826,12 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
     (henum X W Alv' Gam').run ⟨hturn₁, hbat₁, hplay₁, hWne, hWcard, hwa₁⟩
   -- the colouring of the next depth
   obtain ⟨σ₃, hr₃, hturn₃, hdat₃, hplay₃, hout₃, hc₃, C', hcolarr₃, hcolbit₃, hcolread₃⟩ :=
-    (hcol X W w Alv' Gam').run ⟨hturn₂, hdat₂, hplay₂⟩
+    (hcol X W w Alv' Gam' hcsr hB).run ⟨hturn₂, hdat₂, hplay₂⟩
   have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σ₃ := by
     obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, -, hmem₃, hdep₃, hm₃, hom₃⟩ := hturn₃.1
     obtain ⟨-, -, -, halv₃, hAlvB, -, hgam₃, hGamB⟩ := hdat₃.1
     exact ⟨hn₃, hoff₃, htgt₃, halv₃, hgam₃, hcolarr₃,
-      fun z hz => hAlvB z hz, fun z hz => hGamB z hz,
-      fun c hc z hz => lt_of_le_of_lt (hcolbit₃ c hc z hz) hB.one_lt,
+      fun z hz => hAlvB z hz, fun z hz => hGamB z hz, hcolbit₃,
       hmem₃, hdep₃, hm₃, hom₃⟩
   have htsz₃ : TablesSized q_top cap mb φ n σ₃ := (htsz.run hr₁).run hr₂ |>.run hr₃
   have hbarr₃ : BaseArrs B q_top cap mb ℓ φ σ₃ := ((hbarr.run hr₁).run hr₂).run hr₃
@@ -1018,7 +1026,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
     (hbase : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ), masked G M = ⊥ →
       LevelImplements B q_top cap mb R ℓ W ns ℓ φ G Or O T M Gm C (Kl ℓ))
     (horder : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
-      OrderImplements B n R W cap mb ns j O T M Gm C (Ko j))
+      OrderImplements B n R W cap mb ns j G O T M Gm C (Ko j))
     (hcover : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ)
         (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ),
       CoverImplements B cap mb ns W j G O T M Gm C π ord (Kc j))
@@ -1063,7 +1071,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
       rw [driverAt_succ q_top cap mb R ℓ W φ hjl]
       -- the ordering pass
       obtain ⟨σ₁, hr₁, hlev₁, hout₁, hctr₁, hgam₁, π, ord, hord₁, hordby⟩ :=
-        (horder j hjl M Gm C hB hWB helim haug).run hσ.1
+        (horder j hjl M Gm C hB hcsr hWB helim haug).run hσ.1
       have htsz₁ : TablesSized q_top cap mb φ n σ₁ := hσ.2.1.run hr₁
       have hbarr₁ : BaseArrs B q_top cap mb ℓ φ σ₁ := hσ.2.2.1.run hr₁
       have hplay₁ : PlayRec B cap Or G j M Gm σ₁ :=

@@ -1897,7 +1897,7 @@ def LevelPre (B n : ℕ) (cap mb : ℕ) (ns W : ℕ) (O T : ℕ → ℕ) (j : �
     σ.arrs (alvName j) = arrOf n M ∧ σ.arrs (gamName j) = arrOf n Gm ∧
     (∀ c < sigL cap mb j, σ.arrs (colName j c) = arrOf n (C c)) ∧
     (∀ z < n, M z < B) ∧ (∀ z < n, Gm z < B) ∧
-    (∀ c < sigL cap mb j, ∀ z < n, C c z < B) ∧
+    (∀ c < sigL cap mb j, ∀ z < n, C c z ≤ 1) ∧
     LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
     σ.vars "m" + σ.vars "m" = ns ∧ OrderMem n ns W σ
 
@@ -2180,10 +2180,20 @@ still asks for `tgt` at the fraternity graph's own slot count, and why
 instead of eliminating the augmented graph. Widening it means widening
 `tgt` in `RamBfs`, `RamCover`, `RamScatter` and `RamBfsPaths` too, since
 all four pin it at `ns`; it is a wave of its own, and it buys the cover's
-degree bound and nothing else. -/
-def OrderImplements (n R W cap mb ns j : ℕ) (O T : ℕ → ℕ)
+degree bound and nothing else.
+
+`CsrGraph G ns O T` is a hypothesis for the reason it is one of
+`CoverImplements`: without it the obligation is **refutable**. `saveCsr`'s
+very first read is `tgt[off[z]]`, and nothing else in the precondition
+bounds either — at `B = 4` the offsets `O = fun _ => 4` are not words, the
+read has no bounded evaluation, and no run exists. The same hypothesis is
+what makes the two `RamElim.elimCom` calls applicable at all, since
+`ElimAvail` speaks about a graph and the level has only a block
+structure. It buys nothing about the *result*: the postcondition still
+mentions only the ordering. -/
+def OrderImplements (n R W cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
     (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
-  WordBound B n ns cap mb → n + W + 1 < B →
+  WordBound B n ns cap mb → CsrGraph G ns O T → n + W + 1 < B →
   ElimAvail B n → AugAvail B n →
     Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ)
       (orderCom R W j)
@@ -2512,9 +2522,6 @@ theorem driver_correct (Or : PathOracle n (2 * cap)) (hrank : Lax3.FirstOrder.ra
   have hcolempty : ∀ c < sigL cap mb 0, σ₁.arrs (colName 0 c) = arrOf n (fun _ => 0) := by
     intro c hc
     exact absurd hc (by rw [sigL_zero]; omega)
-  have hcolB : ∀ c < sigL cap mb 0, ∀ z < n, (fun _ _ => 0 : ℕ → ℕ → ℕ) c z < B := by
-    intro c hc
-    exact absurd hc (by rw [sigL_zero]; omega)
   have hcolbit : ∀ c < sigL cap mb 0, ∀ z < n, (fun _ _ => 0 : ℕ → ℕ → ℕ) c z ≤ 1 := by
     intro c hc
     exact absurd hc (by rw [sigL_zero]; omega)
@@ -2525,7 +2532,7 @@ theorem driver_correct (Or : PathOracle n (2 * cap)) (hrank : Lax3.FirstOrder.ra
   have hplay₀ : PlayRec B cap Or G 0 M Gm σ₁ := playRec_zero Or G hMG hGmG
   obtain ⟨σ₂, hrun₂, ⟨hpre₂, -, htab₂⟩, hout₂⟩ :=
     (hlev M Gm (fun _ _ => 0) hMpos hcolbit).run
-      (σ := σ₁) ⟨⟨hn₁, hoff₁, htgt₁, hM₁, hGm₁, hcolempty, hMB, hGmB, hcolB, hmem₁, hdep₁, hm₁,
+      (σ := σ₁) ⟨⟨hn₁, hoff₁, htgt₁, hM₁, hGm₁, hcolempty, hMB, hGmB, hcolbit, hmem₁, hdep₁, hm₁,
         hordmem₁⟩, htsz₁, hbarr₁, hplay₀⟩
   -- the sentence readback
   obtain ⟨σ₃, hrun₃, hcond, hout₃⟩ :=
