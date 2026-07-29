@@ -1,10 +1,13 @@
 # The PCP theorem by gap amplification — campaign plan
 
-Rev 1, 2026-07-29. **Status: PROPOSAL — unscheduled.** Drafted on a
-dare ("think bolder"); nothing in it is accepted, budgeted, or queued
-until Jan resolves the JAN-FLAGs. On acceptance this document becomes
-the contract in the refinement-tower sense: implementing sessions
-follow it, deviations need an owner decision first.
+Rev 1, 2026-07-29 (flag 2 resolved same day). **Status: PROPOSAL —
+queued behind the RAM campaigns.** Jan, 2026-07-29: "this campaign
+waits until the dust settles on the ram" — P0 starts only after the
+tower and the ND-MC RAM phases settle; no slot is claimed before then.
+Flags 1, 3, 4 remain open. Drafted on a dare ("think bolder"); on
+acceptance this document becomes the contract in the refinement-tower
+sense: implementing sessions follow it, deviations need an owner
+decision first.
 
 **Working model** (unchanged): Fable supervises — plan, sequencing,
 review, acceptance calls, commits — and Opus subagents write the Lean.
@@ -343,14 +346,14 @@ one demonstration corollary.
   `spectral-expanders/`; inapproximability corollaries on
   `pcp-theorem/`.
 
-## JAN-FLAGs (all open)
+## JAN-FLAGs (2 resolved; 1, 3, 4 open)
 
 1. **Charter scope.** Accept the campaign at all — and if so, through
    P8, or machine-free through P7 with P8 chartered separately?
    *Recommendation: charter through P8 with a hard review gate at P7.*
-2. **Sequencing.** When does P0 start? *Recommendation: not as a third
-   concurrent campaign — queue PCP P0 behind whichever of ND-MC P7 /
-   tower closes its phase first; the plan holds until then.*
+2. **Sequencing.** When does P0 start? **Resolved by Jan 2026-07-29:
+   the campaign waits until the dust settles on the RAM work (tower +
+   ND-MC RAM phases); it does not run as a concurrent third campaign.**
 3. **NP over the word RAM, no TM bridge.** Acceptable endorsement
    surface for P8's headline? (P7's flagship is unaffected either way.)
    *Recommendation: yes — the RAM is the repo's endorsed model and the
@@ -366,3 +369,9 @@ one demonstration corollary.
 
 - 2026-07-29 — rev 1 drafted (unsolicited dare, Jan's "think bolder"
   prompt); status PROPOSAL; JAN-FLAGs 1–4 open; no work scheduled.
+- 2026-07-29 — flag 2 resolved by Jan: queued behind the RAM
+  campaigns. TM-vs-RAM analysis for flag 3 delivered in conversation;
+  recommendation unchanged (word RAM as the programmed model; the
+  TM bridge as separately-chartered later capital — the P8 seam is the
+  single lemma "CGSAT NP-hard at gap 1/|E|", everything above it
+  model-free).
