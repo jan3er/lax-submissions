@@ -112,12 +112,14 @@ compiled and run: the worked example checks its three answers on a
 five-vertex graph, with and without the mask, against the hand
 computation.
 
-Of the five phase walks `Implements` splits into, **two are
+Of the five phase walks `Implements` splits into, **three are
 discharged** — `initDeg_spec`, the degree pass with its amortized outer
-loop, and `offPass_spec`, the running sum — and three remain:
-`initBuck`, `elimLoop` and `fillPass`. The first two of those wait on
-one missing piece, a reachability relation for the lazily deleted
-bucket stacks; `Implements`' own docstring says what each owes.
+loop; `offPass_spec`, the running sum; and `initBuck_spec`, the bucket
+build — and the elimination loop is discharged turn by turn
+(`elimTurn_run`), which leaves only its `while` wrapper and the fill
+pass. The reachability relation the bucket phases waited on is `chain`,
+and `Buck` is the relation the loop carries; `Implements`' own docstring
+says what each phase owes.
 -/
 
 namespace Lax3Proofs.RamElim
@@ -460,8 +462,12 @@ structure Elim {n : ℕ} (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (E D R ID :
   rank_ge : ∀ v < n, E v = 1 → n - cnt ≤ R v
   /-- And no two are equal. -/
   rank_inj : ∀ v < n, ∀ w < n, E v = 1 → E w = 1 → R v = R w → v = w
-  /-- The degree array holds the true current degrees of the arena. -/
-  deg : ∀ v : Fin n, D (v : ℕ) = (nbrsIn (masked G M) (aliveF E) v).card
+  /-- The degree array holds the true current degrees of the arena — of
+  the vertices still there. What it holds at an eliminated vertex is the
+  degree that vertex had when it was taken, and the program is right not
+  to keep it up: a row scan decrements the neighbours that are still
+  alive, and no clause below asks about the others. -/
+  deg : ∀ v : Fin n, E (v : ℕ) = 0 → D (v : ℕ) = (nbrsIn (masked G M) (aliveF E) v).card
   /-- The pointer is a lower bound on every surviving degree: this is
   what makes the vertex it points at a minimum. -/
   min_le : ∀ v < n, E v = 0 → mind ≤ D v
@@ -481,14 +487,15 @@ namespace Elim
 
 variable {E D R ID : ℕ → ℕ} {cnt mind kmax : ℕ}
 
-/-- Every degree is smaller than the number of vertices. -/
-theorem deg_lt (h : Elim G M E D R ID cnt mind kmax) {v : ℕ} (hv : v < n) : D v < n := by
-  rw [show v = ((⟨v, hv⟩ : Fin n) : ℕ) from rfl, h.deg]
+/-- Every surviving degree is smaller than the number of vertices. -/
+theorem deg_lt (h : Elim G M E D R ID cnt mind kmax) {v : ℕ} (hv : v < n) (hE : E v = 0) :
+    D v < n := by
+  rw [show v = ((⟨v, hv⟩ : Fin n) : ℕ) from rfl, h.deg ⟨v, hv⟩ hE]
   exact card_nbrsIn_lt _ _
 
 /-- The pointer never passes the last possible degree. -/
 theorem mind_lt (h : Elim G M E D R ID cnt mind kmax) {v : ℕ} (hv : v < n) (hE : E v = 0) :
-    mind < n := lt_of_le_of_lt (h.min_le v hv hE) (h.deg_lt hv)
+    mind < n := lt_of_le_of_lt (h.min_le v hv hE) (h.deg_lt hv hE)
 
 /-- **The engine has work left exactly while `cnt < n`.** -/
 theorem exists_alive (h : Elim G M E D R ID cnt mind kmax) (hcnt : cnt < n) :
@@ -515,8 +522,8 @@ the program produces it by a row scan and only the two cases matter —
 a neighbour in the arena goes down by one, everything else stays. -/
 theorem extract (h : Elim G M E D R ID cnt mind kmax) (hcnt : cnt < n)
     {v : ℕ} (hv : v < n) (hE : E v = 0) (hDv : D v = mind) {D' : ℕ → ℕ}
-    (hdec : ∀ u < n, MAdj G M u v → D' u = D u - 1)
-    (hkeep : ∀ u < n, ¬ MAdj G M u v → D' u = D u) :
+    (hdec : ∀ u < n, E u = 0 → MAdj G M u v → D' u = D u - 1)
+    (hkeep : ∀ u < n, E u = 0 → ¬ MAdj G M u v → D' u = D u) :
     Elim G M (upd E v 1) D' (upd R v (n - 1 - cnt)) (upd ID v mind)
       (cnt + 1) (mind - 1) (max kmax mind) := by
   classical
@@ -542,13 +549,16 @@ theorem extract (h : Elim G M E D R ID cnt mind kmax) (hcnt : cnt < n)
     rw [mem_nbrsIn, mem_aliveF, madj_iff hv]
     exact ⟨fun hh => hh.2.symm, fun hh => ⟨hE, hh.symm⟩⟩
   -- the degree array after the scan
-  have hdeg' : ∀ u : Fin n, D' (u : ℕ) = (nbrsIn (masked G M) (aliveF (upd E v 1)) u).card := by
-    intro u
+  have hdeg' : ∀ u : Fin n, (upd E v 1) (u : ℕ) = 0 →
+      D' (u : ℕ) = (nbrsIn (masked G M) (aliveF (upd E v 1)) u).card := by
+    intro u hu
+    have huv : (u : ℕ) ≠ v := fun hc => by rw [hc, upd_self] at hu; omega
+    have hEu : E (u : ℕ) = 0 := by rwa [upd_of_ne _ huv] at hu
     rw [halive, nbrsIn_erase]
     by_cases hadj : MAdj G M (u : ℕ) v
-    · rw [hdec (u : ℕ) u.isLt hadj, h.deg u,
+    · rw [hdec (u : ℕ) u.isLt hEu hadj, h.deg u hEu,
         Finset.card_erase_of_mem ((hmemv u).2 hadj)]
-    · rw [hkeep (u : ℕ) u.isLt hadj, h.deg u,
+    · rw [hkeep (u : ℕ) u.isLt hEu hadj, h.deg u hEu,
         Finset.erase_eq_of_notMem (fun hc => hadj ((hmemv u).1 hc))]
   refine ⟨fun u hu => ?_, by omega, ?_, fun u hu hEu => ?_, fun u hu hEu => ?_,
     fun u hu w hw hEu hEw hR => ?_, hdeg', fun u hu hEu => ?_, fun w hEw => ?_,
@@ -592,14 +602,14 @@ theorem extract (h : Elim G M E D R ID cnt mind kmax) (hcnt : cnt < n)
     have hEu' : E u = 0 := by rwa [upd_of_ne _ huv] at hEu
     have hmin := h.min_le u hu hEu'
     by_cases hadj : MAdj G M u v
-    · rw [hdec u hu hadj]; omega
-    · rw [hkeep u hu hadj]; omega
+    · rw [hdec u hu hEu' hadj]; omega
+    · rw [hkeep u hu hEu' hadj]; omega
   · -- the vertex just taken records the degree it had
     by_cases hwv : (w : ℕ) = v
     · have hwe : w = (⟨v, hv⟩ : Fin n) := Fin.ext hwv
       subst hwe
       rw [upd_self, upd_self, hself]
-      rw [← h.deg ⟨v, hv⟩]
+      rw [← h.deg ⟨v, hv⟩ hE]
       exact hDv.symm
     · have hEw' : E (w : ℕ) = 1 := by rwa [upd_of_ne _ hwv] at hEw
       rw [upd_of_ne _ hwv, upd_of_ne _ hwv,
@@ -611,7 +621,7 @@ theorem extract (h : Elim G M E D R ID cnt mind kmax) (hcnt : cnt < n)
       subst hwe
       rw [upd_self] at huS
       rw [hself] at huS
-      rw [upd_self, upd_self, hself, ← h.deg u]
+      rw [upd_self, upd_self, hself, ← h.deg u (mem_aliveF.1 huS)]
       exact h.min_le (u : ℕ) u.isLt (mem_aliveF.1 huS)
     · have hEw' : E (w : ℕ) = 1 := by rwa [upd_of_ne _ hwv] at hEw
       have hlt : r < R (w : ℕ) + 1 := by have := hold (w : ℕ) w.isLt hEw'; omega
@@ -704,7 +714,7 @@ theorem init {E D R ID : ℕ → ℕ} (hE : ∀ v < n, E v = 0)
     Finset.eq_univ_of_forall fun v => mem_aliveF.2 (hE (v : ℕ) v.isLt)
   refine ⟨fun v hv => by rw [hE v hv]; omega, Nat.zero_le _, ?_,
     fun v hv hEv => ?_, fun v hv hEv => ?_, fun v hv w hw hEv => ?_,
-    fun v => by rw [hal]; exact hD v, fun v hv hEv => Nat.zero_le _,
+    fun v _ => by rw [hal]; exact hD v, fun v hv hEv => Nat.zero_le _,
     fun w hEw => ?_, fun w hEw => ?_, fun w hw hEw => ?_, Or.inl rfl⟩
   · rw [Finset.card_eq_zero]
     exact Finset.eq_empty_of_forall_notMem fun v hv => by
@@ -1424,6 +1434,1204 @@ theorem offPass_spec (B n : ℕ) (ID : ℕ → ℕ) (hnB : n + 1 < B) (hsB : psu
     simp at hj
     rw [hj, upd_self, psum_zero]
 
+/-- The slots of the bucket whose head is `p`, from the head down. -/
+def chain (BN : ℕ → ℕ) (p : ℕ) : List ℕ :=
+  if 0 < p then
+    if _hlt : BN p < p then p :: chain BN (BN p) else [p]
+  else []
+termination_by p
+decreasing_by omega
+
+@[simp] theorem chain_zero (BN : ℕ → ℕ) : chain BN 0 = [] := by rw [chain]; simp
+
+theorem chain_cons (BN : ℕ → ℕ) {p : ℕ} (hp : 0 < p) (h : BN p < p) :
+    chain BN p = p :: chain BN (BN p) := by rw [chain]; simp [hp, h]
+
+theorem chain_mem_pos {BN : ℕ → ℕ} {p q : ℕ} (hq : q ∈ chain BN p) : 0 < q := by
+  induction p using Nat.strong_induction_on with
+  | _ p ih =>
+    rcases Nat.eq_zero_or_pos p with rfl | hp
+    · simp at hq
+    · by_cases h : BN p < p
+      · rw [chain_cons BN hp h, List.mem_cons] at hq
+        rcases hq with rfl | hq
+        · exact hp
+        · exact ih _ h hq
+      · rw [chain] at hq; simp only [if_pos hp, dif_neg h, List.mem_singleton] at hq; omega
+
+theorem chain_mem_le {BN : ℕ → ℕ} {p q : ℕ} (hq : q ∈ chain BN p) : q ≤ p := by
+  induction p using Nat.strong_induction_on with
+  | _ p ih =>
+    rcases Nat.eq_zero_or_pos p with rfl | hp
+    · simp at hq
+    · by_cases h : BN p < p
+      · rw [chain_cons BN hp h, List.mem_cons] at hq
+        rcases hq with rfl | hq
+        · exact le_rfl
+        · exact le_trans (ih _ h hq) (le_of_lt h)
+      · rw [chain] at hq; simp only [if_pos hp, dif_neg h, List.mem_singleton] at hq; omega
+
+/-- Writing a cell the chains cannot reach leaves them alone. -/
+theorem chain_upd_high {BN : ℕ → ℕ} {s : ℕ} (halloc : ∀ p, 0 < p → p < s → BN p < p) (x : ℕ) :
+    ∀ p < s, chain (upd BN s x) p = chain BN p := by
+  intro p
+  induction p using Nat.strong_induction_on with
+  | _ p ih =>
+    intro hps
+    rcases Nat.eq_zero_or_pos p with rfl | hp
+    · simp
+    · have h₁ : BN p < p := halloc p hp hps
+      have h₂ : upd BN s x p = BN p := upd_of_ne _ (by omega)
+      rw [chain_cons _ hp (by rw [h₂]; exact h₁), h₂, chain_cons BN hp h₁,
+        ih (BN p) (by omega) (by omega)]
+
+/-- **A push, at the bucket it pushes into**: the fresh slot goes in
+front of the old head. -/
+theorem chain_push_eq {BH BN : ℕ → ℕ} {s d : ℕ} (hs : 0 < s)
+    (halloc : ∀ p, 0 < p → p < s → BN p < p) (hd : BH d < s) :
+    chain (upd BN s (BH d)) (upd BH d s d) = s :: chain BN (BH d) := by
+  rw [upd_self, chain_cons _ hs (by rw [upd_self]; exact hd), upd_self,
+    chain_upd_high halloc _ _ hd]
+
+/-- **A push, at every other bucket**: nothing happens. -/
+theorem chain_push_ne {BH BN : ℕ → ℕ} {s d e : ℕ}
+    (halloc : ∀ p, 0 < p → p < s → BN p < p) (he : BH e < s) (hed : e ≠ d) :
+    chain (upd BN s (BH d)) (upd BH d s e) = chain BN (BH e) := by
+  rw [upd_of_ne _ hed, chain_upd_high halloc _ _ he]
+
+/-- One summand of a sum over the buckets goes up by one and the rest
+stand still. -/
+theorem sum_add_one {N d : ℕ} (hd : d ≤ N) {f g : ℕ → ℕ}
+    (hne : ∀ e ≤ N, e ≠ d → f e = g e) (heq : f d = g d + 1) :
+    ∑ e ∈ Finset.range (N + 1), f e = (∑ e ∈ Finset.range (N + 1), g e) + 1 := by
+  classical
+  have hmem : d ∈ Finset.range (N + 1) := Finset.mem_range.2 (by omega)
+  have h₁ := Finset.add_sum_erase (Finset.range (N + 1)) f hmem
+  have h₂ := Finset.add_sum_erase (Finset.range (N + 1)) g hmem
+  have h₃ : ∑ x ∈ (Finset.range (N + 1)).erase d, f x
+      = ∑ x ∈ (Finset.range (N + 1)).erase d, g x :=
+    Finset.sum_congr rfl (fun e he => hne e
+      (by have := Finset.mem_range.1 (Finset.mem_of_mem_erase he); omega)
+      (Finset.ne_of_mem_erase he))
+  omega
+
+/-- What the lazily deleted bucket stacks satisfy at every point of the
+run: the arena is allocated downwards, every slot holds a vertex, every
+uneliminated vertex below `m` has a slot in the bucket of its current
+degree, and `ls` counts the slots the buckets still hold. -/
+structure Buck (n m : ℕ) (E D BH BV BN : ℕ → ℕ) (sp ls : ℕ) : Prop where
+  /-- Slot zero is the sentinel, so the pointer starts above it. -/
+  sp_pos : 0 < sp
+  /-- Every bucket head is an allocated slot, or the sentinel. -/
+  head_lt : ∀ d ≤ n, BH d < sp
+  /-- **An allocated slot points strictly downwards**, which is what
+  makes a chain finite and bounds the travel of a pop. -/
+  alloc : ∀ p, 0 < p → p < sp → BN p < p
+  /-- And holds a vertex. -/
+  val_lt : ∀ p, 0 < p → p < sp → BV p < n
+  /-- A degree names a bucket. -/
+  deg_le : ∀ v < m, D v ≤ n
+  /-- **Every uneliminated vertex has a slot in the bucket of its
+  current degree** — the clause an empty bucket is read against. -/
+  mem : ∀ v < m, E v = 0 → ∃ q ∈ chain BN (BH (D v)), BV q = v
+  /-- And `ls` is the number of slots the buckets hold. -/
+  ls_eq : ls = ∑ d ∈ Finset.range (n + 1), (chain BN (BH d)).length
+
+namespace Buck
+
+variable {m : ℕ} {E D BH BV BN : ℕ → ℕ} {sp ls : ℕ}
+
+/-- **An empty bucket has no vertex in it.** -/
+theorem no_deg (h : Buck n m E D BH BV BN sp ls) {d : ℕ} (hd : BH d = 0)
+    {v : ℕ} (hv : v < m) (hE : E v = 0) : D v ≠ d := by
+  intro hDv
+  obtain ⟨q, hq, -⟩ := h.mem v hv hE
+  rw [hDv, hd] at hq
+  simp at hq
+
+/-- The elimination flags only ever enter through `E v = 0`, so a state
+that says less about them still satisfies the relation. -/
+theorem weaken (h : Buck n m (fun _ => 0) D BH BV BN sp ls) (E : ℕ → ℕ) :
+    Buck n m E D BH BV BN sp ls :=
+  { h with mem := fun v hv _ => h.mem v hv rfl }
+
+/-- **A push.** One fresh slot, linked in front of the head of bucket
+`d`, holding the vertex `x` whose new degree `d` is. Every other
+bucket's chain is untouched, so every witness the state had it still
+has. -/
+theorem push (h : Buck n m E D BH BV BN sp ls) {D' : ℕ → ℕ} {x d m' : ℕ}
+    (hx : x < n) (hd : d ≤ n) (hdx : D' x = d) (hDD : ∀ v, v ≠ x → D' v = D v)
+    (hD' : ∀ v < m', D' v ≤ n) (hm : ∀ v < m', v ≠ x → v < m) :
+    Buck n m' E D' (upd BH d sp) (upd BV sp x) (upd BN sp (BH d)) (sp + 1) (ls + 1) := by
+  have hdsp : BH d < sp := h.head_lt d hd
+  refine ⟨by omega, fun e he => ?_, fun p hp hps => ?_, fun p hp hps => ?_, hD', ?_, ?_⟩
+  · by_cases hed : e = d
+    · rw [hed, upd_self]; omega
+    · rw [upd_of_ne _ hed]; have := h.head_lt e he; omega
+  · by_cases hpsp : p = sp
+    · rw [hpsp, upd_self]; omega
+    · rw [upd_of_ne _ hpsp]; exact h.alloc p hp (by omega)
+  · by_cases hpsp : p = sp
+    · rw [hpsp, upd_self]; exact hx
+    · rw [upd_of_ne _ hpsp]; exact h.val_lt p hp (by omega)
+  · intro v hv hEv
+    by_cases hvx : v = x
+    · subst hvx
+      exact ⟨sp, by rw [hdx, chain_push_eq h.sp_pos h.alloc hdsp]; simp, upd_self ..⟩
+    · obtain ⟨q, hq, hqv⟩ := h.mem v (hm v hv hvx) hEv
+      have hDv : D v ≤ n := h.deg_le v (hm v hv hvx)
+      have hqsp : q < sp := lt_of_le_of_lt (chain_mem_le hq) (h.head_lt _ hDv)
+      refine ⟨q, ?_, by rw [upd_of_ne _ (by omega : q ≠ sp)]; exact hqv⟩
+      rw [hDD v hvx]
+      by_cases hDd : D v = d
+      · rw [hDd, chain_push_eq h.sp_pos h.alloc hdsp, List.mem_cons]
+        exact Or.inr (hDd ▸ hq)
+      · rw [chain_push_ne h.alloc (h.head_lt _ hDv) hDd]; exact hq
+  · rw [h.ls_eq]
+    refine (sum_add_one hd (fun e hen hed => ?_) ?_).symm
+    · rw [chain_push_ne h.alloc (h.head_lt e hen) hed]
+    · rw [chain_push_eq h.sp_pos h.alloc hdsp]; simp
+
+/-- **A pop.** The head slot of bucket `d` comes off, stale or not.
+Every other bucket's chain is literally unchanged — a pop writes one
+head and no next pointer — and the popped bucket loses exactly its
+head, so every witness survives but the one naming the popped slot's
+own vertex. That the bucket was nonempty is what says there was a slot
+to lose, and so that `ls` really goes down. -/
+theorem pop (h : Buck n m E D BH BV BN sp ls) {d : ℕ} (hd : d ≤ n) (hne : BH d ≠ 0)
+    (E' : ℕ → ℕ) (hE' : ∀ v < m, E' v = 0 → E v = 0)
+    (hout : ∀ v < m, E' v = 0 → D v = d → v ≠ BV (BH d)) :
+    0 < ls ∧ Buck n m E' D (upd BH d (BN (BH d))) BV BN sp (ls - 1) := by
+  have hdsp : BH d < sp := h.head_lt d hd
+  have hpos : 0 < BH d := Nat.pos_of_ne_zero hne
+  have hlt : BN (BH d) < BH d := h.alloc _ hpos hdsp
+  have hchain : chain BN (BH d) = BH d :: chain BN (BN (BH d)) := chain_cons BN hpos hlt
+  have hsum : ∑ e ∈ Finset.range (n + 1), (chain BN (BH e)).length
+      = (∑ e ∈ Finset.range (n + 1), (chain BN (upd BH d (BN (BH d)) e)).length) + 1 := by
+    refine sum_add_one hd (fun e _ hed => ?_) ?_
+    · rw [upd_of_ne _ hed]
+    · rw [upd_self, hchain]; simp
+  refine ⟨by rw [h.ls_eq, hsum]; omega,
+    ⟨h.sp_pos, fun e he => ?_, h.alloc, h.val_lt, h.deg_le, ?_, by rw [h.ls_eq, hsum]; omega⟩⟩
+  · by_cases hed : e = d
+    · rw [hed, upd_self]; omega
+    · rw [upd_of_ne _ hed]; exact h.head_lt e he
+  · intro v hv hEv
+    obtain ⟨q, hq, hqv⟩ := h.mem v hv (hE' v hv hEv)
+    by_cases hDd : D v = d
+    · rw [hDd, upd_self]
+      rw [hDd, hchain, List.mem_cons] at hq
+      rcases hq with rfl | hq
+      · exact absurd hqv.symm (hout v hv hEv hDd)
+      · exact ⟨q, hq, hqv⟩
+    · rw [upd_of_ne _ hDd]; exact ⟨q, hq, hqv⟩
+
+end Buck
+
+/-! #### The buckets, filled -/
+
+/-- The invariant of the bucket build: one slot per vertex placed so
+far, at the top of the arena, and every vertex below the counter with a
+slot in the bucket of its degree. -/
+def BuckInv (n ns : ℕ) (D : ℕ → ℕ) (σ : Env) : Prop :=
+  σ.vars "n" = n ∧ σ.arrs "deg" = arrOf n D ∧ σ.vars "i" ≤ n ∧
+    σ.vars "sp" = σ.vars "i" + 1 ∧ σ.vars "ls" = σ.vars "i" ∧
+    ∃ BH BV BN, σ.arrs "bh" = arrOf (n + 1) BH ∧ σ.arrs "bv" = arrOf (n + ns + 1) BV ∧
+      σ.arrs "bn" = arrOf (n + ns + 1) BN ∧
+      Buck n (σ.vars "i") (fun _ => 0) D BH BV BN (σ.vars "sp") (σ.vars "ls")
+
+/-- **One vertex, put in the bucket of its degree.** The fresh slot is
+the top of the arena, so it is above every slot the chains hold and the
+push is `Buck.push` on the nose. -/
+theorem initBuckRow_spec (B n ns : ℕ) (D : ℕ → ℕ) (hnB : n + 1 < B)
+    (hD : ∀ v < n, D v < n) :
+    Spec B (fun σ => BuckInv n ns D σ ∧ σ.vars "i" < n) initBuckRow
+      (fun σ σ' => BuckInv n ns D σ' ∧ σ'.vars "i" = σ.vars "i" + 1) 25 := by
+  intro σ hσ
+  obtain ⟨⟨hn, hdeg, hile, hsp, hls, BH, BV, BN, hbh, hbv, hbn, hbuck⟩, hlt⟩ := hσ
+  have hdegi : (σ.arrs "deg").getD (σ.vars "i") 0 = D (σ.vars "i") := by
+    rw [hdeg, getD_arrOf D hlt]
+  have hDi : D (σ.vars "i") < n := hD _ hlt
+  have hdeglen : σ.vars "i" < (σ.arrs "deg").length := by rw [hdeg, length_arrOf]; exact hlt
+  have hbvlen : σ.vars "sp" < (σ.arrs "bv").length := by rw [hbv, length_arrOf]; omega
+  have hbnlen : σ.vars "sp" < (σ.arrs "bn").length := by rw [hbn, length_arrOf]; omega
+  have hbhlen : (σ.arrs "deg").getD (σ.vars "i") 0 < (σ.arrs "bh").length := by
+    rw [hdegi, hbh, length_arrOf]; omega
+  have hbhd : (σ.arrs "bh").getD ((σ.arrs "deg").getD (σ.vars "i") 0) 0
+      = BH (D (σ.vars "i")) := by rw [hdegi, hbh, getD_arrOf BH (by omega)]
+  have hbhdlt : BH (D (σ.vars "i")) < σ.vars "sp" := hbuck.head_lt _ (by omega)
+  have hbhdB : (σ.arrs "bh").getD ((σ.arrs "deg").getD (σ.vars "i") 0) 0 < B := by
+    rw [hbhd]; omega
+  have hdiB : (σ.arrs "deg").getD (σ.vars "i") 0 < B := by rw [hdegi]; omega
+  -- the same reads in the `getElem?` form the walk's discharger normalizes into
+  have hdegi' : (σ.arrs "deg")[σ.vars "i"]?.getD 0 = D (σ.vars "i") := by
+    rw [← List.getD_eq_getElem?_getD]; exact hdegi
+  have hdiB' : (σ.arrs "deg")[σ.vars "i"]?.getD 0 < B := by rw [hdegi']; omega
+  have hbhlen' : (σ.arrs "deg")[σ.vars "i"]?.getD 0 < (σ.arrs "bh").length := by
+    rw [hdegi', hbh, length_arrOf]; omega
+  have hbhd' : (σ.arrs "bh").getD ((σ.arrs "deg")[σ.vars "i"]?.getD 0) 0
+      = BH (D (σ.vars "i")) := by rw [hdegi', hbh, getD_arrOf BH (by omega)]
+  have hbhd'B : (σ.arrs "bh").getD ((σ.arrs "deg")[σ.vars "i"]?.getD 0) 0 < B := by
+    rw [hbhd']; omega
+  have hbhd'' : (σ.arrs "bh")[(σ.arrs "deg")[σ.vars "i"]?.getD 0]?.getD 0
+      = BH (D (σ.vars "i")) := by rw [← List.getD_eq_getElem?_getD]; exact hbhd'
+  have hbhd''B : (σ.arrs "bh")[(σ.arrs "deg")[σ.vars "i"]?.getD 0]?.getD 0 < B := by
+    rw [hbhd'']; omega
+  run_vcg
+  refine ⟨⟨by simp [hn], by simp [hdeg], by simp; omega, by simp; omega, by simp; omega,
+    upd BH (D (σ.vars "i")) (σ.vars "sp"), upd BV (σ.vars "sp") (σ.vars "i"),
+    upd BN (σ.vars "sp") (BH (D (σ.vars "i"))),
+    by simp [hbh, hdegi', set_arrOf_eq_upd], by simp [hbv, set_arrOf_eq_upd],
+    by simp [hbn, hbhd'', set_arrOf_eq_upd], ?_⟩, by simp⟩
+  have hpush := hbuck.push (D' := D) (x := σ.vars "i") (d := D (σ.vars "i"))
+    (m' := σ.vars "i" + 1) hlt (by omega) rfl (fun _ _ => rfl)
+    (fun v hv => le_of_lt (hD v (by omega))) (fun v hv hvx => by omega)
+  simpa using hpush
+
+/-- **Every vertex, put in the bucket of its degree.** A flat pass, so
+the kit's counted scan supplies the loop; what the pass leaves is one
+slot per vertex, `sp` at `n + 1` and `ls` at `n`. The heads start at
+the sentinel, which is what the machine's zeroed memory already
+says. -/
+theorem initBuck_spec (B n ns : ℕ) (D : ℕ → ℕ) (hnB : n + 1 < B) (hD : ∀ v < n, D v < n) :
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs "deg" = arrOf n D ∧
+        (∃ g, σ.arrs "bh" = arrOf (n + 1) g ∧ ∀ j ≤ n, g j = 0) ∧
+        (∃ g, σ.arrs "bv" = arrOf (n + ns + 1) g) ∧ (∃ g, σ.arrs "bn" = arrOf (n + ns + 1) g))
+      initBuck
+      (fun _ σ' => BuckInv n ns D σ' ∧ σ'.vars "i" = n)
+      (29 * n + 10) := by
+  have hloop : Spec B (fun σ => BuckInv n ns D (σ.setVar "i" 0))
+      (.seq (.assign "i" (.lit 0)) (.while (.lt (.var "i") (.var "n")) initBuckRow))
+      (fun _ σ' => BuckInv n ns D σ' ∧ σ'.vars "i" = n) ((25 + 4) * n + 6) :=
+    Spec.forRangeZero "i" "n" (BuckInv n ns D) n 25 (by omega)
+      (fun _ h => h.2.2.1) (fun _ h => h.1) (initBuckRow_spec B n ns D hnB hD)
+  run_vcg [hloop]
+  · exact ‹BuckInv n ns D _ ∧ _›
+  · -- the arena is empty, so every bucket is the sentinel and `ls` is nought
+    obtain ⟨BH, hbh, hBH⟩ := ‹∃ g, σ.arrs "bh" = arrOf (n + 1) g ∧ ∀ j ≤ n, g j = 0›
+    obtain ⟨BV, hbv⟩ := ‹∃ g, σ.arrs "bv" = arrOf (n + ns + 1) g›
+    obtain ⟨BN, hbn⟩ := ‹∃ g, σ.arrs "bn" = arrOf (n + ns + 1) g›
+    have hn : σ.vars "n" = n := ‹σ.vars "n" = n›
+    have hdeg : σ.arrs "deg" = arrOf n D := ‹σ.arrs "deg" = arrOf n D›
+    refine ⟨by simp [hn], by simp [hdeg], by simp, by simp, by simp,
+      BH, BV, BN, by simp [hbh], by simp [hbv], by simp [hbn],
+      ⟨by simp, fun d hd => by simp [hBH d hd], fun p hp hps => by simp at hps; omega,
+        fun p hp hps => by simp at hps; omega, fun v hv => by simp at hv,
+        fun v hv => by simp at hv, ?_⟩⟩
+    refine (Finset.sum_eq_zero fun d hd => ?_).symm
+    rw [hBH d (by have := Finset.mem_range.1 hd; omega), chain_zero]
+    simp
+
+/-! #### The elimination -/
+
+/-- The vertices whose rows the run has already scanned: the ones taken
+and alive. Their blocks tile part of the target array, which is what
+bounds the slot counter and so the arena. -/
+def scanned (n : ℕ) (E M : ℕ → ℕ) : Finset ℕ :=
+  (Finset.range n).filter (fun v => E v = 1 ∧ M v ≠ 0)
+
+theorem mem_scanned {E M : ℕ → ℕ} {v : ℕ} :
+    v ∈ scanned n E M ↔ v < n ∧ E v = 1 ∧ M v ≠ 0 := by
+  rw [scanned, Finset.mem_filter, Finset.mem_range]
+
+/-- **The rows already scanned fit inside the target array.** -/
+theorem scanned_sum_le (hcsr : CsrGraph G ns O T) (E : ℕ → ℕ) :
+    ∑ v ∈ scanned n E M, Csr.rowLen O v ≤ ns :=
+  hcsr.sum_rowLen_le (fun _ hv => (mem_scanned.1 hv).1)
+
+/-- Taking a live vertex adds its row to them. -/
+theorem scanned_upd_alive {E M : ℕ → ℕ} {w : ℕ} (hw : w < n) (hE : E w = 0) (hM : M w ≠ 0) :
+    scanned n (upd E w 1) M = insert w (scanned n E M) := by
+  ext v
+  simp only [mem_scanned, Finset.mem_insert]
+  by_cases hvw : v = w
+  · subst hvw; simp [hw, hM]
+  · rw [upd_of_ne _ hvw]; exact ⟨fun h => Or.inr h, fun h => h.resolve_left hvw⟩
+
+/-- Taking a dead one adds nothing: it has no row to scan. -/
+theorem scanned_upd_dead {E M : ℕ → ℕ} {w : ℕ} (hM : M w = 0) :
+    scanned n (upd E w 1) M = scanned n E M := by
+  ext v
+  simp only [mem_scanned]
+  by_cases hvw : v = w
+  · subst hvw; simp [hM]
+  · rw [upd_of_ne _ hvw]
+
+/-- The arrays of the engine, at their lengths. -/
+def ElimArr (n ns : ℕ) (O T M E D R ID BH BV BN : ℕ → ℕ) (σ : Env) : Prop :=
+  σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+    σ.arrs "alv" = arrOf n M ∧ σ.arrs "elm" = arrOf n E ∧ σ.arrs "deg" = arrOf n D ∧
+    σ.arrs "rnk" = arrOf n R ∧ σ.arrs "idg" = arrOf n ID ∧
+    σ.arrs "bh" = arrOf (n + 1) BH ∧ σ.arrs "bv" = arrOf (n + ns + 1) BV ∧
+    σ.arrs "bn" = arrOf (n + ns + 1) BN
+
+/-- A surviving neighbour of `w` that the row scan has already passed,
+and so already decremented. -/
+def hit (O T M E : ℕ → ℕ) (w j u : ℕ) : Prop :=
+  E u = 0 ∧ M u ≠ 0 ∧ ∃ t, O w ≤ t ∧ t < j ∧ T t = u
+
+theorem hit_mono {O T M E : ℕ → ℕ} {w j u : ℕ} (h : hit O T M E w j u) :
+    hit O T M E w (j + 1) u := ⟨h.1, h.2.1, h.2.2.imp fun _ ht => ⟨ht.1, by omega, ht.2.2⟩⟩
+
+/-- One more slot passed either was already a hit, or is the slot itself. -/
+theorem hit_succ {O T M E : ℕ → ℕ} {w j u : ℕ} (h : hit O T M E w (j + 1) u) :
+    hit O T M E w j u ∨ (u = T j ∧ E u = 0 ∧ M u ≠ 0) := by
+  obtain ⟨hE, hM, t, h₁, h₂, h₃⟩ := h
+  rcases Nat.lt_or_ge t j with hlt | hge
+  · exact Or.inl ⟨hE, hM, t, h₁, hlt, h₃⟩
+  · have ht : t = j := by omega
+    subst ht
+    exact Or.inr ⟨h₃.symm, hE, hM⟩
+
+/-- **The slot the scan stands at is not a hit yet**: the row names each
+neighbour once, so nothing before it named the same vertex. -/
+theorem not_hit_self (hcsr : CsrSimple G ns O T) {M E : ℕ → ℕ} {w j : ℕ} (hw : w < n)
+    (h₁ : O w ≤ j) (h₂ : j < O (w + 1)) : ¬ hit O T M E w j (T j) := by
+  rintro ⟨-, -, t, ht₁, ht₂, ht₃⟩
+  have := hcsr.nodup w hw t j ht₁ (by omega) h₁ h₂ ht₃
+  omega
+
+/-- The invariant of the row scan of an extraction: the degrees are the
+ones the extraction started with, decremented at every surviving
+neighbour the scan has already passed. -/
+def DecInv (n ns : ℕ) (O T M E R ID D₀ : ℕ → ℕ) (w ls₀ sc₀ mv kv cv : ℕ) (σ : Env) : Prop :=
+  ∃ D BH BV BN, ElimArr n ns O T M E D R ID BH BV BN σ ∧
+    Buck n n E D BH BV BN (σ.vars "sp") (σ.vars "ls") ∧
+    (∀ u < n, E u ≤ 1) ∧ (∀ u < n, D u < n) ∧
+    (∀ u < n, hit O T M E w (σ.vars "j") u → D u = D₀ u - 1) ∧
+    (∀ u < n, ¬ hit O T M E w (σ.vars "j") u → D u = D₀ u) ∧
+    σ.vars "jend" = O (w + 1) ∧ O w ≤ σ.vars "j" ∧ σ.vars "j" ≤ O (w + 1) ∧
+    σ.vars "sc" + (O (w + 1) - σ.vars "j") = ∑ v ∈ scanned n E M, Csr.rowLen O v ∧
+    σ.vars "sp" ≤ n + 1 + σ.vars "sc" ∧ σ.vars "ls" + 1 ≤ σ.vars "sp" ∧
+    σ.vars "ls" + sc₀ ≤ ls₀ + σ.vars "sc" ∧
+    σ.vars "mind" = mv ∧ σ.vars "kmax" = kv ∧ σ.vars "cnt" = cv
+
+/-- **One slot of the row of the vertex being eliminated.** Three paths:
+a dead target and an eliminated one are passed over, and a surviving
+one loses a degree and is pushed into its new bucket — which is
+`Buck.push`, the old slot left where it is. Written in the `_run` form
+the kit's row scan consumes, with every obligation of the walk
+pre-loaded, `RamBfs.scanSlot_run`'s shape and for its reason. -/
+theorem decSlot_run {B n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M E R ID D₀ : ℕ → ℕ}
+    {w ls₀ sc₀ mv kv cv : ℕ} (hcsr : CsrSimple G ns O T) (hw : w < n) (hB : n + ns + 1 < B)
+    (hMB : ∀ z < n, M z < B) {σ : Env}
+    (hI : DecInv n ns O T M E R ID D₀ w ls₀ sc₀ mv kv cv σ)
+    (hjlt : σ.vars "j" < O (w + 1)) :
+    ∃ σ' K, Run B decSlot σ σ' K ∧ K ≤ 48 ∧
+      DecInv n ns O T M E R ID D₀ w ls₀ sc₀ mv kv cv σ' ∧
+        σ'.vars "j" = σ.vars "j" + 1 := by
+  obtain ⟨D, BH, BV, BN, ⟨hn, hoff, htgt, halv, helm, hdeg, hrnk, hidg, hbh, hbv, hbn⟩,
+    hbuck, hbit, hdn, hhit, hnhit, hje, hj₁, hj₂, hsc, hspc, hlsp, hls0, hmind, hkmax,
+    hcnt⟩ := hI
+  have hSle : ∑ v ∈ scanned n E M, Csr.rowLen O v ≤ ns := scanned_sum_le hcsr.csr E
+  have hns : O (w + 1) ≤ ns := hcsr.csr.le_ns (by omega)
+  have hjns : σ.vars "j" < ns := by omega
+  have hun : T (σ.vars "j") < n := hcsr.csr.target_lt' hw hjlt
+  have hscns : σ.vars "sc" + 1 ≤ ns := by omega
+  have hroom : σ.vars "sp" < n + ns + 1 := by omega
+  -- the target read, in both the forms the walk states it in
+  have hrj : (σ.arrs "tgt").getD (σ.vars "j") 0 = T (σ.vars "j") := by
+    rw [htgt, getD_arrOf T hjns]
+  have hrj' : (σ.arrs "tgt")[σ.vars "j"]?.getD 0 = T (σ.vars "j") := by
+    rw [← List.getD_eq_getElem?_getD]; exact hrj
+  have hjlen : σ.vars "j" < (σ.arrs "tgt").length := by rw [htgt, length_arrOf]; omega
+  have huB : (σ.arrs "tgt").getD (σ.vars "j") 0 < B := by rw [hrj]; omega
+  -- the three array reads at the target
+  have halvlen : (σ.arrs "tgt").getD (σ.vars "j") 0 < (σ.arrs "alv").length := by
+    rw [hrj, halv, length_arrOf]; exact hun
+  have halvv : (σ.arrs "alv").getD ((σ.arrs "tgt").getD (σ.vars "j") 0) 0
+      = M (T (σ.vars "j")) := by rw [hrj, halv, getD_arrOf M hun]
+  have halvB : (σ.arrs "alv").getD ((σ.arrs "tgt").getD (σ.vars "j") 0) 0 < B := by
+    rw [halvv]; exact hMB _ hun
+  have helmlen : (σ.arrs "tgt").getD (σ.vars "j") 0 < (σ.arrs "elm").length := by
+    rw [hrj, helm, length_arrOf]; exact hun
+  have helmv : (σ.arrs "elm").getD ((σ.arrs "tgt").getD (σ.vars "j") 0) 0
+      = E (T (σ.vars "j")) := by rw [hrj, helm, getD_arrOf E hun]
+  have helmB : (σ.arrs "elm").getD ((σ.arrs "tgt").getD (σ.vars "j") 0) 0 < B := by
+    rw [helmv]; have := hbit _ hun; omega
+  have hdeglen : (σ.arrs "tgt").getD (σ.vars "j") 0 < (σ.arrs "deg").length := by
+    rw [hrj, hdeg, length_arrOf]; exact hun
+  have hdegv : (σ.arrs "deg").getD ((σ.arrs "tgt").getD (σ.vars "j") 0) 0
+      = D (T (σ.vars "j")) := by rw [hrj, hdeg, getD_arrOf D hun]
+  have hdegB : (σ.arrs "deg").getD ((σ.arrs "tgt").getD (σ.vars "j") 0) 0 < B := by
+    rw [hdegv]; have := hdn _ hun; omega
+  -- the same reads in the environment the two conditionals test in
+  have hbrAlv : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "alv").getD
+      ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "u") 0
+      = M (T (σ.vars "j")) := by rw [arrs_setVar, vars_setVar]; simpa using halvv
+  have hbrElm : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "elm").getD
+      ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "u") 0
+      = E (T (σ.vars "j")) := by rw [arrs_setVar, vars_setVar]; simpa using helmv
+  have hbrAlvB : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "alv").getD
+      ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "u") 0 < B := by
+    rw [hbrAlv]; exact hMB _ hun
+  have hbrElmB : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "elm").getD
+      ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "u") 0 < B := by
+    rw [hbrElm]; have := hbit _ hun; omega
+  have hbhlen : (σ.arrs "bh").length = n + 1 := by rw [hbh, length_arrOf]
+  have hbvlen : (σ.arrs "bv").length = n + ns + 1 := by rw [hbv, length_arrOf]
+  have hbnlen : (σ.arrs "bn").length = n + ns + 1 := by rw [hbn, length_arrOf]
+  have hnothit : ¬ hit O T M E w (σ.vars "j") (T (σ.vars "j")) :=
+    not_hit_self hcsr hw hj₁ hjlt
+  have hDun : D (T (σ.vars "j")) < n := hdn _ hun
+  have hd1n : D (T (σ.vars "j")) - 1 < n + 1 := by omega
+  -- the degree cell after the decrement, and the bucket head it names
+  have hsetD : ((σ.arrs "deg").set ((σ.arrs "tgt").getD (σ.vars "j") 0)
+      ((σ.arrs "deg").getD ((σ.arrs "tgt").getD (σ.vars "j") 0) 0 - 1)).getD
+      ((σ.arrs "tgt").getD (σ.vars "j") 0) 0 = D (T (σ.vars "j")) - 1 := by
+    rw [hdegv, hrj, hdeg, set_arrOf_eq_upd, getD_arrOf _ hun, upd_self]
+  have hheadlt : BH (D (T (σ.vars "j")) - 1) < σ.vars "sp" := hbuck.head_lt _ (by omega)
+  have hbhget : (σ.arrs "bh").getD (((σ.arrs "deg").set ((σ.arrs "tgt").getD (σ.vars "j") 0)
+      ((σ.arrs "deg").getD ((σ.arrs "tgt").getD (σ.vars "j") 0) 0 - 1)).getD
+      ((σ.arrs "tgt").getD (σ.vars "j") 0) 0) 0 = BH (D (T (σ.vars "j")) - 1) := by
+    rw [hsetD, hbh, getD_arrOf BH (by omega)]
+  have hdn' : ∀ u < n, upd D (T (σ.vars "j")) (D (T (σ.vars "j")) - 1) u < n := by
+    intro u hu
+    by_cases hux : u = T (σ.vars "j")
+    · rw [hux, upd_self]; omega
+    · rw [upd_of_ne _ hux]; exact hdn u hu
+  run_vcg
+  · -- a surviving neighbour loses a degree and is pushed into its new bucket
+    have hMu : M (T (σ.vars "j")) ≠ 0 := by omega
+    have hEu : E (T (σ.vars "j")) = 0 := by omega
+    have hpush := hbuck.push (D' := upd D (T (σ.vars "j")) (D (T (σ.vars "j")) - 1))
+      (x := T (σ.vars "j")) (d := D (T (σ.vars "j")) - 1) (m' := n) hun (by omega)
+      (upd_self ..) (fun v hv => upd_of_ne _ hv)
+      (fun v hv => le_of_lt (hdn' v hv)) (fun v hv _ => hv)
+    refine ⟨⟨upd D (T (σ.vars "j")) (D (T (σ.vars "j")) - 1),
+      upd BH (D (T (σ.vars "j")) - 1) (σ.vars "sp"), upd BV (σ.vars "sp") (T (σ.vars "j")),
+      upd BN (σ.vars "sp") (BH (D (T (σ.vars "j")) - 1)),
+      ⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv], by simp [helm],
+        by simp [hdeg, hrj', set_arrOf_eq_upd, hun], by simp [hrnk], by simp [hidg],
+        by simp [hbh, hdeg, hrj', set_arrOf_eq_upd, hun, hd1n],
+        by simp [hbv, hrj', set_arrOf_eq_upd],
+        by simp [hbn, hbh, hdeg, hrj', set_arrOf_eq_upd, hun, hd1n]⟩,
+      by simpa using hpush, hbit, by simpa using hdn', ?_, ?_,
+      by simp [hje], by simp; omega, by simp; omega, by simp; omega,
+      by simp; omega, by simp; omega, by simp; omega,
+      by simp [hmind], by simp [hkmax], by simp [hcnt]⟩, by simp⟩
+    · intro x hx hhx
+      simp only [vars_setVar] at hhx
+      rcases hit_succ (by simpa using hhx) with hh | ⟨rfl, -, -⟩
+      · rw [upd_of_ne _ (by rintro rfl; exact hnothit hh)]; exact hhit x hx hh
+      · rw [upd_self, hnhit _ hx hnothit]
+    · intro x hx hnhx
+      simp only [vars_setVar] at hnhx
+      have hnh : ¬ hit O T M E w (σ.vars "j" + 1) x := by simpa using hnhx
+      rw [upd_of_ne _ (by rintro rfl; exact hnh ⟨hEu, hMu, σ.vars "j", hj₁, by omega, rfl⟩)]
+      exact hnhit x hx (fun hc => hnh (hit_mono hc))
+  · -- an eliminated neighbour is passed over
+    have hEu : E (T (σ.vars "j")) ≠ 0 := by omega
+    refine ⟨⟨D, BH, BV, BN,
+      ⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv], by simp [helm],
+        by simp [hdeg], by simp [hrnk], by simp [hidg], by simp [hbh], by simp [hbv],
+        by simp [hbn]⟩,
+      by simpa using hbuck, hbit, hdn, ?_, ?_,
+      by simp [hje], by simp; omega, by simp; omega, by simp; omega,
+      by simp; omega, by simp; omega, by simp; omega,
+      by simp [hmind], by simp [hkmax], by simp [hcnt]⟩, by simp⟩
+    · intro x hx hhx
+      simp only [vars_setVar] at hhx
+      rcases hit_succ (by simpa using hhx) with hh | ⟨rfl, hE0, -⟩
+      · exact hhit x hx hh
+      · exact absurd hE0 hEu
+    · intro x hx hnhx
+      simp only [vars_setVar] at hnhx
+      have hnh : ¬ hit O T M E w (σ.vars "j" + 1) x := by simpa using hnhx
+      exact hnhit x hx (fun hc => hnh (hit_mono hc))
+  · -- a dead neighbour is passed over
+    have hMu : M (T (σ.vars "j")) = 0 := by omega
+    refine ⟨⟨D, BH, BV, BN,
+      ⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv], by simp [helm],
+        by simp [hdeg], by simp [hrnk], by simp [hidg], by simp [hbh], by simp [hbv],
+        by simp [hbn]⟩,
+      by simpa using hbuck, hbit, hdn, ?_, ?_,
+      by simp [hje], by simp; omega, by simp; omega, by simp; omega,
+      by simp; omega, by simp; omega, by simp; omega,
+      by simp [hmind], by simp [hkmax], by simp [hcnt]⟩, by simp⟩
+    · intro x hx hhx
+      simp only [vars_setVar] at hhx
+      rcases hit_succ (by simpa using hhx) with hh | ⟨rfl, -, hM0⟩
+      · exact hhit x hx hh
+      · exact absurd hMu hM0
+    · intro x hx hnhx
+      simp only [vars_setVar] at hnhx
+      have hnh : ¬ hit O T M E w (σ.vars "j" + 1) x := by simpa using hnhx
+      exact hnhit x hx (fun hc => hnh (hit_mono hc))
+  all_goals simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr,
+    ↓reduceIte, String.reduceEq]
+  all_goals omega
+
+/-- **The row of the vertex being eliminated, scanned.** The loop is the
+kit's row scan: the caller says what a slot does, and the combinator
+supplies the loop condition, the exit fact and the cost. -/
+theorem decScan_spec {B n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M E R ID D₀ : ℕ → ℕ}
+    {w ls₀ sc₀ mv kv cv : ℕ} (hcsr : CsrSimple G ns O T) (hw : w < n) (hB : n + ns + 1 < B)
+    (hMB : ∀ z < n, M z < B) :
+    Spec B (fun σ => DecInv n ns O T M E R ID D₀ w ls₀ sc₀ mv kv cv σ ∧ σ.vars "j" = O w)
+      (Csr.scan "j" "jend" decSlot)
+      (fun _ σ' => DecInv n ns O T M E R ID D₀ w ls₀ sc₀ mv kv cv σ' ∧
+        σ'.vars "j" = O (w + 1))
+      (52 * Csr.rowLen O w + 4) := by
+  have hrow : Csr.rowLen O w = O (w + 1) - O w := rfl
+  have hns : O (w + 1) ≤ ns := hcsr.csr.le_ns (by omega)
+  refine Csr.rowScan_spec B (52 * Csr.rowLen O w + 4) (O (w + 1)) 48 "j" "jend" decSlot
+    (DecInv n ns O T M E R ID D₀ w ls₀ sc₀ mv kv cv) (by omega) (fun σ hσ => ?_)
+    (fun σ hσ hlt => ?_)
+    (fun _ hσ => hσ.1) (fun σ hσ => by rw [hσ.2]; omega)
+  · obtain ⟨D, BH, BV, BN, -, -, -, -, -, -, hje, -, hjle, -⟩ := hσ
+    exact ⟨hje, hjle⟩
+  · obtain ⟨σ', K', hr, hK, hI', hj'⟩ := decSlot_run hcsr hw hB hMB hσ hlt
+    exact ⟨σ', K', hr, hI', hj', hK⟩
+
+/-- The invariant of the elimination loop: the arrays at their lengths,
+`Elim` on the mathematics, `Buck` on the buckets, and the four counters
+that bound the arena and pay for the run. -/
+def ElimSt (n ns : ℕ) (G : SimpleGraph (Fin n)) (O T M E D R ID BH BV BN : ℕ → ℕ)
+    (σ : Env) : Prop :=
+  ElimArr n ns O T M E D R ID BH BV BN σ ∧
+    Elim G M E D R ID (σ.vars "cnt") (σ.vars "mind") (σ.vars "kmax") ∧
+    Buck n n E D BH BV BN (σ.vars "sp") (σ.vars "ls") ∧
+    (∀ u < n, D u < n) ∧
+    σ.vars "sc" = ∑ v ∈ scanned n E M, Csr.rowLen O v ∧
+    σ.vars "sp" ≤ n + 1 + σ.vars "sc" ∧ σ.vars "ls" + 1 ≤ σ.vars "sp" ∧
+    σ.vars "mind" ≤ n ∧ σ.vars "kmax" ≤ n
+
+/-- The same with the arrays existentially quantified, which is what a
+loop invariant has to be. -/
+def ElimInv (n ns : ℕ) (G : SimpleGraph (Fin n)) (O T M : ℕ → ℕ) (σ : Env) : Prop :=
+  ∃ E D R ID BH BV BN, ElimSt n ns G O T M E D R ID BH BV BN σ
+
+/-- **The potential the elimination is paid out of.** A pointer bump
+comes out of the first term, a stale pop out of the second, an
+extraction's row scan out of the third, and the extraction itself out of
+the fourth — which also refunds the one the pointer's drop costs. -/
+def Pot (n ns : ℕ) (σ : Env) : ℕ :=
+  40 * (n + 1 - σ.vars "mind") + 40 * σ.vars "ls" + 100 * (ns - σ.vars "sc") +
+    80 * (n - σ.vars "cnt")
+
+/-- The row scan with the vertex's being a vertex moved into the
+precondition, so that the specification is a term whatever the state
+says — which is what a walk that must step over the scan on a path it
+will then contradict needs. -/
+theorem decScan_spec' {B n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M E R ID D₀ : ℕ → ℕ}
+    {w ls₀ sc₀ mv kv cv : ℕ} (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B)
+    (hMB : ∀ z < n, M z < B) :
+    Spec B (fun σ => w < n ∧ DecInv n ns O T M E R ID D₀ w ls₀ sc₀ mv kv cv σ ∧
+        σ.vars "j" = O w)
+      (Csr.scan "j" "jend" decSlot)
+      (fun _ σ' => DecInv n ns O T M E R ID D₀ w ls₀ sc₀ mv kv cv σ' ∧
+        σ'.vars "j" = O (w + 1))
+      (52 * Csr.rowLen O w + 4) :=
+  fun σ hσ => decScan_spec hcsr hσ.1 hB hMB σ ⟨hσ.2.1, hσ.2.2⟩
+
+/-- **The extraction, not taken.** A popped slot whose vertex is no
+longer of the degree the pointer names is dropped and the state does not
+move. Stated as a specification so that a turn which does not extract is
+walked without ever entering `elimVertex` — and so pays six, not the
+extraction's price. -/
+theorem elimSkipMin_spec (B : ℕ) :
+    Spec B (fun τ => τ.vars "w" < (τ.arrs "deg").length ∧
+        (τ.arrs "deg").getD (τ.vars "w") 0 < B ∧ τ.vars "w" < B ∧ τ.vars "mind" < B ∧
+        (τ.arrs "deg").getD (τ.vars "w") 0 ≠ τ.vars "mind")
+      (.ite (.eq (.get "deg" (.var "w")) (.var "mind")) elimVertex .skip)
+      (fun τ τ' => τ' = τ) 6 := by
+  rintro τ ⟨hlen, hval, hwB, hmB, hne⟩
+  have hb : (Cond.eq (.get "deg" (.var "w")) (.var "mind")).evalB B τ = some false := by
+    rw [evalB_condEq
+      (RunStep.eval_get B τ "deg" (.var "w") (τ.vars "w") (evalB_var hwB) hlen hval)
+      (evalB_var hmB)]
+    simpa using hne
+  exact ⟨τ, (Run.ite_false hb Run.skip).mono (by simp), rfl⟩
+
+/-- **The pointer moves up over an empty bucket.** An empty bucket holds
+no surviving vertex of that degree — that is what `Buck.no_deg` says and
+what `Elim.bump` asks for — and the turn is paid out of the pointer's own
+term of the potential. -/
+theorem elimBump_run {B n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M E D R ID BH BV BN : ℕ → ℕ}
+    (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B) {σ : Env}
+    (hst : ElimSt n ns G O T M E D R ID BH BV BN σ) (hcnt : σ.vars "cnt" < n)
+    (hbh0 : BH (σ.vars "mind") = 0) :
+    ∃ σ' K, Run B elimTurn σ σ' K ∧ K ≤ 30 ∧
+      (ElimInv n ns G O T M σ' ∧ Pot n ns σ' + 34 ≤ Pot n ns σ) := by
+  obtain ⟨⟨hn, hoff, htgt, halv, helm, hdeg, hrnk, hidg, hbh, hbv, hbn⟩,
+    helim, hbuck, hdn, hsc, hspc, hlsp, hmind, hkmax⟩ := hst
+  obtain ⟨v₀, hv₀, hEv₀⟩ := helim.exists_alive hcnt
+  have hmindn : σ.vars "mind" < n := helim.mind_lt hv₀ hEv₀
+  have hSns : σ.vars "sc" ≤ ns := by rw [hsc]; exact scanned_sum_le hcsr.csr E
+  have hbhlen : (σ.arrs "bh").length = n + 1 := by rw [hbh, length_arrOf]
+  have hbhv : (σ.arrs "bh").getD (σ.vars "mind") 0 = BH (σ.vars "mind") := by
+    rw [hbh, getD_arrOf BH (by omega)]
+  have hbhB : (σ.arrs "bh").getD (σ.vars "mind") 0 < B := by rw [hbhv, hbh0]; omega
+  have hnod : ∀ v < n, E v = 0 → D v ≠ σ.vars "mind" := fun v hv hEv => hbuck.no_deg hbh0 hv hEv
+  have hmind1 : σ.vars "mind" + 1 ≤ n := by
+    have h₁ := helim.min_le v₀ hv₀ hEv₀
+    have h₂ := hnod v₀ hv₀ hEv₀
+    have h₃ := hdn v₀ hv₀
+    omega
+  run_vcg [elimSkipMin_spec B]
+  · -- the pointer moves up
+    refine ⟨⟨E, D, R, ID, BH, BV, BN,
+      ⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv], by simp [helm],
+        by simp [hdeg], by simp [hrnk], by simp [hidg], by simp [hbh], by simp [hbv],
+        by simp [hbn]⟩,
+      by simpa using helim.bump hnod, by simpa using hbuck, hdn, by simpa using hsc,
+      by simp; omega, by simp; omega, by simp; omega, by simp [hkmax]⟩, ?_⟩
+    simp only [Pot, vars_setVar, ↓reduceIte, String.reduceEq]
+    omega
+  all_goals exfalso; omega
+
+/-- **A stale slot is dropped.** The head slot of the bucket the pointer
+names is popped, and its vertex turns out to be eliminated already or to
+have moved to a smaller bucket since; nothing else happens. The turn is
+paid out of the slot count, which the pop really does lower — that is
+`Buck.pop`'s first answer. -/
+theorem elimStale_run {B n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M E D R ID BH BV BN : ℕ → ℕ}
+    (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B) {σ : Env}
+    (hst : ElimSt n ns G O T M E D R ID BH BV BN σ) (hcnt : σ.vars "cnt" < n)
+    (hbh0 : BH (σ.vars "mind") ≠ 0)
+    (hstale : ¬ (E (BV (BH (σ.vars "mind"))) = 0 ∧
+      D (BV (BH (σ.vars "mind"))) = σ.vars "mind")) :
+    ∃ σ' K, Run B elimTurn σ σ' K ∧ K ≤ 30 ∧
+      (ElimInv n ns G O T M σ' ∧ Pot n ns σ' + 34 ≤ Pot n ns σ) := by
+  obtain ⟨⟨hn, hoff, htgt, halv, helm, hdeg, hrnk, hidg, hbh, hbv, hbn⟩,
+    helim, hbuck, hdn, hsc, hspc, hlsp, hmind, hkmax⟩ := hst
+  obtain ⟨v₀, hv₀, hEv₀⟩ := helim.exists_alive hcnt
+  have hmindn : σ.vars "mind" < n := helim.mind_lt hv₀ hEv₀
+  have hSns : σ.vars "sc" ≤ ns := by rw [hsc]; exact scanned_sum_le hcsr.csr E
+  have hbhlen : (σ.arrs "bh").length = n + 1 := by rw [hbh, length_arrOf]
+  have hbvlen : (σ.arrs "bv").length = n + ns + 1 := by rw [hbv, length_arrOf]
+  have hbnlen : (σ.arrs "bn").length = n + ns + 1 := by rw [hbn, length_arrOf]
+  have hdeglen : (σ.arrs "deg").length = n := by rw [hdeg, length_arrOf]
+  have helmlen : (σ.arrs "elm").length = n := by rw [helm, length_arrOf]
+  have hbhv : (σ.arrs "bh").getD (σ.vars "mind") 0 = BH (σ.vars "mind") := by
+    rw [hbh, getD_arrOf BH (by omega)]
+  have hbhpos : 0 < BH (σ.vars "mind") := Nat.pos_of_ne_zero hbh0
+  have hbhlt : BH (σ.vars "mind") < σ.vars "sp" := hbuck.head_lt _ (by omega)
+  have hbhB : (σ.arrs "bh").getD (σ.vars "mind") 0 < B := by rw [hbhv]; omega
+  have hwn : BV (BH (σ.vars "mind")) < n := hbuck.val_lt _ hbhpos hbhlt
+  have hbnlt : BN (BH (σ.vars "mind")) < BH (σ.vars "mind") := hbuck.alloc _ hbhpos hbhlt
+  have hbitw : E (BV (BH (σ.vars "mind"))) ≤ 1 := helim.bit _ hwn
+  have hdnw : D (BV (BH (σ.vars "mind"))) < n := hdn _ hwn
+  have hbvv : (σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0
+      = BV (BH (σ.vars "mind")) := by rw [hbhv, hbv, getD_arrOf BV (by omega)]
+  have hbvB : (σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0 < B := by
+    rw [hbvv]; omega
+  have hbnv : (σ.arrs "bn").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0
+      = BN (BH (σ.vars "mind")) := by rw [hbhv, hbn, getD_arrOf BN (by omega)]
+  have hbnB : (σ.arrs "bn").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0 < B := by
+    rw [hbnv]; omega
+  have helmv : (σ.arrs "elm").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0
+      = E (BV (BH (σ.vars "mind"))) := by rw [hbvv, helm, getD_arrOf E hwn]
+  have helmB : (σ.arrs "elm").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0 < B := by
+    rw [helmv]; omega
+  have hdegvv : (σ.arrs "deg").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0
+      = D (BV (BH (σ.vars "mind"))) := by rw [hbvv, hdeg, getD_arrOf D hwn]
+  have hdegB : (σ.arrs "deg").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0 < B := by
+    rw [hdegvv]; omega
+  have hout : ∀ v < n, E v = 0 → D v = σ.vars "mind" → v ≠ BV (BH (σ.vars "mind")) := by
+    rintro v hv hEv hDv rfl
+    exact hstale ⟨hEv, hDv⟩
+  obtain ⟨hlspos, hpop⟩ := hbuck.pop (by omega) hbh0 E (fun _ _ h => h) hout
+  run_vcg [elimSkipMin_spec B]
+  · -- the bucket the pointer names is not empty
+    exfalso; omega
+  · -- the vertex is alive but has moved to a smaller bucket
+    have hEq := ‹(_ : Env) = _›
+    subst hEq
+    refine ⟨⟨E, D, R, ID, upd BH (σ.vars "mind") (BN (BH (σ.vars "mind"))), BV, BN,
+      ⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv], by simp [helm],
+        by simp [hdeg], by simp [hrnk], by simp [hidg],
+        by simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr, ↓reduceIte,
+              String.reduceEq]
+           rw [hbnv, hbh, set_arrOf_eq_upd],
+        by simp [hbv], by simp [hbn]⟩,
+      by simpa using helim, by simpa using hpop, hdn, by simpa using hsc,
+      by simp; omega, by simp; omega, by simp [hmind], by simp [hkmax]⟩, ?_⟩
+    simp only [Pot, vars_setVar, arrs_setVar, vars_setArr, ↓reduceIte, String.reduceEq]
+    omega
+  · -- the vertex has been eliminated already
+    refine ⟨⟨E, D, R, ID, upd BH (σ.vars "mind") (BN (BH (σ.vars "mind"))), BV, BN,
+      ⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv], by simp [helm],
+        by simp [hdeg], by simp [hrnk], by simp [hidg],
+        by simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr, ↓reduceIte,
+              String.reduceEq]
+           rw [hbnv, hbh, set_arrOf_eq_upd],
+        by simp [hbv], by simp [hbn]⟩,
+      by simpa using helim, by simpa using hpop, hdn, by simpa using hsc,
+      by simp; omega, by simp; omega, by simp [hmind], by simp [hkmax]⟩, ?_⟩
+    simp only [Pot, vars_setVar, arrs_setVar, vars_setArr, ↓reduceIte, String.reduceEq]
+    omega
+  all_goals simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr,
+    ↓reduceIte, String.reduceEq] at *
+  all_goals omega
+
+/-- **What the row scan leaves is what `Elim.extract` asks for.** The
+slots of the row of `w` name exactly its neighbours in the arena, so
+"decremented by the scan" and "a neighbour in the arena" are the same
+condition, once the vertex being taken is itself excluded — which
+adjacency does for nothing. -/
+theorem extract_of_scan {n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M E D D' : ℕ → ℕ} {w : ℕ}
+    (hcsr : CsrSimple G ns O T) (hw : w < n) (hMw : M w ≠ 0)
+    (hh : ∀ u < n, hit O T M (upd E w 1) w (O (w + 1)) u → D' u = D u - 1)
+    (hnh : ∀ u < n, ¬ hit O T M (upd E w 1) w (O (w + 1)) u → D' u = D u) :
+    (∀ u < n, E u = 0 → MAdj G M u w → D' u = D u - 1) ∧
+      (∀ u < n, E u = 0 → ¬ MAdj G M u w → D' u = D u) := by
+  refine ⟨fun u hu hEu hadj => hh u hu ⟨?_, hadj.alive_left, ?_⟩,
+    fun u hu hEu hnadj => hnh u hu fun hcon => hnadj ?_⟩
+  · have hne : u ≠ w := fun hc => G.ne_of_adj hadj.adj (by simp [hc])
+    rw [upd_of_ne _ hne]; exact hEu
+  · exact hcsr.csr.slot_of_madj (M := M) hadj.symm
+  · obtain ⟨-, hM, t, h₁, h₂, h₃⟩ := hcon
+    have hma := hcsr.csr.madj_of_slot hw h₁ h₂ hMw (by rw [h₃]; exact hM)
+    rw [h₃] at hma
+    exact hma.symm
+
+set_option maxHeartbeats 4000000 in
+/-- **The one turn that does anything.** The slot's vertex is
+uneliminated and of the degree the pointer names, so it is taken:
+stamped with the next rank down, its extraction degree recorded, and —
+if it is alive in the arena — its row scanned. What the scan leaves is
+`Elim.extract`'s two hypotheses, by `extract_of_scan`; the turn is paid
+out of the extraction term of the potential, which also refunds the one
+the pointer's drop costs. -/
+theorem elimTake_run {B n ns : ℕ} {G : SimpleGraph (Fin n)}
+    {O T M E D R ID BH BV BN : ℕ → ℕ}
+    (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B) (hMB : ∀ z < n, M z < B) {σ : Env}
+    (hst : ElimSt n ns G O T M E D R ID BH BV BN σ) (hcnt : σ.vars "cnt" < n)
+    (hbh0 : BH (σ.vars "mind") ≠ 0) (hEw : E (BV (BH (σ.vars "mind"))) = 0)
+    (hDw : D (BV (BH (σ.vars "mind"))) = σ.vars "mind")
+    (hMw : M (BV (BH (σ.vars "mind"))) ≠ 0) :
+    ∃ σ' K, Run B elimTurn σ σ' K ∧
+      K ≤ 73 + 52 * Csr.rowLen O (BV (BH (σ.vars "mind"))) ∧
+      (ElimInv n ns G O T M σ' ∧
+        Pot n ns σ' + 77 + 52 * Csr.rowLen O (BV (BH (σ.vars "mind"))) ≤ Pot n ns σ) := by
+  obtain ⟨⟨hn, hoff, htgt, halv, helm, hdeg, hrnk, hidg, hbh, hbv, hbn⟩,
+    helim, hbuck, hdn, hsc, hspc, hlsp, hmind, hkmax⟩ := hst
+  obtain ⟨v₀, hv₀, hEv₀⟩ := helim.exists_alive hcnt
+  have hmindn : σ.vars "mind" < n := helim.mind_lt hv₀ hEv₀
+  have hSns : σ.vars "sc" ≤ ns := by rw [hsc]; exact scanned_sum_le hcsr.csr E
+  have hbhlen : (σ.arrs "bh").length = n + 1 := by rw [hbh, length_arrOf]
+  have hbvlen : (σ.arrs "bv").length = n + ns + 1 := by rw [hbv, length_arrOf]
+  have hbnlen : (σ.arrs "bn").length = n + ns + 1 := by rw [hbn, length_arrOf]
+  have hdeglen : (σ.arrs "deg").length = n := by rw [hdeg, length_arrOf]
+  have helmlen : (σ.arrs "elm").length = n := by rw [helm, length_arrOf]
+  have hrnklen : (σ.arrs "rnk").length = n := by rw [hrnk, length_arrOf]
+  have hidglen : (σ.arrs "idg").length = n := by rw [hidg, length_arrOf]
+  have halvlen : (σ.arrs "alv").length = n := by rw [halv, length_arrOf]
+  have hbhv : (σ.arrs "bh").getD (σ.vars "mind") 0 = BH (σ.vars "mind") := by
+    rw [hbh, getD_arrOf BH (by omega)]
+  have hbhpos : 0 < BH (σ.vars "mind") := Nat.pos_of_ne_zero hbh0
+  have hbhlt : BH (σ.vars "mind") < σ.vars "sp" := hbuck.head_lt _ (by omega)
+  have hbhB : (σ.arrs "bh").getD (σ.vars "mind") 0 < B := by rw [hbhv]; omega
+  have hwn : BV (BH (σ.vars "mind")) < n := hbuck.val_lt _ hbhpos hbhlt
+  have hbnlt : BN (BH (σ.vars "mind")) < BH (σ.vars "mind") := hbuck.alloc _ hbhpos hbhlt
+  have hdnw : D (BV (BH (σ.vars "mind"))) < n := hdn _ hwn
+  have hbvv : (σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0
+      = BV (BH (σ.vars "mind")) := by rw [hbhv, hbv, getD_arrOf BV (by omega)]
+  have hbvB : (σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0 < B := by
+    rw [hbvv]; omega
+  have hbnv : (σ.arrs "bn").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0
+      = BN (BH (σ.vars "mind")) := by rw [hbhv, hbn, getD_arrOf BN (by omega)]
+  have hbnB : (σ.arrs "bn").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0 < B := by
+    rw [hbnv]; omega
+  have helmv : (σ.arrs "elm").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0
+      = E (BV (BH (σ.vars "mind"))) := by rw [hbvv, helm, getD_arrOf E hwn]
+  have helmB : (σ.arrs "elm").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0 < B := by
+    rw [helmv, hEw]; omega
+  have hdegvv : (σ.arrs "deg").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0
+      = D (BV (BH (σ.vars "mind"))) := by rw [hbvv, hdeg, getD_arrOf D hwn]
+  have hdegB : (σ.arrs "deg").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0 < B := by
+    rw [hdegvv]; omega
+  have halvv : (σ.arrs "alv").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0
+      = M (BV (BH (σ.vars "mind"))) := by rw [hbvv, halv, getD_arrOf M hwn]
+  have halvB : (σ.arrs "alv").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0 < B := by
+    rw [halvv]; exact hMB _ hwn
+  have hbhv' : (σ.arrs "bh")[σ.vars "mind"]?.getD 0 = BH (σ.vars "mind") := by
+    rw [← List.getD_eq_getElem?_getD]; exact hbhv
+  have hbvv' : (σ.arrs "bv")[(σ.arrs "bh")[σ.vars "mind"]?.getD 0]?.getD 0
+      = BV (BH (σ.vars "mind")) := by
+    rw [hbhv', ← List.getD_eq_getElem?_getD, hbv, getD_arrOf BV (by omega)]
+  have hbnv' : (σ.arrs "bn")[(σ.arrs "bh")[σ.vars "mind"]?.getD 0]?.getD 0
+      = BN (BH (σ.vars "mind")) := by
+    rw [hbhv', ← List.getD_eq_getElem?_getD, hbn, getD_arrOf BN (by omega)]
+  have hOns : O (BV (BH (σ.vars "mind")) + 1) ≤ ns := hcsr.csr.le_ns (by omega)
+  have hOw : O (BV (BH (σ.vars "mind"))) ≤ O (BV (BH (σ.vars "mind")) + 1) :=
+    hcsr.csr.mono _ hwn
+  have hcsrRel : Csr "off" "tgt" n ns n O T σ :=
+    ⟨hoff, htgt, fun i hi => hcsr.csr.mono i hi, hcsr.csr.last,
+      fun p hp => hcsr.csr.target_lt p hp⟩
+  have hout : ∀ v < n, upd E (BV (BH (σ.vars "mind"))) 1 v = 0 →
+      D v = σ.vars "mind" → v ≠ BV (BH (σ.vars "mind")) := by
+    rintro v hv hEv - rfl
+    rw [upd_self] at hEv
+    omega
+  obtain ⟨hlspos, hpop⟩ := hbuck.pop (by omega) hbh0 (upd E (BV (BH (σ.vars "mind"))) 1)
+    (fun v hv hEv => by
+      rw [upd_of_ne _ (fun hc => by rw [hc, upd_self] at hEv; omega)] at hEv; exact hEv)
+    hout
+  have hsum : ∑ v ∈ scanned n (upd E (BV (BH (σ.vars "mind"))) 1) M, Csr.rowLen O v
+      = Csr.rowLen O (BV (BH (σ.vars "mind"))) + ∑ v ∈ scanned n E M, Csr.rowLen O v := by
+    rw [scanned_upd_alive hwn hEw hMw, Finset.sum_insert (by simp [mem_scanned, hEw])]
+  have hbite : ∀ u < n, upd E (BV (BH (σ.vars "mind"))) 1 u ≤ 1 := by
+    intro u hu
+    by_cases huw : u = BV (BH (σ.vars "mind"))
+    · rw [huw, upd_self]
+    · rw [upd_of_ne _ huw]; exact helim.bit u hu
+  run_vcg [Csr.loadRow_spec B n ns n "off" "tgt" "w" "j" "jend" O T (by decide) (by decide),
+    decScan_spec' (n := n) (ns := ns) (G := G) (O := O) (T := T) (M := M)
+      (E := upd E (BV (BH (σ.vars "mind"))) 1)
+      (R := upd R (BV (BH (σ.vars "mind"))) (n - 1 - σ.vars "cnt"))
+      (ID := upd ID (BV (BH (σ.vars "mind"))) (σ.vars "mind")) (D₀ := D)
+      (w := BV (BH (σ.vars "mind"))) (ls₀ := σ.vars "ls" - 1) (sc₀ := σ.vars "sc")
+      (mv := σ.vars "mind") (kv := max (σ.vars "kmax") (σ.vars "mind"))
+      (cv := σ.vars "cnt" + 1) hcsr hB hMB]
+  · -- the bucket the pointer names is not empty
+    exfalso; omega
+  · -- the extraction, raising the bound
+    obtain ⟨hdecI, hjend⟩ := ‹DecInv n ns O T M _ _ _ D _ _ _ _ _ _ _ ∧ _›
+    obtain ⟨D', BH', BV', BN', ⟨hn2, hoff2, htgt2, halv2, helm2, hdeg2, hrnk2, hidg2,
+      hbh2, hbv2, hbn2⟩, hbuck2, hbit2, hdn2, hhit2, hnhit2, hje2, hja2, hjb2, hsc2,
+      hspc2, hlsp2, hls02, hmind2, hkmax2, hcnt2⟩ := hdecI
+    rw [hjend] at hhit2 hnhit2 hsc2
+    simp only [Nat.sub_self, Nat.add_zero] at hsc2
+    obtain ⟨hdecl, hkeepl⟩ := extract_of_scan hcsr hwn hMw hhit2 hnhit2
+    have hext := helim.extract hcnt hwn hEw hDw hdecl hkeepl
+    have hscns2 : ∑ v ∈ scanned n (upd E (BV (BH (σ.vars "mind"))) 1) M, Csr.rowLen O v ≤ ns :=
+      scanned_sum_le hcsr.csr _
+    refine ⟨⟨upd E (BV (BH (σ.vars "mind"))) 1, D',
+      upd R (BV (BH (σ.vars "mind"))) (n - 1 - σ.vars "cnt"),
+      upd ID (BV (BH (σ.vars "mind"))) (σ.vars "mind"), BH', BV', BN',
+      ⟨by simp [hn2], by simp [hoff2], by simp [htgt2], by simp [halv2], by simp [helm2],
+        by simp [hdeg2], by simp [hrnk2], by simp [hidg2], by simp [hbh2], by simp [hbv2],
+        by simp [hbn2]⟩,
+      by simpa [hmind2, hkmax2, hcnt2] using hext, by simpa using hbuck2, hdn2,
+      by simpa using hsc2, by simpa using hspc2, by simpa using hlsp2,
+      by simp [hmind2]; omega, by simp [hkmax2]; omega⟩, ?_⟩
+    simp only [Pot, vars_setVar, ↓reduceIte, String.reduceEq]
+    omega
+  · -- a dead vertex has no row, but this one is alive
+    exfalso
+    simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr, ↓reduceIte,
+      String.reduceEq] at *
+    omega
+  · -- the extraction, the bound standing
+    obtain ⟨hdecI, hjend⟩ := ‹DecInv n ns O T M _ _ _ D _ _ _ _ _ _ _ ∧ _›
+    obtain ⟨D', BH', BV', BN', ⟨hn2, hoff2, htgt2, halv2, helm2, hdeg2, hrnk2, hidg2,
+      hbh2, hbv2, hbn2⟩, hbuck2, hbit2, hdn2, hhit2, hnhit2, hje2, hja2, hjb2, hsc2,
+      hspc2, hlsp2, hls02, hmind2, hkmax2, hcnt2⟩ := hdecI
+    rw [hjend] at hhit2 hnhit2 hsc2
+    simp only [Nat.sub_self, Nat.add_zero] at hsc2
+    obtain ⟨hdecl, hkeepl⟩ := extract_of_scan hcsr hwn hMw hhit2 hnhit2
+    have hext := helim.extract hcnt hwn hEw hDw hdecl hkeepl
+    have hscns2 : ∑ v ∈ scanned n (upd E (BV (BH (σ.vars "mind"))) 1) M, Csr.rowLen O v ≤ ns :=
+      scanned_sum_le hcsr.csr _
+    refine ⟨⟨upd E (BV (BH (σ.vars "mind"))) 1, D',
+      upd R (BV (BH (σ.vars "mind"))) (n - 1 - σ.vars "cnt"),
+      upd ID (BV (BH (σ.vars "mind"))) (σ.vars "mind"), BH', BV', BN',
+      ⟨by simp [hn2], by simp [hoff2], by simp [htgt2], by simp [halv2], by simp [helm2],
+        by simp [hdeg2], by simp [hrnk2], by simp [hidg2], by simp [hbh2], by simp [hbv2],
+        by simp [hbn2]⟩,
+      by simpa [hmind2, hkmax2, hcnt2] using hext, by simpa using hbuck2, hdn2,
+      by simpa using hsc2, by simpa using hspc2, by simpa using hlsp2,
+      by simp [hmind2]; omega, by simp [hkmax2]; omega⟩, ?_⟩
+    simp only [Pot, vars_setVar, ↓reduceIte, String.reduceEq]
+    omega
+  · -- a dead vertex has no row, but this one is alive
+    exfalso
+    simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr, ↓reduceIte,
+      String.reduceEq] at *
+    omega
+  · -- the vertex is of the degree the pointer names
+    exfalso
+    simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr, ↓reduceIte,
+      String.reduceEq] at *
+    omega
+  · -- the vertex is not eliminated
+    exfalso
+    simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr, ↓reduceIte,
+      String.reduceEq] at *
+    omega
+  all_goals simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr,
+    ↓reduceIte, String.reduceEq] at *
+  all_goals try omega
+  · -- the row of the vertex, loaded
+    exact ⟨⟨hcsrRel.of_eq (by simp) (by simp), by omega, by omega⟩, by omega, by omega⟩
+  · -- the scan starts at the top of the row, in the state the extraction left
+    obtain ⟨-, hjl, hjel, rfl⟩ :=
+      ‹Csr.LoadRowPost "off" "tgt" "w" "j" "jend" n ns n O T _ _›
+    refine ⟨hwn, ⟨D, upd BH (σ.vars "mind") (BN (BH (σ.vars "mind"))), BV, BN,
+      ⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv],
+        by simp only [arrs_setVar, arrs_setArr, vars_setArr, vars_setVar, ↓reduceIte,
+              String.reduceEq]
+           rw [hbvv, helm, set_arrOf_eq_upd],
+        by simp [hdeg],
+        by simp only [arrs_setVar, arrs_setArr, vars_setArr, vars_setVar, ↓reduceIte,
+              String.reduceEq]
+           rw [hbvv, hn, hrnk, set_arrOf_eq_upd],
+        by simp only [arrs_setVar, arrs_setArr, vars_setArr, vars_setVar, ↓reduceIte,
+              String.reduceEq]
+           rw [hbvv, hidg, set_arrOf_eq_upd],
+        by simp only [arrs_setVar, arrs_setArr, vars_setArr, vars_setVar, ↓reduceIte,
+              String.reduceEq]
+           rw [hbnv, hbh, set_arrOf_eq_upd],
+        by simp [hbv], by simp [hbn]⟩,
+      by simpa using hpop, hbite, hdn,
+      fun u hu hh => absurd hh
+        (by rintro ⟨-, -, t, h₁, h₂, -⟩; simp [hbvv'] at h₂; omega),
+      fun u _ _ => rfl,
+      by simp [hbvv'], by simp [hbvv'], by simp [hbvv']; omega,
+      by simp only [vars_setVar, vars_setArr, ↓reduceIte, String.reduceEq, hbvv]
+         rw [hsum, hsc]; simp only [Csr.rowLen]; omega,
+      by simp; omega, by simp; omega, by simp,
+      by simp, ?_, by simp⟩, by simp [hbvv']⟩
+    simp only [vars_setVar, vars_setArr, ↓reduceIte, String.reduceEq, Nat.max_def]
+    split <;> omega
+  · -- the pointer is a word after the scan
+    obtain ⟨hd, -⟩ := ‹DecInv n ns O T M _ _ _ D _ _ _ _ _ _ _ ∧ _›
+    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, hm2, -, -⟩ := hd
+    omega
+  · -- and stays one when it drops
+    obtain ⟨hd, -⟩ := ‹DecInv n ns O T M _ _ _ D _ _ _ _ _ _ _ ∧ _›
+    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, hm2, -, -⟩ := hd
+    omega
+  · -- the row of the vertex, loaded
+    exact ⟨⟨hcsrRel.of_eq (by simp) (by simp), by omega, by omega⟩, by omega, by omega⟩
+  · -- the scan starts at the top of the row, in the state the extraction left
+    obtain ⟨-, hjl, hjel, rfl⟩ :=
+      ‹Csr.LoadRowPost "off" "tgt" "w" "j" "jend" n ns n O T _ _›
+    refine ⟨hwn, ⟨D, upd BH (σ.vars "mind") (BN (BH (σ.vars "mind"))), BV, BN,
+      ⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv],
+        by simp only [arrs_setVar, arrs_setArr, vars_setArr, vars_setVar, ↓reduceIte,
+              String.reduceEq]
+           rw [hbvv, helm, set_arrOf_eq_upd],
+        by simp [hdeg],
+        by simp only [arrs_setVar, arrs_setArr, vars_setArr, vars_setVar, ↓reduceIte,
+              String.reduceEq]
+           rw [hbvv, hn, hrnk, set_arrOf_eq_upd],
+        by simp only [arrs_setVar, arrs_setArr, vars_setArr, vars_setVar, ↓reduceIte,
+              String.reduceEq]
+           rw [hbvv, hidg, set_arrOf_eq_upd],
+        by simp only [arrs_setVar, arrs_setArr, vars_setArr, vars_setVar, ↓reduceIte,
+              String.reduceEq]
+           rw [hbnv, hbh, set_arrOf_eq_upd],
+        by simp [hbv], by simp [hbn]⟩,
+      by simpa using hpop, hbite, hdn,
+      fun u hu hh => absurd hh
+        (by rintro ⟨-, -, t, h₁, h₂, -⟩; simp [hbvv'] at h₂; omega),
+      fun u _ _ => rfl,
+      by simp [hbvv'], by simp [hbvv'], by simp [hbvv']; omega,
+      by simp only [vars_setVar, vars_setArr, ↓reduceIte, String.reduceEq, hbvv]
+         rw [hsum, hsc]; simp only [Csr.rowLen]; omega,
+      by simp; omega, by simp; omega, by simp,
+      by simp, ?_, by simp⟩, by simp [hbvv']⟩
+    simp only [vars_setVar, vars_setArr, ↓reduceIte, String.reduceEq, Nat.max_def]
+    split <;> omega
+  · -- the pointer is a word after the scan
+    obtain ⟨hd, -⟩ := ‹DecInv n ns O T M _ _ _ D _ _ _ _ _ _ _ ∧ _›
+    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, hm2, -, -⟩ := hd
+    omega
+  · -- and stays one when it drops
+    obtain ⟨hd, -⟩ := ‹DecInv n ns O T M _ _ _ D _ _ _ _ _ _ _ ∧ _›
+    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, hm2, -, -⟩ := hd
+    omega
+
+/-- **A dead vertex has no row to scan.** Stated as a specification so
+that the turn which takes one is walked without entering the scan at
+all — which is right, since the arena isolates it. -/
+theorem elimSkipRow_spec (B : ℕ) (h0 : 0 < B) :
+    Spec B (fun τ => τ.vars "w" < (τ.arrs "alv").length ∧
+        (τ.arrs "alv").getD (τ.vars "w") 0 < B ∧ τ.vars "w" < B ∧
+        (τ.arrs "alv").getD (τ.vars "w") 0 = 0)
+      (.ite (.lt (.lit 0) (.get "alv" (.var "w")))
+        (.seq (Csr.loadRow "off" "w" "j" "jend") (Csr.scan "j" "jend" decSlot)) .skip)
+      (fun τ τ' => τ' = τ) 6 := by
+  rintro τ ⟨hlen, hval, hwB, hzero⟩
+  have hb : (Cond.lt (.lit 0) (.get "alv" (.var "w"))).evalB B τ = some false := by
+    rw [evalB_condLt (evalB_lit h0)
+      (RunStep.eval_get B τ "alv" (.var "w") (τ.vars "w") (evalB_var hwB) hlen hval)]
+    simp only [Option.some.injEq, decide_eq_false_iff_not, Nat.not_lt, Nat.le_zero_eq]
+    exact hzero
+  exact ⟨τ, (Run.ite_false hb Run.skip).mono (by simp), rfl⟩
+
+set_option maxHeartbeats 1000000 in
+/-- **The one turn that does anything, on a vertex the mask killed.**
+Everything is as in `elimTake_run` but the row: a dead vertex is
+isolated in the arena, so it has no neighbours to tell and the scan is
+skipped. -/
+theorem elimTakeDead_run {B n ns : ℕ} {G : SimpleGraph (Fin n)}
+    {O T M E D R ID BH BV BN : ℕ → ℕ}
+    (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B) (hMB : ∀ z < n, M z < B) {σ : Env}
+    (hst : ElimSt n ns G O T M E D R ID BH BV BN σ) (hcnt : σ.vars "cnt" < n)
+    (hbh0 : BH (σ.vars "mind") ≠ 0) (hEw : E (BV (BH (σ.vars "mind"))) = 0)
+    (hDw : D (BV (BH (σ.vars "mind"))) = σ.vars "mind")
+    (hMw : M (BV (BH (σ.vars "mind"))) = 0) :
+    ∃ σ' K, Run B elimTurn σ σ' K ∧ K ≤ 73 ∧
+      (ElimInv n ns G O T M σ' ∧ Pot n ns σ' + 77 ≤ Pot n ns σ) := by
+  obtain ⟨⟨hn, hoff, htgt, halv, helm, hdeg, hrnk, hidg, hbh, hbv, hbn⟩,
+    helim, hbuck, hdn, hsc, hspc, hlsp, hmind, hkmax⟩ := hst
+  obtain ⟨v₀, hv₀, hEv₀⟩ := helim.exists_alive hcnt
+  have hmindn : σ.vars "mind" < n := helim.mind_lt hv₀ hEv₀
+  have hSns : σ.vars "sc" ≤ ns := by rw [hsc]; exact scanned_sum_le hcsr.csr E
+  have hbhlen : (σ.arrs "bh").length = n + 1 := by rw [hbh, length_arrOf]
+  have hbvlen : (σ.arrs "bv").length = n + ns + 1 := by rw [hbv, length_arrOf]
+  have hbnlen : (σ.arrs "bn").length = n + ns + 1 := by rw [hbn, length_arrOf]
+  have hdeglen : (σ.arrs "deg").length = n := by rw [hdeg, length_arrOf]
+  have helmlen : (σ.arrs "elm").length = n := by rw [helm, length_arrOf]
+  have hrnklen : (σ.arrs "rnk").length = n := by rw [hrnk, length_arrOf]
+  have hidglen : (σ.arrs "idg").length = n := by rw [hidg, length_arrOf]
+  have halvlen : (σ.arrs "alv").length = n := by rw [halv, length_arrOf]
+  have hbhv : (σ.arrs "bh").getD (σ.vars "mind") 0 = BH (σ.vars "mind") := by
+    rw [hbh, getD_arrOf BH (by omega)]
+  have hbhpos : 0 < BH (σ.vars "mind") := Nat.pos_of_ne_zero hbh0
+  have hbhlt : BH (σ.vars "mind") < σ.vars "sp" := hbuck.head_lt _ (by omega)
+  have hbhB : (σ.arrs "bh").getD (σ.vars "mind") 0 < B := by rw [hbhv]; omega
+  have hwn : BV (BH (σ.vars "mind")) < n := hbuck.val_lt _ hbhpos hbhlt
+  have hbnlt : BN (BH (σ.vars "mind")) < BH (σ.vars "mind") := hbuck.alloc _ hbhpos hbhlt
+  have hdnw : D (BV (BH (σ.vars "mind"))) < n := hdn _ hwn
+  have hbvv : (σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0
+      = BV (BH (σ.vars "mind")) := by rw [hbhv, hbv, getD_arrOf BV (by omega)]
+  have hbvB : (σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0 < B := by
+    rw [hbvv]; omega
+  have hbnv : (σ.arrs "bn").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0
+      = BN (BH (σ.vars "mind")) := by rw [hbhv, hbn, getD_arrOf BN (by omega)]
+  have hbnB : (σ.arrs "bn").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0 < B := by
+    rw [hbnv]; omega
+  have helmv : (σ.arrs "elm").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0
+      = E (BV (BH (σ.vars "mind"))) := by rw [hbvv, helm, getD_arrOf E hwn]
+  have helmB : (σ.arrs "elm").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0 < B := by
+    rw [helmv, hEw]; omega
+  have hdegvv : (σ.arrs "deg").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0
+      = D (BV (BH (σ.vars "mind"))) := by rw [hbvv, hdeg, getD_arrOf D hwn]
+  have hdegB : (σ.arrs "deg").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0 < B := by
+    rw [hdegvv]; omega
+  have halvv : (σ.arrs "alv").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0
+      = M (BV (BH (σ.vars "mind"))) := by rw [hbvv, halv, getD_arrOf M hwn]
+  have halvB : (σ.arrs "alv").getD
+      ((σ.arrs "bv").getD ((σ.arrs "bh").getD (σ.vars "mind") 0) 0) 0 < B := by
+    rw [halvv]; exact hMB _ hwn
+  have hout : ∀ v < n, upd E (BV (BH (σ.vars "mind"))) 1 v = 0 →
+      D v = σ.vars "mind" → v ≠ BV (BH (σ.vars "mind")) := by
+    rintro v hv hEv - rfl
+    rw [upd_self] at hEv
+    omega
+  obtain ⟨hlspos, hpop⟩ := hbuck.pop (by omega) hbh0 (upd E (BV (BH (σ.vars "mind"))) 1)
+    (fun v hv hEv => by
+      rw [upd_of_ne _ (fun hc => by rw [hc, upd_self] at hEv; omega)] at hEv; exact hEv)
+    hout
+  have hscd : scanned n (upd E (BV (BH (σ.vars "mind"))) 1) M = scanned n E M :=
+    scanned_upd_dead hMw
+  have hext := helim.extract hcnt hwn hEw hDw
+    (fun u _ _ hadj => absurd hMw hadj.alive_right) (fun _ _ _ _ => rfl)
+  run_vcg [elimSkipRow_spec B (by omega)]
+  · exfalso; omega
+  · -- the extraction, raising the bound
+    have hEq := ‹(_ : Env) = _›
+    subst hEq
+    simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr, ↓reduceIte,
+      String.reduceEq] at *
+    rw [Nat.max_eq_right (by omega : σ.vars "kmax" ≤ σ.vars "mind")] at hext
+    refine ⟨⟨upd E (BV (BH (σ.vars "mind"))) 1, D,
+      upd R (BV (BH (σ.vars "mind"))) (n - 1 - σ.vars "cnt"),
+      upd ID (BV (BH (σ.vars "mind"))) (σ.vars "mind"),
+      upd BH (σ.vars "mind") (BN (BH (σ.vars "mind"))), BV, BN,
+      ⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv],
+        by simp only [arrs_setVar, arrs_setArr, ↓reduceIte, String.reduceEq]
+           rw [hbvv, helm, set_arrOf_eq_upd],
+        by simp [hdeg],
+        by simp only [arrs_setVar, arrs_setArr, ↓reduceIte, String.reduceEq]
+           rw [hbvv, hn, hrnk, set_arrOf_eq_upd],
+        by simp only [arrs_setVar, arrs_setArr, ↓reduceIte, String.reduceEq]
+           rw [hbvv, hidg, set_arrOf_eq_upd],
+        by simp only [arrs_setVar, arrs_setArr, ↓reduceIte, String.reduceEq]
+           rw [hbnv, hbh, set_arrOf_eq_upd],
+        by simp [hbv], by simp [hbn]⟩,
+      by simpa using hext, by simpa using hpop, hdn, by simp [hscd, hsc],
+      by simp; omega, by simp; omega, by simp; omega, by simp; omega⟩, ?_⟩
+    simp only [Pot, vars_setVar, vars_setArr, ↓reduceIte, String.reduceEq]
+    omega
+  · -- the extraction, the bound standing
+    have hEq := ‹(_ : Env) = _›
+    subst hEq
+    simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr, ↓reduceIte,
+      String.reduceEq] at *
+    rw [Nat.max_eq_left (by omega : σ.vars "mind" ≤ σ.vars "kmax")] at hext
+    refine ⟨⟨upd E (BV (BH (σ.vars "mind"))) 1, D,
+      upd R (BV (BH (σ.vars "mind"))) (n - 1 - σ.vars "cnt"),
+      upd ID (BV (BH (σ.vars "mind"))) (σ.vars "mind"),
+      upd BH (σ.vars "mind") (BN (BH (σ.vars "mind"))), BV, BN,
+      ⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv],
+        by simp only [arrs_setVar, arrs_setArr, ↓reduceIte, String.reduceEq]
+           rw [hbvv, helm, set_arrOf_eq_upd],
+        by simp [hdeg],
+        by simp only [arrs_setVar, arrs_setArr, ↓reduceIte, String.reduceEq]
+           rw [hbvv, hn, hrnk, set_arrOf_eq_upd],
+        by simp only [arrs_setVar, arrs_setArr, ↓reduceIte, String.reduceEq]
+           rw [hbvv, hidg, set_arrOf_eq_upd],
+        by simp only [arrs_setVar, arrs_setArr, ↓reduceIte, String.reduceEq]
+           rw [hbnv, hbh, set_arrOf_eq_upd],
+        by simp [hbv], by simp [hbn]⟩,
+      by simpa using hext, by simpa using hpop, hdn, by simp [hscd, hsc],
+      by simp; omega, by simp; omega, by simp; omega, by simp; omega⟩, ?_⟩
+    simp only [Pot, vars_setVar, vars_setArr, ↓reduceIte, String.reduceEq]
+    omega
+  · exfalso
+    simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr, ↓reduceIte,
+      String.reduceEq] at *
+    omega
+  · exfalso
+    simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr, ↓reduceIte,
+      String.reduceEq] at *
+    omega
+  all_goals simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr,
+    ↓reduceIte, String.reduceEq] at *
+  all_goals first
+    | omega
+    | (have hEq := ‹(_ : Env) = _›
+       subst hEq
+       simp only [vars_setVar, vars_setArr, ↓reduceIte, String.reduceEq] at *
+       omega)
+
+/-- **A turn of the elimination.** The four cases the bucket relation
+and the invariant leave: an empty bucket, a stale slot, and an
+extraction on a live or on a dead vertex. Each pays for itself out of
+the potential, which is what the loop rule asks. -/
+theorem elimTurn_run {B n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ → ℕ}
+    (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B) (hMB : ∀ z < n, M z < B) {σ : Env}
+    (hI : ElimInv n ns G O T M σ) (hcnt : σ.vars "cnt" < n) :
+    ∃ σ' K, Run B elimTurn σ σ' K ∧ ElimInv n ns G O T M σ' ∧
+      4 + K + Pot n ns σ' ≤ Pot n ns σ := by
+  obtain ⟨E, D, R, ID, BH, BV, BN, hst⟩ := hI
+  by_cases hbh0 : BH (σ.vars "mind") = 0
+  · obtain ⟨σ', K, hrun, hK, hI', hpot⟩ := elimBump_run hcsr hB hst hcnt hbh0
+    exact ⟨σ', K, hrun, hI', by omega⟩
+  · by_cases htake : E (BV (BH (σ.vars "mind"))) = 0 ∧
+        D (BV (BH (σ.vars "mind"))) = σ.vars "mind"
+    · by_cases hMw : M (BV (BH (σ.vars "mind"))) = 0
+      · obtain ⟨σ', K, hrun, hK, hI', hpot⟩ :=
+          elimTakeDead_run hcsr hB hMB hst hcnt hbh0 htake.1 htake.2 hMw
+        exact ⟨σ', K, hrun, hI', by omega⟩
+      · obtain ⟨σ', K, hrun, hK, hI', hpot⟩ :=
+          elimTake_run hcsr hB hMB hst hcnt hbh0 htake.1 htake.2 hMw
+        exact ⟨σ', K, hrun, hI', by omega⟩
+    · obtain ⟨σ', K, hrun, hK, hI', hpot⟩ := elimStale_run hcsr hB hst hcnt hbh0 htake
+      exact ⟨σ', K, hrun, hI', by omega⟩
+
 /-- **The one thing this file leaves open.** `elimCom` is exhibited,
 compiled and run — the worked example below checks its answers against
 the arithmetic on the other side of the abstraction — and everything
@@ -1437,9 +2645,8 @@ three turns are `Elim.init`, `Elim.bump` and `Elim.extract`, and its
 exit reading is `Elim.cert`.
 
 It splits along the program's five phases, each a `Spec` of its own.
-**Two of the five are discharged** in the section above and are no
-longer part of this obligation; the three that remain are named here
-with what each of them needs.
+**Three of the five are discharged** in the section above, and the
+fourth is discharged turn by turn; what each phase owes is named here.
 
 * `initDeg` — **done**, `initDeg_spec`: it leaves `deg v` at the arena
   degree of `v`, at a cost of `48 n + 44 ns + 10`. Its content is
@@ -1452,26 +2659,32 @@ with what each of them needs.
   `24 n + 12`, leaving `ioff j = psum ID j` for every `j ≤ n` and every
   fill pointer at the start of its own block. It establishes `InCsr`'s
   `zero`, `last`, `mono` and `len`.
-* `initBuck` — **open**: fills the buckets and leaves `sp = n + 1`,
-  `ls = n`. Its content is the bucket relation, which the elimination
-  loop then carries.
-* `elimLoop` — **open**: the loop, against `Elim` plus that bucket
-  relation; its exit is `cnt = n`, where `Elim.cert` applies.
+* `initBuck` — **done**, `initBuck_spec`: one slot per vertex, pushed
+  into the bucket of its degree, at a cost of `29 n + 10`, leaving
+  `sp = n + 1` and `ls = n`. Its content is `Buck.push`, and what it
+  leaves is `Buck n n` — the relation the elimination loop carries.
+* `elimLoop` — **its turn is done**, `elimTurn_run`: from `ElimInv` and
+  `cnt < n`, one turn of `elimTurn` runs and pays for itself out of
+  `Pot`. The four cases are `elimBump_run` (an empty bucket, by
+  `Buck.no_deg` and `Elim.bump`), `elimStale_run` (a stale slot, by
+  `Buck.pop`), and `elimTake_run` / `elimTakeDead_run` (an extraction,
+  by `Buck.pop`, the row scan `decScan_spec`, `extract_of_scan` and
+  `Elim.extract`). **What is left of this phase** is the `while`
+  wrapper: `Spec.while_potential (ElimInv n ns G O T M) (Pot n ns)`
+  with `elimTurn_run` as its step, the four leading assignments in
+  front of it, `Elim.init` and `initBuck_spec`'s answer as its entry
+  reading, and `Elim.cert` at `cnt = n` as its exit. The potential at
+  entry is `140 n + 100 ns + 20`, so the phase costs
+  `160 n + 100 ns + 52`.
 * `fillPass` — **open**: a second walk of the block structure whose
   content is a counting sort — each arc lands in the block of its
   larger-ranked endpoint — giving `InCsr`'s `mem_iff` and `target_lt`.
+  `offPass_spec`'s postconditions are its input, and nothing else in
+  the file depends on it.
 
-The two open bucket phases both wait on the same missing piece: a
-reachability relation for the lazily deleted stacks (`q` is on the
-chain of `bh d` under `bn`), with the invariant that an allocated slot
-points strictly downwards, so that a push in front of a head and a pop
-of a head can both be shown to preserve "every uneliminated vertex has
-a slot in the bucket of its degree" — the clause `Elim.bump` consumes.
-Nothing above depends on it.
+The cost is amortized, with the potential `Pot`,
 
-The cost is amortized, with the potential
-
-    c_m · (n + 1 − mind) + c_p · ls + c_s · (ns − sc) + c_e · (n − cnt)
+    40 · (n + 1 − mind) + 40 · ls + 100 · (ns − sc) + 80 · (n − cnt),
 
 for the loop: a pointer bump is paid out of the first term, a stale pop
 out of the second, an extraction's row scan out of the third, and the
@@ -1479,7 +2692,8 @@ extraction itself out of the fourth, which also refunds the one the
 pointer's drop costs. The pointer never runs away because `Elim.min_le`
 plus an empty bucket forces it below every surviving degree, and the
 arena never overflows because a slot is pushed once per vertex and once
-per scanned slot. -/
+per scanned slot — which is the clause `sp ≤ n + 1 + sc` of `ElimSt`,
+with `sc ≤ ns` from `scanned_sum_le`. -/
 def Implements (B n ns : ℕ) (G : SimpleGraph (Fin n)) (M O T : ℕ → ℕ) : Prop :=
   CsrSimple G ns O T → n + ns + 1 < B → (∀ z < n, M z < B) →
     Spec B (ElimPre n ns O T M) elimCom (ElimMem G M ns) (elimCost n ns)
