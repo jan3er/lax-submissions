@@ -3138,3 +3138,30 @@ obligation-surface repairs, GreedyFratRound narrowing, ElimPre
 relaxation, PlayOk threading, ball-chain fix, OrderImplements. Then
 cost wave, recurrence, C0, P8. Branch at fd6048b, sixteen commits
 ahead of main (main @ 1541d6f = P4).
+
+## ND-MC wrap-up — P5+P6 done, P7 driver walks landed, session closed — 2026-07-29
+Jan (morning): "good job! please wrap up when wave is done", plus two
+process directives folded into memory: refutation-before-proof
+(Plausible + #guard falsification of every authored obligation before
+any proof attempt — eight refutable obligations were found mid-proof
+this session) and folding in own insights (obligation-Props
+discipline, touched-only costs). Wave B closed: RamDriverFrames
+(scatter walk + both frames; HEADLINE: the frame proof caught a real
+driver bug — the nested driver clobbers the caller's shared cover
+arrays and centre cursor, so a level would process one centre and
+exit; program-text repair specced), RamDriverOrder (cover single-turn
+walked + coverPass_spec needing no availability hypothesis; ordering
+kit; CoverState/CoverImplements gaps found; RamAugment.Implements
+honestly declined with route recorded), RamDriverDescend (padding +
+expansion/chain core; five surface gaps), RamDriverBot (repr/bot/base
+specs complete; the generated exU branch is unsound-but-unreachable
+with counterexample; BaseMem gap). Final full lax build GREEN: 3440
+jobs, zero violations, zero sorry, kernel-three footprints on every
+landed theorem (the only endorsed-axiom dependencies anywhere are the
+intended Lax12 ones). Plan updated: P5 [x], P6 [x] (R1 retired), P7
+in-progress with the complete A3 → wave C → cost wave → C0 resumption
+spec. The campaign stands at: all four citable theorem concepts
+discharged, the math core checkpoint proved, every engine program
+fully verified, the driver correct modulo a converging set of walk
+obligations whose every defect is now a precise, falsification-gated
+repair item. Landed on main at session close.

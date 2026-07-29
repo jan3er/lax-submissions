@@ -452,14 +452,72 @@ pins). The two campaigns meet at the D12 gate: if the toolkit is
 still open when P4 finishes here, sessions go to the toolkit next,
 not to a premature P5.
 
-- [ ] **P5 — RAM primitives** (3–5 sessions). L4 item 14 as `Lib`
-  citizens (Spec + run_vcg consumption; coordinate with the IMP+
-  toolkit plan — masked BFS over queue/trail may land there as
-  library items and be consumed here).
-- [ ] **P6 — ordering + cover program** (4–7 sessions; R1 risk
-  peak, design fixed since P0).
-- [ ] **P7 — driver, scatter pass, cost algebra, C0** (6–10
-  sessions). Headline discharged.
+- [x] **P5 — RAM primitives** — done 2026-07-29 (overnight
+  continuation, Jan's "keep going until ndmc is complete" mandate).
+  RamBfs (masked depth-capped BFS, threshold-form Spec = the
+  cumulative profile colors, cost in-Spec), RamBfsPaths (parents +
+  path extraction, PathOracle recipe), RamScatter (greedy + exclusion
+  BFS, fully walked), RamElim (Matula–Beck bucket elimination —
+  rank counts down so one k serves InDegLE and BackDegLE;
+  `implements` fully discharged; a correctness fix en route: the
+  degree invariant was false at eliminated vertices). All kernel
+  three, all with compiled #guard demos.
+- [x] **P6 — ordering + cover, math and programs** — done
+  2026-07-29. **R1 retired unconditionally**: Augmentation (the
+  design-note densification-transfer route is invalid — star square —
+  in-degree structure is essential; wcol-canonical existence),
+  AugmentedDensity (the awarding route: one-sided witness claims cap
+  collisions at d+1; joint in-degree/density recursion, no residual
+  hypothesis), OrderedCovers (GKS 6.5/6.6 via meet_of_walk, 3 rounds
+  per doubling), CoverDegree (closed budgets, six-hypothesis
+  end-to-end cover degree ≤ ⌈c·m^δ⌉, cluster mass). Programs:
+  RamAugment (NewArc rule — AugStep for any injective rank, no
+  acyclicity invariant; GreedyFratRound was over-strong and was
+  narrowed repo-wide, FratForward deleted), RamCover (wreach fibre =
+  predecessor-ball bridge; f = first catch at r). GreedyFratRound/
+  ElimPre integration refactor executed (waves A/A2).
+- [ ] **P7 — driver, cost algebra, C0** — IN PROGRESS, state at the
+  2026-07-29 wrap-up (branch f4d706f, full lax build green, 3440
+  jobs, zero violations, zero sorry, kernel-three footprints
+  throughout; NIGHTLOG has the session map):
+  **Done**: BotEval (edgeless base case, k + 2^L candidates),
+  SplitterWinOracle (the win at any path oracle), FormulaTables
+  (per-depth tables, choice-sharing with the Evaluator PROVED),
+  RamDriver (the unrolled recursion; `driver_correct` proved from
+  named walk obligations; ALL semantic glue discharged — the descent
+  needs no splitter win, only the base; two masks per depth keep
+  ReachedO an equality; mb = ℓ(2cap+1)); walks discharged:
+  ReadbackStep, Decode/Sentence (repaired forms), cluster+level
+  mathematics, scatter phase, both frames, cover single-turn +
+  coverPass_spec, padding + expansion/chain core, base-case
+  repr/bot/base specs (the generated exU branch is unsound-but-
+  unreachable, documented), ordering-phase primitive kit + rank
+  inversion. Waves A/A2 repaired the obligation surfaces (memory
+  clauses, word bounds, bits, Sized, PlayOk threading, ball-chain
+  aliasing, CSR save/restore, width threading with zero proof-body
+  rewrites in RamElim).
+  **Remaining — assembly wave A3** (single owner; gate every
+  repaired surface with [[refute-before-prove]] falsification BEFORE
+  new proof attempts): (1) the cross-depth clobbering driver bug —
+  the nested driver writes the shared cover arrays and centre cursor
+  (per-depth names or A2's save/restore pattern); (2) play-recording
+  invariant on LevelPre tying PlayOk's existential rounds to the
+  recorded ctr/gam state + the unreachable-ancestor guard in the
+  batch phase; (3) the collected clause repairs (indicator/ord
+  bounds, per-cluster arrays into LevelMem, mb < B, BaseMem + rep
+  into BaseImplements/LevelImplements, colour-cells-are-bits,
+  CoverState word clauses + CoverImplements CsrGraph, colour-equation
+  threading into ScatterStep); (4) optional: fix the unreachable exU
+  branch (k+1 representatives per row); (5) the deferred tgt
+  widening (orderCom currently eliminates the level's own structure —
+  costs the cover-degree story only). **Then wave C**: DescendStep/
+  ColourStep against the repaired surfaces (the chain/expansion core
+  is landed), RamAugment.Implements (ten passes; route recorded),
+  OrderImplements and baseImplements compositions, final
+  driver_correct instantiation. **Then the cost wave**: touched-only
+  (Trail-backed) cost forms — mandatory, full-array inits × n arenas
+  = n² ([[touched-only-costs]]) — the GKS recurrence, the
+  Spec→ComputesInTime bridge, C0 discharged.
 - [ ] **P8 — polish and draft submission** (1–2 sessions).
   abstract.md, manifest, `lax build`, plans/NIGHTLOG records, draft
   `lax submit` (never `--register`; freeze-consent rule).
