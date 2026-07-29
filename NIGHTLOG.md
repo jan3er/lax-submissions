@@ -3093,3 +3093,48 @@ budgeted; commits 5d2d9a8 + d9b3d47. D12 as-built record in the plan
 RAM half proceeds). Deferred to P7: edgeless-arena unary evaluation
 lemma. Next: P5 RAM primitives on the closed IMP+ toolkit (Spec form
 from the start), then P6 (R1 risk peak), P7 (driver + cost + C0), P8.
+
+## ND-MC P5+P6 complete, P7 deep in flight — 2026-07-29 (overnight continuation)
+Jan (before bed): "keep on going until ndmc is complete." Sixteen Opus
+tracks since the P4 landing, supervised per the standing model. The
+mathematics of the algorithmic half is DONE and kernel-verified:
+Augmentation (chains, path invariant, fraternity densification; the
+design-note transfer route is invalid — star square — and in-degree
+structure is essential), AugmentedDensity (R1 RETIRED unconditionally:
+the awarding route — one-sided witness claims cap collisions at d+1;
+roundTransfer depth a→4a+4; joint in-degree/density recursion),
+OrderedCovers (GKS 6.5/6.6 via meet_of_walk, 3 rounds per doubling;
+route-(ii) reorientation provably fails), CoverDegree (closed budgets
+— the density half needs exponent 2·16^i(a+1) — six-hypothesis
+end-to-end cover degree ≤ ⌈c·m^δ⌉, cluster mass), BotEval (edgeless
+base case: k + 2^L candidates), SplitterWinOracle (the win at any
+path oracle; driver maintenance recipe), FormulaTables (per-depth
+tables with PROVED choice-sharing with the Evaluator). Programs, all
+Spec-form, all compiled with #guard demos: RamBfs, RamBfsPaths
+(PathOracle recipe), RamElim (correctness fix: Elim.deg was false at
+eliminated vertices; Reach layer + the full elimination turn walked;
+frontier: while wrapper + fillPass + assembly, finisher in flight),
+RamAugment (NewArc rule unconditional; GreedyFratRound found too
+strong for inherited arcs — counterexample recorded, narrowing
+queued), RamCover (wreach fibre = predecessor-ball bridge; f = first
+catch at r, not 2r), RamScatter (fully walked; GreedyMem equation
+lemmas reused audit-clean). RamDriver (1610 lines): driver_correct
+PROVED from nine named obligations; ALL semantic glue discharged —
+the descent needs no splitter win (only the base does); two masks per
+depth keep ReachedO an equality; mb = ℓ(2cap+1). Discharge tracks:
+RamDriverCluster (cluster+level mathematics proved; five phase-walk
+Props open; found vertex-blind ReadbackImplements — repaired as
+ReadbackStep — missing frames, unused Sized, PlayOk threading gap,
+descendCom in-place aliasing), RamDriverIO (Decode/Sentence REFUTABLE
+as stated — memory clauses + value bounds missing from all eight
+obligations; repaired forms proved with the exact patch; name kit +
+run_length_arrs/run_mem_arrs_lt infrastructure; orderCom destroys
+LevelPre's block structure), RamDriverBase in flight. LOAD-BEARING
+COST FINDING: per-arena full-array inits × n arenas = n² — the final
+time bound REQUIRES touched-only (Trail-backed) cost forms per design
+D8; correctness layers unaffected; queued as the cost wave. Assembly
+wave next (single owner of RamDriver/RamElim/Augmentation): the
+obligation-surface repairs, GreedyFratRound narrowing, ElimPre
+relaxation, PlayOk threading, ball-chain fix, OrderImplements. Then
+cost wave, recurrence, C0, P8. Branch at fd6048b, sixteen commits
+ahead of main (main @ 1541d6f = P4).
