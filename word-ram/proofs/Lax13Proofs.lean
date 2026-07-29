@@ -24,3 +24,5 @@ import Lax13Proofs.Refine.NREST.Pw
 import Lax13Proofs.Refine.NREST.Sanity
 import Lax13Proofs.Refine.NREST.Rec
 import Lax13Proofs.Refine.NREST.Combinators
+import Lax13Proofs.Refine.NREST.DataRefinement
+import Lax13Proofs.Refine.NREST.TimeRefinement

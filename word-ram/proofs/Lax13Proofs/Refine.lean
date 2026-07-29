@@ -4,6 +4,8 @@ import Lax13Proofs.Refine.NREST.Pw
 import Lax13Proofs.Refine.NREST.Sanity
 import Lax13Proofs.Refine.NREST.Rec
 import Lax13Proofs.Refine.NREST.Combinators
+import Lax13Proofs.Refine.NREST.DataRefinement
+import Lax13Proofs.Refine.NREST.TimeRefinement
 
 /-!
 The refinement tower: a fidelity-first port of the Isabelle NREST/Sepref
@@ -41,6 +43,19 @@ core, and the recursion/loop combinators built on it:
   (`NREST.thy`; `FOREACH` from AFP `NREST`'s `Refine_Foreach.thy`,
   which is where it exists at all).
 
-Still to come in P1, per design record §3: `DataRefinement`,
-`TimeRefinement`, `BackwardsReasoning`.
+and P1's second slice — the two refinement operators the tower composes:
+
+* `Refine/NREST/DataRefinement.lean` — `conc_fun` / `⇓R` and `abs_fun`
+  (`Data_Refinement.thy`), the `br` relation constructor, the bind and
+  consume refinement rules, `nrest_rel`.
+* `Refine/NREST/TimeRefinement.lean` — `timerefine` / `⇓C`,
+  `timerefineA`, the `wfR`/`wfR'`/`wfR''` finite-support predicates, the
+  exchange-rate composition `pp`, the identity rate `TId`
+  (`Time_Refinement.thy`), and the `⇓R`/`⇓C` commutation of
+  `NREST_Main.thy`.
+
+Each of the two carries its own executable gate, in the `Sanity`
+namespace of `Sanity.lean`.
+
+Still to come in P1, per design record §3: `BackwardsReasoning`.
 -/
