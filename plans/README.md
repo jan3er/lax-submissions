@@ -10,8 +10,8 @@ and brief files here, not at the root.
 
 | plan | what |
 |------|------|
-| `word-ram/imp-toolkit-plan.md` | make the machine level of IMP+ a library — frame rule, spec triples, a symbolic-execution tactic, and a data-structure kit in `Lax13Proofs`, so a new algorithm costs its mathematics and not its glue. Proofs-only; no concept surface moves. |
 | `nowhere-dense-model-checking/nd-mc-plan.md` | FO model checking is FPT on nowhere dense classes (GKS), rebuilt on the Dreier–Toruńczyk rank-preserving locality theorem (arXiv 2606.23180) instead of the broken GKS locality; splitter game + sparse covers on top of Lax12, RAM realization on Lax13/Lax11. Rev 3 accepted — isolation splitter game, Q1–Q5 closed (Lax3, real-ε bound, colored-graph surface, four citable theorems); P0 starts next session; RAM phases P5–P7 gated on the IMP+ toolkit campaign closing. |
+| `word-ram/refinement-tower-plan.md` | port Lammich's refinement stack (NREST → Sepref-style synthesis → purpose-built IR → verified codegen into IMP+) so algorithmic results cost what mathematical results cost: write the algorithm abstractly, synthesize program + invariants + obligations. Fidelity-first charter (stay close to the Isabelle source). DRAFT rev 1, awaiting Jan's review. |
 
 Everything else is closed.
 
