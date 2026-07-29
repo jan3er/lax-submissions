@@ -100,26 +100,29 @@ what a degree count is worth, and it is the reason the input surface is
 `CsrSimple` — `CsrGraph` with "a row names each neighbour once" added,
 which a search does not need and a count does.
 
-### What is left
+### The program, and that it implements the specification
 
-`elim_spec` is the specification, and `Implements` is the single
-obligation it is proved from: the Hoare triple for `elimCom` itself,
-stated over the program text, the input surface a caller has, and the
-linear cost. Everything that triple's postcondition *means* —
-`elimPost_of_elimMem`, and behind it the whole of `ElimCert` and
-`InCsr` — is proved here unconditionally, and the program is exhibited,
-compiled and run: the worked example checks its three answers on a
-five-vertex graph, with and without the mask, against the hand
-computation.
+`elim_spec` is the specification and `implements` discharges the Hoare
+triple it is proved from — `Implements`, stated over the program text,
+the input surface a caller has, and the linear cost `elimCost`.
+Everything that triple's postcondition *means* — `elimPost_of_elimMem`,
+and behind it the whole of `ElimCert` and `InCsr` — is proved here too,
+and the program is exhibited, compiled and run: the worked example
+checks its three answers on a five-vertex graph, with and without the
+mask, against the hand computation.
 
-Of the five phase walks `Implements` splits into, **three are
-discharged** — `initDeg_spec`, the degree pass with its amortized outer
-loop; `offPass_spec`, the running sum; and `initBuck_spec`, the bucket
-build — and the elimination loop is discharged turn by turn
-(`elimTurn_run`), which leaves only its `while` wrapper and the fill
-pass. The reachability relation the bucket phases waited on is `chain`,
-and `Buck` is the relation the loop carries; `Implements`' own docstring
-says what each phase owes.
+The triple splits along the program's five phases, each a `Spec` of its
+own: `initDeg_spec`, the degree pass with its amortized outer loop;
+`initBuck_spec`, the bucket build, whose content is `Buck.push`;
+`elimLoop_spec`, the elimination, whose turn is `elimTurn_run` and
+whose `while` is paid out of the potential `Pot`; `offPass_spec`, the
+running sum; and `fillPass_spec`, the counting sort that writes the
+in-neighbour lists. `implements` sequences the five against `AfterDeg`,
+`AfterBuck`, `AfterLoop` and `AfterOff`, the four predicates saying
+what a phase hands the next. The reachability relation the bucket
+phases run on is `chain`, and `written` is the fill's counterpart —
+what a row has written so far, which at the end of the row is the block
+`InCsr` asks for.
 -/
 
 namespace Lax3Proofs.RamElim
@@ -2632,55 +2635,717 @@ theorem elimTurn_run {B n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ → �
     · obtain ⟨σ', K, hrun, hK, hI', hpot⟩ := elimStale_run hcsr hB hst hcnt hbh0 htake
       exact ⟨σ', K, hrun, hI', by omega⟩
 
-/-- **The one thing this file leaves open.** `elimCom` is exhibited,
-compiled and run — the worked example below checks its answers against
-the arithmetic on the other side of the abstraction — and everything
-its answers *mean* is proved above, in `ElimCert` and `InCsr`. What is
-isolated here is the Hoare triple itself: that the five phases of the
+/-- **What the loop leaves, read at its exit.** The test having failed,
+`cnt` stands at `n`, and every clause the rest of the program wants is
+read off the invariant at that point: `Elim.cert` is the certificate,
+`Elim.taken` says the recorded extraction degree of a vertex is the
+in-degree the orientation gives it, and the same clause bounds the
+recorded degrees by the rows they were counted from — which is what
+puts the whole in-list array inside the target array, `psum ID n ≤ ns`,
+the bound the two remaining passes are written against. -/
+theorem elimExit_read {B n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ → ℕ}
+    (hcsr : CsrSimple G ns O T) {τ : Env} (hI : ElimInv n ns G O T M τ)
+    (hfalse : (Cond.lt (Expr.var "cnt") (Expr.var "n")).evalB B τ = some false) :
+    ∃ R ID k, τ.vars "n" = n ∧ τ.vars "kmax" = k ∧ τ.arrs "rnk" = arrOf n R ∧
+      τ.arrs "idg" = arrOf n ID ∧ (∀ v < n, R v < n) ∧
+      ElimCert (masked G M) (fun v : Fin n => R (v : ℕ)) k ∧
+      (∀ w : Fin n, ID (w : ℕ) =
+        ((ElimCert.elimOr (masked G M) (fun v : Fin n => R (v : ℕ))).inN w).card) ∧
+      psum ID n ≤ ns := by
+  obtain ⟨E, D, R, ID, BH, BV, BN, harr, helim, hbuck, hDlt, hsc, hspb, hlsb, hmind, hkmax⟩ := hI
+  obtain ⟨hn, hoff, htgt, halv, helm, hdeg, hrnk, hidg, hbh, hbv, hbn⟩ := harr
+  have hcntn : τ.vars "cnt" = n := by
+    have h1 := le_of_condLt_false hfalse
+    have h2 := helim.cnt_le
+    omega
+  rw [hcntn] at helim
+  have hcert := helim.cert
+  have hall : ∀ v < n, E v = 1 := fun v hv => helim.all_elim ⟨v, hv⟩
+  -- the recorded extraction degree is the in-degree of the orientation
+  have hID : ∀ w : Fin n, ID (w : ℕ) =
+      ((ElimCert.elimOr (masked G M) (fun v : Fin n => R (v : ℕ))).inN w).card := by
+    intro w
+    have h1 := helim.taken w (helim.all_elim w)
+    have h2 := helim.survOf_eq_surv w
+    have h4 : (ElimCert.elimOr (masked G M) (fun v : Fin n => R (v : ℕ))).inN w
+        = nbrsIn (masked G M) (surv (fun v : Fin n => R (v : ℕ)) (R (w : ℕ))) w :=
+      (curNbrs_eq_backNbrs hcert.inj w).symm
+    rw [h1, h2, h4]
+  -- and it fits inside the row it was counted from, or is nought at a dead vertex
+  have hIDrow : ∀ v ∈ Finset.range n,
+      ID v ≤ (if E v = 1 ∧ M v ≠ 0 then Csr.rowLen O v else 0) := by
+    intro v hv
+    have hvn : v < n := Finset.mem_range.1 hv
+    have h1 := helim.taken ⟨v, hvn⟩ (helim.all_elim ⟨v, hvn⟩)
+    have hsub : nbrsIn (masked G M) (survOf E R (R v + 1)) (⟨v, hvn⟩ : Fin n) ⊆
+        nbrsIn (masked G M) Finset.univ (⟨v, hvn⟩ : Fin n) := fun u hu =>
+      mem_nbrsIn.2 ⟨Finset.mem_univ _, (mem_nbrsIn.1 hu).2⟩
+    have h2 : ID v ≤ adeg G M v := by
+      rw [h1, adeg_eq hvn]; exact Finset.card_le_card hsub
+    by_cases hM : M v = 0
+    · rw [adeg_of_dead hvn hM] at h2
+      simp [hM]
+      omega
+    · rw [if_pos ⟨hall v hvn, hM⟩]
+      refine le_trans h2 ?_
+      rw [adeg_of_alive hcsr hvn hM]
+      calc (liveSlots O T M v).card ≤ (Finset.Ico (O v) (O (v + 1))).card :=
+            Finset.card_filter_le _ _
+        _ = Csr.rowLen O v := by rw [Nat.card_Ico]; rfl
+  have hpsum : psum ID n ≤ ns := by
+    have hle : ∑ v ∈ Finset.range n, ID v ≤ ∑ v ∈ scanned n E M, Csr.rowLen O v := by
+      rw [scanned, Finset.sum_filter]
+      exact Finset.sum_le_sum hIDrow
+    exact le_trans hle (scanned_sum_le hcsr.csr E)
+  exact ⟨R, ID, τ.vars "kmax", hn, rfl, hrnk, hidg,
+    fun v hv => helim.rank_lt v hv (hall v hv), hcert, hID, hpsum⟩
+
+/-- **The elimination, walked.** The four counters are set, and then the
+loop is `Spec.while_potential` with `elimTurn_run` as its step: every
+turn pays four plus its own cost out of `Pot`, which is what the rule
+asks for. The invariant holds at entry by `Elim.init` — nothing
+eliminated, the degree array holding the arena degrees `initDeg` left,
+and the buckets `initBuck` filled, weakened to the flags by
+`Buck.weaken` — and `Pot` at *any* state of the invariant is at most
+`160 n + 100 ns + 40`, since `ls + 1 ≤ sp ≤ n + 1 + sc` bounds the
+arena's slot count by the slots already scanned. The four assignments
+cost eight and the loop's last test four. -/
+theorem elimLoop_spec (B n ns : ℕ) (G : SimpleGraph (Fin n)) (O T M D : ℕ → ℕ)
+    (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B) (hMB : ∀ z < n, M z < B)
+    (hDadeg : ∀ v < n, D v = adeg G M v) :
+    Spec B (fun σ => BuckInv n ns D σ ∧ σ.vars "i" = n ∧
+        σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+        σ.arrs "alv" = arrOf n M ∧
+        (∃ g, σ.arrs "elm" = arrOf n g ∧ ∀ j < n, g j = 0) ∧
+        (∃ g, σ.arrs "rnk" = arrOf n g) ∧ (∃ g, σ.arrs "idg" = arrOf n g))
+      elimLoop
+      (fun _ σ' => ∃ R ID k, σ'.vars "n" = n ∧ σ'.vars "kmax" = k ∧
+        σ'.arrs "rnk" = arrOf n R ∧ σ'.arrs "idg" = arrOf n ID ∧ (∀ v < n, R v < n) ∧
+        ElimCert (masked G M) (fun v : Fin n => R (v : ℕ)) k ∧
+        (∀ w : Fin n, ID (w : ℕ) =
+          ((ElimCert.elimOr (masked G M) (fun v : Fin n => R (v : ℕ))).inN w).card) ∧
+        psum ID n ≤ ns)
+      (160 * n + 100 * ns + 52) := by
+  have hDlt : ∀ v < n, D v < n := by
+    intro v hv
+    rw [hDadeg v hv, adeg_eq hv]
+    exact card_nbrsIn_lt _ _
+  have hDcard : ∀ v : Fin n, D (v : ℕ) = (nbrsIn (masked G M) Finset.univ v).card := by
+    intro v
+    rw [hDadeg (v : ℕ) v.isLt, adeg_eq (G := G) (M := M) v.isLt]
+  have hloop : Spec B (ElimInv n ns G O T M)
+      (.while (.lt (.var "cnt") (.var "n")) elimTurn)
+      (fun _ σ' => ElimInv n ns G O T M σ' ∧
+        (Cond.lt (Expr.var "cnt") (Expr.var "n")).evalB B σ' = some false)
+      (160 * n + 100 * ns + 44) := by
+    refine Spec.while_potential (ElimInv n ns G O T M) (Pot n ns) ?_ ?_ (fun _ h => h) ?_
+    · rintro σ ⟨E, D', R, ID, BH, BV, BN, hst⟩
+      have hn : σ.vars "n" = n := hst.1.1
+      have hcnt := hst.2.1.cnt_le
+      exact evalB_condLt_vars (by omega) (by omega)
+    · intro σ hI hb
+      have hcnt : σ.vars "cnt" < n := by
+        obtain ⟨E, D', R, ID, BH, BV, BN, hst⟩ := id hI
+        have h := lt_of_condLt_true hb
+        rw [hst.1.1] at h; exact h
+      obtain ⟨σ', K, hrun, hI', hpot⟩ := elimTurn_run hcsr hB hMB hI hcnt
+      refine ⟨σ', K, hrun, hI', ?_⟩
+      simp only [size_condLt, size_var]
+      omega
+    · -- the potential of *any* state of the invariant is inside the budget
+      rintro σ ⟨E, D', R, ID, BH, BV, BN, hst⟩
+      have hsc : σ.vars "sc" ≤ ns := by
+        rw [hst.2.2.2.2.1]; exact scanned_sum_le hcsr.csr E
+      have h1 := hst.2.2.2.2.2.1
+      have h2 := hst.2.2.2.2.2.2.1
+      simp only [Pot, size_condLt, size_var]
+      omega
+  run_vcg [hloop]
+  · -- the exit: `cnt` stands at `n`, and the certificate is read off the state
+    exact elimExit_read hcsr ‹ElimInv n ns G O T M _ ∧ _›.1 ‹ElimInv n ns G O T M _ ∧ _›.2
+  · -- the state the loop starts in: nothing eliminated, the degrees true, one slot per vertex
+    obtain ⟨hn, hdeg, hile, hsp, hls, BH, BV, BN, hbh, hbv, hbn, hbuck⟩ := ‹BuckInv n ns D σ›
+    obtain ⟨E, helm, hE⟩ := ‹∃ g, σ.arrs "elm" = arrOf n g ∧ ∀ j < n, g j = 0›
+    obtain ⟨R, hrnk⟩ := ‹∃ g, σ.arrs "rnk" = arrOf n g›
+    obtain ⟨ID, hidg⟩ := ‹∃ g, σ.arrs "idg" = arrOf n g›
+    have hi : σ.vars "i" = n := ‹σ.vars "i" = n›
+    have hscan : scanned n E M = ∅ := by
+      refine Finset.eq_empty_of_forall_notMem fun v hv => ?_
+      have h := mem_scanned.1 hv
+      rw [hE v h.1] at h
+      omega
+    refine ⟨E, D, R, ID, BH, BV, BN,
+      ⟨by simp [hn], by simp [‹σ.arrs "off" = arrOf (n + 1) O›],
+        by simp [‹σ.arrs "tgt" = arrOf ns T›], by simp [‹σ.arrs "alv" = arrOf n M›],
+        by simp [helm], by simp [hdeg], by simp [hrnk], by simp [hidg], by simp [hbh],
+        by simp [hbv], by simp [hbn]⟩,
+      ?_, ?_, hDlt, ?_, ?_, ?_, ?_, ?_⟩
+    · simpa using Elim.init (G := G) (M := M) (R := R) (ID := ID) hE hDcard
+    · simpa [hi, hsp, hls] using (hbuck.weaken E)
+    · simp [hscan]
+    · simp [hsp, hi]
+    · simp [hsp, hls, hi]
+    · simp
+    · simp
+
+/-! #### The in-lists, filled
+
+The last pass is a counting sort. Every live vertex's row is walked once
+more and every slot naming a live target of *smaller* rank — that is,
+every in-neighbour of the row's vertex in the elimination orientation —
+is written at the row's fill pointer, which then moves on. What the
+scan has written of a row is `written`, and `written_last` is the whole
+content of the pass: at the end of the row that set is the block
+`InCsr` asks for. The pointer stays inside its own block because the
+row names each neighbour once, so the set grows by one at each write
+and never overtakes `ID w`, the block's length. -/
+
+/-- Every slot of the in-list array is in the block of some vertex,
+which is what turns "every block names vertices" into `InCsr`'s
+`target_lt`. -/
+theorem exists_block {ID : ℕ → ℕ} {m t : ℕ} (ht : t < psum ID m) :
+    ∃ w < m, psum ID w ≤ t ∧ t < psum ID (w + 1) := by
+  induction m with
+  | zero => simp at ht
+  | succ m ih =>
+      rcases Nat.lt_or_ge t (psum ID m) with hlt | hge
+      · obtain ⟨w, hw, h₁, h₂⟩ := ih hlt
+        exact ⟨w, by omega, h₁, h₂⟩
+      · exact ⟨m, by omega, hge, ht⟩
+
+/-- An in-neighbour of `w` the fill has already written: alive, of
+smaller rank, and named by a slot the scan has passed. -/
+def fhit (O T M R : ℕ → ℕ) (w j u : ℕ) : Prop :=
+  M u ≠ 0 ∧ R u < R w ∧ ∃ t, O w ≤ t ∧ t < j ∧ T t = u
+
+/-- The in-neighbours of `w` written out so far: what the fill pointer
+counts, and — at the end of the row — the block itself. -/
+noncomputable def written {n : ℕ} (O T M R : ℕ → ℕ) (w j : ℕ) : Finset (Fin n) :=
+  pick (fun u : Fin n => fhit O T M R w j (u : ℕ))
+
+theorem mem_written {O T M R : ℕ → ℕ} {w j : ℕ} {u : Fin n} :
+    u ∈ written (n := n) O T M R w j ↔ fhit O T M R w j (u : ℕ) := mem_pick
+
+@[simp] theorem written_start (O T M R : ℕ → ℕ) (w : ℕ) :
+    written (n := n) O T M R w (O w) = ∅ :=
+  Finset.eq_empty_of_forall_notMem fun u hu => by
+    obtain ⟨-, -, t, h₁, h₂, -⟩ := mem_written.1 hu
+    omega
+
+/-- A slot that writes nothing leaves the set alone. -/
+theorem written_succ_of_skip {R : ℕ → ℕ} {w j : ℕ}
+    (hno : ¬ (M (T j) ≠ 0 ∧ R (T j) < R w)) :
+    written (n := n) O T M R w (j + 1) = written (n := n) O T M R w j := by
+  ext u
+  simp only [mem_written, fhit]
+  constructor
+  · rintro ⟨hM, hR, t, h₁, h₂, h₃⟩
+    rcases Nat.lt_or_ge t j with hlt | hge
+    · exact ⟨hM, hR, t, h₁, hlt, h₃⟩
+    · exact absurd ⟨by rw [show j = t by omega, h₃]; exact hM,
+        by rw [show j = t by omega, h₃]; exact hR⟩ hno
+  · rintro ⟨hM, hR, t, h₁, h₂, h₃⟩
+    exact ⟨hM, hR, t, h₁, by omega, h₃⟩
+
+/-- And a slot that writes adds exactly its target. -/
+theorem written_succ_of_take {R : ℕ → ℕ} {w j : ℕ} (hw : O w ≤ j) (htn : T j < n)
+    (hM : M (T j) ≠ 0) (hR : R (T j) < R w) :
+    written (n := n) O T M R w (j + 1)
+      = insert (⟨T j, htn⟩ : Fin n) (written (n := n) O T M R w j) := by
+  ext u
+  simp only [mem_written, Finset.mem_insert, fhit]
+  constructor
+  · rintro ⟨hM', hR', t, h₁, h₂, h₃⟩
+    rcases Nat.lt_or_ge t j with hlt | hge
+    · exact Or.inr ⟨hM', hR', t, h₁, hlt, h₃⟩
+    · exact Or.inl (Fin.ext (by rw [← h₃, show t = j by omega]))
+  · rintro (rfl | ⟨hM', hR', t, h₁, h₂, h₃⟩)
+    · exact ⟨hM, hR, j, hw, by omega, rfl⟩
+    · exact ⟨hM', hR', t, h₁, by omega, h₃⟩
+
+/-- **The slot the scan stands at has not been written yet**: the row
+names each neighbour once, so the set really does grow by one. -/
+theorem not_mem_written (hcsr : CsrSimple G ns O T) {R : ℕ → ℕ} {w j : ℕ} (hw : w < n)
+    (h₁ : O w ≤ j) (h₂ : j < O (w + 1)) (htn : T j < n) :
+    (⟨T j, htn⟩ : Fin n) ∉ written (n := n) O T M R w j := by
+  intro hmem
+  obtain ⟨-, -, t, ht₁, ht₂, ht₃⟩ := mem_written.1 hmem
+  have := hcsr.nodup w hw t j ht₁ (by omega) h₁ h₂ ht₃
+  omega
+
+/-- A dead vertex carries no arcs, so its block is empty and the pass
+has nothing to do at it. -/
+theorem inN_of_dead {R : ℕ → ℕ} {w : ℕ} (hw : w < n) (hM : M w = 0) :
+    (ElimCert.elimOr (masked G M) (fun v : Fin n => R (v : ℕ))).inN ⟨w, hw⟩ = ∅ :=
+  Finset.eq_empty_of_forall_notMem fun u hu => by
+    have := (masked_adj.1 (ElimCert.mem_elimOr.1 hu).1).2.2
+    exact this hM
+
+/-- **What the row scan ends with**: the in-neighbours of a live vertex
+in the elimination orientation are exactly the alive targets of its row
+that carry a smaller rank. -/
+theorem written_last (hcsr : CsrSimple G ns O T) {R : ℕ → ℕ} {w : ℕ} (hw : w < n)
+    (hMw : M w ≠ 0) :
+    written (n := n) O T M R w (O (w + 1))
+      = (ElimCert.elimOr (masked G M) (fun v : Fin n => R (v : ℕ))).inN ⟨w, hw⟩ := by
+  ext u
+  rw [mem_written, ElimCert.mem_elimOr]
+  constructor
+  · rintro ⟨hM, hR, t, h₁, h₂, h₃⟩
+    have hmb : M (T t) ≠ 0 := by rw [h₃]; exact hM
+    have hadj := hcsr.csr.madj_of_slot hw h₁ h₂ hMw hmb
+    rw [h₃] at hadj
+    exact ⟨(madj_iff (u := u) hw).1 hadj.symm, hR⟩
+  · rintro ⟨hadj, hR⟩
+    have hmadj : MAdj G M w (u : ℕ) := ((madj_iff (u := u) hw).2 hadj).symm
+    obtain ⟨t, h₁, h₂, h₃⟩ := hcsr.csr.slot_of_madj hmadj
+    exact ⟨hmadj.alive_right, hR, t, h₁, h₂, h₃⟩
+
+/-- The invariant of the fill, with the row in progress named: the
+blocks below `w` are complete, the blocks above it are still empty, the
+block of `w` holds `S`, and everything written so far names a
+vertex. -/
+def FillSt (n ns : ℕ) (G : SimpleGraph (Fin n)) (O T M R ID F IT : ℕ → ℕ)
+    (w : ℕ) (S : Finset (Fin n)) (σ : Env) : Prop :=
+  σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+    σ.arrs "alv" = arrOf n M ∧ σ.arrs "rnk" = arrOf n R ∧
+    σ.arrs "ifl" = arrOf n F ∧ σ.arrs "itg" = arrOf ns IT ∧ w ≤ n ∧
+    (∀ v < n, w < v → F v = psum ID v) ∧
+    (∀ v < n, v < w → F v = psum ID (v + 1)) ∧
+    (w < n → F w = psum ID w + S.card) ∧
+    (∀ v < n, ∀ t, psum ID v ≤ t → t < F v → IT t < n) ∧
+    (∀ v : Fin n, (v : ℕ) < w → ∀ u : Fin n,
+      u ∈ (ElimCert.elimOr (masked G M) (fun z : Fin n => R (z : ℕ))).inN v ↔
+        ∃ t, psum ID (v : ℕ) ≤ t ∧ t < psum ID ((v : ℕ) + 1) ∧ IT t = (u : ℕ)) ∧
+    (w < n → ∀ u : Fin n, u ∈ S ↔ ∃ t, psum ID w ≤ t ∧ t < F w ∧ IT t = (u : ℕ))
+
+/-- The invariant of the fill's outer loop: the row the counter names
+has nothing written in it yet. -/
+def FillInv (n ns : ℕ) (G : SimpleGraph (Fin n)) (O T M R ID : ℕ → ℕ) (σ : Env) : Prop :=
+  ∃ F IT, FillSt n ns G O T M R ID F IT (σ.vars "i") ∅ σ
+
+/-- The invariant of the fill's row scan: the row is a live vertex's,
+and what is written of it is what the pointer has passed. -/
+def FillScanInv (n ns : ℕ) (G : SimpleGraph (Fin n)) (O T M R ID : ℕ → ℕ) (w : ℕ)
+    (σ : Env) : Prop :=
+  (∃ F IT, FillSt n ns G O T M R ID F IT w (written (n := n) O T M R w (σ.vars "j")) σ) ∧
+    σ.vars "i" = w ∧ w < n ∧ M w ≠ 0 ∧ σ.vars "jend" = O (w + 1) ∧
+    O w ≤ σ.vars "j" ∧ σ.vars "j" ≤ O (w + 1)
+
+/-- A scalar the invariant does not name leaves it alone. -/
+theorem fillSt_setVar {n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M R ID F IT : ℕ → ℕ}
+    {w : ℕ} {S : Finset (Fin n)} {σ : Env} (h : FillSt n ns G O T M R ID F IT w S σ)
+    (x : String) (hx : x ≠ "n") (a : ℕ) :
+    FillSt n ns G O T M R ID F IT w S (σ.setVar x a) := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, rest⟩ := h
+  exact ⟨by simp [Ne.symm hx, h1], by simp [h2], by simp [h3], by simp [h4], by simp [h5],
+    by simp [h6], by simp [h7], rest⟩
+
+/-- **One slot of the fill.** Three paths: a dead target and one of
+larger rank are passed over, and an in-neighbour is written at the fill
+pointer, which then moves on. That the write stays inside the block is
+`not_mem_written` — the set grows by one and is bounded by `ID w`, the
+block's own length. Written in the `_run` form the kit's row scan
+consumes, with every obligation of the walk pre-loaded, `degSlot_run`'s
+shape and for its reason. -/
+theorem fillSlot_run {B n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M R ID : ℕ → ℕ} {w : ℕ}
+    (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B) (hMB : ∀ z < n, M z < B)
+    (hRlt : ∀ v < n, R v < n)
+    (hID : ∀ v : Fin n, ID (v : ℕ) =
+      ((ElimCert.elimOr (masked G M) (fun z : Fin n => R (z : ℕ))).inN v).card)
+    (hpsum : psum ID n ≤ ns) {σ : Env}
+    (hI : FillScanInv n ns G O T M R ID w σ) (hjlt : σ.vars "j" < O (w + 1)) :
+    ∃ σ' K, Run B fillSlot σ σ' K ∧ K ≤ 28 ∧
+      FillScanInv n ns G O T M R ID w σ' ∧ σ'.vars "j" = σ.vars "j" + 1 := by
+  obtain ⟨⟨F, IT, hn, hoff, htgt, halv, hrnk, hifl, hitg, hwn, hhi, hlo, hFw, hITlt, hmemv,
+    hS⟩, hi, hwlt, hMw, hje, hj₁, hj₂⟩ := hI
+  have hns : O (w + 1) ≤ ns := hcsr.csr.le_ns (by omega)
+  have hjns : σ.vars "j" < ns := by omega
+  have htn : T (σ.vars "j") < n := hcsr.csr.target_lt _ hjns
+  have htv : (σ.arrs "tgt").getD (σ.vars "j") 0 = T (σ.vars "j") := by
+    rw [htgt, getD_arrOf T hjns]
+  have htv' : (σ.arrs "tgt")[σ.vars "j"]?.getD 0 = T (σ.vars "j") := by
+    rw [← List.getD_eq_getElem?_getD]; exact htv
+  have hjlen : σ.vars "j" < (σ.arrs "tgt").length := by rw [htgt, length_arrOf]; omega
+  have htB : (σ.arrs "tgt").getD (σ.vars "j") 0 < B := by rw [htv]; omega
+  have hIDw : ID w = ((ElimCert.elimOr (masked G M)
+    (fun z : Fin n => R (z : ℕ))).inN ⟨w, hwlt⟩).card := hID ⟨w, hwlt⟩
+  have hsub : written (n := n) O T M R w (σ.vars "j") ⊆
+      (ElimCert.elimOr (masked G M) (fun z : Fin n => R (z : ℕ))).inN ⟨w, hwlt⟩ := by
+    intro u hu
+    rw [← written_last hcsr hwlt hMw]
+    obtain ⟨hM', hR', t, h1, h2, h3⟩ := mem_written.1 hu
+    exact mem_written.2 ⟨hM', hR', t, h1, by omega, h3⟩
+  have hcard : (written (n := n) O T M R w (σ.vars "j")).card ≤ ID w := by
+    rw [hIDw]; exact Finset.card_le_card hsub
+  have hFle : F w ≤ psum ID (w + 1) := by rw [hFw hwlt, psum_succ]; omega
+  have hFns : F w ≤ ns := le_trans hFle (le_trans (psum_mono ID (by omega)) hpsum)
+  have hFwlow : psum ID w ≤ F w := by rw [hFw hwlt]; omega
+  have hFhigh : ∀ v < n, F v ≤ psum ID (v + 1) := by
+    intro v hv
+    rcases lt_trichotomy v w with h | h | h
+    · rw [hlo v hv h]
+    · rw [h]; exact hFle
+    · rw [hhi v hv h]; exact psum_mono ID (by omega)
+  -- the write stays inside the block, which is what the store's range asks
+  have hstrict : M (T (σ.vars "j")) ≠ 0 → R (T (σ.vars "j")) < R w →
+      F w < psum ID (w + 1) := by
+    intro hm hr
+    have hmem : (⟨T (σ.vars "j"), htn⟩ : Fin n) ∈
+        (ElimCert.elimOr (masked G M) (fun z : Fin n => R (z : ℕ))).inN ⟨w, hwlt⟩ := by
+      rw [← written_last hcsr hwlt hMw]
+      exact mem_written.2 ⟨hm, hr, σ.vars "j", hj₁, by omega, rfl⟩
+    have hnot := not_mem_written (M := M) (R := R) hcsr hwlt hj₁ hjlt htn
+    have hins := Finset.card_le_card (Finset.insert_subset hmem hsub)
+    rw [Finset.card_insert_of_notMem hnot, ← hIDw] at hins
+    rw [hFw hwlt, psum_succ]
+    omega
+  have hstrictns : M (T (σ.vars "j")) ≠ 0 → R (T (σ.vars "j")) < R w → F w < ns := by
+    intro hm hr
+    have h1 := hstrict hm hr
+    have h2 := psum_mono ID (show w + 1 ≤ n by omega)
+    omega
+  have hF0 : (σ.arrs "ifl").getD (σ.vars "i") 0 = F w := by
+    rw [hifl, hi, getD_arrOf F hwlt]
+  have hF0w : (σ.arrs "ifl").getD w 0 = F w := by rw [hifl, getD_arrOf F hwlt]
+  have hitglen : (σ.arrs "itg").length = ns := by rw [hitg, length_arrOf]
+  have hifllen0 : σ.vars "i" < (σ.arrs "ifl").length := by
+    rw [hifl, length_arrOf, hi]; exact hwlt
+  -- the four reads, in the forms the walk states its obligations in
+  have halvlen : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "u")
+      < ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "alv").length := by
+    rw [arrs_setVar, vars_setVar, halv, length_arrOf]; simpa [htv'] using htn
+  have hbrAlv : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "alv").getD
+      ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "u") 0
+      = M (T (σ.vars "j")) := by
+    rw [arrs_setVar, vars_setVar]; simpa [htv', halv] using getD_arrOf M htn
+  have hbrAlvB : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "alv").getD
+      ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "u") 0 < B := by
+    rw [hbrAlv]; exact hMB _ htn
+  have hrnkulen : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "u")
+      < ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "rnk").length := by
+    rw [arrs_setVar, vars_setVar, hrnk, length_arrOf]; simpa [htv'] using htn
+  have hbrRu : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "rnk").getD
+      ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "u") 0
+      = R (T (σ.vars "j")) := by
+    rw [arrs_setVar, vars_setVar]; simpa [htv', hrnk] using getD_arrOf R htn
+  have hbrRuB : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "rnk").getD
+      ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "u") 0 < B := by
+    rw [hbrRu]; have := hRlt _ htn; omega
+  have hrnkilen : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "i")
+      < ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "rnk").length := by
+    rw [arrs_setVar, vars_setVar, hrnk, length_arrOf]; simpa [hi] using hwlt
+  have hbrRi : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "rnk").getD
+      ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "i") 0 = R w := by
+    rw [arrs_setVar, vars_setVar]; simpa [hi, hrnk] using getD_arrOf R hwlt
+  have hbrRiB : ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).arrs "rnk").getD
+      ((σ.setVar "u" ((σ.arrs "tgt").getD (σ.vars "j") 0)).vars "i") 0 < B := by
+    rw [hbrRi]; have := hRlt _ hwlt; omega
+  have hjB : σ.vars "j" + 1 < B := by omega
+  run_vcg
+  · -- the arc is written: the slot's target joins the block of the row
+    have hm : M (T (σ.vars "j")) ≠ 0 := by omega
+    have hr : R (T (σ.vars "j")) < R w := by omega
+    have hFlt : F w < psum ID (w + 1) := hstrict hm hr
+    have hnot := not_mem_written (M := M) (R := R) hcsr hwlt hj₁ hjlt htn
+    have hwr : written (n := n) O T M R w (σ.vars "j" + 1)
+        = insert (⟨T (σ.vars "j"), htn⟩ : Fin n) (written (n := n) O T M R w (σ.vars "j")) :=
+      written_succ_of_take hj₁ htn hm hr
+    refine ⟨⟨⟨upd F w (F w + 1), upd IT (F w) (T (σ.vars "j")), ?_⟩, by simp [hi], hwlt, hMw,
+      by simp [hje], by simp; omega, by simp; omega⟩, by simp⟩
+    simp only [vars_setVar, arrs_setVar, vars_setArr, arrs_setArr, ↓reduceIte,
+      String.reduceEq, hF0w, htv, hi]
+    rw [hwr]
+    refine ⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv], by simp [hrnk],
+      by simp [hifl, set_arrOf_eq_upd], by simp [hitg, set_arrOf_eq_upd],
+      hwn, fun v hv hwv => ?_, fun v hv hvw => ?_, fun _ => ?_, fun v hv t ht1 ht2 => ?_,
+      fun v hvw u => ?_, fun _ u => ?_⟩
+    · rw [upd_of_ne _ (by omega : v ≠ w)]; exact hhi v hv hwv
+    · rw [upd_of_ne _ (by omega : v ≠ w)]; exact hlo v hv hvw
+    · rw [upd_self, Finset.card_insert_of_notMem hnot, hFw hwlt]; omega
+    · by_cases hvw : v = w
+      · rw [hvw] at ht1 ht2
+        rw [upd_self] at ht2
+        by_cases htF : t = F w
+        · rw [htF, upd_self]; exact htn
+        · rw [upd_of_ne _ htF]; exact hITlt w hwlt t ht1 (by omega)
+      · rw [upd_of_ne _ hvw] at ht2
+        have htne : t ≠ F w := by
+          rcases Nat.lt_or_ge v w with h | h
+          · have h1 := hFhigh v hv
+            have h2 := psum_mono ID (show v + 1 ≤ w by omega)
+            omega
+          · have h1 := psum_mono ID (show w + 1 ≤ v by omega)
+            omega
+        rw [upd_of_ne _ htne]; exact hITlt v hv t ht1 ht2
+    · rw [hmemv v hvw u]
+      have hne : ∀ t, t < psum ID ((v : ℕ) + 1) → t ≠ F w := by
+        intro t ht
+        have := psum_mono ID (show (v : ℕ) + 1 ≤ w by omega)
+        omega
+      constructor
+      · rintro ⟨t, h1, h2, h3⟩
+        exact ⟨t, h1, h2, by rw [upd_of_ne _ (hne t h2)]; exact h3⟩
+      · rintro ⟨t, h1, h2, h3⟩
+        rw [upd_of_ne _ (hne t h2)] at h3
+        exact ⟨t, h1, h2, h3⟩
+    · rw [Finset.mem_insert, upd_self]
+      constructor
+      · rintro (rfl | hu)
+        · exact ⟨F w, hFwlow, by omega, upd_self ..⟩
+        · obtain ⟨t, h1, h2, h3⟩ := (hS hwlt u).1 hu
+          exact ⟨t, h1, by omega, by rw [upd_of_ne _ (by omega : t ≠ F w)]; exact h3⟩
+      · rintro ⟨t, h1, h2, h3⟩
+        by_cases htF : t = F w
+        · rw [htF, upd_self] at h3; exact Or.inl (Fin.ext h3.symm)
+        · rw [upd_of_ne _ htF] at h3
+          exact Or.inr ((hS hwlt u).2 ⟨t, h1, by omega, h3⟩)
+  · -- alive, but not of smaller rank: nothing is written
+    have hno : ¬ (M (T (σ.vars "j")) ≠ 0 ∧ R (T (σ.vars "j")) < R w) := by omega
+    refine ⟨⟨⟨F, IT, ?_⟩, by simp [hi], hwlt, hMw, by simp [hje], by simp; omega,
+      by simp; omega⟩, by simp⟩
+    simp only [vars_setVar, ↓reduceIte, String.reduceEq]
+    rw [written_succ_of_skip hno]
+    exact ⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv], by simp [hrnk],
+      by simp [hifl], by simp [hitg], hwn, hhi, hlo, hFw, hITlt, hmemv, hS⟩
+  · -- a dead target is passed over
+    have hno : ¬ (M (T (σ.vars "j")) ≠ 0 ∧ R (T (σ.vars "j")) < R w) := by omega
+    refine ⟨⟨⟨F, IT, ?_⟩, by simp [hi], hwlt, hMw, by simp [hje], by simp; omega,
+      by simp; omega⟩, by simp⟩
+    simp only [vars_setVar, ↓reduceIte, String.reduceEq]
+    rw [written_succ_of_skip hno]
+    exact ⟨by simp [hn], by simp [hoff], by simp [htgt], by simp [halv], by simp [hrnk],
+      by simp [hifl], by simp [hitg], hwn, hhi, hlo, hFw, hITlt, hmemv, hS⟩
+  all_goals
+    simp only [arrs_setVar, vars_setVar, arrs_setArr, vars_setArr, ↓reduceIte,
+      String.reduceEq, hF0, htv, hitglen, hifllen0] at *
+  all_goals omega
+
+/-- **A row, finished.** What the scan wrote is the block, so the fill
+pointer has arrived at the start of the next one and the row's clause
+joins the completed ones. -/
+theorem fillSt_succ {n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M R ID F IT : ℕ → ℕ} {v : ℕ}
+    (hID : ∀ z : Fin n, ID (z : ℕ) =
+      ((ElimCert.elimOr (masked G M) (fun y : Fin n => R (y : ℕ))).inN z).card)
+    (hv : v < n) {τ : Env}
+    (h : FillSt n ns G O T M R ID F IT v
+      ((ElimCert.elimOr (masked G M) (fun y : Fin n => R (y : ℕ))).inN ⟨v, hv⟩) τ) :
+    FillSt n ns G O T M R ID F IT (v + 1) ∅ τ := by
+  obtain ⟨hn, hoff, htgt, halv, hrnk, hifl, hitg, hwn, hhi, hlo, hFw, hITlt, hmemv, hS⟩ := h
+  have hFv : F v = psum ID (v + 1) := by
+    rw [hFw hv, psum_succ, ← hID ⟨v, hv⟩]
+  refine ⟨hn, hoff, htgt, halv, hrnk, hifl, hitg, by omega, fun z hz hvz => ?_,
+    fun z hz hzv => ?_, fun hlt => ?_, hITlt, fun z hzv u => ?_, fun hlt u => ?_⟩
+  · exact hhi z hz (by omega)
+  · rcases Nat.lt_or_ge z v with h | h
+    · exact hlo z hz h
+    · rw [show z = v by omega]; exact hFv
+  · rw [hhi (v + 1) hlt (by omega)]; simp
+  · rcases Nat.lt_or_ge (z : ℕ) v with h | h
+    · exact hmemv z h u
+    · have hz2 : z = (⟨v, hv⟩ : Fin n) := Fin.ext (show (z : ℕ) = v by omega)
+      subst hz2
+      rw [hS hv u]
+      constructor
+      · rintro ⟨t, h1, h2, h3⟩; exact ⟨t, h1, by rw [hFv] at h2; exact h2, h3⟩
+      · rintro ⟨t, h1, h2, h3⟩; exact ⟨t, h1, by rw [hFv]; exact h2, h3⟩
+  · constructor
+    · intro hu; simp at hu
+    · rintro ⟨t, h1, h2, -⟩
+      rw [hhi (v + 1) hlt (by omega)] at h2
+      omega
+
+/-- **One vertex's block, written out.** The row is walked by the kit's
+row scan; a dead vertex has no row to walk and no arcs to write, which
+`inN_of_dead` is. -/
+theorem fillRow_run {B n ns : ℕ} {G : SimpleGraph (Fin n)} {O T M R ID : ℕ → ℕ} {v : ℕ}
+    (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B) (hMB : ∀ z < n, M z < B)
+    (hRlt : ∀ z < n, R z < n)
+    (hID : ∀ z : Fin n, ID (z : ℕ) =
+      ((ElimCert.elimOr (masked G M) (fun y : Fin n => R (y : ℕ))).inN z).card)
+    (hpsum : psum ID n ≤ ns) (hv : v < n) {σ : Env}
+    (hI : FillInv n ns G O T M R ID σ) (hiv : σ.vars "i" = v) :
+    ∃ σ' K, Run B fillRow σ σ' K ∧ K ≤ 32 * Csr.rowLen O v + 21 ∧
+      FillInv n ns G O T M R ID σ' ∧ σ'.vars "i" = v + 1 := by
+  obtain ⟨F, IT, hst⟩ := id hI
+  rw [hiv] at hst
+  obtain ⟨hn, hoff, htgt, halv, hrnk, hifl, hitg, hwn, hhi, hlo, hFw, hITlt, hmemv,
+    hS⟩ := id hst
+  have hns : O (v + 1) ≤ ns := hcsr.csr.le_ns (by omega)
+  have hov : O v ≤ O (v + 1) := hcsr.csr.mono v hv
+  have hcsrRel : Csr "off" "tgt" n ns n O T σ :=
+    ⟨hoff, htgt, fun i hi => hcsr.csr.mono i hi, hcsr.csr.last,
+      fun p hp => hcsr.csr.target_lt p hp⟩
+  have havlen : σ.vars "i" < (σ.arrs "alv").length := by
+    rw [halv, length_arrOf, hiv]; exact hv
+  have hav : (σ.arrs "alv").getD (σ.vars "i") 0 = M v := by
+    rw [halv, hiv, getD_arrOf M hv]
+  have havB : (σ.arrs "alv").getD (σ.vars "i") 0 < B := by rw [hav]; exact hMB v hv
+  have hiB : σ.vars "i" + 1 < B := by rw [hiv]; omega
+  have hscanSpec : Spec B
+      (fun τ => FillScanInv n ns G O T M R ID v τ ∧ τ.vars "j" = O v)
+      (Csr.scan "j" "jend" fillSlot)
+      (fun _ τ' => (∃ F' IT', FillSt n ns G O T M R ID F' IT' (v + 1) ∅ τ') ∧
+        τ'.vars "i" = v ∧ τ'.vars "i" + 1 < B)
+      (32 * Csr.rowLen O v + 4) := by
+    refine (Csr.rowScan_spec B (32 * Csr.rowLen O v + 4) (O (v + 1)) 28 "j" "jend" fillSlot
+      (FillScanInv n ns G O T M R ID v) (by omega)
+      (fun τ hτ => ⟨hτ.2.2.2.2.1, hτ.2.2.2.2.2.2⟩)
+      (fun τ hτ hlt => ?_) (fun _ hτ => hτ.1)
+      (fun τ hτ => by rw [hτ.2]; have : Csr.rowLen O v = O (v + 1) - O v := rfl; omega)).post
+      (fun _ τ' _ hQ => ?_)
+    · obtain ⟨τ', K', hr, hK', hI', hj'⟩ := fillSlot_run hcsr hB hMB hRlt hID hpsum hτ hlt
+      exact ⟨τ', K', hr, hI', hj', hK'⟩
+    · obtain ⟨⟨F', IT', hst'⟩, hi', -, hMv, -, -, -⟩ := hQ.1
+      rw [hQ.2, written_last hcsr hv hMv] at hst'
+      exact ⟨⟨F', IT', fillSt_succ hID hv hst'⟩, hi', by rw [hi']; omega⟩
+  run_vcg [Csr.loadRow_spec B n ns n "off" "tgt" "i" "j" "jend" O T (by decide) (by decide),
+    hscanSpec]
+  · -- a live vertex: what the scan left, with the counter moved on
+    obtain ⟨⟨F', IT', hst'⟩, hi', -⟩ := ‹(∃ F' IT', FillSt n ns G O T M R ID F' IT' (v+1) ∅ _)
+      ∧ _›
+    refine ⟨⟨F', IT', ?_⟩, by simp [hi']⟩
+    simp only [vars_setVar, ↓reduceIte, hi']
+    exact fillSt_setVar hst' "i" (by decide) _
+  · -- a dead vertex has no row to scan
+    have hMv : M v = 0 := by
+      have := ‹¬ (0 < (_ : List ℕ).getD _ 0)›
+      omega
+    have hst2 : FillSt n ns G O T M R ID F IT v
+        ((ElimCert.elimOr (masked G M) (fun y : Fin n => R (y : ℕ))).inN ⟨v, hv⟩) σ := by
+      rw [inN_of_dead hv hMv]; exact hst
+    refine ⟨⟨F, IT, ?_⟩, by simp [hiv]⟩
+    simp only [vars_setVar, ↓reduceIte, hiv]
+    exact fillSt_setVar (fillSt_succ hID hv hst2) "i" (by decide) _
+  · -- the two offset reads: a row of the structure, and its number a word
+    exact ⟨⟨by simpa using hcsrRel, by omega, by omega⟩, by simp [hiv]; omega,
+      by simp [hiv]; omega⟩
+  · -- the scan starts at the top of the row, with nothing written yet
+    obtain ⟨-, hj', hje', rfl⟩ :=
+      ‹Csr.LoadRowPost "off" "tgt" "i" "j" "jend" n ns n O T _ _›
+    have hMv : M v ≠ 0 := by
+      have := ‹0 < (_ : List ℕ).getD _ 0›
+      omega
+    refine ⟨⟨⟨F, IT, ?_⟩, by simp [hiv], hv, hMv, by simp [hiv], by simp [hiv], ?_⟩, ?_⟩
+    · simp only [vars_setVar, ↓reduceIte, String.reduceEq, hiv]
+      rw [written_start]
+      exact fillSt_setVar (fillSt_setVar hst "j" (by decide) _) "jend" (by decide) _
+    · simp [hiv]; omega
+    · simp [hiv]
+
+/-- **The in-neighbour lists, written out.** A second amortized walk of
+the block structure — the same "so much per slot left, so much per row
+left" the degree pass is paid with — and what it leaves is `InCsr` on
+the nose: the blocks the offsets cut hold exactly the in-neighbours of
+the elimination orientation. -/
+theorem fillPass_spec (B n ns : ℕ) (G : SimpleGraph (Fin n)) (O T M R ID : ℕ → ℕ)
+    (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B) (hMB : ∀ z < n, M z < B)
+    (hRlt : ∀ z < n, R z < n)
+    (hID : ∀ z : Fin n, ID (z : ℕ) =
+      ((ElimCert.elimOr (masked G M) (fun y : Fin n => R (y : ℕ))).inN z).card)
+    (hpsum : psum ID n ≤ ns) :
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧
+        σ.arrs "tgt" = arrOf ns T ∧ σ.arrs "alv" = arrOf n M ∧ σ.arrs "rnk" = arrOf n R ∧
+        (∃ g, σ.arrs "ifl" = arrOf n g ∧ ∀ j < n, g j = psum ID j) ∧
+        (∃ g, σ.arrs "itg" = arrOf ns g))
+      fillPass
+      (fun _ σ' => ∃ IT, σ'.arrs "itg" = arrOf ns IT ∧
+        InCsr (ElimCert.elimOr (masked G M) (fun y : Fin n => R (y : ℕ))) (psum ID n)
+          (psum ID) IT)
+      (32 * n + 32 * ns + 10) := by
+  have hOle : ∀ i ≤ n, O i ≤ ns := fun i hi => hcsr.csr.le_ns hi
+  have hloop : Spec B (FillInv n ns G O T M R ID)
+      (.while (.lt (.var "i") (.var "n")) fillRow)
+      (fun _ σ' => FillInv n ns G O T M R ID σ' ∧
+        (Cond.lt (Expr.var "i") (Expr.var "n")).evalB B σ' = some false)
+      (32 * n + 32 * ns + 8) := by
+    refine Spec.while_potential (FillInv n ns G O T M R ID)
+      (fun σ => 32 * (ns - O (σ.vars "i")) + 32 * (n - σ.vars "i"))
+      (fun σ hσ => ?_) (fun σ hσ hb => ?_) (fun _ h => h)
+      (fun σ _ => by simp only [size_condLt, size_var]; omega)
+    · obtain ⟨F, IT, hst⟩ := hσ
+      exact evalB_condLt_vars (by have := hst.2.2.2.2.2.2.2.1; omega) (by rw [hst.1]; omega)
+    · have hlt : σ.vars "i" < n := by
+        obtain ⟨F, IT, hst⟩ := id hσ
+        have := lt_of_condLt_true hb
+        rw [hst.1] at this; exact this
+      obtain ⟨σ', K, hrun, hK, hI', hi'⟩ := fillRow_run hcsr hB hMB hRlt hID hpsum hlt hσ rfl
+      refine ⟨σ', K, hrun, hI', ?_⟩
+      have h₁ : O (σ.vars "i") ≤ O (σ.vars "i" + 1) := hcsr.csr.mono _ hlt
+      have h₂ : O (σ.vars "i" + 1) ≤ ns := hOle _ (by omega)
+      have hrow : Csr.rowLen O (σ.vars "i") = O (σ.vars "i" + 1) - O (σ.vars "i") := rfl
+      simp only [size_condLt, size_var, hi']
+      omega
+  run_vcg [hloop]
+  · -- the exit: every block is complete, which is what `InCsr` says
+    obtain ⟨⟨F, IT, hst⟩, hfalse⟩ := ‹FillInv n ns G O T M R ID _ ∧ _›
+    obtain ⟨hn, hoff, htgt, halv, hrnk, hifl, hitg, hwn, hhi, hlo, hFw, hITlt, hmemv,
+      hS⟩ := hst
+    have h₁ := le_of_condLt_false hfalse
+    rw [hn] at h₁
+    refine ⟨IT, hitg, psum_zero ID, rfl, fun i _ => psum_mono ID (by omega),
+      fun t ht => ?_, fun w u => hmemv w (by have := w.isLt; omega) u, fun w => ?_⟩
+    · obtain ⟨v, hv, ha, hb⟩ := exists_block ht
+      exact hITlt v hv t ha (by rw [hlo v hv (by omega)]; exact hb)
+    · rw [psum_succ, hID w]; omega
+  · -- the pass starts with every block empty
+    obtain ⟨F, hifl, hF⟩ := ‹∃ g, σ.arrs "ifl" = arrOf n g ∧ ∀ j < n, g j = psum ID j›
+    obtain ⟨IT, hitg⟩ := ‹∃ g, σ.arrs "itg" = arrOf ns g›
+    refine ⟨F, IT, by simpa using ‹σ.vars "n" = n›,
+      by simpa using ‹σ.arrs "off" = arrOf (n + 1) O›,
+      by simpa using ‹σ.arrs "tgt" = arrOf ns T›,
+      by simpa using ‹σ.arrs "alv" = arrOf n M›,
+      by simpa using ‹σ.arrs "rnk" = arrOf n R›, by simpa using hifl, by simpa using hitg,
+      by simp, fun v hv _ => hF v hv, fun v hv hlt => by simp at hlt,
+      fun hlt => by simp; exact hF 0 (by simpa using hlt),
+      fun v hv t ht1 ht2 => ?_, fun v hv u => by simp at hv, fun hlt u => ?_⟩
+    · rw [hF v hv] at ht2; omega
+    · simp only [vars_setVar, ↓reduceIte]
+      have h0 : F 0 = psum ID 0 := hF 0 (by simpa using hlt)
+      constructor
+      · intro hu; simp at hu
+      · rintro ⟨t, h1, h2, -⟩; rw [h0] at h2; omega
+
+/-- **The Hoare triple for the engine**: that the five phases of the
 program leave memory in the state `ElimMem` describes, within the cost
 `elimCost`. It is stated over the program text and the input surface a
-caller has, so it is a self-contained obligation and not a hole in a
-statement: the invariant it is to be proved against is `Elim`, its
+caller has, so a caller may thread it as a hypothesis; `implements`
+below discharges it. The invariant it is proved against is `Elim`, its
 three turns are `Elim.init`, `Elim.bump` and `Elim.extract`, and its
 exit reading is `Elim.cert`.
 
-It splits along the program's five phases, each a `Spec` of its own.
-**Three of the five are discharged** in the section above, and the
-fourth is discharged turn by turn; what each phase owes is named here.
+It splits along the program's five phases, each a `Spec` of its own,
+and what each phase does is —
 
-* `initDeg` — **done**, `initDeg_spec`: it leaves `deg v` at the arena
-  degree of `v`, at a cost of `48 n + 44 ns + 10`. Its content is
+* `initDeg` — `initDeg_spec`: it leaves `deg v` at the arena degree of
+  `v`, at a cost of `48 n + 44 ns + 10`. Its content is
   `card_liveSlots` — the row's live slots biject with the arena
   neighbours — and `adeg_of_dead` for the other branch, and its result
   is exactly `Elim.init`'s second hypothesis. The outer loop is
   amortized against `44 (ns − off i) + 48 (n − i)`, the rows tiling the
   target array.
-* `offPass` — **done**, `offPass_spec`: a running sum, at a cost of
-  `24 n + 12`, leaving `ioff j = psum ID j` for every `j ≤ n` and every
-  fill pointer at the start of its own block. It establishes `InCsr`'s
-  `zero`, `last`, `mono` and `len`.
-* `initBuck` — **done**, `initBuck_spec`: one slot per vertex, pushed
-  into the bucket of its degree, at a cost of `29 n + 10`, leaving
-  `sp = n + 1` and `ls = n`. Its content is `Buck.push`, and what it
-  leaves is `Buck n n` — the relation the elimination loop carries.
-* `elimLoop` — **its turn is done**, `elimTurn_run`: from `ElimInv` and
-  `cnt < n`, one turn of `elimTurn` runs and pays for itself out of
-  `Pot`. The four cases are `elimBump_run` (an empty bucket, by
-  `Buck.no_deg` and `Elim.bump`), `elimStale_run` (a stale slot, by
-  `Buck.pop`), and `elimTake_run` / `elimTakeDead_run` (an extraction,
-  by `Buck.pop`, the row scan `decScan_spec`, `extract_of_scan` and
-  `Elim.extract`). **What is left of this phase** is the `while`
-  wrapper: `Spec.while_potential (ElimInv n ns G O T M) (Pot n ns)`
-  with `elimTurn_run` as its step, the four leading assignments in
-  front of it, `Elim.init` and `initBuck_spec`'s answer as its entry
-  reading, and `Elim.cert` at `cnt = n` as its exit. The potential at
-  entry is `140 n + 100 ns + 20`, so the phase costs
-  `160 n + 100 ns + 52`.
-* `fillPass` — **open**: a second walk of the block structure whose
-  content is a counting sort — each arc lands in the block of its
-  larger-ranked endpoint — giving `InCsr`'s `mem_iff` and `target_lt`.
-  `offPass_spec`'s postconditions are its input, and nothing else in
-  the file depends on it.
+* `initBuck` — `initBuck_spec`: one slot per vertex, pushed into the
+  bucket of its degree, at a cost of `29 n + 10`, leaving `sp = n + 1`
+  and `ls = n`. Its content is `Buck.push`, and what it leaves is
+  `Buck n n` — the relation the elimination loop carries.
+* `elimLoop` — `elimLoop_spec`: the four counters, then
+  `Spec.while_potential (ElimInv n ns G O T M) (Pot n ns)` with
+  `elimTurn_run` as its step. That turn's four cases are `elimBump_run`
+  (an empty bucket, by `Buck.no_deg` and `Elim.bump`), `elimStale_run`
+  (a stale slot, by `Buck.pop`), and `elimTake_run` /
+  `elimTakeDead_run` (an extraction, by `Buck.pop`, the row scan
+  `decScan_spec`, `extract_of_scan` and `Elim.extract`). `Elim.init`
+  and `initBuck_spec`'s answer are its entry reading and
+  `elimExit_read` is its exit, at `cnt = n`. `Pot` never exceeds
+  `160 n + 100 ns + 40`, so the phase costs `160 n + 100 ns + 52`.
+* `offPass` — `offPass_spec`: a running sum, at a cost of `24 n + 12`,
+  leaving `ioff j = psum ID j` for every `j ≤ n` and every fill pointer
+  at the start of its own block. It establishes `InCsr`'s `zero`,
+  `last`, `mono` and `len`.
+* `fillPass` — `fillPass_spec`: a second amortized walk of the block
+  structure whose content is a counting sort — each arc lands in the
+  block of its larger-ranked endpoint — giving `InCsr`'s `mem_iff` and
+  `target_lt`, at a cost of `32 n + 32 ns + 10`.
 
 The cost is amortized, with the potential `Pot`,
 
@@ -2697,6 +3362,181 @@ with `sc ≤ ns` from `scanned_sum_le`. -/
 def Implements (B n ns : ℕ) (G : SimpleGraph (Fin n)) (M O T : ℕ → ℕ) : Prop :=
   CsrSimple G ns O T → n + ns + 1 < B → (∀ z < n, M z < B) →
     Spec B (ElimPre n ns O T M) elimCom (ElimMem G M ns) (elimCost n ns)
+
+/-! ### The five phases, sequenced
+
+What each phase hands the next, written out once so that the five
+specifications compose by the walk and nothing is re-established: every
+array a phase does not write is carried across it by `Spec.frame`, and
+every array it does write is named in the predicate below. -/
+
+/-- What the degree pass leaves the bucket build: the input arrays
+untouched, the arena degrees in `deg`, and the rest of the scratch at
+its lengths. -/
+def AfterDeg (n ns : ℕ) (G : SimpleGraph (Fin n)) (O T M : ℕ → ℕ) (σ : Env) : Prop :=
+  σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+    σ.arrs "alv" = arrOf n M ∧ σ.arrs "deg" = arrOf n (adeg G M) ∧
+    (∃ g, σ.arrs "elm" = arrOf n g ∧ ∀ j < n, g j = 0) ∧
+    (∃ g, σ.arrs "rnk" = arrOf n g) ∧ (∃ g, σ.arrs "idg" = arrOf n g) ∧
+    (∃ g, σ.arrs "bh" = arrOf (n + 1) g ∧ ∀ j ≤ n, g j = 0) ∧
+    (∃ g, σ.arrs "bv" = arrOf (n + ns + 1) g) ∧ (∃ g, σ.arrs "bn" = arrOf (n + ns + 1) g) ∧
+    (∃ g, σ.arrs "ioff" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "ifl" = arrOf n g) ∧
+    (∃ g, σ.arrs "itg" = arrOf ns g)
+
+/-- What the bucket build leaves the elimination: `Buck` on the arena,
+one slot per vertex. -/
+def AfterBuck (n ns : ℕ) (G : SimpleGraph (Fin n)) (O T M : ℕ → ℕ) (σ : Env) : Prop :=
+  BuckInv n ns (adeg G M) σ ∧ σ.vars "i" = n ∧
+    σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧ σ.arrs "alv" = arrOf n M ∧
+    (∃ g, σ.arrs "elm" = arrOf n g ∧ ∀ j < n, g j = 0) ∧
+    (∃ g, σ.arrs "rnk" = arrOf n g) ∧ (∃ g, σ.arrs "idg" = arrOf n g) ∧
+    (∃ g, σ.arrs "ioff" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "ifl" = arrOf n g) ∧
+    (∃ g, σ.arrs "itg" = arrOf ns g)
+
+/-- What the elimination leaves the two in-list passes: the certificate,
+the recorded extraction degrees read as the in-degrees of the
+orientation, and the bound that puts the whole in-list array inside the
+target array. -/
+def AfterLoop (n ns : ℕ) (G : SimpleGraph (Fin n)) (O T M : ℕ → ℕ) (σ : Env) : Prop :=
+  ∃ R ID k, σ.vars "n" = n ∧ σ.vars "kmax" = k ∧
+    σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧ σ.arrs "alv" = arrOf n M ∧
+    σ.arrs "rnk" = arrOf n R ∧ σ.arrs "idg" = arrOf n ID ∧ (∀ v < n, R v < n) ∧
+    ElimCert (masked G M) (fun v : Fin n => R (v : ℕ)) k ∧
+    (∀ w : Fin n, ID (w : ℕ) =
+      ((ElimCert.elimOr (masked G M) (fun v : Fin n => R (v : ℕ))).inN w).card) ∧
+    psum ID n ≤ ns ∧
+    (∃ g, σ.arrs "ioff" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "ifl" = arrOf n g) ∧
+    (∃ g, σ.arrs "itg" = arrOf ns g)
+
+/-- And what the offsets leave the fill: the same, with every block
+opened and every fill pointer at the start of its own. -/
+def AfterOff (n ns : ℕ) (G : SimpleGraph (Fin n)) (O T M : ℕ → ℕ) (σ : Env) : Prop :=
+  ∃ R ID k, σ.vars "n" = n ∧ σ.vars "kmax" = k ∧
+    σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧ σ.arrs "alv" = arrOf n M ∧
+    σ.arrs "rnk" = arrOf n R ∧ (∀ v < n, R v < n) ∧
+    ElimCert (masked G M) (fun v : Fin n => R (v : ℕ)) k ∧
+    (∀ w : Fin n, ID (w : ℕ) =
+      ((ElimCert.elimOr (masked G M) (fun v : Fin n => R (v : ℕ))).inN w).card) ∧
+    psum ID n ≤ ns ∧
+    (∃ g, σ.arrs "ioff" = arrOf (n + 1) g ∧ ∀ j ≤ n, g j = psum ID j) ∧
+    (∃ g, σ.arrs "ifl" = arrOf n g ∧ ∀ j < n, g j = psum ID j) ∧
+    (∃ g, σ.arrs "itg" = arrOf ns g)
+
+/-- **The engine implements its specification.** The five phase walks —
+`initDeg_spec`, `initBuck_spec`, `elimLoop_spec`, `offPass_spec`,
+`fillPass_spec` — are sequenced by the kit's walk against the four
+predicates above, each phase's postcondition being the next one's
+precondition on the nose and every array a phase does not write carried
+across it by `Spec.frame`. The certificate the elimination left and the
+block structure the fill left are `ElimMem`'s two halves, and the five
+costs sum to `293 n + 176 ns + 94`, inside `elimCost`. -/
+theorem implements {B : ℕ} : Implements B n ns G M O T := by
+  intro hcsr hB hMB
+  have hDlt : ∀ v < n, adeg G M v < n := fun v hv => by
+    rw [adeg_eq hv]; exact card_nbrsIn_lt _ _
+  have w1 : Spec B (ElimPre n ns O T M) initDeg (fun _ σ' => AfterDeg n ns G O T M σ')
+      (48 * n + 44 * ns + 10) := by
+    intro σ hσ
+    obtain ⟨hn, hoff, htgt, halv, hdeg0, helm, hrnk, hidg, hbh, hbv, hbn, hioff, hifl,
+      hitg⟩ := hσ
+    obtain ⟨σ', hrun, ⟨hI, hi⟩, -, hfa, -, -⟩ :=
+      (initDeg_spec B n ns G O T M hcsr (by omega) (by omega) hMB).frame σ
+        ⟨hn, hoff, htgt, halv, hdeg0⟩
+    obtain ⟨hn', hoff', htgt', halv', -, g, hdegg, hg⟩ := hI
+    obtain ⟨e, he1, he2⟩ := helm
+    obtain ⟨r, hr1⟩ := hrnk
+    obtain ⟨d, hd1⟩ := hidg
+    obtain ⟨bh, hbh1, hbh2⟩ := hbh
+    obtain ⟨bv, hbv1⟩ := hbv
+    obtain ⟨bn, hbn1⟩ := hbn
+    obtain ⟨io, hio1⟩ := hioff
+    obtain ⟨fl, hfl1⟩ := hifl
+    obtain ⟨tg, htg1⟩ := hitg
+    exact ⟨σ', hrun, hn', hoff', htgt', halv',
+      by rw [hdegg, arrOf_congr (fun j hj => hg j (by rw [hi]; exact hj))],
+      ⟨e, by rw [hfa "elm" (by decide)]; exact he1, he2⟩,
+      ⟨r, by rw [hfa "rnk" (by decide)]; exact hr1⟩,
+      ⟨d, by rw [hfa "idg" (by decide)]; exact hd1⟩,
+      ⟨bh, by rw [hfa "bh" (by decide)]; exact hbh1, hbh2⟩,
+      ⟨bv, by rw [hfa "bv" (by decide)]; exact hbv1⟩,
+      ⟨bn, by rw [hfa "bn" (by decide)]; exact hbn1⟩,
+      ⟨io, by rw [hfa "ioff" (by decide)]; exact hio1⟩,
+      ⟨fl, by rw [hfa "ifl" (by decide)]; exact hfl1⟩,
+      ⟨tg, by rw [hfa "itg" (by decide)]; exact htg1⟩⟩
+  have w2 : Spec B (AfterDeg n ns G O T M) initBuck (fun _ σ' => AfterBuck n ns G O T M σ')
+      (29 * n + 10) := by
+    intro σ hσ
+    obtain ⟨hn, hoff, htgt, halv, hdeg, helm, hrnk, hidg, hbh, hbv, hbn, hioff, hifl,
+      hitg⟩ := hσ
+    obtain ⟨σ', hrun, ⟨hI, hi⟩, -, hfa, -, -⟩ :=
+      (initBuck_spec B n ns (adeg G M) (by omega) hDlt).frame σ ⟨hn, hdeg, hbh, hbv, hbn⟩
+    obtain ⟨e, he1, he2⟩ := helm
+    obtain ⟨r, hr1⟩ := hrnk
+    obtain ⟨d, hd1⟩ := hidg
+    obtain ⟨io, hio1⟩ := hioff
+    obtain ⟨fl, hfl1⟩ := hifl
+    obtain ⟨tg, htg1⟩ := hitg
+    exact ⟨σ', hrun, hI, hi,
+      by rw [hfa "off" (by decide)]; exact hoff,
+      by rw [hfa "tgt" (by decide)]; exact htgt,
+      by rw [hfa "alv" (by decide)]; exact halv,
+      ⟨e, by rw [hfa "elm" (by decide)]; exact he1, he2⟩,
+      ⟨r, by rw [hfa "rnk" (by decide)]; exact hr1⟩,
+      ⟨d, by rw [hfa "idg" (by decide)]; exact hd1⟩,
+      ⟨io, by rw [hfa "ioff" (by decide)]; exact hio1⟩,
+      ⟨fl, by rw [hfa "ifl" (by decide)]; exact hfl1⟩,
+      ⟨tg, by rw [hfa "itg" (by decide)]; exact htg1⟩⟩
+  have w3 : Spec B (AfterBuck n ns G O T M) elimLoop (fun _ σ' => AfterLoop n ns G O T M σ')
+      (160 * n + 100 * ns + 52) := by
+    intro σ hσ
+    obtain ⟨hbi, hi, hoff, htgt, halv, helm, hrnk, hidg, hioff, hifl, hitg⟩ := hσ
+    obtain ⟨σ', hrun, ⟨R, ID, k, hn', hk', hrnk', hidg', hRlt, hcert, hIDc, hpsum⟩, -,
+      hfa, -, -⟩ :=
+      (elimLoop_spec B n ns G O T M (adeg G M) hcsr hB hMB (fun _ _ => rfl)).frame σ
+        ⟨hbi, hi, hoff, htgt, halv, helm, hrnk, hidg⟩
+    obtain ⟨io, hio1⟩ := hioff
+    obtain ⟨fl, hfl1⟩ := hifl
+    obtain ⟨tg, htg1⟩ := hitg
+    exact ⟨σ', hrun, R, ID, k, hn', hk',
+      by rw [hfa "off" (by decide)]; exact hoff,
+      by rw [hfa "tgt" (by decide)]; exact htgt,
+      by rw [hfa "alv" (by decide)]; exact halv,
+      hrnk', hidg', hRlt, hcert, hIDc, hpsum,
+      ⟨io, by rw [hfa "ioff" (by decide)]; exact hio1⟩,
+      ⟨fl, by rw [hfa "ifl" (by decide)]; exact hfl1⟩,
+      ⟨tg, by rw [hfa "itg" (by decide)]; exact htg1⟩⟩
+  have w4 : Spec B (AfterLoop n ns G O T M) offPass (fun _ σ' => AfterOff n ns G O T M σ')
+      (24 * n + 12) := by
+    intro σ hσ
+    obtain ⟨R, ID, k, hn, hk, hoff, htgt, halv, hrnk, hidg, hRlt, hcert, hIDc, hpsum,
+      hioff, hifl, hitg⟩ := hσ
+    obtain ⟨σ', hrun, ⟨hn', hs', hio', hfl'⟩, hfv, hfa, -, -⟩ :=
+      (offPass_spec B n ID (by omega) (by omega)).frame σ ⟨hn, hidg, hioff, hifl⟩
+    obtain ⟨tg, htg1⟩ := hitg
+    exact ⟨σ', hrun, R, ID, k, hn', by rw [hfv "kmax" (by decide)]; exact hk,
+      by rw [hfa "off" (by decide)]; exact hoff,
+      by rw [hfa "tgt" (by decide)]; exact htgt,
+      by rw [hfa "alv" (by decide)]; exact halv,
+      by rw [hfa "rnk" (by decide)]; exact hrnk,
+      hRlt, hcert, hIDc, hpsum, hio', hfl',
+      ⟨tg, by rw [hfa "itg" (by decide)]; exact htg1⟩⟩
+  have w5 : Spec B (AfterOff n ns G O T M) fillPass (ElimMem G M ns)
+      (32 * n + 32 * ns + 10) := by
+    intro σ hσ
+    obtain ⟨R, ID, k, hn, hk, hoff, htgt, halv, hrnk, hRlt, hcert, hIDc, hpsum, hioff,
+      hifl, hitg⟩ := hσ
+    obtain ⟨g, hioffg, hioffv⟩ := hioff
+    obtain ⟨σ', hrun, ⟨IT, hitg', harcs⟩, hfv, hfa, -, -⟩ :=
+      (fillPass_spec B n ns G O T M R ID hcsr hB hMB hRlt hIDc hpsum).frame σ
+        ⟨hn, hoff, htgt, halv, hrnk, hifl, hitg⟩
+    exact ⟨σ', hrun, R, psum ID, IT, k, psum ID n,
+      by rw [hfa "rnk" (by decide)]; exact hrnk,
+      by rw [hfv "kmax" (by decide)]; exact hk,
+      by rw [hfa "ioff" (by decide), hioffg]
+         exact arrOf_congr (fun j hj => hioffv j (by omega)),
+      hitg', by omega, ⟨hcert, harcs⟩⟩
+  show Spec B (ElimPre n ns O T M) elimCom (ElimMem G M ns) (600 * n + 600 * ns + 100)
+  run_vcg [w1, w2, w3, w4, w5] <;> assumption
 
 /-- **Greedy minimum-degree elimination over a masked block
 structure.** Handed a block structure for `G` that lists each
