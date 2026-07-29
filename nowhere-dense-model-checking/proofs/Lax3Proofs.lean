@@ -29,3 +29,4 @@ import Lax3Proofs.SplitterWinOracle
 import Lax3Proofs.RamCover
 import Lax3Proofs.RamAugment
 import Lax3Proofs.FormulaTables
+import Lax3Proofs.RamScatter
