@@ -78,7 +78,7 @@ no delta beyond notation.
 | source artifact | Lean counterpart | substrate delta |
 |---|---|---|
 | `('a,'b) acost = acostC ('a ⇒ 'b)`, pointwise `0/+/≤`; `cost n x`; `ecost = (string, enat) acost` (`Abstract_Cost.thy`, `Enat_Cost.thy`) | `Cost/ACost.lean`: `structure ACost (κ γ) where toFun : κ → γ`, pointwise instances; `ECost := ACost String ℕ∞` | `enat → ℕ∞`; currency names stay `String` (F1). Plain functions + a `wfR`-style finite-support predicate, **not** `Finsupp` (F2) |
-| `('a,'b) nrest = FAILi \| REST ('a ⇒ 'b option)`, `'b :: {complete_lattice, monoid_add}` | `NREST/Basic.lean`: `inductive NRest (α γ) [CompleteLattice γ] [AddMonoid γ]` with `fail`, `rest (α → Option γ)` | HOL sort constraints → instance arguments. Monomorphic universes (`Type`, no polymorphism gymnastics) per plan watch item |
+| `('a,'b) nrest = FAILi \| REST ('a ⇒ 'b option)`, `'b :: {complete_lattice, monoid_add}` | `NREST/Basic.lean`: `inductive NRest (α γ : Type)` with `fail`, `rest (α → WithBot γ)`; classes on the operations, not the type | HOL sort constraints → instance arguments on operations. `'b option` under the source's None-bottom pointwise order *is* mathlib's `WithBot γ` — same object, mathlib's name, its lattice for free (F6). Monomorphic universes (`Type`) per plan watch item |
 | `≤` (flat under `FAILi` = top), complete-lattice instance on nrest | same file: `LE`/`CompleteLattice` instances | = (mathlib order library replaces HOL's) |
 | `RETURNT`, `SPECT`, `SPEC P t`, `FAILT = ⊤`, `SUCCEEDT = ⊥`, `consume`, `bindT = Sup {consume (f x) t₁ …}`, `ASSERT` | same names: `NRest.returnT`, `.spec`, `.consume`, `.bindT`, `.assert` | `Sup` over a set-comprehension → `sSup` over `Set (NRest α γ)`; monad laws ride the lattice exactly as in the source |
 | pointwise reasoning: `nofailT`, `inresT`, pw lemma suite (`NREST.thy`, `NREST_Misc.thy`) | `NREST/Pw.lean`, same names | = |
@@ -145,6 +145,18 @@ procedures/recursion to compile general recursion into. The source
 itself treats WHILE as the recursion instance it is, so this is a
 restriction of *coverage*, not a change of any judgment.
 
+**Source gap found by the P2–P4 deep read** (2026-07-29,
+`p4-sepref-extracts.md`): the cost artifact contains **no
+`hnr_If` / `hn_monadic_WHILE`-style control-flow hnr rules under any
+name** (grep across its `thys/sepref/*.thy`); its examples route
+control flow through `RECT`-side machinery. The if/while hnr rule
+*shapes* therefore come from the no-cost AFP `Refine_Imperative_HOL`
+twin, and P4 must **derive** their cost-carrying versions (branch
+merging à la `MERGE`, plus the loop rule paying per-iteration credits
+per the ESOP'21 discipline) rather than transcribe them. This is
+recorded here so P4 budgets it as derivation work, with the derived
+rules checked against the no-cost shapes clause by clause.
+
 ### P5 — Verified codegen, IR → IMP+ `Com`
 
 No Isabelle original (their printer is trusted; ledger D3). Design:
@@ -191,34 +203,41 @@ recorded now so the P1–P3 interfaces aim at it):
 namespace Lax13Proofs.Refine
 
 /-- Credit-carrying assertions over the IR's (environment, balance)
-pair; `∗`, `emp`, `↑`, `$`, `↦ᵥ`, `↦ₐ` from `Ir/Assn.lean`. -/
--- Assn : Type   llState : Assn → Ir.State × Cost → Prop
+pair; `∗`, `□`, `⌜⌝`, `¤`, `↦ᵥ`, `↦ₐ`, `irSTATE` from `Ir/Assn.lean`
+(as built by P3 wave B; `¤` is the source's `$` — D-l). -/
+-- Assn : Type   irSTATE : Assn → Ir.State × ECost → Prop
 
-/-- `hnRefine Γ c Γ' R m`: under ownership `Γ` and any frame `F`, with
-the credit balance `cr`, the IR program `c` refines the abstract
+/-- `hnRefine Γ c Γ' x R m`: under ownership `Γ` and any frame `F`,
+with the credit balance `cr`, the IR program `c` refines the abstract
 `m : NRest α ECost` — some abstract result `ra` whose cost `Ca` the
 abstract program admits covers the run: `c`'s `wp`, started with the
-balance topped up by `Ca`, lands in `Γ' ∗ R ra r ∗ F ∗ GC`, `GC`
-absorbing surplus credits. Vacuously true when `m` fails. -/
-def hnRefine (Γ : Assn) (c : Ir.Com) (Γ' : Assn)
+balance topped up by `Ca`, lands in
+`Γ' ∗ (∃ᵃ r, x ↦ᵥ r ∗ R ra r) ∗ F ∗ GC`, `GC` absorbing surplus
+credits. Vacuously true when `m` fails. -/
+def hnRefine (Γ : Assn) (c : Ir.Com) (Γ' : Assn) (x : String)
     (R : α → Ir.Val → Assn) (m : NRest α ECost) : Prop :=
   m.nofail →
-    ∀ (F : Assn) (s : Ir.State) (cr : Cost) (M : α → Option ECost),
+    ∀ (F : Assn) (s : Ir.State) (cr : ECost) (M : α → Option ECost),
       m = .rest M →
-      llState (Γ ∗ F) (s, cr) →
+      irSTATE (Γ ∗ F) (s, cr) →
       ∃ (ra : α) (Ca : ECost), some Ca ≤ M ra ∧
-        Ir.wp c (fun r => llState (Γ' ∗ R ra r ∗ F ∗ GC))
-          (s, cr + Ca.cash)
+        Ir.wp c (fun _ => irSTATE (Γ' ∗ (∃ᵃ r, x ↦ᵥ r ∗ R ra r) ∗ F ∗ GC))
+          (s, cr + Ca)
 ```
 
 Deltas against the extract, all typing/substrate: `Ir.Com` deep;
-`Ca.cash` names the `enat→ℕ` lowering of the abstract cost into the
-balance carrier (the source's `lift_acost` handled the same seam;
-whether the balance is `ACost String ℕ` or `ACost String ℕ∞` is P3's
-first decision — default `ℕ∞` to match the source, restrict at the
-codegen boundary). `some Ca ≤ M ra` is the extract's `M ra ≥ Some Ca`.
-The ∀-quantified frame `F` bakes in the frame rule exactly as the
-source does.
+`some Ca ≤ M ra` is the extract's `M ra ≥ Some Ca`. The ∀-quantified
+frame `F` bakes in the frame rule exactly as the source does.
+*Updated post-P3 (wave B's D-q):* the balance carrier is `ECost`
+(§10.1's default, taken — runs consume finite `Cost`, balances live in
+`ℕ∞`, `cash : Cost → ECost` is the one-sided lift inside `minusECost`,
+so the source's `lift_acost` seam needs no lowering here and the
+top-up is `cr + Ca` directly); and `Ir.Com` is a *statement* language
+(§6: no result value), so `Ir.wp`'s postcondition is `Unit → _` and
+the result is read out of a destination cell — `hnRefine` names that
+cell `x`, and P4's per-op hnr rules supply it. Final shape is P4's to
+fix; the P3 interfaces it consumes (`Assn`, `irSTATE`, `GC`, `Ir.wp`,
+`∃ᵃ`) are frozen as built.
 
 ## 6. The IR op set (v0.1)
 
@@ -309,6 +328,21 @@ evaluator harness (`Smoke.lean` pattern, `demoRun` shape).
   our deep IR, and its `Triple` speaks about Lean programs, not `Ir.Com`
   / `NRest`. Wrapping it would be a deviation from the source with no
   reason class.
+- **F6** Result maps are `α → WithBot γ`, not `α → Option γ`:
+  Isabelle's `'b option` result carrier under the source's None-bottom
+  pointwise order is definitionally mathlib's `WithBot γ`, and using
+  mathlib's name buys the whole lattice structure of result maps
+  (`NRest α γ ≅ WithTop (α → WithBot γ)`) instead of re-proving it.
+  Statement shapes change only `Some t` ↦ `(t : WithBot γ)`.
+- **F7** The monad laws are stated at the source's own generality and
+  no more: left identity generic in the resource class, right identity
+  and associativity monomorphic at `ℕ∞` and `ACost κ ℕ∞` — exactly
+  where `nres_bind_right_identity`/`nres_bind_assoc`/
+  `nres_acost_bind_assoc` sit in the source (they need `+`/`Sup`
+  continuity, and the source chose instances over a continuity class).
+  The `nonneg`/`needname`/`drm`/`needname_zero` classes of
+  `NREST_Type_Classes.thy` belong to the `gwp`/backwards-reasoning
+  side and are ported there, when that file lands.
 
 ## 10. Defaults handed to P1 (decided here, cheap to revise)
 

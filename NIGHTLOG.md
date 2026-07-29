@@ -3196,6 +3196,238 @@ obligations whose every defect is now a precise, falsification-gated
 repair item. Landed on main at session close.
 
 
+## Refinement tower P1 slice 1 — NREST core landed green — 2026-07-29
+Milestone: P1 slice 1 (ACost + NRest + Pw + Sanity) — done.
+Files: word-ram/proofs/Lax13Proofs/Refine/{Cost/ACost,NREST/Basic,
+NREST/Pw,NREST/Sanity}.lean + Refine.lean aggregator (~1,520 lines).
+State: build green (2970 jobs), lax audit passes, zero sorry, #print
+axioms on all four monad laws = propext/Classical.choice/Quot.sound.
+bindT is the source's Sup-of-consume formula verbatim; laws at the
+source's own generality (left id generic; right id + assoc at ℕ∞ and
+ACost κ ℕ∞ — F7). D4 gate ran: 13 #guards + 6 Plausible #tests over
+executable twins with proved agreement theorems (noncomputable sSup
+can't #eval; twins are the sanctioned fallback and kernel-honest);
+negative controls found planted bugs in 5 and 13 shrinks, so the
+harness discriminates. No source divergence found. Elaboration 31.7 s
+for the five modules. Opus-agent deviations D-a…D-i reviewed, all
+accepted (biggest: no CompleteLattice (WithTop β) in mathlib, so the
+lattice is built the source's way — completeLatticeOfSup over the
+source's sSup formula; ⊤ = fail and ⊥ = rest ⊥ are rfl). Upstream
+candidates: withBot_map_add, withBot_eq_bot_or_coe, the WithBot
+add-Sup-continuity transfer.
+Parallel: P2–P4 source deep-read done by a second agent (byte-exact
+extract files p2/p3/p4-*.md, committed d0a1ac7); finding: the cost
+artifact has NO control-flow hnr rules — P4 must derive cost-carrying
+if/while rules against the no-cost twin's shapes (noted in design.md).
+Next: wave 2 satellites in parallel worktrees — Rec+Combinators,
+DataRefinement+TimeRefinement — then BackwardsReasoning, then the
+abstract masked-BFS P1 acceptance.
+
+## Refinement tower P1 wave 2 — Rec/Combinators + Data/TimeRefinement — 2026-07-29
+Milestone: P1 wave 2 (four satellite files, two parallel Opus agents in
+seeded worktrees) — done, merged, green.
+Files: Refine/NREST/{Rec,Combinators,DataRefinement,TimeRefinement}
+(.lean, 581+617+873+1081 lines). Build 2974 jobs, lax audit OK (from
+archive root — running lax from inside a package dir false-fails with
+submission-scaffolding violations; audit only from root), axioms clean
+everywhere, elaboration 13.4+21.6 s.
+Fidelity events worth Jan's eye: (1) DataRefinement — the source's
+pw_conc_inres is REFUTABLE under our same-carrier inresT reading;
+witness in the module header; true direction ported, hypothesis-free
+bindT_refine shape used. (2) FOREACH absent from the cost artifact;
+ported pre-currency from AFP Refine_Foreach at ℕ∞. (3) ⇓R/⇓C
+commutation is an inequality only. (4) One agent-authored D4 gate
+assertion Plausible-falsified and corrected (SUCCEEDT loop wrinkle) —
+refute-before-prove catching authored-obligation bugs again.
+Integration protocol worked: satellites branch from frozen-API main,
+one commit each, import-block union merges, verify, ff. Backlog: br/
+relComp/SingleValued move to P2 Relators; consumea to Basic on thaw;
+upstream candidates finsum_comm_of_support, unbundled gfp, WithBot
+trio. Next: BackwardsReasoning (gwp + needname/drm), then the abstract
+masked-BFS P1 acceptance program.
+
+## Refinement tower P1 — BackwardsReasoning (gwp + vcg seed) landed — 2026-07-29
+Milestone: last major P1 file — done, merged, green (2975 jobs, root
+lax audit OK, zero sorry, axioms clean, 17.7 s elaboration).
+BackwardsReasoning.lean (1964 l): needname/nonneg/drm/needname_zero
+class port, gwp = ⨅ minusPM per source, full gwp rule suite
+(returnT/SPEC/bindT/consume/If/MIf/ASSERT + conseq), progress
+predicates, RECT_wf_induct, gwp_whileT_rule_wf + While, seed
+@[refine_vcg] attribute + tactic; in-file demo: counted countdown
+discharged BY the tactic to ⊑ SPEC with explicit cost.
+FIDELITY EVENT (B1, Jan's eye): mathlib's Sub ℕ∞ is truncated
+(⊤ - ⊤ = 0); Isabelle's enat has ∞ - ∞ = ∞, and needname's top_absorb
+is that point — the ported minus_p_m_bindT is FALSE under mathlib's
+minus (counterexample #guarded). Resolution: ResSub class (-ᵣ) as the
+source's own minus-as-class; mathlib Sub untouched. Deviations B1–B7
+reviewed and accepted (B5: several statements need [Nonempty] — false
+at empty types, HOL types are nonempty; B7: attribute can't be used in
+its declaring module — coreRules list + attribute extension point).
+D4: twins with proved agreement (gwpE), 10 #guards incl. the B1
+counterexamples, 5 Plausible #tests incl. gwp_bindT end-to-end.
+Tactic maturity honestly limited: no DiscrTree, no progress-method, no
+sc_solve — P2-era hardening. Backlog: ResSub/instances → ACost.lean on
+thaw; inres section → Pw.lean; monadic_WHILEIET chain deferred to its
+consumer.
+Next: P1 acceptance — abstract masked depth-capped BFS via refine_vcg,
+in Examples/Bfs.lean (mathlib SimpleGraph vocabulary inside Lax13Proofs;
+the Lax3 WithinDist bridge belongs to the P7 consumer side — recorded
+adjustment of design.md §10.4).
+
+## Refinement tower P1 COMPLETE — acceptance passed, 481 vs 1,201 — 2026-07-29
+Milestone: P1 acceptance (Examples/Bfs.lean) — done; P1 closed in one
+session against a 2–3-session budget (same session as P0).
+State: build green 2,987 jobs, root lax audit OK, zero sorry,
+bfsAlg_correct axioms clean, 35 s module elaboration.
+The number that matters: the abstract masked depth-capped BFS —
+RamBfs's content, d+1 sentinel, threshold-iff postcondition, currency
+budget — is 30 lines of algorithm + 30 of spec/invariant + 421 of
+proof = 481 authored lines, 0 manual gwp-rule applications, 0 hand
+frame clauses; refine_vcg drove the whole surface to 12 one-line
+goals. Baseline RamBfs.lean is 1,201 lines with hand-authored
+invariants and frames. This is abstract-level-only telemetry (the
+tower below is P3–P5), but it is the shape of the P7 gate and it
+points the right way.
+D4: the gate checks Post itself (decidable WD twin proved equivalent),
+5 positive configs + 3 negative controls + 2 Plausible differential
+tests; no authored statement refuted (stated explicitly).
+Honest limitation: ⊑ admits result-free programs; non-vacuity
+evidenced, not proved (nofailT/inresT through the fixed point — later).
+vcg-hardening backlog (6 items) recorded in the plan progress log.
+Review queue for Jan before P2 leans on this: P0 design record;
+pw_conc_inres refutation; B1 ResSub (mathlib ⊤−⊤=0 vs enat ∞−∞=∞);
+FOREACH provenance; §10.4 vocabulary adjustment.
+Next session: P2 — relators + rule DBs (first move br/relComp/
+SingleValued out of DataRefinement into Autoref/Relators.lean).
+
+## Refinement tower P2 COMPLETE — Autoref spine, acceptance passed — 2026-07-29
+Milestone: P2 (relators + rule DBs) done in one session against a
+1–2-session budget; four waves (A single-owner, B1/B2 parallel Opus
+satellites in seeded worktrees, C single-owner), three extraction
+passes (tutorial target, tool phases; both committed with provenance).
+State: build green 2,999 jobs, root lax audit OK, zero sorry, axioms
+{propext, Quot.sound} or none on every spot check.
+Landed under Refine/Autoref/: Attrs (all ten DB attributes, one shared
+module), Relators (zoo + characteristic suite, source snake_case rule
+names; br/relComp/SingleValued relocated in from DataRefinement with
+byte-identical statements), Param (33 @[param] rules incl. the list_eq
+route, parametricity seed tactic), Tagging (OP/APP/ANNOT/PROTECT/ABS +
+Interface/CONST_INTF/ID_OP, axiom-free), Solver (TaggedSolver priority
+registry, declare_solver command, legible dispatch failures), then
+wave C: Phases/IdOps/FixRel/Translate/Tool/BindingsHOL — the real
+four-phase pipeline id_op(10)→rel_inf(20)→fix_rel(22)→trans(30)
+(extraction corrected the design record's three-phase framing),
+autoref tactic + autoref_synth command, autoref_rules DB at 26 rules.
+Thaw relocations: consumea→Basic, ResSub+B2-backlog→ACost; inres was
+a NO-OP (P1 never ported it — still open, needs a source fetch).
+Acceptance: the source's own Autoref_Bindings_HOL §Examples — 7 of 8
+entries reproduced mechanically (0 manual rule applications;
+synthesized terms #guard-checked in value; hd's SIDE_PRECOND
+discharged through the solver registry; the [1,2]=[2,3] entry runs
+the full GEN_OP + struct_expand list_eq route), 1 adapted (Isabelle
+sort-annotation pitfall, no Lean analogue). Failure legibility proven
+by #guard_msgs negative controls naming phase + unmet side condition.
+D4 gates everywhere; B2's gate caught a real dispatch bug (goal-list
+mutation before a late throw), C's audit run caught an autoref_synth
+namespace bug.
+Review queue for Jan (adds to the standing P0/P1 queue): extra-rules
+vehicle (local hypotheses swept + autoref [rules] — no notes-attribute
+analogue in Lean); entry-4 adaptation; the #guard_msgs "26 rules" DB-
+size canary; autoref_nat_lit catch-all (leaf-only, but P4-relevant).
+Backlog → P4: ID_abs/ABS ported but unexercised until monadify brings
+lambdas; STRUCT_EQ registered, unexercised (Collections material);
+trans rule choices untraced; six bonus DBs (hom/post_simps/ga_rules/…)
+need one Attrs-unfreeze wave; DiscrTree indexing still absent
+(linear scans, flagged honestly at every site).
+Ergonomics: lean-lsp MCP pinned itself to a removed worktree path —
+satellites fell back to lake env lean, which worked fine.
+Next session: P3 — the IR and its separation logic with credits
+(Ir/{Syntax,Semantics,Assn,Wp,Triples,SepSolver}; p3-ir-sl-extracts.md
+already in the repo; first decision = balance carrier default ℕ∞ per
+design §10.1).
+
+## PCP campaign proposed — plan rev 1, unscheduled — 2026-07-29
+
+Jan asked what I'd be most excited to build and then said "think
+bolder"; the answer was formalized hardness, summit first: Dinur's
+gap-amplification proof of the PCP theorem. Plan drafted at
+plans/pcp-theorem/pcp-plan.md, status PROPOSAL — nothing scheduled,
+JAN-FLAGs 1–4 open (charter scope P7-vs-P8, sequencing against the
+two live campaigns, NP-over-word-RAM endorsement surface, 5-vs-3
+submission split). Shape: machine-free Amplification Theorem at P7
+(constraint graphs, explicit gap-doubling transformation, no machine
+model) + PCP proper at P8 (NP over word RAM, Cook–Levin via
+RAM→circuit→CSP, verifier form, reduction cost through the tower).
+Ladder: constraint-graphs / spectral-expanders / linearity-testing /
+gap-amplification / pcp-theorem, each first-in-ecosystem. Budget
+20–32 sessions, long pole the P5 powering analysis
+(Radhakrishnan–Sudan governing text); riskiest prerequisite is
+exact-size explicit expanders (P0 spike, GG default, h→λ fallback).
+Ledger seeded L1–L7 (finite counting, symbolic constants until P7,
+Hadamard-only composition, word-RAM NP). No Lean was written; no
+existing campaign touched.
+
+## Refinement tower P3 — 2026-07-29 (same day as P2; one session vs 2–3 budget)
+Milestone: P3 COMPLETE, acceptance passed.
+Commits: 600d985 (deep SL extracts), bb7ff84 (wave A), 0c19fee (wave
+B), 888efde (wave C); governance 88fb046 earlier the same evening (full
+authority delegated — this and later phases run without interim review
+flags; ledger/D-flag discipline unchanged, now serving the final
+evaluation).
+State: the IR and its credit-carrying separation logic exist end to
+end under Refine/Ir/{Syntax,Semantics,Assn,Wp,Triples,Attrs,SepSolver}
++ Examples/ArrayFill. Wave A: Val=ℕ, binops ARE Imp.Bop (reused),
+16 "ir.*" currencies, deterministic BigStep charging one currency per
+op, evalFuel twin equivalent both directions, out-of-range stuck.
+Wave B: AFP sep-algebra class stack with Tsa/Pi/Prod/ACost instances;
+carrier (scalar cells × array cells) × ECost — §10.1 default taken,
+runs consume finite Cost, balances ℕ∞; ¤/¤¤ for the source's $/$$
+($ is Lean-illegal); generic_wp as a one-field class (frame/cons by
+instance = the source's interpretation); ALL SIX cost_framework locale
+axioms proved at (leCostECost, minusECost) — assumptions became
+theorems; wp over BigStep, wp_seq = wp_bind; per-op credit triples in
+ll_load_rule's mould, exact + GC forms; while_triple =
+llc_while_annot_rule, invariant carries the credits (ESOP'21). R=Unit:
+IR statements return nothing, results are read from destination cells
+(design §5 updated accordingly this session — the P4 target now names
+the destination cell). Arrays are ONE indivisible cell (no sep_set_img
+— no IR op splits an array). Wave C: Frame_Infer.thy whole — tags +
+four structural rules 1:1, the ML search loop as a TacticM solver
+(start/extract/round/end kept; rotations_tac as O(k) index selection;
+credits by numeral arithmetic; GC absorbs greedily at the back;
+entails_refl first at end instantiates the frame metavariable from the
+residue; no HOU anywhere); five rule DBs as attributes incl. vcg_rules
+populated with the op rules; failure messages name the unmatched
+conjunct, #guard_msgs-pinned.
+Acceptance (plan criterion met): hand-proved credit triples for array
+get/set/fill as concrete IR programs — get pays exactly 1·ir.aget, set
+1·ir.aset, fill (n+1)·ir.while + n·ir.aset + n·ir.add — with ALL frame
+reasoning through the fri solver (zero manual sepConj/ac_rfl/rotation
+steps in the acceptance file); the n=3 fill run derived from the exact
+triple down to BigStep, full 16-currency vector #guard-pinned;
+Plausible cost-as-function-of-n on the executable twin;
+fill_no_wrong_cost: a wrong vector admits no derivation, by
+determinism.
+Verification: lake build 3,007 jobs green; lax audit OK from archive
+root (the inside-proofs false-fail bit once again — ROOT ONLY); axioms
+⊆ {propext, Classical.choice, Quot.sound} on 49 spot-checks; zero
+sorries anywhere.
+Supervisor review events: one wave-B header defect caught and fixed
+pre-commit (D-l claimed $c Lean-legal while the code correctly uses
+¤c); wave C untouched-clean on review. Spend-limit interruption mid
+wave B; resumed agent finished from transcript with no loss.
+Backlog → P4: goal-side ∃ᵃ not solver-handled (port fri_exI if
+needed); fri_red_rules declared + populated but the round loop doesn't
+enumerate it yet (~20 lines); sepImp has no consumer; no PRECOND/PRIO
+side-condition registry (Autoref's declare_solver is the wiring
+point); solver is first-match-wins, no cross-round backtracking
+(complete while fri_rules={refl}); x:=y⊕y needs monadify's
+duplicate-arg split; inres still unported (P2 carry-over).
+Next session: P4 — hn_refine + the Sepref phase pipeline under the
+source's own phase names (design §3 map, §5's updated hnRefine as the
+target; budget 3–5 sessions; extraction of Sepref/Basic + monadify +
+translate first).
+
 ## ND-MC P7 correctness half CLOSED — end-to-end checkpoint proved — 2026-07-29 (session 2)
 Jan: "continue with the ndmc plan, all changes from last session are
 approved"; later "credit reset, continue but wrap up at a convenient
