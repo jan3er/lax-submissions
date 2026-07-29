@@ -314,4 +314,25 @@ of overnight work — set expectations by the budget, not the recent luck.
 
 ## Progress log
 
-(campaign accepted 2026-07-29; P0 next)
+- **2026-07-29 — P0 complete (one session, at budget's lower bound).**
+  Deliverables: `refinement-tower/design.md` (the design record —
+  pinned sources, component-by-component maps for P1–P6, `hn_refine`
+  drafted in Lean, IR op set v0.1, module skeleton, completed deviation
+  ledger with new D6/N3, fidelity notes F1–F5, P1 defaults) and
+  `refinement-tower/source-extracts.md` (verbatim `acost`/`nrest`/
+  `bindT`/`timerefine`/`hn_refine` + theory listings, with provenance).
+  Pins: AFP Isabelle2025-2 (2026-02-06) for Refine_Monadic /
+  Automatic_Refinement / Refine_Imperative_HOL / NREST;
+  `isabelle_llvm_time` @ 42dd7f5 (ESOP'21 artifact — the canonical
+  cost-carrying stack); `isabelle_llvm` branch 2023 @ b44b639;
+  Haslbeck thesis mediaTUM 1596032; `Std.Do`+`mvcgen` verified present
+  in the pinned v4.30.0 toolchain (evidence only, not a dependency —
+  note F5). Key P0 findings: NREST has a maintained AFP entry; the
+  artifact's `thys/sepref` reuses the AFP Sepref file names one-for-one
+  (fidelity is cheap); two scope facts entered the ledger — D6 (no
+  general recursion at the concrete layer; IMP+ has no procedures) and
+  N3 (the tower is tape-free; one kit-proved boundary wrapper at P5,
+  matching `bfs_spec`'s already-tape-free export shape). Design record
+  flagged for Jan's post-hoc review per flag 4. **P1 is unblocked** and
+  starts next session: `Refine/Cost/ACost.lean` + `Refine/NREST/*` per
+  design.md §3/§7/§10.
