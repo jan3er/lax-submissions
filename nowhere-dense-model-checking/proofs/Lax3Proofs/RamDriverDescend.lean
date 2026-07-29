@@ -42,10 +42,10 @@ needs to hand a depth's state on.
 
 # The surface repairs, and what is left
 
-`RamDriverCluster.EnumStep` and `RamDriverCluster.ColourStep` are now
+`RamDriverCluster.EnumStep` and `RamDriverCluster.ColourStep` are
 **proved** (`enumStep`, `colourStep`). `DescendStep` is still open, and
-— unlike every earlier gap of this file — what is left of it is *not*
-symbolic execution. See "The batch phase is not here" below.
+what is left of it is symbolic execution again — see "What the batch
+phase now owes" below.
 
 The clauses the two obligations used to be short of, and where each
 went:
@@ -71,19 +71,19 @@ went:
 3. **The recorded play is in the state.** `RamDriver.PlayRec` is the
    invariant: the connectors `ctrName a` and the game masks `gamName a`
    of every `a < j` are there, hold vertices and words, and — off the
-   dead branch — *are* the rounds of a `ReachedO` play whose position is
+   dead branch — *are* the rounds of a `ReachedR` play whose position is
    the depth's own game arena. `RamDriver.playRec_succ` is the descent
    step and `RamDriver.playOk_of_playRec` the bridge to the old
    invariant. `DescendStep`'s last clause is now `PlayRec` one depth
    down, and `EnumStep`/`ColourStep` carry it across.
 4. **The unreachable ancestor is guarded.** `RamDriver.ancestorStep`
    runs the search and the walk back separately, the second only under
-   `dist[tv] < 2·cap + 1`. `RamDriver.OracleGuarded` — the oracle offers
-   `∅` at pairs the arena does not connect — is what makes the guarded
-   batch `genSetO` exactly and not a subset, *given* that the oracle's
-   path is what the program computes.
-   `oracleGuarded_defaultOracle` is that clause for the one concrete
-   oracle the development has.
+   `dist[tv] < 2·cap + 1`. The recorded game's walk clause is guarded by
+   the same condition — a round owes a walk to an earlier connector only
+   where its own arena puts the two within `2·cap` — so the skip branch
+   owes nothing at all, and what discharges it is
+   `RamBfs.BfsTree.reach` read backwards: a sentinel distance is a proof
+   of `¬ WithinDist`.
 5. **`mb < B`** is the second conjunct of `RamDriver.WordBound`, and
    `enumStepW` reads it off `WordBound.mb_lt`.
 6. **The graph is a hypothesis of `ColourStep`.** The three slot
@@ -91,64 +91,58 @@ went:
    obligation is prefixed by `CsrGraph G ns O T` and `WordBound`,
    exactly as `DescendStep` is.
 
-# The batch phase is not here
+# What the batch phase now owes
 
-`RamDriver.batchCom` cannot be walked at any oracle this development can
-define, and the obstruction is at the *surface* and not in the symbolic
-execution.
+The obstruction this file used to record was at the *surface*. The game
+`RamDriver.playRec_succ` descended in was parameterized by an oracle: a
+round isolated the oracle's batch, a **function** of the arena and the
+two vertices, and the game's step rule extended a play to that function's
+value and to no subgraph of it. The machine cannot produce
+it. `RamBfsPaths.bfsPath_spec` pins the extraction buffer only as
 
-`SplitterWinOracle.genSetO` is a union of `Or.path e.2 e.1 v` over the
-recorded rounds — `Or.path` is a **function of the arena and the two
-vertices**. `RamDriver.playRec_succ` asks the new game arena to be
-`nextArenaO` at `batchO Or rounds _ v` **exactly** (`ReachedO.step`
-extends a play to that arena and to no subgraph of it), so the descent
-owes an *equality* between the set the program marks and that function's
-value.
+    ∃ p, p.length ≤ d ∧ bufSet n L Buf = {z | z ∈ p.support}
 
-What the program marks is the buffer `RamBfsPaths.bfsPathCom` leaves,
-and `RamBfsPaths.bfsPath_spec` pins that buffer only up to
-`∃ p, p.length ≤ d ∧ bufSet n L Buf = {z | z ∈ p.support}` — *some*
-walk of length at most the cap. Two consequences:
+— *some* walk of length at most the cap — and no function of `(A, u, v)`
+is extractable from that. The sharp instance is `C₄` at `cap ≥ 1`: the
+two antipodal vertices are joined by two walks of length two, the
+machine picks by the order of the block structure's rows and
+`SplitterWin.pathSet` picks by `Classical.choice`, and the two choices
+are independent. Weakening the game to a containment did not help
+either, since the program's buffer contains the oracle's chosen walk no
+more than it equals it.
 
-* No function of `(A, u, v)` can be extracted from that postcondition.
-  `SplitterWin.pathSet` — the only concrete choice available, and the
-  one `SplitterWinOracle.defaultOracle` is built from — is a
-  `Classical.choice` over the same existential, so
-  `pathSet A (2·cap) u v = bufSet n L Buf` is not derivable: the two
-  choices are independent. The counterexample is any arena with two
-  shortest walks of length at most `2·cap` between the round's two
-  connectors — `C₄` at `cap ≥ 1`, the two antipodal vertices, supports
-  `{u, a, v}` and `{u, b, v}` — where which one the machine returns is
-  decided by the order of the block structure's rows and which one the
-  oracle returns is not.
-* Weakening the game to a *containment* does not help either. The
-  mathematics of `SplitterWinOracle` only ever uses the batch through
-  `genSetO older e.1 ∩ ball ⊆ batch` (`isolatedO_of_suffix`), so a
-  round could legally isolate any superset of `batchO` inside the ball;
-  but the program's buffer does not contain the oracle's chosen walk
-  any more than it equals it.
+`Lax3Proofs.SplitterWinRec` is the repair, and it is on the game side:
+the round **records** the set it isolated, and is asked only for what
+the win argument consumes and what `bfsPath_spec` certifies. So the
+batch phase owes, of the set `W` the batch indicator marks:
 
-So the repair is one of two, and both are waves of their own.
+* `W ⊆ ball (masked G Gm) (2·cap) v` — the `andCom` with the ball at the
+  end of `RamDriver.batchCom`;
+* `v ∈ W` — the store of `1` at `ctrName j` at its start;
+* for every round the state records, `RamDriver.RecordedRound`, whose
+  arena puts its connector within `2·cap` of `v`: the support of *some*
+  walk of length at most `2·cap` between them in that arena, intersected
+  with the ball, lies in `W` — one turn of the fold, in the branch the
+  guard takes;
+* `W.Nonempty` and `W.ncard ≤ mb` — the connector and one buffer of at
+  most `2·cap + 1` vertices per earlier round;
+* and the mask equations, which are `RamDriver.masked_step` and
+  `masked_mul` as before, with `RamDriver.stepArena_le_nextArena` for the
+  inequality between the two.
 
-* **Engine side.** Strengthen `RamBfsPaths` to expose the parent array
-  as a *function* of the block structure, the mask and the source —
-  `bfsParents G ns O T M s` — and prove `P = bfsParents …`. The
-  algorithm is deterministic and the mask enters only through
-  `RamBfs.MAdj`, which is the arena's own adjacency, so the buffer
-  really is a function of `(A, u, v)` once the block structure is
-  fixed; it is the *specification* that does not say so. The oracle is
-  then that function and the descent's equality is by definition.
-* **Game side.** Replace the oracle-computed batch in
-  `SplitterWinOracle.ReachedO` by a *recorded* one: a round carries the
-  set it isolated, asked only to lie in the ball, to have at most
-  `2·cap + 1` vertices per earlier round, and to contain, for every
-  earlier round `f`, the support of **some** walk from `f`'s connector
-  to the new one of length at most `2·cap`, taken in `f`'s arena. That
-  is exactly what `bfsPath_spec` hands the driver, and it is exactly
-  what `isolatedO_of_suffix` and the win argument consume.
+The size bound is the one clause that needs something from outside the
+turn: `1 + j · (2·cap + 1) ≤ mb` holds because `mb = ℓ · (2·cap + 1)` and
+`j < ℓ`, and neither is a clause of `RamDriverCluster.DescendStep`.
+Neither has to be: they are hypotheses of the *theorem* discharging it,
+in the manner of `RamDriverCluster.clusterStepImplements`'s `hcap`, and
+the assembly wave has both where it applies that theorem —
+`RamDriverCluster.levelImplements` quantifies its cluster-step hypothesis
+over `j < ℓ`, and `mb`'s value is the driver's standing choice.
 
-Until one of those runs, `DescendStep` has no proof, and the walks of
-this file stop at `ballCom_spec`.
+None of the rest is an equation with a set the program did not compute,
+so all of it is symbolic execution over `RamBfsPaths.bfsPar_spec`,
+`extractPath_spec` and the flat passes around them. `andSelfCom_spec`
+below is the last of those; the engines are untouched.
 
 # One more gap, in the kit — closed
 
@@ -174,7 +168,7 @@ namespace Lax3Proofs.RamDriverDescend
 open Lax3.ColoredGraphs Lax3.DistFO Lax3.Locality Lax3.ScatterSentences
 open Lax3.SplitterGame
 open Lax3Proofs.Horizon Lax3Proofs.SyntaxLemmas Lax3Proofs.WalkDistance
-open Lax3Proofs.FormulaTables Lax3Proofs.SplitterWin Lax3Proofs.SplitterWinOracle
+open Lax3Proofs.FormulaTables Lax3Proofs.SplitterWin Lax3Proofs.SplitterWinRec
 open Lax3Proofs.RamBfs (masked masked_adj CsrGraph MAdj WD)
 open Lax3Proofs.RamDriver Lax3Proofs.RamDriverCluster
 open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
@@ -614,17 +608,16 @@ the array leaves behind, and it survives every pass by
 
 /-- `RamDriverCluster.EnumStep`, with the word clause its precondition
 owes. -/
-def EnumStepW (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n)) (Or : PathOracle n (2 * cap))
-    (O T M Gm : ℕ → ℕ)
+def EnumStepW (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ)
     (X W : Set (Fin n)) (Alv' Gam' : ℕ → ℕ) (K : ℕ) : Prop :=
-  Spec B (fun σ => TurnPre B n cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m σ ∧
-      BatchData n j B G M X W Alv' Gam' σ ∧ PlayRec B cap Or G (j + 1) Alv' Gam' σ ∧
+  Spec B (fun σ => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ ∧
+      BatchData n j B G M X W Alv' Gam' σ ∧ PlayRec B cap G (j + 1) Alv' Gam' σ ∧
       W.Nonempty ∧ W.ncard ≤ mb ∧ (∃ g, σ.arrs "wa" = arrOf mb g) ∧
       MaskWords B (batName j) σ)
     (enumBatch (batName j) mb)
-    (fun σ σ' => TurnPre B n cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m σ' ∧
-      PlayRec B cap Or G (j + 1) Alv' Gam' σ' ∧
+    (fun σ σ' => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
+      PlayRec B cap G (j + 1) Alv' Gam' σ' ∧
       σ'.out = σ.out ∧ σ'.vars (curName j) = σ.vars (curName j) ∧
       ∃ w : Fin mb → Fin n, ClusterData n mb j B G M X W w Alv' Gam' σ') K
 
@@ -642,11 +635,11 @@ theorem noWrite_enumBatch (bat : String) (mb : ℕ) : (enumBatch bat mb).NoWrite
 
 /-- **The padding, discharged.** -/
 theorem enumStepW {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)}
-    {Or : PathOracle n (2 * cap)} {O T M Gm : ℕ → ℕ}
+    {O T M Gm : ℕ → ℕ}
     {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)} {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ}
     {X W : Set (Fin n)} {Alv' Gam' : ℕ → ℕ}
     (hB : WordBound B n ns cap mb) (hK : 20 * n + 12 * mb + 30 ≤ K) :
-    EnumStepW B cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' K := by
+    EnumStepW B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' K := by
   have hmbB : mb < B := hB.mb_lt
   intro σ hσ
   obtain ⟨⟨hlev, hplayrec, hheld⟩, hbat, hplay', hne, hcard, ⟨gwa, hwa⟩, hmw⟩ := hσ
@@ -707,11 +700,10 @@ to owe is now a conjunct of `RamDriverCluster.BatchData` — `∀ k < n,
 Wa k < B` at the batch indicator — and `MaskWords` reads it off the
 array `BatchData` names, so nothing is left over. -/
 theorem enumStep {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)}
-    {Or : PathOracle n (2 * cap)}
-    {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
+        {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
     {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ} {X W : Set (Fin n)} {Alv' Gam' : ℕ → ℕ}
     (hB : WordBound B n ns cap mb) (hK : 20 * n + 12 * mb + 30 ≤ K) :
-    EnumStep B cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' K :=
+    EnumStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' K :=
   (enumStepW hB hK).pre (fun _ hσ => by
     obtain ⟨hturn, hbat, hplay, hne, hcard, hwa⟩ := hσ
     obtain ⟨Wa, hWaarr, -, hWaB⟩ := hbat.2.1
@@ -2109,14 +2101,14 @@ cluster cell of value `2` the product `C c z * Xa z` is `2` at a marked
 vertex of a coloured class, the postcondition's bit clause is refuted,
 and with cells at the word bound the run itself vanishes. -/
 
-variable {Ws : ℕ} {Or : PathOracle n (2 * cap)} {M Gm : ℕ → ℕ} {π : Equiv.Perm (Fin n)}
+variable {Ws : ℕ} {M Gm : ℕ → ℕ} {π : Equiv.Perm (Fin n)}
   {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ} {X W : Set (Fin n)} {w : Fin mb → Fin n}
   {Alv' Gam' : ℕ → ℕ}
 
 /-- **The colouring of one cluster, walked.** -/
 theorem colourStep {K : ℕ}
     (hK : colourCost n ns cap mb (sigL cap mb j) ≤ K) :
-    ColourStep B cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m X W w Alv' Gam' K := by
+    ColourStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W w Alv' Gam' K := by
   intro hcsr hB σ hσ
   obtain ⟨⟨hlev, hplayj, hheld⟩, ⟨hbat, hrange, hwa⟩, hplay1⟩ := hσ
   obtain ⟨Xa, hXaarr, hXs, hXbit⟩ := hbat.1
@@ -2146,7 +2138,7 @@ theorem colourStep {K : ℕ}
     hvv _ (RamDriverIO.notMem_of_append (p := "ctr") (s := toString a) (by decide))
   have hgama : ∀ a : ℕ, σ'.arrs (gamName a) = σ.arrs (gamName a) := fun a =>
     hav _ (fun s => Ne.symm (colName_ne_gamName _ _ _))
-  have hturn' : TurnPre B n cap mb ns Ws j G Or O T M Gm C π ord Xoff Xmem asg m σ' := by
+  have hturn' : TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' := by
     refine ⟨levelPre_congr hlev hr (hvv "n" (by decide)) (hvv "m" (by decide))
         (hav "off" (fun s => Ne.symm (colName_ne_lit (by decide))))
         (hav "tgt" (fun s => Ne.symm (colName_ne_lit (by decide))))
@@ -2347,7 +2339,7 @@ theorem clusterLoad_spec (hB : WordBound B n ns cap mb)
 
 The expansion chain of the descent, run in the *game* mask: `balName j`
 ends holding the `2·cap`-ball of the connector in the game arena, which
-is the set `SplitterWinOracle.batchO` cuts the round's batch down to. -/
+is the set the round's batch is cut down to. -/
 
 /-- The chain's reading of a ball: `ballOf` measures from the member,
 `ball` from the centre, and `WithinDist` is symmetric. -/
@@ -2557,6 +2549,33 @@ theorem selfFill_spec (N : ℕ) (a : String) (e : Expr) (g₀ F : ℕ → ℕ)
     · intro k _; rfl
   · exact fun _ σ' _ hq => ⟨hq.1.1.done hq.2, hq.2, hq.1.2.1, hq.1.2.2⟩
 
+/-- **The mask conjunction, in place**: `RamDriver.andCom` with its first
+source and its destination the same array, which is what the last pass of
+`RamDriver.batchCom` is — the batch cut down to the ball of the round. -/
+theorem andSelfCom_spec (N : ℕ) (b dst : String) (ga gb : ℕ → ℕ)
+    (hbd : b ≠ dst) (hNB : N < B) (haB : ∀ k, k < N → ga k < B)
+    (hbB : ∀ k, k < N → gb k < B) (habB : ∀ k, k < N → ga k * gb k < B) :
+    Spec B (fun σ => σ.arrs dst = arrOf N ga ∧ σ.vars "n" = N ∧ σ.arrs b = arrOf N gb)
+      (andCom dst b dst)
+      (fun _ σ' => (∃ h, σ'.arrs dst = arrOf N h ∧ ∀ k, k < N → h k = ga k * gb k) ∧
+        σ'.vars "i" = N ∧ σ'.vars "n" = N ∧ σ'.arrs b = arrOf N gb)
+      (15 * N + 6) := by
+  refine ((selfFill_spec N dst _ ga (fun k => ga k * gb k) [(b, N, gb)]
+    (by rintro p hp; rcases List.mem_singleton.mp hp with rfl; exact hbd) hNB ?_).pre ?_).post ?_
+      |>.mono (by simp [Expr.size])
+  · intro σ hfr hbel hlt
+    obtain ⟨g, harr, -, -, hhigh⟩ := hbel
+    have hb : σ.arrs b = arrOf N gb := hfr (b, N, gb) (by simp)
+    have hgi : g (σ.vars "i") = ga (σ.vars "i") := hhigh _ le_rfl
+    exact evalB_bin
+      (evalB_get (evalB_var (by omega)) (by rw [harr, getElem?_arrOf g hlt, hgi]) (haB _ hlt))
+      (evalB_get (evalB_var (by omega)) (by rw [hb, getElem?_arrOf gb hlt]) (hbB _ hlt))
+      (by simpa using habB _ hlt)
+  · rintro σ ⟨harr, hn, hb⟩
+    exact ⟨harr, hn, by rintro p hp; rcases List.mem_singleton.mp hp with rfl; exact hb⟩
+  · rintro σ σ' - ⟨hg, hi, hn, hfr⟩
+    exact ⟨hg, hi, hn, hfr (b, N, gb) (by simp)⟩
+
 /-- **The mask difference, in place**: `RamDriver.subCom` with its first
 source and its destination the same array, which is what
 `RamDriver.descendCom`'s last pass is. -/
@@ -2594,31 +2613,6 @@ theorem subSelfCom_spec (N : ℕ) (b dst : String) (ga gb : ℕ → ℕ)
     exact ⟨hg, hi, hn, hfr (b, N, gb) (by simp)⟩
 
 end SelfFill
-
-/-! ### The oracle the driver is instantiated at
-
-Every obligation of the driver that mentions the splitter game carries
-`RamDriver.OracleGuarded cap Or` — the oracle offers `∅` at pairs the
-arena does not connect within the cap — and nothing else about the
-oracle. That clause is what makes the guarded `RamDriver.ancestorStep`
-mark *exactly* the batch and not a superset of it: at an ancestor whose
-recorded arena does not reach the current connector the program marks
-nothing, and the oracle must agree.
-
-`SplitterWinOracle.defaultOracle` already has it. `SplitterWin.pathSet`
-is a `dite` on `WithinDist` whose else-branch is `∅`, so the guard is
-one rewrite and not a construction. -/
-
-section Oracle
-
-/-- **The default oracle is guarded.** -/
-theorem oracleGuarded_defaultOracle (cap : ℕ) :
-    RamDriver.OracleGuarded cap (defaultOracle n (2 * cap)) := by
-  intro A u v h
-  rw [defaultOracle_path]
-  simp only [pathSet, dif_neg h]
-
-end Oracle
 
 /-! ### The scalars the descent moves
 

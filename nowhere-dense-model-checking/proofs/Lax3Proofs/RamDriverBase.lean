@@ -93,7 +93,6 @@ open Lax3Proofs.RamDriver
 open Lax3Proofs.RamDriverCluster (TurnPre CoverHeld ClusterData ScatVal atomVal ReadbackStep
   masked_alv_eq)
 open Lax3Proofs.RamBfs (masked)
-open Lax3Proofs.SplitterWinOracle (PathOracle)
 open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
 
 /-! ### The names of the driver are injective
@@ -838,12 +837,12 @@ theorem flgName_ne_z (j i k : ℕ) : flgName j i k ≠ "z" := by
 
 /-- **The readback of one cluster, discharged.** -/
 theorem readbackStep {B q_top cap mb ns Ws j : ℕ} {n : ℕ} {φ : Lax3.FirstOrder.FO 0}
-    {G : SimpleGraph (Fin n)} {Or : PathOracle n (2 * cap)}
+    {G : SimpleGraph (Fin n)}
     {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
     {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ} {X W : Set (Fin n)} {w : Fin mb → Fin n}
     {Alv' Gam' : ℕ → ℕ} {C' : ℕ → ℕ → ℕ} {K : ℕ} (hB : 1 < B) (hn : n < B)
     (hK : rbCost q_top cap mb φ j n ≤ K) :
-    ReadbackStep B q_top cap mb ns Ws j φ G Or O T M Gm C π ord Xoff Xmem asg m X W w
+    ReadbackStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' K := by
   classical
   intro σ hσ

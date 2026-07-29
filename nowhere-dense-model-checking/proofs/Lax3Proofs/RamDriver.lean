@@ -5,7 +5,7 @@ import Lax3Proofs.RamAugment
 import Lax3Proofs.RamBfsPaths
 import Lax3Proofs.RamCover
 import Lax3Proofs.RamScatter
-import Lax3Proofs.SplitterWinOracle
+import Lax3Proofs.SplitterWinRec
 
 /-!
 The **driver**: the word-RAM program that decides a first-order sentence
@@ -37,12 +37,13 @@ cluster and reading the boolean combinations back.
 
 The recursion bottoms out at `j = ℓ`, where `ℓ` is the round bound of the
 splitter game on the class. That is not a fuel cut-off: by
-`Lax3Proofs.SplitterWinOracle.reachedO_length_lt` no play of the oracle's
-strategy lasts `ℓ` rounds, so the arena at depth `ℓ` is *edgeless*, and
+`Lax3Proofs.SplitterWinRec.reachedR_length_lt` no play of the recorded
+game lasts `ℓ` rounds, so the arena at depth `ℓ` is *edgeless*, and
 the base case is the unary-structure evaluation of `Lax3Proofs.BotEval` —
 row lookups, equality tests, and a witness search over the environment
-and one representative per realized colour row. `PlayOk` below is the
-invariant that delivers it, and `eq_bot_of_playOk_full` is the delivery.
+and one representative per realized colour row. `PlayRec` below is the
+invariant that delivers it — `PlayOk` is its weakening to what the base
+case needs — and `eq_bot_of_playOk_full` is the delivery.
 
 # Two arenas per level
 
@@ -51,13 +52,15 @@ the one the tables are about: it is the arena of `Evaluator.stepArena`,
 the cluster restriction followed by the batch isolation. The *game*
 arena `gam j` is the one the splitter strategy is played in: the ball
 restriction followed by the same batch isolation, which is exactly
-`SplitterWinOracle.nextArenaO`. Keeping both is what makes the game
-invariant an equality rather than an approximation — the recorded rounds
-are literally a `ReachedO` play — while the work arena, which the cover
-has cut down further, is a subgraph of the game arena and inherits the
-edgelessness at the bottom. The one lemma that connects them is
-`stepArena_le_nextArenaO`, and `playOk_succ` is the descent step it
-proves.
+`SplitterWinRec.nextArenaR` of the round the descent records. Keeping
+both is what makes the game invariant an equality rather than an
+approximation — the recorded rounds are literally a `ReachedR` play —
+while the work arena, which the cover has cut down further, is a subgraph
+of the game arena and inherits the edgelessness at the bottom. The one
+lemma that connects them is `stepArena_le_nextArena` — the cluster lies
+inside the ball, and the two arenas isolate the same batch — and
+`playRec_succ` is the descent step, whose last hypothesis is what that
+inequality discharges.
 
 # Names
 
@@ -100,11 +103,12 @@ beyond carrying one as a parameter.
 Proved:
 
 * the padding of a batch to the fixed width `mb` (`exists_pad_enum`),
-  and the reason `mb` is `ℓ · (2·cap + 1)` and not another number
-  (`exists_pad_batch`);
-* the game invariant and its moves — `playOk_zero`, `playOk_succ`,
-  `playOk_bot`, `playOk_stepArenaP`, and `eq_bot_of_playOk_full`, which
-  is the base case's whole justification;
+  which is the reason `mb` is `ℓ · (2·cap + 1)` and not another number:
+  one connector plus one walk of at most `2·cap + 1` vertices per earlier
+  round;
+* the game invariant and its moves — `playOk_zero`, `playOk_bot`,
+  `playRec_succ` and `eq_bot_of_playOk_full`, which is the base case's
+  whole justification;
 * the two bridges between the program's arrays and the mathematics:
   `masked_step`, that the mask the driver writes cuts out
   `Evaluator.stepArena`, and `stepArenaP_eq`, that the batch read as an
@@ -153,7 +157,7 @@ open Lax3.ColoredGraphs Lax3.DistFO Lax3.Locality Lax3.ScatterSentences
 open Lax3.SplitterGame
 open Lax12.UniformQuasiWideness
 open Lax3Proofs.Horizon Lax3Proofs.SyntaxLemmas Lax3Proofs.WalkDistance
-open Lax3Proofs.FormulaTables Lax3Proofs.SplitterWin Lax3Proofs.SplitterWinOracle
+open Lax3Proofs.FormulaTables Lax3Proofs.SplitterWin Lax3Proofs.SplitterWinRec
 open Lax3Proofs.RamBfs (masked masked_adj CsrGraph)
 open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
 
@@ -374,21 +378,19 @@ theorem masked_step {G : SimpleGraph (Fin n)} (M Xa Wa : ℕ → ℕ) {X W : Set
   tauto
 
 /-- **A cluster step is a subgraph of a splitter round.** The cluster
-lies in the ball the round restricts to and the step isolates at least
-what the round isolates, so every edge that survives the step survives
-the round. This is the one inequality that lets the driver keep the game
-invariant as an equality while its own arena is cut down further by the
-cover. -/
-theorem stepArena_le_nextArenaO {cap : ℕ} {O : PathOracle n (2 * cap)}
-    {A P : SimpleGraph (Fin n)} {rounds : List (Round n)} {v : Fin n} {X W : Set (Fin n)}
-    (hAP : A ≤ P) (hX : X ⊆ ball A (2 * cap) v) (hW : batchO O rounds P v ⊆ W) :
-    deleteVerts (deleteVerts A Xᶜ) W ≤ nextArenaO O P v rounds := by
+lies in the ball the round restricts to and the two isolate the same
+batch, so every edge that survives the step survives the round. This is
+the one inequality that lets the driver keep the game invariant as an
+equality while its own arena is cut down further by the cover: it is what
+`playRec_succ`'s last hypothesis is discharged by. -/
+theorem stepArena_le_nextArena {r : ℕ} {A P : SimpleGraph (Fin n)} {v : Fin n}
+    {X W : Set (Fin n)} (hAP : A ≤ P) (hX : X ⊆ ball A r v) :
+    deleteVerts (deleteVerts A Xᶜ) W ≤ deleteVerts (deleteVerts P (ball P r v)ᶜ) W := by
   intro a b hab
   obtain ⟨hab', haW, hbW⟩ := SplitterBasics.deleteVerts_adj.mp hab
   obtain ⟨hadj, haX, hbX⟩ := SplitterBasics.deleteVerts_adj.mp hab'
   refine SplitterBasics.deleteVerts_adj.mpr
-    ⟨SplitterBasics.deleteVerts_adj.mpr ⟨hAP hadj, ?_, ?_⟩, fun hc => haW (hW hc),
-      fun hc => hbW (hW hc)⟩
+    ⟨SplitterBasics.deleteVerts_adj.mpr ⟨hAP hadj, ?_, ?_⟩, haW, hbW⟩
   · exact fun hc => hc (ball_mono_graph v hAP (hX (not_not.mp haX)))
   · exact fun hc => hc (ball_mono_graph v hAP (hX (not_not.mp hbX)))
 
@@ -397,8 +399,8 @@ theorem stepArena_le_nextArenaO {cap : ℕ} {O : PathOracle n (2 * cap)}
 What the driver knows about the splitter game at a node of its recursion
 tree, of depth `j`: either the work arena is already edgeless — some
 connector on the way down turned out to be isolated, which ends the play
-at once — or the connectors and game arenas it recorded are a play of
-the oracle's strategy, of which the work arena is a subgraph.
+at once — or the connectors, game arenas and batches it recorded are a
+play of the recorded game, of which the work arena is a subgraph.
 
 The invariant is stated per *node*: the recursion is a tree, one branch
 per cluster, and each branch has its own history. Full re-initialization
@@ -406,72 +408,26 @@ per cluster is what makes that legitimate — no branch sees another's
 arrays. -/
 
 /-- The driver's game state at a node of depth `j`. -/
-def PlayOk (cap : ℕ) (O : PathOracle n (2 * cap)) (G : SimpleGraph (Fin n)) (j : ℕ)
-    (A : SimpleGraph (Fin n)) : Prop :=
-  A = ⊥ ∨ ∃ (rounds : List (Round n)) (P : SimpleGraph (Fin n)),
-    ReachedO O G rounds P ∧ rounds.length = j ∧ A ≤ P
+def PlayOk (cap : ℕ) (G : SimpleGraph (Fin n)) (j : ℕ) (A : SimpleGraph (Fin n)) : Prop :=
+  A = ⊥ ∨ ∃ (rounds : List (RoundR n)) (P : SimpleGraph (Fin n)),
+    ReachedR (2 * cap) G rounds P ∧ rounds.length = j ∧ A ≤ P
 
-variable {cap : ℕ} {O : PathOracle n (2 * cap)} {G : SimpleGraph (Fin n)}
+variable {cap : ℕ} {G : SimpleGraph (Fin n)}
 
 /-- At the root nothing has been played and the work arena is the input
 graph. -/
-theorem playOk_zero (O : PathOracle n (2 * cap)) (G : SimpleGraph (Fin n)) :
-    PlayOk cap O G 0 G :=
-  Or.inr ⟨[], G, ReachedO.nil, rfl, le_rfl⟩
+theorem playOk_zero (cap : ℕ) (G : SimpleGraph (Fin n)) : PlayOk cap G 0 G :=
+  Or.inr ⟨[], G, ReachedR.nil, rfl, le_rfl⟩
 
 /-- An edgeless arena stays edgeless: every cluster step of it isolates
 inside a graph with no edges. -/
 theorem playOk_bot {A : SimpleGraph (Fin n)} (hA : A = ⊥) (X W : Set (Fin n)) (j : ℕ) :
-    PlayOk cap O G (j + 1) (deleteVerts (deleteVerts A Xᶜ) W) := by
+    PlayOk cap G (j + 1) (deleteVerts (deleteVerts A Xᶜ) W) := by
   refine Or.inl (le_bot_iff.mp fun a b hab => ?_)
   obtain ⟨hab', -, -⟩ := SplitterBasics.deleteVerts_adj.mp hab
   obtain ⟨hadj, -, -⟩ := SplitterBasics.deleteVerts_adj.mp hab'
   rw [hA] at hadj
   exact absurd hadj (by simp)
-
-/-- **The descent step of the game invariant.** At a node whose recorded
-rounds reach the game arena `P`, playing the connector `v` and a batch
-containing the strategy's own lands one level down: either the connector
-still had an edge, in which case the rounds extended by `(v, P)` reach
-`nextArenaO`, of which the cluster step is a subgraph, or it did not, in
-which case the round leaves an edgeless arena and so does the cluster
-step. -/
-theorem playOk_succ {rounds : List (Round n)} {P A : SimpleGraph (Fin n)} {j : ℕ}
-    (hR : ReachedO O G rounds P) (hlen : rounds.length = j) (hAP : A ≤ P) {v : Fin n}
-    {X W : Set (Fin n)} (hX : X ⊆ ball A (2 * cap) v) (hW : batchO O rounds P v ⊆ W) :
-    PlayOk cap O G (j + 1) (deleteVerts (deleteVerts A Xᶜ) W) := by
-  have hle := stepArena_le_nextArenaO hAP hX hW
-  by_cases hv : ∃ u, P.Adj v u
-  · exact Or.inr ⟨(v, P) :: rounds, nextArenaO O P v rounds, ReachedO.step hR hv,
-      by simp only [List.length_cons, hlen], hle⟩
-  · refine Or.inl (le_bot_iff.mp ?_)
-    rw [← nextArenaO_eq_bot_of_isolated O (fun z hz => hv ⟨z, hz⟩) rounds]
-    exact hle
-
-/-- **The game invariant descends along the padded batch.** The form the
-cluster step consumes: the two halves of this file meet here, since the
-arena the descent rewrites into (`stepArenaP`, an enumeration) is the
-arena the game invariant descends to (a set). -/
-theorem playOk_stepArenaP {rounds : List (Round n)} {P A : SimpleGraph (Fin n)} {j mb : ℕ}
-    (hR : ReachedO O G rounds P) (hlen : rounds.length = j) (hAP : A ≤ P) {v : Fin n}
-    {X : Set (Fin n)} (hX : X ⊆ ball A (2 * cap) v) (w : Fin mb → Fin n)
-    (hw : Set.range w = batchO O rounds P v) :
-    PlayOk cap O G (j + 1) (stepArenaP A X w) := by
-  rw [stepArenaP_eq A X w hw]
-  exact playOk_succ hR hlen hAP hX (le_refl _)
-
-/-- **The batch fits the fixed width, and is enumerated by it.** One
-vertex plus one path of at most `2·cap + 1` vertices per earlier round is
-at most `ℓ · (2·cap + 1)` vertices, and the batch is never empty since it
-contains its own connector. So `mb := ℓ · (2·cap + 1)` is the width at
-which the driver's padded enumeration exists — which is the choice of
-`mb` the whole development runs on, and the reason it is that number and
-not another. -/
-theorem exists_pad_batch {ℓ : ℕ} {rounds : List (Round n)} {P : SimpleGraph (Fin n)}
-    (hlen : rounds.length < ℓ) (v : Fin n) :
-    ∃ w : Fin (ℓ * (2 * cap + 1)) → Fin n, Set.range w = batchO O rounds P v :=
-  exists_pad_enum (batchO_ncard_le_of_lt O rounds P v hlen)
-    ⟨v, mem_batchO (self_mem_genSetO O rounds v) (mem_ball_self P (2 * cap) v)⟩
 
 /-- **Budget exhaustion is the base case.** At depth `ℓ`, the round
 bound the class's quasi-wideness produces, the work arena is edgeless:
@@ -483,10 +439,10 @@ theorem eq_bot_of_playOk_full {N : ℕ → ℕ} {s : ℕ}
     (hQ : ∀ Pt : Set (Fin n), N (2 * s + 2) ≤ Pt.ncard →
       ∃ S Bd : Set (Fin n), S.ncard ≤ s ∧ Bd ⊆ Pt \ S ∧ 2 * s + 2 ≤ Bd.ncard ∧
         DistIndependent (deleteVerts G S) (2 * cap) Bd)
-    {A : SimpleGraph (Fin n)} (h : PlayOk cap O G (N (2 * s + 2)) A) : A = ⊥ := by
+    {A : SimpleGraph (Fin n)} (h : PlayOk cap G (N (2 * s + 2)) A) : A = ⊥ := by
   rcases h with h | ⟨rounds, P, hR, hlen, -⟩
   · exact h
-  · exact absurd (reachedO_length_lt hQ hR) (by rw [hlen]; omega)
+  · exact absurd (reachedR_length_lt hQ hR) (by rw [hlen]; omega)
 
 /-! ### The descent, semantically
 
@@ -819,81 +775,80 @@ theorem ordName_ne_alvName (j a : ℕ) : ordName j ≠ alvName a := by
 
 /-! ### The play, as the machine records it
 
-`PlayOk` says that *some* list of rounds is a play of the oracle's
-strategy reaching *some* arena the work arena sits inside. The batch
-phase needs more than that. At depth `j` it searches, for every earlier
-round `a < j`, from the scalar `ctrName a` in the mask `gamName a` — and
+`PlayOk` says that *some* list of rounds is a play of the recorded game
+reaching *some* arena the work arena sits inside. The batch phase needs
+more than that. At depth `j` it searches, for every earlier round
+`a < j`, from the scalar `ctrName a` in the mask `gamName a` — and
 `PlayOk`'s rounds are existentially quantified, so nothing whatever ties
 those arrays to them. Two things fail at once: the program's reads have
 no derivation, since no precondition of a level mentions a depth other
-than its own; and `playOk_succ`'s hypothesis `batchO O rounds P v ⊆ W`
-cannot be proved of what the searches marked, since `rounds` is not the
-list they searched along.
+than its own; and the walk clause of a new round cannot be proved of what
+the searches marked, since `rounds` is not the list they searched along.
 
 `PlayRec` is the repair: the recorded connectors and game masks **are**
 the rounds. `RecordsPlay` is the matching, stated by recursion on the
 depth so that its memory half — every earlier connector is a vertex,
 every earlier mask is an array of the carrier's length holding words —
 is available even where the play half is vacuous, which is what a batch
-phase in an already-dead branch needs.
+phase in an already-dead branch needs. `RecordedRound` is one round of it
+named without the list, which is the form the descent's obligations are
+stated in: everything the descent is asked about an earlier round is
+asked about a connector and a mask the *state* holds.
 
 The play half is an *equality*, not the inequality `PlayOk` carries: the
 game arena of the depth is exactly the position the recorded play
-reaches. That is what makes it descend. `ReachedO.step` only extends a
-play to `nextArenaO O A v rounds` itself, so a driver whose game arena
-were merely a subgraph of it could never record another round; and the
-driver can afford the equality because it keeps a *second* mask per
-depth for exactly this purpose — the game arena is cut by the ball and
-the batch alone, while the work arena is cut further by the cover.
+reaches. That is what makes it descend. `ReachedR.step` only extends a
+play to the arena the new round's own batch leaves, so a driver whose
+game arena were merely a subgraph of it could never record another round;
+and the driver can afford the equality because it keeps a *second* mask
+per depth for exactly this purpose — the game arena is cut by the ball
+and the batch alone, while the work arena is cut further by the cover.
 
 The disjunct `masked G Gm = ⊥` is the dead branch. A connector with no
-incident edge ends the play — `ReachedO` records no round for it,
-`nextArenaO_eq_bot_of_isolated` says the arena it leaves is edgeless —
+incident edge ends the play — `ReachedR` records no round for it,
+`nextArenaR_eq_bot_of_isolated` says the arena it leaves is edgeless —
 and every deeper game arena is a subgraph of that one, so the record
 below such a node is the memory half and nothing else.
 
 Nothing here is a new obligation on the *program*: `descendCom` already
 writes `ctrName j` and `gamName j` and already re-initializes every
-array of the depth below, and `playRec_succ` is `playOk_succ`'s two
-cases at the arrays instead of at an existential. -/
+array of the depth below, and `playRec_succ` is `SplitterWinRec`'s
+`reachedR_descend` at the arrays instead of at an existential. -/
 
 section PlayRecord
 
 variable {cap : ℕ}
 
-/-- **The oracle the driver instantiates.** At a pair the arena does not
-connect within the cap it offers nothing.
-
-`SplitterWinOracle.PathOracle` constrains `path A u v` only *between*
-vertices the arena puts within the cap — that is the whole point of its
-interface — so this is a choice and not a restriction, and it is the
-choice `Lax3Proofs.RamBfsPaths`'s recipe makes: the oracle's set is the
-buffer the path extraction leaves, and the extraction is not run at all
-from a source the search did not reach. Under it the batch the guarded
-`ancestorStep` marks is `genSetO` exactly, and the guard costs the
-descent nothing. -/
-def OracleGuarded (cap : ℕ) (O : PathOracle n (2 * cap)) : Prop :=
-  ∀ (A : SimpleGraph (Fin n)) (u v : Fin n), ¬ WithinDist A (2 * cap) u v → O.path A u v = ∅
+/-- **One round the state records**: a connector `ctrName a` and a game
+mask `gamName a` of a depth below `j`. This is what the batch phase's
+turn `a` reads, and what everything the descent owes about an earlier
+round is stated over. -/
+def RecordedRound (B : ℕ) (G : SimpleGraph (Fin n)) (σ : Env) (j : ℕ) (u : Fin n)
+    (A : SimpleGraph (Fin n)) : Prop :=
+  ∃ a < j, σ.vars (ctrName a) = (u : ℕ) ∧
+    ∃ Ga : ℕ → ℕ, σ.arrs (gamName a) = arrOf n Ga ∧ (∀ z < n, Ga z < B) ∧ A = masked G Ga
 
 /-- **The state records the rounds.** Read from the top: the round of
 depth `a` is the connector the scalar `ctrName a` names, played in the
 arena the mask `gamName a` cuts out, and the mask is an array of the
 carrier's length whose cells are words — which is what the batch phase's
-copy of it into `alv` and search from it need. -/
+copy of it into `alv` and search from it need. What the round *isolated*
+is not in the state: it is the round's own recorded data, and the state
+holds only its effect, the next depth's game mask. -/
 def RecordsPlay (B : ℕ) (G : SimpleGraph (Fin n)) (σ : Env) :
-    ℕ → List (Round n) → Prop
+    ℕ → List (RoundR n) → Prop
   | 0, l => l = []
   | _ + 1, [] => False
   | a + 1, e :: rest =>
-      σ.vars (ctrName a) = ((e.1 : Fin n) : ℕ) ∧
+      σ.vars (ctrName a) = ((e.vtx : Fin n) : ℕ) ∧
       (∃ Ga : ℕ → ℕ, σ.arrs (gamName a) = arrOf n Ga ∧ (∀ z < n, Ga z < B) ∧
-        e.2 = masked G Ga) ∧
+        e.arena = masked G Ga) ∧
       RecordsPlay B G σ a rest
 
 /-- A record of depth `j` has `j` rounds, which is the length clause
 `PlayOk` carries. -/
 theorem RecordsPlay.length {B : ℕ} {G : SimpleGraph (Fin n)} {σ : Env} :
-    ∀ {j : ℕ} {l : List (Round n)}, RecordsPlay B G σ j l → l.length = j
+    ∀ {j : ℕ} {l : List (RoundR n)}, RecordsPlay B G σ j l → l.length = j
   | 0, l, h => by rw [RecordsPlay] at h; rw [h]; rfl
   | _ + 1, [], h => absurd h (by rw [RecordsPlay]; exact not_false)
   | a + 1, _ :: rest, h => by
@@ -903,7 +858,7 @@ theorem RecordsPlay.length {B : ℕ} {G : SimpleGraph (Fin n)} {σ : Env} :
 /-- **The record is read out one round at a time**: what the batch
 phase's turn `a` is handed. -/
 theorem RecordsPlay.get {B : ℕ} {G : SimpleGraph (Fin n)} {σ : Env} :
-    ∀ {j : ℕ} {l : List (Round n)}, RecordsPlay B G σ j l → ∀ a < j,
+    ∀ {j : ℕ} {l : List (RoundR n)}, RecordsPlay B G σ j l → ∀ a < j,
       ∃ (v : Fin n) (Ga : ℕ → ℕ), σ.vars (ctrName a) = (v : ℕ) ∧
         σ.arrs (gamName a) = arrOf n Ga ∧ (∀ z < n, Ga z < B)
   | 0, _, _, a, ha => absurd ha (by omega)
@@ -915,14 +870,30 @@ theorem RecordsPlay.get {B : ℕ} {G : SimpleGraph (Fin n)} {σ : Env} :
       · exact RecordsPlay.get hrest a hlt
       · have : a = b := by omega
         subst this
-        exact ⟨e.1, Ga, hc, hga, hgaB⟩
+        exact ⟨e.vtx, Ga, hc, hga, hgaB⟩
+
+/-- **Every recorded round is one the state holds.** The bridge from the
+list the game invariant speaks of to the arrays the descent's obligations
+speak of. -/
+theorem RecordsPlay.mem {B : ℕ} {G : SimpleGraph (Fin n)} {σ : Env} :
+    ∀ {j : ℕ} {l : List (RoundR n)}, RecordsPlay B G σ j l →
+      ∀ e ∈ l, RecordedRound B G σ j e.vtx e.arena
+  | 0, l, h, e, he => by rw [RecordsPlay] at h; rw [h] at he; exact absurd he (by simp)
+  | _ + 1, [], h, _, _ => absurd h (by rw [RecordsPlay]; exact not_false)
+  | b + 1, f :: rest, h, e, he => by
+      rw [RecordsPlay] at h
+      obtain ⟨hc, ⟨Ga, hga, hgaB, hfa⟩, hrest⟩ := h
+      rcases List.mem_cons.mp he with rfl | he'
+      · exact ⟨b, by omega, hc, Ga, hga, hgaB, hfa⟩
+      · obtain ⟨a, hab, hca, Ha, hha, hhaB, hea⟩ := hrest.mem e he'
+        exact ⟨a, by omega, hca, Ha, hha, hhaB, hea⟩
 
 /-- **The record survives a pass that leaves the earlier depths alone.**
 Every clause of it is about an array or a scalar of a depth *below* the
 one the pass is at, and every pass of a turn writes only its own depth's
 and the next one's. -/
 theorem RecordsPlay.congr {B : ℕ} {G : SimpleGraph (Fin n)} {σ σ' : Env} :
-    ∀ {j : ℕ} {l : List (Round n)}, RecordsPlay B G σ j l →
+    ∀ {j : ℕ} {l : List (RoundR n)}, RecordsPlay B G σ j l →
       (∀ a < j, σ'.vars (ctrName a) = σ.vars (ctrName a)) →
       (∀ a < j, σ'.arrs (gamName a) = σ.arrs (gamName a)) → RecordsPlay B G σ' j l
   | 0, l, h, _, _ => h
@@ -935,82 +906,90 @@ theorem RecordsPlay.congr {B : ℕ} {G : SimpleGraph (Fin n)} {σ σ' : Env} :
         hrest.congr (fun a haa => hv a (by omega)) (fun a haa => ha a (by omega))⟩
 
 /-- **The recorded play.** The rounds are in the state, and — off the
-dead branch — they are a play of the oracle's strategy whose position is
-the depth's own game arena, of which the work arena is a subgraph. -/
-def PlayRec (B : ℕ) (cap : ℕ) (O : PathOracle n (2 * cap)) (G : SimpleGraph (Fin n)) (j : ℕ)
+dead branch — they are a play of the recorded game whose position is the
+depth's own game arena, of which the work arena is a subgraph. -/
+def PlayRec (B : ℕ) (cap : ℕ) (G : SimpleGraph (Fin n)) (j : ℕ)
     (M Gm : ℕ → ℕ) (σ : Env) : Prop :=
-  ∃ rounds : List (Round n), RecordsPlay B G σ j rounds ∧ masked G M ≤ masked G Gm ∧
-    (masked G Gm = ⊥ ∨ ReachedO O G rounds (masked G Gm))
+  ∃ rounds : List (RoundR n), RecordsPlay B G σ j rounds ∧ masked G M ≤ masked G Gm ∧
+    (masked G Gm = ⊥ ∨ ReachedR (2 * cap) G rounds (masked G Gm))
 
 /-- **The recorded play implies the game invariant.** `PlayOk`'s rounds
 are this record's, and its arena the depth's own game arena, so every
 obligation that used to carry `PlayOk` can be handed this instead. -/
-theorem playOk_of_playRec {B j : ℕ} {O : PathOracle n (2 * cap)} {G : SimpleGraph (Fin n)}
-    {M Gm : ℕ → ℕ} {σ : Env} (h : PlayRec B cap O G j M Gm σ) :
-    PlayOk cap O G j (masked G M) := by
+theorem playOk_of_playRec {B j : ℕ} {G : SimpleGraph (Fin n)}
+    {M Gm : ℕ → ℕ} {σ : Env} (h : PlayRec B cap G j M Gm σ) :
+    PlayOk cap G j (masked G M) := by
   obtain ⟨rounds, hrec, hle, hbot | hR⟩ := h
   · exact Or.inl (le_bot_iff.mp (by rw [← hbot]; exact hle))
   · exact Or.inr ⟨rounds, masked G Gm, hR, hrec.length, hle⟩
 
 /-- **The record at the root.** Nothing has been played, and both masks
 cut out the input graph. -/
-theorem playRec_zero {B : ℕ} (O : PathOracle n (2 * cap)) (G : SimpleGraph (Fin n))
+theorem playRec_zero {B : ℕ} (cap : ℕ) (G : SimpleGraph (Fin n))
     {M Gm : ℕ → ℕ} {σ : Env} (hM : masked G M = G) (hGm : masked G Gm = G) :
-    PlayRec B cap O G 0 M Gm σ :=
-  ⟨[], rfl, by rw [hM, hGm], Or.inr (by rw [hGm]; exact ReachedO.nil)⟩
+    PlayRec B cap G 0 M Gm σ :=
+  ⟨[], rfl, by rw [hM, hGm], Or.inr (by rw [hGm]; exact ReachedR.nil)⟩
 
 /-- The whole record crosses a pass of the depth's own arrays. -/
-theorem PlayRec.congr {B j : ℕ} {O : PathOracle n (2 * cap)} {G : SimpleGraph (Fin n)}
-    {M Gm : ℕ → ℕ} {σ σ' : Env} (h : PlayRec B cap O G j M Gm σ)
+theorem PlayRec.congr {B j : ℕ} {G : SimpleGraph (Fin n)}
+    {M Gm : ℕ → ℕ} {σ σ' : Env} (h : PlayRec B cap G j M Gm σ)
     (hv : ∀ a < j, σ'.vars (ctrName a) = σ.vars (ctrName a))
     (ha : ∀ a < j, σ'.arrs (gamName a) = σ.arrs (gamName a)) :
-    PlayRec B cap O G j M Gm σ' := by
+    PlayRec B cap G j M Gm σ' := by
   obtain ⟨rounds, hrec, hle, hplay⟩ := h
   exact ⟨rounds, hrec.congr hv ha, hle, hplay⟩
 
 /-- **The descent step of the record.** A turn at depth `j` extends it by
-its own connector and its own game mask.
+its own connector, its own game mask and the batch it marked.
 
-What the turn owes is exactly what `descendCom` computes: the ball is
-the ball of the *game* arena — which is why the expansion chain runs in
-`gamName j` and not in `alvName j` — the batch is
-`SplitterWinOracle.batchO` of the *recorded* rounds, which the record is
-what makes statable at all, and the new game mask cuts the game arena by
-those two and by nothing else. The new work mask is cut further, by the
-cluster, and is asked only to stay inside the new game arena.
+What the turn owes is exactly what `descendCom` computes, and no more.
+The ball is the ball of the *game* arena — which is why the expansion
+chain runs in `gamName j` and not in `alvName j`. The batch `W` is
+whatever the program marked, asked for four things and not for an
+equation with any other set: it stays inside the ball, it holds the
+connector, it holds — for every earlier round the state records and the
+arena of that round connects to the connector — the part inside the ball
+of the support of *some* short walk between them, and the new game mask
+cuts the game arena by it and by the ball and by nothing else. The new
+work mask is cut further, by the cluster, and is asked only to stay
+inside the new game arena.
 
-The two cases are the two ends of `playOk_succ`: a connector with an
-incident edge extends the play by `ReachedO.step`, and one without ends
-it, `nextArenaO_eq_bot_of_isolated` making the new game arena
+The two cases are the two ends of `SplitterWinRec.reachedR_descend`: a
+connector with an incident edge extends the play, the recorded round
+being `W` together with the parts of those supports that ran out of the
+ball; one without ends it, `eq_bot_of_isolated` making the new game arena
 edgeless. -/
-theorem playRec_succ {B j : ℕ} {O : PathOracle n (2 * cap)} {G : SimpleGraph (Fin n)}
-    {M Gm M' Gm' : ℕ → ℕ} {σ σ' : Env} (h : PlayRec B cap O G j M Gm σ)
+theorem playRec_succ {B j : ℕ} {G : SimpleGraph (Fin n)}
+    {M Gm M' Gm' : ℕ → ℕ} {σ σ' : Env} (h : PlayRec B cap G j M Gm σ)
     (hv : ∀ a < j, σ'.vars (ctrName a) = σ.vars (ctrName a))
     (ha : ∀ a < j, σ'.arrs (gamName a) = σ.arrs (gamName a))
     {v : Fin n} (hctr : σ'.vars (ctrName j) = (v : ℕ))
     (hgam : σ'.arrs (gamName j) = arrOf n Gm) (hGmB : ∀ z < n, Gm z < B)
-    (hstep : ∀ rounds : List (Round n), RecordsPlay B G σ j rounds →
-      masked G Gm' = deleteVerts (deleteVerts (masked G Gm) (ball (masked G Gm) (2 * cap) v)ᶜ)
-        (batchO O rounds (masked G Gm) v))
+    {W : Set (Fin n)} (hWball : W ⊆ ball (masked G Gm) (2 * cap) v) (hWself : v ∈ W)
+    (hWwalk : ∀ (u : Fin n) (A : SimpleGraph (Fin n)), RecordedRound B G σ j u A →
+      WithinDist A (2 * cap) u v →
+      ∃ p : A.Walk u v, p.length ≤ 2 * cap ∧
+        {z | z ∈ p.support} ∩ ball (masked G Gm) (2 * cap) v ⊆ W)
+    (hstep : masked G Gm' =
+      deleteVerts (deleteVerts (masked G Gm) (ball (masked G Gm) (2 * cap) v)ᶜ) W)
     (hle' : masked G M' ≤ masked G Gm') :
-    PlayRec B cap O G (j + 1) M' Gm' σ' := by
+    PlayRec B cap G (j + 1) M' Gm' σ' := by
   obtain ⟨rounds, hrec, -, hplay⟩ := h
-  refine ⟨(v, masked G Gm) :: rounds, ?_, hle', ?_⟩
-  · rw [RecordsPlay]
+  have hrec' : ∀ S : Set (Fin n),
+      RecordsPlay B G σ' (j + 1) (⟨v, masked G Gm, S⟩ :: rounds) := fun S => by
+    rw [RecordsPlay]
     exact ⟨hctr, ⟨Gm, hgam, hGmB, rfl⟩, hrec.congr hv ha⟩
-  · have hGm' := hstep rounds hrec
-    rcases hplay with hbot | hR
-    · refine Or.inl (le_bot_iff.mp fun a b hab => ?_)
-      rw [hGm'] at hab
-      obtain ⟨hab', -, -⟩ := SplitterBasics.deleteVerts_adj.mp hab
-      obtain ⟨hadj, -, -⟩ := SplitterBasics.deleteVerts_adj.mp hab'
-      rw [hbot] at hadj
-      exact absurd hadj (by simp)
-    · by_cases hadj : ∃ u, (masked G Gm).Adj v u
-      · exact Or.inr (by rw [hGm']; exact ReachedO.step hR hadj)
-      · refine Or.inl ?_
-        rw [hGm', ← nextArenaO]
-        exact nextArenaO_eq_bot_of_isolated O (fun z hz => hadj ⟨z, hz⟩) _
+  by_cases hadj : ∃ u, (masked G Gm).Adj v u
+  · rcases hplay with hbot | hR
+    · obtain ⟨u, hu⟩ := hadj
+      rw [hbot] at hu
+      exact absurd hu (by simp)
+    · obtain ⟨S, hS⟩ := reachedR_descend hR hadj hWball hWself
+        (fun e he => hWwalk e.vtx e.arena (hrec.mem e he))
+      exact ⟨⟨v, masked G Gm, S⟩ :: rounds, hrec' S, hle', Or.inr (by rw [hstep]; exact hS)⟩
+  · refine ⟨⟨v, masked G Gm, W⟩ :: rounds, hrec' W, hle', Or.inl ?_⟩
+    rw [hstep]
+    exact eq_bot_of_isolated (fun z hz => hadj ⟨z, hz⟩) W
 
 end PlayRecord
 
@@ -1162,14 +1141,16 @@ def colourCom (cap mb j : ℕ) : Com :=
 
 /-! ### The splitter batch
 
-`SplitterWinOracle.genSetO` is the connector itself together with, for
-every earlier connector, the oracle's path from it to the new one *taken
-in the arena that round was played in*; `batchO` cuts that down to the
-ball the round restricts to. The driver has both: the earlier connectors
-are the scalars `ctr a`, and the arenas they were played in are the game
-masks `gam a`, which is exactly why the game masks are kept. The oracle
-is instantiated at the path `Lax3Proofs.RamBfsPaths.bfsPathCom` leaves in
-its buffer, by the recipe in that file's final section. -/
+A recorded round isolates the connector itself together with, for every
+earlier connector the round's arena reaches, the support of a short walk
+from it to the new one *taken in the arena that round was played in*, all
+cut down to the ball the round restricts to. The driver has what it needs
+to mark that: the earlier connectors are the scalars `ctr a`, and the
+arenas they were played in are the game masks `gam a`, which is exactly
+why the game masks are kept. The walk is whatever
+`Lax3Proofs.RamBfsPaths.bfsPathCom` leaves in its buffer — the recorded
+game asks for *some* walk and not for a named one, which is the whole
+reason it is the recorded game and not an oracle-parameterized one. -/
 
 /-- Mark the cells of the path buffer in the batch indicator: the buffer
 holds `pl + 1` vertices. -/
@@ -1191,14 +1172,13 @@ IMP+ does not. So the two halves are separated here and the walk back is
 run only when the search found the target — `dist[tv] ≤ 2·cap`, the
 sentinel `RamBfs.initDist` writes being `2·cap + 1`.
 
-Skipping it is not an approximation. `SplitterWinOracle.PathOracle`
-constrains `path A u v` only between vertices the arena puts within the
-cap, and the oracle the driver instantiates is the one
-`Lax3Proofs.RamBfsPaths`'s recipe builds: it offers `∅` at the pairs the
-arena does not connect, and reads `PathOracle.card` off
-`Set.ncard_empty` there. `OracleGuarded` is that choice as a hypothesis,
-and under it the batch the guarded program marks is
-`SplitterWinOracle.genSetO` exactly — not merely a superset. -/
+Skipping it costs nothing. `SplitterWinRec.ReachedR` asks a round for a
+walk to an earlier connector only *when the round's arena puts the two
+within the cap*, and the guard's false branch is exactly that
+hypothesis' negation: `RamBfs.BfsTree.reach` says a vertex the arena
+reaches within `2·cap` has `dist` at most `2·cap`, so a sentinel distance
+is a proof of `¬ WithinDist`. That is the one place the game's guard and
+the program's guard have to be the same statement, and they are. -/
 def ancestorStep (cap j a : ℕ) : Com :=
   .seq (.assign "src" (.var (ctrName a)))
     (.seq (.assign "tv" (.var (ctrName j)))
@@ -1208,9 +1188,12 @@ def ancestorStep (cap j a : ℕ) : Com :=
             (.seq RamBfsPaths.extractPathCom (markPath (batName j)))
             .skip))))
 
-/-- **The batch of the round**: the connector together with the oracle's
-paths from every earlier connector, cut down to the ball the round
-restricts to. -/
+/-- **The batch of the round**: the connector together with a short walk
+from every earlier connector the round's arena reaches, cut down to the
+ball the round restricts to.
+
+The last pass reads its own destination, which is what
+`RamDriverDescend.andSelfCom_spec` is for. -/
 def batchCom (cap j : ℕ) : Com :=
   .seq (fillCom (batName j) (.lit 0))
     (.seq (.store (batName j) (.var (ctrName j)) (.lit 1))
@@ -2273,13 +2256,15 @@ It splits along the turn's six passes.
 * `descendCom` is nine flat passes and one chain of expansions. Its
   content is the two mask equations: the work arena of the next depth is
   `stepArenaP` at the cluster and the batch, and the game arena is
-  `SplitterWinOracle.nextArenaO` at the ball and the same batch. The
-  expansion chain that builds the ball is `expandCom` iterated `2·cap`
-  times, whose own content is one step of `WithinDist`.
-* `batchCom` is `SplitterWinOracle.genSetO` written out: the connector,
-  then one call of `RamBfsPaths.bfsPathCom` per earlier round in *that*
-  round's game mask. `RamBfsPaths.bfsPath_spec` is the call, and the
-  oracle it instantiates is the recipe in that file's final section.
+  the next arena of the round the descent records — the ball and the
+  same batch. The expansion chain that builds the ball is `expandCom`
+  iterated `2·cap` times, whose own content is one step of `WithinDist`.
+* `batchCom` marks the round: the connector, then one call of
+  `RamBfsPaths.bfsParCom` per earlier round in *that* round's game mask,
+  and a walk back under the guard. `RamBfsPaths.bfsPath_spec` is what the
+  two halves together are worth, and what the recorded round asks of them
+  is that the support of the walk they found lies in the batch where the
+  ball keeps it.
 * `enumBatch` is the padding, and `exists_pad_enum` — proved above — is
   what its result is worth.
 * `colourCom` is `Evaluator.isoColoring`'s three slot equations, each an
@@ -2293,38 +2278,36 @@ It splits along the turn's six passes.
   atom, at the depth-`(j+1)` table row of the atom's own formula, and the
   readback through `Lax3Proofs.RamDriverCluster.ReadbackStep`.
 
-**The game invariant.** The turn is handed `PlayOk` at its own depth and
-the nested driver only at masks that have it one depth down, so the turn
-owes the descent step of the invariant: the arena its `alvName (j+1)`
-cuts out is a cluster step of its own, and `playOk_stepArenaP` is that
-step — at the ball the expansion chain built in the *game* arena and the
-batch `batchCom` produced, which is `SplitterWinOracle.batchO` of the
-recorded play. That is why the driver carries two masks per depth and
-why `descendCom` writes `gamName (j+1)` from `gamName j`: the equality
-`nextArenaO` needs is exact only if the ball is taken in the game arena,
-and `ballStage`'s parity is what makes the chain end in the ball's own
-array. -/
+**The game invariant.** The turn is handed `PlayRec` at its own depth
+and the nested driver only at masks that have it one depth down, so the
+turn owes the descent step of the invariant, which is `playRec_succ` — at
+the ball the expansion chain built in the *game* arena and the batch
+`batchCom` produced. That is why the driver carries two masks per depth
+and why `descendCom` writes `gamName (j+1)` from `gamName j`: the
+equality a recorded round needs is exact only if the ball is taken in the
+game arena, and `ballStage`'s parity is what makes the chain end in the
+ball's own array. -/
 def ClusterStepImplements (q_top cap mb ns W ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
-    (G : SimpleGraph (Fin n)) (Or : PathOracle n (2 * cap)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ)
+    (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ)
     (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ)
     (inner : Com) (Kin K : ℕ) : Prop :=
-  WordBound B n ns cap mb → CsrGraph G ns O T → OracleGuarded cap Or →
+  WordBound B n ns cap mb → CsrGraph G ns O T →
   (∀ c < sigL cap mb j, ∀ v < n, C c v ≤ 1) →
   (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ), (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
       Spec B (fun σ => LevelPre B n cap mb ns W O T (j + 1) M' Gm' C' σ ∧
           TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
-          PlayRec B cap Or G (j + 1) M' Gm' σ) inner
+          PlayRec B cap G (j + 1) M' Gm' σ) inner
         (fun σ σ' => LevelPost B q_top cap mb φ G ns W O T (j + 1) M' Gm' C' σ σ' ∧
           σ'.out = σ.out) Kin) →
     Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧
         TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
-        PlayRec B cap Or G j M Gm σ ∧
+        PlayRec B cap G j M Gm σ ∧
         CoverHeldAt n j G M π ord cap Xoff Xmem asg m σ ∧ σ.vars (curName j) < n)
       (clusterCom q_top cap mb φ j inner)
       (fun σ σ' => LevelPre B n cap mb ns W O T j M Gm C σ' ∧
         TablesSized q_top cap mb φ n σ' ∧ BaseArrs B q_top cap mb ℓ φ σ' ∧
-        PlayRec B cap Or G j M Gm σ' ∧ σ'.out = σ.out ∧
+        PlayRec B cap G j M Gm σ' ∧ σ'.out = σ.out ∧
         σ'.vars (curName j) = σ.vars (curName j) ∧
         ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length), ∃ Tb : ℕ → ℕ,
           σ'.arrs (tabName j i) = arrOf n Tb ∧
@@ -2426,11 +2409,11 @@ along the fuel.
   vertices by `sat_iff_eval_step` at the cluster it processed and the
   batch its searches produced. -/
 def LevelImplements (q_top cap mb R ℓ W ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
-    (G : SimpleGraph (Fin n)) (Or : PathOracle n (2 * cap)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ)
+    (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
   (∀ c < sigL cap mb j, ∀ v < n, C c v ≤ 1) →
   Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧ TablesSized q_top cap mb φ n σ ∧
-      BaseArrs B q_top cap mb ℓ φ σ ∧ PlayRec B cap Or G j M Gm σ)
+      BaseArrs B q_top cap mb ℓ φ σ ∧ PlayRec B cap G j M Gm σ)
     (driverAt q_top cap mb R ℓ W φ j)
     (fun σ σ' => LevelPost B q_top cap mb φ G ns W O T j M Gm C σ σ' ∧ σ'.out = σ.out) K
 
@@ -2489,11 +2472,11 @@ sentence, evaluated over the constants its local atoms are and the greedy
 scatter values its scatter atoms are, is the sentence's truth value.
 That is `sat_iff_eval_sentence`, and it is the only step of this proof
 that is not composition. -/
-theorem driver_correct (Or : PathOracle n (2 * cap)) (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
+theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
     (hB : WordBound B n ns cap mb) (hxB : ∀ v ∈ x, v < B)
     (hdec : DecodeImplements B x G ns W O T Kd)
     (hlev : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ), (∀ v < n, M v ≠ 0) →
-      LevelImplements B q_top cap mb R ℓ W ns 0 φ G Or O T M Gm C Kl)
+      LevelImplements B q_top cap mb R ℓ W ns 0 φ G O T M Gm C Kl)
     (hsent : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
       SentenceImplements B q_top cap mb ns W φ G O T M Gm C Ks) :
     Spec B (fun σ => DecodeMem n ns σ ∧ LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
@@ -2529,7 +2512,7 @@ theorem driver_correct (Or : PathOracle n (2 * cap)) (hrank : Lax3.FirstOrder.ra
   have hMG : masked G M = G := RamElim.masked_of_all_alive G hMpos
   have hGmG : masked G Gm = G :=
     RamElim.masked_of_all_alive G (fun v hv => by rw [hGmone v hv]; omega)
-  have hplay₀ : PlayRec B cap Or G 0 M Gm σ₁ := playRec_zero Or G hMG hGmG
+  have hplay₀ : PlayRec B cap G 0 M Gm σ₁ := playRec_zero cap G hMG hGmG
   obtain ⟨σ₂, hrun₂, ⟨hpre₂, -, htab₂⟩, hout₂⟩ :=
     (hlev M Gm (fun _ _ => 0) hMpos hcolbit).run
       (σ := σ₁) ⟨⟨hn₁, hoff₁, htgt₁, hM₁, hGm₁, hcolempty, hMB, hGmB, hcolbit, hmem₁, hdep₁, hm₁,
