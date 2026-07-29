@@ -22,3 +22,5 @@ import Lax13Proofs.Refine.Cost.ACost
 import Lax13Proofs.Refine.NREST.Basic
 import Lax13Proofs.Refine.NREST.Pw
 import Lax13Proofs.Refine.NREST.Sanity
+import Lax13Proofs.Refine.NREST.Rec
+import Lax13Proofs.Refine.NREST.Combinators

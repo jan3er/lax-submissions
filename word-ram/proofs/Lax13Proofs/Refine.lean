@@ -2,6 +2,8 @@ import Lax13Proofs.Refine.Cost.ACost
 import Lax13Proofs.Refine.NREST.Basic
 import Lax13Proofs.Refine.NREST.Pw
 import Lax13Proofs.Refine.NREST.Sanity
+import Lax13Proofs.Refine.NREST.Rec
+import Lax13Proofs.Refine.NREST.Combinators
 
 /-!
 The refinement tower: a fidelity-first port of the Isabelle NREST/Sepref
@@ -15,7 +17,8 @@ design record first: it is what makes a departure from the source
 citable, and each module's header records the departures that module
 actually made.
 
-This is P1's first slice — the currency type and the NREST monad core:
+This is P1's first two slices — the currency type, the NREST monad
+core, and the recursion/loop combinators built on it:
 
 * `Refine/Cost/ACost.lean` — `('a,'b) acost` (`Abstract_Cost.thy`),
   pointwise algebra and lattice, `cost n x`, and `ECost`.
@@ -28,7 +31,16 @@ This is P1's first slice — the currency type and the NREST monad core:
 * `Refine/NREST/Sanity.lean` — the executable gate (design record ledger
   D4): `#guard` spot checks and Plausible property checks of those laws
   at a finite carrier.
+* `Refine/NREST/Rec.lean` — general recursion: the flat orderings,
+  `mono2`, `RECT` / `RECT'` and their unfold and mono rules, the
+  `refine_mono` seed lemmas, and the fuel approximants that make the
+  fixed point executably checkable (`NREST.thy`, `RefineG_Domain.thy`,
+  `Refine_Mono_Prover.thy`).
+* `Refine/NREST/Combinators.lean` — `consumea`, `MIf` / `monadic_If`,
+  `whileT` / `whileIET` / `monadic_WHILEIT`, and `FOREACH`
+  (`NREST.thy`; `FOREACH` from AFP `NREST`'s `Refine_Foreach.thy`,
+  which is where it exists at all).
 
-Still to come in P1, per design record §3: `Rec`, `Combinators`,
-`DataRefinement`, `TimeRefinement`, `BackwardsReasoning`.
+Still to come in P1, per design record §3: `DataRefinement`,
+`TimeRefinement`, `BackwardsReasoning`.
 -/
