@@ -3272,3 +3272,29 @@ Next: P1 acceptance — abstract masked depth-capped BFS via refine_vcg,
 in Examples/Bfs.lean (mathlib SimpleGraph vocabulary inside Lax13Proofs;
 the Lax3 WithinDist bridge belongs to the P7 consumer side — recorded
 adjustment of design.md §10.4).
+
+## Refinement tower P1 COMPLETE — acceptance passed, 481 vs 1,201 — 2026-07-29
+Milestone: P1 acceptance (Examples/Bfs.lean) — done; P1 closed in one
+session against a 2–3-session budget (same session as P0).
+State: build green 2,987 jobs, root lax audit OK, zero sorry,
+bfsAlg_correct axioms clean, 35 s module elaboration.
+The number that matters: the abstract masked depth-capped BFS —
+RamBfs's content, d+1 sentinel, threshold-iff postcondition, currency
+budget — is 30 lines of algorithm + 30 of spec/invariant + 421 of
+proof = 481 authored lines, 0 manual gwp-rule applications, 0 hand
+frame clauses; refine_vcg drove the whole surface to 12 one-line
+goals. Baseline RamBfs.lean is 1,201 lines with hand-authored
+invariants and frames. This is abstract-level-only telemetry (the
+tower below is P3–P5), but it is the shape of the P7 gate and it
+points the right way.
+D4: the gate checks Post itself (decidable WD twin proved equivalent),
+5 positive configs + 3 negative controls + 2 Plausible differential
+tests; no authored statement refuted (stated explicitly).
+Honest limitation: ⊑ admits result-free programs; non-vacuity
+evidenced, not proved (nofailT/inresT through the fixed point — later).
+vcg-hardening backlog (6 items) recorded in the plan progress log.
+Review queue for Jan before P2 leans on this: P0 design record;
+pw_conc_inres refutation; B1 ResSub (mathlib ⊤−⊤=0 vs enat ∞−∞=∞);
+FOREACH provenance; §10.4 vocabulary adjustment.
+Next session: P2 — relators + rule DBs (first move br/relComp/
+SingleValued out of DataRefinement into Autoref/Relators.lean).

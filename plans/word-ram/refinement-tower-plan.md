@@ -314,6 +314,38 @@ of overnight work — set expectations by the budget, not the recent luck.
 
 ## Progress log
 
+- **2026-07-29 — P1 COMPLETE (one session, under the 2–3-session
+  budget) — acceptance passed.** `BackwardsReasoning.lean` (1,964 l):
+  gwp per source, vcg rule suite, progress, While rule, seed
+  `@[refine_vcg]` tactic with an in-file costed-loop demo. **B1
+  fidelity event:** mathlib's `Sub ℕ∞` truncates (`⊤−⊤=0`) where
+  Isabelle's `enat` has `∞−∞=∞`; the ported `minus_p_m_bindT` is FALSE
+  under mathlib's minus — resolved with a `ResSub` class (`-ᵣ`),
+  HOL-faithfully, counterexamples `#guard`ed. `Examples/Bfs.lean`
+  (1,051 l): the acceptance program — abstract masked depth-capped BFS
+  (RamBfs's content: `d+1` sentinel, threshold-iff postcondition, F4
+  currency budget) refined `bfsAlg ≤ bfsSpec` with `refine_vcg` driving
+  to 12 one-line goals. **Telemetry (P7-gate seed): 481 authored lines
+  (30 algorithm + 30 spec/invariant + 421 proof), 0 manual rule
+  applications, 0 hand frame clauses** vs the 1,201-line RamBfs
+  baseline — at the abstract level only; the tower below it is P3–P5's
+  job. D4 checked the spec itself (decidable `WD` twin, negative
+  controls, Plausible differential tests); no authored statement
+  refuted. Honest limitation recorded: `⊑` alone admits result-free
+  programs; non-vacuity is evidenced by the gate, not proved.
+  Vocabulary adjustment vs design.md §10.4: mathlib `SimpleGraph`
+  inside Lax13Proofs (cannot import Lax3/Lax12); the `WithinDist`
+  bridge is the P7 consumer's one-liner.
+  **Phase review (supervisor):** acceptance criterion met — specified
+  and refined abstract-to-abstract, cost riding the ordering, textbook
+  shape. Six vcg-hardening backlog items recorded by the acceptance
+  session (progress_consume placement, wfR2 closure lemmas →
+  TimeRefinement, spec-boundary Decidable pattern, sc_solve/norm_cost,
+  MIf goal doubling → the P4 MERGE work, small-lemma rule for cost
+  side conditions). Flagged-for-Jan queue before P2 builds on this:
+  P0 design record (flag 4), pw_conc_inres refutation (S6), B1/ResSub,
+  FOREACH provenance, §10.4 adjustment. **P2 starts next session.**
+
 - **2026-07-29 — P1 wave 2 landed: Rec, Combinators, DataRefinement,
   TimeRefinement (two Opus satellites in parallel worktrees).**
   `Rec.lean` (581 l): `RECT = if mono2 B then gfp B x else ⊤` verbatim,
