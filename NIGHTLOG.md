@@ -3298,3 +3298,49 @@ pw_conc_inres refutation; B1 ResSub (mathlib ⊤−⊤=0 vs enat ∞−∞=∞);
 FOREACH provenance; §10.4 vocabulary adjustment.
 Next session: P2 — relators + rule DBs (first move br/relComp/
 SingleValued out of DataRefinement into Autoref/Relators.lean).
+
+## Refinement tower P2 COMPLETE — Autoref spine, acceptance passed — 2026-07-29
+Milestone: P2 (relators + rule DBs) done in one session against a
+1–2-session budget; four waves (A single-owner, B1/B2 parallel Opus
+satellites in seeded worktrees, C single-owner), three extraction
+passes (tutorial target, tool phases; both committed with provenance).
+State: build green 2,999 jobs, root lax audit OK, zero sorry, axioms
+{propext, Quot.sound} or none on every spot check.
+Landed under Refine/Autoref/: Attrs (all ten DB attributes, one shared
+module), Relators (zoo + characteristic suite, source snake_case rule
+names; br/relComp/SingleValued relocated in from DataRefinement with
+byte-identical statements), Param (33 @[param] rules incl. the list_eq
+route, parametricity seed tactic), Tagging (OP/APP/ANNOT/PROTECT/ABS +
+Interface/CONST_INTF/ID_OP, axiom-free), Solver (TaggedSolver priority
+registry, declare_solver command, legible dispatch failures), then
+wave C: Phases/IdOps/FixRel/Translate/Tool/BindingsHOL — the real
+four-phase pipeline id_op(10)→rel_inf(20)→fix_rel(22)→trans(30)
+(extraction corrected the design record's three-phase framing),
+autoref tactic + autoref_synth command, autoref_rules DB at 26 rules.
+Thaw relocations: consumea→Basic, ResSub+B2-backlog→ACost; inres was
+a NO-OP (P1 never ported it — still open, needs a source fetch).
+Acceptance: the source's own Autoref_Bindings_HOL §Examples — 7 of 8
+entries reproduced mechanically (0 manual rule applications;
+synthesized terms #guard-checked in value; hd's SIDE_PRECOND
+discharged through the solver registry; the [1,2]=[2,3] entry runs
+the full GEN_OP + struct_expand list_eq route), 1 adapted (Isabelle
+sort-annotation pitfall, no Lean analogue). Failure legibility proven
+by #guard_msgs negative controls naming phase + unmet side condition.
+D4 gates everywhere; B2's gate caught a real dispatch bug (goal-list
+mutation before a late throw), C's audit run caught an autoref_synth
+namespace bug.
+Review queue for Jan (adds to the standing P0/P1 queue): extra-rules
+vehicle (local hypotheses swept + autoref [rules] — no notes-attribute
+analogue in Lean); entry-4 adaptation; the #guard_msgs "26 rules" DB-
+size canary; autoref_nat_lit catch-all (leaf-only, but P4-relevant).
+Backlog → P4: ID_abs/ABS ported but unexercised until monadify brings
+lambdas; STRUCT_EQ registered, unexercised (Collections material);
+trans rule choices untraced; six bonus DBs (hom/post_simps/ga_rules/…)
+need one Attrs-unfreeze wave; DiscrTree indexing still absent
+(linear scans, flagged honestly at every site).
+Ergonomics: lean-lsp MCP pinned itself to a removed worktree path —
+satellites fell back to lake env lean, which worked fine.
+Next session: P3 — the IR and its separation logic with credits
+(Ir/{Syntax,Semantics,Assn,Wp,Triples,SepSolver}; p3-ir-sl-extracts.md
+already in the repo; first decision = balance carrier default ℕ∞ per
+design §10.1).

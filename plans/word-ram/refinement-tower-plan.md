@@ -314,6 +314,52 @@ of overnight work — set expectations by the budget, not the recent luck.
 
 ## Progress log
 
+- **2026-07-29 — P2 COMPLETE (one session, at the budget's lower
+  bound) — acceptance passed.** Four waves: A (single-owner) landed
+  `Autoref/Attrs.lean` (the shared DB-attribute module of §10 default
+  3 — all ten Autoref DB names registered by session end) and
+  `Autoref/Relators.lean` (the zoo `funRel`/`prodRel`/`optionRel`/
+  `sumRel`/`listRel` + characteristic suite under source names), plus
+  the P1 thaw relocations (`br`/`relComp`/`SingleValued` →
+  Relators with byte-identical statements; `consumea` → Basic;
+  `ResSub` + backlog instances → ACost; **`inres` was a no-op** — P1
+  had never ported it; still open, needs a fetch of the source's
+  `inres` section). B1/B2 (parallel Opus satellites, seeded
+  worktrees): `Param.lean` (33 `@[param]` rules incl. the `list_eq`
+  route, `parametricity` seed tactic — no DiscrTree/`param_fo`/
+  `to_relAPP`, flagged) and `Tagging.lean` + `Solver.lean`
+  (tag layer axiom-free; `TaggedSolver` priority registry with
+  `declare_solver`; its D4 gate caught a real dispatch bug). C
+  (single-owner): `Phases`/`IdOps`/`FixRel`/`Translate`/`Tool`/
+  `BindingsHOL` — the pipeline at the source's real order
+  **id_op(10) → rel_inf(20) → fix_rel(22) → trans(30)** (the
+  `p2-tool-extracts.md` pass corrected this record's three-phase
+  framing; `rel_inf` is a phase of its own), uniform failure envelope
+  naming phase + unmet side condition, `autoref` tactic +
+  `autoref_synth` command, `autoref_rules` at 26 rules.
+  **Acceptance: the source distribution's own tutorial — the
+  `Autoref_Bindings_HOL.thy` §Examples suite — 7 of 8 entries
+  reproduced mechanically (0 manual rule applications, synthesized
+  terms `#guard`-checked in value, `hd`'s `SIDE_PRECOND` through the
+  solver registry, the `GEN_OP`+`struct_expand` `list_eq` route
+  exercised), 1 adapted (Isabelle sort-annotation pitfall with no
+  Lean analogue — substrate note).** Legibility proven by
+  `#guard_msgs` negative controls. Elaboration: Relators 41 s (4.2 s
+  net of its D4 gate), Param 13.7 s (4.8 s net), others 2–8 s; whole
+  package 2,999 jobs green, root lax audit OK, axioms clean.
+  **Flagged for Jan** (adds to the P0/P1 standing queue): the
+  extra-rules vehicle (Lean has no `notes [autoref_rules]` — local
+  `(c,a) ∈ R` hypotheses are swept + `autoref [rules]` takes
+  explicit ones); the `#guard_msgs` DB-size canary; `autoref_nat_lit`
+  as a leaf-only ℕ catch-all (P4-relevant). **Backlog → P3/P4:**
+  `ID_abs`/`ABS` ported, unexercised until monadify brings lambdas;
+  `STRUCT_EQ` registered, unexercised (Collections material); trans
+  rule choices untraced; six bonus DBs (`autoref_hom`,
+  `autoref_post_simps`, `autoref_ga_rules`, …) need one
+  Attrs-unfreeze wave; DiscrTree indexing absent everywhere (linear
+  scans, flagged per site). **P3 starts next session** (IR + SL with
+  credits; `p3-ir-sl-extracts.md` already in the repo).
+
 - **2026-07-29 — P1 COMPLETE (one session, under the 2–3-session
   budget) — acceptance passed.** `BackwardsReasoning.lean` (1,964 l):
   gwp per source, vcg rule suite, progress, While rule, seed
