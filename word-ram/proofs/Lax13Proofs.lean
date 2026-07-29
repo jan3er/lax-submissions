@@ -40,5 +40,8 @@ import Lax13Proofs.Refine.NREST.TimeRefinement
 import Lax13Proofs.Refine.NREST.BackwardsReasoning
 import Lax13Proofs.Refine.Ir.Syntax
 import Lax13Proofs.Refine.Ir.Semantics
+import Lax13Proofs.Refine.Ir.Assn
+import Lax13Proofs.Refine.Ir.Wp
+import Lax13Proofs.Refine.Ir.Triples
 import Lax13Proofs.Refine.Examples.Bfs
 import Lax13Proofs.Refine.Examples.AutorefTutorial

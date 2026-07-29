@@ -20,6 +20,9 @@ import Lax13Proofs.Refine.NREST.TimeRefinement
 import Lax13Proofs.Refine.NREST.BackwardsReasoning
 import Lax13Proofs.Refine.Ir.Syntax
 import Lax13Proofs.Refine.Ir.Semantics
+import Lax13Proofs.Refine.Ir.Assn
+import Lax13Proofs.Refine.Ir.Wp
+import Lax13Proofs.Refine.Ir.Triples
 import Lax13Proofs.Refine.Examples.Bfs
 import Lax13Proofs.Refine.Examples.AutorefTutorial
 
@@ -195,6 +198,46 @@ one future `hn_refine` rule — is what P4's fidelity consumes:
   agreement in both directions, three programs pinned by final state and
   exact cost vector, Plausible property checks of the loop's cost as a
   function of its iteration count, and two negative controls.
+
+and P3's wave B — the IR's separation logic with time credits, ported
+from `Sep_Generic_Wp.thy`, `Sep_Algebra_Add.thy`, `Frame_Infer.thy` and
+`LLVM_Shallow_RS.thy` (extracts `p3-ir-sl-extracts.md`,
+`p3-sl-deep-extracts.md`):
+
+* `Refine/Ir/Assn.lean` — the separation algebra and the assertion
+  language: the class stack `PreSepAlgebra` → `SepAlgebra` →
+  `StrongerSepAlgebra` → `UniqueZeroSepAlgebra` with instances for
+  `Tsa` (the source's `tsa_opt`), maps, pairs and the credit half;
+  `∗` / `□` / `⌜⌝` / `EXACT` / `purePart` / `∃ᵃ` / `⊢` and their laws;
+  `FST` / `SND`; the carrier `AState = (Cells Val × Cells (List Val)) ×
+  ECost` (the source's `ll_astate` at named cells, ledger D2) with
+  `¤c` (`$c`), `¤¤n k` (`$$`), `GC`, `x ↦ᵥ v`, `a ↦ₐ xs`; `STATE` /
+  `POSTCOND` / `irα` / `irSTATE`; and the five extraction lemmas the
+  triples run on. Its D4 gate checks the PCM laws by computation on a
+  decidable image of the carrier and carries the two negative controls
+  (a name cannot be owned twice; different balances are different
+  assertions).
+* `Refine/Ir/Wp.lean` — `generic_wp_defs` / `generic_wp` as `htripleF` /
+  `htriple` / `htriple_as_F_eq` plus the class `WpCommInf`, from which
+  `frame_rule`, `cons_rule` and `htriple_to_gc` follow; the
+  `cost_framework` locale as a class over `(I, minus)` with its six
+  assumptions *proved* at the IR's instance
+  (`leCostECost` / `minusECost`, the source's
+  `le_cost_ecost` / `minus_ecost_cost`); and `Ir.wp` over `BigStep`,
+  with `wp_comm_inf` from determinism, one equation per constructor,
+  `wp_seq` (the source's `wp_bind`), `wp_ite`, `wp_while_unfold` and the
+  well-founded `wp_while_wf`.
+* `Refine/Ir/Triples.lean` — the per-op credit-carrying triples in the
+  mould of `ll_load_rule` / `ll_store_rule` (`skip`, `const`, `copy`,
+  one rule for all nine `binop`s plus its in-place instance, `aget`,
+  `aset`), each in an exact and a garbage-collecting form
+  (`irTriple` / `irHtriple = htripleGc GC irα`, the source's
+  `llvm_htriple`), the structural rules `seq` / `ite` and the
+  invariant-and-measure loop rule `while_triple`
+  (`llc_while_annot_rule`). Its D4 gate proves the composed triple for
+  wave A's `roundtrip`, runs it end to end at wave A's own state, drives
+  wave A's `countdown` through the loop rule with per-iteration credits,
+  and shows that a triple with too few credits is not derivable.
 
 and P2's acceptance:
 
