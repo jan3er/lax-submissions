@@ -6,6 +6,8 @@ import Lax13Proofs.Refine.NREST.Rec
 import Lax13Proofs.Refine.NREST.Combinators
 import Lax13Proofs.Refine.Autoref.Attrs
 import Lax13Proofs.Refine.Autoref.Relators
+import Lax13Proofs.Refine.Autoref.Tagging
+import Lax13Proofs.Refine.Autoref.Solver
 import Lax13Proofs.Refine.NREST.DataRefinement
 import Lax13Proofs.Refine.NREST.TimeRefinement
 import Lax13Proofs.Refine.NREST.BackwardsReasoning
@@ -91,6 +93,24 @@ and P2's first wave — relators and the shared rule-database attributes:
   `prodRel` (`×ᵣ`), `optionRel`, `sumRel`, `listRel` with `fun_relI` /
   `fun_relD` / `list_rel_induct` and the `[relator_props]` mono family.
   Pure HOL, one layer below the monad: it imports no `NREST` module.
+
+and P2's wave B2 — the tag layer and the side-condition solver registry:
+
+* `Refine/Autoref/Tagging.lean` — `Autoref_Tagging.thy`'s term
+  protection (`PROTECT`, `ANNOT`, `OP`, `APP` with `$ᵃ`, `ABS`) and
+  annotation (`rel_annot` / `:::`, `ind_annot` / `::#`), plus the
+  interface layer of `Autoref_Id_Ops.thy` (`Interface`, `intfAPP`,
+  `i_fun` / `→ᵢ`, `CONST_INTF` / `::ᵢ`, `ID_OP`). Its header records how
+  Isabelle's axiomatic `typedecl` / `consts` are rendered without
+  axioms, and why the module exists at all next to design record §7's
+  four-file P2 skeleton.
+* `Refine/Autoref/Solver.lean` — `Tagged_Solver.thy` / `Prio_List.thy`:
+  the `TaggedSolver` registry (declared, with its environment extension,
+  in `Attrs.lean` for the delta-B7 reason), the `declare_solver`
+  command, and the `tagged_solver` / `_full` / `_step` / `_trace`
+  dispatchers, whose failure messages name the tag dispatched on and
+  every solver considered. Its header carries the two ML signatures the
+  port is measured against and its honest-limitations list.
 
 and P1's acceptance program, design record §10.4:
 
