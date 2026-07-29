@@ -26,6 +26,8 @@ import Lax13Proofs.Refine.NREST.Rec
 import Lax13Proofs.Refine.NREST.Combinators
 import Lax13Proofs.Refine.Autoref.Attrs
 import Lax13Proofs.Refine.Autoref.Relators
+import Lax13Proofs.Refine.Autoref.Tagging
+import Lax13Proofs.Refine.Autoref.Solver
 import Lax13Proofs.Refine.Autoref.Param
 import Lax13Proofs.Refine.NREST.DataRefinement
 import Lax13Proofs.Refine.NREST.TimeRefinement
