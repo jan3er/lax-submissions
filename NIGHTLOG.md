@@ -3094,6 +3094,35 @@ RAM half proceeds). Deferred to P7: edgeless-arena unary evaluation
 lemma. Next: P5 RAM primitives on the closed IMP+ toolkit (Spec form
 from the start), then P6 (R1 risk peak), P7 (driver + cost + C0), P8.
 
+## Refinement tower P0 — sources pinned, design record written — 2026-07-29
+Milestone: P0 (sources + design record) — done, one session.
+Commits: (this one) — plans/word-ram/refinement-tower/{design.md,source-extracts.md}.
+State: no Lean written (per plan). Sources pinned: the four AFP entries
+(Refine_Monadic, Automatic_Refinement, Refine_Imperative_HOL, NREST) at
+AFP Isabelle2025-2 (2026-02-06); isabelle_llvm_time @ 42dd7f5 (ESOP'21
+artifact — canonical for everything cost-carrying: acost currencies,
+nrest, timerefine, cost hn_refine, SL with credits); isabelle_llvm
+branch 2023 @ b44b639 (basic-layer shape); Haslbeck thesis mediaTUM
+1596032; Std.Do+mvcgen confirmed in the pinned v4.30.0 toolchain
+(evidence, not dependency). Verbatim extracts of the load-bearing
+definitions are in source-extracts.md with provenance. design.md has
+the P1–P6 component maps with substrate deltas, the hnRefine Lean
+draft, IR op set v0.1 (three-address, tape-free, no alloc, currencies
+per op), module skeleton under Lax13Proofs/Refine/, and the completed
+deviation ledger — two new entries: D6 (no general recursion at the
+concrete layer; RECT must be loop-refined before translate — IMP+ has
+no procedures) and N3 (tower is tape-free; one kit-proved boundary
+wrapper at P5; bfs_spec's export shape is already tape-free, checked
+against 570a49e).
+Decisions: currencies stay String-named (F1); plain functions + wfR,
+not Finsupp (F2); relations as Set (concrete × abstract) (F3);
+currencies survive to the IR, cashed once at P5 beside L.const (F4);
+Std.Do not wrapped (F5). Defaults handed to P1 in design.md §10.
+Next: P1 — Refine/Cost/ACost.lean + Refine/NREST/* (Basic, Pw, Rec,
+Combinators, DataRefinement, TimeRefinement, BackwardsReasoning),
+acceptance = abstract masked depth-capped BFS in bfs_spec's
+vocabulary. Design record awaits Jan's post-hoc comments (no gate).
+
 ## ND-MC P5+P6 complete, P7 deep in flight — 2026-07-29 (overnight continuation)
 Jan (before bed): "keep on going until ndmc is complete." Sixteen Opus
 tracks since the P4 landing, supervised per the standing model. The
@@ -3165,3 +3194,4 @@ discharged, the math core checkpoint proved, every engine program
 fully verified, the driver correct modulo a converging set of walk
 obligations whose every defect is now a precise, falsification-gated
 repair item. Landed on main at session close.
+
