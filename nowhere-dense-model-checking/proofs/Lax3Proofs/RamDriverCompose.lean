@@ -83,6 +83,53 @@ wave runs; at `R = 0` the postcondition is still the whole of what the
 driver's *correctness* asks — `OrderImplements` promises only that `ord`
 orders some permutation — and only the cover's degree, hence the cost,
 is lost.
+
+# Two more defects, found at `R = 0` (wave D3)
+
+Even at `R = 0` the phase is **not** dischargeable, and the first of the
+two reasons is a defect in the *program* rather than in a surface.
+
+**1. The second elimination is entered with dirty scratch — the
+obligation is refuted, not merely unproved.** `RamDriver.orderCom` calls
+`RamElim.elimCom` twice and re-zeroes nothing between them:
+`RamDriver.orderZeroCom` is its *last* pass, and `RamDriver.augRelinkCom`
+— which does run between rounds — zeroes `ooff`, `off`, `noff` and the
+four stamps but neither `elm` nor `bh`. `RamElim.ElimPre` asks for both
+zeroed, and the first call leaves neither: `RamElim.elimVertex` stores
+`elm[w] := 1` at every extraction and nothing resets it, and `bh` ends
+holding the run's own bucket heads.
+
+The consequence is not just a missing hypothesis. In the second call
+`RamElim.elimLoop` starts at `mind = 0`, `cnt = 0`, and every turn that
+pops a slot finds `elm[w] = 1` and drops it, so `cnt` never moves; the
+loop's test `cnt < n` therefore never fails, `mind` climbs turn after
+turn, and at `mind = n + 1` the read `.get "bh" (.var "mind")` is out of
+range — which in IMP+ has no derivation at all. So for every `n ≥ 1`
+there is **no run** of `orderCom R W j`, and the `Spec` — being total
+correctness — is false. Any state satisfying `LevelPre` at `n = 1` is a
+counterexample.
+
+The repair is one line of program text: `RamDriver.orderZeroCom` (or at
+least its `elm` and `bh` fills) between `fillCom "alv" (.lit 1)` and the
+second `RamElim.elimCom`. It is exactly the argument `orderZeroCom`'s own
+docstring already makes about the level's exit, applied one pass earlier;
+it changes no arena, no ordering and no postcondition, only the cost.
+
+**2. The engine wants `CsrSimple`, and the obligation carries
+`CsrGraph`.** `RamElim.Implements` takes `RamElim.CsrSimple G ns O T` —
+`RamBfs.CsrGraph` together with *no row names a vertex twice*, which is
+what `RamElim.card_liveSlots` needs to read a degree off a row. Wave D1
+repaired `OrderImplements` to carry `CsrGraph`, which is what the
+`saveCsr` copies and the cover pass need but is strictly weaker than what
+the two `elimCom` calls need, and nothing in the driver bridges the two:
+a block structure listing a neighbour twice is a `CsrGraph` and not a
+`CsrSimple`, and it counts that neighbour twice into `deg`.
+
+So `OrderImplements`'s hypothesis has to become `CsrSimple G ns O T`, and
+the clause has to be threaded through `RamDriverCluster.levelImplements`
+(whose `hcsr` is handed to `horder`) and produced at the root — either
+from `Lax11.GraphEncoding.EncodesGraph` if that surface forbids repeated
+targets, or as one more clause of the input encoding's data.
 -/
 
 namespace Lax3Proofs.RamDriverCompose

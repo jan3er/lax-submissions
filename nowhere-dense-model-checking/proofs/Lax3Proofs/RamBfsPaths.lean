@@ -9,12 +9,12 @@ paths the splitter strategy maintains.
 `RamBfs` answers *how far*; the splitter needs *which way*. Its move at
 each level isolates, for every connector vertex already played, a short
 path from that vertex to the new one, taken in the arena of the round it
-was played in; and `Lax3Proofs.SplitterWinOracle` states exactly what
-the strategy needs of those paths, in the three fields of `PathOracle`:
-a set of vertices per pair, the fact that between vertices within
-distance `r` the set is the support of a genuine walk of length at most
-`r`, and a bound of `r + 1` on its size. This file produces those two
-facts from a machine run.
+was played in; and `Lax3Proofs.SplitterWinRec` states exactly what the
+strategy needs of those paths, in the walk clause of its **recorded**
+game `ReachedR`: between vertices the round's arena puts within `r`, the
+support of *some* walk of length at most `r` — no set named in advance,
+and no function of the pair. This file produces that fact, and the bound
+`r + 1` on the support's size, from a machine run.
 
 ### The delta on the search
 
@@ -51,18 +51,18 @@ a vertex at distance `k + 1` hangs a last edge on the walk to its
 parent, and the support of the result is the support of the parent's
 walk together with the vertex — which is the same recursion the buffer
 performs. So the buffer's cells and the walk's support are the same
-set, and that equation is `PathOracle.spec`'s conclusion with the walk
-existentially quantified, which is all the oracle ever asks for.
+set, and that equation is what `ReachedR`'s walk clause asks for with
+the walk existentially quantified, which is all the recorded game ever
+asks for.
 
 ### What the driver does with it
 
-The oracle is not computable and is not meant to be: its `path` field
-is defined math-side by `Classical.choice` over the machine run, and
-what a definition by choice needs is exactly an existence statement.
-`bfsPath_spec` is that statement — for every state the composed program
-reaches, a walk of length at most the cap whose support is the buffer's
-set — and `bfsPath_ncard_le` is the `card` field. The recipe is in the
-final section.
+The recorded game asks for no set in advance: a round *records* the set
+it isolated, and what has to be produced about it is an existence
+statement. `bfsPath_spec` is that statement — for every state the
+composed program reaches, a walk of length at most the cap whose support
+is the buffer's set, and a bound of `cap + 1` on that set. The recipe is
+in the final section.
 -/
 
 namespace Lax3Proofs.RamBfsPaths
@@ -284,8 +284,8 @@ theorem ParTree.chain_last {D P : ℕ → ℕ} (hT : ParTree G M d s D P) {t : �
 
 /-! ### The set a buffer names
 
-The oracle's `path` field is a set of vertices, and the buffer is a
-prefix of an array of numbers; this is the one translation between
+The set a recorded round isolates is a set of vertices, and the buffer
+is a prefix of an array of numbers; this is the one translation between
 them. -/
 
 /-- The vertices the first `L + 1` cells of `Buf` name. -/
@@ -956,10 +956,11 @@ theorem extractPath_spec {B : ℕ} {D P : ℕ → ℕ} (hT : ParTree G M d s D P
 /-! ### The two passes together
 
 `bfsPathCom d` is the search and the walk back, and its specification is
-the one shaped like `Lax3Proofs.SplitterWinOracle.PathOracle`'s two
-fields: from a machine state the program reaches, a walk of the arena of
-length at most the cap whose support is exactly the set the buffer
-names, and a bound of `cap + 1` on the size of that set. -/
+the one shaped like the two things a round of
+`Lax3Proofs.SplitterWinRec.ReachedR` owes: from a machine state the
+program reaches, a walk of the arena of length at most the cap whose
+support is exactly the set the buffer names, and a bound of `cap + 1` on
+the size of that set. -/
 
 /-- **The path the search found.** -/
 def bfsPathCom (d : ℕ) : Com := .seq (bfsParCom d) extractPathCom
@@ -967,9 +968,9 @@ def bfsPathCom (d : ℕ) : Com := .seq (bfsParCom d) extractPathCom
 /-- **What the driver consumes.** Run from a source `s` and asked for a
 target `t` the arena puts within the cap, the program leaves in `path`
 a buffer whose first `pl + 1` cells name exactly the vertices of a walk
-from `s` to `t` of length at most the cap — which is
-`PathOracle.spec`'s conclusion — and that set has at most `cap + 1`
-vertices, which is `PathOracle.card`. -/
+from `s` to `t` of length at most the cap — which is what `ReachedR`'s
+walk clause asks of the round — and that set has at most `cap + 1`
+vertices, which is the round's size budget. -/
 theorem bfsPath_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) {t : ℕ} (ht : t < n)
     (hnB : n < B) (hnsB : ns < B) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B)
     (hwd : WithinDist (masked G M) d ⟨s, hs⟩ ⟨t, ht⟩) :
@@ -1008,33 +1009,34 @@ theorem bfsPath_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) {t : ℕ}
   · rw [bufSet_congr hbuf₂, ← hpsup]
     exact ncard_support_le p (by omega)
 
-/-! ### The oracle, instantiated
+/-! ### The recorded round, instantiated
 
-Nothing here is computable and nothing here needs to be: the oracle's
-`path` field is a *set* per pair of vertices, and the driver defines it
-by choice over the machine run. `PathOracle`'s radius `r` is this file's
-cap `d` — a walk of length at most `d` is what both sides mean — and the
-`WithinDist` the oracle's `spec` is given is `bfsPath_spec`'s `hwd`, so
-the two hypotheses are the same statement.
+Nothing here is computable and nothing here needs to be. The recorded
+game's radius `2·cap` is this file's cap `d` — a walk of length at most
+`d` is what both sides mean — and the `WithinDist` that guards
+`ReachedR`'s walk clause is `bfsPath_spec`'s `hwd`, so the two
+hypotheses are the same statement. That is the whole reason the game was
+made recording: an *oracle*-parameterized game would ask the machine for
+a walk named in advance, and `bfsPath_spec` pins the buffer only as
+*some* walk of the cap — the two choices, the machine's row order and
+`Classical.choice`, being independent.
 
 Fix the block structure `O`, `T`, the mask `M` and the source `s`, and
 let `hσ` be a state satisfying `bfsPath_spec`'s precondition. Then, for
 a target `t` the arena puts within `d`:
 
 * `(bfsPath_spec … hwd).run hσ` hands back the final state together with
-  the length `L`, the buffer `Buf`, and the four facts below;
-* `bufSet n L Buf` is the set to offer — a `Classical.choice` over the
-  outcomes, which the same lemma shows nonempty, turns it into a
-  function of the pair alone, and that function is `path`;
-* `spec` is the last conjunct: `∃ p, p.length ≤ d ∧ bufSet n L Buf =
-  {z | z ∈ p.support}`, which is `PathOracle.spec`'s conclusion with
-  `path A u v` already rewritten to `bufSet n L Buf`;
-* `card` is the conjunct beside it, `(bufSet n L Buf).ncard ≤ d + 1`.
+  the length `L`, the buffer `Buf`, and the two facts below;
+* the walk clause is the last conjunct, `∃ p, p.length ≤ d ∧
+  bufSet n L Buf = {z | z ∈ p.support}`, which is what a round owes about
+  the set it recorded;
+* the size budget is the conjunct beside it,
+  `(bufSet n L Buf).ncard ≤ d + 1`.
 
-A driver that wants the oracle at pairs the arena does *not* connect
-offers `∅` there and reads `card` off `Set.ncard_empty`; `spec` asks
-nothing of those pairs, which is the whole point of
-`SplitterWinOracle`'s interface. -/
+`RamDriver.ancestorStep` runs this at pairs the arena *does* connect and
+skips it at the others, which costs nothing: a round owes a walk to an
+earlier connector only where its own arena puts the two within the cap,
+and the guard's false branch is exactly that hypothesis' negation. -/
 
 /-! ### The worked example
 

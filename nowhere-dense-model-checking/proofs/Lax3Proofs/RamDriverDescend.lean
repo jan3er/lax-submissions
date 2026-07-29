@@ -1012,16 +1012,23 @@ theorem exists_arrOf_run {B K N : ℕ} {c : Com} {σ σ' : Env} {a : String}
 
 /-- **The chain of expansions, discharged.** After `r` passes the last
 name of the family marks the `r`-neighbourhood of what the first one
-marked, in the arena the mask cuts out. -/
+marked, in the arena the mask cuts out.
+
+A chain that starts at a **bit** array ends at one — one expansion writes
+either `1` or the source's own cell — which is what the driver's mask
+products need of the ball: `RamDriver.descendCom`'s
+`andCom (gamName j) (balName j) (gamName (j + 1))` multiplies the game
+mask by the ball, and a ball whose cells were merely words would put that
+product above the word bound and leave the pass with no run at all. -/
 theorem chainCom_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hB : 1 < B) (hnB : n < B)
     (hnsB : ns < B) (hMB : ∀ k, k < n → Msk k < B) :
     ∀ (r : ℕ) (nm : ℕ → String) (Sr : ℕ → ℕ), (∀ a, nm a ≠ nm (a + 1)) → (∀ a, nm a ≠ msk) →
-      (∀ a, nm a ≠ "off") → (∀ a, nm a ≠ "tgt") → (∀ k, k < n → Sr k < B) →
+      (∀ a, nm a ≠ "off") → (∀ a, nm a ≠ "tgt") → (∀ k, k < n → Sr k ≤ 1) →
       Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧
           σ.arrs "tgt" = arrOf ns T ∧ σ.arrs msk = arrOf n Msk ∧
           σ.arrs (nm 0) = arrOf n Sr ∧ (∀ a, 0 < a → a ≤ r → ∃ g, σ.arrs (nm a) = arrOf n g))
         (chainCom msk nm r)
-        (fun _ σ' => (∃ g, σ'.arrs (nm r) = arrOf n g ∧ (∀ k, k < n → g k < B) ∧
+        (fun _ σ' => (∃ g, σ'.arrs (nm r) = arrOf n g ∧ (∀ k, k < n → g k ≤ 1) ∧
             markSet n g = ballOf (masked G Msk) r (markSet n Sr)) ∧
           σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf ns T ∧
           σ'.arrs msk = arrOf n Msk)
@@ -1039,14 +1046,15 @@ theorem chainCom_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hB : 1 < B) (hnB : n
     refine Spec.of_exists (fun σ hσ => ?_)
     obtain ⟨hn, hoff, htgt, hmskA, hsrc, hmem⟩ := hσ
     obtain ⟨g₁, hg₁⟩ := hmem 1 (by omega) (by omega)
+    have hSB' : ∀ k, k < n → Sr k < B := fun k hk => lt_of_le_of_lt (hSB k hk) hB
     obtain ⟨σ₁, hr₁, ⟨g, hgarr, hgval⟩, -, hn₁, hoff₁, htgt₁, hmsk₁, hsrc₁⟩ :=
-      (expandCom_spec (dst := nm 1) (src := nm 0) hcsr hB hnB hnsB hMB hSB (hmk 1)
+      (expandCom_spec (dst := nm 1) (src := nm 0) hcsr hB hnB hnsB hMB hSB' (hmk 1)
         (Ne.symm (hne 0)) (hof 1) (htg 1)).run ⟨hn, hoff, htgt, hmskA, hsrc, g₁, hg₁⟩
-    have hgB : ∀ k, k < n → g k < B := by
+    have hgB : ∀ k, k < n → g k ≤ 1 := by
       intro k hk
       rw [hgval k hk]
       rcases expandVal_eq_or G Msk Sr k with h | h
-      · rw [h]; omega
+      · rw [h]
       · rw [h]; exact hSB k hk
     obtain ⟨σ₂, hr₂, ⟨g', hg'arr, hg'B, hg'mark⟩, hn₂, hoff₂, htgt₂, hmsk₂⟩ :=
       (ih (fun a => nm (a + 1)) g (fun a => hne (a + 1)) (fun a => hmk (a + 1))
@@ -2363,7 +2371,7 @@ theorem ballCom_spec {Gm : ℕ → ℕ} {O T : ℕ → ℕ} (hcsr : CsrGraph G n
       (.seq (fillCom (balName j) (.lit 0))
         (.seq (.store (balName j) (.var (ctrName j)) (.lit 1))
           (chainCom (gamName j) (ballStage j) (2 * cap))))
-      (fun _ σ' => (∃ g, σ'.arrs (balName j) = arrOf n g ∧ (∀ k, k < n → g k < B) ∧
+      (fun _ σ' => (∃ g, σ'.arrs (balName j) = arrOf n g ∧ (∀ k, k < n → g k ≤ 1) ∧
           markSet n g = ball (masked G Gm) (2 * cap) v) ∧
         σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf ns T ∧
         σ'.arrs (gamName j) = arrOf n Gm)
@@ -2393,10 +2401,10 @@ theorem ballCom_spec {Gm : ℕ → ℕ} {O T : ℕ → ℕ} (hcsr : CsrGraph G n
     (Run.store hidx (evalB_lit (by omega)) hlen).mono (by simp [Expr.size])
   have hg₂ : σ₂.arrs (balName j) = arrOf n (upd g₁ (v : ℕ) 1) := by
     rw [hσ₂]; simp [hg₁arr, set_arrOf_eq_upd]
-  have hSB : ∀ k, k < n → upd g₁ (v : ℕ) 1 k < B := by
+  have hSB : ∀ k, k < n → upd g₁ (v : ℕ) 1 k ≤ 1 := by
     intro k hk
     by_cases hke : k = (v : ℕ)
-    · rw [hke, upd_self]; omega
+    · rw [hke, upd_self]
     · rw [upd_of_ne _ hke, hg₁val k hk]; omega
   have hSmark : markSet n (upd g₁ (v : ℕ) 1) = {v} := by
     ext u
@@ -2704,5 +2712,1158 @@ theorem mem_wvars_descendCom {cap j : ℕ} {y : String} (h : y ∈ (descendCom c
   · exact Or.inr mem_descendScalars_i
 
 end Scalars
+
+/-! ### Marking a path buffer
+
+`RamDriver.markPath` is the one loop of the descent that writes through
+an *indirection*: the cell it stores into is named by the buffer the
+extraction pass filled, not by the counter. So what it owes is one range
+condition per turn — the buffer's entries are vertices — and what it
+leaves is the union of what the indicator marked with the set the buffer
+names. -/
+
+section MarkPath
+
+/-- The vertices the first `i` cells of a buffer name. -/
+def bufBelow (N i : ℕ) (Buf : ℕ → ℕ) : Set (Fin N) := {z : Fin N | ∃ t < i, (z : ℕ) = Buf t}
+
+theorem bufBelow_zero (N : ℕ) (Buf : ℕ → ℕ) : bufBelow N 0 Buf = ∅ := by
+  ext z
+  simp only [bufBelow, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, not_exists]
+  intro t
+  simp
+
+/-- One more cell adds one more vertex. -/
+theorem bufBelow_succ {N i : ℕ} (Buf : ℕ → ℕ) (h : Buf i < N) :
+    bufBelow N (i + 1) Buf = bufBelow N i Buf ∪ {(⟨Buf i, h⟩ : Fin N)} := by
+  ext z
+  simp only [bufBelow, Set.mem_setOf_eq, Set.mem_union, Set.mem_singleton_iff]
+  constructor
+  · rintro ⟨t, ht, hz⟩
+    rcases Nat.lt_or_ge t i with h' | h'
+    · exact Or.inl ⟨t, h', hz⟩
+    · exact Or.inr (Fin.ext (by rw [hz, show t = i by omega]))
+  · rintro (⟨t, ht, hz⟩ | rfl)
+    · exact ⟨t, by omega, hz⟩
+    · exact ⟨i, by omega, rfl⟩
+
+/-- At the exit the loop has passed every cell the buffer's length
+clause names. -/
+theorem bufBelow_succ_eq (N L : ℕ) (Buf : ℕ → ℕ) :
+    bufBelow N (L + 1) Buf = RamBfsPaths.bufSet N L Buf := by
+  ext z
+  simp only [bufBelow, Set.mem_setOf_eq, RamBfsPaths.mem_bufSet]
+  exact ⟨fun ⟨t, ht, hz⟩ => ⟨t, by omega, hz⟩, fun ⟨t, ht, hz⟩ => ⟨t, by omega, hz⟩⟩
+
+/-- Storing a one adds the cell's own vertex to what the mask marks. -/
+theorem markSet_upd_one {N : ℕ} (f : ℕ → ℕ) {k : ℕ} (hk : k < N) :
+    markSet N (upd f k 1) = markSet N f ∪ {(⟨k, hk⟩ : Fin N)} := by
+  ext z
+  simp only [mem_markSet, Set.mem_union, Set.mem_singleton_iff]
+  by_cases hz : (z : ℕ) = k
+  · rw [hz, upd_self]
+    exact ⟨fun _ => Or.inr (Fin.ext hz), fun _ => one_ne_zero⟩
+  · rw [upd_of_ne _ hz]
+    exact ⟨Or.inl, fun h => h.elim id (fun hc => absurd (by rw [hc]) hz)⟩
+
+/-- What the marking loop carries: the buffer, the counted bound, and the
+indicator with the cells already passed marked in it. -/
+def MarkInv (N d L : ℕ) (bat : String) (Buf Wa : ℕ → ℕ) (σ : Env) : Prop :=
+  σ.arrs "path" = arrOf (d + 1) Buf ∧ σ.vars "plen" = L + 1 ∧ σ.vars "i" ≤ L + 1 ∧
+    ∃ Wa' : ℕ → ℕ, σ.arrs bat = arrOf N Wa' ∧ (∀ k, k < N → Wa' k ≤ 1) ∧
+      markSet N Wa' = markSet N Wa ∪ bufBelow N (σ.vars "i") Buf
+
+/-- **One turn of the marking loop.** -/
+theorem markBody_spec {B N d L : ℕ} {bat : String} {Buf Wa : ℕ → ℕ}
+    (hbat : bat ≠ "path") (hLd : L ≤ d) (hdB : d + 1 < B) (hNB : N < B) (h1B : 1 < B)
+    (hbuf : ∀ t, t ≤ L → Buf t < N) :
+    Spec B (fun σ => MarkInv N d L bat Buf Wa σ ∧ σ.vars "i" < L + 1)
+      (.seq (.store bat (.get "path" (.var "i")) (.lit 1))
+        (.assign "i" (.add (.var "i") (.lit 1))))
+      (fun σ σ' => MarkInv N d L bat Buf Wa σ' ∧ σ'.vars "i" = σ.vars "i" + 1) 8 := by
+  refine Spec.of_exists (fun σ hσ => ?_)
+  obtain ⟨⟨hpath, hplen, hile, Wa', harr, hbit, hmark⟩, hlt⟩ := hσ
+  have hiB : σ.vars "i" < B := by omega
+  have hBuf : Buf (σ.vars "i") < N := hbuf _ (by omega)
+  have hidx : (Expr.get "path" (.var "i")).evalB B σ = some (Buf (σ.vars "i")) :=
+    evalB_get (evalB_var hiB) (by rw [hpath, getElem?_arrOf Buf (by omega)]) (by omega)
+  have hlen : Buf (σ.vars "i") < (σ.arrs bat).length := by
+    rw [harr, length_arrOf]; exact hBuf
+  set τ := (σ.setArr bat (Buf (σ.vars "i")) 1).setVar "i" (σ.vars "i" + 1) with hτ
+  have hi' : τ.vars "i" = σ.vars "i" + 1 := by rw [hτ]; simp
+  refine ⟨τ, 8, ((Run.store hidx (evalB_lit (by omega)) hlen).seq
+      (Run.assign (evalB_bin (evalB_var (by simp; omega))
+        (evalB_lit (by omega)) (by simp; omega)))).mono (by simp [Expr.size]), le_rfl,
+    ⟨?_, ?_, by rw [hi']; omega, upd Wa' (Buf (σ.vars "i")) 1, ?_, ?_, ?_⟩, hi'⟩
+  · rw [hτ]
+    simp only [arrs_setVar, arrs_setArr, if_neg (Ne.symm hbat)]
+    exact hpath
+  · rw [hτ]; simpa using hplen
+  · rw [hτ]
+    simp [harr, set_arrOf_eq_upd]
+  · intro k hk
+    by_cases hke : k = Buf (σ.vars "i")
+    · rw [hke, upd_self]
+    · rw [upd_of_ne _ hke]; exact hbit k hk
+  · rw [markSet_upd_one Wa' hBuf, hmark, hi', bufBelow_succ Buf hBuf, Set.union_assoc]
+
+/-- **The marking pass, discharged.** The indicator ends marking what it
+marked together with the vertices the buffer's first `pl + 1` cells
+name. -/
+theorem markPath_spec {B N d L : ℕ} {bat : String} {Buf Wa : ℕ → ℕ}
+    (hbat : bat ≠ "path") (hLd : L ≤ d) (hdB : d + 1 < B) (hNB : N < B) (h1B : 1 < B)
+    (hbuf : ∀ t, t ≤ L → Buf t < N) (hbit : ∀ k, k < N → Wa k ≤ 1) :
+    Spec B (fun σ => σ.arrs "path" = arrOf (d + 1) Buf ∧ σ.arrs bat = arrOf N Wa ∧
+        σ.vars "pl" = L)
+      (markPath bat)
+      (fun _ σ' => ∃ Wa' : ℕ → ℕ, σ'.arrs bat = arrOf N Wa' ∧ (∀ k, k < N → Wa' k ≤ 1) ∧
+        markSet N Wa' = markSet N Wa ∪ RamBfsPaths.bufSet N L Buf)
+      (12 * d + 22) := by
+  refine Spec.of_exists (fun σ hσ => ?_)
+  obtain ⟨hpath, harr, hpl⟩ := hσ
+  have hr₁ : Run B (.assign "i" (.lit 0)) σ (σ.setVar "i" 0) 2 :=
+    (Run.assign (evalB_lit (by omega))).mono (by simp [Expr.size])
+  set σ₁ := σ.setVar "i" 0 with hσ₁
+  have hpl₁ : σ₁.vars "pl" = L := by rw [hσ₁, vars_setVar, if_neg (by decide)]; exact hpl
+  have hev₂ : (Expr.add (Expr.var "pl") (Expr.lit 1)).evalB B σ₁ = some (L + 1) := by
+    have h : (Expr.add (Expr.var "pl") (Expr.lit 1)).evalB B σ₁ =
+        some (σ₁.vars "pl" + 1) :=
+      evalB_bin (evalB_var (by rw [hpl₁]; omega)) (evalB_lit (by omega))
+        (by rw [hpl₁]; simp; omega)
+    rw [h, hpl₁]
+  have hr₂ : Run B (.assign "plen" (.add (.var "pl") (.lit 1))) σ₁ (σ₁.setVar "plen" (L + 1)) 4 :=
+    (Run.assign hev₂).mono (by simp [Expr.size])
+  set σ₂ := σ₁.setVar "plen" (L + 1) with hσ₂
+  have hI₂ : MarkInv N d L bat Buf Wa σ₂ := by
+    refine ⟨by rw [hσ₂, hσ₁]; simpa using hpath, by rw [hσ₂]; simp,
+      by rw [hσ₂, vars_setVar, if_neg (by decide), hσ₁]; simp,
+      Wa, by rw [hσ₂, hσ₁]; simpa using harr, hbit, ?_⟩
+    rw [show σ₂.vars "i" = 0 by rw [hσ₂, vars_setVar, if_neg (by decide), hσ₁]; simp,
+      bufBelow_zero, Set.union_empty]
+  obtain ⟨σ₃, hr₃, hI₃, hi₃⟩ :=
+    (Spec.forRange (B := B) (P := MarkInv N d L bat Buf Wa) "i" "plen"
+      (MarkInv N d L bat Buf Wa) (L + 1) 8 (12 * (L + 1) + 4)
+      (fun τ hτ => by have := hτ.2.2.1; omega) (fun τ hτ => by rw [hτ.2.1]; omega)
+      (fun τ hτ => hτ.2.1) (fun τ hτ => hτ.2.2.1)
+      (markBody_spec hbat hLd hdB hNB h1B hbuf) (fun _ hτ => hτ)
+      (fun τ _ => by
+        have : (8 + 4) * (L + 1 - τ.vars "i") ≤ 12 * (L + 1) :=
+          Nat.mul_le_mul_left _ (Nat.sub_le _ _)
+        omega)).run hI₂
+  obtain ⟨-, -, -, Wa', harr', hbit', hmark'⟩ := hI₃
+  refine ⟨σ₃, _, hr₁.seq (hr₂.seq hr₃), by omega, Wa', harr', hbit', ?_⟩
+  rw [hmark', hi₃, bufBelow_succ_eq]
+
+end MarkPath
+
+/-! ### One earlier round
+
+`RamDriver.ancestorStep` copies the round's own game mask into the
+search's arena, searches from the round's connector, and — under the
+guard — walks the parents back and marks them. What the recorded game
+asks of the turn is a walk *in that round's arena*, which is why the
+copy is of `gamName a` and not of the depth's own mask, and the guard's
+false branch owes nothing at all: a sentinel distance is a proof of
+`¬ WithinDist`, which is the very hypothesis the game's walk clause is
+guarded by. -/
+
+section Ancestor
+
+variable {ns : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
+
+/-! The three write sets the pass is built from, off the syntax. The two
+searches' sets do not depend on the radius, which is a construction-time
+constant. -/
+
+theorem warrs_bfsPar (d : ℕ) :
+    (RamBfsPaths.bfsParCom d).warrs = ["dist", "dist", "par", "q", "dist", "par", "q"] := rfl
+
+theorem wvars_bfsPar (d : ℕ) :
+    (RamBfsPaths.bfsParCom d).wvars =
+      ["i", "i", "tail", "tail", "head", "sc", "v", "dv", "dn", "j", "jend", "w",
+        "tail", "sc", "j", "head"] := rfl
+
+theorem warrs_extractPath : RamBfsPaths.extractPathCom.warrs = ["path"] := rfl
+
+/-- The cost of one earlier round: a copy, a capped search, and — at
+most — the walk back with the marking of its buffer. -/
+def ancestorCost (n ns cap : ℕ) : ℕ := 67 * n + 48 * ns + 56 * cap + 103
+
+/-- **One earlier round's contribution, discharged.** The batch grows by
+a set of at most `2·cap + 1` vertices, and — whenever the round's own
+arena puts its connector within `2·cap` of the depth's — that set holds
+the support of a walk between the two in that arena. -/
+theorem ancestorStep_spec {B cap mb j a : ℕ} (hcsr : CsrGraph G ns O T)
+    (hB : WordBound B n ns cap mb) {u v : Fin n} {Ga Wa : ℕ → ℕ}
+    (hGaB : ∀ z, z < n → Ga z < B) (hbit : ∀ k, k < n → Wa k ≤ 1) :
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧
+        σ.arrs "tgt" = arrOf ns T ∧
+        σ.vars (ctrName a) = (u : ℕ) ∧ σ.vars (ctrName j) = (v : ℕ) ∧
+        σ.arrs (gamName a) = arrOf n Ga ∧ σ.arrs (batName j) = arrOf n Wa ∧
+        (∃ g, σ.arrs "alv" = arrOf n g) ∧ (∃ g, σ.arrs "dist" = arrOf n g) ∧
+        (∃ g, σ.arrs "q" = arrOf n g) ∧ (∃ g, σ.arrs "par" = arrOf n g) ∧
+        (∃ g, σ.arrs "path" = arrOf (2 * cap + 1) g))
+      (ancestorStep cap j a)
+      (fun _ σ' => ∃ (Wa' : ℕ → ℕ) (S : Set (Fin n)),
+        σ'.arrs (batName j) = arrOf n Wa' ∧ (∀ k, k < n → Wa' k ≤ 1) ∧
+        markSet n Wa' = markSet n Wa ∪ S ∧ S.ncard ≤ 2 * cap + 1 ∧
+        (WithinDist (masked G Ga) (2 * cap) u v →
+          ∃ p : (masked G Ga).Walk u v, p.length ≤ 2 * cap ∧
+            {z : Fin n | z ∈ p.support} ⊆ S))
+      (ancestorCost n ns cap) := by
+  have h1B := hB.one_lt
+  have hnB := hB.n_lt
+  have hnsB := hB.ns_lt
+  have hdB : 2 * cap + 1 < B := by have := hB.1; omega
+  have hbatpath : batName j ≠ "path" := by simp [batName, String.ext_iff]
+  have hbatalv : batName j ≠ "alv" := by simp [batName, String.ext_iff]
+  refine Spec.of_exists (fun σ hσ => ?_)
+  obtain ⟨hn, hoff, htgt, hctra, hctrj, hgam, hbat, halv, hdist, hq, hpar, hpath⟩ := hσ
+  have huB : (u : ℕ) < B := by have := u.isLt; omega
+  have hvB : (v : ℕ) < B := by have := v.isLt; omega
+  -- the two scalars the search is handed
+  have hev₁ : (Expr.var (ctrName a)).evalB B σ = some (u : ℕ) := by
+    have h := evalB_var (B := B) (x := ctrName a) (σ := σ) (by rw [hctra]; exact huB)
+    rwa [hctra] at h
+  set σ₁ := σ.setVar "src" (u : ℕ) with hσ₁
+  have hr₁ : Run B (.assign "src" (.var (ctrName a))) σ σ₁ 2 :=
+    (Run.assign hev₁).mono (by simp [Expr.size])
+  have hev₂ : (Expr.var (ctrName j)).evalB B σ₁ = some (v : ℕ) := by
+    have hc : σ₁.vars (ctrName j) = (v : ℕ) := by
+      rw [hσ₁, vars_setVar, if_neg (by simp [ctrName, String.ext_iff])]; exact hctrj
+    have h := evalB_var (B := B) (x := ctrName j) (σ := σ₁) (by rw [hc]; exact hvB)
+    rwa [hc] at h
+  set σ₂ := σ₁.setVar "tv" (v : ℕ) with hσ₂
+  have hr₂ : Run B (.assign "tv" (.var (ctrName j))) σ₁ σ₂ 2 :=
+    (Run.assign hev₂).mono (by simp [Expr.size])
+  have harrs₂ : ∀ b : String, σ₂.arrs b = σ.arrs b := by
+    intro b; rw [hσ₂, arrs_setVar, hσ₁, arrs_setVar]
+  have hn₂ : σ₂.vars "n" = n := by
+    rw [hσ₂, vars_setVar, if_neg (by decide), hσ₁, vars_setVar, if_neg (by decide)]; exact hn
+  have hsrc₂ : σ₂.vars "src" = (u : ℕ) := by
+    rw [hσ₂, vars_setVar, if_neg (by decide), hσ₁]; simp
+  have htv₂ : σ₂.vars "tv" = (v : ℕ) := by rw [hσ₂]; simp
+  -- the round's arena, copied into the search's
+  obtain ⟨σ₃, hr₃, ⟨⟨g₃, halv₃, hval₃⟩, -, hn₃, -⟩, hfv₃, hfa₃, -, -⟩ :=
+    ((copyCom_spec B n n (gamName a) "alv" Ga (by simp [gamName, String.ext_iff]) hnB le_rfl
+      hGaB).frame).run (σ := σ₂) ⟨by rw [harrs₂]; exact halv, hn₂, by rw [harrs₂]; exact hgam⟩
+  have hav₃ : ∀ b : String, b ≠ "alv" → σ₃.arrs b = σ₂.arrs b :=
+    fun b hb => hfa₃ b (by simp [RamDriverIO.copyCom_eq, RamDriverIO.warrs_fillCom, hb])
+  have hvv₃ : ∀ y : String, y ≠ "i" → σ₃.vars y = σ₂.vars y :=
+    fun y hy => hfv₃ y (by simp [RamDriverIO.copyCom_eq, RamDriverIO.wvars_fillCom, hy])
+  have halvGa : σ₃.arrs "alv" = arrOf n Ga := by rw [halv₃]; exact arrOf_congr hval₃
+  -- the search, in that arena
+  obtain ⟨σ₄, hr₄, ⟨D, P, hdist₄, hpar₄, hdisteq, hT⟩, hfv₄, hfa₄, -, -⟩ :=
+    ((RamBfsPaths.bfsPar_spec (M := Ga) (d := 2 * cap) hcsr u.isLt hnB hnsB hdB hGaB).frame).run
+      (σ := σ₃) ⟨hn₃, by rw [hvv₃ "src" (by decide)]; exact hsrc₂,
+        by rw [hav₃ "off" (by decide), harrs₂]; exact hoff,
+        by rw [hav₃ "tgt" (by decide), harrs₂]; exact htgt, halvGa,
+        by rw [hav₃ "dist" (by decide), harrs₂]; exact hdist,
+        by rw [hav₃ "q" (by decide), harrs₂]; exact hq,
+        by rw [hav₃ "par" (by decide), harrs₂]; exact hpar⟩
+  have hav₄ : ∀ b : String, b ≠ "dist" → b ≠ "par" → b ≠ "q" → σ₄.arrs b = σ₃.arrs b :=
+    fun b h1 h2 h3 => hfa₄ b (by rw [warrs_bfsPar]; simp [h1, h2, h3])
+  have hvv₄ : ∀ y : String, y ≠ "i" → y ≠ "tail" → y ≠ "head" → y ≠ "sc" → y ≠ "v" →
+      y ≠ "dv" → y ≠ "dn" → y ≠ "j" → y ≠ "jend" → y ≠ "w" → σ₄.vars y = σ₃.vars y :=
+    fun y h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 => hfv₄ y (by
+      rw [wvars_bfsPar]; simp [h1, h2, h3, h4, h5, h6, h7, h8, h9, h10])
+  have htv₄ : σ₄.vars "tv" = (v : ℕ) := by
+    rw [hvv₄ "tv" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide), hvv₃ "tv" (by decide)]
+    exact htv₂
+  have hbat₄ : σ₄.arrs (batName j) = arrOf n Wa := by
+    rw [hav₄ _ (by simp [batName, String.ext_iff]) (by simp [batName, String.ext_iff])
+      (by simp [batName, String.ext_iff]), hav₃ _ hbatalv, harrs₂]
+    exact hbat
+  have hpath₄ : ∃ g, σ₄.arrs "path" = arrOf (2 * cap + 1) g := by
+    rw [hav₄ "path" (by decide) (by decide) (by decide), hav₃ "path" (by decide), harrs₂]
+    exact hpath
+  -- the guard
+  have hvn : (v : ℕ) < n := v.isLt
+  have hDv : D (v : ℕ) ≤ 2 * cap + 1 := hT.cap _ hvn
+  have hcond : (Cond.lt (.get "dist" (.var "tv")) (.lit (2 * cap + 1))).evalB B σ₄ =
+      some (decide (D (v : ℕ) < 2 * cap + 1)) :=
+    evalB_condLt (evalB_get (evalB_var (by rw [htv₄]; omega))
+      (by rw [hdist₄, htv₄, getElem?_arrOf D hvn]) (by omega)) (evalB_lit (by omega))
+  by_cases hreach : D (v : ℕ) ≤ 2 * cap
+  · -- the search found the connector: the walk back is marked
+    obtain ⟨σ₅, hr₅, ⟨hpl₅, Buf, hpath₅, hbuf₅⟩, -, hfa₅, -, -⟩ :=
+      ((RamBfsPaths.extractPath_spec hT hnB hdB hvn hreach).frame).run
+        (σ := σ₄) ⟨htv₄, hdist₄, hpar₄, hpath₄⟩
+    have hbat₅ : σ₅.arrs (batName j) = arrOf n Wa := by
+      rw [hfa₅ _ (by rw [warrs_extractPath]; simp [hbatpath])]; exact hbat₄
+    have hbufn : ∀ t, t ≤ D (v : ℕ) → Buf t < n := by
+      intro t ht
+      rw [hbuf₅ t ht]
+      exact hT.chain_lt hvn hreach t (by omega)
+    obtain ⟨σ₆, hr₆, Wa', hbat₆, hbit₆, hmark₆⟩ :=
+      (markPath_spec (B := B) (N := n) (d := 2 * cap) (L := D (v : ℕ)) (bat := batName j)
+        hbatpath hreach hdB hnB h1B hbufn hbit).run (σ := σ₅) ⟨hpath₅, hbat₅, hpl₅⟩
+    -- what the buffer names is the support of the walk the tree records
+    obtain ⟨p, hplen, hpsup⟩ := hT.walk u.isLt (D (v : ℕ)) hreach v rfl
+    have hSeq : RamBfsPaths.bufSet n (D (v : ℕ)) Buf = {z : Fin n | z ∈ p.support} := by
+      rw [RamBfsPaths.bufSet_congr hbuf₅, ← hpsup]
+    refine ⟨σ₆, _, hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq
+        (Run.ite_true (by rw [hcond]; simp; omega) (hr₅.seq hr₆))))), ?_,
+      Wa', RamBfsPaths.bufSet n (D (v : ℕ)) Buf, hbat₆, hbit₆, hmark₆, ?_, fun _ => ?_⟩
+    · simp only [ancestorCost, size_condLt, Expr.size]
+      omega
+    · rw [hSeq]
+      exact RamBfsPaths.ncard_support_le p (by omega)
+    · exact ⟨p, by omega, by rw [hSeq]⟩
+  · -- the search did not: the round owes nothing
+    refine ⟨σ₄, _, hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq
+        (Run.ite_false (by rw [hcond]; simp; omega) Run.skip)))), ?_,
+      Wa, ∅, hbat₄, hbit, by rw [Set.union_empty], by simp, fun hw => ?_⟩
+    · simp only [ancestorCost, size_condLt, Expr.size]
+      omega
+    · exact absurd ((hdisteq v (2 * cap) le_rfl).mpr hw) hreach
+
+end Ancestor
+
+/-! ### The batch of the round
+
+`RamDriver.batchCom` opens the indicator, stores the connector, folds one
+`RamDriver.ancestorStep` over every earlier round, and cuts the result
+down to the ball. The fold is *accumulating* — every turn writes the same
+array — so it is not an instance of `foldr_family_spec`; what carries it
+is the invariant below, which is exactly the four things
+`RamDriver.playRec_succ` asks of the batch, at the rounds taken so far.
+
+The invariant was falsified before it was proved, on the four instances
+its clauses are sharp at: a round whose search fails (the size clause has
+to hold with `∅` added), a round whose walk leaves the ball (the walk
+clause has to be stated *intersected* with the ball, which is why the
+last pass is the `andCom` and not a plain copy), the empty fold (the
+connector alone, `1 + 0 · (2·cap + 1)`), and the full fold at `j = ℓ`
+(`1 + ℓ · (2·cap + 1) ≤ mb` fails by one unless `mb = ℓ · (2·cap + 1)`
+is read with `j < ℓ`, which is why both are hypotheses of the theorem
+and not clauses of the obligation). -/
+
+section Batch
+
+variable {ns : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
+
+theorem warrs_ancestorStep (cap j a : ℕ) :
+    (ancestorStep cap j a).warrs =
+      ["alv", "dist", "dist", "par", "q", "dist", "par", "q", "path", batName j] := rfl
+
+/-- The memory and the scalars every turn of the fold reads: the block
+structure, the search's six arrays, the depth's own connector, and the
+connector and the game mask of every earlier round. -/
+def BatchEnv (cap ns j : ℕ) (O T : ℕ → ℕ) (U : ℕ → Fin n) (Gam : ℕ → ℕ → ℕ)
+    (v : Fin n) (σ : Env) : Prop :=
+  σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+    (∃ g, σ.arrs "alv" = arrOf n g) ∧ (∃ g, σ.arrs "dist" = arrOf n g) ∧
+    (∃ g, σ.arrs "q" = arrOf n g) ∧ (∃ g, σ.arrs "par" = arrOf n g) ∧
+    (∃ g, σ.arrs "path" = arrOf (2 * cap + 1) g) ∧
+    σ.vars (ctrName j) = (v : ℕ) ∧
+    (∀ a, a < j → σ.vars (ctrName a) = (U a : ℕ)) ∧
+    (∀ a, a < j → σ.arrs (gamName a) = arrOf n (Gam a))
+
+/-- **The environment crosses a turn.** Every array a turn writes is
+either the batch indicator or one of the search's scratch arrays, whose
+*length* is all the clause asks; every scalar it assigns is a counter. -/
+theorem batchEnv_run {B K cap j : ℕ} {c : Com} {σ σ' : Env}
+    {U : ℕ → Fin n} {Gam : ℕ → ℕ → ℕ} {v : Fin n}
+    (h : BatchEnv cap ns j O T U Gam v σ) (hr : Run B c σ σ' K)
+    (hv : ∀ y : String, y ∈ c.wvars → y ∈ descendScalars)
+    (ha : ∀ b : String, b ∈ c.warrs →
+      b = batName j ∨ b ∈ (["alv", "dist", "q", "par", "path"] : List String)) :
+    BatchEnv cap ns j O T U Gam v σ' := by
+  obtain ⟨hn, hoff, htgt, halv, hdist, hq, hpar, hpath, hctrj, hctr, hgam⟩ := h
+  have hlit : ∀ b : String, b ≠ batName j →
+      b ∉ (["alv", "dist", "q", "par", "path"] : List String) → σ'.arrs b = σ.arrs b := by
+    intro b h1 h2
+    exact hr.frame_arr b (fun hc => (ha b hc).elim h1 h2)
+  refine ⟨?_, ?_, ?_, exists_arrOf_run hr halv, exists_arrOf_run hr hdist,
+    exists_arrOf_run hr hq, exists_arrOf_run hr hpar, exists_arrOf_run hr hpath, ?_, ?_, ?_⟩
+  · rw [hr.frame_var "n" (fun hc => by have := hv "n" hc; revert this; decide)]; exact hn
+  · rw [hlit "off" (by simp [batName, String.ext_iff]) (by decide)]; exact hoff
+  · rw [hlit "tgt" (by simp [batName, String.ext_iff]) (by decide)]; exact htgt
+  · rw [hr.frame_var _ (fun hc => by
+      have := hv _ hc
+      exact RamDriverIO.notMem_of_append (p := "ctr") (s := toString j) (by decide) this)]
+    exact hctrj
+  · intro a hja
+    rw [hr.frame_var _ (fun hc => by
+      have := hv _ hc
+      exact RamDriverIO.notMem_of_append (p := "ctr") (s := toString a) (by decide) this)]
+    exact hctr a hja
+  · intro a hja
+    rw [hlit _ (by simp [gamName, batName, String.ext_iff])
+      (by simp [gamName, String.ext_iff])]
+    exact hgam a hja
+
+/-- **What the fold has done by round `s`.** The batch indicator holds
+bits, it holds the connector, it has at most one buffer per round taken,
+and for every round taken whose arena reaches the connector it holds the
+support of a walk between the two in that arena. -/
+def BatchMark (cap j : ℕ) (G : SimpleGraph (Fin n)) (U : ℕ → Fin n) (Gam : ℕ → ℕ → ℕ)
+    (v : Fin n) (s : ℕ) (σ : Env) : Prop :=
+  ∃ Wa : ℕ → ℕ, σ.arrs (batName j) = arrOf n Wa ∧ (∀ k, k < n → Wa k ≤ 1) ∧
+    v ∈ markSet n Wa ∧ (markSet n Wa).ncard ≤ 1 + s * (2 * cap + 1) ∧
+    ∀ a, a < s → WithinDist (masked G (Gam a)) (2 * cap) (U a) v →
+      ∃ p : (masked G (Gam a)).Walk (U a) v, p.length ≤ 2 * cap ∧
+        {z : Fin n | z ∈ p.support} ⊆ markSet n Wa
+
+/-- **The fold over the earlier rounds, discharged.** -/
+theorem batchFold_spec {B cap mb j : ℕ} (hcsr : CsrGraph G ns O T)
+    (hB : WordBound B n ns cap mb) {U : ℕ → Fin n} {Gam : ℕ → ℕ → ℕ} {v : Fin n}
+    (hGamB : ∀ a, a < j → ∀ z, z < n → Gam a z < B) :
+    ∀ (r s : ℕ), s + r ≤ j →
+      Spec B (fun σ => BatchEnv cap ns j O T U Gam v σ ∧ BatchMark cap j G U Gam v s σ)
+        (foldRange (fun b => ancestorStep cap j (s + b)) r)
+        (fun _ σ' => BatchEnv cap ns j O T U Gam v σ' ∧
+          BatchMark cap j G U Gam v (s + r) σ')
+        (ancestorCost n ns cap * r + 1) := by
+  intro r
+  induction r with
+  | zero =>
+    intro s _
+    exact Spec.of_exists (fun σ hσ => ⟨σ, 1, Run.skip, by omega, hσ.1, hσ.2⟩)
+  | succ r ih =>
+    intro s hsr
+    have hsj : s < j := by omega
+    refine Spec.of_exists (fun σ hσ => ?_)
+    obtain ⟨henv, Wa, hbat, hbit, hvW, hcard, hwalk⟩ := hσ
+    obtain ⟨hn, hoff, htgt, halv, hdist, hq, hpar, hpath, hctrj, hctr, hgam⟩ := henv
+    obtain ⟨σ₁, hr₁, ⟨Wa', S, hbat₁, hbit₁, hmark₁, hcard₁, hwalk₁⟩, -, -, -, -⟩ :=
+      ((ancestorStep_spec (a := s + 0) (j := j) (u := U s) (Ga := Gam s) hcsr hB
+        (hGamB s hsj) hbit).frame).run (σ := σ)
+        ⟨hn, hoff, htgt, hctr s hsj, hctrj, hgam s hsj, hbat, halv, hdist, hq, hpar, hpath⟩
+    have henv₁ : BatchEnv cap ns j O T U Gam v σ₁ :=
+      batchEnv_run ⟨hn, hoff, htgt, halv, hdist, hq, hpar, hpath, hctrj, hctr, hgam⟩ hr₁
+        (fun _ hy => mem_wvars_ancestorStep hy)
+        (fun b hb => by
+          rw [warrs_ancestorStep] at hb
+          simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+          rcases hb with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+          all_goals first | exact Or.inl rfl | exact Or.inr (by decide))
+    have hsub : markSet n Wa ⊆ markSet n Wa' := by rw [hmark₁]; exact Set.subset_union_left
+    have hmk₁ : BatchMark cap j G U Gam v (s + 1) σ₁ := by
+      refine ⟨Wa', hbat₁, hbit₁, hsub hvW, ?_, ?_⟩
+      · rw [hmark₁]
+        calc (markSet n Wa ∪ S).ncard ≤ (markSet n Wa).ncard + S.ncard :=
+              Set.ncard_union_le _ _
+          _ ≤ (1 + s * (2 * cap + 1)) + (2 * cap + 1) := Nat.add_le_add hcard hcard₁
+          _ = 1 + (s + 1) * (2 * cap + 1) := by ring
+      · intro a ha hwd
+        rcases Nat.lt_or_ge a s with h' | h'
+        · obtain ⟨p, hp, hps⟩ := hwalk a h' hwd
+          exact ⟨p, hp, subset_trans hps hsub⟩
+        · have hae : a = s := by omega
+          subst hae
+          obtain ⟨p, hp, hps⟩ := hwalk₁ hwd
+          exact ⟨p, hp, subset_trans hps (by rw [hmark₁]; exact Set.subset_union_right)⟩
+    have hshift : (fun b => ancestorStep cap j (s + (b + 1))) =
+        (fun b => ancestorStep cap j (s + 1 + b)) := by
+      funext b; congr 1; omega
+    obtain ⟨σ₂, hr₂, henv₂, hmk₂⟩ :=
+      (ih (s + 1) (by omega)).run (σ := σ₁) ⟨henv₁, hmk₁⟩
+    have hr₂' : Run B (foldRange (fun b => ancestorStep cap j (s + (b + 1))) r) σ₁ σ₂
+        (ancestorCost n ns cap * r + 1) := by rw [hshift]; exact hr₂
+    have hrun : Run B (foldRange (fun b => ancestorStep cap j (s + b)) (r + 1)) σ σ₂
+        (ancestorCost n ns cap + (ancestorCost n ns cap * r + 1)) := by
+      rw [foldRange_succ]; exact hr₁.seq hr₂'
+    refine ⟨σ₂, _, hrun, by ring_nf; omega, henv₂, ?_⟩
+    have hre : s + 1 + r = s + (r + 1) := by omega
+    rwa [hre] at hmk₂
+
+/-- The cost of the batch phase. -/
+def batchCost (n ns cap j : ℕ) : ℕ := ancestorCost n ns cap * j + 26 * n + 16
+
+/-- **The batch of the round, discharged.** What the indicator ends
+marking is the connector together with one short walk per earlier round
+the round's own arena reaches, everything cut down to the ball. -/
+theorem batchCom_spec {B cap mb j : ℕ} (hcsr : CsrGraph G ns O T)
+    (hB : WordBound B n ns cap mb) {U : ℕ → Fin n} {Gam : ℕ → ℕ → ℕ} {v : Fin n}
+    {Bal : ℕ → ℕ} (hGamB : ∀ a, a < j → ∀ z, z < n → Gam a z < B)
+    (hBalB : ∀ k, k < n → Bal k < B) (hvBal : Bal (v : ℕ) ≠ 0) :
+    Spec B (fun σ => BatchEnv cap ns j O T U Gam v σ ∧
+        (∃ g, σ.arrs (batName j) = arrOf n g) ∧ σ.arrs (balName j) = arrOf n Bal)
+      (batchCom cap j)
+      (fun _ σ' => BatchEnv cap ns j O T U Gam v σ' ∧
+        σ'.arrs (balName j) = arrOf n Bal ∧
+        ∃ Wa : ℕ → ℕ, σ'.arrs (batName j) = arrOf n Wa ∧ (∀ k, k < n → Wa k < B) ∧
+          markSet n Wa ⊆ markSet n Bal ∧ v ∈ markSet n Wa ∧
+          (markSet n Wa).ncard ≤ 1 + j * (2 * cap + 1) ∧
+          ∀ a, a < j → WithinDist (masked G (Gam a)) (2 * cap) (U a) v →
+            ∃ p : (masked G (Gam a)).Walk (U a) v, p.length ≤ 2 * cap ∧
+              {z : Fin n | z ∈ p.support} ∩ markSet n Bal ⊆ markSet n Wa)
+      (batchCost n ns cap j) := by
+  have h1B := hB.one_lt
+  have hnB := hB.n_lt
+  have hbalbat : balName j ≠ batName j := by simp [balName, batName, String.ext_iff]
+  refine Spec.of_exists (fun σ hσ => ?_)
+  obtain ⟨henv, hbat₀, hbal⟩ := hσ
+  have hvn : (v : ℕ) < n := v.isLt
+  -- the indicator, opened
+  obtain ⟨σ₁, hr₁, ⟨g₁, harr₁, hval₁⟩, -, -⟩ :=
+    (fillCom_spec B n (batName j) 0 hnB (by omega)).run ⟨hbat₀, henv.1⟩
+  have henv₁ : BatchEnv cap ns j O T U Gam v σ₁ :=
+    batchEnv_run henv hr₁ (fun y hy => by
+        rw [RamDriverIO.wvars_fillCom] at hy
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hy
+        rcases hy with rfl | rfl <;> exact mem_descendScalars_i)
+      (fun b hb => Or.inl (by
+        rw [RamDriverIO.warrs_fillCom] at hb; exact List.eq_of_mem_singleton hb))
+  -- the connector, stored
+  have hctr₁ : σ₁.vars (ctrName j) = (v : ℕ) := henv₁.2.2.2.2.2.2.2.2.1
+  have hlen₁ : (v : ℕ) < (σ₁.arrs (batName j)).length := by rw [harr₁, length_arrOf]; exact hvn
+  have hev : (Expr.var (ctrName j)).evalB B σ₁ = some (v : ℕ) := by
+    have h := evalB_var (B := B) (x := ctrName j) (σ := σ₁) (by rw [hctr₁]; omega)
+    rwa [hctr₁] at h
+  set σ₂ := σ₁.setArr (batName j) (v : ℕ) 1 with hσ₂
+  have hr₂ : Run B (.store (batName j) (.var (ctrName j)) (.lit 1)) σ₁ σ₂ 3 :=
+    (Run.store hev (evalB_lit (by omega)) hlen₁).mono (by simp [Expr.size])
+  have harr₂ : σ₂.arrs (batName j) = arrOf n (upd g₁ (v : ℕ) 1) := by
+    rw [hσ₂]; simp [harr₁, set_arrOf_eq_upd]
+  have hzero : markSet n g₁ = ∅ := by
+    ext z
+    simp only [mem_markSet, Set.mem_empty_iff_false, iff_false, not_not]
+    exact hval₁ _ z.isLt
+  have hmark₂ : markSet n (upd g₁ (v : ℕ) 1) = {v} := by
+    rw [markSet_upd_one g₁ hvn, hzero, Set.empty_union]
+  have henv₂ : BatchEnv cap ns j O T U Gam v σ₂ :=
+    batchEnv_run henv₁ hr₂ (fun y hy => by simp only [Com.wvars] at hy; exact absurd hy (by simp))
+      (fun b hb => Or.inl (by simp only [Com.warrs] at hb; exact List.eq_of_mem_singleton hb))
+  have hmk₂ : BatchMark cap j G U Gam v 0 σ₂ := by
+    refine ⟨upd g₁ (v : ℕ) 1, harr₂, ?_, by rw [hmark₂]; exact rfl, ?_, fun a ha => absurd ha
+      (by omega)⟩
+    · intro k hk
+      by_cases hke : k = (v : ℕ)
+      · rw [hke, upd_self]
+      · rw [upd_of_ne _ hke, hval₁ k hk]; omega
+    · rw [hmark₂, Set.ncard_singleton]; omega
+  -- the fold over the earlier rounds
+  have hfold : (foldRange (fun b => ancestorStep cap j (0 + b)) j) =
+      foldRange (fun a => ancestorStep cap j a) j := by
+    congr 1
+    funext b
+    congr 1
+    omega
+  obtain ⟨σ₃, hr₃, henv₃, Wf, hbat₃, hbit₃, hvf, hcard₃, hwalk₃⟩ :=
+    (batchFold_spec hcsr hB hGamB j 0 (by omega)).run (σ := σ₂) ⟨henv₂, hmk₂⟩
+  rw [hfold] at hr₃
+  rw [Nat.zero_add] at hcard₃ hwalk₃
+  have hbal₃ : σ₃.arrs (balName j) = arrOf n Bal := by
+    rw [hr₃.frame_arr _ (fun hc => ?_)]
+    · rw [hr₂.frame_arr _ (by simp [Com.warrs, hbalbat]),
+        hr₁.frame_arr _ (by rw [RamDriverIO.warrs_fillCom]; simp [hbalbat])]
+      exact hbal
+    · obtain ⟨b, -, hm⟩ := RamDriverFrames.mem_warrs_foldRange _ _ hc
+      rw [warrs_ancestorStep] at hm
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
+      revert hm
+      simp [balName, batName, String.ext_iff]
+  -- the cut to the ball
+  obtain ⟨σ₄, hr₄, ⟨Wa, hbat₄, hval₄⟩, -, -, hbal₄⟩ :=
+    (andSelfCom_spec (B := B) n (balName j) (batName j) Wf Bal hbalbat hnB
+      (fun k hk => by have := hbit₃ k hk; omega) hBalB
+      (fun k hk => by
+        have h1 := hbit₃ k hk
+        have h2 := hBalB k hk
+        calc Wf k * Bal k ≤ 1 * Bal k := Nat.mul_le_mul_right _ h1
+          _ = Bal k := by ring
+          _ < B := h2)).run (σ := σ₃) ⟨hbat₃, henv₃.1, hbal₃⟩
+  have henv₄ : BatchEnv cap ns j O T U Gam v σ₄ :=
+    batchEnv_run henv₃ hr₄ (fun y hy => by
+        rw [wvars_andCom] at hy
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hy
+        rcases hy with rfl | rfl <;> exact mem_descendScalars_i)
+      (fun b hb => Or.inl (by
+        rw [RamDriverFrames.warrs_andCom] at hb; exact List.eq_of_mem_singleton hb))
+  have hmarkeq : markSet n Wa = markSet n Wf ∩ markSet n Bal := by
+    rw [markSet_congr hval₄, markSet_mul]
+  refine ⟨σ₄, _, hr₁.seq (hr₂.seq (hr₃.seq hr₄)), ?_, henv₄, hbal₄, Wa, hbat₄, ?_, ?_, ?_, ?_, ?_⟩
+  · simp only [batchCost]; omega
+  · intro k hk
+    rw [hval₄ k hk]
+    have h1 := hbit₃ k hk
+    have h2 := hBalB k hk
+    calc Wf k * Bal k ≤ 1 * Bal k := Nat.mul_le_mul_right _ h1
+      _ = Bal k := by ring
+      _ < B := h2
+  · rw [hmarkeq]; exact Set.inter_subset_right
+  · rw [hmarkeq]; exact ⟨hvf, hvBal⟩
+  · rw [hmarkeq]
+    exact le_trans (Set.ncard_le_ncard Set.inter_subset_left (Set.toFinite _)) hcard₃
+  · intro a ha hwd
+    obtain ⟨p, hp, hps⟩ := hwalk₃ a ha hwd
+    exact ⟨p, hp, by rw [hmarkeq]; exact Set.inter_subset_inter_left _ hps⟩
+
+end Batch
+
+/-! ### What the descent writes
+
+The array side of the descent's frame, sharpened from
+`RamDriverFrames.underscore_notMem_warrs_descendCom` — which separates
+the prefixed names from the colours and the tables — to the twelve names
+the pass actually writes. The two masks of the *next* depth are among
+them, so the frame has to tell `alvName j` from `alvName (j + 1)`, which
+is the one place in the driver where a name's depth has to be read back
+off the name. -/
+
+section DescendFrame
+
+/-- **A prefixed name determines its depth.** -/
+theorem prefixed_inj {p : String} {a b : ℕ} (h : p ++ toString a = p ++ toString b) : a = b := by
+  refine RamDriverBase.toString_inj ?_
+  rw [String.ext_iff] at h ⊢
+  simpa using h
+
+theorem alvName_ne_succ (j : ℕ) : alvName j ≠ alvName (j + 1) := fun h => by
+  simp only [alvName] at h
+  have := prefixed_inj h
+  omega
+
+theorem gamName_ne_succ {a j : ℕ} (h : a ≤ j) : gamName a ≠ gamName (j + 1) := fun hc => by
+  simp only [gamName] at hc
+  have := prefixed_inj hc
+  omega
+
+theorem mem_warrs_ancestorStep' {cap j a : ℕ} {b : String}
+    (h : b ∈ (ancestorStep cap j a).warrs) :
+    b = batName j ∨ b ∈ (["alv", "dist", "q", "par", "path"] : List String) := by
+  rw [warrs_ancestorStep] at h
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at h
+  rcases h with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  all_goals first | exact Or.inl rfl | exact Or.inr (by decide)
+
+theorem mem_warrs_batchCom {cap j : ℕ} {b : String} (h : b ∈ (batchCom cap j).warrs) :
+    b = batName j ∨ b ∈ (["alv", "dist", "q", "par", "path"] : List String) := by
+  simp only [batchCom, Com.warrs, List.mem_append, List.mem_cons, List.not_mem_nil,
+    or_false, RamDriverIO.warrs_fillCom, RamDriverFrames.warrs_andCom] at h
+  rcases h with rfl | rfl | hf | rfl
+  · exact Or.inl rfl
+  · exact Or.inl rfl
+  · obtain ⟨b', -, hm⟩ := RamDriverFrames.mem_warrs_foldRange _ _ hf
+    exact mem_warrs_ancestorStep' hm
+  · exact Or.inl rfl
+
+/-- The twelve arrays the descent writes. -/
+def descendArrs (j : ℕ) : List String :=
+  [cluName j, resName j, balName j, balAltName j, batName j, alvName (j + 1), gamName (j + 1),
+    "alv", "dist", "q", "par", "path"]
+
+theorem mem_warrs_descendCom' {cap j : ℕ} {b : String} (h : b ∈ (descendCom cap j).warrs) :
+    b ∈ descendArrs j := by
+  simp only [descendCom, Com.warrs, List.mem_append, List.mem_cons, List.not_mem_nil,
+    or_false, false_or, RamDriverFrames.warrs_clusterLoad, RamDriverFrames.warrs_andCom,
+    RamDriverFrames.warrs_subCom, RamDriverIO.warrs_fillCom] at h
+  rcases h with (rfl | rfl) | rfl | (rfl | rfl | hc) | hb | rfl | rfl | rfl
+  · exact by simp [descendArrs]
+  · exact by simp [descendArrs]
+  · exact by simp [descendArrs]
+  · exact by simp [descendArrs]
+  · exact by simp [descendArrs]
+  · obtain ⟨b', -, rfl⟩ := RamDriverFrames.mem_warrs_chainCom _ _ _ hc
+    rw [ballStage]
+    split <;> simp [descendArrs]
+  · rcases mem_warrs_batchCom hb with rfl | hl
+    · simp [descendArrs]
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+      rcases hl with rfl | rfl | rfl | rfl | rfl <;> simp [descendArrs]
+  · exact by simp [descendArrs]
+  · exact by simp [descendArrs]
+  · exact by simp [descendArrs]
+
+theorem notMem_warrs_descendCom {cap j : ℕ} {b : String} (h : b ∉ descendArrs j) :
+    b ∉ (descendCom cap j).warrs := fun hc => h (mem_warrs_descendCom' hc)
+
+end DescendFrame
+
+/-! ### The descent, discharged
+
+The nine passes composed. Six of them are flat and their content is the
+two mask equations `RamDriver.masked_step` and `RamDriver.masked_mul`;
+the seventh is the expansion chain the ball is built by, the eighth the
+batch phase above, and the ninth the in-place difference
+`subSelfCom_spec` was written for.
+
+Two facts come from *outside* the turn and are hypotheses of the theorem
+rather than clauses of `RamDriverCluster.DescendStep`, in the manner of
+`RamDriverCluster.clusterStepImplements`'s `hcap`: that `mb` is
+`ℓ · (2·cap + 1)` and that the depth is below `ℓ`. Together they give
+`1 + j · (2·cap + 1) ≤ mb`, the size bound on the batch, and
+`RamDriverCluster.levelImplements` has both where it applies the
+obligation. -/
+
+section Descend
+
+variable {ns : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
+
+theorem ctrName_ne {a b : ℕ} (h : a ≠ b) : ctrName a ≠ ctrName b := fun hc => by
+  simp only [ctrName] at hc
+  exact h (prefixed_inj hc)
+
+theorem ctrName_notMem_descendScalars (a : ℕ) : ctrName a ∉ descendScalars :=
+  RamDriverIO.notMem_of_append (p := "ctr") (s := toString a) (by decide)
+
+/-- **A letter does not occur in a decimal representation**, which is
+`RamDriverBase.underscore_not_mem_toDigits` at any character no digit
+is. -/
+theorem notMem_toDigits {c : Char} (hc : ∀ d, d < 10 → Nat.digitChar d ≠ c) :
+    ∀ a : ℕ, c ∉ Nat.toDigits 10 a := by
+  intro a
+  induction a using Nat.strong_induction_on with
+  | _ a ih =>
+    rw [Nat.toDigits_eq_if (by omega)]
+    split
+    · rename_i hlt
+      simp only [List.mem_singleton]
+      exact fun h => hc _ hlt h.symm
+    · rename_i hge
+      have hpos : 0 < a := by omega
+      simp only [List.mem_append, not_or]
+      refine ⟨ih (a / 10) (Nat.div_lt_self hpos (by omega)), ?_⟩
+      simp only [List.mem_singleton]
+      exact fun h => hc _ (Nat.mod_lt _ (by omega)) h.symm
+
+theorem toList_toString (a : ℕ) : (toString a).toList = Nat.toDigits 10 a := by
+  rw [Nat.toString_eq_repr, RamDriverBase.repr_eq_ofList]
+  simp
+
+/-- The centre cursor is not the extraction's own cursor: the driver's
+name is `cu` followed by a numeral, and `cur` is `cu` followed by a
+letter. This is the one collision in the descent's scalar frame — every
+other counter differs from a prefixed name inside the first three
+characters. -/
+theorem curName_ne_cur (a : ℕ) : curName a ≠ "cur" := by
+  intro h
+  have hl : ("cu" : String) ++ toString a = "cu" ++ "r" := by
+    rw [← curName, h]; decide
+  have h2 : Nat.toDigits 10 a = ['r'] := by
+    rw [← toList_toString]
+    have := congrArg String.toList hl
+    simpa using this
+  exact notMem_toDigits (c := 'r') (fun d hd => by interval_cases d <;> decide) a
+    (by rw [h2]; simp)
+
+theorem curName_notMem_descendScalars (a : ℕ) : curName a ∉ descendScalars := by
+  simp only [descendScalars, List.mem_cons, List.not_mem_nil, or_false, not_or]
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+    curName_ne_cur a, ?_, ?_⟩ <;> simp [curName, String.ext_iff]
+
+theorem xpName_notMem_descendScalars (a : ℕ) : xpName a ∉ descendScalars :=
+  RamDriverIO.notMem_of_append (p := "xq") (s := toString a) (by decide)
+
+theorem noWrite_ancestorStep (cap j a : ℕ) : (ancestorStep cap j a).NoWrite := by
+  have he : (ancestorStep cap j a).NoWrite = (ancestorStep 0 0 0).NoWrite := rfl
+  rw [he]
+  decide
+
+theorem noWrite_batchCom (cap j : ℕ) : (batchCom cap j).NoWrite :=
+  ⟨RamDriverIO.noWrite_fillCom _ _, trivial,
+    noWrite_foldr (fun a => noWrite_ancestorStep cap j a) _,
+    by rw [andCom]; exact RamDriverIO.noWrite_fillCom _ _⟩
+
+theorem noWrite_clusterLoad (j : ℕ) : (clusterLoad j).NoWrite := by
+  have he : (clusterLoad j).NoWrite = (clusterLoad 0).NoWrite := rfl
+  rw [he]
+  decide
+
+theorem noWrite_descendCom (cap j : ℕ) : (descendCom cap j).NoWrite :=
+  ⟨trivial, noWrite_clusterLoad j, by rw [andCom]; exact RamDriverIO.noWrite_fillCom _ _,
+    ⟨RamDriverIO.noWrite_fillCom _ _, trivial, noWrite_chainCom _ _ _⟩,
+    noWrite_batchCom cap j,
+    by rw [subCom]; exact RamDriverIO.noWrite_fillCom _ _,
+    by rw [andCom]; exact RamDriverIO.noWrite_fillCom _ _,
+    by rw [subCom]; exact RamDriverIO.noWrite_fillCom _ _⟩
+
+/-- The cost of the descent: the cluster's block scan, the ball's chain,
+the batch phase, and six flat passes. -/
+def descendCost (n ns cap j : ℕ) : ℕ :=
+  16 * (n * n) + 75 * n + 51 + ballCost n ns cap + batchCost n ns cap j
+
+/-- **The descent, discharged.** -/
+theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ}
+    {π : Equiv.Perm (Fin n)} {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ}
+    (hmb : mb = ℓ * (2 * cap + 1)) (hjl : j < ℓ)
+    (hK : descendCost n ns cap j ≤ K) :
+    DescendStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m K := by
+  classical
+  intro hcsr hB
+  refine Spec.of_exists (fun σ hσ => ?_)
+  obtain ⟨⟨hlev, hplay, hheld⟩, hcur⟩ := hσ
+  obtain ⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCbit, hmem, hdep, hmvar, hom⟩ := hlev
+  obtain ⟨hordA, hxof, hxmm, hasgA, hxp, hmn, hordlt, hcout⟩ := hheld
+  have h1B := hB.one_lt
+  have hnB := hB.n_lt
+  have hnsB := hB.ns_lt
+  obtain ⟨cc, hcc⟩ : ∃ cc, σ.vars (curName j) = cc := ⟨_, rfl⟩
+  rw [hcc] at hcur
+  have hordc : ord cc < n := hordlt cc hcur
+  -- the depth's connector, as a vertex
+  obtain ⟨vc, hvc⟩ : ∃ vc : Fin n, (vc : ℕ) = ord cc := ⟨⟨ord cc, hordc⟩, rfl⟩
+  -- the rounds the state records, as two total functions
+  obtain ⟨rounds, hrec, hle, hplayR⟩ := hplay
+  have hex : ∀ a : ℕ, ∃ (u : Fin n) (Ga : ℕ → ℕ), a < j →
+      σ.vars (ctrName a) = (u : ℕ) ∧ σ.arrs (gamName a) = arrOf n Ga ∧
+        ∀ z, z < n → Ga z < B := by
+    intro a
+    by_cases ha : a < j
+    · obtain ⟨u, Ga, h1, h2, h3⟩ := hrec.get a ha
+      exact ⟨u, Ga, fun _ => ⟨h1, h2, h3⟩⟩
+    · exact ⟨vc, fun _ => 0, fun hcon => absurd hcon ha⟩
+  choose U Gam hUG using hex
+  -- the memory the passes address
+  have hclu₀ : ∃ g, σ.arrs (cluName j) = arrOf n g := hdep.get (p := (cluName j, n)) j (by simp)
+  have hres₀ : ∃ g, σ.arrs (resName j) = arrOf n g := hdep.get (p := (resName j, n)) j (by simp)
+  have hbal₀ : ∃ g, σ.arrs (balName j) = arrOf n g := hdep.get (p := (balName j, n)) j (by simp)
+  have hblt₀ : ∃ g, σ.arrs (balAltName j) = arrOf n g :=
+    hdep.get (p := (balAltName j, n)) j (by simp)
+  have hbat₀ : ∃ g, σ.arrs (batName j) = arrOf n g := hdep.get (p := (batName j, n)) j (by simp)
+  have halv1₀ : ∃ g, σ.arrs (alvName (j + 1)) = arrOf n g :=
+    hdep.get (p := (alvName (j + 1), n)) (j + 1) (by simp)
+  have hgam1₀ : ∃ g, σ.arrs (gamName (j + 1)) = arrOf n g :=
+    hdep.get (p := (gamName (j + 1), n)) (j + 1) (by simp)
+  have halvS₀ : ∃ g, σ.arrs "alv" = arrOf n g := hmem.1.get (p := ("alv", n)) (by simp)
+  have hdistS₀ : ∃ g, σ.arrs "dist" = arrOf n g := hmem.1.get (p := ("dist", n)) (by simp)
+  have hqS₀ : ∃ g, σ.arrs "q" = arrOf n g := hmem.1.get (p := ("q", n)) (by simp)
+  have hparS₀ : ∃ g, σ.arrs "par" = arrOf n g := hmem.1.get (p := ("par", n)) (by simp)
+  have hpathS₀ : ∃ g, σ.arrs "path" = arrOf (2 * cap + 1) g :=
+    hmem.1.get (p := ("path", 2 * cap + 1)) (by simp)
+  -- P1: the connector is read out of the ordering
+  have hev₁ : (Expr.get (ordName j) (.var (curName j))).evalB B σ = some (ord cc) := by
+    have hc0 : (Expr.var (curName j)).evalB B σ = some cc := by
+      have h := evalB_var (B := B) (x := curName j) (σ := σ) (by rw [hcc]; omega)
+      rwa [hcc] at h
+    exact evalB_get hc0 (by rw [hordA, getElem?_arrOf ord hcur]) (by omega)
+  set σ₁ := σ.setVar (ctrName j) (ord cc) with hσ₁
+  have hr₁ : Run B (.assign (ctrName j) (.get (ordName j) (.var (curName j)))) σ σ₁ 3 :=
+    (Run.assign hev₁).mono (by simp [Expr.size])
+  have harrs₁ : ∀ b : String, σ₁.arrs b = σ.arrs b := fun b => by rw [hσ₁, arrs_setVar]
+  have hvars₁ : ∀ y : String, y ≠ ctrName j → σ₁.vars y = σ.vars y := fun y hy => by
+    rw [hσ₁, vars_setVar, if_neg hy]
+  have hctr₁ : σ₁.vars (ctrName j) = (vc : ℕ) := by rw [hσ₁]; simp [hvc]
+  have hcurne : curName j ≠ ctrName j := by simp [curName, ctrName, String.ext_iff]
+  have hcur₁ : σ₁.vars (curName j) = cc := by rw [hvars₁ _ hcurne, hcc]
+  -- P2: the cluster, materialized
+  obtain ⟨σ₂, hr₂, ⟨Xa, hclu₂, hXbit, hXmark⟩, hfv₂, hfa₂, -, -⟩ :=
+    ((clusterLoad_spec (j := j) hB hcout hmn).frame).run (σ := σ₁)
+      ⟨by rw [hvars₁ "n" (by simp [ctrName, String.ext_iff]), hn],
+        by rw [harrs₁]; exact hxof, by rw [harrs₁]; exact hxmm, by rw [harrs₁]; exact hclu₀,
+        by rw [hcur₁]; exact hcur⟩
+  rw [hcur₁] at hXmark
+  have hav₂ : ∀ b : String, b ≠ cluName j → σ₂.arrs b = σ₁.arrs b :=
+    fun b hb => hfa₂ b (by rw [RamDriverFrames.warrs_clusterLoad]; simp [hb])
+  have hvv₂ : ∀ y : String, y ∉ descendScalars → σ₂.vars y = σ₁.vars y :=
+    fun y hy => hfv₂ y (fun hcon => hy (mem_wvars_clusterLoad hcon))
+  have hctrs : ctrName j ∉ descendScalars := ctrName_notMem_descendScalars j
+  -- P3: the cluster-restricted mask
+  have hXB : ∀ k, k < n → M k * Xa k < B := by
+    intro k hk
+    calc M k * Xa k ≤ M k * 1 := Nat.mul_le_mul_left _ (hXbit k hk)
+      _ = M k := by ring
+      _ < B := hMB k hk
+  obtain ⟨σ₃, hr₃, ⟨⟨Ra, hres₃, hRaval⟩, -, hn₃, -, hclu₃⟩, hfv₃, hfa₃, -, -⟩ :=
+    ((andCom_spec B n (alvName j) (cluName j) (resName j) M Xa
+      (by simp [alvName, resName, String.ext_iff]) (by simp [cluName, resName, String.ext_iff])
+      hnB hMB (fun k hk => by have := hXbit k hk; omega) hXB).frame).run (σ := σ₂)
+      ⟨by rw [hav₂ _ (by simp [cluName, resName, String.ext_iff]), harrs₁]; exact hres₀,
+        by rw [hvv₂ "n" (by decide), hvars₁ "n" (by simp [ctrName, String.ext_iff])]; exact hn,
+        by rw [hav₂ _ (by simp [alvName, cluName, String.ext_iff]), harrs₁]; exact halvj,
+        hclu₂⟩
+  have hav₃ : ∀ b : String, b ≠ resName j → σ₃.arrs b = σ₂.arrs b :=
+    fun b hb => hfa₃ b (by rw [RamDriverFrames.warrs_andCom]; simp [hb])
+  have hvv₃ : ∀ y : String, y ≠ "i" → σ₃.vars y = σ₂.vars y :=
+    fun y hy => hfv₃ y (by rw [wvars_andCom]; simp [hy])
+  have hRaB : ∀ k, k < n → Ra k < B := fun k hk => by rw [hRaval k hk]; exact hXB k hk
+  -- P4: the ball of the round, in the game arena
+  obtain ⟨σ₄, hr₄, ⟨⟨Bal, hbal₄, hBalbit, hBalmark⟩, hn₄, hoff₄, htgt₄, hgam₄⟩,
+      hfv₄, hfa₄, -, -⟩ :=
+    ((ballCom_spec (j := j) (v := vc) (Gm := Gm) hcsr hB hGmB).frame).run (σ := σ₃)
+      ⟨by rw [hvv₃ "n" (by decide), hvv₂ "n" (by decide),
+          hvars₁ "n" (by simp [ctrName, String.ext_iff])]; exact hn,
+        by rw [hav₃ "off" (by simp [resName, String.ext_iff]),
+          hav₂ "off" (by simp [cluName, String.ext_iff]), harrs₁]; exact hoff,
+        by rw [hav₃ "tgt" (by simp [resName, String.ext_iff]),
+          hav₂ "tgt" (by simp [cluName, String.ext_iff]), harrs₁]; exact htgt,
+        by rw [hav₃ _ (by simp [gamName, resName, String.ext_iff]),
+          hav₂ _ (by simp [gamName, cluName, String.ext_iff]), harrs₁]; exact hgamj,
+        by rw [hav₃ _ (by simp [balName, resName, String.ext_iff]),
+          hav₂ _ (by simp [balName, cluName, String.ext_iff]), harrs₁]; exact hbal₀,
+        by rw [hav₃ _ (by simp [balAltName, resName, String.ext_iff]),
+          hav₂ _ (by simp [balAltName, cluName, String.ext_iff]), harrs₁]; exact hblt₀,
+        by rw [hvv₃ _ (by simp [ctrName, String.ext_iff]), hvv₂ _ hctrs]; exact hctr₁⟩
+  have hballwarr : ∀ b : String, b ∈ ((Com.seq (fillCom (balName j) (.lit 0))
+      (Com.seq (.store (balName j) (.var (ctrName j)) (.lit 1))
+        (chainCom (gamName j) (ballStage j) (2 * cap)))).warrs) →
+      b = balName j ∨ b = balAltName j := by
+    intro b hb
+    simp only [Com.warrs, List.mem_append, List.mem_cons, List.not_mem_nil, or_false,
+      RamDriverIO.warrs_fillCom] at hb
+    rcases hb with rfl | rfl | hc
+    · exact Or.inl rfl
+    · exact Or.inl rfl
+    · obtain ⟨b', -, rfl⟩ := RamDriverFrames.mem_warrs_chainCom _ _ _ hc
+      rw [ballStage]
+      split
+      · exact Or.inl rfl
+      · exact Or.inr rfl
+  have hav₄ : ∀ b : String, b ≠ balName j → b ≠ balAltName j → σ₄.arrs b = σ₃.arrs b :=
+    fun b h1 h2 => hfa₄ b (fun hc => (hballwarr b hc).elim h1 h2)
+  have hvv₄ : ∀ y : String, y ∉ (["i", "z", "hit", "w", "j", "jend"] : List String) →
+      σ₄.vars y = σ₃.vars y := by
+    intro y hy
+    refine hfv₄ y (fun hc => hy ?_)
+    simp only [Com.wvars, List.mem_append, List.mem_cons, List.not_mem_nil, or_false,
+      RamDriverIO.wvars_fillCom] at hc
+    rcases hc with (rfl | rfl) | hc'
+    · simp
+    · simp
+    · rcases hc' with h | h
+      · exact absurd h not_false
+      · exact mem_wvars_chainCom h
+  have hBalB : ∀ k, k < n → Bal k < B := fun k hk => by have := hBalbit k hk; omega
+  -- P5: the batch
+  have henv₄ : BatchEnv cap ns j O T U Gam vc σ₄ := by
+    refine ⟨hn₄, hoff₄, htgt₄, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    · exact exists_arrOf_run (hr₁.seq (hr₂.seq (hr₃.seq hr₄))) halvS₀
+    · exact exists_arrOf_run (hr₁.seq (hr₂.seq (hr₃.seq hr₄))) hdistS₀
+    · exact exists_arrOf_run (hr₁.seq (hr₂.seq (hr₃.seq hr₄))) hqS₀
+    · exact exists_arrOf_run (hr₁.seq (hr₂.seq (hr₃.seq hr₄))) hparS₀
+    · exact exists_arrOf_run (hr₁.seq (hr₂.seq (hr₃.seq hr₄))) hpathS₀
+    · rw [hvv₄ (ctrName j) (by simp [ctrName, String.ext_iff]),
+        hvv₃ (ctrName j) (by simp [ctrName, String.ext_iff]),
+        hvv₂ (ctrName j) hctrs]
+      exact hctr₁
+    · intro a ha
+      rw [hvv₄ (ctrName a) (by simp [ctrName, String.ext_iff]),
+        hvv₃ (ctrName a) (by simp [ctrName, String.ext_iff]),
+        hvv₂ (ctrName a) (ctrName_notMem_descendScalars a),
+        hvars₁ (ctrName a) (ctrName_ne (by omega))]
+      exact (hUG a ha).1
+    · intro a ha
+      rw [hav₄ _ (by simp [gamName, balName, String.ext_iff])
+          (by simp [gamName, balAltName, String.ext_iff]),
+        hav₃ _ (by simp [gamName, resName, String.ext_iff]),
+        hav₂ _ (by simp [gamName, cluName, String.ext_iff]), harrs₁]
+      exact (hUG a ha).2.1
+  have hvBal : Bal (vc : ℕ) ≠ 0 := by
+    have : vc ∈ markSet n Bal := by rw [hBalmark]; exact mem_ball_self _ _ _
+    exact this
+  obtain ⟨σ₅, hr₅, henv₅, hbal₅, Wa, hbat₅, hWaB, hWsub, hvW, hWcard, hWwalk⟩ :=
+    (batchCom_spec hcsr hB (U := U) (Gam := Gam) (v := vc) (Bal := Bal)
+      (fun a ha => (hUG a ha).2.2) hBalB hvBal).run (σ := σ₄)
+      ⟨henv₄, by
+        rw [hav₄ _ (by simp [batName, balName, String.ext_iff])
+            (by simp [batName, balAltName, String.ext_iff]),
+          hav₃ _ (by simp [batName, resName, String.ext_iff]),
+          hav₂ _ (by simp [batName, cluName, String.ext_iff]), harrs₁]
+        exact hbat₀, hbal₄⟩
+  have hav₅ : ∀ b : String, b ≠ batName j →
+      b ∉ (["alv", "dist", "q", "par", "path"] : List String) → σ₅.arrs b = σ₄.arrs b :=
+    fun b h1 h2 => hr₅.frame_arr b (fun hc => (mem_warrs_batchCom hc).elim h1 h2)
+  have hres₅ : σ₅.arrs (resName j) = arrOf n Ra := by
+    rw [hav₅ _ (by simp [resName, batName, String.ext_iff])
+        (by simp [resName, String.ext_iff]),
+      hav₄ _ (by simp [resName, balName, String.ext_iff])
+        (by simp [resName, balAltName, String.ext_iff])]
+    exact hres₃
+  have hgam₅ : σ₅.arrs (gamName j) = arrOf n Gm := by
+    rw [hav₅ _ (by simp [gamName, batName, String.ext_iff])
+      (by simp [gamName, String.ext_iff])]
+    exact hgam₄
+  have hgam1₅ : ∃ g, σ₅.arrs (gamName (j + 1)) = arrOf n g :=
+    exists_arrOf_run (hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq hr₅)))) hgam1₀
+  have halv1₅ : ∃ g, σ₅.arrs (alvName (j + 1)) = arrOf n g :=
+    exists_arrOf_run (hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq hr₅)))) halv1₀
+  -- P6: the work mask of the next depth
+  obtain ⟨σ₆, hr₆, ⟨⟨Alv', halv₆, hAlvval⟩, -, hn₆, hres₆, hbat₆⟩, hfv₆, hfa₆, -, -⟩ :=
+    ((subCom_spec B n (resName j) (batName j) (alvName (j + 1)) Ra Wa
+      (by simp [resName, alvName, String.ext_iff]) (by simp [batName, alvName, String.ext_iff])
+      hnB hRaB hWaB h1B (fun k hk => by
+        have h1 := hRaB k hk
+        calc Ra k * (1 - Wa k) ≤ Ra k * 1 := Nat.mul_le_mul_left _ (by omega)
+          _ = Ra k := by ring
+          _ < B := h1)).frame).run (σ := σ₅) ⟨halv1₅, henv₅.1, hres₅, hbat₅⟩
+  have hav₆ : ∀ b : String, b ≠ alvName (j + 1) → σ₆.arrs b = σ₅.arrs b :=
+    fun b hb => hfa₆ b (by rw [RamDriverFrames.warrs_subCom]; simp [hb])
+  -- P7: the game mask of the next depth, cut by the ball
+  obtain ⟨σ₇, hr₇, ⟨⟨Gt, hgt₇, hGtval⟩, -, hn₇, hgam₇, hbal₇⟩, hfv₇, hfa₇, -, -⟩ :=
+    ((andCom_spec B n (gamName j) (balName j) (gamName (j + 1)) Gm Bal
+      (fun hc => gamName_ne_succ (le_refl j) hc) (by simp [balName, gamName, String.ext_iff])
+      hnB hGmB hBalB (fun k hk => by
+        have h1 := hGmB k hk
+        calc Gm k * Bal k ≤ Gm k * 1 := Nat.mul_le_mul_left _ (hBalbit k hk)
+          _ = Gm k := by ring
+          _ < B := h1)).frame).run (σ := σ₆)
+      ⟨by rw [hav₆ _ (by simp [gamName, alvName, String.ext_iff])]; exact hgam1₅, hn₆,
+        by rw [hav₆ _ (by simp [gamName, alvName, String.ext_iff])]; exact hgam₅,
+        by rw [hav₆ _ (by simp [balName, alvName, String.ext_iff])]; exact hbal₅⟩
+  have hav₇ : ∀ b : String, b ≠ gamName (j + 1) → σ₇.arrs b = σ₆.arrs b :=
+    fun b hb => hfa₇ b (by rw [RamDriverFrames.warrs_andCom]; simp [hb])
+  -- P8: and by the batch, in place
+  obtain ⟨σ₈, hr₈, ⟨⟨Gam', hgam₈, hGamval⟩, -, hn₈, hbat₈⟩, hfv₈, hfa₈, -, -⟩ :=
+    ((subSelfCom_spec (B := B) n (batName j) (gamName (j + 1)) Gt Wa
+      (by simp [batName, gamName, String.ext_iff]) hnB h1B
+      (fun k hk => by
+        rw [hGtval k hk]
+        have h1 := hGmB k hk
+        calc Gm k * Bal k ≤ Gm k * 1 := Nat.mul_le_mul_left _ (hBalbit k hk)
+          _ = Gm k := by ring
+          _ < B := h1)
+      hWaB).frame).run (σ := σ₇)
+      ⟨hgt₇, hn₇, by rw [hav₇ _ (by simp [batName, gamName, String.ext_iff]),
+        hav₆ _ (by simp [batName, alvName, String.ext_iff])]; exact hbat₅⟩
+  have hav₈ : ∀ b : String, b ≠ gamName (j + 1) → σ₈.arrs b = σ₇.arrs b :=
+    fun b hb => hfa₈ b (by rw [RamDriverFrames.warrs_subCom]; simp [hb])
+  -- the composite run and its frame
+  have hrun : Run B (descendCom cap j) σ σ₈ _ :=
+    hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq (hr₅.seq (hr₆.seq (hr₇.seq hr₈))))))
+  have hfa : ∀ b : String, b ∉ descendArrs j → σ₈.arrs b = σ.arrs b :=
+    fun b hb => hrun.frame_arr b (notMem_warrs_descendCom hb)
+  have hfv : ∀ y : String, y ≠ ctrName j → y ∉ descendScalars → σ₈.vars y = σ.vars y :=
+    fun y h1 h2 => hrun.frame_var y (fun hc => (mem_wvars_descendCom hc).elim h1 h2)
+  have hfu : ∀ b : String, '_' ∈ b.toList → σ₈.arrs b = σ.arrs b :=
+    fun b hb => hrun.frame_arr b (fun hc =>
+      RamDriverFrames.underscore_notMem_warrs_descendCom cap j b hc hb)
+  -- the five arrays the descent leaves, chased to the exit
+  have hclu₈ : σ₈.arrs (cluName j) = arrOf n Xa := by
+    rw [hav₈ _ (by simp [cluName, gamName, String.ext_iff]),
+      hav₇ _ (by simp [cluName, gamName, String.ext_iff]),
+      hav₆ _ (by simp [cluName, alvName, String.ext_iff]),
+      hav₅ _ (by simp [cluName, batName, String.ext_iff])
+        (by simp [cluName, String.ext_iff]),
+      hav₄ _ (by simp [cluName, balName, String.ext_iff])
+        (by simp [cluName, balAltName, String.ext_iff]),
+      hav₃ _ (by simp [cluName, resName, String.ext_iff])]
+    exact hclu₂
+  have hres₈ : σ₈.arrs (resName j) = arrOf n Ra := by
+    rw [hav₈ _ (by simp [resName, gamName, String.ext_iff]),
+      hav₇ _ (by simp [resName, gamName, String.ext_iff])]
+    exact hres₆
+  have halv₈ : σ₈.arrs (alvName (j + 1)) = arrOf n Alv' := by
+    rw [hav₈ _ (by simp [alvName, gamName, String.ext_iff]),
+      hav₇ _ (by simp [alvName, gamName, String.ext_iff])]
+    exact halv₆
+  have hctr₈ : σ₈.vars (ctrName j) = (vc : ℕ) := by
+    rw [hfv₈ _ (by rw [wvars_subCom]; simp [ctrName, String.ext_iff]),
+      hfv₇ _ (by rw [wvars_andCom]; simp [ctrName, String.ext_iff]),
+      hfv₆ _ (by rw [wvars_subCom]; simp [ctrName, String.ext_iff])]
+    exact henv₅.2.2.2.2.2.2.2.2.1
+  -- the sets the descent produced
+  have hXiff : ∀ z : Fin n, z ∈ markSet n Xa ↔ Xa (z : ℕ) ≠ 0 := fun _ => Iff.rfl
+  have hWiff : ∀ z : Fin n, z ∈ markSet n Wa ↔ Wa (z : ℕ) ≠ 0 := fun _ => Iff.rfl
+  have hBiff : ∀ z : Fin n, z ∈ ball (masked G Gm) (2 * cap) vc ↔ Bal (z : ℕ) ≠ 0 := by
+    intro z; rw [← hBalmark]; exact Iff.rfl
+  have hResEq : masked G Ra =
+      Lax12.UniformQuasiWideness.deleteVerts (masked G M) (markSet n Xa)ᶜ := by
+    rw [masked_congr hRaval]
+    exact masked_mul M Xa hXiff
+  have hAlvEq : masked G Alv' =
+      Lax12.UniformQuasiWideness.deleteVerts
+        (Lax12.UniformQuasiWideness.deleteVerts (masked G M) (markSet n Xa)ᶜ)
+        (markSet n Wa) := by
+    rw [masked_congr (M := Alv') (M' := fun a => M a * Xa a * (1 - Wa a))
+      (fun k hk => by rw [hAlvval k hk, hRaval k hk])]
+    exact masked_step M Xa Wa hXiff hWiff
+  have hGamEq : masked G Gam' =
+      Lax12.UniformQuasiWideness.deleteVerts
+        (Lax12.UniformQuasiWideness.deleteVerts (masked G Gm)
+          (ball (masked G Gm) (2 * cap) vc)ᶜ) (markSet n Wa) := by
+    rw [masked_congr (M := Gam') (M' := fun a => Gm a * Bal a * (1 - Wa a))
+      (fun k hk => by rw [hGamval k hk, hGtval k hk])]
+    exact masked_step Gm Bal Wa hBiff hWiff
+  have hXball : markSet n Xa ⊆ ball (masked G M) (2 * cap) vc := by
+    rw [hXmark]
+    have h := RamCover.inCluster_subset_ball (masked G M) π (r := cap) hordc
+    rwa [show (⟨ord cc, hordc⟩ : Fin n) = vc from Fin.ext hvc.symm] at h
+  have hAlvB : ∀ k, k < n → Alv' k < B := by
+    intro k hk
+    rw [hAlvval k hk]
+    have h1 := hRaB k hk
+    calc Ra k * (1 - Wa k) ≤ Ra k * 1 := Nat.mul_le_mul_left _ (by omega)
+      _ = Ra k := by ring
+      _ < B := h1
+  have hGamB' : ∀ k, k < n → Gam' k < B := by
+    intro k hk
+    rw [hGamval k hk, hGtval k hk]
+    have h1 := hGmB k hk
+    calc Gm k * Bal k * (1 - Wa k) ≤ Gm k * 1 * 1 :=
+          Nat.mul_le_mul (Nat.mul_le_mul_left _ (hBalbit k hk)) (by omega)
+      _ = Gm k := by ring
+      _ < B := h1
+  -- the names the depth's own state is held at
+  have hnalv : alvName j ∉ descendArrs j := by
+    simp only [descendArrs, List.mem_cons, List.not_mem_nil, or_false, not_or]
+    refine ⟨?_, ?_, ?_, ?_, ?_, alvName_ne_succ j, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      simp [alvName, cluName, resName, balName, balAltName, batName, gamName, String.ext_iff]
+  have hngam : ∀ a, a ≤ j → gamName a ∉ descendArrs j := by
+    intro a ha
+    simp only [descendArrs, List.mem_cons, List.not_mem_nil, or_false, not_or]
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, gamName_ne_succ ha, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      simp [alvName, cluName, resName, balName, balAltName, batName, gamName, String.ext_iff]
+  have hzero : ∀ b ∈ (["elm", "bh", "ooff", "noff", "stf", "sta", "std", "ste"] : List String),
+      σ₈.arrs b = σ.arrs b := by
+    intro b hb
+    refine hfa b ?_
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hb
+    rcases hb with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+      simp [descendArrs, cluName, resName, balName, balAltName, batName, alvName, gamName,
+        String.ext_iff]
+  have hturn₈ : TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ₈ := by
+    refine ⟨levelPre_congr ⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCbit, hmem, hdep,
+        hmvar, hom⟩ hrun (hfv "n" (by simp [ctrName, String.ext_iff]) (by decide))
+        (hfv "m" (by simp [ctrName, String.ext_iff]) (by decide))
+        (hfa "off" (by simp [descendArrs, cluName, resName, balName, balAltName, batName,
+          alvName, gamName, String.ext_iff]))
+        (hfa "tgt" (by simp [descendArrs, cluName, resName, balName, balAltName, batName,
+          alvName, gamName, String.ext_iff]))
+        (hfa _ hnalv) (hfa _ (hngam j (le_refl j)))
+        (fun c' _ => hfu _ (RamDriverFrames.underscore_mem_colName j c')) hzero,
+      ⟨rounds, hrec.congr (fun a ha => hfv (ctrName a) (ctrName_ne (by omega))
+        (ctrName_notMem_descendScalars a))
+        (fun a ha => hfa (gamName a) (hngam a (by omega))), hle, hplayR⟩,
+      coverHeld_congr ⟨hordA, hxof, hxmm, hasgA, hxp, hmn, hordlt, hcout⟩
+        (hfa _ (by simp [descendArrs, ordName, cluName, resName, balName, balAltName, batName,
+          alvName, gamName, String.ext_iff]))
+        (hfa _ (by simp [descendArrs, xofName, cluName, resName, balName, balAltName, batName,
+          alvName, gamName, String.ext_iff]))
+        (hfa _ (by simp [descendArrs, xmmName, cluName, resName, balName, balAltName, batName,
+          alvName, gamName, String.ext_iff]))
+        (hfa _ (by simp [descendArrs, asgName, cluName, resName, balName, balAltName, batName,
+          alvName, gamName, String.ext_iff]))
+        (hfv (xpName j) (by simp [xpName, ctrName, String.ext_iff])
+          (xpName_notMem_descendScalars j))⟩
+  -- everything the obligation asks for
+  refine ⟨σ₈, _, hrun, ?_, hturn₈, hrun.out_eq (noWrite_descendCom cap j),
+    by rw [hfv (curName j) hcurne (curName_notMem_descendScalars j)], ?_, markSet n Xa, markSet n Wa, Alv', Gam', ?_,
+      ⟨vc, hvW⟩, ?_, ⟨⟨Xa, hclu₈, rfl, hXbit⟩, ⟨Wa, hbat₈, rfl, hWaB⟩, ⟨Ra, hres₈, hResEq, hRaB⟩,
+        halv₈, hAlvB, hAlvEq, hgam₈, hGamB'⟩, ?_⟩
+  · simp only [descendCost, ballCost, batchCost] at hK ⊢
+    omega
+  · exact exists_arrOf_run hrun (hmem.1.get (p := ("wa", mb)) (by simp))
+  · intro v' hv'
+    rw [hXmark]
+    have hcov := hcout.asg_cover (v' : ℕ) v'.isLt
+    rw [hv', hcc] at hcov
+    exact hcov
+  · refine le_trans hWcard ?_
+    rw [hmb]
+    calc 1 + j * (2 * cap + 1) ≤ (j + 1) * (2 * cap + 1) := by nlinarith
+      _ ≤ ℓ * (2 * cap + 1) := Nat.mul_le_mul_right _ (by omega)
+  · refine playRec_succ ⟨rounds, hrec, hle, hplayR⟩
+      (fun a ha => hfv (ctrName a) (ctrName_ne (by omega))
+        (ctrName_notMem_descendScalars a))
+      (fun a ha => hfa (gamName a) (hngam a (by omega))) hctr₈
+      (by rw [hfa _ (hngam j (le_refl j))]; exact hgamj) hGmB
+      (by rw [← hBalmark]; exact hWsub) hvW ?_ hGamEq
+      (by rw [hAlvEq, hGamEq]; exact stepArena_le_nextArena hle hXball)
+    intro u A hround hwd
+    obtain ⟨a, haj, hua, Ga', hGa', hGa'B, hAeq⟩ := hround
+    have hUa : u = U a := Fin.ext (by rw [← hua, (hUG a haj).1])
+    have hGeq : masked G Ga' = masked G (Gam a) :=
+      masked_congr (fun k hk => eq_of_arrOf_eq (hGa'.symm.trans (hUG a haj).2.1) hk)
+    subst hAeq
+    subst hUa
+    rw [hGeq] at hwd ⊢
+    obtain ⟨p, hp, hps⟩ := hWwalk a haj hwd
+    exact ⟨p, hp, by rw [hBalmark] at hps; exact hps⟩
+
+end Descend
 
 end Lax3Proofs.RamDriverDescend
