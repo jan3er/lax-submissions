@@ -1163,6 +1163,13 @@ theorem accUpto_succ {off tgt : ℕ → ℕ} {f : ℕ → Finset ℕ} {v p : ℕ
     Nat.Ico_succ_right_eq_insert_Ico h, Finset.biUnion_insert]
   exact Finset.union_comm _ _
 
+/-- A walk that contributes less at every slot accumulates less. -/
+theorem rowAcc_mono {off tgt : ℕ → ℕ} {fs gs : ℕ → Finset ℕ} (h : ∀ z, fs z ⊆ gs z)
+    (v : ℕ) : rowAcc off tgt fs v ⊆ rowAcc off tgt gs v := by
+  intro y hy
+  obtain ⟨s, h₁, h₂, h₃⟩ := mem_rowAcc.1 hy
+  exact mem_rowAcc.2 ⟨s, h₁, h₂, h _ h₃⟩
+
 /-- A `Finset (Fin n)` read at the number level, which is what a walk
 over an array of vertex numbers speaks in. -/
 def valSet {n : ℕ} (S : Finset (Fin n)) : Finset ℕ := S.image Fin.val
@@ -1341,6 +1348,29 @@ def Marks (s : String) (n b : ℕ) (S : Finset ℕ) (g : ℕ → ℕ) (τ : Env)
 
 theorem Marks.congr {s : String} {n b : ℕ} {S S' : Finset ℕ} {g : ℕ → ℕ} {τ : Env}
     (h : Marks s n b S g τ) (hS : S = S') : Marks s n b S' g τ := hS ▸ h
+
+/-- The relation is about one array, so it transports along any state
+that agrees on it. -/
+theorem Marks.of_eq {s : String} {n b : ℕ} {S : Finset ℕ} {g : ℕ → ℕ} {τ τ' : Env}
+    (h : Marks s n b S g τ) (he : τ'.arrs s = τ.arrs s) : Marks s n b S g τ' := by
+  obtain ⟨g', hg', hk⟩ := h
+  exact ⟨g', he.trans hg', hk⟩
+
+theorem Marks.setVar {s : String} {n b : ℕ} {S : Finset ℕ} {g : ℕ → ℕ} {τ : Env}
+    (h : Marks s n b S g τ) (y : String) (x : ℕ) : Marks s n b S g (τ.setVar y x) :=
+  h.of_eq (by rw [arrs_setVar])
+
+theorem Marks.setArr_of_ne {s a : String} {n b : ℕ} {S : Finset ℕ} {g : ℕ → ℕ} {τ : Env}
+    (h : Marks s n b S g τ) (ha : a ≠ s) (p x : ℕ) : Marks s n b S g (τ.setArr a p x) :=
+  h.of_eq (by rw [arrs_setArr, if_neg (Ne.symm ha)])
+
+/-- A stamp array that is zero everywhere holds no marks at all — the
+state every stamped walk of the round starts and ends in. -/
+theorem Marks.zero {s : String} {n b : ℕ} {g : ℕ → ℕ} {τ : Env}
+    (h : ∃ g', τ.arrs s = arrOf n g' ∧ ∀ k < n, g' k = g k) :
+    Marks s n b (∅ : Finset ℕ) g τ := by
+  obtain ⟨g', hg', hk⟩ := h
+  exact ⟨g', hg', fun k hkn => by rw [hk k hkn]; simp⟩
 
 /-- **A row of stamps.** -/
 theorem stampRow_run {B : ℕ} {o t x j jend u s : String} {n nv len v b : ℕ}
@@ -1636,14 +1666,14 @@ theorem emitAllRow_run {B : ℕ} {o t x j jend a₁ a₂ : String} {act : Com}
 /-- **The emitting branch of a guard**: the vertex is stamped, and then
 the action runs on it. -/
 theorem emitBranch_run {B n Ka : ℕ} {a₁ a₂ sd : String} {act : Com}
-    {Acc : Finset ℕ → Env → Prop} {S Base Cap : Finset ℕ} {τ : Env} {z : ℕ}
+    {Acc : Finset ℕ → Env → Prop} {S M Cap : Finset ℕ} {τ : Env} {z : ℕ}
     (ha₁ : a₁ ≠ sd) (ha₂ : a₂ ≠ sd) (hB1 : 1 < B) (hnB : n < B)
     (hAccSt : ∀ S τ p x, Acc S τ → Acc S (τ.setArr sd p x))
     (hAcc : Emits B n Ka a₁ a₂ act Cap Acc)
-    (hm : Marks sd n 1 (Base ∪ S) (fun _ => 0) τ) (hA : Acc S τ)
-    (hu : τ.vars "u" = z) (hzn : z < n) (hz : z ∉ Base ∪ S) (hzc : z ∈ Cap) :
+    (hm : Marks sd n 1 M (fun _ => 0) τ) (hA : Acc S τ)
+    (hu : τ.vars "u" = z) (hzn : z < n) (hz : z ∉ S) (hzc : z ∈ Cap) :
     ∃ τ' K, Run B (.seq (.store sd (.var "u") (.lit 1)) act) τ τ' K ∧ K ≤ Ka + 3 ∧
-      Marks sd n 1 (Base ∪ insert z S) (fun _ => 0) τ' ∧ Acc (insert z S) τ' ∧
+      Marks sd n 1 (insert z M) (fun _ => 0) τ' ∧ Acc (insert z S) τ' ∧
       (∀ y, y ≠ "c" → τ'.vars y = τ.vars y) ∧
       (∀ a, a ≠ a₁ → a ≠ a₂ → a ≠ sd → τ'.arrs a = τ.arrs a) := by
   classical
@@ -1654,29 +1684,24 @@ theorem emitBranch_run {B n Ka : ℕ} {a₁ a₂ sd : String} {act : Com}
   have hlz : z < (τ.arrs sd).length := by rw [hg, length_arrOf]; exact hzn
   have hrs : Run B (.store sd (.var "u") (.lit 1)) τ (τ.setArr sd z 1) 3 :=
     (Run.store eu (evalB_lit hB1) hlz).mono (by simp)
-  have hm₁ : Marks sd n 1 (Base ∪ insert z S) (fun _ => 0) (τ.setArr sd z 1) := by
+  have hm₁ : Marks sd n 1 (insert z M) (fun _ => 0) (τ.setArr sd z 1) := by
     refine ⟨fun k => if k = z then 1 else g k, by rw [arrs_setArr, if_pos rfl, hg, set_arrOf],
       fun k hk => ?_⟩
     simp only []
     by_cases hkz : k = z
     · rw [if_pos hkz, if_pos (by simp [hkz])]
     · rw [if_neg hkz, hgk k hk]
-      by_cases hkb : k ∈ Base ∪ S
-      · rw [if_pos hkb, if_pos (by
-          rcases Finset.mem_union.1 hkb with h | h
-          · exact Finset.mem_union_left _ h
-          · exact Finset.mem_union_right _ (Finset.mem_insert_of_mem h))]
+      by_cases hkb : k ∈ M
+      · rw [if_pos hkb, if_pos (Finset.mem_insert_of_mem hkb)]
       · rw [if_neg hkb, if_neg (by
           intro hc
-          rcases Finset.mem_union.1 hc with h | h
-          · exact hkb (Finset.mem_union_left _ h)
-          · rcases Finset.mem_insert.1 h with h | h
-            · exact hkz h
-            · exact hkb (Finset.mem_union_right _ h))]
+          rcases Finset.mem_insert.1 hc with h | h
+          · exact hkz h
+          · exact hkb h)]
   obtain ⟨g₁, hg₁, hgk₁⟩ := hm₁
   obtain ⟨τ', K, hr, hK, hA', hj', hfa⟩ :=
     hAcc S (τ.setArr sd z 1) z (hAccSt S τ z 1 hA) (by rw [vars_setArr]; exact hu) hzn
-      (fun hc => hz (Finset.mem_union_right _ hc)) hzc
+      hz hzc
   exact ⟨τ', 3 + K, hrs.seq hr, by omega,
     ⟨g₁, by rw [hfa sd (Ne.symm ha₁) (Ne.symm ha₂)]; exact hg₁, hgk₁⟩, hA',
     fun y hy => by rw [hj' y hy, vars_setArr],
@@ -1725,15 +1750,15 @@ theorem guardFrat_of_emits {B n Ka i : ℕ} {a₁ a₂ : String} {act : Com}
   · have hgz0 : g z = 0 := by rw [hgz, if_neg hin]
     have hzi : z ≠ i := fun h => hin (Finset.mem_union_left _ (Finset.mem_singleton.2 h))
     obtain ⟨τ', K, hr, hK, hm', hA', hfv, -⟩ :=
-      emitBranch_run (sd := "stf") (Base := ({i} : Finset ℕ)) ha₁ ha₂ hB1 hnB hAccSt hAcc
-        ⟨g, hg, hgk⟩ hA hu hzn hin
+      emitBranch_run (sd := "stf") (M := ({i} : Finset ℕ) ∪ S) ha₁ ha₂ hB1 hnB hAccSt hAcc
+        ⟨g, hg, hgk⟩ hA hu hzn (fun hc => hin (Finset.mem_union_right _ hc))
         (hfe (by simp only [if_neg hzi]; exact Finset.mem_singleton_self z))
     have hset : S ∪ (if z = i then (∅ : Finset ℕ) else {z}) = insert z S := by
       rw [if_neg hzi, Finset.union_singleton]
     refine ⟨τ', _, Run.ite_true (by rw [econd, hgz0]; rfl) hr, ?_, ?_, hfv⟩
     · simp only [size_condEq, size_get, size_var, size_lit]; omega
     · simp only [hset]
-      exact ⟨hm', hA'⟩
+      exact ⟨hm'.congr (Finset.union_insert _ _ _).symm, hA'⟩
 
 /-- Reading a stamp cell: the test is the membership. -/
 theorem stampCond {B n : ℕ} {s : String} {S : Finset ℕ} {τ : Env} {z : ℕ}
@@ -1756,11 +1781,17 @@ theorem stampCond {B n : ℕ} {s : String} {S : Finset ℕ} {τ : Env} {z : ℕ}
 
 /-- **The engine block's guard.** A candidate out of the elimination's
 own in-block is kept unless `D` already carries the pair — which is the
-first clause of `RamAugment.NewArc` — or it has been emitted. -/
+first clause of `RamAugment.NewArc` — or it has been emitted.
+
+The accounting is carried at `Base ∪ S`, `Base` being what an earlier
+list of the same turn already emitted and the stamp `ste` never saw:
+the assembly's first list is the old in-block, which the stamp `sta`
+excludes on its own, so `Base ⊆ A` is exactly what says the guard
+cannot meet it twice. -/
 theorem guardAsmIn_of_emits {B n Ka : ℕ} {a₁ a₂ : String} {act : Com}
-    {Acc : Finset ℕ → Env → Prop} {A Cap : Finset ℕ}
+    {Acc : Finset ℕ → Env → Prop} {A Base Cap : Finset ℕ}
     (ha₁ : a₁ ≠ "ste") (ha₂ : a₂ ≠ "ste") (hb₁ : a₁ ≠ "sta") (hb₂ : a₂ ≠ "sta")
-    (hB1 : 1 < B) (hnB : n < B)
+    (hB1 : 1 < B) (hnB : n < B) (hBA : Base ⊆ A)
     (hAccSt : ∀ S τ p x, Acc S τ → Acc S (τ.setArr "ste" p x))
     (hAcc : Emits B n Ka a₁ a₂ act Cap Acc) :
     Guarded B n (Ka + 13)
@@ -1770,7 +1801,7 @@ theorem guardAsmIn_of_emits {B n Ka : ℕ} {a₁ a₂ : String} {act : Com}
         .skip)
       (fun z => if z ∈ A then ∅ else {z}) Cap
       (fun S τ => Marks "ste" n 1 S (fun _ => 0) τ ∧
-        Marks "sta" n 1 A (fun _ => 0) τ ∧ Acc S τ) := by
+        Marks "sta" n 1 A (fun _ => 0) τ ∧ Acc (Base ∪ S) τ) := by
   classical
   rintro S τ z ⟨hme, hma, hA⟩ hu hzn hfe
   have ea := stampCond hma hu hzn hB1 hnB
@@ -1780,23 +1811,25 @@ theorem guardAsmIn_of_emits {B n Ka : ℕ} {a₁ a₂ : String} {act : Com}
     · simp only [size_condEq, size_get, size_var, size_lit]; omega
     · simp only [if_pos hzA, Finset.union_empty]
       exact ⟨hme, hma, hA⟩
-  · by_cases hzS : z ∈ S
+  · have hzB : z ∉ Base := fun hc => hzA (hBA hc)
+    by_cases hzS : z ∈ S
     · refine ⟨τ, _, Run.ite_true (by rw [ea]; simp [hzA])
         (Run.ite_false (by rw [ee]; simp [hzS]) Run.skip), ?_, ?_, fun y _ => rfl⟩
       · simp only [size_condEq, size_get, size_var, size_lit]; omega
       · simp only [if_neg hzA, Finset.union_singleton, Finset.insert_eq_self.2 hzS]
         exact ⟨hme, hma, hA⟩
     · obtain ⟨τ', K, hr, hK, hm', hA', hfv, hfr⟩ :=
-        emitBranch_run (sd := "ste") (Base := (∅ : Finset ℕ)) ha₁ ha₂ hB1 hnB hAccSt hAcc
-          (by rwa [Finset.empty_union]) hA hu hzn (by rwa [Finset.empty_union])
+        emitBranch_run (sd := "ste") (M := S) ha₁ ha₂ hB1 hnB hAccSt hAcc hme hA hu hzn
+          (by rintro hc; rcases Finset.mem_union.1 hc with h | h; exacts [hzB h, hzS h])
           (hfe (by simp only [if_neg hzA]; exact Finset.mem_singleton_self z))
       refine ⟨τ', _, Run.ite_true (by rw [ea]; simp [hzA])
         (Run.ite_true (by rw [ee]; simp [hzS]) hr), ?_, ?_, hfv⟩
       · simp only [size_condEq, size_get, size_var, size_lit]; omega
       · simp only [if_neg hzA, Finset.union_singleton]
         obtain ⟨ga, hga, hgak⟩ := hma
-        exact ⟨by rwa [Finset.empty_union] at hm', ⟨ga, by
-          rw [hfr "sta" (Ne.symm hb₁) (Ne.symm hb₂) (by decide)]; exact hga, hgak⟩, hA'⟩
+        exact ⟨hm', ⟨ga, by
+          rw [hfr "sta" (Ne.symm hb₁) (Ne.symm hb₂) (by decide)]; exact hga, hgak⟩,
+          by rw [Finset.union_insert]; exact hA'⟩
 
 /-- **The transitive candidates' guard.** The pair must not be one `D`
 already carries, the candidate must not have been emitted, and if the
@@ -1804,10 +1837,10 @@ current vertex is demanded an arc *back* — which is what the stamp
 `std` holds — the ranking decides. That is
 `RamAugment.NewArc` read off three array cells and one comparison. -/
 theorem guardAsmTrans_of_emits {B n Ka i : ℕ} {a₁ a₂ : String} {act : Com}
-    {Acc : Finset ℕ → Env → Prop} {A Dm Cap : Finset ℕ} {R : ℕ → ℕ}
+    {Acc : Finset ℕ → Env → Prop} {A Dm Base Cap : Finset ℕ} {R : ℕ → ℕ}
     (ha₁ : a₁ ≠ "ste") (ha₂ : a₂ ≠ "ste") (hb₁ : a₁ ≠ "sta") (hb₂ : a₂ ≠ "sta")
     (hc₁ : a₁ ≠ "std") (hc₂ : a₂ ≠ "std") (hd₁ : a₁ ≠ "rnk") (hd₂ : a₂ ≠ "rnk")
-    (hB1 : 1 < B) (hnB : n < B) (hin : i < n) (hR : ∀ v, v < n → R v < n)
+    (hB1 : 1 < B) (hnB : n < B) (hin : i < n) (hR : ∀ v, v < n → R v < n) (hBA : Base ⊆ A)
     (hAccSt : ∀ S τ p x, Acc S τ → Acc S (τ.setArr "ste" p x))
     (hAccI : ∀ S τ, Acc S τ → τ.vars "i" = i)
     (hAcc : Emits B n Ka a₁ a₂ act Cap Acc) :
@@ -1822,7 +1855,8 @@ theorem guardAsmTrans_of_emits {B n Ka i : ℕ} {a₁ a₂ : String} {act : Com}
         .skip)
       (fun z => if z ∈ A then ∅ else if z ∈ Dm ∧ ¬ R z < R i then ∅ else {z}) Cap
       (fun S τ => Marks "ste" n 1 S (fun _ => 0) τ ∧ Marks "sta" n 1 A (fun _ => 0) τ ∧
-        Marks "std" n 1 Dm (fun _ => 0) τ ∧ τ.arrs "rnk" = arrOf n R ∧ Acc S τ) := by
+        Marks "std" n 1 Dm (fun _ => 0) τ ∧ τ.arrs "rnk" = arrOf n R ∧
+        Acc (Base ∪ S) τ) := by
   classical
   rintro S τ z ⟨hme, hma, hmd, hrnk, hA⟩ hu hzn hfe
   have ea := stampCond hma hu hzn hB1 hnB
@@ -1831,7 +1865,7 @@ theorem guardAsmTrans_of_emits {B n Ka i : ℕ} {a₁ a₂ : String} {act : Com}
   have eu : (Expr.var "u").evalB B τ = some z := by
     have h := evalB_var (B := B) (x := "u") (σ := τ) (by rw [hu]; omega)
     rwa [hu] at h
-  have hiv : τ.vars "i" = i := hAccI S τ hA
+  have hiv : τ.vars "i" = i := hAccI _ τ hA
   have ei : (Expr.var "i").evalB B τ = some i := by
     have h := evalB_var (B := B) (x := "i") (σ := τ) (by rw [hiv]; omega)
     rwa [hiv] at h
@@ -1854,7 +1888,8 @@ theorem guardAsmTrans_of_emits {B n Ka i : ℕ} {a₁ a₂ : String} {act : Com}
     · simp only [size_condEq, size_get, size_var, size_lit]; omega
     · simp only [if_pos hzA, Finset.union_empty]
       exact ⟨hme, hma, hmd, hrnk, hA⟩
-  · by_cases hzS : z ∈ S
+  · have hzB : z ∉ Base := fun hc => hzA (hBA hc)
+    by_cases hzS : z ∈ S
     · refine ⟨τ, _, Run.ite_true (by rw [ea]; simp [hzA])
         (Run.ite_false (by rw [ee]; simp [hzS]) Run.skip), ?_, ?_, fun y _ => rfl⟩
       · simp only [size_condEq, size_get, size_var, size_lit]; omega
@@ -1866,16 +1901,16 @@ theorem guardAsmTrans_of_emits {B n Ka i : ℕ} {a₁ a₂ : String} {act : Com}
         exact ⟨hme, hma, hmd, hrnk, hA⟩
     · have hemitB : z ∈ Cap →
           ∃ τ' K, Run B (.seq (.store "ste" (.var "u") (.lit 1)) act) τ τ' K ∧ K ≤ Ka + 3 ∧
-            Marks "ste" n 1 (insert z S) (fun _ => 0) τ' ∧ Acc (insert z S) τ' ∧
+            Marks "ste" n 1 (insert z S) (fun _ => 0) τ' ∧ Acc (Base ∪ insert z S) τ' ∧
             (∀ y, y ≠ "c" → τ'.vars y = τ.vars y) ∧
             Marks "sta" n 1 A (fun _ => 0) τ' ∧ Marks "std" n 1 Dm (fun _ => 0) τ' ∧
             τ'.arrs "rnk" = arrOf n R := by
         intro hzc
         obtain ⟨τ', K, hr, hK, hm', hA', hfv, hfr⟩ :=
-          emitBranch_run (sd := "ste") (Base := (∅ : Finset ℕ)) ha₁ ha₂ hB1 hnB hAccSt hAcc
-            (by rwa [Finset.empty_union]) hA hu hzn (by rwa [Finset.empty_union]) hzc
+          emitBranch_run (sd := "ste") (M := S) ha₁ ha₂ hB1 hnB hAccSt hAcc hme hA hu hzn
+            (by rintro hc; rcases Finset.mem_union.1 hc with h | h; exacts [hzB h, hzS h]) hzc
         obtain ⟨hma', hmd', hrnk'⟩ := hkeep τ' hfr
-        exact ⟨τ', K, hr, hK, by rwa [Finset.empty_union] at hm', hA', hfv,
+        exact ⟨τ', K, hr, hK, hm', by rw [Finset.union_insert]; exact hA', hfv,
           hma', hmd', hrnk'⟩
       by_cases hzD : z ∈ Dm
       · by_cases hlt : R z < R i
@@ -1932,7 +1967,7 @@ theorem emitNest_run {B : ℕ} {o t o2 t2 : String} {grd : Com}
     (hmono2 : ∀ z, z < nv2 → off2 z ≤ off2 (z + 1))
     (hle2 : ∀ z, z < nv2 → off2 (z + 1) ≤ len2)
     (hB2 : ∀ z, z < nv2 → off2 (z + 1) < B)
-    (htn2 : ∀ q, q < len2 → tgt2 q < n)
+    (htn2 : ∀ z, z < nv2 → ∀ q, q < off2 (z + 1) → tgt2 q < n)
     (hd2 : ∀ z, z < nv2 → off2 (z + 1) - off2 z ≤ dd)
     (hJv : ∀ S τ (y : String) (z : ℕ),
       (y = "j" ∨ y = "jend" ∨ y = "w" ∨ y = "q" ∨ y = "qe" ∨ y = "u") → J S τ →
@@ -1979,8 +2014,7 @@ theorem emitNest_run {B : ℕ} {o t o2 t2 : String} {grd : Com}
             (σ := τ.setVar "w" (tgt p))
             (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
             hB1 hznv (by omega) hnB (ho2 _ _ hJw) (hmono2 _ hznv) (hle2 _ hznv)
-            (hB2 _ hznv) (by simp) ht2
-            (fun q hq => htn2 q (lt_of_lt_of_le hq (hle2 _ hznv)))
+            (hB2 _ hznv) (by simp) ht2 (htn2 _ hznv)
             (fun S τ' y z hy hJ' => hJv S τ' y z (by
               rcases hy with rfl | rfl | rfl
               · exact Or.inr (Or.inr (Or.inr (Or.inl rfl)))
@@ -2052,40 +2086,42 @@ theorem cntAcc_emits {B n i : ℕ} {Cap : Finset ℕ} (hnB : n + 1 < B) :
 its block's start plus what has been emitted, and the cells between
 name exactly the emitted set — once each, since the pointer advances
 with them. -/
-def FillAcc (ta fa : String) (n len i base : ℕ) (T : ℕ → ℕ) (Cap : Finset ℕ)
+def FillAcc (ta fa : String) (n len i base : ℕ) (T F : ℕ → ℕ) (Cap : Finset ℕ)
     (S : Finset ℕ) (τ : Env) : Prop :=
   τ.vars "i" = i ∧ S ⊆ Cap ∧
-  (∃ f, τ.arrs fa = arrOf n f ∧ f i = base + S.card) ∧
+  (∃ f, τ.arrs fa = arrOf n f ∧ f i = base + S.card ∧ ∀ k, k ≠ i → f k = F k) ∧
   (∃ g, τ.arrs ta = arrOf len g ∧
     (∀ q, base ≤ q → q < base + S.card → g q ∈ S) ∧
     (∀ z, z ∈ S → ∃ q, base ≤ q ∧ q < base + S.card ∧ g q = z) ∧
     (∀ q, (q < base ∨ base + S.card ≤ q) → g q = T q))
 
-theorem FillAcc.setArr {ta fa : String} {n len i base : ℕ} {T : ℕ → ℕ} {Cap S : Finset ℕ}
-    {τ : Env} (h : FillAcc ta fa n len i base T Cap S τ) {a : String} (hta : a ≠ ta)
-    (hfa : a ≠ fa) (p x : ℕ) : FillAcc ta fa n len i base T Cap S (τ.setArr a p x) := by
-  obtain ⟨hi, hsub, ⟨f, hf, hfi⟩, ⟨g, hg, h₁, h₂, h₃⟩⟩ := h
+theorem FillAcc.setArr {ta fa : String} {n len i base : ℕ} {T F : ℕ → ℕ}
+    {Cap S : Finset ℕ} {τ : Env} (h : FillAcc ta fa n len i base T F Cap S τ) {a : String}
+    (hta : a ≠ ta) (hfa : a ≠ fa) (p x : ℕ) :
+    FillAcc ta fa n len i base T F Cap S (τ.setArr a p x) := by
+  obtain ⟨hi, hsub, ⟨f, hf, hfi, hfk⟩, ⟨g, hg, h₁, h₂, h₃⟩⟩ := h
   exact ⟨by rw [vars_setArr]; exact hi, hsub,
-    ⟨f, by rw [arrs_setArr, if_neg (Ne.symm hfa)]; exact hf, hfi⟩,
+    ⟨f, by rw [arrs_setArr, if_neg (Ne.symm hfa)]; exact hf, hfi, hfk⟩,
     ⟨g, by rw [arrs_setArr, if_neg (Ne.symm hta)]; exact hg, h₁, h₂, h₃⟩⟩
 
-theorem FillAcc.setVar {ta fa : String} {n len i base : ℕ} {T : ℕ → ℕ} {Cap S : Finset ℕ}
-    {τ : Env} (h : FillAcc ta fa n len i base T Cap S τ) {y : String} (hy : y ≠ "i")
-    (x : ℕ) : FillAcc ta fa n len i base T Cap S (τ.setVar y x) := by
-  obtain ⟨hi, hsub, ⟨f, hf, hfi⟩, ⟨g, hg, h₁, h₂, h₃⟩⟩ := h
+theorem FillAcc.setVar {ta fa : String} {n len i base : ℕ} {T F : ℕ → ℕ}
+    {Cap S : Finset ℕ} {τ : Env} (h : FillAcc ta fa n len i base T F Cap S τ) {y : String}
+    (hy : y ≠ "i") (x : ℕ) : FillAcc ta fa n len i base T F Cap S (τ.setVar y x) := by
+  obtain ⟨hi, hsub, ⟨f, hf, hfi, hfk⟩, ⟨g, hg, h₁, h₂, h₃⟩⟩ := h
   exact ⟨by rw [vars_setVar, if_neg (Ne.symm hy)]; exact hi, hsub,
-    ⟨f, by rw [arrs_setVar]; exact hf, hfi⟩, ⟨g, by rw [arrs_setVar]; exact hg, h₁, h₂, h₃⟩⟩
+    ⟨f, by rw [arrs_setVar]; exact hf, hfi, hfk⟩,
+    ⟨g, by rw [arrs_setVar]; exact hg, h₁, h₂, h₃⟩⟩
 
 /-- **The fill action.** -/
-theorem fillAcc_emits {B n len i base : ℕ} {ta fa : String} {T : ℕ → ℕ}
+theorem fillAcc_emits {B n len i base : ℕ} {ta fa : String} {T F : ℕ → ℕ}
     {Cap : Finset ℕ} (htf : ta ≠ fa) (hin : i < n) (hnB : n < B) (hlenB : len < B)
     (hcap : base + Cap.card ≤ len) :
     Emits B n 10 ta fa
       (.seq (.store ta (.get fa (.var "i")) (.var "u"))
         (.store fa (.var "i") (.add (.get fa (.var "i")) (.lit 1))))
-      Cap (FillAcc ta fa n len i base T Cap) := by
+      Cap (FillAcc ta fa n len i base T F Cap) := by
   classical
-  rintro S τ z ⟨hi, hsub, ⟨f, hf, hfi⟩, ⟨g, hg, h₁, h₂, h₃⟩⟩ hu hzn hzS hzc
+  rintro S τ z ⟨hi, hsub, ⟨f, hf, hfi, hfk⟩, ⟨g, hg, h₁, h₂, h₃⟩⟩ hu hzn hzS hzc
   have hins : insert z S ⊆ Cap := Finset.insert_subset hzc hsub
   have hlt : base + S.card < len := by
     have h := Finset.card_le_card hins
@@ -2126,7 +2162,8 @@ theorem fillAcc_emits {B n len i base : ℕ} {ta fa : String} {T : ℕ → ℕ}
   refine ⟨by rw [vars_setArr, hτ₁, vars_setArr]; exact hi, hins,
     ⟨fun k => if k = i then base + S.card + 1 else f k,
       by rw [arrs_setArr, if_pos rfl, hfa₁, set_arrOf],
-      by simp only []; rw [if_true, hcards]; omega⟩,
+      by simp only []; rw [if_true, hcards]; omega,
+      fun k hk => by simp only []; rw [if_neg hk]; exact hfk k hk⟩,
     ⟨g', by rw [arrs_setArr, if_neg htf, hga₁], ?_, ?_, ?_⟩⟩
   · intro q hq₁ hq₂
     rw [hcards] at hq₂
@@ -2343,6 +2380,134 @@ theorem asmRow_eq {n m me : ℕ} {D : Orientation n} {ρ : Fin n → ℕ} {DO DT
   rw [rowTgt_eq_inN hcsr hi, transRow_eq hcsr hi hρ, fratCandRow_eq hE hi,
     RamAugment.inN_augOr_eq, valSet_union, valSet_union]
 
+/-! ### The out-blocks, read as sets
+
+The assembly's two stamps are unions of in- and out-blocks, so what the
+counting sort left has to be read back at the set level once more: the
+row of `i` in the out-block structure is the vertices `i` points at,
+and the nested row is the vertices `i` demands an arc to. -/
+
+theorem adjSet_eq {n : ℕ} (D : Orientation n) (v : Fin n) :
+    RamAugment.adjSet D v = D.inN v ∪ RamAugment.outSet D v := rfl
+
+theorem demandOut_eq {n : ℕ} (D : Orientation n) (v : Fin n) :
+    RamAugment.demandOut D v = (RamAugment.outSet D v).biUnion (fun w => D.inN w) ∪
+      (RamAugment.outSet D v).biUnion (fun w => RamAugment.outSet D w) := rfl
+
+section OutBlocks
+
+variable {n W m : ℕ} {D : Orientation n} {DO DT OO OT : ℕ → ℕ} {σ : Env}
+
+/-- **A row of the out-blocks names the vertices the row's owner points
+at.** -/
+theorem rowTgt_out_eq (hcsr : InCsr D m DO DT) (hbl : Blocks "ooff" "otg" n W m OO OT σ)
+    (hsnd : ∀ u < n, ∀ q, OO u ≤ q → q < OO (u + 1) → Pts DO DT (OT q) u)
+    (hcmp : ∀ u < n, ∀ z < n, Pts DO DT z u → ∃ q, OO u ≤ q ∧ q < OO (u + 1) ∧ OT q = z)
+    {i : ℕ} (hi : i < n) : rowTgt OO OT i = valSet (RamAugment.outSet D ⟨i, hi⟩) := by
+  ext y
+  rw [mem_rowTgt, mem_valSet]
+  constructor
+  · rintro ⟨q, h₁, h₂, h₃⟩
+    have hqm : q < m := lt_of_lt_of_le h₂ (hbl.off_le (by omega))
+    have hyn : y < n := h₃ ▸ hbl.target_lt q hqm
+    refine ⟨hyn, ?_⟩
+    have hp : Pts DO DT y i := h₃ ▸ hsnd i hi q h₁ h₂
+    exact (pts_iff_mem_outSet hcsr hyn hi).1 hp
+  · rintro ⟨hyn, hmem⟩
+    exact hcmp i hi y hyn ((pts_iff_mem_outSet hcsr hyn hi).2 hmem)
+
+/-- **The stamp `sta`**: the in-block and the out-block of `i` are the
+vertices `D` makes `i` adjacent to, which is `RamAugment.mem_adjSet`. -/
+theorem adjRow_eq (hcsr : InCsr D m DO DT) (hbl : Blocks "ooff" "otg" n W m OO OT σ)
+    (hsnd : ∀ u < n, ∀ q, OO u ≤ q → q < OO (u + 1) → Pts DO DT (OT q) u)
+    (hcmp : ∀ u < n, ∀ z < n, Pts DO DT z u → ∃ q, OO u ≤ q ∧ q < OO (u + 1) ∧ OT q = z)
+    {i : ℕ} (hi : i < n) :
+    rowTgt DO DT i ∪ rowTgt OO OT i = valSet (RamAugment.adjSet D ⟨i, hi⟩) := by
+  rw [rowTgt_eq_inN hcsr hi, rowTgt_out_eq hcsr hbl hsnd hcmp hi, adjSet_eq, valSet_union]
+
+/-- **The stamp `std`**: the in-blocks and the out-blocks of the
+vertices `i` points at are the vertices `i` demands an arc to, which is
+`RamAugment.mem_demandOut`. -/
+theorem demandRow_eq (hcsr : InCsr D m DO DT) (hbl : Blocks "ooff" "otg" n W m OO OT σ)
+    (hsnd : ∀ u < n, ∀ q, OO u ≤ q → q < OO (u + 1) → Pts DO DT (OT q) u)
+    (hcmp : ∀ u < n, ∀ z < n, Pts DO DT z u → ∃ q, OO u ≤ q ∧ q < OO (u + 1) ∧ OT q = z)
+    {i : ℕ} (hi : i < n) :
+    rowAcc OO OT (fun w => rowTgt DO DT w ∪ rowTgt OO OT w) i
+      = valSet (RamAugment.demandOut D ⟨i, hi⟩) := by
+  classical
+  ext y
+  rw [mem_rowAcc, mem_valSet, demandOut_eq]
+  constructor
+  · rintro ⟨p, h₁, h₂, hy⟩
+    have hpm : p < m := lt_of_lt_of_le h₂ (hbl.off_le (by omega))
+    have hwn : OT p < n := hbl.target_lt p hpm
+    have hw : (⟨OT p, hwn⟩ : Fin n) ∈ RamAugment.outSet D ⟨i, hi⟩ :=
+      (pts_iff_mem_outSet hcsr hwn hi).1 (hsnd i hi p h₁ h₂)
+    rcases Finset.mem_union.1 hy with hy | hy
+    · rw [rowTgt_eq_inN hcsr hwn, mem_valSet] at hy
+      obtain ⟨hyn, hym⟩ := hy
+      exact ⟨hyn, Finset.mem_union_left _ (Finset.mem_biUnion.2 ⟨⟨OT p, hwn⟩, hw, hym⟩)⟩
+    · rw [rowTgt_out_eq hcsr hbl hsnd hcmp hwn, mem_valSet] at hy
+      obtain ⟨hyn, hym⟩ := hy
+      exact ⟨hyn, Finset.mem_union_right _ (Finset.mem_biUnion.2 ⟨⟨OT p, hwn⟩, hw, hym⟩)⟩
+  · rintro ⟨hyn, hmem⟩
+    rcases Finset.mem_union.1 hmem with hm | hm
+    · obtain ⟨w, hw, hyw⟩ := Finset.mem_biUnion.1 hm
+      obtain ⟨p, h₁, h₂, h₃⟩ :=
+        hcmp i hi (w : ℕ) w.isLt ((pts_iff_mem_outSet hcsr w.isLt hi).2 hw)
+      refine ⟨p, h₁, h₂, Finset.mem_union_left _ ?_⟩
+      rw [h₃, rowTgt_eq_inN hcsr w.isLt]
+      exact mem_valSet.2 ⟨hyn, by simpa using hyw⟩
+    · obtain ⟨w, hw, hyw⟩ := Finset.mem_biUnion.1 hm
+      obtain ⟨p, h₁, h₂, h₃⟩ :=
+        hcmp i hi (w : ℕ) w.isLt ((pts_iff_mem_outSet hcsr w.isLt hi).2 hw)
+      refine ⟨p, h₁, h₂, Finset.mem_union_right _ ?_⟩
+      rw [h₃, rowTgt_out_eq hcsr hbl hsnd hcmp w.isLt]
+      exact mem_valSet.2 ⟨hyn, by simpa using hyw⟩
+
+/-- **A row of an `InCsr` names each in-neighbour once.** The slots of
+the block map onto the in-neighbours, and the block is exactly as long
+as there are of them, so the map is injective. This is what the
+fraternity build's `CsrSimple` output needs of the assembly's input,
+and what makes the assembly's first list — the old in-block — carry no
+duplicate. -/
+theorem incsr_nodup (h : InCsr D m DO DT) {w : ℕ} (hw : w < n) {j₁ j₂ : ℕ}
+    (h₁ : DO w ≤ j₁) (h₂ : j₁ < DO (w + 1)) (h₃ : DO w ≤ j₂) (h₄ : j₂ < DO (w + 1))
+    (he : DT j₁ = DT j₂) : j₁ = j₂ := by
+  classical
+  set S := Finset.Ico (DO w) (DO (w + 1)) with hS
+  have hslot : ∀ j ∈ S, DT j < n := by
+    intro j hj
+    rw [hS, Finset.mem_Ico] at hj
+    exact h.target_lt j (lt_of_lt_of_le hj.2 (incsr_le h (by omega)))
+  have himg : S.image DT = valSet (D.inN ⟨w, hw⟩) := by
+    ext y
+    rw [Finset.mem_image, mem_valSet]
+    constructor
+    · rintro ⟨j, hj, rfl⟩
+      rw [hS, Finset.mem_Ico] at hj
+      exact ⟨hslot j (by rw [hS, Finset.mem_Ico]; exact hj),
+        (h.mem_iff ⟨w, hw⟩ ⟨DT j, hslot j (by rw [hS, Finset.mem_Ico]; exact hj)⟩).2
+          ⟨j, hj.1, hj.2, rfl⟩⟩
+    · rintro ⟨hyn, hym⟩
+      obtain ⟨j, hj₁, hj₂, hj₃⟩ := (h.mem_iff ⟨w, hw⟩ ⟨y, hyn⟩).1 hym
+      exact ⟨j, by rw [hS, Finset.mem_Ico]; exact ⟨hj₁, hj₂⟩, hj₃⟩
+  have hcard : (S.image DT).card = S.card := by
+    rw [himg, card_valSet, hS, Nat.card_Ico, h.len ⟨w, hw⟩]
+  have := Finset.injOn_of_card_image_eq hcard
+  exact this (by simp only [hS, Finset.coe_Ico, Set.mem_Ico]; exact ⟨h₁, h₂⟩)
+    (by simp only [hS, Finset.coe_Ico, Set.mem_Ico]; exact ⟨h₃, h₄⟩) he
+
+/-- The arcs are as many as the in-degrees allow. This is what puts the
+nested walks' cost — a per-slot charge times an in-block — inside the
+width. -/
+theorem arcs_le (h : InCsr D m DO DT) {d : ℕ} (hd : D.InDegLE d) : m ≤ n * d := by
+  rw [← sum_card_inN h]
+  calc ∑ v : Fin n, (D.inN v).card ≤ ∑ _v : Fin n, d := Finset.sum_le_sum fun v _ => hd v
+    _ = n * d := by rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
+
+end OutBlocks
+
 /-! ### The definitions, checked against the round's own worked example
 
 House discipline: the arithmetic this file introduces is *seen* on the
@@ -2410,7 +2575,1194 @@ def demoOT : ℕ → ℕ := fun s => if s = 0 then 1 else if s = 1 then 2 else
     (rowAcc demoDO demoDT (fun w => rowAcc demoDO demoDT (fun y => {y}) w) i).sort (· ≤ ·))
   = [[], [], [0], [0, 1]]
 
+-- **the stamp `sta`**: the in-block and the out-block of `i`, which is what
+-- `D` makes `i` adjacent to — `1 2 | 0 2 | 0 1 3 | 2`
+#guard (List.range 4).map (fun i =>
+    (rowTgt demoDO demoDT i ∪ rowTgt demoOO demoOT i).sort (· ≤ ·))
+  = [[1, 2], [0, 2], [0, 1, 3], [2]]
+
+/-- The vertices `i` demands an arc to: the in-blocks and the
+out-blocks of the vertices `i` points at. -/
+def demoDem (i : ℕ) : Finset ℕ :=
+  rowAcc demoOO demoOT (fun w => rowTgt demoDO demoDT w ∪ rowTgt demoOO demoOT w) i
+
+-- **the stamp `std`** — vertex `0` demands everything, `3` demands nothing
+#guard (List.range 4).map (fun i => (demoDem i).sort (· ≤ ·))
+  = [[0, 1, 2, 3], [0, 1, 3], [2], []]
+
+-- the *raw* fraternity enumeration, the stamp erased: the guarded walk's set
+-- `1 | 0 | | ` sits inside it, which is what makes the clearing walk clear
+-- every cell the counting walk set
+#guard (List.range 4).map (fun i =>
+    (rowAcc demoOO demoOT (fun w => rowTgt demoDO demoDT w) i).sort (· ≤ ·))
+  = [[0, 1], [0, 1], [2], []]
+
+-- **the transitive enumeration, guarded** by the two stamps and the ranking
+-- `0, 1, 2, 3` the round reports: `0 → 2` is discarded because `D` carries it,
+-- and what is left is the two arcs `0 → 3`, `1 → 3` the round's example names
+#guard (List.range 4).map (fun i =>
+    (rowAcc demoDO demoDT (fun w => rowAcc demoDO demoDT
+      (fun y => if y ∈ rowTgt demoDO demoDT i ∪ rowTgt demoOO demoOT i then ∅
+        else if y ∈ demoDem i ∧ ¬ y < i then ∅ else {y}) w) i).sort (· ≤ ·))
+  = [[], [], [], [0, 1]]
+
 end Demo
+
+/-! ### The fraternity build
+
+`RamAugment.fratCount` and `RamAugment.fratFill` are the same walk
+twice over: the stamp of `i` is set, the nested enumeration runs under
+the guard, the same enumeration runs again clearing every stamp it set,
+and the stamp of `i` is cleared. What differs is only what the guard
+fires — a counter or a fill pointer — so the two lemmas below serve
+both passes, at two `Emits`. -/
+
+/-- The eleven arrays the round's walks read. An accounting whose
+action writes neither of its own two among them crosses a walk
+untouched, which is what `Emits.and` asks of it. -/
+def ReadArrs (a : String) : Prop :=
+  a ≠ "doff" ∧ a ≠ "dtg" ∧ a ≠ "ooff" ∧ a ≠ "otg" ∧ a ≠ "stf" ∧ a ≠ "sta" ∧
+    a ≠ "std" ∧ a ≠ "ste" ∧ a ≠ "rnk" ∧ a ≠ "ioff" ∧ a ≠ "itg"
+
+/-- The five names the round's own actions write, none of them read by
+a walk. `"@"` is the counting action's placeholder: it writes no array
+at all. -/
+theorem readArrs_at : ReadArrs "@" :=
+  ⟨by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide,
+    by decide, by decide, by decide⟩
+
+theorem readArrs_tgt : ReadArrs "tgt" :=
+  ⟨by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide,
+    by decide, by decide, by decide⟩
+
+theorem readArrs_ffl : ReadArrs "ffl" :=
+  ⟨by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide,
+    by decide, by decide, by decide⟩
+
+theorem readArrs_ntg : ReadArrs "ntg" :=
+  ⟨by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide,
+    by decide, by decide, by decide⟩
+
+theorem readArrs_nfl : ReadArrs "nfl" :=
+  ⟨by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide,
+    by decide, by decide, by decide⟩
+
+/-- The four arrays and the one scalar a nested walk of the round
+reads, which every accounting has to carry across it. -/
+def NestArr (n W : ℕ) (DO DT OO OT : ℕ → ℕ) (τ : Env) : Prop :=
+  τ.vars "n" = n ∧ τ.arrs "doff" = arrOf (n + 1) DO ∧ τ.arrs "dtg" = arrOf W DT ∧
+    τ.arrs "ooff" = arrOf (n + 1) OO ∧ τ.arrs "otg" = arrOf W OT
+
+namespace NestArr
+
+variable {n W : ℕ} {DO DT OO OT : ℕ → ℕ} {τ τ' : Env}
+
+theorem setVar (h : NestArr n W DO DT OO OT τ) (y : String) (hy : y ≠ "n") (x : ℕ) :
+    NestArr n W DO DT OO OT (τ.setVar y x) :=
+  ⟨by rw [vars_setVar, if_neg (Ne.symm hy)]; exact h.1, by simpa using h.2.1,
+    by simpa using h.2.2.1, by simpa using h.2.2.2.1, by simpa using h.2.2.2.2⟩
+
+theorem setArr (h : NestArr n W DO DT OO OT τ) {a : String} (h1 : a ≠ "doff")
+    (h2 : a ≠ "dtg") (h3 : a ≠ "ooff") (h4 : a ≠ "otg") (p x : ℕ) :
+    NestArr n W DO DT OO OT (τ.setArr a p x) :=
+  ⟨by rw [vars_setArr]; exact h.1,
+    by rw [arrs_setArr, if_neg (Ne.symm h1)]; exact h.2.1,
+    by rw [arrs_setArr, if_neg (Ne.symm h2)]; exact h.2.2.1,
+    by rw [arrs_setArr, if_neg (Ne.symm h3)]; exact h.2.2.2.1,
+    by rw [arrs_setArr, if_neg (Ne.symm h4)]; exact h.2.2.2.2⟩
+
+/-- The relation crosses any command that leaves the four arrays and
+the scalar `"n"` alone — which every accounting's action does. -/
+theorem of_frame {a₁ a₂ : String} (h : NestArr n W DO DT OO OT τ)
+    (ha₁ : ReadArrs a₁) (ha₂ : ReadArrs a₂)
+    (hv : ∀ y, y ≠ "c" → τ'.vars y = τ.vars y)
+    (hfa : ∀ a, a ≠ a₁ → a ≠ a₂ → τ'.arrs a = τ.arrs a) : NestArr n W DO DT OO OT τ' :=
+  ⟨by rw [hv "n" (by decide)]; exact h.1,
+    by rw [hfa "doff" (Ne.symm ha₁.1) (Ne.symm ha₂.1)]; exact h.2.1,
+    by rw [hfa "dtg" (Ne.symm ha₁.2.1) (Ne.symm ha₂.2.1)]; exact h.2.2.1,
+    by rw [hfa "ooff" (Ne.symm ha₁.2.2.1) (Ne.symm ha₂.2.2.1)]; exact h.2.2.2.1,
+    by rw [hfa "otg" (Ne.symm ha₁.2.2.2.1) (Ne.symm ha₂.2.2.2.1)]; exact h.2.2.2.2⟩
+
+end NestArr
+
+/-- The guard the fraternity build runs at every candidate: emit unless
+the stamp is set. -/
+def fratGuard (act : Com) : Com :=
+  .ite (.eq (.get "stf" (.var "u")) (.lit 0))
+    (.seq (.store "stf" (.var "u") (.lit 1)) act) .skip
+
+section FratPass
+
+variable {B n d W m Ka : ℕ} {a₁ a₂ : String} {act : Com} {D : Orientation n}
+variable {DO DT OO OT : ℕ → ℕ} {Acc : Finset ℕ → Env → Prop} {Cap : Finset ℕ}
+variable {i : ℕ} {σ : Env}
+
+/-- **The fraternity walk, guarded.** The out-block of `i` is scanned,
+the in-block of every vertex it names inside it, and every candidate
+whose stamp is clear is stamped and handed to the action — so what
+reaches the action is `RamAugment.fratNbrs D i`, once each, by
+`fratRow_eq`. -/
+theorem fratEmit_run
+    (ha₁ : ReadArrs a₁) (ha₂ : ReadArrs a₂)
+    (hB1 : 1 < B) (hnB : n < B) (hmB : m < B) (hi : i < n)
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d) (hmW : m ≤ W)
+    (hbo : Blocks "ooff" "otg" n W m OO OT σ)
+    (hsnd : ∀ u < n, ∀ q, OO u ≤ q → q < OO (u + 1) → Pts DO DT (OT q) u)
+    (hcmp : ∀ u < n, ∀ z < n, Pts DO DT z u → ∃ q, OO u ≤ q ∧ q < OO (u + 1) ∧ OT q = z)
+    (hiv : σ.vars "i" = i) (harr : NestArr n W DO DT OO OT σ)
+    (hstf : Marks "stf" n 1 ({i} : Finset ℕ) (fun _ => 0) σ)
+    (hAccSt : ∀ S τ p x, Acc S τ → Acc S (τ.setArr "stf" p x))
+    (hAccV : ∀ S τ (y : String) (z : ℕ),
+      (y = "j" ∨ y = "jend" ∨ y = "w" ∨ y = "q" ∨ y = "qe" ∨ y = "u") → Acc S τ →
+      Acc S (τ.setVar y z))
+    (hAcc : Emits B n Ka a₁ a₂ act Cap Acc)
+    (hCap : valSet (RamAugment.fratNbrs D ⟨i, hi⟩) ⊆ Cap) (hA0 : Acc ∅ σ) :
+    ∃ σ' K, Run B (RamAugment.fratScan (fratGuard act)) σ σ' K ∧
+      K ≤ ((Ka + 19) * d + 23) * (OO (i + 1) - OO i) + 12 ∧
+      Marks "stf" n 1 ({i} ∪ valSet (RamAugment.fratNbrs D ⟨i, hi⟩)) (fun _ => 0) σ' ∧
+      Acc (valSet (RamAugment.fratNbrs D ⟨i, hi⟩)) σ' ∧ NestArr n W DO DT OO OT σ' ∧
+      (∀ y, y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" → y ≠ "u" → y ≠ "c" →
+        σ'.vars y = σ.vars y) := by
+  classical
+  have hDle : ∀ z, z < n → DO (z + 1) ≤ m := fun z hz => incsr_le hcsr (by omega)
+  have hOle : ∀ z, z < n → OO (z + 1) ≤ m := fun z hz => hbo.off_le (by omega)
+  have hrow : rowAcc OO OT (fun w => rowAcc DO DT (fun y => if y = i then ∅ else {y}) w) i
+      = valSet (RamAugment.fratNbrs D ⟨i, hi⟩) :=
+    fratRow_eq hcsr hOle (fun q hq => hbo.target_lt q hq) hi (hsnd i hi)
+      (fun z hz hp => hcmp i hi z hz hp)
+  have hsub : rowAcc OO OT (fun w => rowAcc DO DT (fun y => if y = i then ∅ else {y}) w) i
+      ⊆ Cap := by rw [hrow]; exact hCap
+  have hAccP : Emits B n Ka a₁ a₂ act Cap
+      (fun S τ => Acc S τ ∧ NestArr n W DO DT OO OT τ) :=
+    hAcc.and (fun _ _ hP hv hfa => hP.of_frame ha₁ ha₂ hv hfa)
+  have hg := guardFrat_of_emits (B := B) (n := n) (Ka := Ka) (i := i) (act := act)
+      (Cap := Cap) (Acc := fun S τ => Acc S τ ∧ NestArr n W DO DT OO OT τ)
+      ha₁.2.2.2.2.1 ha₂.2.2.2.2.1 hB1 hnB
+      (fun S τ p x h => ⟨hAccSt S τ p x h.1,
+        h.2.setArr (by decide) (by decide) (by decide) (by decide) p x⟩)
+      hAccP
+  obtain ⟨σ', K, hrun, hK, hJ, hfv⟩ :=
+    emitNest_run (B := B) (o := "ooff") (t := "otg") (o2 := "doff") (t2 := "dtg")
+      (grd := fratGuard act) (n := n) (nv := n) (len := W) (nv2 := n) (len2 := W)
+      (v := i) (Kg := Ka + 8) (dd := d) (off := OO) (tgt := OT) (off2 := DO) (tgt2 := DT)
+      (fe := fun y => if y = i then ∅ else {y})
+      (J := fun S τ => Marks "stf" n 1 ({i} ∪ S) (fun _ => 0) τ ∧
+        (Acc S τ ∧ NestArr n W DO DT OO OT τ))
+      (E₀ := ∅) (Cap := Cap) (σ := σ)
+      hB1 hnB hi (by omega) harr.2.2.2.1 (hbo.mono i hi)
+      (le_trans (hOle i hi) hmW) (by have := hOle i hi; omega) hiv
+      (fun _ _ h => h.2.2.2.2.2.2)
+      (fun p hp => hbo.target_lt p (by have := hOle i hi; omega))
+      le_rfl (fun _ _ h => h.2.2.2.1) (fun _ _ h => h.2.2.2.2.1)
+      (fun z hz => hcsr.mono z hz) (fun z hz => le_trans (hDle z hz) hmW)
+      (fun z hz => by have := hDle z hz; omega)
+      (fun z hz q hq => hcsr.target_lt q (lt_of_lt_of_le hq (hDle z hz)))
+      (fun z hz => by
+        have h : DO (z + 1) - DO z = (D.inN ⟨z, hz⟩).card := hcsr.len ⟨z, hz⟩
+        rw [h]; exact hdeg ⟨z, hz⟩)
+      (fun S τ y z hy h => ⟨h.1.setVar y z, hAccV S τ y z hy h.2.1,
+        h.2.2.setVar y (by rcases hy with rfl | rfl | rfl | rfl | rfl | rfl <;> decide) z⟩)
+      (fun p h₁ h₂ => Finset.Subset.trans (subset_rowAcc h₁ h₂) hsub)
+      hg ⟨hstf.congr (Finset.union_empty _).symm, hA0, harr⟩
+  rw [Finset.empty_union, hrow] at hJ
+  exact ⟨σ', K, hrun, le_trans hK (le_of_eq (by ring)), hJ.1, hJ.2.1, hJ.2.2, hfv⟩
+
+/-- **The fraternity walk, clearing.** The very same enumeration, with
+the store of the literal one replaced by the store of a zero: what it
+leaves is the stamp cleared on every cell the guarded walk could have
+set, since the guarded walk's set is this one's by `rowAcc_mono`. -/
+theorem fratClear_run {g : ℕ → ℕ}
+    (hB1 : 1 < B) (hnB : n < B) (hmB : m < B) (hi : i < n)
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d) (hmW : m ≤ W)
+    (hbo : Blocks "ooff" "otg" n W m OO OT σ)
+    (hiv : σ.vars "i" = i) (harr : NestArr n W DO DT OO OT σ)
+    (hsa : σ.arrs "stf" = arrOf n g) :
+    ∃ σ' K, Run B (RamAugment.fratScan (.store "stf" (.var "u") (.lit 0))) σ σ' K ∧
+      K ≤ (14 * d + 23) * (OO (i + 1) - OO i) + 12 ∧
+      Marks "stf" n 0 (rowAcc OO OT (fun w => rowTgt DO DT w) i) g σ' ∧
+      (∀ a, a ≠ "stf" → σ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" → y ≠ "u" →
+        σ'.vars y = σ.vars y) := by
+  classical
+  have hDle : ∀ z, z < n → DO (z + 1) ≤ m := fun z hz => incsr_le hcsr (by omega)
+  have hOle : ∀ z, z < n → OO (z + 1) ≤ m := fun z hz => hbo.off_le (by omega)
+  obtain ⟨σ', K, hrun, hK, hm, hfa, hfv⟩ :=
+    stampNest_run (B := B) (o := "ooff") (t := "otg") (x := "i") (j := "j") (jend := "jend")
+      (w := "w") (s := "stf")
+      (inner := RamAugment.blockScan "doff" "dtg" "w" "q" "qe" "u"
+        (.store "stf" (.var "u") (.lit 0)))
+      (n := n) (nv := n) (len := W) (v := i) (b := 0) (off := OO) (tgt := OT) (g := g)
+      (ic := fun _ => 14 * d + 12) (fs := fun w => rowTgt DO DT w) (σ := σ)
+      (by decide) (by decide) (by decide) (by decide) (by decide) hB1 hi (by omega) hnB
+      harr.2.2.2.1 (hbo.mono i hi) (le_trans (hOle i hi) hmW)
+      (by have := hOle i hi; omega) hiv harr.2.2.2.2
+      (fun p hp => hbo.target_lt p (by have := hOle i hi; omega)) hsa
+      (by
+        intro τ z h hfrτ hwz hzn hst
+        obtain ⟨τ', K', hr, hK', hm', hfa', hfv'⟩ :=
+          stampRow_run (B := B) (o := "doff") (t := "dtg") (x := "w") (j := "q")
+            (jend := "qe") (u := "u") (s := "stf") (n := n) (nv := n) (len := W) (v := z)
+            (b := 0) (off := DO) (tgt := DT) (g := h) (σ := τ)
+            (by decide) (by decide) (by decide) (by decide) (by decide) hB1 hzn
+            (by omega) (by omega) hnB
+            (by rw [hfrτ "doff" (by decide)]; exact harr.2.1) (hcsr.mono z hzn)
+            (le_trans (hDle z hzn) hmW) (by have := hDle z hzn; omega) hwz
+            (by rw [hfrτ "dtg" (by decide)]; exact harr.2.2.1)
+            (fun p hp => hcsr.target_lt p (lt_of_lt_of_le hp (hDle z hzn))) hst
+        have hd' : DO (z + 1) - DO z ≤ d := by
+          have h : DO (z + 1) - DO z = (D.inN ⟨z, hzn⟩).card := hcsr.len ⟨z, hzn⟩
+          rw [h]; exact hdeg ⟨z, hzn⟩
+        refine ⟨τ', K', hr, ?_, hm', hfa',
+          hfv' "j" (by decide) (by decide) (by decide),
+          hfv' "jend" (by decide) (by decide) (by decide)⟩
+        show K' ≤ 14 * d + 12
+        omega)
+  refine ⟨σ', K, hrun, le_trans hK ?_, hm, hfa, fun y h1 h2 h3 h4 h5 h6 => hfv y ?_⟩
+  · rw [Finset.sum_const, Nat.card_Ico, smul_eq_mul]
+    exact le_of_eq (by ring)
+  · simp [RamAugment.blockScan, Csr.loadRow, Csr.scan, Com.wvars, h1, h2, h3, h4, h5, h6]
+
+/-- The out-block structure is a statement about two arrays, so a
+nested walk's own record of them carries it. -/
+theorem Blocks.of_nestArr {τ : Env} (hbo : Blocks "ooff" "otg" n W m OO OT σ)
+    (h : NestArr n W DO DT OO OT τ) : Blocks "ooff" "otg" n W m OO OT τ :=
+  hbo.of_eq (by rw [h.2.2.2.1, hbo.offArr]) (by rw [h.2.2.2.2, hbo.tgtArr])
+
+end FratPass
+
+/-- The fraternal degree of a vertex, at the number level. -/
+noncomputable def fratDeg {n : ℕ} (D : Orientation n) (u : ℕ) : ℕ :=
+  if h : u < n then (RamAugment.fratNbrs D ⟨u, h⟩).card else 0
+
+theorem sum_fratDeg {n : ℕ} (D : Orientation n) :
+    ∑ u ∈ Finset.range n, fratDeg D u = RamAugment.fratSlots D := by
+  rw [← Fin.sum_univ_eq_sum_range (fun u => fratDeg D u) n]
+  exact Finset.sum_congr rfl fun v _ => by simp [fratDeg, v.isLt]
+
+/-- The fraternal partners of a vertex, at the number level. -/
+noncomputable def fratSet {n : ℕ} (D : Orientation n) (u : ℕ) : Finset ℕ :=
+  if h : u < n then valSet (RamAugment.fratNbrs D ⟨u, h⟩) else ∅
+
+theorem fratSet_eq {n : ℕ} {D : Orientation n} {u : ℕ} (h : u < n) :
+    fratSet D u = valSet (RamAugment.fratNbrs D ⟨u, h⟩) := dif_pos h
+
+theorem card_fratSet {n : ℕ} (D : Orientation n) (u : ℕ) :
+    (fratSet D u).card = fratDeg D u := by
+  by_cases h : u < n
+  · rw [fratSet_eq h, card_valSet, fratDeg, dif_pos h]
+  · rw [fratSet, dif_neg h, fratDeg, dif_neg h]; simp
+
+section FratPasses
+
+variable {B n d W m : ℕ} {D : Orientation n} {DO DT OO OT : ℕ → ℕ} {σ : Env}
+
+/-- **The fraternal degrees, counted.** One turn stamps the current
+vertex, runs the guarded enumeration with the counter as its action,
+clears every stamp the enumeration could have set, clears the current
+vertex's, and writes the count one place up in the offsets. -/
+theorem fratCount_run
+    (hnB : n + 1 < B) (hmB : m < B) (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d)
+    (hmW : m ≤ W) (hbo : Blocks "ooff" "otg" n W m OO OT σ)
+    (hsnd : ∀ u < n, ∀ q, OO u ≤ q → q < OO (u + 1) → Pts DO DT (OT q) u)
+    (hcmp : ∀ u < n, ∀ z < n, Pts DO DT z u → ∃ q, OO u ≤ q ∧ q < OO (u + 1) ∧ OT q = z)
+    (harr : NestArr n W DO DT OO OT σ)
+    (hstf0 : ∃ g, σ.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hoff0 : ∃ g, σ.arrs "off" = arrOf (n + 1) g ∧ ∀ k ≤ n, g k = 0) :
+    ∃ σ' K, Run B RamAugment.fratCount σ σ' K ∧
+      K ≤ (37 * d + 46) * m + 45 * n + 8 ∧ NestArr n W DO DT OO OT σ' ∧
+      (∃ g, σ'.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+      (∃ g, σ'.arrs "off" = arrOf (n + 1) g ∧ g 0 = 0 ∧
+        ∀ u < n, g (u + 1) = fratDeg D u) ∧
+      (∀ a, a ≠ "stf" → a ≠ "off" → σ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "i" → y ≠ "c" → y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" →
+        y ≠ "u" → σ'.vars y = σ.vars y) := by
+  classical
+  obtain ⟨gs₀, hgs₀, hgz₀⟩ := hstf0
+  obtain ⟨go₀, hgo₀, hgoz₀⟩ := hoff0
+  set I : ℕ → Env → Prop := fun i τ => τ.vars "i" = i ∧ i ≤ n ∧
+    NestArr n W DO DT OO OT τ ∧
+    (∃ g, τ.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+    (∃ g, τ.arrs "off" = arrOf (n + 1) g ∧ g 0 = 0 ∧ ∀ u < i, g (u + 1) = fratDeg D u)
+    with hI
+  have hstep : ∀ i, i < n → ∀ τ, I i τ →
+      ∃ τ' K, Run B (.seq (.assign "c" (.lit 0))
+          (.seq (.store "stf" (.var "i") (.lit 1))
+            (.seq (RamAugment.fratScan (fratGuard (.assign "c" (.add (.var "c") (.lit 1)))))
+              (.seq (RamAugment.fratScan (.store "stf" (.var "u") (.lit 0)))
+                (.seq (.store "stf" (.var "i") (.lit 0))
+                  (.store "off" (.add (.var "i") (.lit 1)) (.var "c"))))))) τ τ' K ∧
+        K ≤ (37 * d + 46) * (OO (i + 1) - OO i) + 37 ∧ τ'.vars "i" = i ∧
+        I (i + 1) (τ'.setVar "i" (i + 1)) := by
+    intro i hi τ hτ
+    obtain ⟨hiv, -, harrτ, ⟨gs, hgs, hgz⟩, ⟨go, hgo, hgo0, hgoI⟩⟩ := hτ
+    set E : Finset ℕ := valSet (RamAugment.fratNbrs D ⟨i, hi⟩) with hE
+    have hEcard : E.card = fratDeg D i := by rw [hE, card_valSet, fratDeg, dif_pos hi]
+    have hEn : E ⊆ Finset.range n := fun y hy => Finset.mem_range.2 (valSet_lt hy)
+    have hEle : E.card ≤ n := by
+      have := Finset.card_le_card hEn; rwa [Finset.card_range] at this
+    -- `c := 0`
+    set τ₁ := τ.setVar "c" 0 with hτ₁
+    have hr₁ : Run B (.assign "c" (.lit 0)) τ τ₁ 2 :=
+      (Run.assign (evalB_lit (by omega))).mono (by simp)
+    have hiv₁ : τ₁.vars "i" = i := by rw [hτ₁, vars_setVar, if_neg (by decide), hiv]
+    -- `stf[i] := 1`
+    have ei₁ : (Expr.var "i").evalB B τ₁ = some i := by
+      have h := evalB_var (B := B) (x := "i") (σ := τ₁) (by rw [hiv₁]; omega)
+      rwa [hiv₁] at h
+    have hgs₁ : τ₁.arrs "stf" = arrOf n gs := by rw [hτ₁, arrs_setVar]; exact hgs
+    have hl₁ : i < (τ₁.arrs "stf").length := by rw [hgs₁, length_arrOf]; exact hi
+    set τ₂ := τ₁.setArr "stf" i 1 with hτ₂
+    have hr₂ : Run B (.store "stf" (.var "i") (.lit 1)) τ₁ τ₂ 3 :=
+      (Run.store ei₁ (evalB_lit (by omega)) hl₁).mono (by simp)
+    have harr₂ : NestArr n W DO DT OO OT τ₂ :=
+      (harrτ.setVar "c" (by decide) 0).setArr (by decide) (by decide) (by decide)
+        (by decide) i 1
+    have hm₂ : Marks "stf" n 1 ({i} : Finset ℕ) (fun _ => 0) τ₂ := by
+      refine ⟨fun k => if k = i then 1 else gs k, by
+        rw [hτ₂, arrs_setArr, if_pos rfl, hgs₁, set_arrOf], fun k hk => ?_⟩
+      simp only []
+      by_cases hkz : k = i
+      · rw [if_pos hkz, if_pos (Finset.mem_singleton.2 hkz)]
+      · rw [if_neg hkz, if_neg (fun hc => hkz (Finset.mem_singleton.1 hc)), hgz k hk]
+    have hiv₂ : τ₂.vars "i" = i := by rw [hτ₂, vars_setArr]; exact hiv₁
+    have hA0 : CntAcc n i (∅ : Finset ℕ) τ₂ :=
+      ⟨by rw [hτ₂, vars_setArr, hτ₁, vars_setVar, if_pos rfl]; simp, hiv₂, by simp⟩
+    -- the guarded enumeration
+    obtain ⟨τ₃, K₃, hr₃, hK₃, hm₃, hA₃, harr₃, hfv₃⟩ :=
+      fratEmit_run (B := B) (n := n) (d := d) (W := W) (m := m) (Ka := 4) (a₁ := "@")
+        (a₂ := "@") (act := .assign "c" (.add (.var "c") (.lit 1))) (D := D) (DO := DO)
+        (DT := DT) (OO := OO) (OT := OT) (Acc := CntAcc n i) (Cap := E) (i := i) (σ := τ₂)
+        readArrs_at readArrs_at (by omega) (by omega) hmB hi hcsr hdeg hmW
+        (hbo.of_nestArr harr₂) hsnd hcmp hiv₂ harr₂ hm₂
+        (fun S τ p x h => h.setArr "stf" p x)
+        (fun S τ y z hy h => h.setVar
+          (by rcases hy with rfl | rfl | rfl | rfl | rfl | rfl <;> decide)
+          (by rcases hy with rfl | rfl | rfl | rfl | rfl | rfl <;> decide) z)
+        (cntAcc_emits (by omega)) (Finset.Subset.refl _) hA0
+    have hoff₃ : τ₃.arrs "off" = τ₂.arrs "off" :=
+      hr₃.frame_arr "off" (by
+        simp [RamAugment.fratScan, RamAugment.blockScan, fratGuard, Csr.loadRow, Csr.scan,
+          Com.warrs])
+    obtain ⟨g₃, hg₃, hg₃k⟩ := hm₃
+    -- the clearing enumeration
+    obtain ⟨τ₄, K₄, hr₄, hK₄, hm₄, hfa₄, hfv₄⟩ :=
+      fratClear_run (B := B) (n := n) (d := d) (W := W) (m := m) (D := D) (DO := DO)
+        (DT := DT) (OO := OO) (OT := OT) (i := i) (σ := τ₃) (g := g₃)
+        (by omega) (by omega) hmB hi hcsr hdeg hmW (hbo.of_nestArr harr₃)
+        (by rw [hfv₃ "i" (by decide) (by decide) (by decide) (by decide) (by decide)
+              (by decide) (by decide)]; exact hiv₂)
+        harr₃ hg₃
+    obtain ⟨g₄, hg₄, hg₄k⟩ := hm₄
+    have hsub : E ⊆ rowAcc OO OT (fun w => rowTgt DO DT w) i := by
+      rw [hE, ← fratRow_eq hcsr (fun z hz => hbo.off_le (by omega))
+        (fun q hq => hbo.target_lt q hq) hi (hsnd i hi) (fun z hz hp => hcmp i hi z hz hp)]
+      exact rowAcc_mono (fun w => rowAcc_mono (fun y => by
+        by_cases h : y = i
+        · rw [if_pos h]; exact Finset.empty_subset _
+        · rw [if_neg h]) w) i
+    have hg₄z : ∀ k < n, k ≠ i → g₄ k = 0 := by
+      intro k hk hki
+      rw [hg₄k k hk]
+      by_cases hkr : k ∈ rowAcc OO OT (fun w => rowTgt DO DT w) i
+      · rw [if_pos hkr]
+      · rw [if_neg hkr, hg₃k k hk, if_neg]
+        rintro hc
+        rcases Finset.mem_union.1 hc with h | h
+        · exact hki (Finset.mem_singleton.1 h)
+        · exact hkr (hsub h)
+    -- `stf[i] := 0`
+    have hiv₄ : τ₄.vars "i" = i := by
+      rw [hfv₄ "i" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
+        hfv₃ "i" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+          (by decide)]
+      exact hiv₂
+    have ei₄ : (Expr.var "i").evalB B τ₄ = some i := by
+      have h := evalB_var (B := B) (x := "i") (σ := τ₄) (by rw [hiv₄]; omega)
+      rwa [hiv₄] at h
+    have hl₄ : i < (τ₄.arrs "stf").length := by rw [hg₄, length_arrOf]; exact hi
+    set τ₅ := τ₄.setArr "stf" i 0 with hτ₅
+    have hr₅ : Run B (.store "stf" (.var "i") (.lit 0)) τ₄ τ₅ 3 :=
+      (Run.store ei₄ (evalB_lit (by omega)) hl₄).mono (by simp)
+    have hstf₅ : ∃ g, τ₅.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0 := by
+      refine ⟨fun k => if k = i then 0 else g₄ k, by
+        rw [hτ₅, arrs_setArr, if_pos rfl, hg₄, set_arrOf], fun k hk => ?_⟩
+      simp only []
+      by_cases hkz : k = i
+      · rw [if_pos hkz]
+      · rw [if_neg hkz]; exact hg₄z k hk hkz
+    -- `off[i+1] := c`
+    have hiv₅ : τ₅.vars "i" = i := by rw [hτ₅, vars_setArr]; exact hiv₄
+    have hcv₅ : τ₅.vars "c" = E.card := by
+      rw [hτ₅, vars_setArr,
+        hfv₄ "c" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
+      exact hA₃.1
+    have eidx : (Expr.add (.var "i") (.lit 1)).evalB B τ₅ = some (i + 1) := by
+      have h := evalB_bin (B := B) (op := .add) (σ := τ₅) (m := τ₅.vars "i") (n := 1)
+        (evalB_var (by rw [hiv₅]; omega)) (evalB_lit (by omega))
+        (by rw [hiv₅]; simpa [Bop.apply] using (by omega : i + 1 < B))
+      rw [hiv₅] at h
+      simpa [Bop.apply] using h
+    have ecv : (Expr.var "c").evalB B τ₅ = some E.card := by
+      have h := evalB_var (B := B) (x := "c") (σ := τ₅) (by rw [hcv₅]; omega)
+      rwa [hcv₅] at h
+    have hgo₅ : τ₅.arrs "off" = arrOf (n + 1) go := by
+      rw [hτ₅, arrs_setArr, if_neg (by decide), hfa₄ "off" (by decide), hoff₃, hτ₂,
+        arrs_setArr, if_neg (by decide), hτ₁, arrs_setVar]
+      exact hgo
+    have hl₆ : i + 1 < (τ₅.arrs "off").length := by rw [hgo₅, length_arrOf]; omega
+    have hn₄ : τ₄.vars "n" = n := by
+      rw [hfv₄ "n" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
+      exact harr₃.1
+    have harr₄ : NestArr n W DO DT OO OT τ₄ :=
+      ⟨hn₄,
+        by rw [hfa₄ "doff" (by decide)]; exact harr₃.2.1,
+        by rw [hfa₄ "dtg" (by decide)]; exact harr₃.2.2.1,
+        by rw [hfa₄ "ooff" (by decide)]; exact harr₃.2.2.2.1,
+        by rw [hfa₄ "otg" (by decide)]; exact harr₃.2.2.2.2⟩
+    obtain ⟨gs₅, hgs₅, hgs₅z⟩ := hstf₅
+    have hcost : 2 + (3 + (K₃ + (K₄ + (3 + 5))))
+        ≤ (37 * d + 46) * (OO (i + 1) - OO i) + 37 := by
+      have h₃ : K₃ ≤ (23 * d + 23) * (OO (i + 1) - OO i) + 12 :=
+        le_trans hK₃ (le_of_eq (by ring))
+      have hsum : (23 * d + 23) * (OO (i + 1) - OO i) + (14 * d + 23) * (OO (i + 1) - OO i)
+          = (37 * d + 46) * (OO (i + 1) - OO i) := by ring
+      omega
+    refine ⟨τ₅.setArr "off" (i + 1) E.card, 2 + (3 + (K₃ + (K₄ + (3 + 5)))),
+      hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq (hr₅.seq
+        ((Run.store eidx ecv hl₆).mono
+          (by simp only [size_add, size_var, size_lit]; omega)))))), hcost,
+      by rw [vars_setArr]; exact hiv₅, ?_⟩
+    refine ⟨by simp, by omega,
+      ((((harr₄.setArr (a := "stf") (by decide) (by decide) (by decide) (by decide) i 0)).setArr
+        (a := "off") (by decide) (by decide) (by decide) (by decide) (i + 1) E.card).setVar
+        "i" (by decide) (i + 1)),
+      ⟨gs₅, by rw [arrs_setVar, arrs_setArr, if_neg (by decide)]; exact hgs₅, hgs₅z⟩,
+      ⟨fun k => if k = i + 1 then E.card else go k, ?_, ?_, ?_⟩⟩
+    · rw [arrs_setVar, arrs_setArr, if_pos rfl, hgo₅, set_arrOf]
+    · simp only []; rw [if_neg (by omega)]; exact hgo0
+    · intro u hu
+      simp only []
+      rcases Nat.lt_or_ge u i with h | h
+      · rw [if_neg (by omega)]; exact hgoI u h
+      · rw [if_pos (show u + 1 = i + 1 by omega), show u = i from by omega]
+        exact hEcard
+  obtain ⟨σ', K, hrun, hK, hIn⟩ :=
+    forVerts_run (B := B) (n := n)
+      (costs := fun i => (37 * d + 46) * (OO (i + 1) - OO i) + 37) (I := I) (σ := σ) hnB
+      (fun _ _ h => h.2.2.1.1) (fun _ _ h => h.1) (fun _ _ h => h.2.1) hstep
+      ⟨by simp, by omega, harr.setVar "i" (by decide) 0,
+        ⟨gs₀, by simpa using hgs₀, hgz₀⟩,
+        ⟨go₀, by simpa using hgo₀, hgoz₀ 0 (by omega), fun u hu => absurd hu (by omega)⟩⟩
+  obtain ⟨-, -, harr', hstf', hoff'⟩ := hIn
+  refine ⟨σ', K, hrun, le_trans hK ?_, harr', hstf', hoff',
+    fun a h1 h2 => hrun.frame_arr a ?_, fun y h1 h2 h3 h4 h5 h6 h7 h8 => hrun.frame_var y ?_⟩
+  · have hsum : ∑ i ∈ Finset.range n, ((37 * d + 46) * (OO (i + 1) - OO i) + 37 + 8)
+        = (37 * d + 46) * m + 45 * n := by
+      have hpt : ∀ i ∈ Finset.range n, (37 * d + 46) * (OO (i + 1) - OO i) + 37 + 8
+          = (37 * d + 46) * (OO (i + 1) - OO i) + 45 := fun i _ => by omega
+      rw [Finset.sum_congr rfl hpt, Finset.sum_add_distrib, ← Finset.mul_sum, hbo.sum_rowLen,
+        Finset.sum_const, Finset.card_range, smul_eq_mul]
+      ring
+    omega
+  · simp [RamAugment.forVerts, RamAugment.fratScan, RamAugment.blockScan, fratGuard,
+      Csr.loadRow, Csr.scan, Com.warrs, h1, h2]
+  · simp [RamAugment.forVerts, RamAugment.fratScan, RamAugment.blockScan, fratGuard,
+      Csr.loadRow, Csr.scan, Com.wvars, h1, h2, h3, h4, h5, h6, h7, h8]
+
+/-- **The partners, written out once each.** The same turn as the
+count, with the fill pointer of the current vertex for its action: the
+block the turn opens ends up naming `RamAugment.fratNbrs D i`, once
+each, since `FillAcc`'s window is as long as the emitted set. -/
+theorem fratFill_run {nf : ℕ} {FT₀ : ℕ → ℕ}
+    (hnB : n + 1 < B) (hmB : m < B) (hnfB : nf < B)
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d) (hmW : m ≤ W)
+    (hbo : Blocks "ooff" "otg" n W m OO OT σ)
+    (hsnd : ∀ u < n, ∀ q, OO u ≤ q → q < OO (u + 1) → Pts DO DT (OT q) u)
+    (hcmp : ∀ u < n, ∀ z < n, Pts DO DT z u → ∃ q, OO u ≤ q ∧ q < OO (u + 1) ∧ OT q = z)
+    (hnf : RamElim.psum (fratDeg D) n = nf)
+    (harr : NestArr n W DO DT OO OT σ)
+    (hstf0 : ∃ g, σ.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hffl : σ.arrs "ffl" = arrOf n (RamElim.psum (fratDeg D)))
+    (htgt : σ.arrs "tgt" = arrOf nf FT₀) :
+    ∃ σ' K, Run B RamAugment.fratFill σ σ' K ∧
+      K ≤ (43 * d + 46) * m + 38 * n + 8 ∧ NestArr n W DO DT OO OT σ' ∧
+      (∃ g, σ'.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+      (∃ FT, σ'.arrs "tgt" = arrOf nf FT ∧ ∀ u < n,
+        (∀ q, RamElim.psum (fratDeg D) u ≤ q → q < RamElim.psum (fratDeg D) (u + 1) →
+          FT q ∈ fratSet D u) ∧
+        (∀ z ∈ fratSet D u, ∃ q, RamElim.psum (fratDeg D) u ≤ q ∧
+          q < RamElim.psum (fratDeg D) (u + 1) ∧ FT q = z)) ∧
+      (∀ a, a ≠ "stf" → a ≠ "tgt" → a ≠ "ffl" → σ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "i" → y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" → y ≠ "u" →
+        σ'.vars y = σ.vars y) := by
+  classical
+  obtain ⟨gs₀, hgs₀, hgz₀⟩ := hstf0
+  set FO : ℕ → ℕ := RamElim.psum (fratDeg D) with hFO
+  have hFOsucc : ∀ u, FO (u + 1) = FO u + fratDeg D u := fun u => RamElim.psum_succ _ u
+  have hFOle : ∀ u ≤ n, FO u ≤ nf := fun u hu => by
+    rw [← hnf]; exact RamElim.psum_mono _ hu
+  set I : ℕ → Env → Prop := fun i τ => τ.vars "i" = i ∧ i ≤ n ∧
+    NestArr n W DO DT OO OT τ ∧
+    (∃ g, τ.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+    (∃ f, τ.arrs "ffl" = arrOf n f ∧ ∀ k, i ≤ k → f k = FO k) ∧
+    (∃ FT, τ.arrs "tgt" = arrOf nf FT ∧ ∀ u < i,
+      (∀ q, FO u ≤ q → q < FO (u + 1) → FT q ∈ fratSet D u) ∧
+      (∀ z ∈ fratSet D u, ∃ q, FO u ≤ q ∧ q < FO (u + 1) ∧ FT q = z)) with hI
+  have hstep : ∀ i, i < n → ∀ τ, I i τ →
+      ∃ τ' K, Run B (.seq (.store "stf" (.var "i") (.lit 1))
+          (.seq (RamAugment.fratScan (fratGuard
+              (.seq (.store "tgt" (.get "ffl" (.var "i")) (.var "u"))
+                (.store "ffl" (.var "i") (.add (.get "ffl" (.var "i")) (.lit 1))))))
+            (.seq (RamAugment.fratScan (.store "stf" (.var "u") (.lit 0)))
+              (.store "stf" (.var "i") (.lit 0))))) τ τ' K ∧
+        K ≤ (43 * d + 46) * (OO (i + 1) - OO i) + 30 ∧ τ'.vars "i" = i ∧
+        I (i + 1) (τ'.setVar "i" (i + 1)) := by
+    intro i hi τ hτ
+    obtain ⟨hiv, -, harrτ, ⟨gs, hgs, hgz⟩, ⟨f, hf, hfk⟩, ⟨FT, hFT, hFTI⟩⟩ := hτ
+    have hEs : fratSet D i = valSet (RamAugment.fratNbrs D ⟨i, hi⟩) := fratSet_eq hi
+    have hEcard : FO i + (fratSet D i).card = FO (i + 1) := by
+      rw [card_fratSet, hFOsucc]
+    have hEcard' : FO i + (valSet (RamAugment.fratNbrs D ⟨i, hi⟩)).card = FO (i + 1) := by
+      rw [← hEs]; exact hEcard
+    -- `stf[i] := 1`
+    have ei : (Expr.var "i").evalB B τ = some i := by
+      have h := evalB_var (B := B) (x := "i") (σ := τ) (by rw [hiv]; omega)
+      rwa [hiv] at h
+    have hl₁ : i < (τ.arrs "stf").length := by rw [hgs, length_arrOf]; exact hi
+    set τ₁ := τ.setArr "stf" i 1 with hτ₁
+    have hr₁ : Run B (.store "stf" (.var "i") (.lit 1)) τ τ₁ 3 :=
+      (Run.store ei (evalB_lit (by omega)) hl₁).mono (by simp)
+    have harr₁ : NestArr n W DO DT OO OT τ₁ :=
+      harrτ.setArr (by decide) (by decide) (by decide) (by decide) i 1
+    have hiv₁ : τ₁.vars "i" = i := by rw [hτ₁, vars_setArr]; exact hiv
+    have hm₁ : Marks "stf" n 1 ({i} : Finset ℕ) (fun _ => 0) τ₁ := by
+      refine ⟨fun k => if k = i then 1 else gs k, by
+        rw [hτ₁, arrs_setArr, if_pos rfl, hgs, set_arrOf], fun k hk => ?_⟩
+      simp only []
+      by_cases hkz : k = i
+      · rw [if_pos hkz, if_pos (Finset.mem_singleton.2 hkz)]
+      · rw [if_neg hkz, if_neg (fun hc => hkz (Finset.mem_singleton.1 hc)), hgz k hk]
+    have hA0 : FillAcc "tgt" "ffl" n nf i (FO i) FT f (fratSet D i) ∅ τ₁ :=
+      ⟨hiv₁, by simp,
+        ⟨f, by rw [hτ₁, arrs_setArr, if_neg (by decide)]; exact hf,
+          by rw [hfk i le_rfl]; simp, fun k _ => rfl⟩,
+        ⟨FT, by rw [hτ₁, arrs_setArr, if_neg (by decide)]; exact hFT,
+          fun q h₁ h₂ => by simp at h₂; omega, fun z hz => absurd hz (by simp),
+          fun q _ => rfl⟩⟩
+    -- the guarded enumeration
+    obtain ⟨τ₃, K₃, hr₃, hK₃, hm₃, hA₃, harr₃, hfv₃⟩ :=
+      fratEmit_run (B := B) (n := n) (d := d) (W := W) (m := m) (Ka := 10) (a₁ := "tgt")
+        (a₂ := "ffl")
+        (act := .seq (.store "tgt" (.get "ffl" (.var "i")) (.var "u"))
+          (.store "ffl" (.var "i") (.add (.get "ffl" (.var "i")) (.lit 1))))
+        (D := D) (DO := DO) (DT := DT) (OO := OO) (OT := OT)
+        (Acc := FillAcc "tgt" "ffl" n nf i (FO i) FT f (fratSet D i))
+        (Cap := fratSet D i) (i := i) (σ := τ₁)
+        readArrs_tgt readArrs_ffl (by omega) (by omega) hmB hi hcsr hdeg hmW
+        (hbo.of_nestArr harr₁) hsnd hcmp hiv₁ harr₁ hm₁
+        (fun S τ p x h => h.setArr (by decide) (by decide) p x)
+        (fun S τ y z hy h => h.setVar
+          (by rcases hy with rfl | rfl | rfl | rfl | rfl | rfl <;> decide) z)
+        (fillAcc_emits (by decide) hi (by omega) (by omega)
+          (by rw [hEcard]; exact hFOle (i + 1) (by omega)))
+        (by rw [hEs]) hA0
+    obtain ⟨g₃, hg₃, hg₃k⟩ := hm₃
+    -- the clearing enumeration
+    obtain ⟨τ₄, K₄, hr₄, hK₄, hm₄, hfa₄, hfv₄⟩ :=
+      fratClear_run (B := B) (n := n) (d := d) (W := W) (m := m) (D := D) (DO := DO)
+        (DT := DT) (OO := OO) (OT := OT) (i := i) (σ := τ₃) (g := g₃)
+        (by omega) (by omega) hmB hi hcsr hdeg hmW (hbo.of_nestArr harr₃) hA₃.1 harr₃ hg₃
+    obtain ⟨g₄, hg₄, hg₄k⟩ := hm₄
+    have hsub : valSet (RamAugment.fratNbrs D ⟨i, hi⟩)
+        ⊆ rowAcc OO OT (fun w => rowTgt DO DT w) i := by
+      rw [← fratRow_eq hcsr (fun z hz => hbo.off_le (by omega))
+        (fun q hq => hbo.target_lt q hq) hi (hsnd i hi) (fun z hz hp => hcmp i hi z hz hp)]
+      exact rowAcc_mono (fun w => rowAcc_mono (fun y => by
+        by_cases h : y = i
+        · rw [if_pos h]; exact Finset.empty_subset _
+        · rw [if_neg h]) w) i
+    have hg₄z : ∀ k < n, k ≠ i → g₄ k = 0 := by
+      intro k hk hki
+      rw [hg₄k k hk]
+      by_cases hkr : k ∈ rowAcc OO OT (fun w => rowTgt DO DT w) i
+      · rw [if_pos hkr]
+      · rw [if_neg hkr, hg₃k k hk, if_neg]
+        rintro hc
+        rcases Finset.mem_union.1 hc with h | h
+        · exact hki (Finset.mem_singleton.1 h)
+        · exact hkr (hsub h)
+    -- `stf[i] := 0`
+    have hiv₄ : τ₄.vars "i" = i := by
+      rw [hfv₄ "i" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
+      exact hA₃.1
+    have ei₄ : (Expr.var "i").evalB B τ₄ = some i := by
+      have h := evalB_var (B := B) (x := "i") (σ := τ₄) (by rw [hiv₄]; omega)
+      rwa [hiv₄] at h
+    have hl₄ : i < (τ₄.arrs "stf").length := by rw [hg₄, length_arrOf]; exact hi
+    set τ₅ := τ₄.setArr "stf" i 0 with hτ₅
+    have hr₅ : Run B (.store "stf" (.var "i") (.lit 0)) τ₄ τ₅ 3 :=
+      (Run.store ei₄ (evalB_lit (by omega)) hl₄).mono (by simp)
+    have hn₄ : τ₄.vars "n" = n := by
+      rw [hfv₄ "n" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
+      exact harr₃.1
+    have harr₄ : NestArr n W DO DT OO OT τ₄ :=
+      ⟨hn₄, by rw [hfa₄ "doff" (by decide)]; exact harr₃.2.1,
+        by rw [hfa₄ "dtg" (by decide)]; exact harr₃.2.2.1,
+        by rw [hfa₄ "ooff" (by decide)]; exact harr₃.2.2.2.1,
+        by rw [hfa₄ "otg" (by decide)]; exact harr₃.2.2.2.2⟩
+    obtain ⟨-, -, ⟨f', hf'a, hf'i, hf'k⟩, ⟨G, hGa, hG₁, hG₂, hG₃⟩⟩ := hA₃
+    have hcost : 3 + (K₃ + (K₄ + 3)) ≤ (43 * d + 46) * (OO (i + 1) - OO i) + 30 := by
+      have h₃ : K₃ ≤ (29 * d + 23) * (OO (i + 1) - OO i) + 12 :=
+        le_trans hK₃ (le_of_eq (by ring))
+      have hsum : (29 * d + 23) * (OO (i + 1) - OO i) + (14 * d + 23) * (OO (i + 1) - OO i)
+          = (43 * d + 46) * (OO (i + 1) - OO i) := by ring
+      omega
+    refine ⟨τ₅, 3 + (K₃ + (K₄ + 3)), hr₁.seq (hr₃.seq (hr₄.seq hr₅)), hcost,
+      by rw [hτ₅, vars_setArr]; exact hiv₄, ?_⟩
+    refine ⟨by simp, by omega,
+      (harr₄.setArr (a := "stf") (by decide) (by decide) (by decide) (by decide) i 0).setVar
+        "i" (by decide) (i + 1),
+      ⟨fun k => if k = i then 0 else g₄ k, by
+        rw [arrs_setVar, hτ₅, arrs_setArr, if_pos rfl, hg₄, set_arrOf], fun k hk => by
+        simp only []
+        by_cases hkz : k = i
+        · rw [if_pos hkz]
+        · rw [if_neg hkz]; exact hg₄z k hk hkz⟩,
+      ⟨f', ?_, ?_⟩, ⟨G, ?_, ?_⟩⟩
+    · rw [arrs_setVar, hτ₅, arrs_setArr, if_neg (by decide), hfa₄ "ffl" (by decide)]
+      exact hf'a
+    · intro k hk
+      rw [hf'k k (by omega)]
+      exact hfk k (by omega)
+    · rw [arrs_setVar, hτ₅, arrs_setArr, if_neg (by decide), hfa₄ "tgt" (by decide)]
+      exact hGa
+    · intro u hu
+      rcases Nat.lt_or_ge u i with h | h
+      · have hlo : FO (u + 1) ≤ FO i := RamElim.psum_mono _ (by omega)
+        constructor
+        · intro q h₁ h₂
+          rw [hG₃ q (Or.inl (by omega))]
+          exact (hFTI u h).1 q h₁ h₂
+        · intro z hz
+          obtain ⟨q, hq₁, hq₂, hq₃⟩ := (hFTI u h).2 z hz
+          exact ⟨q, hq₁, hq₂, by rw [hG₃ q (Or.inl (by omega))]; exact hq₃⟩
+      · have hui : u = i := by omega
+        subst hui
+        rw [hEs]
+        refine ⟨fun q h₁ h₂ => hG₁ q h₁ (by rw [hEcard']; exact h₂), fun z hz => ?_⟩
+        obtain ⟨q, hq₁, hq₂, hq₃⟩ := hG₂ z hz
+        exact ⟨q, hq₁, by rw [← hEcard']; exact hq₂, hq₃⟩
+  obtain ⟨σ', K, hrun, hK, hIn⟩ :=
+    forVerts_run (B := B) (n := n)
+      (costs := fun i => (43 * d + 46) * (OO (i + 1) - OO i) + 30) (I := I) (σ := σ) hnB
+      (fun _ _ h => h.2.2.1.1) (fun _ _ h => h.1) (fun _ _ h => h.2.1) hstep
+      ⟨by simp, by omega, harr.setVar "i" (by decide) 0,
+        ⟨gs₀, by simpa using hgs₀, hgz₀⟩,
+        ⟨FO, by simpa using hffl, fun k _ => rfl⟩,
+        ⟨FT₀, by simpa using htgt, fun u hu => absurd hu (by omega)⟩⟩
+  obtain ⟨-, -, harr', hstf', -, htgt'⟩ := hIn
+  refine ⟨σ', K, hrun, le_trans hK ?_, harr', hstf', htgt',
+    fun a h1 h2 h3 => hrun.frame_arr a ?_,
+    fun y h1 h2 h3 h4 h5 h6 h7 => hrun.frame_var y ?_⟩
+  · have hsum : ∑ i ∈ Finset.range n, ((43 * d + 46) * (OO (i + 1) - OO i) + 30 + 8)
+        = (43 * d + 46) * m + 38 * n := by
+      have hpt : ∀ i ∈ Finset.range n, (43 * d + 46) * (OO (i + 1) - OO i) + 30 + 8
+          = (43 * d + 46) * (OO (i + 1) - OO i) + 38 := fun i _ => by omega
+      rw [Finset.sum_congr rfl hpt, Finset.sum_add_distrib, ← Finset.mul_sum, hbo.sum_rowLen,
+        Finset.sum_const, Finset.card_range, smul_eq_mul]
+      ring
+    omega
+  · simp [RamAugment.forVerts, RamAugment.fratScan, RamAugment.blockScan, fratGuard,
+      Csr.loadRow, Csr.scan, Com.warrs, h1, h2, h3]
+  · simp [RamAugment.forVerts, RamAugment.fratScan, RamAugment.blockScan, fratGuard,
+      Csr.loadRow, Csr.scan, Com.wvars, h1, h2, h3, h4, h5, h6, h7]
+
+/-- **A block that names a set of its own size names it once.** The
+slots map onto the set, and the block is exactly as long as the set, so
+the map is injective — which is `RamElim.CsrSimple`'s `nodup` for
+every block structure a fill pass writes. -/
+theorem block_nodup {O T : ℕ → ℕ} {S : Finset ℕ} {u : ℕ}
+    (hcard : O (u + 1) - O u = S.card) (_hle : O u ≤ O (u + 1))
+    (h₁ : ∀ q, O u ≤ q → q < O (u + 1) → T q ∈ S)
+    (h₂ : ∀ z ∈ S, ∃ q, O u ≤ q ∧ q < O (u + 1) ∧ T q = z)
+    {j₁ j₂ : ℕ} (a₁ : O u ≤ j₁) (a₂ : j₁ < O (u + 1)) (a₃ : O u ≤ j₂)
+    (a₄ : j₂ < O (u + 1)) (he : T j₁ = T j₂) : j₁ = j₂ := by
+  classical
+  have himg : (Finset.Ico (O u) (O (u + 1))).image T = S := by
+    ext y
+    rw [Finset.mem_image]
+    constructor
+    · rintro ⟨q, hq, rfl⟩
+      rw [Finset.mem_Ico] at hq
+      exact h₁ q hq.1 hq.2
+    · intro hy
+      obtain ⟨q, hq₁, hq₂, hq₃⟩ := h₂ y hy
+      exact ⟨q, Finset.mem_Ico.2 ⟨hq₁, hq₂⟩, hq₃⟩
+  have hc : ((Finset.Ico (O u) (O (u + 1))).image T).card
+      = (Finset.Ico (O u) (O (u + 1))).card := by rw [himg, Nat.card_Ico, hcard]
+  exact Finset.injOn_of_card_image_eq hc
+    (by simp only [Finset.coe_Ico, Set.mem_Ico]; exact ⟨a₁, a₂⟩)
+    (by simp only [Finset.coe_Ico, Set.mem_Ico]; exact ⟨a₃, a₄⟩) he
+
+/-- **The fraternity graph, materialized.** The three passes and the
+report, sequenced: what they leave in `off`/`tgt` is
+`RamElim.CsrSimple` of `RamAugment.fratGraph D` at
+`RamAugment.fratSlots D` slots, which is the engine's input surface, and
+what they leave in `mf` is that slot count. -/
+theorem fratPass_run {nf : ℕ}
+    (hnB : n + 1 < B) (hmB : m < B) (hnfB : nf < B)
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d) (hmW : m ≤ W)
+    (hbo : Blocks "ooff" "otg" n W m OO OT σ)
+    (hsnd : ∀ u < n, ∀ q, OO u ≤ q → q < OO (u + 1) → Pts DO DT (OT q) u)
+    (hcmp : ∀ u < n, ∀ z < n, Pts DO DT z u → ∃ q, OO u ≤ q ∧ q < OO (u + 1) ∧ OT q = z)
+    (hnf : RamAugment.fratSlots D = nf)
+    (harr : NestArr n W DO DT OO OT σ)
+    (hstf0 : ∃ g, σ.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hoff0 : ∃ g, σ.arrs "off" = arrOf (n + 1) g ∧ ∀ k ≤ n, g k = 0)
+    (hffl0 : ∃ g, σ.arrs "ffl" = arrOf n g) (htgt0 : ∃ g, σ.arrs "tgt" = arrOf nf g) :
+    ∃ σ' K, Run B RamAugment.fratPass σ σ' K ∧
+      K ≤ (80 * d + 92) * m + 106 * n + 40 ∧ NestArr n W DO DT OO OT σ' ∧
+      (∃ g, σ'.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+      σ'.arrs "off" = arrOf (n + 1) (RamElim.psum (fratDeg D)) ∧
+      (∃ FT, σ'.arrs "tgt" = arrOf nf FT ∧
+        CsrSimple (fratGraph D) nf (RamElim.psum (fratDeg D)) FT) ∧
+      σ'.vars "mf" = nf ∧
+      (∀ a, a ≠ "stf" → a ≠ "off" → a ≠ "tgt" → a ≠ "ffl" → σ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "i" → y ≠ "c" → y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" →
+        y ≠ "u" → y ≠ "mf" → σ'.vars y = σ.vars y) := by
+  classical
+  have hFOn : RamElim.psum (fratDeg D) n = nf := by
+    show ∑ u ∈ Finset.range n, fratDeg D u = nf
+    rw [sum_fratDeg]; exact hnf
+  obtain ⟨σ₁, K₁, hr₁, hK₁, harr₁, hstf₁, hoff₁, hfa₁, hfv₁⟩ :=
+    fratCount_run hnB hmB hcsr hdeg hmW hbo hsnd hcmp harr hstf0 hoff0
+  obtain ⟨σ₂, K₂, hr₂, hK₂, hn₂, hoffa₂, hffl₂⟩ :=
+    prefixPass_run (B := B) (a := "off") (b := "ffl") (n := n) (d := fratDeg D) (σ := σ₁)
+      (by decide) hnB (by rw [hFOn]; exact hnfB) harr₁.1 hoff₁
+      (by obtain ⟨g, hg⟩ := hffl0
+          exact ⟨g, by rw [hfa₁ "ffl" (by decide) (by decide)]; exact hg⟩)
+  have hfa₂ : ∀ a, a ≠ "off" → a ≠ "ffl" → σ₂.arrs a = σ₁.arrs a :=
+    fun a ha hb => hr₂.frame_arr a (by
+      simp [prefixCom, RamAugment.forVerts, Com.warrs, ha, hb])
+  have hfv₂ : ∀ y, y ≠ "i" → σ₂.vars y = σ₁.vars y :=
+    fun y hy => hr₂.frame_var y (by simp [prefixCom, RamAugment.forVerts, Com.wvars, hy])
+  have harr₂ : NestArr n W DO DT OO OT σ₂ :=
+    ⟨hn₂, by rw [hfa₂ "doff" (by decide) (by decide)]; exact harr₁.2.1,
+      by rw [hfa₂ "dtg" (by decide) (by decide)]; exact harr₁.2.2.1,
+      by rw [hfa₂ "ooff" (by decide) (by decide)]; exact harr₁.2.2.2.1,
+      by rw [hfa₂ "otg" (by decide) (by decide)]; exact harr₁.2.2.2.2⟩
+  obtain ⟨g₂, hg₂, hg₂z⟩ := hstf₁
+  obtain ⟨FT₀, hFT₀⟩ := htgt0
+  obtain ⟨σ₃, K₃, hr₃, hK₃, harr₃, hstf₃, htgt₃, hfa₃, hfv₃⟩ :=
+    fratFill_run (B := B) (n := n) (d := d) (W := W) (m := m) (D := D) (DO := DO) (DT := DT)
+      (OO := OO) (OT := OT) (σ := σ₂) (nf := nf) (FT₀ := FT₀) hnB hmB hnfB hcsr hdeg hmW
+      (hbo.of_nestArr harr₂) hsnd hcmp hFOn harr₂
+      ⟨g₂, by rw [hfa₂ "stf" (by decide) (by decide)]; exact hg₂, hg₂z⟩ hffl₂
+      (by rw [hfa₂ "tgt" (by decide) (by decide), hfa₁ "tgt" (by decide) (by decide)];
+          exact hFT₀)
+  have hoff₃ : σ₃.arrs "off" = arrOf (n + 1) (RamElim.psum (fratDeg D)) := by
+    rw [hfa₃ "off" (by decide) (by decide) (by decide)]; exact hoffa₂
+  -- the report
+  have hnv₃ : σ₃.vars "n" = n := harr₃.1
+  have en : (Expr.var "n").evalB B σ₃ = some n := by
+    have h := evalB_var (B := B) (x := "n") (σ := σ₃) (by rw [hnv₃]; omega)
+    rwa [hnv₃] at h
+  have eget : (Expr.get "off" (.var "n")).evalB B σ₃ = some nf :=
+    evalB_get en (by rw [hoff₃, getElem?_arrOf (RamElim.psum (fratDeg D)) (by omega), hFOn])
+      (by omega)
+  have hcost : K₁ + (K₂ + (K₃ + 3)) ≤ (80 * d + 92) * m + 106 * n + 40 := by
+    have hsum : (37 * d + 46) * m + (43 * d + 46) * m = (80 * d + 92) * m := by ring
+    omega
+  refine ⟨σ₃.setVar "mf" nf, K₁ + (K₂ + (K₃ + 3)),
+    hr₁.seq (hr₂.seq (hr₃.seq ((Run.assign eget).mono (by simp)))), hcost,
+    harr₃.setVar "mf" (by decide) nf, ?_, ?_, ?_, by simp, ?_, ?_⟩
+  · obtain ⟨g, hg, hz⟩ := hstf₃
+    exact ⟨g, by rw [arrs_setVar]; exact hg, hz⟩
+  · rw [arrs_setVar]; exact hoff₃
+  · obtain ⟨FT, hFTa, hFTb⟩ := htgt₃
+    refine ⟨FT, by rw [arrs_setVar]; exact hFTa, ⟨⟨RamElim.psum_zero _, hFOn,
+      fun i _ => RamElim.psum_mono _ (by omega), ?_, ?_⟩, ?_⟩⟩
+    · intro j hj
+      obtain ⟨w, hw, ha, hb⟩ :=
+        RamElim.exists_block (ID := fratDeg D) (m := n) (t := j) (by rw [hFOn]; exact hj)
+      exact valSet_lt (by
+        have := (hFTb w hw).1 j ha hb
+        rwa [fratSet_eq hw] at this)
+    · intro u v
+      constructor
+      · intro hadj
+        have hv : (v : ℕ) ∈ fratSet D (u : ℕ) := by
+          rw [fratSet_eq u.isLt]
+          exact mem_valSet_of (RamAugment.mem_fratNbrs.2 (by simpa using hadj.symm))
+        obtain ⟨q, hq₁, hq₂, hq₃⟩ := (hFTb (u : ℕ) u.isLt).2 (v : ℕ) hv
+        exact ⟨q, hq₁, hq₂, hq₃⟩
+      · rintro ⟨q, hq₁, hq₂, hq₃⟩
+        have h := (hFTb (u : ℕ) u.isLt).1 q hq₁ hq₂
+        rw [fratSet_eq u.isLt] at h
+        obtain ⟨hlt, hmem⟩ := mem_valSet.1 h
+        have hadj := RamAugment.mem_fratNbrs.1 hmem
+        have : (⟨FT q, hlt⟩ : Fin n) = v := Fin.ext hq₃
+        rw [this] at hadj
+        exact hadj.symm
+    · intro u hu j₁ j₂ b₁ b₂ b₃ b₄ he
+      refine block_nodup (S := fratSet D u) ?_ (RamElim.psum_mono _ (by omega))
+        ((hFTb u hu).1) ((hFTb u hu).2) b₁ b₂ b₃ b₄ he
+      rw [card_fratSet, RamElim.psum_succ]
+      omega
+  · intro a h1 h2 h3 h4
+    rw [arrs_setVar, hfa₃ a h1 h3 h4, hfa₂ a h2 h4, hfa₁ a h1 h2]
+  · intro y h1 h2 h3 h4 h5 h6 h7 h8 h9
+    rw [vars_setVar, if_neg h9, hfv₃ y h1 h3 h4 h5 h6 h7 h8, hfv₂ y h1,
+      hfv₁ y h1 h2 h3 h4 h5 h6 h7 h8]
+
+end FratPasses
+
+/-! ### The assembly's stamps
+
+`RamAugment.asmStamp b` is three walks over two block structures, and
+the same command at `b = 1` and at `b = 0` — a set on the way in and its
+erasure on the way out. What it leaves is `sta` on the vertices `D`
+makes `i` adjacent to and `std` on the vertices `i` demands an arc to,
+which are `adjRow_eq` and `demandRow_eq`. -/
+
+section AsmStamp
+
+variable {B n d W m i : ℕ} {D : Orientation n} {DO DT OO OT : ℕ → ℕ} {σ : Env}
+
+/-- **One vertex's turn's two stamps.** -/
+theorem asmStamp_run {b : ℕ} {gsta gstd : ℕ → ℕ}
+    (hB1 : 1 < B) (hnB : n < B) (hbB : b < B) (hmB : m < B) (hi : i < n)
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d) (hmW : m ≤ W)
+    (hbo : Blocks "ooff" "otg" n W m OO OT σ)
+    (hiv : σ.vars "i" = i) (harr : NestArr n W DO DT OO OT σ)
+    (hsta : σ.arrs "sta" = arrOf n gsta) (hstd : σ.arrs "std" = arrOf n gstd) :
+    ∃ σ' K, Run B (RamAugment.asmStamp b) σ σ' K ∧
+      K ≤ 14 * (DO (i + 1) - DO i) + 14 * (OO (i + 1) - OO i) +
+        (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)),
+          (14 * (OO (OT p + 1) - OO (OT p)) + 14 * d + 35)) + 36 ∧
+      Marks "sta" n b (rowTgt DO DT i ∪ rowTgt OO OT i) gsta σ' ∧
+      Marks "std" n b (rowAcc OO OT (fun w => rowTgt DO DT w ∪ rowTgt OO OT w) i) gstd σ' ∧
+      (∀ a, a ≠ "sta" → a ≠ "std" → σ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" → y ≠ "u" →
+        σ'.vars y = σ.vars y) := by
+  classical
+  have hDle : ∀ z, z < n → DO (z + 1) ≤ m := fun z hz => incsr_le hcsr (by omega)
+  have hOle : ∀ z, z < n → OO (z + 1) ≤ m := fun z hz => hbo.off_le (by omega)
+  have hDd : ∀ z, z < n → DO (z + 1) - DO z ≤ d := fun z hz => by
+    have h : DO (z + 1) - DO z = (D.inN ⟨z, hz⟩).card := hcsr.len ⟨z, hz⟩
+    rw [h]; exact hdeg ⟨z, hz⟩
+  -- the in-block of `i`, stamped into `sta`
+  obtain ⟨σ₁, K₁, hr₁, hK₁, hm₁, hfa₁, hfv₁⟩ :=
+    stampRow_run (B := B) (o := "doff") (t := "dtg") (x := "i") (j := "j") (jend := "jend")
+      (u := "u") (s := "sta") (n := n) (nv := n) (len := W) (v := i) (b := b) (off := DO)
+      (tgt := DT) (g := gsta) (σ := σ)
+      (by decide) (by decide) (by decide) (by decide) (by decide) hB1 hi (by omega) hbB
+      hnB harr.2.1 (hcsr.mono i hi) (le_trans (hDle i hi) hmW)
+      (by have := hDle i hi; omega) hiv harr.2.2.1
+      (fun p hp => hcsr.target_lt p (lt_of_lt_of_le hp (hDle i hi))) hsta
+  obtain ⟨g₁, hg₁, hg₁k⟩ := hm₁
+  -- the out-block of `i`, stamped into the same array
+  obtain ⟨σ₂, K₂, hr₂, hK₂, hm₂, hfa₂, hfv₂⟩ :=
+    stampRow_run (B := B) (o := "ooff") (t := "otg") (x := "i") (j := "j") (jend := "jend")
+      (u := "u") (s := "sta") (n := n) (nv := n) (len := W) (v := i) (b := b) (off := OO)
+      (tgt := OT) (g := g₁) (σ := σ₁)
+      (by decide) (by decide) (by decide) (by decide) (by decide) hB1 hi (by omega) hbB hnB
+      (by rw [hfa₁ "ooff" (by decide)]; exact harr.2.2.2.1) (hbo.mono i hi)
+      (le_trans (hOle i hi) hmW) (by have := hOle i hi; omega)
+      (by rw [hfv₁ "i" (by decide) (by decide) (by decide)]; exact hiv)
+      (by rw [hfa₁ "otg" (by decide)]; exact harr.2.2.2.2)
+      (fun p hp => hbo.target_lt p (by have := hOle i hi; omega)) hg₁
+  have hmsta : Marks "sta" n b (rowTgt DO DT i ∪ rowTgt OO OT i) gsta σ₂ :=
+    Marks.trans hg₁k hm₂
+  -- the nested walk into `std`
+  obtain ⟨σ₃, K₃, hr₃, hK₃, hm₃, hfa₃, hfv₃⟩ :=
+    stampNest_run (B := B) (o := "ooff") (t := "otg") (x := "i") (j := "j") (jend := "jend")
+      (w := "w") (s := "std")
+      (inner := .seq (RamAugment.blockScan "doff" "dtg" "w" "q" "qe" "u"
+          (.store "std" (.var "u") (.lit b)))
+        (RamAugment.blockScan "ooff" "otg" "w" "q" "qe" "u"
+          (.store "std" (.var "u") (.lit b))))
+      (n := n) (nv := n) (len := W) (v := i) (b := b) (off := OO) (tgt := OT) (g := gstd)
+      (ic := fun z => 14 * (DO (z + 1) - DO z) + 14 * (OO (z + 1) - OO z) + 24)
+      (fs := fun w => rowTgt DO DT w ∪ rowTgt OO OT w) (σ := σ₂)
+      (by decide) (by decide) (by decide) (by decide) (by decide) hB1 hi (by omega) hnB
+      (by rw [hfa₂ "ooff" (by decide), hfa₁ "ooff" (by decide)]; exact harr.2.2.2.1)
+      (hbo.mono i hi) (le_trans (hOle i hi) hmW) (by have := hOle i hi; omega)
+      (by rw [hfv₂ "i" (by decide) (by decide) (by decide),
+            hfv₁ "i" (by decide) (by decide) (by decide)]; exact hiv)
+      (by rw [hfa₂ "otg" (by decide), hfa₁ "otg" (by decide)]; exact harr.2.2.2.2)
+      (fun p hp => hbo.target_lt p (by have := hOle i hi; omega))
+      (by rw [hfa₂ "std" (by decide), hfa₁ "std" (by decide)]; exact hstd)
+      (by
+        intro τ z h hfrτ hwz hzn hst
+        obtain ⟨τ₁, L₁, hs₁, hL₁, hn₁, hna₁, hnv₁⟩ :=
+          stampRow_run (B := B) (o := "doff") (t := "dtg") (x := "w") (j := "q")
+            (jend := "qe") (u := "u") (s := "std") (n := n) (nv := n) (len := W) (v := z)
+            (b := b) (off := DO) (tgt := DT) (g := h) (σ := τ)
+            (by decide) (by decide) (by decide) (by decide) (by decide) hB1 hzn (by omega)
+            hbB hnB
+            (by rw [hfrτ "doff" (by decide), hfa₂ "doff" (by decide),
+                  hfa₁ "doff" (by decide)]; exact harr.2.1)
+            (hcsr.mono z hzn) (le_trans (hDle z hzn) hmW) (by have := hDle z hzn; omega) hwz
+            (by rw [hfrτ "dtg" (by decide), hfa₂ "dtg" (by decide),
+                  hfa₁ "dtg" (by decide)]; exact harr.2.2.1)
+            (fun p hp => hcsr.target_lt p (lt_of_lt_of_le hp (hDle z hzn))) hst
+        obtain ⟨h₁, hh₁, hh₁k⟩ := hn₁
+        obtain ⟨τ₂, L₂, hs₂, hL₂, hn₂, hna₂, hnv₂⟩ :=
+          stampRow_run (B := B) (o := "ooff") (t := "otg") (x := "w") (j := "q")
+            (jend := "qe") (u := "u") (s := "std") (n := n) (nv := n) (len := W) (v := z)
+            (b := b) (off := OO) (tgt := OT) (g := h₁) (σ := τ₁)
+            (by decide) (by decide) (by decide) (by decide) (by decide) hB1 hzn (by omega)
+            hbB hnB
+            (by rw [hna₁ "ooff" (by decide), hfrτ "ooff" (by decide),
+                  hfa₂ "ooff" (by decide), hfa₁ "ooff" (by decide)]; exact harr.2.2.2.1)
+            (hbo.mono z hzn) (le_trans (hOle z hzn) hmW) (by have := hOle z hzn; omega)
+            (by rw [hnv₁ "w" (by decide) (by decide) (by decide)]; exact hwz)
+            (by rw [hna₁ "otg" (by decide), hfrτ "otg" (by decide),
+                  hfa₂ "otg" (by decide), hfa₁ "otg" (by decide)]; exact harr.2.2.2.2)
+            (fun p hp => hbo.target_lt p (by have := hOle z hzn; omega)) hh₁
+        refine ⟨τ₂, L₁ + L₂, hs₁.seq hs₂,
+          (by show L₁ + L₂ ≤ 14 * (DO (z + 1) - DO z) + 14 * (OO (z + 1) - OO z) + 24
+              omega), Marks.trans hh₁k hn₂,
+          fun a ha => by rw [hna₂ a ha, hna₁ a ha], ?_, ?_⟩
+        · rw [hnv₂ "j" (by decide) (by decide) (by decide),
+            hnv₁ "j" (by decide) (by decide) (by decide)]
+        · rw [hnv₂ "jend" (by decide) (by decide) (by decide),
+            hnv₁ "jend" (by decide) (by decide) (by decide)])
+  have hcost : K₁ + (K₂ + K₃) ≤ 14 * (DO (i + 1) - DO i) + 14 * (OO (i + 1) - OO i) +
+      (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)),
+        (14 * (OO (OT p + 1) - OO (OT p)) + 14 * d + 35)) + 36 := by
+    have hK₃' : K₃ ≤ (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)),
+        (14 * (OO (OT p + 1) - OO (OT p)) + 14 * d + 35)) + 12 := by
+      refine le_trans hK₃ (Nat.add_le_add_right (Finset.sum_le_sum fun p hp => ?_) 12)
+      rw [Finset.mem_Ico] at hp
+      have hpm : p < m := lt_of_lt_of_le hp.2 (hOle i hi)
+      have := hDd (OT p) (hbo.target_lt p hpm)
+      omega
+    omega
+  exact ⟨σ₃, K₁ + (K₂ + K₃), hr₁.seq (hr₂.seq hr₃), hcost,
+    hmsta.of_eq (hfa₃ "sta" (by decide)), hm₃,
+    fun a h1 h2 => by rw [hfa₃ a h2, hfa₂ a h1, hfa₁ a h1],
+    fun y h1 h2 h3 h4 h5 h6 => by
+      rw [hfv₃ y (by
+          simp [RamAugment.blockScan, Csr.loadRow, Csr.scan, Com.wvars, h1, h2, h3, h4, h5,
+            h6]),
+        hfv₂ y h1 h2 h6, hfv₁ y h1 h2 h6]⟩
+
+/-- **The assembly's duplicate stamps, cleared.** The two lists the
+guard stamps — the transitive candidates, walked as the in-block of the
+in-block, and the engine's own in-block — walked again at the literal
+zero. -/
+theorem asmClearE_run {me : ℕ} {Eo : Orientation n} {IO IT gste : ℕ → ℕ}
+    (hB1 : 1 < B) (hnB : n < B) (hmB : m < B) (hmeB : me < B) (hi : i < n)
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d) (hmW : m ≤ W)
+    (hE : InCsr Eo me IO IT) (hmeW : me ≤ W)
+    (hiv : σ.vars "i" = i) (harr : NestArr n W DO DT OO OT σ)
+    (hioff : σ.arrs "ioff" = arrOf (n + 1) IO) (hitg : σ.arrs "itg" = arrOf W IT)
+    (hste : σ.arrs "ste" = arrOf n gste) :
+    ∃ σ' K, Run B RamAugment.asmClearE σ σ' K ∧
+      K ≤ (14 * d + 23) * (DO (i + 1) - DO i) + 14 * (IO (i + 1) - IO i) + 24 ∧
+      Marks "ste" n 0
+        (rowAcc DO DT (fun w => rowTgt DO DT w) i ∪ rowTgt IO IT i) gste σ' ∧
+      (∀ a, a ≠ "ste" → σ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" → y ≠ "u" →
+        σ'.vars y = σ.vars y) := by
+  classical
+  have hDle : ∀ z, z < n → DO (z + 1) ≤ m := fun z hz => incsr_le hcsr (by omega)
+  have hIle : ∀ z, z < n → IO (z + 1) ≤ me := fun z hz => incsr_le hE (by omega)
+  obtain ⟨σ₁, K₁, hr₁, hK₁, hm₁, hfa₁, hfv₁⟩ :=
+    stampNest_run (B := B) (o := "doff") (t := "dtg") (x := "i") (j := "j") (jend := "jend")
+      (w := "w") (s := "ste")
+      (inner := RamAugment.blockScan "doff" "dtg" "w" "q" "qe" "u"
+        (.store "ste" (.var "u") (.lit 0)))
+      (n := n) (nv := n) (len := W) (v := i) (b := 0) (off := DO) (tgt := DT) (g := gste)
+      (ic := fun _ => 14 * d + 12) (fs := fun w => rowTgt DO DT w) (σ := σ)
+      (by decide) (by decide) (by decide) (by decide) (by decide) hB1 hi (by omega) hnB
+      harr.2.1 (hcsr.mono i hi) (le_trans (hDle i hi) hmW) (by have := hDle i hi; omega)
+      hiv harr.2.2.1 (fun p hp => hcsr.target_lt p (lt_of_lt_of_le hp (hDle i hi))) hste
+      (by
+        intro τ z h hfrτ hwz hzn hst
+        obtain ⟨τ', K', hr, hK', hm', hfa', hfv'⟩ :=
+          stampRow_run (B := B) (o := "doff") (t := "dtg") (x := "w") (j := "q")
+            (jend := "qe") (u := "u") (s := "ste") (n := n) (nv := n) (len := W) (v := z)
+            (b := 0) (off := DO) (tgt := DT) (g := h) (σ := τ)
+            (by decide) (by decide) (by decide) (by decide) (by decide) hB1 hzn
+            (by omega) (by omega) hnB
+            (by rw [hfrτ "doff" (by decide)]; exact harr.2.1) (hcsr.mono z hzn)
+            (le_trans (hDle z hzn) hmW) (by have := hDle z hzn; omega) hwz
+            (by rw [hfrτ "dtg" (by decide)]; exact harr.2.2.1)
+            (fun p hp => hcsr.target_lt p (lt_of_lt_of_le hp (hDle z hzn))) hst
+        have hd' : DO (z + 1) - DO z ≤ d := by
+          have hc : DO (z + 1) - DO z = (D.inN ⟨z, hzn⟩).card := hcsr.len ⟨z, hzn⟩
+          rw [hc]; exact hdeg ⟨z, hzn⟩
+        refine ⟨τ', K', hr, ?_, hm', hfa',
+          hfv' "j" (by decide) (by decide) (by decide),
+          hfv' "jend" (by decide) (by decide) (by decide)⟩
+        show K' ≤ 14 * d + 12
+        omega)
+  obtain ⟨g₁, hg₁, hg₁k⟩ := hm₁
+  obtain ⟨σ₂, K₂, hr₂, hK₂, hm₂, hfa₂, hfv₂⟩ :=
+    stampRow_run (B := B) (o := "ioff") (t := "itg") (x := "i") (j := "j") (jend := "jend")
+      (u := "u") (s := "ste") (n := n) (nv := n) (len := W) (v := i) (b := 0) (off := IO)
+      (tgt := IT) (g := g₁) (σ := σ₁)
+      (by decide) (by decide) (by decide) (by decide) (by decide) hB1 hi (by omega)
+      (by omega) hnB (by rw [hfa₁ "ioff" (by decide)]; exact hioff) (hE.mono i hi)
+      (le_trans (hIle i hi) hmeW) (by have := hIle i hi; omega)
+      (by rw [hfv₁ "i" (by simp [RamAugment.blockScan, Csr.loadRow, Csr.scan, Com.wvars])]
+          exact hiv)
+      (by rw [hfa₁ "itg" (by decide)]; exact hitg)
+      (fun p hp => hE.target_lt p (lt_of_lt_of_le hp (hIle i hi))) hg₁
+  refine ⟨σ₂, K₁ + K₂, hr₁.seq hr₂, ?_, Marks.trans hg₁k hm₂,
+    fun a ha => by rw [hfa₂ a ha, hfa₁ a ha],
+    fun y h1 h2 h3 h4 h5 h6 => by
+      rw [hfv₂ y h1 h2 h6,
+        hfv₁ y (by
+          simp [RamAugment.blockScan, Csr.loadRow, Csr.scan, Com.wvars, h1, h2, h3, h4, h5,
+            h6])]⟩
+  have hK₁' : K₁ ≤ (14 * d + 23) * (DO (i + 1) - DO i) + 12 := by
+    refine le_trans hK₁ ?_
+    rw [Finset.sum_const, Nat.card_Ico, smul_eq_mul]
+    exact le_of_eq (by ring)
+  omega
+
+end AsmStamp
+
+/-! ### The elimination, with the rank bound *and* the certificate
+
+`RamAugment.ElimAvail` hands the engine's `RamElim.Implements`, whose
+postcondition `RamElim.ElimMem` carries the certificate but **not** the
+bound `∀ v < n, R v < n` — and the assembly reads `rnk[u]`, so without
+it there is no run. `RamDriverCompose.elimRank_spec` keeps the bound,
+but post-processes to `RamElim.ElimPost`, which *drops* the certificate
+(`min_deg` and `attained` are nowhere in it) and `RamAugment.AugMem`
+asks for the certificate. So the engine's five phase specs are
+re-sequenced here once more, at `ns = RamAugment.fratSlots D`, against
+the same four predicates and with the one postcondition that has both.
+
+**Defect record.** The proper repair is one conjunct in
+`RamElim.ElimMem`, which `RamElim.implements`'s own last phase has in
+hand. The engines are frozen for this wave, so it is done here instead:
+a wave that may edit `RamElim` should add the conjunct there and delete
+**both** this bridge and `RamDriverCompose.elimRank_spec`, which exist
+for the same reason and die together. -/
+
+/-- **The elimination, keeping the rank bound its own surface drops.** -/
+theorem elimCert_spec {B n ns W : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ → ℕ}
+    (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B) (hMB : ∀ z < n, M z < B)
+    (hW : ns ≤ W) :
+    Spec B (ElimPre n ns W O T M) elimCom
+      (fun _ σ' => ElimMem G M ns W σ' σ' ∧
+        ∃ R, σ'.arrs "rnk" = arrOf n R ∧ (∀ v < n, R v < n))
+      (elimCost n ns) := by
+  have hDlt : ∀ v < n, RamElim.adeg G M v < n := fun v hv => by
+    rw [RamElim.adeg_eq hv]; exact RamElim.card_nbrsIn_lt _ _
+  have w1 : Spec B (ElimPre n ns W O T M) RamElim.initDeg
+      (fun _ σ' => RamElim.AfterDeg n ns W G O T M σ') (48 * n + 44 * ns + 10) := by
+    intro σ hσ
+    obtain ⟨hn, hoff, htgt, halv, hdeg0, helm, hrnk, hidg, hbh, hbv, hbn, hioff, hifl,
+      hitg⟩ := hσ
+    obtain ⟨σ', hrun, ⟨hI, hi⟩, -, hfa, -, -⟩ :=
+      (RamElim.initDeg_spec B n ns G O T M hcsr (by omega) (by omega) hMB).frame σ
+        ⟨hn, hoff, htgt, halv, hdeg0⟩
+    obtain ⟨hn', hoff', htgt', halv', -, g, hdegg, hg⟩ := hI
+    obtain ⟨e, he1, he2⟩ := helm
+    obtain ⟨r, hr1⟩ := hrnk
+    obtain ⟨d, hd1⟩ := hidg
+    obtain ⟨bh, hbh1, hbh2⟩ := hbh
+    obtain ⟨bv, hbv1⟩ := hbv
+    obtain ⟨bn, hbn1⟩ := hbn
+    obtain ⟨io, hio1⟩ := hioff
+    obtain ⟨fl, hfl1⟩ := hifl
+    obtain ⟨tg, htg1⟩ := hitg
+    exact ⟨σ', hrun, hn', hoff', htgt', halv',
+      by rw [hdegg, RamDriverOrder.arrOf_congr (fun j hj => hg j (by rw [hi]; exact hj))],
+      ⟨e, by rw [hfa "elm" (by decide)]; exact he1, he2⟩,
+      ⟨r, by rw [hfa "rnk" (by decide)]; exact hr1⟩,
+      ⟨d, by rw [hfa "idg" (by decide)]; exact hd1⟩,
+      ⟨bh, by rw [hfa "bh" (by decide)]; exact hbh1, hbh2⟩,
+      ⟨bv, by rw [hfa "bv" (by decide)]; exact hbv1⟩,
+      ⟨bn, by rw [hfa "bn" (by decide)]; exact hbn1⟩,
+      ⟨io, by rw [hfa "ioff" (by decide)]; exact hio1⟩,
+      ⟨fl, by rw [hfa "ifl" (by decide)]; exact hfl1⟩,
+      ⟨tg, by rw [hfa "itg" (by decide)]; exact htg1⟩⟩
+  have w2 : Spec B (RamElim.AfterDeg n ns W G O T M) RamElim.initBuck
+      (fun _ σ' => RamElim.AfterBuck n ns W G O T M σ') (29 * n + 10) := by
+    intro σ hσ
+    obtain ⟨hn, hoff, htgt, halv, hdeg, helm, hrnk, hidg, hbh, hbv, hbn, hioff, hifl,
+      hitg⟩ := hσ
+    obtain ⟨σ', hrun, ⟨hI, hi⟩, -, hfa, -, -⟩ :=
+      (RamElim.initBuck_spec B n W (RamElim.adeg G M) (by omega) hDlt).frame σ
+        ⟨hn, hdeg, hbh, hbv, hbn⟩
+    obtain ⟨e, he1, he2⟩ := helm
+    obtain ⟨r, hr1⟩ := hrnk
+    obtain ⟨d, hd1⟩ := hidg
+    obtain ⟨io, hio1⟩ := hioff
+    obtain ⟨fl, hfl1⟩ := hifl
+    obtain ⟨tg, htg1⟩ := hitg
+    exact ⟨σ', hrun, hI, hi,
+      by rw [hfa "off" (by decide)]; exact hoff,
+      by rw [hfa "tgt" (by decide)]; exact htgt,
+      by rw [hfa "alv" (by decide)]; exact halv,
+      ⟨e, by rw [hfa "elm" (by decide)]; exact he1, he2⟩,
+      ⟨r, by rw [hfa "rnk" (by decide)]; exact hr1⟩,
+      ⟨d, by rw [hfa "idg" (by decide)]; exact hd1⟩,
+      ⟨io, by rw [hfa "ioff" (by decide)]; exact hio1⟩,
+      ⟨fl, by rw [hfa "ifl" (by decide)]; exact hfl1⟩,
+      ⟨tg, by rw [hfa "itg" (by decide)]; exact htg1⟩⟩
+  have w3 : Spec B (RamElim.AfterBuck n ns W G O T M) RamElim.elimLoop
+      (fun _ σ' => RamElim.AfterLoop n ns W G O T M σ') (160 * n + 100 * ns + 52) := by
+    intro σ hσ
+    obtain ⟨hbi, hi, hoff, htgt, halv, helm, hrnk, hidg, hioff, hifl, hitg⟩ := hσ
+    obtain ⟨σ', hrun, ⟨R, ID, k, hn', hk', hrnk', hidg', hRlt, hcert, hIDc, hpsum⟩, -,
+      hfa, -, -⟩ :=
+      (RamElim.elimLoop_spec B n ns W G O T M (RamElim.adeg G M) hcsr hB hW hMB
+        (fun _ _ => rfl)).frame σ ⟨hbi, hi, hoff, htgt, halv, helm, hrnk, hidg⟩
+    obtain ⟨io, hio1⟩ := hioff
+    obtain ⟨fl, hfl1⟩ := hifl
+    obtain ⟨tg, htg1⟩ := hitg
+    exact ⟨σ', hrun, R, ID, k, hn', hk',
+      by rw [hfa "off" (by decide)]; exact hoff,
+      by rw [hfa "tgt" (by decide)]; exact htgt,
+      by rw [hfa "alv" (by decide)]; exact halv,
+      hrnk', hidg', hRlt, hcert, hIDc, hpsum,
+      ⟨io, by rw [hfa "ioff" (by decide)]; exact hio1⟩,
+      ⟨fl, by rw [hfa "ifl" (by decide)]; exact hfl1⟩,
+      ⟨tg, by rw [hfa "itg" (by decide)]; exact htg1⟩⟩
+  have w4 : Spec B (RamElim.AfterLoop n ns W G O T M) RamElim.offPass
+      (fun _ σ' => RamElim.AfterOff n ns W G O T M σ') (24 * n + 12) := by
+    intro σ hσ
+    obtain ⟨R, ID, k, hn, hk, hoff, htgt, halv, hrnk, hidg, hRlt, hcert, hIDc, hpsum,
+      hioff, hifl, hitg⟩ := hσ
+    obtain ⟨σ', hrun, ⟨hn', hs', hio', hfl'⟩, hfv, hfa, -, -⟩ :=
+      (RamElim.offPass_spec B n ID (by omega) (by omega)).frame σ ⟨hn, hidg, hioff, hifl⟩
+    obtain ⟨tg, htg1⟩ := hitg
+    exact ⟨σ', hrun, R, ID, k, hn', by rw [hfv "kmax" (by decide)]; exact hk,
+      by rw [hfa "off" (by decide)]; exact hoff,
+      by rw [hfa "tgt" (by decide)]; exact htgt,
+      by rw [hfa "alv" (by decide)]; exact halv,
+      by rw [hfa "rnk" (by decide)]; exact hrnk,
+      hRlt, hcert, hIDc, hpsum, hio', hfl',
+      ⟨tg, by rw [hfa "itg" (by decide)]; exact htg1⟩⟩
+  have w5 : Spec B (RamElim.AfterOff n ns W G O T M) RamElim.fillPass
+      (fun _ σ' => ElimMem G M ns W σ' σ' ∧
+        ∃ R, σ'.arrs "rnk" = arrOf n R ∧ (∀ v < n, R v < n))
+      (32 * n + 32 * ns + 10) := by
+    intro σ hσ
+    obtain ⟨R, ID, k, hn, hk, hoff, htgt, halv, hrnk, hRlt, hcert, hIDc, hpsum, hioff,
+      hifl, hitg⟩ := hσ
+    obtain ⟨g, hioffg, hioffv⟩ := hioff
+    obtain ⟨σ', hrun, ⟨IT, hitg', harcs⟩, hfv, hfa, -, -⟩ :=
+      (RamElim.fillPass_spec B n ns W G O T M R ID hcsr hB hW hMB hRlt hIDc hpsum).frame σ
+        ⟨hn, hoff, htgt, halv, hrnk, hifl, hitg⟩
+    have hrnk' : σ'.arrs "rnk" = arrOf n R := by
+      rw [hfa "rnk" (by decide)]; exact hrnk
+    exact ⟨σ', hrun, ⟨R, RamElim.psum ID, IT, k, RamElim.psum ID n, hrnk',
+      by rw [hfv "kmax" (by decide)]; exact hk,
+      by rw [hfa "ioff" (by decide), hioffg]
+         exact RamDriverOrder.arrOf_congr (fun j hj => hioffv j (by omega)),
+      hitg', by omega, ⟨hcert, harcs⟩⟩, R, hrnk', hRlt⟩
+  show Spec B (ElimPre n ns W O T M) elimCom _ (600 * n + 600 * ns + 100)
+  run_vcg [w1, w2, w3, w4, w5] <;> assumption
 
 /-! ### The frontier
 
@@ -2447,6 +3799,9 @@ counting pass and the fill pass that follows it use the same lemma.
   `Emits.and` carries any array fact across an action.
   *The capacity is not decoration*: the fill's store needs room, and
   `base + Cap.card ≤ len` with `z ∈ Cap \ S` is what gives it.
+  `FillAcc` also records that the fill pointers of the *other* vertices
+  are untouched (its `F` parameter), which is what lets a fill pass
+  carry the prefix sums of the vertices it has not reached yet.
 * `Guarded B n Kg grd fe Cap J` — the guard's contract, with the
   emitted set growing by `fe z`, a singleton when the guard fires and
   `∅` when it does not, so no decidability rides in the statement.
@@ -2454,6 +3809,10 @@ counting pass and the fill pass that follows it use the same lemma.
   `guardAsmTrans_of_emits` are the round's three guards, at
   `Ka + 8`, `Ka + 13` and `Ka + 24`; `emitBranch_run` is their common
   emitting branch and `stampCond` the read of a stamp cell.
+  The two assembly guards carry a `Base` the accounting has already
+  seen and the stamp `ste` never saw, with `Base ⊆ A` — that is what
+  lets the assembly's *first* list (the old in-block, excluded by `sta`
+  alone) run before the two stamped ones under one accounting.
 * `emitRow_run`, `emitAllRow_run` and `emitNest_run` are the walks:
   one row guarded, one row unguarded (for the old in-block, which
   carries no duplicate), and the nested walk of `RamAugment.fratScan`
@@ -2469,6 +3828,14 @@ counting pass and the fill pass that follows it use the same lemma.
   lists union to `valSet ((augOr D ρ).inN i)`, which is
   `RamAugment.inN_augOr_eq` in the walk's vocabulary. `asmRow_eq` is
   the whole content of the assembly pass.
+* `rowTgt_out_eq`, `adjRow_eq` and `demandRow_eq`: a row of the
+  out-blocks names what its owner points at, the in-block and the
+  out-block of `i` are `valSet (adjSet D i)`, and the nested row is
+  `valSet (demandOut D i)` — the two sets `RamAugment.asmStamp` stamps.
+* `incsr_nodup` and `block_nodup`: a block that names a set of its own
+  size names it once. The first is the assembly's freshness (the old
+  in-block carries no duplicate), the second is `CsrSimple`'s `nodup`
+  for every block structure a fill pass writes.
 * `slotCnt_out_eq`: an out-slot names `w` exactly as often as `w` has
   in-neighbours. This is the one non-obvious *cost* fact of the round:
   `RamAugment.asmStamp` walks the out-block of every vertex the current
@@ -2477,64 +3844,113 @@ counting pass and the fill pass that follows it use the same lemma.
   slots) and `sum_slot_weight` (a weighted count over the slots is a
   weighted count over the targets) are what it is proved from, and
   `sum_slot_weight` is also what turns a per-slot cost into a bound.
+  `arcs_le` (`m ≤ n · d`) is the other half of the arithmetic: it is
+  what puts `d · m` inside `augWidth n d`.
 
 All of it is checked on `RamAugment.Demo`'s four-vertex orientation in
 the section above: the in-lists and out-lists read back off the block
 structures, the fraternity enumeration coming out `1 | 0 | | ` with two
 slots — the round's own reported `mf` — the exchange coming out at the
-in-degrees, and the transitive enumeration coming out at the three
-transitive links.
+in-degrees, the two stamps coming out at the adjacency and the demand,
+and the transitive enumeration coming out — guarded, at the round's own
+ranking — at the two arcs `0 → 3`, `1 → 3` the example names.
 
-**Open.** The four passes' assembly and the sequencing. Everything
-below is stated in the vocabulary above and needs no new mathematics.
+**Done — the fraternity build, whole.** `fratPass_run`:
+`RamAugment.fratPass` leaves `off`/`tgt` carrying
+`RamElim.CsrSimple (fratGraph D) nf (RamElim.psum (fratDeg D)) FT`, the
+engine's input surface, and `mf = nf = RamAugment.fratSlots D`, at a
+cost of `(80·d + 92)·m + 106·n + 40`. Its three pieces are
 
-1. `RamAugment.fratCount` and `RamAugment.fratFill`. One turn is
-   `c := 0` (or nothing), `stf[i] := 1`, `emitNest_run` over
-   `ooff`/`otg` then `doff`/`dtg` with `guardFrat_of_emits`,
-   `stampNest_run` over the same two at `b = 0`, `stf[i] := 0`, and
-   `off[i+1] := c`. The invariant of the turn is
-   `Marks "stf" n 1 ({i} ∪ S) (fun _ => 0)` together with `CntAcc`
-   (resp. `FillAcc "tgt" "ffl"`) and the four block-structure facts,
-   carried by `Emits.and`. The emitted set is `fratRow_eq`'s, so the
-   count is `(fratNbrs D i).card` and `RamAugment.fratSlots` is the sum
-   — which is `off n` after `fratPrefix`, hence `mf`.
-   `CsrSimple`'s `nodup` comes from `FillAcc`'s window clause: the
-   cells below the pointer name the emitted set and the pointer counts
-   them, so a repeat would make the count too small.
-2. `RamAugment.asmStamp` is `stampRow_run` twice and `stampNest_run`
-   once at `b`, giving `Marks "sta" n 1 (valSet (adjSet D i))` and
-   `Marks "std" n 1 (valSet (demandOut D i))` at `b = 1` and their
-   erasure at `b = 0` — the identities being `RamAugment.mem_adjSet`
-   and `RamAugment.mem_demandOut`. `RamAugment.asmEmit` is
-   `emitAllRow_run` (freshness from `InCsr`'s `len` and `mem_iff` by a
-   card argument, since `E₀ = ∅` there), then `emitNest_run` with
-   `guardAsmTrans_of_emits`, then `emitRow_run` with
-   `guardAsmIn_of_emits`; `RamAugment.asmClearE` is `stampNest_run` and
-   `stampRow_run` at `b = 0`. `asmRow_eq` is what the three emit.
-3. The `RamElim.elimCom` call. `RamAugment.ElimAvail` gives
-   `RamElim.ElimMem`, which carries the certificate but **not** the
-   rank bound `∀ v < n, R v < n` — and the assembly reads `rnk[u]`, so
-   without it there is no run. So the engine's five phase specs have to
-   be re-sequenced here exactly as `RamDriverCompose.elimRank_spec`
-   does, with a postcondition of `RamElim.ElimMem ∧ ∃ R, rnk = arrOf n
-   R ∧ ∀ v < n, R v < n`. `elimRank_spec` itself is *not* enough: it
-   post-processes to `RamElim.ElimPost`, which drops
-   `RamElim.ElimCert` (`min_deg` and `attained` are nowhere in it), and
-   `RamAugment.AugMem` asks for the certificate. Importing
-   `RamDriverCompose` is acyclic but buys nothing for that reason.
-4. The sequencing into `implements`, in the shape wave C2 pinned
-   against `RamDriver.AugAvail`:
+* `fratEmit_run` / `fratClear_run` — the guarded nested walk and the
+  walk that clears every stamp it could have set (`rowAcc_mono` is why
+  the second covers the first), shared by both passes at two `Emits`;
+* `fratCount_run` — the turn `c := 0`, `stf[i] := 1`, emit, clear,
+  `stf[i] := 0`, `off[i+1] := c`, leaving `off (u+1) = fratDeg D u`;
+* `fratFill_run` — the same turn with the fill pointer for its action,
+  leaving each block naming `fratSet D u` once.
+
+`sum_fratDeg` is `RamElim.psum (fratDeg D) n = fratSlots D`, which is
+what makes `off n` the reported `mf`.
+
+**Done — the elimination bridge.** `elimCert_spec`, the engine's five
+phase specs re-sequenced at the one postcondition that has both the
+certificate and the rank bound. See its docstring for the defect record:
+it and `RamDriverCompose.elimRank_spec` die together when a wave that
+may edit `RamElim` adds the conjunct to `RamElim.ElimMem`.
+
+**Done — two of the assembly's four walks.** `asmStamp_run` (the two
+stamps of a turn, at `b` — a set at `b = 1` and its erasure at `b = 0`,
+by `adjRow_eq` and `demandRow_eq`) and `asmClearE_run` (the duplicate
+stamps of a turn, cleared).
+
+**Open.** The assembly's emit walk, the two assembly passes, and the
+sequencing. Everything below is stated in the vocabulary above and
+needs no new mathematics.
+
+1. `asmEmit_run`, the shape of `RamAugment.asmEmit act`. Three walks
+   under one accounting `Acc`, in order:
+   * `emitAllRow_run` over `doff`/`dtg` at `E₀ = ∅`. Its `hfresh` is
+     `incsr_nodup`: a repeat inside the in-block of `i` would be two
+     slots with the same target. `Cap` is
+     `valSet ((augOr D ρ).inN ⟨i, _⟩)`, which contains all three lists
+     by `asmRow_eq`. It leaves `Acc (rowTgt DO DT i)`.
+   * `emitNest_run` over `doff`/`dtg` twice with
+     `guardAsmTrans_of_emits` at `Base := rowTgt DO DT i`,
+     `A := valSet (adjSet D ⟨i,_⟩)`, `Dm := valSet (demandOut D ⟨i,_⟩)`
+     and `R` the rank array. `hBA : Base ⊆ A` is
+     `rowTgt_eq_inN` plus `adjSet = inN ∪ outSet`. Its `J` starts at
+     `S = ∅` — `ste` is all zero at the turn's start — and ends at the
+     transitive set `T`; the accounting ends at `Acc (Base ∪ T)`.
+   * `emitRow_run` over `ioff`/`itg` with `guardAsmIn_of_emits` at the
+     same `Base` and `E₀ := T`, ending at `Acc (Base ∪ (T ∪ F))`.
+   `asmRow_eq` reads the union — associated as
+   `(Base ∪ T) ∪ F` — as `valSet ((augOr D ρ).inN ⟨i,_⟩)`; use
+   `Finset.union_assoc`. The two `Marks` `asmStamp_run` left are the
+   guards' `A` and `Dm` hypotheses, and `Marks "ste" n 1 ∅` at the
+   start is the round's zeroed stamp.
+2. `asmRow_run` — `asmStamp_run 1`, `asmEmit_run`, `asmStamp_run 0`,
+   `asmClearE_run`, sequenced. What `asmStamp_run 0` and
+   `asmClearE_run` leave is *all three* stamps zero again, by the same
+   `Marks` composition `fratCount_run` uses for `stf`: the clearing
+   walk's set contains the setting walk's, so the `b = 0` pass returns
+   the array to `fun _ => 0`. For `ste` the containment is
+   `rowAcc_mono` again — the guard's `fe z ⊆ {z}`.
+3. `asmCount_run` and `asmFill_run` — `forVerts_run` over `asmRow_run`
+   at `cntAcc_emits` and at `fillAcc_emits "ntg" "nfl"`, exactly as
+   `fratCount_run` and `fratFill_run` do. The new degrees are
+   `((augOr D ρ).inN v).card`; `RamAugment.card_inN_augOr` is what says
+   the count is the block length, and `m' = ∑ ≤ n·n < W` is the
+   capacity `fillAcc_emits` asks for (`augWidth n d ≤ W` gives
+   `n·n < W`). `asmPrefix` is `prefixPass_run "noff" "nfl"` and the
+   report `mn := noff[n]`, as in `fratPass_run`.
+   **The cost.** `asmStamp_run`'s bound is *not* a constant times the
+   row length — its third walk charges the out-block of every vertex
+   the out-block of `i` names. Summed over `i`, that is
+   `∑_{p < m} outdeg (OT p)`, which `sum_slot_weight` turns into
+   `∑_u slotCnt OT m u · outdeg u` and `slotCnt_out_eq` into
+   `∑_u inDeg D u · outdeg u ≤ d · m`. This is the only place the
+   exchange is needed, and `tile_filter_card` is what splits the
+   per-row sums into the whole-array one.
+4. `asmPass_run`, then the sequencing into `implements`, in the shape
+   wave C2 pinned against `RamDriver.AugAvail`:
    `theorem implements {B n d nf W m : ℕ} {D : Orientation n}
    {DO DT : ℕ → ℕ} : RamAugment.Implements B n d nf W m D DO DT`,
-   with no theorem-level hypotheses. `RamAugment.ElimAvail` is then
-   unused, by 3.
+   with no theorem-level hypotheses. `RamAugment.ElimAvail` is unused,
+   by `elimCert_spec`. The five phases are `outPass_run`,
+   `fratPass_run`, `alvSet_run`, `elimCert_spec` (at `ns = nf`, with
+   `RamElim.masked_of_all_alive` turning the all-ones mask back into
+   `fratGraph D`), and `asmPass_run`; `RamAugment.AugPre`'s
+   twenty-six clauses cross the phases by the array frames each of the
+   five exports.
 
 **The cost, and why it fits.** Every walk above is charged per slot of
-the block structure it walks. The out-lists and the fraternity build
-are `O(m + n·d²)` by `Blocks.sum_rowLen` and the uniform bound `d` on
-an in-block; the assembly's stamping walk is `O(n·d²)` by
-`slotCnt_out_eq` and `sum_slot_weight`; the engine's is `elimCost n nf`
-with `nf = fratSlots D ≤ n·d²`. With `augWidth n d ≤ W` that is
-`O(n + W)` with a constant well inside `RamAugment.augCost`'s `8000`. -/
+the block structure it walks. `outPass_run` is `42·m + 63·n + 24` and
+`fratPass_run` is `(80·d + 92)·m + 106·n + 40`; `alvSet_run` is
+`11·n + 8`; the engine's is `elimCost n nf = 600·n + 600·nf + 100`; the
+assembly's is `O(d·m + m + n)` by `slotCnt_out_eq` and
+`sum_slot_weight`. With `arcs_le` (`m ≤ n·d`) every `d·m` is at most
+`n·d² ≤ n·(d+1)² ≤ augWidth n d ≤ W`, and `nf = fratSlots D < augWidth
+n d ≤ W`, so the whole is `O(n + W)` with a constant of a few hundred —
+one to two orders inside `RamAugment.augCost`'s `8000·(n + W + 1)`. -/
 
 end Lax3Proofs.RamDriverAugment
