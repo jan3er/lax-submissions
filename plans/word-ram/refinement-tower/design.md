@@ -78,7 +78,7 @@ no delta beyond notation.
 | source artifact | Lean counterpart | substrate delta |
 |---|---|---|
 | `('a,'b) acost = acostC ('a ⇒ 'b)`, pointwise `0/+/≤`; `cost n x`; `ecost = (string, enat) acost` (`Abstract_Cost.thy`, `Enat_Cost.thy`) | `Cost/ACost.lean`: `structure ACost (κ γ) where toFun : κ → γ`, pointwise instances; `ECost := ACost String ℕ∞` | `enat → ℕ∞`; currency names stay `String` (F1). Plain functions + a `wfR`-style finite-support predicate, **not** `Finsupp` (F2) |
-| `('a,'b) nrest = FAILi \| REST ('a ⇒ 'b option)`, `'b :: {complete_lattice, monoid_add}` | `NREST/Basic.lean`: `inductive NRest (α γ) [CompleteLattice γ] [AddMonoid γ]` with `fail`, `rest (α → Option γ)` | HOL sort constraints → instance arguments. Monomorphic universes (`Type`, no polymorphism gymnastics) per plan watch item |
+| `('a,'b) nrest = FAILi \| REST ('a ⇒ 'b option)`, `'b :: {complete_lattice, monoid_add}` | `NREST/Basic.lean`: `inductive NRest (α γ : Type)` with `fail`, `rest (α → WithBot γ)`; classes on the operations, not the type | HOL sort constraints → instance arguments on operations. `'b option` under the source's None-bottom pointwise order *is* mathlib's `WithBot γ` — same object, mathlib's name, its lattice for free (F6). Monomorphic universes (`Type`) per plan watch item |
 | `≤` (flat under `FAILi` = top), complete-lattice instance on nrest | same file: `LE`/`CompleteLattice` instances | = (mathlib order library replaces HOL's) |
 | `RETURNT`, `SPECT`, `SPEC P t`, `FAILT = ⊤`, `SUCCEEDT = ⊥`, `consume`, `bindT = Sup {consume (f x) t₁ …}`, `ASSERT` | same names: `NRest.returnT`, `.spec`, `.consume`, `.bindT`, `.assert` | `Sup` over a set-comprehension → `sSup` over `Set (NRest α γ)`; monad laws ride the lattice exactly as in the source |
 | pointwise reasoning: `nofailT`, `inresT`, pw lemma suite (`NREST.thy`, `NREST_Misc.thy`) | `NREST/Pw.lean`, same names | = |
@@ -144,6 +144,18 @@ loop-structured programs only — abstract `RECT` must be refined to
 procedures/recursion to compile general recursion into. The source
 itself treats WHILE as the recursion instance it is, so this is a
 restriction of *coverage*, not a change of any judgment.
+
+**Source gap found by the P2–P4 deep read** (2026-07-29,
+`p4-sepref-extracts.md`): the cost artifact contains **no
+`hnr_If` / `hn_monadic_WHILE`-style control-flow hnr rules under any
+name** (grep across its `thys/sepref/*.thy`); its examples route
+control flow through `RECT`-side machinery. The if/while hnr rule
+*shapes* therefore come from the no-cost AFP `Refine_Imperative_HOL`
+twin, and P4 must **derive** their cost-carrying versions (branch
+merging à la `MERGE`, plus the loop rule paying per-iteration credits
+per the ESOP'21 discipline) rather than transcribe them. This is
+recorded here so P4 budgets it as derivation work, with the derived
+rules checked against the no-cost shapes clause by clause.
 
 ### P5 — Verified codegen, IR → IMP+ `Com`
 
@@ -309,6 +321,21 @@ evaluator harness (`Smoke.lean` pattern, `demoRun` shape).
   our deep IR, and its `Triple` speaks about Lean programs, not `Ir.Com`
   / `NRest`. Wrapping it would be a deviation from the source with no
   reason class.
+- **F6** Result maps are `α → WithBot γ`, not `α → Option γ`:
+  Isabelle's `'b option` result carrier under the source's None-bottom
+  pointwise order is definitionally mathlib's `WithBot γ`, and using
+  mathlib's name buys the whole lattice structure of result maps
+  (`NRest α γ ≅ WithTop (α → WithBot γ)`) instead of re-proving it.
+  Statement shapes change only `Some t` ↦ `(t : WithBot γ)`.
+- **F7** The monad laws are stated at the source's own generality and
+  no more: left identity generic in the resource class, right identity
+  and associativity monomorphic at `ℕ∞` and `ACost κ ℕ∞` — exactly
+  where `nres_bind_right_identity`/`nres_bind_assoc`/
+  `nres_acost_bind_assoc` sit in the source (they need `+`/`Sup`
+  continuity, and the source chose instances over a continuity class).
+  The `nonneg`/`needname`/`drm`/`needname_zero` classes of
+  `NREST_Type_Classes.thy` belong to the `gwp`/backwards-reasoning
+  side and are ported there, when that file lands.
 
 ## 10. Defaults handed to P1 (decided here, cheap to revise)
 

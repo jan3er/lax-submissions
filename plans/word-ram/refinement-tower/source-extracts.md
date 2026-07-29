@@ -169,6 +169,65 @@ shape): `Sep_Generic_Wp.thy`, `LLVM_Shallow_RS.thy`,
 `LLVM_Basic_Main.thy`; `thys/cost/` = `Abstract_Cost.thy`,
 `Enat_Cost.thy`.
 
+## Monad laws — the source's own generality
+
+`isabelle_llvm_time` @ 42dd7f5, `thys/nrest/NREST.thy`. Left identity
+is generic; right identity and associativity are stated *monomorphically*
+at `enat` and at `(_, enat) acost` — the continuity of `+` over `Sup`
+they need is taken from the instance, not from a class:
+
+```isabelle
+lemma nres_bind_left_identity[simp]:
+  fixes f :: "'a ⇒ ('b,'c::{complete_lattice,zero,monoid_add}) nrest"
+  shows "bindT (RETURNT x) f = f x"
+
+lemma nres_bind_right_identity[simp]:
+  fixes M :: "('b,enat) nrest"
+  shows "bindT M RETURNT = M"
+
+lemma nres_bind_assoc[simp]:
+  fixes M :: "('a,enat) nrest"
+  shows "bindT (bindT M (λx. f x)) g = bindT M (λx. bindT (f x) g)"
+
+lemma nres_acost_bind_assoc[simp]:
+  fixes M :: "('a,(_,enat) acost) nrest"
+  shows "bindT (bindT M (λx. f x)) g = bindT M (λx. bindT (f x) g)"
+
+lemma consume_RETURNT: "consume (RETURNT x) T = SPECT [x ↦ T]"
+
+definition nofailT :: "('a,_) nrest ⇒ bool" where "nofailT S ≡ S≠FAILT"
+
+definition inresT :: "(_,'ac) nrest ⇒ _ ⇒ 'cc ⇒ bool"
+  where "inresT S x t ≡ REST ([x↦lift t]) ≤ S"
+```
+
+(The `lift` in `inresT` is the currency seam; the same-carrier instance
+is what P1 ports first, per design.md.)
+
+## The resource type classes (`NREST_Type_Classes.thy`)
+
+`isabelle_llvm_time` @ 42dd7f5. These serve the `gwp`/backwards-
+reasoning side (`minus` structure for paying costs), not the monad
+laws; ported with `BackwardsReasoning`:
+
+```isabelle
+class nonneg = ord + zero +
+  assumes needname_nonneg: "0 ≤ x"
+
+class needname = complete_lattice + minus + plus +
+  assumes top_absorb, minus_plus_assoc2, le_diff_if_add_le,
+          add_leD2, add_le_if_le_diff
+
+class drm = minus + plus + ord + Inf + Sup +
+  assumes diff_right_mono, diff_left_mono, minus_continousInf,
+          minus_continousSup, plus_left_mono
+
+class needname_zero = needname + nonneg + drm + ordered_comm_monoid_add
+                      + mult_zero +
+  assumes needname_minus_absorb: "x - 0 = x"
+          needname_plus_absorb: "0 + x = x"
+```
+
 ## AFP theory listings (Isabelle2025-2, 2026-02-06)
 
 `Refine_Monadic`: Refine_Chapter, Refine_Mono_Prover, Refine_Misc,
