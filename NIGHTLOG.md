@@ -3244,3 +3244,31 @@ relComp/SingleValued move to P2 Relators; consumea to Basic on thaw;
 upstream candidates finsum_comm_of_support, unbundled gfp, WithBot
 trio. Next: BackwardsReasoning (gwp + needname/drm), then the abstract
 masked-BFS P1 acceptance program.
+
+## Refinement tower P1 — BackwardsReasoning (gwp + vcg seed) landed — 2026-07-29
+Milestone: last major P1 file — done, merged, green (2975 jobs, root
+lax audit OK, zero sorry, axioms clean, 17.7 s elaboration).
+BackwardsReasoning.lean (1964 l): needname/nonneg/drm/needname_zero
+class port, gwp = ⨅ minusPM per source, full gwp rule suite
+(returnT/SPEC/bindT/consume/If/MIf/ASSERT + conseq), progress
+predicates, RECT_wf_induct, gwp_whileT_rule_wf + While, seed
+@[refine_vcg] attribute + tactic; in-file demo: counted countdown
+discharged BY the tactic to ⊑ SPEC with explicit cost.
+FIDELITY EVENT (B1, Jan's eye): mathlib's Sub ℕ∞ is truncated
+(⊤ - ⊤ = 0); Isabelle's enat has ∞ - ∞ = ∞, and needname's top_absorb
+is that point — the ported minus_p_m_bindT is FALSE under mathlib's
+minus (counterexample #guarded). Resolution: ResSub class (-ᵣ) as the
+source's own minus-as-class; mathlib Sub untouched. Deviations B1–B7
+reviewed and accepted (B5: several statements need [Nonempty] — false
+at empty types, HOL types are nonempty; B7: attribute can't be used in
+its declaring module — coreRules list + attribute extension point).
+D4: twins with proved agreement (gwpE), 10 #guards incl. the B1
+counterexamples, 5 Plausible #tests incl. gwp_bindT end-to-end.
+Tactic maturity honestly limited: no DiscrTree, no progress-method, no
+sc_solve — P2-era hardening. Backlog: ResSub/instances → ACost.lean on
+thaw; inres section → Pw.lean; monadic_WHILEIET chain deferred to its
+consumer.
+Next: P1 acceptance — abstract masked depth-capped BFS via refine_vcg,
+in Examples/Bfs.lean (mathlib SimpleGraph vocabulary inside Lax13Proofs;
+the Lax3 WithinDist bridge belongs to the P7 consumer side — recorded
+adjustment of design.md §10.4).
