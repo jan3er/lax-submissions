@@ -6,6 +6,7 @@ import Lax13Proofs.Refine.NREST.Rec
 import Lax13Proofs.Refine.NREST.Combinators
 import Lax13Proofs.Refine.Autoref.Attrs
 import Lax13Proofs.Refine.Autoref.Relators
+import Lax13Proofs.Refine.Autoref.Param
 import Lax13Proofs.Refine.NREST.DataRefinement
 import Lax13Proofs.Refine.NREST.TimeRefinement
 import Lax13Proofs.Refine.NREST.BackwardsReasoning
@@ -91,6 +92,15 @@ and P2's first wave — relators and the shared rule-database attributes:
   `prodRel` (`×ᵣ`), `optionRel`, `sumRel`, `listRel` with `fun_relI` /
   `fun_relD` / `list_rel_induct` and the `[relator_props]` mono family.
   Pure HOL, one layer below the monad: it imports no `NREST` module.
+* `Refine/Autoref/Param.lean` — P2 wave B1: the parametricity rules of
+  `Parametricity/Param_HOL.thy` and the `Let`-tagging helpers of
+  `Param_Tool.thy`, the pure-HOL operator bindings of
+  `Autoref_Bindings_HOL.thy` that the P2 acceptance example consumes
+  (`nat` layer, `append`/`Nil`/`Cons`, the option constructors,
+  `is_None`/`is_Nil`, `list_eq` with `autoref_list_eq_aux` and
+  `list_eq_expand`), all in the `@[param]` database, and the seed
+  `parametricity` tactic. Pure relation material like `Relators.lean`:
+  no `NREST` module in its import closure.
 
 and P1's acceptance program, design record §10.4:
 
