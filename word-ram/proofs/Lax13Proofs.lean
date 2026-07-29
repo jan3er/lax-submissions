@@ -45,6 +45,8 @@ import Lax13Proofs.Refine.Ir.Wp
 import Lax13Proofs.Refine.Ir.Triples
 import Lax13Proofs.Refine.Ir.Attrs
 import Lax13Proofs.Refine.Ir.SepSolver
+import Lax13Proofs.Refine.Sepref.Basic
+import Lax13Proofs.Refine.Sepref.Rules
 import Lax13Proofs.Refine.Examples.Bfs
 import Lax13Proofs.Refine.Examples.ArrayFill
 import Lax13Proofs.Refine.Examples.AutorefTutorial
