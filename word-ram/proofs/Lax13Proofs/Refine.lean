@@ -6,6 +6,7 @@ import Lax13Proofs.Refine.NREST.Rec
 import Lax13Proofs.Refine.NREST.Combinators
 import Lax13Proofs.Refine.NREST.DataRefinement
 import Lax13Proofs.Refine.NREST.TimeRefinement
+import Lax13Proofs.Refine.NREST.BackwardsReasoning
 
 /-!
 The refinement tower: a fidelity-first port of the Isabelle NREST/Sepref
@@ -57,5 +58,21 @@ and P1's second slice — the two refinement operators the tower composes:
 Each of the two carries its own executable gate, in the `Sanity`
 namespace of `Sanity.lean`.
 
-Still to come in P1, per design record §3: `BackwardsReasoning`.
+and P1's third slice — backwards reasoning and the abstract VCG:
+
+* `Refine/NREST/BackwardsReasoning.lean` — the resource type classes
+  `nonneg` / `needname` / `drm` / `needname_zero`
+  (`NREST_Type_Classes.thy`), the `gwp` predicate transformer with its
+  `minus_cost` / `minus_potential` / `minus_p_m` layers, the bind rule,
+  the `progress` side condition, the `[vcg_rules']` suite, the
+  consequence rules, the well-founded loop rule and its `whileIET`
+  vcg form, and a first `refine_vcg` attribute and tactic
+  (`NREST_Backwards_Reasoning.thy`; `RECT_wf_induct` from `NREST.thy`,
+  `lift_acost` from `Enat_Cost.thy`). Its header records the one
+  refutation the port turned up: mathlib's truncated `Sub ℕ∞` does not
+  satisfy the `needname` axiom `top - a = top`, so the source's own
+  subtraction is declared here as `ResSub`.
+
+P1's remaining item is the acceptance program of design record §10.4
+(abstract masked depth-capped BFS against `bfs_spec`'s vocabulary).
 -/
