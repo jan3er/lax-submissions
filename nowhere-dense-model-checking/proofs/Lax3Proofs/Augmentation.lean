@@ -430,19 +430,24 @@ This is the recursion the greedy algorithm runs on; it holds for every
 augmentation step, with no hypothesis on the graph. -/
 theorem inDegLE_of_augStep {D D' : Orientation n} {d k : ℕ} (h : AugStep D D')
     (hd : D.InDegLE d)
-    (hk : ∀ v, {u | u ∈ D'.inN v ∧ (fratGraph D).Adj u v}.ncard ≤ k) :
+    (hk : ∀ v, {u | u ∈ D'.inN v ∧ u ∉ D.inN v ∧ ¬ TransLink D u v ∧
+      (fratGraph D).Adj u v}.ncard ≤ k) :
     D'.InDegLE (d + d * d + k) := by
   classical
   intro v
   have hsub : (↑(D'.inN v) : Set (Fin n)) ⊆
       (↑(D.inN v) : Set (Fin n)) ∪ (↑(transIn D v) : Set (Fin n)) ∪
-        {u | u ∈ D'.inN v ∧ (fratGraph D).Adj u v} := by
+        {u | u ∈ D'.inN v ∧ u ∉ D.inN v ∧ ¬ TransLink D u v ∧ (fratGraph D).Adj u v} := by
     intro u hu
     have hu' : u ∈ D'.inN v := hu
+    by_cases hold : u ∈ D.inN v
+    · exact Or.inl (Or.inl hold)
+    by_cases htr : TransLink D u v
+    · exact Or.inl (Or.inr (mem_transIn.2 htr))
     rcases h.tight u v hu' with h1 | h2 | h3
-    · exact Or.inl (Or.inl h1)
-    · exact Or.inl (Or.inr (mem_transIn.2 h2))
-    · exact Or.inr ⟨hu', ne_of_mem_inN hu', h3⟩
+    · exact absurd h1 hold
+    · exact absurd h2 htr
+    · exact Or.inr ⟨hu', hold, htr, ne_of_mem_inN hu', h3⟩
   have hcard := Set.ncard_le_ncard hsub (Set.toFinite _)
   rw [Set.ncard_coe_finset] at hcard
   refine hcard.trans (le_trans (Set.ncard_union_le _ _) ?_)
@@ -456,11 +461,13 @@ every in-degree is at most `k`.  This is the clause of
 `inDegLE_of_augStep` that a greedy round discharges. -/
 theorem fratIn_le_of_backDegLE {D D' : Orientation n} {σ : Fin n → ℕ} {k : ℕ}
     (hσ : BackDegLE (fratGraph D) σ k)
-    (hor : ∀ u v, u ∈ D'.inN v → (fratGraph D).Adj u v → σ u < σ v) (v : Fin n) :
-    {u | u ∈ D'.inN v ∧ (fratGraph D).Adj u v}.ncard ≤ k := by
+    (hor : ∀ u v, u ∈ D'.inN v → u ∉ D.inN v → ¬ TransLink D u v →
+      (fratGraph D).Adj u v → σ u < σ v) (v : Fin n) :
+    {u | u ∈ D'.inN v ∧ u ∉ D.inN v ∧ ¬ TransLink D u v ∧
+      (fratGraph D).Adj u v}.ncard ≤ k := by
   refine le_trans (Set.ncard_le_ncard ?_ (Set.toFinite _)) (hσ v)
-  rintro u ⟨hu, hadj⟩
-  exact ⟨hadj, hor u v hu hadj⟩
+  rintro u ⟨hu, hold, htr, hadj⟩
+  exact ⟨hadj, hor u v hu hold htr hadj⟩
 
 /-! ### Weak reachability along a chain
 
@@ -1116,11 +1123,23 @@ def AugmentedDepthOneDensity (D : ℕ → Orientation n) (r D₁ : ℕ) : Prop :
 
 /-- The round oriented its fraternal edges along a ranking that is as
 good as the degeneracy of the fraternity graph allows: the specification
-of a greedy elimination ordering. -/
+of a greedy elimination ordering.
+
+The ranking is asked about the arcs the round *adds on fraternal
+grounds alone* — an arc of `D'` that `D` did not carry and that no
+transitive link forces — and about no others. That is the whole of what
+`inDegLE_of_augStep` charges to the fraternity graph: an arc `D`
+already had is charged to the old in-degree and a transitive one to the
+`d²` transitive links, so asking the ranking about either would be
+asking for more than the count needs. It would also be asking for more
+than a round can deliver: a round inherits `D`'s arcs by `AugStep.mono`
+and cannot re-orient them, and nothing makes an elimination ordering of
+the fraternity graph agree with an arc that was already there. -/
 def GreedyFratRound (D D' : Orientation n) : Prop :=
   ∀ k : ℕ, LowDegreeVertices (fratGraph D) k →
     ∃ σ : Fin n → ℕ, BackDegLE (fratGraph D) σ k ∧
-      ∀ u v, u ∈ D'.inN v → (fratGraph D).Adj u v → σ u < σ v
+      ∀ u v, u ∈ D'.inN v → u ∉ D.inN v → ¬ TransLink D u v →
+        (fratGraph D).Adj u v → σ u < σ v
 
 /-- The in-degree budget after `i` greedy rounds from a starting
 in-degree `d`, given a depth-1 density bound `D₁`: old arcs, `d²`
@@ -1146,7 +1165,8 @@ theorem exists_greedy_round {H : SimpleGraph (Fin n)} {D : Orientation n} {d D�
   obtain ⟨σ, hinj, hσ⟩ :=
     degeneracyLE_of_lowDegreeVertices (fratGraph_lowDegreeVertex harc hd hdens)
   exact ⟨σ, hinj, hσ, fun D' hstep hor =>
-    inDegLE_of_augStep hstep hd (fratIn_le_of_backDegLE hσ hor)⟩
+    inDegLE_of_augStep hstep hd
+      (fratIn_le_of_backDegLE hσ fun u v hu _ _ hadj => hor u v hu hadj)⟩
 
 /-- **The greedy chain.**  Along a chain whose rounds orient their
 fraternity graphs greedily, the in-degrees follow the budget recursion —

@@ -46,28 +46,26 @@ centre. `readback_spec` is the result, and `rbCost` is what it costs.
 
 # Which obligation
 
-`RamDriver.ReadbackImplements` is *not* the obligation discharged here,
-and it is not provable as it stands: its valuation `val : ℕ → _ → Prop`
-is indexed by the table position alone, while `RamDriver.atomExpr`
-reads the depth-`(j+1)` table *at the vertex the counter stands on*, so
-a local atom's truth value varies over the cluster and the stated `Prop`
-cannot express what the loop leaves. `RamDriverCluster.ReadbackStep` is
-that obligation repaired — the valuation is
+`RamDriverCluster.ReadbackStep` is the obligation discharged here. The
+readback `Prop` `Lax3Proofs.RamDriver` used to carry was not provable:
+its valuation `val : ℕ → _ → Prop` was indexed by the table position
+alone, while `RamDriver.atomExpr` reads the depth-`(j+1)` table *at the
+vertex the counter stands on*, so a local atom's truth value varies
+over the cluster and the stated `Prop` could not express what the loop
+leaves. `ReadbackStep` is that obligation repaired — the valuation is
 `RamDriverCluster.atomVal … v`, which is the shape
 `RamDriver.sat_iff_eval_step` produces — and it is what `readbackStep`
 below discharges, at the cost `rbCost`.
 
-Three conjuncts of that obligation's precondition are still missing,
-and `ReadbackStepGap` — a `Prop` of this file, consumed by
-`readbackStep` and by nothing else — is exactly their conjunction: the
-depth-`j` table arrays at the carrier's length, the depth-`(j+1)` cells
-and the scatter flags as bits, and the centre below the value bound.
-Its own docstring says why each is needed and where each belongs. Two
-further hypotheses of `readbackStep` are plain facts about its
-parameters rather than about a state — `1 < B` with `n < B`, and that
-the depth-`(j+1)` colour arrays hold `RamDriver.stepColoringP`, which is
-`RamDriverCluster.ColourStep`'s own postcondition and is in the caller's
-hand at the call site.
+Nothing of that obligation's precondition is missing any longer:
+`RamDriver.TablesSized` sizes the depth-`j` table arrays,
+`RamDriver.TableInv`'s own bit clause is the depth-`(j+1)` cells, the
+scatter phase's postcondition is the flags, and `σ.vars "c" < n` is a
+conjunct of `ReadbackStep` itself. Two hypotheses of `readbackStep` are
+plain facts about its parameters rather than about a state — `1 < B`
+with `n < B`, and that the depth-`(j+1)` colour arrays hold
+`RamDriver.stepColoringP`, which is `RamDriverCluster.ColourStep`'s own
+postcondition and is in the caller's hand at the call site.
 
 `readback_spec` is the walk itself, stated over the data it actually
 uses; `readbackStep` is nothing but the translation of that data out of
@@ -75,9 +73,9 @@ the cluster's surface.
 
 # The base case
 
-`RamDriver.BaseImplements` is not discharged here. Its statement has
-the same sizing gap — `reprCom`'s `rep` array and the depth-`ℓ` tables
-are unsized by `LevelPre` — and its walk is much larger: a nested scan
+`RamDriver.BaseImplements` is not discharged here. Its sizing gap is
+now closed — `reprCom`'s `rep` array and the depth-`ℓ` tables are
+conjuncts of its own precondition — but its walk is much larger: a nested scan
 for the representative system and an induction over the formula for
 `RamDriver.botCom`, with the fresh-name discipline of the generated
 code to carry. What this file leaves for it is the arithmetic its
@@ -101,101 +99,51 @@ open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
 
 Every per-depth array of the driver is addressed by a name built from
 the depth and a position through `Nat.repr`, and a walk that stores
-into one of them has to know that it is not one of the others. The
-library carries no injectivity lemma for `Nat.repr`, so the decimal
-representation is inverted here: `decChars` reads a digit list back as
-a number, `decChars_toDigits` is the round trip, and the separator is
-recovered because no digit is an underscore. -/
-
-/-- The value of a list of decimal digit characters. -/
-def decChars (l : List Char) : ℕ := l.foldl (fun a c => a * 10 + (c.toNat - 48)) 0
-
-/-- One more digit, at the low end. -/
-theorem decChars_append_singleton (l : List Char) (c : Char) :
-    decChars (l ++ [c]) = decChars l * 10 + (c.toNat - 48) := by
-  simp [decChars, List.foldl_append]
-
-/-- A decimal digit character carries its own value. -/
-theorem digitChar_toNat {d : ℕ} (h : d < 10) : (Nat.digitChar d).toNat - 48 = d := by
-  interval_cases d <;> decide
-
-/-- The accumulator of `Nat.toDigitsCore` is appended and nothing
-else. -/
-theorem toDigitsCore_append (f n : ℕ) (ds : List Char) :
-    Nat.toDigitsCore 10 f n ds = Nat.toDigitsCore 10 f n [] ++ ds := by
-  induction f generalizing n ds with
-  | zero => simp [Nat.toDigitsCore]
-  | succ f ih =>
-    by_cases h : n / 10 = 0
-    · simp [Nat.toDigitsCore, h]
-    · simp only [Nat.toDigitsCore, h]
-      rw [ih (n / 10) (Nat.digitChar (n % 10) :: ds), ih (n / 10) [Nat.digitChar (n % 10)]]
-      simp
-
-/-- Within its fuel, `Nat.toDigitsCore` is inverted by `decChars`. -/
-theorem decChars_toDigitsCore : ∀ (f n : ℕ), n < 10 ^ f →
-    decChars (Nat.toDigitsCore 10 f n []) = n := by
-  intro f
-  induction f with
-  | zero => intro n hn; simp at hn; simp [Nat.toDigitsCore, hn, decChars]
-  | succ f ih =>
-    intro n hn
-    by_cases h : n / 10 = 0
-    · have hlt : n < 10 := by omega
-      simp only [Nat.toDigitsCore, h, if_pos]
-      rw [show decChars [(n % 10).digitChar] = ((n % 10).digitChar.toNat - 48) by simp [decChars],
-        digitChar_toNat (by omega)]
-      omega
-    · have hn' : n / 10 < 10 ^ f := by
-        rw [Nat.div_lt_iff_lt_mul (by omega)]
-        calc n < 10 ^ (f + 1) := hn
-          _ = 10 ^ f * 10 := by ring
-      simp only [Nat.toDigitsCore, h, if_false]
-      rw [toDigitsCore_append, decChars_append_singleton, ih (n / 10) hn',
-        digitChar_toNat (Nat.mod_lt _ (by omega))]
-      omega
-
-/-- **The decimal representation is inverted by `decChars`.** -/
-theorem decChars_toDigits (n : ℕ) : decChars (Nat.toDigits 10 n) = n := by
-  refine decChars_toDigitsCore (n + 1) n ?_
-  calc n < 10 ^ n := Nat.lt_pow_self (by norm_num)
-    _ ≤ 10 ^ (n + 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
-
-/-- **The decimal representation is injective.** -/
-theorem toDigits_injective {m n : ℕ} (h : Nat.toDigits 10 m = Nat.toDigits 10 n) : m = n := by
-  rw [← decChars_toDigits m, ← decChars_toDigits n, h]
+into one of them has to know that it is not one of the others. Two
+facts do it, and both come off the library without unfolding
+`Nat.toDigitsCore`: the decimal representation is injective, because
+`Nat.toNat?_repr` reads it back, and the separator is not among its
+characters, because `Nat.toDigits_eq_if` is a recursion equation whose
+every contribution is a digit. -/
 
 /-- No decimal digit is the separator of the driver's names. -/
 theorem digitChar_ne_underscore {d : ℕ} (h : d < 10) : Nat.digitChar d ≠ '_' := by
   interval_cases d <;> decide
 
-/-- Every character `Nat.toDigitsCore` contributes is a digit. -/
-theorem forall_mem_toDigitsCore {P : Char → Prop} (hP : ∀ d < 10, P (Nat.digitChar d)) :
-    ∀ (f n : ℕ) (ds : List Char), (∀ c ∈ ds, P c) → ∀ c ∈ Nat.toDigitsCore 10 f n ds, P c := by
-  intro f
-  induction f with
-  | zero => intro n ds hds; simpa [Nat.toDigitsCore] using hds
-  | succ f ih =>
-    intro n ds hds
-    by_cases h : n / 10 = 0
-    · simp only [Nat.toDigitsCore, h, if_pos]
-      intro c hc
-      rcases List.mem_cons.mp hc with rfl | hc
-      · exact hP _ (Nat.mod_lt _ (by omega))
-      · exact hds c hc
-    · simp only [Nat.toDigitsCore, h, if_false]
-      refine ih (n / 10) _ ?_
-      intro c hc
-      rcases List.mem_cons.mp hc with rfl | hc
-      · exact hP _ (Nat.mod_lt _ (by omega))
-      · exact hds c hc
+/-- **The separator does not occur in a decimal representation.**
+Strong induction along `Nat.toDigits_eq_if`: the last character is a
+digit and the rest is the representation of a smaller number. -/
+theorem underscore_not_mem_toDigits : ∀ n : ℕ, '_' ∉ Nat.toDigits 10 n := by
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    rw [Nat.toDigits_eq_if (by omega)]
+    split
+    · rename_i hlt
+      simp only [List.mem_singleton]
+      exact fun hc => digitChar_ne_underscore hlt hc.symm
+    · rename_i hge
+      have hpos : 0 < n := by omega
+      simp only [List.mem_append, not_or]
+      refine ⟨ih (n / 10) (Nat.div_lt_self hpos (by omega)), ?_⟩
+      simp only [List.mem_singleton]
+      exact fun hc => digitChar_ne_underscore (Nat.mod_lt _ (by omega)) hc.symm
 
-/-- The separator does not occur in a decimal representation. -/
-theorem underscore_not_mem_toDigits (n : ℕ) : '_' ∉ Nat.toDigits 10 n :=
-  fun hc =>
-    forall_mem_toDigitsCore (P := fun c => c ≠ '_') (fun _ hd => digitChar_ne_underscore hd)
-      (n + 1) n []
-      (by simp) _ hc rfl
+/-- The decimal representation is the string of the digits. -/
+theorem repr_eq_ofList (n : ℕ) : Nat.repr n = String.ofList (Nat.toDigits 10 n) := rfl
+
+/-- **The decimal numeral determines the number**: the round trip
+through `String.toNat?`. -/
+theorem toString_inj {a b : ℕ} (h : toString a = toString b) : a = b := by
+  have h' : (Nat.repr a).toNat? = (Nat.repr b).toNat? := by
+    simp only [← Nat.toString_eq_repr]; rw [h]
+  rw [Nat.toNat?_repr, Nat.toNat?_repr] at h'
+  exact Option.some.inj h'
+
+/-- **The decimal representation is injective.** -/
+theorem toDigits_injective {m n : ℕ} (h : Nat.toDigits 10 m = Nat.toDigits 10 n) : m = n := by
+  refine toString_inj ?_
+  rw [Nat.toString_eq_repr, Nat.toString_eq_repr, repr_eq_ofList, repr_eq_ofList, h]
 
 /-- A list splits at the first occurrence of a character that neither
 prefix contains. -/
@@ -241,6 +189,22 @@ theorem tabName_ne_succ (j i i' : ℕ) : tabName j i ≠ tabName (j + 1) i' :=
 arrays. -/
 theorem tabName_ne_of_ne (j : ℕ) {i i' : ℕ} (h : i ≠ i') : tabName j i ≠ tabName j i' :=
   fun hc => h (tabName_inj hc).2
+
+/-- A table name carries the separator. -/
+theorem underscore_mem_tabName (j i : ℕ) : '_' ∈ (tabName j i).toList := by
+  rw [tabName]
+  simp only [String.toList_append, List.mem_append]
+  exact Or.inl (Or.inr (by simp))
+
+/-- **A table array is none of the fixed scratch names**, since every
+one of them is a literal without a separator and every table name has
+one. On a concrete literal the hypothesis is `decide`. -/
+theorem tabName_ne_lit (j i : ℕ) {q : String} (h : '_' ∉ q.toList) : tabName j i ≠ q :=
+  fun he => h (he ▸ underscore_mem_tabName j i)
+
+/-- The same, the way `Env.setArr` presents it. -/
+theorem lit_ne_tabName {q : String} (h : '_' ∉ q.toList) (j i : ℕ) : q ≠ tabName j i :=
+  fun he => h (he ▸ underscore_mem_tabName j i)
 
 /-! ### Two collapses of environment updates -/
 
@@ -362,6 +326,7 @@ noncomputable def TabOk (q_top cap mb j : ℕ) {n : ℕ} (asg : ℕ → ℕ) (cc
   ∃ Tb : ℕ → ℕ, σ.arrs nm = arrOf n Tb ∧
     (∀ v : Fin n, asg (v : ℕ) ≠ cc → Tb (v : ℕ) = T₀ (v : ℕ)) ∧
     ∀ v : Fin n, (v : ℕ) < bnd → asg (v : ℕ) = cc →
+      Tb (v : ℕ) ≤ 1 ∧
       (Tb (v : ℕ) ≠ 0 ↔ ∃ h : ∃ q' : ℕ, q' + 1 ≤ q_top ∧ DRank 1 q' (stepFml cap mb j β),
         (bcOf q_top (stepFml cap mb j β) h).eval (vl v))
 
@@ -372,7 +337,7 @@ vertex. -/
 def RbBase (B q_top cap mb ns j : ℕ) {n : ℕ} (φ : Lax3.FirstOrder.FO 0) (O T M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (asg : ℕ → ℕ) (cc : ℕ) (ou : List ℕ)
     (val : Fin n → ℕ → StepAtom cap mb j → Prop) (σ : Env) : Prop :=
-  LevelPre n cap mb ns O T j M Gm C σ ∧ σ.arrs "asg" = arrOf n asg ∧
+  LevelPre B n cap mb ns O T j M Gm C σ ∧ σ.arrs "asg" = arrOf n asg ∧
     (∀ v < n, asg v < B) ∧ σ.vars "c" = cc ∧ cc < B ∧ σ.out = ou ∧
     ∀ (v : Fin n) (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length)
         (h : ∃ q' : ℕ, q' + 1 ≤ q_top ∧
@@ -391,11 +356,11 @@ assignment, and — by `tabName_inj` — from the depth-`(j+1)` tables the
 atoms are read out of. -/
 
 /-- Writing a table leaves the level's surface alone. -/
-theorem levelPre_setArr_tab {cap mb ns j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {σ : Env}
-    (h : LevelPre n cap mb ns O T j M Gm C σ) (i idx v : ℕ) :
-    LevelPre n cap mb ns O T j M Gm C (σ.setArr (tabName j i) idx v) := by
-  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := h
-  refine ⟨h1, ?_, ?_, ?_, ?_, ?_⟩
+theorem levelPre_setArr_tab {B cap mb ns j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {σ : Env}
+    (h : LevelPre B n cap mb ns O T j M Gm C σ) (i idx v : ℕ) :
+    LevelPre B n cap mb ns O T j M Gm C (σ.setArr (tabName j i) idx v) := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, hsz, hd, hq⟩ := h
+  refine ⟨h1, ?_, ?_, ?_, ?_, ?_, h7, h8, ?_, ?_, ?_⟩
   · rw [arrs_setArr, if_neg (by simp [tabName, String.ext_iff])]; exact h2
   · rw [arrs_setArr, if_neg (by simp [tabName, String.ext_iff])]; exact h3
   · rw [arrs_setArr, if_neg (by simp [tabName, alvName, String.ext_iff])]; exact h4
@@ -403,13 +368,31 @@ theorem levelPre_setArr_tab {cap mb ns j : ℕ} {O T M Gm : ℕ → ℕ} {C : �
   · intro c hc
     rw [arrs_setArr, if_neg (by simp [tabName, colName, String.ext_iff])]
     exact h6 c hc
+  · intro p hp
+    rw [arrs_setArr, if_neg (by
+      revert hp
+      simp only [List.mem_cons, List.not_mem_nil, or_false]
+      rintro (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl)
+      · exact lit_ne_tabName (q := "alv") (by decide) j i
+      · exact lit_ne_tabName (q := "tab") (by decide) j i
+      · exact lit_ne_tabName (q := "dist") (by decide) j i
+      · exact lit_ne_tabName (q := "q") (by decide) j i
+      · exact lit_ne_tabName (q := "exc") (by decide) j i
+      · exact lit_ne_tabName (q := "asg") (by decide) j i
+      · exact lit_ne_tabName (q := "ord") (by decide) j i
+      · exact lit_ne_tabName (q := "xoff") (by decide) j i
+      · exact lit_ne_tabName (q := "xmem") (by decide) j i)]
+    exact hsz p hp
+  · rw [arrs_setArr, if_neg (lit_ne_tabName (q := "dist") (by decide) j i)]; exact hd
+  · rw [arrs_setArr, if_neg (lit_ne_tabName (q := "q") (by decide) j i)]; exact hq
 
 /-- Moving the counter leaves the level's surface alone. -/
-theorem levelPre_setVar_z {cap mb ns j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {σ : Env}
-    (h : LevelPre n cap mb ns O T j M Gm C σ) (k : ℕ) :
-    LevelPre n cap mb ns O T j M Gm C (σ.setVar "z" k) := by
-  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := h
-  exact ⟨by rw [vars_setVar, if_neg (by decide)]; exact h1, h2, h3, h4, h5, h6⟩
+theorem levelPre_setVar_z {B cap mb ns j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {σ : Env}
+    (h : LevelPre B n cap mb ns O T j M Gm C σ) (k : ℕ) :
+    LevelPre B n cap mb ns O T j M Gm C (σ.setVar "z" k) := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, hsz, hd, hq⟩ := h
+  exact ⟨by rw [vars_setVar, if_neg (by decide)]; exact h1, h2, h3, h4, h5, h6, h7, h8,
+    fun p hp => by simpa using hsz p hp, by simpa using hd, by simpa using hq⟩
 
 /-- Writing a depth-`j` table leaves the atoms of the depth-`j`
 combinations alone: they are read out of the depth-`(j+1)` tables and
@@ -533,7 +516,9 @@ theorem store_step_spec {B q_top cap mb ns j : ℕ} {φ : Lax3.FirstOrder.FO 0} 
         rw [if_pos (by omega)] at hw
         dsimp only
         by_cases hwz : (w : ℕ) = z₀
-        · rw [if_pos hwz, huiff]
+        · rw [if_pos hwz]
+          refine ⟨hu1, ?_⟩
+          rw [huiff]
           have hwv : w = (⟨z₀, hz₀⟩ : Fin n) := Fin.ext hwz
           rw [hwv]
         · rw [if_neg hwz]
@@ -812,50 +797,25 @@ theorem not_mem_wvars_readbackCom {q_top cap mb : ℕ} {φ : Lax3.FirstOrder.FO 
 `RamDriverCluster.ReadbackStep` is the repaired readback obligation:
 its valuation is indexed by the vertex, which is what the loop's
 postcondition needs and what `RamDriver.sat_iff_eval_step` produces.
-Two things it does not say are what the walk still needs, and
-`ReadbackStepGap` is exactly their conjunction — a `Prop` of this file
-consumed by `readbackStep` and by nothing else.
+Everything the walk needs beyond it is now a conjunct of its own
+precondition, so this file consumes it as it stands and carries no gap.
 
 * **Lengths.** An out-of-range store has no derivation at all in IMP+,
   so a precondition that does not size the depth-`j` table arrays
   cannot support a specification for a program that stores into them.
-  `RamDriver.Sized` is the predicate the driver defines for exactly this
-  and then never uses.
+  `RamDriver.TablesSized` is that clause, built on the driver's own
+  `RamDriver.Sized`.
 * **Bits.** `RamDriver.bcExpr` is truncated arithmetic on bits: a
   negation is `1 - u` and a conjunction is a product, so a cell or a
   flag holding something other than `0` or `1` makes the *value* of a
-  combination wrong and can push it over the bound. Neither
-  `RamDriver.TableInv` nor the scatter obligation's flag clause says
-  more than "nonzero exactly when", so that the depth-`(j+1)` cells and
-  the scatter flags are bits has to be asked for here. Both are true of
-  the passes that write them — `readback_spec` itself leaves bits, by
-  `evalB_rbCell` — so this is a clause missing from two postconditions,
-  not a property missing from the program.
-
-The centre's own bound `σ.vars "c" < B` is the third; the cover's
-`CoverOut.asg_lt` supplies the assignment's. -/
-
-/-- The conjuncts `RamDriverCluster.ReadbackStep`'s precondition leaves
-out: the depth's table arrays at the carrier's length, the depth-`(j+1)`
-cells and the scatter flags as bits, and the centre below the value
-bound. -/
-def ReadbackStepGap (B q_top cap mb ns j : ℕ) {n : ℕ} (φ : Lax3.FirstOrder.FO 0)
-    (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
-    (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (X W : Set (Fin n)) (w : Fin mb → Fin n)
-    (Alv' Gam' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ) : Prop :=
-  ∀ σ : Env, TurnPre n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ →
-    ClusterData n mb j B G M X W w Alv' Gam' σ →
-    (∀ c < sigL cap mb (j + 1), σ.arrs (colName (j + 1) c) = arrOf n (C' c)) →
-    TableInv q_top cap mb φ G (j + 1) Alv' C' σ →
-      σ.vars "c" < B ∧
-      (∃ T₀ : ℕ → ℕ → ℕ, ∀ (i : ℕ), i < (tablesAt q_top cap mb φ j).length →
-        σ.arrs (tabName j i) = arrOf n (T₀ i)) ∧
-      (∀ (i' : ℕ), i' < (tablesAt q_top cap mb φ (j + 1)).length → ∃ Tb : ℕ → ℕ,
-        σ.arrs (tabName (j + 1) i') = arrOf n Tb ∧ ∀ v < n, Tb v ≤ 1) ∧
-      (∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length),
-        ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2,
-          σ.vars (flgName j i (posOf σs (bcAtomsOf q_top
-            (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2)) ≤ 1)
+  combination wrong and can push it over the bound. That the
+  depth-`(j+1)` cells are bits is now a clause of
+  `RamDriver.TableInv`, and that the scatter flags are is now the
+  scatter phase's own postcondition — both true of the passes that
+  write them, `readback_spec` itself by `evalB_rbCell`.
+* **The centre.** `σ.vars "c" < n` is a conjunct of `ReadbackStep`'s
+  precondition and `n < B` a hypothesis here; the cover's
+  `RamCover.CoverOut.asg_lt` supplies the assignment's bound. -/
 
 /-- A scatter flag is not the readback's counter. -/
 theorem flgName_ne_z (j i k : ℕ) : flgName j i k ≠ "z" := by
@@ -868,15 +828,23 @@ theorem readbackStep {B q_top cap mb ns j : ℕ} {n : ℕ} {φ : Lax3.FirstOrder
     {Alv' Gam' : ℕ → ℕ} {C' : ℕ → ℕ → ℕ} {K : ℕ} (hB : 1 < B) (hn : n < B)
     (hcolread : colRead n C' (sigL cap mb (j + 1)) =
       stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w)
-    (hgap : ReadbackStepGap B q_top cap mb ns j φ G O T M Gm C π ord Xoff Xmem asg m X W w
-      Alv' Gam' C')
     (hK : rbCost q_top cap mb φ j n ≤ K) :
     ReadbackStep B q_top cap mb ns j φ G O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' K := by
   classical
   intro σ hσ
-  obtain ⟨hturn, hdata, hcolarr, htabinv, hflag⟩ := hσ
-  obtain ⟨hcB, ⟨T₀, hsz⟩, hbits, hflag1⟩ := hgap σ hturn hdata hcolarr htabinv
+  obtain ⟨hturn, hdata, hcolarr, htabinv, htsz, hcn, hflag⟩ := hσ
+  have hcB : σ.vars "c" < B := lt_trans hcn hn
+  -- the depth's own tables are there, and this names their cells
+  set T₀ : ℕ → ℕ → ℕ := fun i v => (σ.arrs (tabName j i)).getD v 0 with hT₀def
+  have hsz : ∀ (i : ℕ), i < (tablesAt q_top cap mb φ j).length →
+      σ.arrs (tabName j i) = arrOf n (T₀ i) := by
+    intro i hi
+    obtain ⟨g, hg⟩ := htsz.get j hi
+    rw [hg]
+    refine arrOf_congr fun v hv => ?_
+    rw [hT₀def]
+    simp only [hg, getD_arrOf _ hv]
   obtain ⟨hlevel, hordA, hxoffA, hxmemA, hasgA, hxpA, hmn, hcout⟩ := hturn
   have hasgB : ∀ v < n, asg v < B := fun v hv => lt_trans (hcout.asg_lt v hv) hn
   -- the atoms of every tabled formula, at every vertex
@@ -895,28 +863,25 @@ theorem readbackStep {B q_top cap mb ns j : ℕ} {n : ℕ} {φ : Lax3.FirstOrder
       have hmemγ : γ ∈ tablesAt q_top cap mb φ (j + 1) :=
         bcLocals_subset_tablesAt_succ (List.getElem_mem hi) ((mem_bcAtomsOf_left h).mpr ha)
       obtain ⟨hlt, heq⟩ := getElem_posOf hmemγ
-      obtain ⟨Tb, hTb, hTb1⟩ := hbits _ hlt
-      obtain ⟨Tc, hTc, hTcval⟩ := htabinv _ hlt
-      have hTbeq : Tb (v : ℕ) = Tc (v : ℕ) := by
-        have hcong := congrArg (fun l => l.getD (v : ℕ) 0) (hTb.symm.trans hTc)
-        simpa [getD_arrOf, v.isLt] using hcong
-      refine ⟨Tb (v : ℕ), hTb1 _ v.isLt, ?_, ?_⟩
+      obtain ⟨Tc, hTc, hTc1, hTcval⟩ := htabinv _ hlt
+      refine ⟨Tc (v : ℕ), hTc1 _ v.isLt, ?_, ?_⟩
       · show (Expr.get (tabName (j + 1) (posOf γ (tablesAt q_top cap mb φ (j + 1))))
           (.var "z")).evalB B _ = _
-        refine evalB_get (k := (v : ℕ)) ?_ ?_ (lt_of_le_of_lt (hTb1 _ v.isLt) hB)
+        refine evalB_get (k := (v : ℕ)) ?_ ?_ (lt_of_le_of_lt (hTc1 _ v.isLt) hB)
         · rw [evalB_var (by rw [hzv]; omega), hzv]
-        · rw [arrs_setVar, hTb]
+        · rw [arrs_setVar, hTc]
           exact getElem?_arrOf _ v.isLt
-      · rw [hTbeq, hTcval v, heq, masked_alv_eq hdata, hcolread]
+      · rw [hTcval v, heq, masked_alv_eq hdata, hcolread]
         exact Iff.rfl
     | inr σs =>
       have hmem : σs ∈ (bcAtomsOf q_top (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2 :=
         (mem_bcAtomsOf_right h).mpr ha
-      obtain ⟨hfB, hfiff⟩ := hflag i hi σs hmem
+      obtain ⟨hf1, hfiff⟩ := hflag i hi σs hmem
       refine ⟨σ.vars (flgName j i (posOf σs (bcAtomsOf q_top
-          (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2)), hflag1 i hi σs hmem, ?_, hfiff⟩
+          (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2)), hf1, ?_, hfiff⟩
       show (Expr.var (flgName j i _)).evalB B _ = _
-      rw [evalB_var (by rw [vars_setVar, if_neg (flgName_ne_z _ _ _)]; exact hfB),
+      rw [evalB_var (by
+          rw [vars_setVar, if_neg (flgName_ne_z _ _ _)]; omega),
         vars_setVar, if_neg (flgName_ne_z _ _ _)]
   -- the walk
   obtain ⟨σ', hrun, ⟨hbase', htab'⟩, hfv, hfa, -, -⟩ :=
@@ -932,9 +897,9 @@ theorem readbackStep {B q_top cap mb ns j : ℕ} {n : ℕ} {φ : Lax3.FirstOrder
       exact hane i hi)
   refine ⟨σ', hrun.mono hK, ⟨hbase'.1, ?_, ?_, ?_, hbase'.2.1, ?_, hmn, hcout⟩,
     hbase'.2.2.2.2.2.1, hbase'.2.2.2.1, ?_⟩
-  · rw [hframeA "ord" (fun i => by simp [tabName, String.ext_iff])]; exact hordA
-  · rw [hframeA "xoff" (fun i => by simp [tabName, String.ext_iff])]; exact hxoffA
-  · rw [hframeA "xmem" (fun i => by simp [tabName, String.ext_iff])]; exact hxmemA
+  · rw [hframeA "ord" (fun i => Ne.symm (tabName_ne_lit j i (by decide)))]; exact hordA
+  · rw [hframeA "xoff" (fun i => Ne.symm (tabName_ne_lit j i (by decide)))]; exact hxoffA
+  · rw [hframeA "xmem" (fun i => Ne.symm (tabName_ne_lit j i (by decide)))]; exact hxmemA
   · rw [hfv "xp" (not_mem_wvars_readbackCom (by decide))]; exact hxpA
   · intro i hi
     obtain ⟨Tb, hTb, hTb0, hTbval⟩ := htab' i hi

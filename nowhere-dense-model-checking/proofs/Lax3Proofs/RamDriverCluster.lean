@@ -471,10 +471,10 @@ theorem coverPost_of_held {G : SimpleGraph (Fin n)} {M : ℕ → ℕ} {π : Equi
 
 /-- Everything a turn of the centre loop reads and hands on: the depth's
 own state and the cover's answers. -/
-def TurnPre (n cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ)
+def TurnPre (B n cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ) (Xoff Xmem asg : ℕ → ℕ) (m : ℕ)
     (σ : Env) : Prop :=
-  LevelPre n cap mb ns O T j M Gm C σ ∧ CoverHeld n G M π ord cap Xoff Xmem asg m σ
+  LevelPre B n cap mb ns O T j M Gm C σ ∧ CoverHeld n G M π ord cap Xoff Xmem asg m σ
 
 /-! ### The valuation of one tabled formula's atoms
 
@@ -523,7 +523,7 @@ def BatchData (n j B : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ)
       masked G Ra = deleteVerts (masked G M) Xᶜ ∧ ∀ k, k < n → Ra k < B) ∧
     σ.arrs (alvName (j + 1)) = arrOf n Alv' ∧ (∀ k, k < n → Alv' k < B) ∧
     masked G Alv' = deleteVerts (deleteVerts (masked G M) Xᶜ) W ∧
-    σ.arrs (gamName (j + 1)) = arrOf n Gam'
+    σ.arrs (gamName (j + 1)) = arrOf n Gam' ∧ (∀ k, k < n → Gam' k < B)
 
 /-- The same with the padded enumeration the batch was read into. -/
 def ClusterData (n mb j B : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ)
@@ -559,9 +559,9 @@ which is what `clusterLoad` materializes. The batch's two size facts are
 that builds the ball is `RamDriver.expandCom` iterated `2·cap` times. -/
 def DescendStep (B cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m K : ℕ) : Prop :=
-  Spec B (fun σ => TurnPre n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ ∧ σ.vars "c" < n)
+  Spec B (fun σ => TurnPre B n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ ∧ σ.vars "c" < n)
     (descendCom cap j)
-    (fun σ σ' => TurnPre n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
+    (fun σ σ' => TurnPre B n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       σ'.out = σ.out ∧ σ'.vars "c" = σ.vars "c" ∧ (∃ g, σ'.arrs "wa" = arrOf mb g) ∧
       ∃ (X W : Set (Fin n)) (Alv' Gam' : ℕ → ℕ),
         (∀ v : Fin n, asg (v : ℕ) = σ.vars "c" → ball (masked G M) cap v ⊆ X) ∧
@@ -582,11 +582,11 @@ comes back. -/
 def EnumStep (B cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ)
     (X W : Set (Fin n)) (Alv' Gam' : ℕ → ℕ) (K : ℕ) : Prop :=
-  Spec B (fun σ => TurnPre n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ ∧
+  Spec B (fun σ => TurnPre B n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ ∧
       BatchData n j B G M X W Alv' Gam' σ ∧
       W.Nonempty ∧ W.ncard ≤ mb ∧ (∃ g, σ.arrs "wa" = arrOf mb g))
     (enumBatch (batName j) mb)
-    (fun σ σ' => TurnPre n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
+    (fun σ σ' => TurnPre B n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       σ'.out = σ.out ∧ σ'.vars "c" = σ.vars "c" ∧
       ∃ w : Fin mb → Fin n, ClusterData n mb j B G M X W w Alv' Gam' σ') K
 
@@ -606,10 +606,10 @@ is `RamDriver.stepColoringP`. -/
 def ColourStep (B cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ)
     (X W : Set (Fin n)) (w : Fin mb → Fin n) (Alv' Gam' : ℕ → ℕ) (K : ℕ) : Prop :=
-  Spec B (fun σ => TurnPre n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ ∧
+  Spec B (fun σ => TurnPre B n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ)
     (colourCom cap mb j)
-    (fun σ σ' => TurnPre n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
+    (fun σ σ' => TurnPre B n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ' ∧
       σ'.out = σ.out ∧ σ'.vars "c" = σ.vars "c" ∧
       ∃ C' : ℕ → ℕ → ℕ,
@@ -633,12 +633,12 @@ def ScatterStep (B q_top cap mb ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
     (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (X W : Set (Fin n)) (w : Fin mb → Fin n)
     (Alv' Gam' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
-  Spec B (fun σ => TurnPre n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ ∧
+  Spec B (fun σ => TurnPre B n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ ∧
       (∀ c < sigL cap mb (j + 1), σ.arrs (colName (j + 1) c) = arrOf n (C' c)) ∧
       TableInv q_top cap mb φ G (j + 1) Alv' C' σ)
     (foldIdx (fun i β => scatterCom q_top cap mb φ j i β) 0 (tablesAt q_top cap mb φ j))
-    (fun σ σ' => TurnPre n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
+    (fun σ σ' => TurnPre B n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ' ∧
       (∀ c < sigL cap mb (j + 1), σ'.arrs (colName (j + 1) c) = arrOf n (C' c)) ∧
       TableInv q_top cap mb φ G (j + 1) Alv' C' σ' ∧
@@ -647,7 +647,7 @@ def ScatterStep (B q_top cap mb ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
         ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2,
           σ'.vars (flgName j i
               (posOf σs (bcAtomsOf q_top
-                (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2)) < B ∧
+                (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2)) ≤ 1 ∧
             (σ'.vars (flgName j i
               (posOf σs (bcAtomsOf q_top
                 (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2)) ≠ 0 ↔
@@ -658,12 +658,12 @@ def ScatterStep (B q_top cap mb ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
 vertex the cluster was assigned, the value of every tabled formula's own
 boolean combination, and leaves every other vertex's cell alone.
 
-This is `RamDriver.ReadbackImplements` with one repair. That obligation
-hands the atoms' valuation as a function of the *entering* state, so a
-local atom — whose truth varies from vertex to vertex — is evaluated at
-whatever the scalar `z` happened to hold before the loop started; the
-valuation has to be indexed by the vertex the readback stands on, and
-here it is. The walk itself is the one that obligation describes: one
+This is the driver's readback obligation, repaired. The version
+`Lax3Proofs.RamDriver` used to carry handed the atoms' valuation as a
+function of the *entering* state, so a local atom — whose truth varies
+from vertex to vertex — was evaluated at whatever the scalar `z`
+happened to hold before the loop started; the valuation has to be
+indexed by the vertex the readback stands on, and here it is. The walk itself is the one that obligation describes: one
 loop, a conditional, a straight line of stores, and the arithmetic of
 the bits — that `RamDriver.bcExpr` of a valuation into `{0, 1}` is again
 in `{0, 1}` and is nonzero exactly when `BC.eval` holds, an induction on
@@ -672,27 +672,29 @@ def ReadbackStep (B q_top cap mb ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
     (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (X W : Set (Fin n)) (w : Fin mb → Fin n)
     (Alv' Gam' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
-  Spec B (fun σ => TurnPre n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ ∧
+  Spec B (fun σ => TurnPre B n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ ∧
       (∀ c < sigL cap mb (j + 1), σ.arrs (colName (j + 1) c) = arrOf n (C' c)) ∧
       TableInv q_top cap mb φ G (j + 1) Alv' C' σ ∧
+      TablesSized q_top cap mb φ n σ ∧ σ.vars "c" < n ∧
       ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length),
         ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2,
           σ.vars (flgName j i
               (posOf σs (bcAtomsOf q_top
-                (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2)) < B ∧
+                (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2)) ≤ 1 ∧
             (σ.vars (flgName j i
               (posOf σs (bcAtomsOf q_top
                 (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2)) ≠ 0 ↔
               ScatVal (stepArenaP (masked G M) X w)
                 (stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w) σs))
     (readbackCom q_top cap mb φ j)
-    (fun σ σ' => TurnPre n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
+    (fun σ σ' => TurnPre B n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       σ'.out = σ.out ∧ σ'.vars "c" = σ.vars "c" ∧
       ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length), ∃ Tb Tb₀ : ℕ → ℕ,
         σ'.arrs (tabName j i) = arrOf n Tb ∧ σ.arrs (tabName j i) = arrOf n Tb₀ ∧
         (∀ v : Fin n, asg (v : ℕ) ≠ σ.vars "c" → Tb (v : ℕ) = Tb₀ (v : ℕ)) ∧
         ∀ v : Fin n, asg (v : ℕ) = σ.vars "c" →
+          Tb (v : ℕ) ≤ 1 ∧
           (Tb (v : ℕ) ≠ 0 ↔
             ∃ h : ∃ q' : ℕ, q' + 1 ≤ q_top ∧
                 DRank 1 q' (stepFml cap mb j (tablesAt q_top cap mb φ j)[i]),
@@ -711,15 +713,17 @@ It is not a new obligation on the driver: `RamDriver.driverAt` writes
 only the arrays of the depths at or below its own and the fixed names
 its sub-programs address, so every clause below is a frame condition of
 the recursion, discharged the same way at every level. -/
-def InnerFrames (B cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ)
+def InnerFrames (B q_top cap mb ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
+    (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ)
     (X W : Set (Fin n)) (w : Fin mb → Fin n) (Alv' Gam' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ)
     (inner : Com) (Kin : ℕ) : Prop :=
-  Spec B (fun σ => LevelPre n cap mb ns O T (j + 1) Alv' Gam' C' σ ∧
-      TurnPre n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ ∧
-      ClusterData n mb j B G M X W w Alv' Gam' σ)
+  Spec B (fun σ => LevelPre B n cap mb ns O T (j + 1) Alv' Gam' C' σ ∧
+      TurnPre B n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ ∧
+      ClusterData n mb j B G M X W w Alv' Gam' σ ∧
+      TablesSized q_top cap mb φ n σ)
     inner
-    (fun σ σ' => TurnPre n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
+    (fun σ σ' => TurnPre B n cap mb ns j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ' ∧
       (∀ c < sigL cap mb (j + 1), σ'.arrs (colName (j + 1) c) = arrOf n (C' c)) ∧
       σ'.vars "c" = σ.vars "c") Kin
@@ -758,7 +762,7 @@ theorem clusterStepImplements {B q_top cap mb ns j : ℕ} {φ : Lax3.FirstOrder.
     (hcol : ∀ Xoff Xmem asg m X W w Alv' Gam',
       ColourStep B cap mb ns j G O T M Gm C π ord Xoff Xmem asg m X W w Alv' Gam' Kc)
     (hfr : ∀ Xoff Xmem asg m X W w Alv' Gam' C',
-      InnerFrames B cap mb ns j G O T M Gm C π ord Xoff Xmem asg m X W w Alv' Gam' C'
+      InnerFrames B q_top cap mb ns j φ G O T M Gm C π ord Xoff Xmem asg m X W w Alv' Gam' C'
         inner Kin)
     (hscat : ∀ Xoff Xmem asg m X W w Alv' Gam' C',
       ScatterStep B q_top cap mb ns j φ G O T M Gm C π ord Xoff Xmem asg m X W w
@@ -769,10 +773,11 @@ theorem clusterStepImplements {B q_top cap mb ns j : ℕ} {φ : Lax3.FirstOrder.
     (hK : Kd + (Ke + (Kc + (Kin + (Ks + Kr)))) ≤ K) :
     ClusterStepImplements B q_top cap mb ns j φ G O T M Gm C π ord inner Kin K := by
   classical
-  intro hinner
+  intro _ hinner
   refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨hlev, hordarr, hcn, Xoff, Xmem, asgf, mm, hxoff, hxmem, hasg, hxp, hmn, hcout⟩ := hσ
-  have hturn : TurnPre n cap mb ns j G O T M Gm C π ord Xoff Xmem asgf mm σ :=
+  obtain ⟨hlev, htsz, hordarr, hcn, Xoff, Xmem, asgf, mm,
+    hxoff, hxmem, hasg, hxp, hmn, hcout⟩ := hσ
+  have hturn : TurnPre B n cap mb ns j G O T M Gm C π ord Xoff Xmem asgf mm σ :=
     ⟨hlev, hordarr, hxoff, hxmem, hasg, hxp, hmn, hcout⟩
   -- the descent: the cluster, the batch and the two masks of the next depth
   obtain ⟨σ₁, hr₁, hturn₁, hout₁, hc₁, hwa₁, X, W, Alv', Gam', hball, hWne, hWcard, hbat₁⟩ :=
@@ -783,30 +788,39 @@ theorem clusterStepImplements {B q_top cap mb ns j : ℕ} {φ : Lax3.FirstOrder.
   -- the colouring of the next depth
   obtain ⟨σ₃, hr₃, hturn₃, hdat₃, hout₃, hc₃, C', hcolarr₃, hcolread₃⟩ :=
     (hcol Xoff Xmem asgf mm X W w Alv' Gam').run ⟨hturn₂, hdat₂⟩
-  have hlevin : LevelPre n cap mb ns O T (j + 1) Alv' Gam' C' σ₃ :=
-    ⟨hturn₃.1.1, hturn₃.1.2.1, hturn₃.1.2.2.1, hdat₃.1.2.2.2.1, hdat₃.1.2.2.2.2.2.2, hcolarr₃⟩
+  have hlevin : LevelPre B n cap mb ns O T (j + 1) Alv' Gam' C' σ₃ := by
+    obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, hmem₃⟩ := hturn₃.1
+    obtain ⟨-, -, -, halv₃, hAlvB, -, hgam₃, hGamB⟩ := hdat₃.1
+    exact ⟨hn₃, hoff₃, htgt₃, halv₃, hgam₃, hcolarr₃, hAlvB, hGamB, hmem₃⟩
+  have htsz₃ : TablesSized q_top cap mb φ n σ₃ := (htsz.run hr₁).run hr₂ |>.run hr₃
   -- the nested driver, with the frame of the depth it was called from
-  obtain ⟨σ₄, hr₄, ⟨⟨-, htab₄⟩, hout₄⟩, hturn₄, hdat₄, hcolarr₄, hc₄⟩ :=
-    (spec_conj ((hinner Alv' Gam' C').pre (fun _ h => h.1))
+  obtain ⟨σ₄, hr₄, ⟨⟨-, -, htab₄⟩, hout₄⟩, hturn₄, hdat₄, hcolarr₄, hc₄⟩ :=
+    (spec_conj ((hinner Alv' Gam' C').pre (fun _ h => ⟨h.1, h.2.2.2⟩))
       (hfr Xoff Xmem asgf mm X W w Alv' Gam' C')).run
-      (σ := σ₃) ⟨hlevin, hturn₃, hdat₃⟩
+      (σ := σ₃) ⟨hlevin, hturn₃, hdat₃, htsz₃⟩
+  have htsz₄ : TablesSized q_top cap mb φ n σ₄ := htsz₃.run hr₄
   -- the scatter atoms
   obtain ⟨σ₅, hr₅, hturn₅, hdat₅, hcolarr₅, htab₅, hout₅, hc₅, hflag₅⟩ :=
     (hscat Xoff Xmem asgf mm X W w Alv' Gam' C').run (σ := σ₄) ⟨hturn₄, hdat₄, hcolarr₄, htab₄⟩
+  have htsz₅ : TablesSized q_top cap mb φ n σ₅ := htsz₄.run hr₅
+  have hc₅₀ : σ₅.vars "c" = σ.vars "c" := by rw [hc₅, hc₄, hc₃, hc₂, hc₁]
   -- the readback
   obtain ⟨σ₆, hr₆, hturn₆, hout₆, hc₆, hrb₆⟩ :=
     (hread Xoff Xmem asgf mm X W w Alv' Gam' C').run (σ := σ₅)
-      ⟨hturn₅, hdat₅, hcolarr₅, htab₅, hflag₅⟩
+      ⟨hturn₅, hdat₅, hcolarr₅, htab₅, htsz₅, by rw [hc₅₀]; exact hcn, hflag₅⟩
   refine ⟨σ₆, _, hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq (hr₅.seq hr₆)))), hK, hturn₆.1,
+    htsz₅.run hr₆,
     by rw [hout₆, hout₅, hout₄, hout₃, hout₂, hout₁],
     by rw [hc₆, hc₅, hc₄, hc₃, hc₂, hc₁], fun i hi => ?_⟩
   obtain ⟨Tb, Tb₀, harr, -, -, hval⟩ := hrb₆ i hi
   refine ⟨Tb, harr, fun v asg hasg' hasgv => ?_⟩
-  have hcs : σ₅.vars "c" = σ.vars "c" := by rw [hc₅, hc₄, hc₃, hc₂, hc₁]
+  have hcs : σ₅.vars "c" = σ.vars "c" := hc₅₀
   -- the assignment array is the cover's, so the vertex is one of this centre's
   have hasgf : asgf (v : ℕ) = σ₅.vars "c" := by
     rw [eq_of_arrOf_eq (hturn₆.2.2.2.2.1.symm.trans hasg') v.isLt, hasgv, hcs]
-  rw [hval v hasgf]
+  obtain ⟨hbit, hval'⟩ := hval v hasgf
+  refine ⟨hbit, ?_⟩
+  rw [hval']
   -- and what the readback wrote there is what the formula is worth
   have hβ : TableRank q_top (tablesAt q_top cap mb φ j)[i] :=
     tableRank_of_mem_tablesAt j _ (List.getElem_mem hi)
@@ -841,13 +855,21 @@ theorem run_seq_assoc {B : ℕ} {c d e : Com} {σ τ ρ : Env} {K K' : ℕ}
   cases hb with
   | seq hb₁ hb₂ => exact ⟨_, by omega, .seq hb₁ (.seq hb₂ hb')⟩
 
-variable {cap mb ns j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {σ : Env}
+variable {B cap mb ns j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {σ : Env}
 
 /-- The depth's state does not see the counter. -/
-theorem levelPre_setVar_c (h : LevelPre n cap mb ns O T j M Gm C σ) (k : ℕ) :
-    LevelPre n cap mb ns O T j M Gm C (σ.setVar "c" k) :=
-  ⟨by simpa using h.1, by simpa using h.2.1, by simpa using h.2.2.1,
-    by simpa using h.2.2.2.1, by simpa using h.2.2.2.2.1, by simpa using h.2.2.2.2.2⟩
+theorem levelPre_setVar_c (h : LevelPre B n cap mb ns O T j M Gm C σ) (k : ℕ) :
+    LevelPre B n cap mb ns O T j M Gm C (σ.setVar "c" k) := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, hsz, hd, hq⟩ := h
+  exact ⟨by simpa using h1, by simpa using h2, by simpa using h3, by simpa using h4,
+    by simpa using h5, by simpa using h6, h7, h8,
+    fun p hp => by simpa using hsz p hp, by simpa using hd, by simpa using hq⟩
+
+/-- Nor does the table clause. -/
+theorem tablesSized_setVar_c {q_top : ℕ} {φ : Lax3.FirstOrder.FO 0}
+    (h : TablesSized q_top cap mb φ n σ) (k : ℕ) :
+    TablesSized q_top cap mb φ n (σ.setVar "c" k) :=
+  fun j p hp => by simpa using h j p hp
 
 /-- Nor do the cover's answers. -/
 theorem coverHeld_setVar_c {G : SimpleGraph (Fin n)} {π : Equiv.Perm (Fin n)}
@@ -870,10 +892,12 @@ def ClusterFrames (B q_top cap mb ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
     (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (inner : Com) (Kin K : ℕ) : Prop :=
   (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ),
-      Spec B (fun σ => LevelPre n cap mb ns O T (j + 1) M' Gm' C' σ) inner
-        (fun σ σ' => LevelPost q_top cap mb φ G ns O T (j + 1) M' Gm' C' σ σ' ∧
+      Spec B (fun σ => LevelPre B n cap mb ns O T (j + 1) M' Gm' C' σ ∧
+          TablesSized q_top cap mb φ n σ) inner
+        (fun σ σ' => LevelPost B q_top cap mb φ G ns O T (j + 1) M' Gm' C' σ σ' ∧
           σ'.out = σ.out) Kin) →
-    Spec B (fun σ => LevelPre n cap mb ns O T j M Gm C σ ∧
+    Spec B (fun σ => LevelPre B n cap mb ns O T j M Gm C σ ∧
+        TablesSized q_top cap mb φ n σ ∧
         CoverHeld n G M π ord cap Xoff Xmem asg m σ ∧ σ.vars "c" < n)
       (clusterCom q_top cap mb φ j inner)
       (fun σ σ' => CoverHeld n G M π ord cap Xoff Xmem asg m σ' ∧
@@ -881,23 +905,21 @@ def ClusterFrames (B q_top cap mb ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
           σ'.arrs (tabName j i) = arrOf n Tb → σ.arrs (tabName j i) = arrOf n Tb₀ →
           ∀ v : Fin n, asg (v : ℕ) ≠ σ.vars "c" → Tb (v : ℕ) = Tb₀ (v : ℕ)) K
 
-/-- **What the centre loop carries.** The depth's state, the cover's
-answers, the output tape as it was, and the tables of the vertices whose
-centre has already been processed. The last clause is stated over *any*
-cell function the array happens to have, and the existence of one is a
-separate clause conditional on a turn having been taken: nothing in
-`RamDriver.LevelPre` says a table array has the carrier's length, so the
-only source of that fact is a turn of this loop. -/
-def LevelInv (q_top cap mb ns j : ℕ) (φ : Lax3.FirstOrder.FO 0) (G : SimpleGraph (Fin n))
+/-- **What the centre loop carries.** The depth's state, its table
+arrays, the cover's answers, the output tape as it was, and the tables
+of the vertices whose centre has already been processed. The last
+clause is stated over *any* cell function the array happens to have,
+since a turn hands its own back. -/
+def LevelInv (B q_top cap mb ns j : ℕ) (φ : Lax3.FirstOrder.FO 0) (G : SimpleGraph (Fin n))
     (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
     (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (outs : List ℕ) (σ : Env) : Prop :=
-  LevelPre n cap mb ns O T j M Gm C σ ∧ CoverHeld n G M π ord cap Xoff Xmem asg m σ ∧
+  LevelPre B n cap mb ns O T j M Gm C σ ∧ TablesSized q_top cap mb φ n σ ∧
+    CoverHeld n G M π ord cap Xoff Xmem asg m σ ∧
     σ.out = outs ∧ σ.vars "c" ≤ n ∧
-    (0 < σ.vars "c" → ∀ (i : ℕ), i < (tablesAt q_top cap mb φ j).length →
-      ∃ Tb : ℕ → ℕ, σ.arrs (tabName j i) = arrOf n Tb) ∧
     ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length) (Tb : ℕ → ℕ),
       σ.arrs (tabName j i) = arrOf n Tb →
       ∀ v : Fin n, asg (v : ℕ) < σ.vars "c" →
+        Tb (v : ℕ) ≤ 1 ∧
         (Tb (v : ℕ) ≠ 0 ↔ Sat (masked G M) (colRead n C (sigL cap mb j)) (fun _ => v)
           (tablesAt q_top cap mb φ j)[i])
 
@@ -915,20 +937,18 @@ partition it: `RamCover.CoverOut.asg_lt` assigns every vertex to a
 centre, so at the exit every vertex has had its own turn, and
 `ClusterFrames` is why no later turn undid it.
 
-The carrier is asked to be nonempty. That is not the algorithm's
-business but the obligations': neither `RamDriver.LevelPre` nor
-`RamDriver.ClusterStepImplements` says that a table array *has* the
-carrier's length — the driver defines `RamDriver.Sized` for exactly that
-and does not use it — so the only source of that fact is a turn of this
-loop, and on an empty carrier there is none. -/
+The carrier is no longer asked to be nonempty: `RamDriver.TablesSized`
+is the depth's table arrays at the carrier's length, carried by the
+level's own precondition, so the loop no longer has to *produce* that
+fact from a turn having been taken. -/
 theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {φ : Lax3.FirstOrder.FO 0}
     {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ} {Ko Kc Ks Kl : ℕ → ℕ}
-    (hn : 0 < n) (hnB : n < B)
+    (hB : WordBound B n ns cap) (hWB : n + W + 1 < B)
     (helim : ElimAvail B n) (haug : AugAvail B n) (hcovav : CoverAvail B cap ns G O T)
     (hbase : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
       LevelImplements B q_top cap mb R ℓ W ns ℓ φ G O T M Gm C (Kl ℓ))
     (horder : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
-      OrderImplements (n := n) B R W cap mb ns j O T M Gm C (Ko j))
+      OrderImplements B n R W cap mb ns j O T M Gm C (Ko j))
     (hcover : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ)
         (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ),
       CoverImplements B cap mb ns j G O T M Gm C π ord (Kc j))
@@ -957,51 +977,54 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {φ : Lax3.FirstOrder.
       intro j hf hj M Gm C
       have hjl : j < ℓ := by omega
       have hinner : ∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ),
-          Spec B (fun σ => LevelPre n cap mb ns O T (j + 1) M' Gm' C' σ)
+          Spec B (fun σ => LevelPre B n cap mb ns O T (j + 1) M' Gm' C' σ ∧
+              TablesSized q_top cap mb φ n σ)
             (driverAt q_top cap mb R ℓ W φ (j + 1))
-            (fun σ σ' => LevelPost q_top cap mb φ G ns O T (j + 1) M' Gm' C' σ σ' ∧
+            (fun σ σ' => LevelPost B q_top cap mb φ G ns O T (j + 1) M' Gm' C' σ σ' ∧
               σ'.out = σ.out) (Kl (j + 1)) :=
         fun M' Gm' C' => ih (j + 1) (by omega) (by omega) M' Gm' C'
       refine Spec.of_exists fun σ hσ => ?_
       rw [driverAt_succ q_top cap mb R ℓ W φ hjl]
       -- the ordering pass
       obtain ⟨σ₁, hr₁, hlev₁, hout₁, π, ord, hord₁, hordby⟩ :=
-        (horder j hjl M Gm C helim haug).run hσ
+        (horder j hjl M Gm C hB hWB helim haug).run hσ.1
+      have htsz₁ : TablesSized q_top cap mb φ n σ₁ := hσ.2.run hr₁
       -- the cover pass
       obtain ⟨σ₂, hr₂, hlev₂, hout₂, hord₂, Xoff, Xmem, asg, mm,
         hxoff, hxmem, hasg, hxp, hmn, hcout⟩ :=
-        (hcover j hjl M Gm C π ord hcovav hordby).run ⟨hlev₁, hord₁⟩
+        (hcover j hjl M Gm C π ord hB hcovav hordby).run ⟨hlev₁, hord₁⟩
+      have htsz₂ : TablesSized q_top cap mb φ n σ₂ := htsz₁.run hr₂
       have hheld₂ : CoverHeld n G M π ord cap Xoff Xmem asg mm σ₂ :=
         ⟨hord₂, hxoff, hxmem, hasg, hxp, hmn, hcout⟩
       -- one turn of the loop over the centres: the driver's obligation and its frame
-      have hcl : Spec B (fun τ => LevelPre n cap mb ns O T j M Gm C τ ∧
+      have hcl : Spec B (fun τ => LevelPre B n cap mb ns O T j M Gm C τ ∧
+            TablesSized q_top cap mb φ n τ ∧
             CoverHeld n G M π ord cap Xoff Xmem asg mm τ ∧ τ.vars "c" < n)
           (clusterCom q_top cap mb φ j (driverAt q_top cap mb R ℓ W φ (j + 1))) _ (Ks j) :=
-        spec_conj ((hstep j hjl M Gm C π ord hinner).pre
-            (fun τ hτ => ⟨hτ.1, hτ.2.1.1, hτ.2.2, coverPost_of_held hτ.2.1⟩))
+        spec_conj ((hstep j hjl M Gm C π ord hB hinner).pre
+            (fun τ hτ => ⟨hτ.1, hτ.2.1, hτ.2.2.1.1, hτ.2.2.2, coverPost_of_held hτ.2.2.1⟩))
           (hframe j hjl M Gm C π ord Xoff Xmem asg mm hinner)
       have hbody : Spec B
-          (fun τ => LevelInv q_top cap mb ns j φ G O T M Gm C π ord Xoff Xmem asg mm σ₂.out τ ∧
+          (fun τ =>
+            LevelInv B q_top cap mb ns j φ G O T M Gm C π ord Xoff Xmem asg mm σ₂.out τ ∧
             τ.vars "c" < n)
           (.seq (clusterCom q_top cap mb φ j (driverAt q_top cap mb R ℓ W φ (j + 1)))
             (.assign "c" (.add (.var "c") (.lit 1))))
           (fun τ τ' =>
-            LevelInv q_top cap mb ns j φ G O T M Gm C π ord Xoff Xmem asg mm σ₂.out τ' ∧
+            LevelInv B q_top cap mb ns j φ G O T M Gm C π ord Xoff Xmem asg mm σ₂.out τ' ∧
             τ'.vars "c" = τ.vars "c" + 1) (Ks j + 4) := by
-        refine Spec.seq (hcl.pre fun τ hτ => ⟨hτ.1.1, hτ.1.2.1, hτ.2⟩)
+        refine Spec.seq (hcl.pre fun τ hτ => ⟨hτ.1.1, hτ.1.2.1, hτ.1.2.2.1, hτ.2⟩)
           (Spec.assign (B := B) (x := "c") (P := fun τ => τ.vars "c" < n)
             (f := fun τ => τ.vars "c" + 1) fun τ hτ =>
               evalB_bin (evalB_var (by omega)) (evalB_lit (by omega))
                 (by simp only [Bop.apply_add]; omega))
-          (fun τ τ' hτ hq => by rw [hq.1.2.2.1]; exact hτ.2) ?_
-        · rintro τ τ' τ'' ⟨hI, hcn⟩ ⟨⟨hlev', hout', hc', htab'⟩, hheld', hfr'⟩ rfl
+          (fun τ τ' hτ hq => by rw [hq.1.2.2.2.1]; exact hτ.2) ?_
+        · rintro τ τ' τ'' ⟨hI, hcn⟩ ⟨⟨hlev', htsz', hout', hc', htab'⟩, hheld', hfr'⟩ rfl
           have hc'' : (τ'.setVar "c" (τ'.vars "c" + 1)).vars "c" = τ.vars "c" + 1 := by
             simp [hc']
-          refine ⟨⟨levelPre_setVar_c hlev' _, coverHeld_setVar_c hheld' _,
-            by simpa using hout'.trans hI.2.2.1, by rw [hc'']; omega, ?_, ?_⟩, hc''⟩
-          · intro _ i hi
-            obtain ⟨Tb, harr, -⟩ := htab' i hi
-            exact ⟨Tb, by simpa using harr⟩
+          refine ⟨⟨levelPre_setVar_c hlev' _, tablesSized_setVar_c htsz' _,
+            coverHeld_setVar_c hheld' _,
+            by simpa using hout'.trans hI.2.2.2.1, by rw [hc'']; omega, ?_⟩, hc''⟩
           · intro i hi Tb harr v hv
             rw [hc''] at hv
             rw [arrs_setVar] at harr
@@ -1010,8 +1033,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {φ : Lax3.FirstOrder.
               eq_of_arrOf_eq (harr.symm.trans harr') v.isLt
             rcases Nat.lt_or_ge (asg (v : ℕ)) (τ.vars "c") with hlt | hge
             · -- an earlier centre's vertex: the turn left its cell alone
-              have hcpos : 0 < τ.vars "c" := by omega
-              obtain ⟨Tb₀, harr₀⟩ := hI.2.2.2.2.1 hcpos i hi
+              obtain ⟨Tb₀, harr₀⟩ := hI.2.1.get j hi
               have := hfr' i hi Tb' Tb₀ harr' harr₀ v (by omega)
               rw [hTb, this]
               exact hI.2.2.2.2.2 i hi Tb₀ harr₀ v hlt
@@ -1022,19 +1044,23 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {φ : Lax3.FirstOrder.
       -- the loop
       obtain ⟨σ₃, hr₃, hI₃, hcn₃⟩ :=
         (Spec.forRangeZero "c" "n"
-          (LevelInv q_top cap mb ns j φ G O T M Gm C π ord Xoff Xmem asg mm σ₂.out) n
-          (Ks j + 4) hnB (fun _ hτ => hτ.2.2.2.1) (fun _ hτ => hτ.1.1) hbody).run
-          (σ := σ₂) ⟨levelPre_setVar_c hlev₂ 0, coverHeld_setVar_c hheld₂ 0, by simp,
-            by simp, by simp, by intro i hi Tb harr v hv; simp at hv⟩
+          (LevelInv B q_top cap mb ns j φ G O T M Gm C π ord Xoff Xmem asg mm σ₂.out) n
+          (Ks j + 4) hB.n_lt (fun _ hτ => hτ.2.2.2.2.1) (fun _ hτ => hτ.1.1) hbody).run
+          (σ := σ₂) ⟨levelPre_setVar_c hlev₂ 0, tablesSized_setVar_c htsz₂ 0,
+            coverHeld_setVar_c hheld₂ 0, by simp,
+            by simp, by intro i hi Tb harr v hv; simp at hv⟩
       -- the exit: the turns partitioned the carrier
       have htabinv : TableInv q_top cap mb φ G j M C σ₃ := by
         intro i hi
-        obtain ⟨Tb, harr⟩ := hI₃.2.2.2.2.1 (by rw [hcn₃]; exact hn) i hi
-        exact ⟨Tb, harr, fun v => hI₃.2.2.2.2.2 i hi Tb harr v
-          (by rw [hcn₃]; exact hcout.asg_lt (v : ℕ) v.isLt)⟩
+        obtain ⟨Tb, harr⟩ := hI₃.2.1.get j hi
+        exact ⟨Tb, harr,
+          fun v hv => (hI₃.2.2.2.2.2 i hi Tb harr ⟨v, hv⟩
+            (by rw [hcn₃]; exact hcout.asg_lt v hv)).1,
+          fun v => (hI₃.2.2.2.2.2 i hi Tb harr v
+            (by rw [hcn₃]; exact hcout.asg_lt (v : ℕ) v.isLt)).2⟩
       have hcost : (Ks j + 4 + 4) * n + 6 = (Ks j + 8) * n + 6 := by ring_nf
       refine ⟨σ₃, _, hr₁.seq (run_seq_assoc hr₂ hr₃), ?_,
-        ⟨hI₃.1, htabinv⟩, by rw [hI₃.2.2.1, hout₂, hout₁]⟩
+        ⟨hI₃.1, hI₃.2.1, htabinv⟩, by rw [hI₃.2.2.2.1, hout₂, hout₁]⟩
       have := hK j hjl
       rw [hcost]
       omega

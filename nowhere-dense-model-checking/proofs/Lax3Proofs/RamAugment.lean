@@ -82,35 +82,28 @@ own in-block minus the pairs `D` already carries — is exactly
 adds up, the two halves disjoint because the rule never touches a pair
 `D` already carries.
 
-### What the round owes, and what it cannot pay
+### What the round owes
 
 `RamElim.greedyFratRound_of_cert` turns the engine's certificate into
 `Augmentation.GreedyFratRound`, the clause the in-degree recursion is
 run against, and asks the caller for one thing: that every arc of the
-new orientation lying on a fraternity edge points the way `ρ` does.
-`hor_augOr` discharges that for every arc the round *adds*, since a
-fraternal pair is demanded both ways and so is oriented by `ρ`. It
-cannot discharge it for the arcs the round *inherits*: an old arc
-`u → v` on a fraternity edge is kept by `AugStep.mono`, and nothing
-makes the engine's ranking of the fraternity graph agree with it. On
-three vertices with `D.inN 0 = {1}`, `D.inN 1 = ∅`, `D.inN 2 = {0,1}` —
-the arcs `1 → 0`, `1 → 2`, `0 → 2` — the fraternity graph is the single
-edge `{0,1}`, forced by the block of `2`; the engine peels `2, 1, 0`
-and ranks `ρ 0 = 0 < ρ 1 = 1`, while `D` carries `1 → 0`.
+new orientation *added on fraternal grounds alone* — one `D` did not
+carry and no transitive link forced — points the way `ρ` does.
+`hor_augOr` discharges that outright, since such an arc comes from a
+pair demanded in both directions and the arc rule then reads the
+ranking.
 
-So the residual is isolated, named and *exposed in the
-postcondition*, as an implication rather than a hypothesis:
-`FratForward D ρ` — every arc of `D` that is a fraternity edge is
-`ρ`-increasing — implies `GreedyFratRound D (augOr D ρ)`, and the
-round's specification carries that implication rather than its
-conclusion. The clause is not an artefact of this program: it is what
-`Augmentation.GreedyFratRound` asks of *every* arc of `D'` on a
-fraternity edge, where the in-degree union bound of
-`inDegLE_of_augStep` only ever needs it of the arcs that are neither
-old nor transitive. Narrowing the two definitions to the new arcs is a
-one-line change on the mathematics side and would discharge the
-implication's hypothesis outright; it is not made here, since this file
-changes no other.
+The guards are what make it discharge, and they are what the count
+needs and no more. Asked of *every* arc of `D'` on a fraternity edge,
+the clause would be false of this round: an old arc `u → v` on a
+fraternity edge is kept by `AugStep.mono`, and nothing makes the
+engine's ranking of the fraternity graph agree with it. On three
+vertices with `D.inN 0 = {1}`, `D.inN 1 = ∅`, `D.inN 2 = {0,1}` — the
+arcs `1 → 0`, `1 → 2`, `0 → 2` — the fraternity graph is the single
+edge `{0,1}`, forced by the block of `2`; the engine peels `2, 1, 0`
+and ranks `ρ 0 = 0 < ρ 1 = 1`, while `D` carries `1 → 0`. The in-degree
+union bound of `Augmentation.inDegLE_of_augStep` charges that arc to
+the old in-degree, so it never asks the ranking about it.
 
 ### What is proved
 
@@ -367,41 +360,43 @@ theorem card_inN_augOr (D : Orientation n) (ρ : Fin n → ℕ) (v : Fin n) :
   rw [inN_augOr_eq, Finset.union_assoc,
     Finset.card_union_of_disjoint (disjoint_old_cand D ρ v)]
 
-/-! ### The greedy round, and the clause the round inherits -/
+/-! ### The greedy round
 
-/-- The compatibility the round cannot compute: every arc of `D` that
-is a fraternity edge already points the way the fraternity ranking
-does. -/
-def FratForward (D : Orientation n) (ρ : Fin n → ℕ) : Prop :=
-  ∀ u v : Fin n, u ∈ D.inN v → (fratGraph D).Adj u v → ρ u < ρ v
+`Augmentation.GreedyFratRound` asks the ranking about the arcs the
+round adds on fraternal grounds alone — an arc of `D'` that `D` did not
+carry and that no transitive link forced — and the arc rule orients
+exactly those by the ranking, since a fraternal pair is demanded both
+ways. So the round discharges the clause outright, with no residual and
+no hypothesis on `D`. -/
 
-/-- **Every arc the round adds on a fraternity edge is
+/-- **Every arc the round adds on fraternal grounds is
 `ρ`-increasing**, since a fraternal pair is demanded both ways and the
-arc rule then reads the ranking. What is left is the arcs the round
-inherited. -/
-theorem hor_augOr {D : Orientation n} {ρ : Fin n → ℕ} (h : FratForward D ρ) :
-    ∀ u v : Fin n, u ∈ (augOr D ρ).inN v → (fratGraph D).Adj u v → ρ u < ρ v := by
-  intro u v hu hadj
+arc rule then reads the ranking. The arcs the round *inherited* are
+excluded by the clause's own guard, which is what makes this
+unconditional. -/
+theorem hor_augOr {D : Orientation n} {ρ : Fin n → ℕ} :
+    ∀ u v : Fin n, u ∈ (augOr D ρ).inN v → u ∉ D.inN v → ¬ TransLink D u v →
+      (fratGraph D).Adj u v → ρ u < ρ v := by
+  intro u v hu hold _ hadj
   rcases mem_augOr.1 hu with hu | ⟨-, -, himp⟩
-  · exact h u v hu hadj
+  · exact absurd hu hold
   · exact himp (demand_symm_of_fratLink hadj.2)
 
 /-- **The greedy round.** The engine's certificate on the fraternity
-graph, plus the inherited compatibility, is
-`Augmentation.GreedyFratRound`. -/
+graph is `Augmentation.GreedyFratRound`. -/
 theorem greedyFratRound_augOr {D : Orientation n} {ρ : Fin n → ℕ} {k : ℕ}
-    (hcert : ElimCert (fratGraph D) ρ k) (h : FratForward D ρ) :
+    (hcert : ElimCert (fratGraph D) ρ k) :
     GreedyFratRound D (augOr D ρ) :=
-  RamElim.greedyFratRound_of_cert hcert (hor_augOr h)
+  RamElim.greedyFratRound_of_cert hcert hor_augOr
 
 /-- **The round's in-degree budget**: the old in-degree, the `d²`
 transitive links, and a fraternity graph the engine oriented as well as
 its degeneracy allows. -/
 theorem inDegLE_augOr {D : Orientation n} {ρ : Fin n → ℕ} {k d k' : ℕ}
-    (hcert : ElimCert (fratGraph D) ρ k) (h : FratForward D ρ) (hd : D.InDegLE d)
+    (hcert : ElimCert (fratGraph D) ρ k) (hd : D.InDegLE d)
     (hk : LowDegreeVertices (fratGraph D) k') :
     (augOr D ρ).InDegLE (d + d * d + k') := by
-  obtain ⟨σ, hσ, hor⟩ := greedyFratRound_augOr hcert h k' hk
+  obtain ⟨σ, hσ, hor⟩ := greedyFratRound_augOr hcert k' hk
   exact inDegLE_of_augStep (augStep_augOr D hcert.inj) hd (fratIn_le_of_backDegLE hσ hor)
 
 /-! ### The width
@@ -714,9 +709,8 @@ def AugMem (n W : ℕ) (D : Orientation n) (_σ σ' : Env) : Prop :=
 that the round's arc rule produced, it is an augmentation step of `D`,
 the output arrays are its block structure — so the next round reads
 them as this one read its own — the reported bound is at most every
-bound a density argument can produce of the fraternity graph, and the
-greedy clause and the in-degree budget follow as soon as the arcs `D'`
-inherited from `D` on fraternity edges point the way the ranking does.
+bound a density argument can produce of the fraternity graph, the
+greedy clause holds of the round, and the in-degree budget follows.
 The last — the running time — is the `Spec`'s own cost. -/
 def AugPost (n W : ℕ) (D : Orientation n) (_σ σ' : Env) : Prop :=
   ∃ (R NO NT : ℕ → ℕ) (k m' : ℕ) (D' : Orientation n),
@@ -725,9 +719,9 @@ def AugPost (n W : ℕ) (D : Orientation n) (_σ σ' : Env) : Prop :=
     σ'.vars "mn" = m' ∧ m' ≤ W ∧
     AugStep D D' ∧ InCsr D' m' NO NT ∧
     (∀ k', LowDegreeVertices (fratGraph D) k' → k ≤ k') ∧
-    (FratForward D (fun v : Fin n => R (v : ℕ)) → GreedyFratRound D D') ∧
-    (∀ d k', FratForward D (fun v : Fin n => R (v : ℕ)) → D.InDegLE d →
-      LowDegreeVertices (fratGraph D) k' → D'.InDegLE (d + d * d + k'))
+    GreedyFratRound D D' ∧
+    (∀ d k', D.InDegLE d → LowDegreeVertices (fratGraph D) k' →
+      D'.InDegLE (d + d * d + k'))
 
 /-- **The postconditions come off the certificate and the arc rule.**
 Nothing in this proof knows about the program: it is the assembly
@@ -738,8 +732,8 @@ theorem augPost_of_augMem {n W : ℕ} {D : Orientation n} {σ σ' : Env}
   exact ⟨R, NO, NT, k, m', augOr D (fun v : Fin n => R (v : ℕ)), hrnk, hk, hnoff, hntg,
     hmn, hmW, augStep_augOr D hcert.inj, harcs,
     fun _ hk' => hcert.le_of_lowDegreeVertices hk',
-    fun hf => greedyFratRound_augOr hcert hf,
-    fun _ _ hf hd hk' => inDegLE_augOr hcert hf hd hk'⟩
+    greedyFratRound_augOr hcert,
+    fun _ _ hd hk' => inDegLE_augOr hcert hd hk'⟩
 
 /-- The engine, available at every slot count the round can call it
 at. This is `RamElim.Implements` with the call's own data quantified
@@ -807,8 +801,8 @@ theorem augment_spec {B n d nf W m : ℕ} {D : Orientation n} {DO DT : ℕ → �
 What a driver does with the round. `AugPost` hands back an orientation
 and an `AugStep`, and the two facts a chain is made of are carried by
 the two lemmas here: `isAugChain_succ` grows the chain by the step, and
-`greedyFratRound_succ` grows the list of greedy rounds by the
-implication `AugPost` exports — so an `r`-round driver iterating
+`greedyFratRound_succ` grows the list of greedy rounds by the clause
+`AugPost` exports — so an `r`-round driver iterating
 `augment_spec` and collecting the two ends up in the hypotheses of
 `Augmentation.greedy_chain_inDegLE` exactly.
 

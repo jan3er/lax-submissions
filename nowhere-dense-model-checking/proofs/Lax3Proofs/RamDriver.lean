@@ -123,7 +123,7 @@ Proved:
 Isolated, each as a named `Prop` threaded as a hypothesis, each with a
 docstring splitting it into its sub-walks in the manner of
 `Lax3Proofs.RamElim.Implements`: `DecodeImplements`, `OrderImplements`,
-`CoverImplements`, `ClusterStepImplements`, `ReadbackImplements`,
+`CoverImplements`, `ClusterStepImplements`,
 `BaseImplements`, `SentenceImplements`, and the composition
 `LevelImplements`, which carries the first six as hypotheses of its own
 exactly as `Lax3Proofs.RamAugment.Implements` carries `ElimAvail`. No
@@ -156,6 +156,84 @@ open Lax3Proofs.Horizon Lax3Proofs.SyntaxLemmas Lax3Proofs.WalkDistance
 open Lax3Proofs.FormulaTables Lax3Proofs.SplitterWin Lax3Proofs.SplitterWinOracle
 open Lax3Proofs.RamBfs (masked masked_adj CsrGraph)
 open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
+
+/-! ### Three additions to the reasoning kit
+
+A `Run` cannot change the length of an array, and — being a run of the
+bounded semantics — cannot put a value at or above the bound into one.
+Both are about arrays the command *does* write, so neither is a frame
+condition; both are the induction of `BigStep.arrs_eq` with a different
+conclusion, and both are what lets a memory clause cross a phase that
+writes the array it speaks about. The third is the translation between
+the two ways of saying an array is there: having length `n`, and being
+`arrOf n g` for some `g`. -/
+
+/-- A big step leaves the length of every array where it was. -/
+theorem bigStep_length_arrs {c : Com} {σ σ' : Env} {k : ℕ} (h : BigStep c σ σ' k)
+    (a : String) : (σ'.arrs a).length = (σ.arrs a).length := by
+  induction h with
+  | skip => rfl
+  | assign _ => rfl
+  | store _ _ _ => exact length_arrs_setArr ..
+  | seq _ _ ih ih' => rw [ih', ih]
+  | ite_true _ _ ih => exact ih
+  | ite_false _ _ ih => exact ih
+  | while_true _ _ _ ih ih' => rw [ih', ih]
+  | while_false _ => rfl
+  | read _ => rfl
+  | write _ => rfl
+
+/-- The same, on a `Run`. -/
+theorem run_length_arrs {B : ℕ} {c : Com} {σ σ' : Env} {K : ℕ} (h : Run B c σ σ' K)
+    (a : String) : (σ'.arrs a).length = (σ.arrs a).length := by
+  obtain ⟨_, _, hbs⟩ := h.bigStep
+  exact bigStep_length_arrs hbs a
+
+/-- A bounded run puts only words into an array, so an array all of
+whose cells are words still has only words in it. -/
+theorem bigStepB_mem_arrs_lt {B : ℕ} {c : Com} {σ σ' : Env} {k : ℕ} (h : BigStepB B c σ σ' k)
+    (a : String) (hσ : ∀ v ∈ σ.arrs a, v < B) : ∀ v ∈ σ'.arrs a, v < B := by
+  induction h with
+  | skip => exact hσ
+  | assign _ => exact hσ
+  | store _ he _ =>
+      intro u hu
+      rw [arrs_setArr] at hu
+      split at hu
+      · rcases List.mem_or_eq_of_mem_set hu with hu' | rfl
+        · exact hσ u (by subst_vars; exact hu')
+        · exact Expr.lt_of_evalB he
+      · exact hσ u hu
+  | seq _ _ ih ih' => exact ih' (ih hσ)
+  | ite_true _ _ ih => exact ih hσ
+  | ite_false _ _ ih => exact ih hσ
+  | while_true _ _ _ ih ih' => exact ih' (ih hσ)
+  | while_false _ => exact hσ
+  | read _ => exact hσ
+  | write _ => exact hσ
+
+/-- The same, on a `Run`. -/
+theorem run_mem_arrs_lt {B : ℕ} {c : Com} {σ σ' : Env} {K : ℕ} (h : Run B c σ σ' K)
+    (a : String) (hσ : ∀ v ∈ σ.arrs a, v < B) : ∀ v ∈ σ'.arrs a, v < B := by
+  obtain ⟨_, _, hbs⟩ := h
+  exact bigStepB_mem_arrs_lt hbs a hσ
+
+/-- An array of length `n` is `arrOf` of something. -/
+theorem exists_arrOf {l : List ℕ} {n : ℕ} (h : l.length = n) :
+    ∃ g, l = arrOf n g := by
+  refine ⟨fun i => l.getD i 0, List.ext_getElem (by simp [h]) fun k h₁ h₂ => ?_⟩
+  simp only [arrOf, List.getElem_map, List.getElem_range]
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h₁]
+  rfl
+
+/-- An array of length `n` all of whose cells are words is
+`RamScatter.Words`. -/
+theorem words_of_length {B n : ℕ} {a : String} {σ : Env} (hlen : (σ.arrs a).length = n)
+    (hlt : ∀ v ∈ σ.arrs a, v < B) : RamScatter.Words B n a σ := by
+  obtain ⟨g, hg⟩ := exists_arrOf hlen
+  refine ⟨g, hg, fun i hi => hlt (g i) ?_⟩
+  rw [hg]
+  exact List.mem_map.2 ⟨i, List.mem_range.2 hi, rfl⟩
 
 /-! ### One projection of the scatter choice
 
@@ -552,6 +630,58 @@ driver pins the per-depth families here. -/
 def Sized (l : List (String × ℕ)) (σ : Env) : Prop :=
   ∀ p ∈ l, ∃ g : ℕ → ℕ, σ.arrs p.1 = arrOf p.2 g
 
+/-- A `Sized` clause is read one array at a time. -/
+theorem Sized.get {l : List (String × ℕ)} {σ : Env} (h : Sized l σ)
+    {p : String × ℕ} (hp : p ∈ l) : ∃ g : ℕ → ℕ, σ.arrs p.1 = arrOf p.2 g := h p hp
+
+/-- The length of an array a `Sized` clause names. -/
+theorem Sized.length {l : List (String × ℕ)} {σ : Env} (h : Sized l σ)
+    {p : String × ℕ} (hp : p ∈ l) : (σ.arrs p.1).length = p.2 := by
+  obtain ⟨g, hg⟩ := h p hp
+  rw [hg, length_arrOf]
+
+/-- **A `Sized` clause survives any run**, since a run cannot change the
+length of an array. -/
+theorem Sized.run {B : ℕ} {c : Com} {σ σ' : Env} {K : ℕ} {l : List (String × ℕ)}
+    (h : Sized l σ) (hr : Run B c σ σ' K) : Sized l σ' := fun p hp =>
+  exists_arrOf ((run_length_arrs hr p.1).trans (h.length hp))
+
+/-- **The fixed scratch arrays of a level**, at the lengths the passes
+below address them at, and — for the two the breadth-first search reads
+back — holding words.
+
+Nothing in the block structure or in the masks of a depth says that the
+arrays the *sub-programs* address are there, and an out-of-range store
+has no derivation at all in IMP+, so a level's precondition that does
+not carry this clause supports no specification for a program that
+stores into any of them. The list is the union of what the passes below
+ask for in their own preconditions: `RamCover.CoverPre` names `alv`,
+`ord`, `dist`, `q`, `asg`, `xoff` and `xmem`, and `RamScatter`'s pass
+names `alv`, `tab`, `dist`, `q` and `exc` — the last two of `dist` and
+`q` as `RamScatter.Words`, which is the word clause here.
+
+Every clause of it is preserved by every run, which is why it can be
+asked of a level's exit as well as of its entry: `levelMem_run`. -/
+def LevelMem (B n : ℕ) (σ : Env) : Prop :=
+  Sized [("alv", n), ("tab", n), ("dist", n), ("q", n), ("exc", n), ("asg", n),
+      ("ord", n), ("xoff", n + 1), ("xmem", n * n)] σ ∧
+    (∀ v ∈ σ.arrs "dist", v < B) ∧ (∀ v ∈ σ.arrs "q", v < B)
+
+/-- **The memory clause of a level survives any run.** The lengths
+because a store never changes one, the two word clauses because a
+bounded run stores only words. Neither is a frame condition — both hold
+of arrays the passes below do write — which is what makes the levels,
+and the turns of a level, compose. -/
+theorem levelMem_run {B n : ℕ} {c : Com} {σ σ' : Env} {K : ℕ} (hr : Run B c σ σ' K)
+    (h : LevelMem B n σ) : LevelMem B n σ' :=
+  ⟨h.1.run hr, run_mem_arrs_lt hr "dist" h.2.1, run_mem_arrs_lt hr "q" h.2.2⟩
+
+/-- The two arrays the search reads back, as `RamScatter.Words`. -/
+theorem LevelMem.words {B n : ℕ} {σ : Env} (h : LevelMem B n σ) :
+    RamScatter.Words B n "dist" σ ∧ RamScatter.Words B n "q" σ :=
+  ⟨words_of_length (h.1.length (p := ("dist", n)) (by simp)) h.2.1,
+    words_of_length (h.1.length (p := ("q", n)) (by simp)) h.2.2⟩
+
 /-! ### The names
 
 Every per-depth object of the driver is addressed by a name built at
@@ -579,6 +709,16 @@ def resName (j : ℕ) : String := "res" ++ toString j
 to. -/
 def balName (j : ℕ) : String := "bal" ++ toString j
 
+/-- The other half of the ball's ping-pong. `expandCom` reads its source
+array at *every* vertex of a row while it writes its destination cell by
+cell, so a chain of expansions that wrote into the array it was reading
+would see its own marks: one pass would then propagate along a whole
+path rather than along one edge, and the chain would mark a superset of
+the ball it is supposed to build. The chain therefore alternates between
+two names, and — the radius being `2 · cap`, an even number — ends where
+it started. -/
+def balAltName (j : ℕ) : String := "blt" ++ toString j
+
 /-- The indicator of the batch the splitter strategy isolates at depth
 `j`. -/
 def batName (j : ℕ) : String := "bat" ++ toString j
@@ -603,6 +743,13 @@ def rootFlgName (k : ℕ) : String := "rf" ++ toString k
 
 /-- The environment entry `i` of the base case's evaluation. -/
 def envName (i : ℕ) : String := "ev" ++ toString i
+
+/-- **The memory clause of the decode**: the four arrays it writes, at
+the lengths it writes them at. The decode runs before any level, so it
+is the one phase whose memory clause is not a level's. -/
+def DecodeMem (n ns : ℕ) (σ : Env) : Prop :=
+  (σ.arrs "off").length = n + 1 ∧ (σ.arrs "tgt").length = ns ∧
+    (σ.arrs (alvName 0)).length = n ∧ (σ.arrs (gamName 0)).length = n
 
 /-! ### Plumbing
 
@@ -681,7 +828,9 @@ def expandCom (msk src dst : String) : Com :=
   .seq (.assign "z" (.lit 0)) (.while (.lt (.var "z") (.var "n")) (expandStep msk src dst))
 
 /-- The chain of expansions: `nm a` holds the `a`-neighbourhood of what
-`nm 0` was set to. -/
+`nm 0` was set to. The names must be pairwise distinct at consecutive
+stages, since a step reads all of its source while it writes its
+destination. -/
 def chainCom (msk : String) (nm : ℕ → String) (r : ℕ) : Com :=
   foldRange (fun a => expandCom msk (nm a) (nm (a + 1))) r
 
@@ -997,6 +1146,34 @@ first, the batch second. The profiles are measured in the
 `Evaluator.isoColoring`'s three equations say and where `resName j`
 comes from. -/
 
+/-- The two names the ball's expansion chain alternates between: the
+even stages are the ball's own array, the odd ones the scratch half. -/
+def ballStage (j : ℕ) : ℕ → String :=
+  fun a => if a % 2 = 0 then balName j else balAltName j
+
+/-- The chain begins and — the radius being even — ends at the ball's
+own array. -/
+theorem ballStage_zero (j : ℕ) : ballStage j 0 = balName j := by
+  rw [ballStage]; simp
+
+theorem ballStage_two_mul (j a : ℕ) : ballStage j (2 * a) = balName j := by
+  rw [ballStage]
+  simp [Nat.mul_mod_right]
+
+/-- Consecutive stages are different arrays, which is the whole point of
+the alternation. -/
+theorem ballStage_ne (j a : ℕ) : ballStage j a ≠ ballStage j (a + 1) := by
+  have hne : balName j ≠ balAltName j := by
+    simp [balName, balAltName, String.ext_iff]
+  simp only [ballStage]
+  rcases Nat.even_or_odd a with h | h
+  · have h₀ : a % 2 = 0 := Nat.even_iff.mp h
+    rw [if_pos h₀, if_neg (by omega)]
+    exact hne
+  · have h₁ : a % 2 = 1 := Nat.odd_iff.mp h
+    rw [if_neg (by omega), if_pos (by omega)]
+    exact fun hc => hne hc.symm
+
 /-- Materialize the indicator of the cluster at position `c` out of the
 compressed-row cluster arena the cover pass left. -/
 def clusterLoad (j : ℕ) : Com :=
@@ -1014,7 +1191,7 @@ def descendCom (cap j : ℕ) : Com :=
       (.seq (andCom (alvName j) (cluName j) (resName j))
         (.seq (.seq (fillCom (balName j) (.lit 0))
             (.seq (.store (balName j) (.var (ctrName j)) (.lit 1))
-              (chainCom (gamName j) (fun _ => balName j) (2 * cap))))
+              (chainCom (gamName j) (ballStage j) (2 * cap))))
           (.seq (batchCom cap j)
             (.seq (subCom (resName j) (batName j) (alvName (j + 1)))
               (.seq (andCom (gamName j) (balName j) (gamName (j + 1)))
@@ -1215,30 +1392,67 @@ and `RamCover.CoverOut.asg_lt` says every vertex is assigned, so the
 turns of the loop partition the carrier and the level's postcondition is
 about all of it. -/
 
-/-- **The table invariant at depth `j`.** -/
+/-- **The table invariant at depth `j`.**
+
+The cells are asked to be *bits* and not merely nonzero-or-not:
+`bcExpr` is truncated arithmetic, a negation is `1 - u` and a
+conjunction is a product, so the readback of the depth above reads
+these cells as numbers and not only as truth values. Every pass that
+writes a table writes a bit, so this is a clause missing from those
+passes' postconditions rather than a property missing from the
+program. -/
 def TableInv (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) {n : ℕ} (G : SimpleGraph (Fin n))
     (j : ℕ) (M : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (σ : Env) : Prop :=
   ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length), ∃ Tb : ℕ → ℕ,
-    σ.arrs (tabName j i) = arrOf n Tb ∧
+    σ.arrs (tabName j i) = arrOf n Tb ∧ (∀ v < n, Tb v ≤ 1) ∧
     ∀ v : Fin n, (Tb (v : ℕ) ≠ 0 ↔
       Sat (masked G M) (colRead n C (sigL cap mb j)) (fun _ => v)
         (tablesAt q_top cap mb φ j)[i])
 
-/-- The block structure and the two masks of a depth, as the machine
-holds them. Everything a level reads and nothing it writes. -/
-def LevelPre (n : ℕ) (cap mb : ℕ) (ns : ℕ) (O T : ℕ → ℕ) (j : ℕ) (M Gm : ℕ → ℕ)
+/-- **The table arrays of every depth, at the carrier's length.** A
+depth's tables are *written* by the level of that depth and by nothing
+else, so no postcondition below produces this clause and no
+precondition below can do without it: an out-of-range store has no
+derivation in IMP+. It is depth-independent because a level runs the
+level below it, which stores into *its* tables while the enclosing turn
+is still holding this clause. -/
+def TablesSized (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) (n : ℕ) (σ : Env) : Prop :=
+  ∀ j : ℕ, Sized ((List.range (tablesAt q_top cap mb φ j).length).map
+    fun i => (tabName j i, n)) σ
+
+/-- One table array of one depth, out of the clause. -/
+theorem TablesSized.get {q_top cap mb n : ℕ} {φ : Lax3.FirstOrder.FO 0} {σ : Env}
+    (h : TablesSized q_top cap mb φ n σ) (j : ℕ) {i : ℕ}
+    (hi : i < (tablesAt q_top cap mb φ j).length) :
+    ∃ g : ℕ → ℕ, σ.arrs (tabName j i) = arrOf n g :=
+  h j _ (List.mem_map.2 ⟨i, List.mem_range.2 hi, rfl⟩)
+
+/-- **The clause survives any run**, since a run cannot change the
+length of an array. -/
+theorem TablesSized.run {B q_top cap mb n : ℕ} {φ : Lax3.FirstOrder.FO 0} {c : Com}
+    {σ σ' : Env} {K : ℕ} (h : TablesSized q_top cap mb φ n σ) (hr : Run B c σ σ' K) :
+    TablesSized q_top cap mb φ n σ' := fun j => (h j).run hr
+
+/-- The block structure, the two masks and the memory of a depth, as
+the machine holds them. Everything a level reads and nothing it writes,
+together with the two clauses no statement about *sets* carries: that
+the arrays the passes below address are there at the lengths they
+address them at, and that the two masks hold words. -/
+def LevelPre (B n : ℕ) (cap mb : ℕ) (ns : ℕ) (O T : ℕ → ℕ) (j : ℕ) (M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (σ : Env) : Prop :=
   σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
     σ.arrs (alvName j) = arrOf n M ∧ σ.arrs (gamName j) = arrOf n Gm ∧
-    (∀ c < sigL cap mb j, σ.arrs (colName j c) = arrOf n (C c))
+    (∀ c < sigL cap mb j, σ.arrs (colName j c) = arrOf n (C c)) ∧
+    (∀ z < n, M z < B) ∧ (∀ z < n, Gm z < B) ∧ LevelMem B n σ
 
 /-- What a level leaves: its tables, and everything it was handed,
 untouched. The second half is what makes the levels compose — a level
 above reads its own masks and colours after the level below has run. -/
-def LevelPost (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) {n : ℕ}
+def LevelPost (B q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) {n : ℕ}
     (G : SimpleGraph (Fin n)) (ns : ℕ) (O T : ℕ → ℕ) (j : ℕ) (M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (_σ σ' : Env) : Prop :=
-  LevelPre n cap mb ns O T j M Gm C σ' ∧ TableInv q_top cap mb φ G j M C σ'
+  LevelPre B n cap mb ns O T j M Gm C σ' ∧ TablesSized q_top cap mb φ n σ' ∧
+    TableInv q_top cap mb φ G j M C σ'
 
 /-! ### The obligations
 
@@ -1255,6 +1469,48 @@ without moving a signature here. -/
 section Obligations
 
 variable (B : ℕ) {n : ℕ}
+
+/-! Every phase of the driver is a program of the *bounded* semantics,
+in which an expression above the word size has no value at all and a
+command reading one has no derivation. So every obligation carries a
+value bound, and one bound serves them all: the widest address any pass
+of a level forms is the cluster arena's `n * n`, the block structure's
+`ns`, and the search's `2 * cap`. `WordBound` is their sum, and the
+four readings below are how the sub-programs' own bounds come off it. -/
+
+/-- **The value bound of a level**: every address any pass of a level
+forms is a word. -/
+def WordBound (n ns cap : ℕ) : Prop := n * n + ns + 2 * cap + 2 < B
+
+variable {B}
+
+theorem le_mul_self (n : ℕ) : n ≤ n * n := by
+  rcases Nat.eq_zero_or_pos n with rfl | hn
+  · omega
+  · exact Nat.le_mul_of_pos_left n hn
+
+theorem WordBound.one_lt {n ns cap : ℕ} (h : WordBound B n ns cap) : 1 < B := by
+  rw [WordBound] at h; omega
+
+theorem WordBound.n_lt {n ns cap : ℕ} (h : WordBound B n ns cap) : n < B := by
+  rw [WordBound] at h
+  have := le_mul_self n
+  omega
+
+theorem WordBound.succ_lt {n ns cap : ℕ} (h : WordBound B n ns cap) : n + 1 < B := by
+  rw [WordBound] at h
+  have := le_mul_self n
+  omega
+
+theorem WordBound.ns_lt {n ns cap : ℕ} (h : WordBound B n ns cap) : ns < B := by
+  rw [WordBound] at h; omega
+
+/-- The bound `RamCover.Implements` asks for, at the radius the driver
+calls the cover at. -/
+theorem WordBound.cover {n ns cap : ℕ} (h : WordBound B n ns cap) :
+    n * n + ns + 2 * cap + 2 < B := h
+
+variable (B)
 
 /-- The elimination engine, available at every arena and slot count the
 driver calls it at. -/
@@ -1273,6 +1529,23 @@ def CoverAvail (cap ns : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) : Pr
   ∀ (A₀ ord : ℕ → ℕ) (π : Equiv.Perm (Fin n)),
     RamCover.Implements B n ns G A₀ O T ord π cap
 
+/-- **The memory the ordering pass addresses**, on top of the level's
+own: the scratch arrays of `Lax3Proofs.RamElim.ElimPre` and of
+`Lax3Proofs.RamAugment.AugPre`, at the width the driver allocates them
+at, with the accumulators, the elimination flags, the bucket heads and
+the four stamps zeroed — which is what a machine's fresh memory already
+says. -/
+def OrderMem (n ns W : ℕ) (σ : Env) : Prop :=
+  Sized [("doff", n + 1), ("dtg", W), ("ooff", n + 1), ("otg", W), ("ofl", n),
+      ("gof", n + 1), ("gtg", ns), ("ffl", n), ("deg", n), ("rnk", n), ("idg", n),
+      ("bh", n + 1), ("bv", n + W + 1), ("bn", n + W + 1), ("ioff", n + 1), ("ifl", n),
+      ("itg", W), ("noff", n + 1), ("nfl", n), ("ntg", W), ("elm", n),
+      ("stf", n), ("sta", n), ("std", n), ("ste", n)] σ ∧
+    (∀ v ∈ σ.arrs "elm", v = 0) ∧ (∀ v ∈ σ.arrs "bh", v = 0) ∧
+    (∀ v ∈ σ.arrs "ooff", v = 0) ∧ (∀ v ∈ σ.arrs "noff", v = 0) ∧
+    (∀ v ∈ σ.arrs "stf", v = 0) ∧ (∀ v ∈ σ.arrs "sta", v = 0) ∧
+    (∀ v ∈ σ.arrs "std", v = 0) ∧ (∀ v ∈ σ.arrs "ste", v = 0)
+
 /-- **The decode.** That `decodeCom` reads the tape encoding into the
 block structure and opens the root arena with everything alive.
 
@@ -1288,14 +1561,22 @@ It splits into three walks.
   encoding.
 * The two fills are `Fill.loop_spec` with the constant one, and
   `RamElim.masked_of_all_alive` is why the arena they open is `G`
-  itself. -/
+  itself.
+
+Two clauses are not about the encoding. `DecodeMem` is the four arrays
+the phase writes, at the lengths it writes them at: an out-of-range
+store is *stuck* in IMP+ rather than defaulted, and the phase's first
+act is a store into `off`, so without it the obligation is refuted by
+the state whose arrays are all empty. The value bounds are the same
+rule at the expressions: at `B = 0` nothing evaluates. -/
 def DecodeImplements (x : List ℕ) (G : SimpleGraph (Fin n)) (ns : ℕ)
     (O T : ℕ → ℕ) (K : ℕ) : Prop :=
-  Spec B (fun σ => σ.inp = x ∧ σ.out = []) decodeCom
-    (fun _ σ' => σ'.out = [] ∧ CsrGraph G ns O T ∧
-      σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf ns T ∧
-      (∃ M, σ'.arrs (alvName 0) = arrOf n M ∧ ∀ v < n, M v ≠ 0) ∧
-      (∃ Gm, σ'.arrs (gamName 0) = arrOf n Gm ∧ ∀ v < n, Gm v ≠ 0)) K
+  (∀ v ∈ x, v < B) → n + 1 < B → ns < B →
+    Spec B (fun σ => DecodeMem n ns σ ∧ σ.inp = x ∧ σ.out = []) decodeCom
+      (fun _ σ' => σ'.out = [] ∧ CsrGraph G ns O T ∧
+        σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf ns T ∧
+        (∃ M, σ'.arrs (alvName 0) = arrOf n M ∧ ∀ v < n, M v = 1) ∧
+        (∃ Gm, σ'.arrs (gamName 0) = arrOf n Gm ∧ ∀ v < n, Gm v = 1)) K
 
 /-- **The ordering pass.** That `orderCom R W j` leaves in `ord` the
 order array of an ordering of the depth's arena along which the cover
@@ -1328,12 +1609,40 @@ on which ordering the cover is taken along, since
 cover, hence the driver's cost, which
 `Lax3Proofs.CoverDegree.exists_cover_degree` bounds from the chain this
 pass builds. That bound therefore belongs to the cost `K` and to the
-wave that computes it, not here. -/
-def OrderImplements (R W cap mb ns j : ℕ) (O T : ℕ → ℕ)
+wave that computes it, not here.
+
+**The one memory clause not folded in.** `OrderMem` below is what the
+two engines address and the level's own state does not — the twenty-odd
+scratch arrays of `Lax3Proofs.RamAugment.AugPre` and of
+`Lax3Proofs.RamElim.ElimPre`, with the accumulators, the flags and the
+stamps zeroed — and it is *not* a conjunct of this obligation, because
+it cannot be one until two things change together.
+
+* Its lengths are cut to the augmentation width `W`, so carrying it
+  across a level means carrying `W` in `LevelPre`, and hence in every
+  obligation and every phase `Prop` below. That is a signature change
+  and not a repair.
+* `orderCom` does not restore the zeroing: the final `RamElim.elimCom`
+  leaves `elm` and `bh` used, and there is no re-zeroing tail after it.
+  So `OrderMem` at the exit is *false* of the program as written, and a
+  level cannot hand it to the level below. A re-zeroing tail — nine
+  `fillCom`s, the shape `augRelinkCom` already has — is the program
+  repair that comes with the signature change.
+
+`Lax3Proofs.RamElim.ElimPre`'s pinning of `tgt`, `itg`, `bv` and `bn`
+to *exactly* the slot count of the call is the third half of the same
+knot: the fraternity graph's slot count is data-dependent, so a caller
+that allocates once, at `W`, cannot satisfy it. Relaxing that pinning
+to "at least the slot count" is what makes `OrderMem` statable at `W`
+at all. -/
+def OrderImplements (n R W cap mb ns j : ℕ) (O T : ℕ → ℕ)
     (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
+  WordBound B n ns cap → n + W + 1 < B →
   ElimAvail B n → AugAvail B n →
-    Spec B (fun σ => LevelPre n cap mb ns O T j M Gm C σ) (orderCom R W j)
-      (fun σ σ' => LevelPre n cap mb ns O T j M Gm C σ' ∧ σ'.out = σ.out ∧
+    Spec B (fun σ => LevelPre B n cap mb ns O T j M Gm C σ)
+      (orderCom R W j)
+      (fun σ σ' => LevelPre B n cap mb ns O T j M Gm C σ' ∧
+        σ'.out = σ.out ∧
         ∃ (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ),
           σ'.arrs "ord" = arrOf n ord ∧ RamCover.OrdersBy n π ord) K
 
@@ -1348,41 +1657,27 @@ makes the destructiveness of the pass harmless — it kills the centres in
 `alv`, which is the *copy* of `alvName j`. -/
 def CoverImplements (cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
     (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ) (K : ℕ) : Prop :=
+  WordBound B n ns cap →
   CoverAvail B cap ns G O T → RamCover.OrdersBy n π ord →
-    Spec B (fun σ => LevelPre n cap mb ns O T j M Gm C σ ∧ σ.arrs "ord" = arrOf n ord)
+    Spec B (fun σ => LevelPre B n cap mb ns O T j M Gm C σ ∧ σ.arrs "ord" = arrOf n ord)
       (.seq (copyCom (alvName j) "alv") (RamCover.coverCom cap))
-      (fun σ σ' => LevelPre n cap mb ns O T j M Gm C σ' ∧ σ'.out = σ.out ∧
+      (fun σ σ' => LevelPre B n cap mb ns O T j M Gm C σ' ∧ σ'.out = σ.out ∧
         σ'.arrs "ord" = arrOf n ord ∧ RamCover.CoverPost G M π ord cap σ σ') K
 
-/-- **The readback of one cluster.** That `readbackCom` writes, at every
-vertex the cluster was assigned, the value of every tabled formula's own
-boolean combination over the depth-`(j+1)` tables and the scatter flags.
+/-! ### The readback of one cluster
 
-One walk, over one loop: the body is a conditional whose branch is a
-straight line of stores, one per tabled formula, and each store's
-expression is `bcExpr` of a construction-time combination. What it needs
-is the arithmetic of the bits — that `bcExpr` of a valuation into
-`{0, 1}` is again in `{0, 1}`, and that its value is nonzero exactly
-when `BC.eval` of the corresponding predicate holds, which is an
-induction on the combination — and nothing else. The mathematics of what
-the value *means* is `sat_iff_eval_step`, proved above, and is not part
-of this obligation. -/
-def ReadbackImplements (q_top cap mb ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
-    (O T : ℕ → ℕ) (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ)
-    (Dom : Set (Fin n)) (val : ℕ → Sum (DistFO (sigL cap mb (j + 1)) 1)
-      (ScatterSentence (sigL cap mb (j + 1))) → Prop) (K : ℕ) : Prop :=
-  Spec B (fun σ => LevelPre n cap mb ns O T j M Gm C σ ∧
-      ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length),
-        ∀ a, val i a ↔ ((atomExpr q_top cap mb φ j i (tablesAt q_top cap mb φ j)[i]) a).evalB B σ
-          ≠ some 0)
-    (readbackCom q_top cap mb φ j)
-    (fun σ σ' => LevelPre n cap mb ns O T j M Gm C σ' ∧ σ'.out = σ.out ∧
-      ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length), ∃ Tb : ℕ → ℕ,
-        σ'.arrs (tabName j i) = arrOf n Tb ∧ ∀ v ∈ Dom,
-          (Tb (v : ℕ) ≠ 0 ↔
-            ∃ h : ∃ q' : ℕ, q' + 1 ≤ q_top ∧
-                DRank 1 q' (stepFml cap mb j (tablesAt q_top cap mb φ j)[i]),
-              (bcOf q_top (stepFml cap mb j (tablesAt q_top cap mb φ j)[i]) h).eval (val i))) K
+There is no `ReadbackImplements` here, and the `Prop` that used to
+stand in this place was not provable. It handed the atoms' valuation as
+a function of the *entering* state, so a local atom — whose truth
+varies from vertex to vertex, since `atomExpr` reads the depth-`(j+1)`
+table at the vertex the counter stands on — was evaluated at whatever
+the scalar `z` happened to hold before the loop started, and the stated
+`Prop` could not express what the loop leaves.
+`Lax3Proofs.RamDriverCluster.ReadbackStep` is that obligation with the
+valuation indexed by the vertex, which is the shape
+`sat_iff_eval_step` produces and the shape
+`Lax3Proofs.RamDriverBase.readbackStep` discharges; the cluster step
+consumes it there and not here. -/
 
 /-- **One cluster.** That the turn of the loop over the centres writes
 the depth-`(j+1)` state, runs the nested driver, decides the scatter
@@ -1410,22 +1705,27 @@ It splits along the turn's six passes.
   `RamElim.Implements` enters `RamAugment.Implements`.
 * The scatter atoms enter through `RamScatter.scatter_spec`, one call per
   atom, at the depth-`(j+1)` table row of the atom's own formula, and the
-  readback through `ReadbackImplements`. -/
+  readback through `Lax3Proofs.RamDriverCluster.ReadbackStep`. -/
 def ClusterStepImplements (q_top cap mb ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ)
     (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ) (inner : Com) (Kin K : ℕ) : Prop :=
+  WordBound B n ns cap →
   (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ),
-      Spec B (fun σ => LevelPre n cap mb ns O T (j + 1) M' Gm' C' σ) inner
-        (fun σ σ' => LevelPost q_top cap mb φ G ns O T (j + 1) M' Gm' C' σ σ' ∧
+      Spec B (fun σ => LevelPre B n cap mb ns O T (j + 1) M' Gm' C' σ ∧
+          TablesSized q_top cap mb φ n σ) inner
+        (fun σ σ' => LevelPost B q_top cap mb φ G ns O T (j + 1) M' Gm' C' σ σ' ∧
           σ'.out = σ.out) Kin) →
-    Spec B (fun σ => LevelPre n cap mb ns O T j M Gm C σ ∧ σ.arrs "ord" = arrOf n ord ∧
+    Spec B (fun σ => LevelPre B n cap mb ns O T j M Gm C σ ∧
+        TablesSized q_top cap mb φ n σ ∧ σ.arrs "ord" = arrOf n ord ∧
         σ.vars "c" < n ∧ RamCover.CoverPost G M π ord cap σ σ)
       (clusterCom q_top cap mb φ j inner)
-      (fun σ σ' => LevelPre n cap mb ns O T j M Gm C σ' ∧ σ'.out = σ.out ∧
+      (fun σ σ' => LevelPre B n cap mb ns O T j M Gm C σ' ∧
+        TablesSized q_top cap mb φ n σ' ∧ σ'.out = σ.out ∧
         σ'.vars "c" = σ.vars "c" ∧
         ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length), ∃ Tb : ℕ → ℕ,
           σ'.arrs (tabName j i) = arrOf n Tb ∧
           ∀ v : Fin n, ∀ asg : ℕ → ℕ, σ'.arrs "asg" = arrOf n asg → asg (v : ℕ) = σ.vars "c" →
+            Tb (v : ℕ) ≤ 1 ∧
             (Tb (v : ℕ) ≠ 0 ↔
               Sat (masked G M) (colRead n C (sigL cap mb j)) (fun _ => v)
                 (tablesAt q_top cap mb φ j)[i])) K
@@ -1454,12 +1754,21 @@ It splits into two walks.
   decidable.
 
 The hypothesis is that the arena is edgeless, which
-`eq_bot_of_playOk_full` supplies at depth `ℓ`. -/
+`eq_bot_of_playOk_full` supplies at depth `ℓ`.
+
+Two clauses beyond the level's own state. `TablesSized` is the depth's
+table arrays at the carrier's length, which nothing below produces and
+without which the walk's stores have no derivation; `rep` at
+`2 ^ sigL cap mb ℓ` is the representative system `reprCom` builds, and
+the environment slots are the base evaluator's own — one per free
+variable of the deepest formula, which `envDepth` bounds. -/
 def BaseImplements (q_top cap mb ns ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
-  masked G M = ⊥ →
-    Spec B (fun σ => LevelPre n cap mb ns O T ℓ M Gm C σ) (baseCom q_top cap mb ℓ φ)
-      (fun σ σ' => LevelPost q_top cap mb φ G ns O T ℓ M Gm C σ σ' ∧ σ'.out = σ.out) K
+  WordBound B n ns cap → 2 ^ sigL cap mb ℓ < B → masked G M = ⊥ →
+    Spec B (fun σ => LevelPre B n cap mb ns O T ℓ M Gm C σ ∧
+        TablesSized q_top cap mb φ n σ ∧ Sized [("rep", 2 ^ sigL cap mb ℓ)] σ)
+      (baseCom q_top cap mb ℓ φ)
+      (fun σ σ' => LevelPost B q_top cap mb φ G ns O T ℓ M Gm C σ σ' ∧ σ'.out = σ.out) K
 
 open Classical in
 /-- **The sentence readback.** That `sentenceCom` writes the one bit the
@@ -1474,8 +1783,8 @@ of the combination, whose local atoms are the *constants*
 means is `sat_iff_eval_sentence`, proved above. -/
 def SentenceImplements (q_top cap mb ns : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
-  (∀ v < n, M v ≠ 0) →
-    Spec B (fun σ => LevelPre n cap mb ns O T 0 M Gm C σ ∧
+  WordBound B n ns cap → (∀ v < n, M v ≠ 0) →
+    Spec B (fun σ => LevelPre B n cap mb ns O T 0 M Gm C σ ∧
         TableInv q_top cap mb φ G 0 M C σ ∧ σ.out = [])
       (sentenceCom q_top cap mb φ)
       (fun _ σ' => ∃ h : ∃ q' : ℕ, q' ≤ q_top ∧
@@ -1509,9 +1818,9 @@ along the fuel.
   batch its searches produced. -/
 def LevelImplements (q_top cap mb R ℓ W ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
-  Spec B (fun σ => LevelPre n cap mb ns O T j M Gm C σ)
+  Spec B (fun σ => LevelPre B n cap mb ns O T j M Gm C σ ∧ TablesSized q_top cap mb φ n σ)
     (driverAt q_top cap mb R ℓ W φ j)
-    (fun σ σ' => LevelPost q_top cap mb φ G ns O T j M Gm C σ σ' ∧ σ'.out = σ.out) K
+    (fun σ σ' => LevelPost B q_top cap mb φ G ns O T j M Gm C σ σ' ∧ σ'.out = σ.out) K
 
 end Obligations
 
@@ -1569,30 +1878,40 @@ scatter values its scatter atoms are, is the sentence's truth value.
 That is `sat_iff_eval_sentence`, and it is the only step of this proof
 that is not composition. -/
 theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
+    (hB : WordBound B n ns cap) (hxB : ∀ v ∈ x, v < B)
     (hdec : DecodeImplements B x G ns O T Kd)
     (hlev : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ), (∀ v < n, M v ≠ 0) →
       LevelImplements B q_top cap mb R ℓ W ns 0 φ G O T M Gm C Kl)
     (hsent : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
       SentenceImplements B q_top cap mb ns φ G O T M Gm C Ks) :
-    Spec B (fun σ => σ.inp = x ∧ σ.out = [])
+    Spec B (fun σ => DecodeMem n ns σ ∧ LevelMem B n σ ∧ TablesSized q_top cap mb φ n σ ∧
+        σ.inp = x ∧ σ.out = [])
       (driverRoot q_top cap mb R ℓ W φ)
       (fun _ σ' => σ'.out = [if Lax3.FirstOrder.Sat G Fin.elim0 φ then 1 else 0])
       (Kd + (Kl + Ks)) := by
   classical
   refine Spec.of_exists fun σ hσ => ?_
+  obtain ⟨hdm, hmem, htsz, hinp, hout⟩ := hσ
   -- the decode
-  obtain ⟨σ₁, hrun₁, hout₁, hcsr, hn₁, hoff₁, htgt₁, ⟨M, hM₁, hMpos⟩, ⟨Gm, hGm₁, -⟩⟩ :=
-    hdec.run hσ
+  obtain ⟨σ₁, hrun₁, hout₁, hcsr, hn₁, hoff₁, htgt₁, ⟨M, hM₁, hMone⟩, ⟨Gm, hGm₁, hGmone⟩⟩ :=
+    (hdec hxB hB.succ_lt hB.ns_lt).run ⟨hdm, hinp, hout⟩
+  -- the memory the decode was handed is the memory the level is handed
+  have hmem₁ : LevelMem B n σ₁ := levelMem_run hrun₁ hmem
+  have htsz₁ : TablesSized q_top cap mb φ n σ₁ := htsz.run hrun₁
+  -- the masks the root opens are the constant one, hence words and nowhere zero
+  have hMpos : ∀ v < n, M v ≠ 0 := fun v hv => by rw [hMone v hv]; omega
+  have hMB : ∀ z < n, M z < B := fun z hz => by rw [hMone z hz]; exact hB.one_lt
+  have hGmB : ∀ z < n, Gm z < B := fun z hz => by rw [hGmone z hz]; exact hB.one_lt
   -- the level, at the colouring the root has: the empty palette
   have hcolempty : ∀ c < sigL cap mb 0, σ₁.arrs (colName 0 c) = arrOf n (fun _ => 0) := by
     intro c hc
     exact absurd hc (by rw [sigL_zero]; omega)
-  obtain ⟨σ₂, hrun₂, ⟨hpre₂, htab₂⟩, hout₂⟩ :=
+  obtain ⟨σ₂, hrun₂, ⟨hpre₂, -, htab₂⟩, hout₂⟩ :=
     (hlev M Gm (fun _ _ => 0) hMpos).run
-      (σ := σ₁) ⟨hn₁, hoff₁, htgt₁, hM₁, hGm₁, hcolempty⟩
+      (σ := σ₁) ⟨⟨hn₁, hoff₁, htgt₁, hM₁, hGm₁, hcolempty, hMB, hGmB, hmem₁⟩, htsz₁⟩
   -- the sentence readback
   obtain ⟨σ₃, hrun₃, hcond, hout₃⟩ :=
-    (hsent M Gm (fun _ _ => 0) hMpos).run (σ := σ₂) ⟨hpre₂, htab₂, by rw [hout₂, hout₁]⟩
+    (hsent M Gm (fun _ _ => 0) hB hMpos).run (σ := σ₂) ⟨hpre₂, htab₂, by rw [hout₂, hout₁]⟩
   refine ⟨σ₃, _, (hrun₁.seq (hrun₂.seq hrun₃)).mono le_rfl, le_rfl, ?_⟩
   -- and the one thing that is not composition
   rw [hout₃]

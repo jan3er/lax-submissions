@@ -9,43 +9,35 @@ program — the two that touch the tapes — and they are the two whose
 obligations (`RamDriver.DecodeImplements`, `RamDriver.SentenceImplements`)
 this file answers.
 
-# Two clauses those obligations are missing
+# Two clauses those obligations were missing
 
-Both are stated in `Lax3Proofs.RamDriver` with a precondition that pins
-no array and names no value bound, and as stated **both are false**:
-`not_decodeImplements` and `not_sentenceImplements` below are the
-refutations, and they are six and fifteen lines. What this file proves
-is the repaired form of each — the driver's own statement with the two
-missing conjuncts added, and nothing else changed. Adding those
-conjuncts to the two definitions makes `decodeImplements` and
-`sentenceImplements` discharge them as they stand.
+Both obligations used to be stated with a precondition that pinned no
+array and named no value bound, and as stated **both were false**. They
+now carry the two missing conjuncts, and this file discharges them as
+they stand.
 
 *The memory clause.* IMP+ arrays have lengths, an out-of-range store is
 *stuck* rather than defaulted, and the decode's first act is a store
-into `off`; so the state whose arrays are all empty satisfies the
-decode's precondition and no run of the phase starts in it. Since a run
-cannot lengthen an array either, the postcondition's `off` of `n + 1`
-cells refutes the obligation outright. The house form of the missing
-clause is `RamCover.CoverPre`, which does pin every array its pass
-touches; `DecodeMem` and `RootMem` are that clause for these two
-phases. `RootMem` carries two clauses beyond the array lengths, both
-forced by the same rule: the scratch arrays of the scatter pass must
-hold *words* (`RamScatter.scatter_spec` asks for `RamScatter.Words`),
-and so must the table arrays, since the readback's copy reads their
-cells and a cell at or above the value bound makes the read stuck.
-Neither is a restriction in practice — the tables hold bits — but
-neither is free.
+into `off`; so the state whose arrays are all empty satisfied the
+decode's old precondition and no run of the phase starts in it. Since a
+run cannot lengthen an array either, the postcondition's `off` of
+`n + 1` cells refuted the old obligation outright. The house form of
+the clause is `RamCover.CoverPre`, which does pin every array its pass
+touches; `RamDriver.DecodeMem` is that clause for the decode.
+`RootMem` is it for the readback — the scratch arrays of the scatter
+pass must hold *words* (`RamScatter.scatter_spec` asks for
+`RamScatter.Words`), and so must the table arrays, since the readback's
+copy reads their cells and a cell at or above the value bound makes the
+read stuck — and `rootMem_of_levelPre` is why the sentence obligation
+needs no memory conjunct beyond `RamDriver.LevelPre`'s own
+`RamDriver.LevelMem` and `RamDriver.TableInv`'s own bit clause.
 
-*The value bounds.* Nothing in either obligation says that the carrier,
-the slot count, or the constants of the sentence are words. They have
-to be: at `B = 0` no expression evaluates at all, so the sentence's own
-final write has no derivation. Every bound this file asks for is one
-some sub-program's specification already asks for
-(`RamScatter.scatter_spec`, `Fill.loop_spec`), and both gaps are in the
-other six obligations of `Lax3Proofs.RamDriver` as well: none of them
-carries a `< B` hypothesis, and `RamDriver.LevelPre` pins the block
-structure, the two masks and the colour arrays of a depth and no
-scratch array of any pass below.
+*The value bounds.* Nothing in either obligation used to say that the
+carrier, the slot count, or the constants of the sentence are words.
+They have to be: at `B = 0` no expression evaluates at all, so the
+sentence's own final write has no derivation. `RamDriver.WordBound` is
+the one bound every phase of a level is stated over, and every bound
+this file asks for is one of its four readings.
 
 # The walks
 
@@ -80,12 +72,13 @@ through the decimal reading.
 
 # Two additions to the kit
 
-`Run` preserves the length of every array (`run_length_arrs`) and, being
-bounded, preserves "every cell of this array is a word"
-(`run_mem_arrs_lt`). Neither is a frame condition — both hold of arrays
-the command *does* write — and the scatter pass, which writes its three
-scratch arrays and says nothing about them afterwards, cannot be called
-twice without them.
+`Run` preserves the length of every array (`RamDriver.run_length_arrs`)
+and, being bounded, preserves "every cell of this array is a word"
+(`RamDriver.run_mem_arrs_lt`). Neither is a frame condition — both hold
+of arrays the command *does* write — and the scatter pass, which writes
+its three scratch arrays and says nothing about them afterwards, cannot
+be called twice without them. Both live in `Lax3Proofs.RamDriver`, since
+the memory clauses of every phase are carried across runs by them.
 -/
 
 namespace Lax3Proofs.RamDriverIO
@@ -95,6 +88,8 @@ open Lax11.GraphEncoding
 open Lax3Proofs.FormulaTables
 open Lax3Proofs.RamBfs (masked CsrGraph csrGraph_of_encodesGraph)
 open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
+open Lax3Proofs.RamDriver (run_length_arrs run_mem_arrs_lt exists_arrOf words_of_length
+  DecodeMem)
 
 /-! ### Generated names
 
@@ -184,89 +179,6 @@ theorem tabName_zero_ne (i : ℕ) (q : String)
     (h : q.toList.take ("ta0_" : String).toList.length ≠ ("ta0_" : String).toList) :
     RamDriver.tabName 0 i ≠ q := by
   rw [tabName_zero_eq]; exact ne_of_append _ _ _ h
-
-/-! ### Two additions to the reasoning kit
-
-A `Run` cannot change the length of an array, and — being a run of the
-bounded semantics — cannot put a value at or above the bound into one.
-Both are about arrays the command *does* write, so neither is a frame
-condition; both are the induction of `BigStep.arrs_eq` with a different
-conclusion. -/
-
-/-- A run leaves the length of every array where it was. -/
-theorem bigStep_length_arrs {c : Com} {σ σ' : Env} {k : ℕ} (h : BigStep c σ σ' k)
-    (a : String) : (σ'.arrs a).length = (σ.arrs a).length := by
-  induction h with
-  | skip => rfl
-  | assign _ => rfl
-  | store _ _ _ => exact length_arrs_setArr ..
-  | seq _ _ ih ih' => rw [ih', ih]
-  | ite_true _ _ ih => exact ih
-  | ite_false _ _ ih => exact ih
-  | while_true _ _ _ ih ih' => rw [ih', ih]
-  | while_false _ => rfl
-  | read _ => rfl
-  | write _ => rfl
-
-/-- The same, on a `Run`. -/
-theorem run_length_arrs {B : ℕ} {c : Com} {σ σ' : Env} {K : ℕ} (h : Run B c σ σ' K)
-    (a : String) : (σ'.arrs a).length = (σ.arrs a).length := by
-  obtain ⟨_, _, hbs⟩ := h.bigStep
-  exact bigStep_length_arrs hbs a
-
-/-- A bounded run puts only words into an array, so an array all of
-whose cells were words still has only words in it. -/
-theorem bigStepB_mem_arrs_lt {B : ℕ} {c : Com} {σ σ' : Env} {k : ℕ} (h : BigStepB B c σ σ' k)
-    (a : String) (hσ : ∀ v ∈ σ.arrs a, v < B) : ∀ v ∈ σ'.arrs a, v < B := by
-  induction h with
-  | skip => exact hσ
-  | assign _ => exact hσ
-  | store _ he _ =>
-      intro u hu
-      rw [arrs_setArr] at hu
-      split at hu
-      · rcases List.mem_or_eq_of_mem_set hu with hu' | rfl
-        · exact hσ u (by subst_vars; exact hu')
-        · exact Expr.lt_of_evalB he
-      · exact hσ u hu
-  | seq _ _ ih ih' => exact ih' (ih hσ)
-  | ite_true _ _ ih => exact ih hσ
-  | ite_false _ _ ih => exact ih hσ
-  | while_true _ _ _ ih ih' => exact ih' (ih hσ)
-  | while_false _ => exact hσ
-  | read _ => exact hσ
-  | write _ => exact hσ
-
-/-- The same, on a `Run`. -/
-theorem run_mem_arrs_lt {B : ℕ} {c : Com} {σ σ' : Env} {K : ℕ} (h : Run B c σ σ' K)
-    (a : String) (hσ : ∀ v ∈ σ.arrs a, v < B) : ∀ v ∈ σ'.arrs a, v < B := by
-  obtain ⟨_, _, hbs⟩ := h
-  exact bigStepB_mem_arrs_lt hbs a hσ
-
-/-! An array is `arrOf` of its own reading function, so "has length `n`"
-and "is `arrOf n g` for some `g`" are the same statement — which is the
-form both the kit's fills and `RamScatter.Words` are stated in. -/
-
-/-- An array of length `n` is `arrOf` of something. -/
-theorem exists_arrOf {l : List ℕ} {n : ℕ} (h : l.length = n) :
-    ∃ g, l = arrOf n g := by
-  refine ⟨fun i => l.getD i 0, List.ext_getElem (by simp [h]) fun k h₁ h₂ => ?_⟩
-  simp only [arrOf, List.getElem_map, List.getElem_range]
-  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h₁]
-  rfl
-
-/-- An array of length `n` all of whose cells are words is
-`RamScatter.Words`. -/
-theorem words_of_length {B n : ℕ} {a : String} {σ : Env} (hlen : (σ.arrs a).length = n)
-    (hlt : ∀ v ∈ σ.arrs a, v < B) : RamScatter.Words B n a σ := by
-  refine ⟨fun i => (σ.arrs a).getD i 0, ?_, fun i hi => ?_⟩
-  · exact List.ext_getElem (by simp [hlen]) fun k h₁ h₂ => by
-      simp only [arrOf, List.getElem_map, List.getElem_range]
-      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h₁]
-      rfl
-  · show (σ.arrs a).getD i 0 < B
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega)]
-    exact hlt _ (List.getElem_mem _)
 
 /-! ### Reading a word by position
 
@@ -465,21 +377,14 @@ theorem rootFlg_notMem_copy_wvars (src dst : String) (k : ℕ) :
 encoding off the tape and opens the root arena with everything alive.
 This is `Lax11Proofs.CC`'s reading phase, at the driver's names. -/
 
-/-- **The memory clause of the decode**: the four arrays it writes, at
-the lengths it writes them at. This is the conjunct
-`RamDriver.DecodeImplements`'s precondition is missing; without it the
-first store of the first read loop is out of range, and hence stuck. -/
-def DecodeMem (n ns : ℕ) (σ : Env) : Prop :=
-  (σ.arrs "off").length = n + 1 ∧ (σ.arrs "tgt").length = ns ∧
-    (σ.arrs (RamDriver.alvName 0)).length = n ∧ (σ.arrs (RamDriver.gamName 0)).length = n
-
 /-- What the decode costs: the two reads, the two counter assignments,
 the two read loops and the two fills. -/
 def decodeCost (n ns : ℕ) : ℕ := 12 * (n + 1) + 12 * ns + 22 * n + 34
 
-/-- **The decode implements its specification.** Everything below the
-first line is `RamDriver.DecodeImplements B x G ns O T K` verbatim; the
-first line is the memory clause that obligation omits.
+/-- **The decode obligation, discharged.** This is
+`RamDriver.DecodeImplements B x G ns O T K` in its repaired form: the
+memory clause and the three value bounds are conjuncts and hypotheses
+of the obligation itself, so the theorem closes it as it stands.
 
 The block structure the two loops leave is the encoding's own, by
 `RamBfs.csrGraph_of_encodesGraph`, and the arena the two fills open has
@@ -487,13 +392,9 @@ every vertex alive. -/
 theorem decodeImplements {B n ns K : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ} {x : List ℕ}
     (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
     (hO : ∀ i ≤ n, O i = offset x i) (hT : ∀ j < ns, T j = target x j)
-    (hxB : ∀ v ∈ x, v < B) (hnB : n + 1 < B) (hnsB : ns < B) (hK : decodeCost n ns ≤ K) :
-    Spec B (fun σ => DecodeMem n ns σ ∧ σ.inp = x ∧ σ.out = [])
-      RamDriver.decodeCom
-      (fun _ σ' => σ'.out = [] ∧ CsrGraph G ns O T ∧
-        σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf ns T ∧
-        (∃ M, σ'.arrs (RamDriver.alvName 0) = arrOf n M ∧ ∀ v < n, M v ≠ 0) ∧
-        (∃ Gm, σ'.arrs (RamDriver.gamName 0) = arrOf n Gm ∧ ∀ v < n, Gm v ≠ 0)) K := by
+    (hK : decodeCost n ns ≤ K) :
+    RamDriver.DecodeImplements B x G ns O T K := by
+  intro hxB hnB hnsB
   subst hns
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨⟨hoffL, htgtL, halvL, hgamL⟩, hinp, hout⟩ := hσ
@@ -614,22 +515,8 @@ theorem decodeImplements {B n ns K : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ �
     exact arrOf_congr fun i hi => by rw [hO₄ i hi, hyd i hi, hO i (by omega)]
   · rw [hfa₈ _ (by decide), hfa₇ _ (by decide), htgt₆]
     exact arrOf_congr fun j hj => by rw [hT₆ j hj, hzd j hj, hT j hj]
-  · exact ⟨M, by rw [hfa₈ _ (by decide)]; exact halv₇, fun v hv => by rw [hM₇ v hv]; omega⟩
-  · exact ⟨Gm, hgam₈, fun v hv => by rw [hGm₈ v hv]; omega⟩
-
-/-- **The decode obligation, as `RamDriver` states it, is false**, which
-is why `decodeImplements` states the repaired one. Its precondition pins
-no array, so it holds of the state whose arrays are all empty; a run
-cannot lengthen an array, and its postcondition asks for an `off` of
-`n + 1` cells. That is the whole content of `DecodeMem`. -/
-theorem not_decodeImplements {B n ns K : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
-    {x : List ℕ} : ¬ RamDriver.DecodeImplements B x G ns O T K := by
-  intro h
-  obtain ⟨σ', hrun, -, -, -, hoff, -, -, -⟩ :=
-    Spec.run h (σ := ⟨fun _ => 0, fun _ => [], x, []⟩) ⟨rfl, rfl⟩
-  have hlen := run_length_arrs hrun "off"
-  rw [hoff] at hlen
-  simp at hlen
+  · exact ⟨M, by rw [hfa₈ _ (by decide)]; exact halv₇, hM₇⟩
+  · exact ⟨Gm, hgam₈, hGm₈⟩
 
 /-! ### The arithmetic of the bits
 
@@ -712,8 +599,10 @@ def AtomValue {n : ℕ} (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (L : ℕ) (C
 arrays of the scatter pass at the carrier's length — two of them holding
 words, as `RamScatter.Words` asks — and the depth-zero table arrays
 holding words, since the calling convention's copy reads their cells and
-a cell at or above the bound makes the read stuck. This is the conjunct
-`RamDriver.SentenceImplements`'s precondition is missing. -/
+a cell at or above the bound makes the read stuck. It is not a conjunct
+of `RamDriver.SentenceImplements`: `rootMem_of_levelPre` below derives
+all of it from `RamDriver.LevelPre`'s own `RamDriver.LevelMem` and
+`RamDriver.TableInv`'s bit clause. -/
 def RootMem (q_top cap mb B n : ℕ) (φ : Lax3.FirstOrder.FO 0) (σ : Env) : Prop :=
   (σ.arrs "alv").length = n ∧ (σ.arrs "tab").length = n ∧
     (σ.arrs "dist").length = n ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
@@ -734,6 +623,25 @@ theorem rootMem_run {c : Com} {σ σ' : Env} {K : ℕ} (h : Run B c σ σ' K)
     (run_length_arrs h "q").trans h5, run_mem_arrs_lt h "q" h6,
     (run_length_arrs h "exc").trans h7,
     fun i hi => by rw [h.frame_arr _ (htab i)]; exact h8 i hi⟩
+
+/-- **The memory clause is a level's own state.** Everything `RootMem`
+asks for beyond the tables is `RamDriver.LevelMem`, which
+`RamDriver.LevelPre` carries; and that the tables hold words is
+`RamDriver.TableInv`'s bit clause together with `1 < B`. So the
+sentence obligation needs no memory conjunct of its own. -/
+theorem rootMem_of_levelPre {Gm : ℕ → ℕ} {σ : Env} (h1B : 1 < B)
+    (hlev : RamDriver.LevelPre B n cap mb ns O T 0 M Gm C σ)
+    (htab : RamDriver.TableInv q_top cap mb φ G 0 M C σ) :
+    RootMem q_top cap mb B n φ σ := by
+  obtain ⟨-, -, -, -, -, -, -, -, hsz, hd, hq⟩ := hlev
+  refine ⟨hsz.length (p := ("alv", n)) (by simp), hsz.length (p := ("tab", n)) (by simp),
+    hsz.length (p := ("dist", n)) (by simp), hd,
+    hsz.length (p := ("q", n)) (by simp), hq,
+    hsz.length (p := ("exc", n)) (by simp), fun i hi v hv => ?_⟩
+  obtain ⟨Tb, hTb, hTb1, -⟩ := htab i hi
+  rw [hTb] at hv
+  obtain ⟨z, hz, rfl⟩ := List.mem_map.1 hv
+  exact lt_of_le_of_lt (hTb1 z (List.mem_range.1 hz)) h1B
 
 /-- What the root readback reads and does not write: the block
 structure, the root mask, the depth-zero tables, and the memory
@@ -786,7 +694,7 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hn, hoff, htgt, halv0, htabInv, hmem⟩ := hσ
   obtain ⟨hp, hpβ⟩ := RamDriver.getElem_posOf hs
-  obtain ⟨Tb, hTbArr, hTbSat⟩ := htabInv _ hp
+  obtain ⟨Tb, hTbArr, -, hTbSat⟩ := htabInv _ hp
   have hTbB : ∀ z < n, Tb z < B := by
     intro z hz
     refine hmem.2.2.2.2.2.2.2 _ hp (Tb z) ?_
@@ -809,8 +717,8 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
     r₁.frame_arr a (by rw [copyCom_eq, warrs_fillCom]; simpa using ha)
   have hmem₁ : RootMem q_top cap mb B n φ σ₁ := rootMem_run r₁ hmem htabAlv
   have htabInv₁ : RamDriver.TableInv q_top cap mb φ G 0 M C σ₁ := fun i hi => by
-    obtain ⟨Tc, hc, hcs⟩ := htabInv i hi
-    exact ⟨Tc, by rw [ha₁ _ (tabName_zero_ne i "alv" (by decide))]; exact hc, hcs⟩
+    obtain ⟨Tc, hc, hc1, hcs⟩ := htabInv i hi
+    exact ⟨Tc, by rw [ha₁ _ (tabName_zero_ne i "alv" (by decide))]; exact hc, hc1, hcs⟩
   -- the table row, into the name the pass reads
   obtain ⟨σ₂, r₂, hn₂, htab₂, htabArr₂⟩ :=
     (copy_spec (B := B) (n := n)
@@ -821,8 +729,8 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
     r₂.frame_arr a (by rw [copyCom_eq, warrs_fillCom]; simpa using ha)
   have hmem₂ : RootMem q_top cap mb B n φ σ₂ := rootMem_run r₂ hmem₁ (htabTab _)
   have htabInv₂ : RamDriver.TableInv q_top cap mb φ G 0 M C σ₂ := fun i hi => by
-    obtain ⟨Tc, hc, hcs⟩ := htabInv₁ i hi
-    exact ⟨Tc, by rw [ha₂ _ (tabName_zero_ne i "tab" (by decide))]; exact hc, hcs⟩
+    obtain ⟨Tc, hc, hc1, hcs⟩ := htabInv₁ i hi
+    exact ⟨Tc, by rw [ha₂ _ (tabName_zero_ne i "tab" (by decide))]; exact hc, hc1, hcs⟩
   -- the pass
   obtain ⟨σ₃, r₃, hflag₃, hflagle₃⟩ :=
     (RamScatter.scatter_spec (G := G) (M := M) (Tab := Tb) (O := O) (T := T) (r := s.r)
@@ -843,8 +751,8 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
   have hmem₃ : RootMem q_top cap mb B n φ σ₃ :=
     rootMem_run r₃ hmem₂ (fun i => tab_notMem_scatter_warrs s.r s.t i)
   have htabInv₃ : RamDriver.TableInv q_top cap mb φ G 0 M C σ₃ := fun i hi => by
-    obtain ⟨Tc, hc, hcs⟩ := htabInv₂ i hi
-    refine ⟨Tc, ?_, hcs⟩
+    obtain ⟨Tc, hc, hc1, hcs⟩ := htabInv₂ i hi
+    refine ⟨Tc, ?_, hc1, hcs⟩
     rw [r₃.frame_arr _ (tab_notMem_scatter_warrs s.r s.t i)]; exact hc
   -- the flag
   have hflagB : σ₃.vars "flag" < B := by omega
@@ -861,8 +769,8 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
   · rw [arrs_setVar, ha₃ (RamDriver.alvName 0) (by decide), ha₂ _ (by decide)]
     exact halv0₁
   · intro i hi
-    obtain ⟨Tc, hc, hcs⟩ := htabInv₃ i hi
-    exact ⟨Tc, by rw [arrs_setVar]; exact hc, hcs⟩
+    obtain ⟨Tc, hc, hc1, hcs⟩ := htabInv₃ i hi
+    exact ⟨Tc, by rw [arrs_setVar]; exact hc, hc1, hcs⟩
   · exact rootMem_run (Run.assign (v := σ₃.vars "flag") (evalB_var hflagB)) hmem₃
       (fun i => by simp [Com.warrs])
   · rw [out_setVar, r₃.out_eq (noWrite_scatterCom ..),
@@ -956,31 +864,22 @@ construction time. What the bit *means* is
 `RamDriver.sat_iff_eval_sentence`, and is no part of this walk. -/
 theorem sentenceImplements {Kb K : ℕ} {Gm : ℕ → ℕ}
     (hrank : Lax3.FirstOrder.rank φ ≤ q_top) (hcsr : CsrGraph G ns O T)
-    (hnB : n < B) (hnsB : ns < B) (hMB : ∀ z < n, M z < B) (h1B : 1 < B)
     (hatoms : ∀ s ∈ (bcAtomsOf₀ q_top (Reduction.toDistFO (L := sigL cap mb 0) φ)).2,
       s.r + 1 < B ∧ s.t < B ∧ atomCost n ns s.t ≤ Kb)
     (hK : Kb * (bcAtomsOf₀ q_top (Reduction.toDistFO (L := sigL cap mb 0) φ)).2.length + 1 +
       (1 + (sentenceExpr q_top cap mb φ).size) ≤ K) :
-    (∀ v < n, M v ≠ 0) →
-      Spec B (fun σ => RootMem q_top cap mb B n φ σ ∧
-          RamDriver.LevelPre n cap mb ns O T 0 M Gm C σ ∧
-          RamDriver.TableInv q_top cap mb φ G 0 M C σ ∧ σ.out = [])
-        (RamDriver.sentenceCom q_top cap mb φ)
-        (fun _ σ' => ∃ h : ∃ q' : ℕ, q' ≤ q_top ∧
-            DRank 0 q' (Reduction.toDistFO (L := sigL cap mb 0) φ),
-          σ'.out = [if (bcOf₀ q_top (Reduction.toDistFO (L := sigL cap mb 0) φ) h).eval
-              (Sum.elim Evaluator.localSentenceEval
-                (fun σs : ScatterSentence (sigL cap mb 0) =>
-                  σs.t ≤ (greedySet (masked G M) σs.r
-                    {a | Sat (masked G M) (RamDriver.colRead n C (sigL cap mb 0))
-                      (fun _ => a) σs.β}).ncard))
-            then 1 else 0]) K := by
-  intro _
+    RamDriver.SentenceImplements B q_top cap mb ns φ G O T M Gm C K := by
+  intro hB _
+  have hnB : n < B := hB.n_lt
+  have hnsB : ns < B := hB.ns_lt
+  have h1B : 1 < B := hB.one_lt
   have hrk : ∃ q' : ℕ, q' ≤ q_top ∧
       DRank 0 q' (Reduction.toDistFO (L := sigL cap mb 0) φ) :=
     ⟨q_top, le_rfl, Reduction.drank_toDistFO φ hrank⟩
   refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨hmem, ⟨hn, hoff, htgt, halv0, -, -⟩, htabInv, hout⟩ := hσ
+  obtain ⟨hlev, htabInv, hout⟩ := hσ
+  have hmem : RootMem q_top cap mb B n φ σ := rootMem_of_levelPre h1B hlev htabInv
+  obtain ⟨hn, hoff, htgt, halv0, -, -, hMB, -, -⟩ := hlev
   -- the scatter atoms
   obtain ⟨σ₁, r₁, -, hout₁, -, hval₁⟩ :=
     (rootScatter_aux (Kb := Kb) hcsr hnB hnsB hMB h1B
@@ -1028,49 +927,6 @@ theorem sentenceImplements {Kb K : ℕ} {Gm : ℕ → ℕ}
       omega
   rw [hout₁, hout, hveq]
   rfl
-
-/-- Under a zero value bound no expression evaluates: the bounded
-semantics refuses every value, `0` included. -/
-theorem evalB_zero (e : Expr) (τ : Env) : e.evalB 0 τ = none := by
-  induction e with
-  | lit m => simp [Expr.evalB, fit]
-  | var y => simp [Expr.evalB, fit]
-  | get a i ih => simp [Expr.evalB, ih]
-  | bin op e f ihe _ => simp [Expr.evalB, ihe]
-
-/-- **The sentence obligation, as `RamDriver` states it, is false too**,
-and for a second reason: it carries no value bound at all. At `B = 0` no
-expression evaluates, so the write it ends with has no derivation, while
-its precondition is still satisfiable — here at the empty carrier, where
-every array it does pin is empty. The memory clause is missing from it
-as well, since the five scratch arrays of the scatter pass and the word
-bound on the tables are pinned nowhere; that is what `RootMem` adds. -/
-theorem not_sentenceImplements {q_top cap mb ns K : ℕ} {φ : Lax3.FirstOrder.FO 0}
-    {G : SimpleGraph (Fin 0)} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} :
-    ¬ RamDriver.SentenceImplements 0 q_top cap mb ns φ G O T M Gm C K := by
-  intro h
-  obtain ⟨τ, hτ⟩ : ∃ τ : Env, τ = ⟨fun _ => 0,
-      fun a => if a = "off" then arrOf 1 O else if a = "tgt" then arrOf ns T else [],
-      [], []⟩ := ⟨_, rfl⟩
-  obtain ⟨σ', hrun, -⟩ :=
-    Spec.run (h (fun v hv => absurd hv (by omega))) (σ := τ)
-      ⟨⟨by rw [hτ], by rw [hτ]; simp, by rw [hτ]; simp,
-          by rw [hτ]; simp [(by decide : RamDriver.alvName 0 ≠ "off"),
-            (by decide : RamDriver.alvName 0 ≠ "tgt"), arrOf],
-          by rw [hτ]; simp [(by decide : RamDriver.gamName 0 ≠ "off"),
-            (by decide : RamDriver.gamName 0 ≠ "tgt"), arrOf],
-          fun c hc => absurd hc (by rw [sigL_zero]; omega)⟩,
-        fun i _ => ⟨fun _ => 0, by
-          rw [hτ]
-          simp [tabName_zero_ne i "off" (by decide), tabName_zero_ne i "tgt" (by decide), arrOf],
-          fun v => v.elim0⟩,
-        by rw [hτ]⟩
-  obtain ⟨k, -, hbs⟩ := hrun
-  rw [sentenceCom_eq] at hbs
-  cases hbs with
-  | seq _ h₂ =>
-      cases h₂ with
-      | write hE => rw [evalB_zero] at hE; exact absurd hE (by simp)
 
 end Sentence
 

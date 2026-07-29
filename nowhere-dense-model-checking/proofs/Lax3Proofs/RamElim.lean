@@ -339,11 +339,15 @@ theorem masked_of_all_alive (G : SimpleGraph (Fin n)) {M : ℕ → ℕ} (hM : �
 witness for *every* degeneracy bound the analysis can prove of the
 fraternity graph, because the greedy guarantee says the run's own bound
 is below all of them. What is left to the caller is the one thing the
-engine cannot know: that the round's orientation put its fraternal arcs
-the way the ranking says. -/
+engine cannot know: that the round's orientation put the arcs it *added
+on fraternal grounds* the way the ranking says. The arcs the round
+inherited from `D`, and the ones a transitive link forced, are none of
+the ranking's business — `Augmentation.inDegLE_of_augStep` charges
+those elsewhere. -/
 theorem greedyFratRound_of_cert {D D' : Orientation n} {ρ : Fin n → ℕ} {k : ℕ}
     (h : ElimCert (fratGraph D) ρ k)
-    (hor : ∀ u v : Fin n, u ∈ D'.inN v → (fratGraph D).Adj u v → ρ u < ρ v) :
+    (hor : ∀ u v : Fin n, u ∈ D'.inN v → u ∉ D.inN v → ¬ TransLink D u v →
+      (fratGraph D).Adj u v → ρ u < ρ v) :
     GreedyFratRound D D' :=
   fun _ hk' => ⟨ρ, backDegLE_mono h.backDegLE (h.le_of_lowDegreeVertices hk'), hor⟩
 
