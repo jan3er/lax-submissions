@@ -3344,3 +3344,24 @@ Next session: P3 — the IR and its separation logic with credits
 (Ir/{Syntax,Semantics,Assn,Wp,Triples,SepSolver}; p3-ir-sl-extracts.md
 already in the repo; first decision = balance carrier default ℕ∞ per
 design §10.1).
+
+## PCP campaign proposed — plan rev 1, unscheduled — 2026-07-29
+
+Jan asked what I'd be most excited to build and then said "think
+bolder"; the answer was formalized hardness, summit first: Dinur's
+gap-amplification proof of the PCP theorem. Plan drafted at
+plans/pcp-theorem/pcp-plan.md, status PROPOSAL — nothing scheduled,
+JAN-FLAGs 1–4 open (charter scope P7-vs-P8, sequencing against the
+two live campaigns, NP-over-word-RAM endorsement surface, 5-vs-3
+submission split). Shape: machine-free Amplification Theorem at P7
+(constraint graphs, explicit gap-doubling transformation, no machine
+model) + PCP proper at P8 (NP over word RAM, Cook–Levin via
+RAM→circuit→CSP, verifier form, reduction cost through the tower).
+Ladder: constraint-graphs / spectral-expanders / linearity-testing /
+gap-amplification / pcp-theorem, each first-in-ecosystem. Budget
+20–32 sessions, long pole the P5 powering analysis
+(Radhakrishnan–Sudan governing text); riskiest prerequisite is
+exact-size explicit expanders (P0 spike, GG default, h→λ fallback).
+Ledger seeded L1–L7 (finite counting, symbolic constants until P7,
+Hadamard-only composition, word-RAM NP). No Lean was written; no
+existing campaign touched.
