@@ -1,9 +1,10 @@
 # Refinement tower plan — a Sepref/NREST port for the word RAM
 
-Rev 2, 2026-07-29 (rev 1 earlier the same day). **Status: OPEN —
+Rev 3, 2026-07-29 (revs 1–2 earlier the same day). **Status: OPEN —
 accepted by Jan 2026-07-29, all four JAN-FLAGs resolved; P0 is the next
-session's work.** This document is the contract: implementing sessions
-follow it, deviations need an owner decision first.
+session's work and does not pause for review.** This document is the
+contract: implementing sessions follow it, deviations need an owner
+decision first.
 
 **Working model** (unchanged from the IMP+ toolkit campaign): Fable
 supervises — plan, sequencing, review, acceptance calls, commits — and
@@ -144,8 +145,10 @@ Acquire and pin the sources; read them against our substrate. Deliverable:
 `plans/word-ram/refinement-tower/design.md` — a component-by-component map
 (Isabelle artifact → Lean counterpart → substrate delta), the opened
 deviation ledger, a draft of the `hn_refine` statement in Lean, the IR op
-set, and the package-placement decision (JAN-FLAG 1). **Hard gate: Jan
-reviews the design record before P1 starts.** Nothing in P0 writes Lean.
+set, and the package-placement decision (JAN-FLAG 1). The design record
+is **flagged for Jan's review post-hoc** (flag 4 resolution: no hard
+gate — the campaign proceeds at its own cadence; Jan's comments fold in
+as plan revisions). Nothing in P0 writes Lean.
 
 ### P1 — NREST core · budget 2–3 sessions
 
@@ -303,8 +306,11 @@ of overnight work — set expectations by the budget, not the recent luck.
 3. **Sequencing: NOT blocked by ND-MC** — Jan overrode the
    start-after-C0 recommendation; execution can begin next session, in
    parallel with the ND-MC campaign, each in its own worktree.
-4. **P0's design record is a hard review gate** — confirmed. P0 writes
-   no Lean; Jan reviews the design record before P1 starts.
+4. **P0's design record is NOT a hard review gate** (Jan, 2026-07-29,
+   revising the rev-2 resolution). It is written and flagged for Jan's
+   post-hoc review; P1 may start without waiting. Review comments fold
+   in as revisions — the fidelity charter and the deviation ledger are
+   the standing protections in the meantime.
 
 ## Progress log
 
