@@ -40,3 +40,5 @@ import Lax3Proofs.RamDriverOrder
 import Lax3Proofs.RamDriverBot
 import Lax3Proofs.RamDriverAugment
 import Lax3Proofs.RamDriverCompose
+import Lax3Proofs.RamDriverWrites
+import Lax3Proofs.RamDriverRoot

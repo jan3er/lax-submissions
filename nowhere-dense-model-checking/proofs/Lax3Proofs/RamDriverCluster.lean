@@ -521,11 +521,26 @@ def BatchData (n j B : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ)
     masked G Alv' = deleteVerts (deleteVerts (masked G M) Xᶜ) W ∧
     σ.arrs (gamName (j + 1)) = arrOf n Gam' ∧ (∀ k, k < n → Gam' k < B)
 
-/-- The same with the padded enumeration the batch was read into. -/
+/-- The same with the padded enumeration the batch was read into.
+
+**The buffer is not here** (wave E2). `RamDriver.enumBatch` writes the
+padded enumeration into the *fixed* name `"wa"`, and a nested level runs
+a padding of its own, so no clause about `"wa"` can cross the nested
+call: `ClusterFrames` would have to ask the driver at depth `j + 1` not
+to write it, and the driver does. The buffer is live between the padding
+and the colouring and nowhere else — the scatter phase and the readback
+read the depth-`(j+1)` tables and the cluster's masks, never the
+enumeration — so it is `ClusterWa` below, a conjunct of `EnumStep`'s
+postcondition and of `ColourStep`'s precondition, and of nothing that
+straddles the recursion. -/
 def ClusterData (n mb j B : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ)
     (X W : Set (Fin n)) (w : Fin mb → Fin n) (Alv' Gam' : ℕ → ℕ) (σ : Env) : Prop :=
-  BatchData n j B G M X W Alv' Gam' σ ∧ Set.range w = W ∧
-    σ.arrs "wa" = arrOf mb (fun k => if h : k < mb then (w ⟨k, h⟩ : ℕ) else 0)
+  BatchData n j B G M X W Alv' Gam' σ ∧ Set.range w = W
+
+/-- **The padded enumeration, in the fixed buffer the colouring reads
+it from.** -/
+def ClusterWa {n : ℕ} (mb : ℕ) (w : Fin mb → Fin n) (σ : Env) : Prop :=
+  σ.arrs "wa" = arrOf mb (fun k => if h : k < mb then (w ⟨k, h⟩ : ℕ) else 0)
 
 /-- **The arena the next depth's mask cuts out is the cluster step's.**
 The join point of the descent and the padding: the descent knows the
@@ -535,7 +550,7 @@ theorem masked_alv_eq {mb j B : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ}
     {X W : Set (Fin n)} {w : Fin mb → Fin n} {Alv' Gam' : ℕ → ℕ} {σ : Env}
     (h : ClusterData n mb j B G M X W w Alv' Gam' σ) :
     masked G Alv' = stepArenaP (masked G M) X w := by
-  rw [stepArenaP_eq (masked G M) X w h.2.1]
+  rw [stepArenaP_eq (masked G M) X w h.2]
   exact h.1.2.2.2.2.2.1
 
 /-- **The descent.** That `RamDriver.descendCom` writes the cluster
@@ -607,7 +622,8 @@ def EnumStep (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : ℕ 
     (fun σ σ' => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       PlayRec B cap G (j + 1) Alv' Gam' σ' ∧
       σ'.out = σ.out ∧ σ'.vars (curName j) = σ.vars (curName j) ∧
-      ∃ w : Fin mb → Fin n, ClusterData n mb j B G M X W w Alv' Gam' σ') K
+      ∃ w : Fin mb → Fin n, ClusterData n mb j B G M X W w Alv' Gam' σ' ∧
+        ClusterWa mb w σ') K
 
 /-- **The colouring of the next depth.** That `RamDriver.colourCom`
 writes the whole depth-`(j+1)` palette.
@@ -635,7 +651,8 @@ def ColourStep (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : �
     (X W : Set (Fin n)) (w : Fin mb → Fin n) (Alv' Gam' : ℕ → ℕ) (K : ℕ) : Prop :=
   CsrGraph G ns O T → WordBound B n ns cap mb →
   Spec B (fun σ => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ ∧
-      ClusterData n mb j B G M X W w Alv' Gam' σ ∧ PlayRec B cap G (j + 1) Alv' Gam' σ)
+      ClusterData n mb j B G M X W w Alv' Gam' σ ∧ ClusterWa mb w σ ∧
+      PlayRec B cap G (j + 1) Alv' Gam' σ)
     (colourCom cap mb j)
     (fun σ σ' => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ' ∧
@@ -738,6 +755,22 @@ def ReadbackStep (B q_top cap mb ns Ws j : ℕ) (φ : Lax3.FirstOrder.FO 0)
                 (atomVal (stepArenaP (masked G M) X w)
                   (stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w) v))) K
 
+/-- **The nested driver, as the enclosing turn is handed it.** This is
+the antecedent `RamDriver.ClusterStepImplements` and `ClusterFrames`
+both carry, named so that the frame of the nested call can be asked for
+*under* it — see `clusterStepImplements`'s `hfr`.
+
+It is definitionally the antecedent as those two write it out, so
+`intro`ing them gives a term of this type. -/
+def InnerAvail (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
+    (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (inner : Com) (Kin : ℕ) : Prop :=
+  ∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ), (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
+    Spec B (fun σ => LevelPre B n cap mb ns Ws O T (j + 1) M' Gm' C' σ ∧
+        TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
+        PlayRec B cap G (j + 1) M' Gm' σ) inner
+      (fun σ σ' => LevelPost B q_top cap mb φ G ns Ws O T (j + 1) M' Gm' C' σ σ' ∧
+        σ'.out = σ.out) Kin
+
 /-- **What the nested driver leaves alone.** The driver's obligation
 hands the nested call in as a `Spec` about the depth-`(j+1)` state and
 says nothing about the depth-`j` state the enclosing turn is still
@@ -746,9 +779,10 @@ off its syntax. This is that frame, stated at the same command so that
 `spec_conj` merges the two into one specification.
 
 It is not a new obligation on the driver: `RamDriver.driverAt` writes
-only the arrays of the depths at or below its own and the fixed names
-its sub-programs address, so every clause below is a frame condition of
-the recursion, discharged the same way at every level. -/
+only the arrays of the depths at or **above** its own and the fixed
+names its sub-programs address, so every clause below is a frame
+condition of the recursion, discharged the same way at every level —
+`Lax3Proofs.RamDriverWrites` is that reading of the program text. -/
 def InnerFrames (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ)
@@ -798,7 +832,7 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
       EnumStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asgf mm X W Alv' Gam' Ke)
     (hcol : ∀ X W w Alv' Gam',
       ColourStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asgf mm X W w Alv' Gam' Kc)
-    (hfr : ∀ X W w Alv' Gam' C',
+    (hfr : InnerAvail B q_top cap mb ns Ws ℓ j φ G O T inner Kin → ∀ X W w Alv' Gam' C',
       InnerFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asgf mm X W w
         Alv' Gam' C' inner Kin)
     (hscat : ∀ X W w Alv' Gam' C',
@@ -821,11 +855,11 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
       hbat₁, hplay₁⟩ :=
     (hdes hcsr hB).run ⟨hturn, hcn⟩
   -- the padding
-  obtain ⟨σ₂, hr₂, hturn₂, hplay₂, hout₂, hc₂, w, hdat₂⟩ :=
+  obtain ⟨σ₂, hr₂, hturn₂, hplay₂, hout₂, hc₂, w, hdat₂, hwa₂⟩ :=
     (henum X W Alv' Gam').run ⟨hturn₁, hbat₁, hplay₁, hWne, hWcard, hwa₁⟩
   -- the colouring of the next depth
   obtain ⟨σ₃, hr₃, hturn₃, hdat₃, hplay₃, hout₃, hc₃, C', hcolarr₃, hcolbit₃, hcolread₃⟩ :=
-    (hcol X W w Alv' Gam' hcsr hB).run ⟨hturn₂, hdat₂, hplay₂⟩
+    (hcol X W w Alv' Gam' hcsr hB).run ⟨hturn₂, hdat₂, hwa₂, hplay₂⟩
   have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σ₃ := by
     obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, -, hmem₃, hdep₃, hm₃, hom₃⟩ := hturn₃.1
     obtain ⟨-, -, -, halv₃, hAlvB, -, hgam₃, hGamB⟩ := hdat₃.1
@@ -838,7 +872,7 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
   obtain ⟨σ₄, hr₄, ⟨⟨-, -, htab₄⟩, hout₄⟩, hturn₄, hdat₄, hcolarr₄, hc₄⟩ :=
     (spec_conj ((hinner Alv' Gam' C' hcolbit₃).pre
         (fun _ h => ⟨h.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2⟩))
-      (hfr X W w Alv' Gam' C')).run
+      (hfr hinner X W w Alv' Gam' C')).run
       (σ := σ₃) ⟨hlevin, hturn₃, hdat₃, htsz₃, hbarr₃, hplay₃⟩
   have htsz₄ : TablesSized q_top cap mb φ n σ₄ := htsz₃.run hr₄
   -- the scatter atoms

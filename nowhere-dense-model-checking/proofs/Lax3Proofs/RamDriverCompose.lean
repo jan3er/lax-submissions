@@ -101,31 +101,40 @@ the fraternity graph's slot count while the driver's is the level's
 `ns`, and nothing relates the width `W` to the in-degrees the chain
 reaches.
 
-The end-to-end instantiation of `RamDriver.driver_correct` is therefore
-not here either, and the reason is not composition. Three things are
-missing, in order of size.
+The end-to-end instantiation of `RamDriver.driver_correct` is
+`Lax3Proofs.RamDriverRoot.driverRoot_decides_sentence`, at `R = 0` and
+with costs parametric. What wave E2 had to move to get there — all three
+of what this header used to list as missing — is recorded at its two
+sites and summarized here.
 
-* `RamDriver.AugAvail B n` has no proof. `RamDriver.ElimAvail` is
-  `RamElim.implements` and `RamDriver.CoverAvail` is
-  `RamDriverOrder.coverTurnImplements`, both landed; the augmentation
-  round is the one hole, so any end-to-end theorem would carry it as a
-  hypothesis, which is exactly the obligation Prop a checkpoint must not
-  carry.
-* `RamDriverFrames.clusterFrames` takes its `hfr` — the family of
-  `RamDriverCluster.InnerFrames` — as a parameter, and `InnerFrames` is
-  a `Spec` of the *nested driver*, so producing it needs that driver's
-  termination. Inside `clusterFrames` that is exactly the `hinner` the
-  obligation `ClusterFrames` already carries as an antecedent, but `hfr`
-  is fixed before `intro hinner`, so a caller has to produce the nested
-  driver's termination before the induction that establishes it. Moving
-  `hfr` under the `hinner` antecedent is a one-line signature change and
-  breaks the circle; the bit hypothesis `InnerFrames` would then need is
-  a conjunct of `RamDriver.LevelPre` at the next depth, so nothing else
-  moves.
-* `RamDriverCluster.levelImplements` also takes the *mathematics* of the
-  campaign — `hQ`, uniform quasi-wideness of the arena at the radius
-  `2·cap`, and `hℓ : ℓ = N (2s+2)` — which `driver_correct` does not,
-  and the cost side conditions `hK`, which the cost wave owns.
+* `RamDriver.AugAvail B n` is `RamDriverAugment.implements` (wave E1c).
+  `RamDriver.ElimAvail` is `RamElim.implements` and
+  `RamDriver.CoverAvail` is `RamDriverOrder.coverTurnImplements`.
+* `RamDriverFrames.clusterFrames` and
+  `RamDriverCluster.clusterStepImplements` took the family of
+  `RamDriverCluster.InnerFrames` as a parameter, and `InnerFrames` is a
+  `Spec` of the *nested driver*, so producing it needs that driver's
+  termination — which is exactly the `hinner` those two carry as an
+  antecedent. The hypothesis now sits **under** it:
+  `clusterStepImplements`'s `hfr` takes
+  `RamDriverCluster.InnerAvail` first, and `clusterFrames` takes
+  `RamDriverFrames.innerFrames`' syntactic side and builds the family
+  itself. The bit clause `InnerAvail` needs is the ninth conjunct of
+  `RamDriver.LevelPre` at the next depth, so nothing else moved.
+* `RamDriverCluster.levelImplements` still takes the *mathematics* of
+  the campaign — `hQ`, uniform quasi-wideness of the arena at the radius
+  `2·cap`, and `hℓ : ℓ = N (2s+2)` — and the cost side conditions, and
+  the end-to-end theorem carries both: the first is the campaign's own
+  input, the second is the cost wave's business.
+
+Two clauses of `TurnFrozen` had to go, and not for convenience: a level
+writes the padding buffer `"wa"` and every one of `RamDriver.OrderMem`'s
+eight accumulators, so asking the nested call to leave them alone was
+*refutable* — see `RamDriverWrites.wa_mem_warrs_driverAt` and
+`elm_mem_warrs_driverAt`. The accumulators now come back from
+`RamDriver.LevelPost`, and the buffer moved out of
+`RamDriverCluster.ClusterData` into `ClusterWa`, live only between the
+padding and the colouring.
 -/
 
 namespace Lax3Proofs.RamDriverCompose

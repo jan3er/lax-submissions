@@ -622,7 +622,8 @@ def EnumStepW (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : ℕ
     (fun σ σ' => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       PlayRec B cap G (j + 1) Alv' Gam' σ' ∧
       σ'.out = σ.out ∧ σ'.vars (curName j) = σ.vars (curName j) ∧
-      ∃ w : Fin mb → Fin n, ClusterData n mb j B G M X W w Alv' Gam' σ') K
+      ∃ w : Fin mb → Fin n, ClusterData n mb j B G M X W w Alv' Gam' σ' ∧
+        ClusterWa mb w σ') K
 
 /-! The three frame readings of the pass, on its syntax. -/
 
@@ -682,7 +683,7 @@ theorem enumStepW {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)}
     hout (noWrite_enumBatch _ _),
     hvv _ (by simp [curName, String.ext_iff]) (by simp [curName, String.ext_iff])
       (by simp [curName, String.ext_iff]),
-    fun i => ⟨E (i : ℕ), (hltE (i : ℕ) i.isLt).1⟩, ?_, ?_, ?_⟩
+    fun i => ⟨E (i : ℕ), (hltE (i : ℕ) i.isLt).1⟩, ⟨?_, ?_⟩, ?_⟩
   · exact batchData_congr hbat (hav _ (by simp [cluName, String.ext_iff])) (hav _ hbatwa)
       (hav _ (by simp [resName, String.ext_iff])) (hav _ (by simp [alvName, String.ext_iff]))
       (hav _ (by simp [gamName, String.ext_iff]))
@@ -695,7 +696,7 @@ theorem enumStepW {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)}
       rw [← hWs] at hv
       obtain ⟨i, hi, hEi⟩ := hcovE (v : ℕ) v.isLt hv
       exact ⟨⟨i, hi⟩, Fin.ext hEi⟩
-  · rw [hwa']
+  · rw [ClusterWa, hwa']
     exact arrOf_congr (fun i hi => by rw [dif_pos hi])
 
 /-- **The obligation itself, discharged.** The clause the surface used
@@ -2121,7 +2122,7 @@ theorem colourStep {K : ℕ}
     (hK : colourCost n ns cap mb (sigL cap mb j) ≤ K) :
     ColourStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W w Alv' Gam' K := by
   intro hcsr hB σ hσ
-  obtain ⟨⟨hlev, hplayj, hheld⟩, ⟨hbat, hrange, hwa⟩, hplay1⟩ := hσ
+  obtain ⟨⟨hlev, hplayj, hheld⟩, ⟨hbat, hrange⟩, hwa, hplay1⟩ := hσ
   obtain ⟨Xa, hXaarr, hXs, hXbit⟩ := hbat.1
   obtain ⟨Ra, hRaarr, hRam, hRaB⟩ := hbat.2.2.1
   have hdep := hlev.2.2.2.2.2.2.2.2.2.2.1
@@ -2171,7 +2172,7 @@ theorem colourStep {K : ℕ}
         (hav _ (fun s => Ne.symm (colName_ne_resName _ _ _)))
         (hav _ (fun s => Ne.symm (colName_ne_alvName _ _ _)))
         (hav _ (fun s => Ne.symm (colName_ne_gamName _ _ _))),
-      hrange, by rw [hav "wa" (fun s => Ne.symm (colName_ne_lit (by decide)))]; exact hwa⟩,
+      hrange⟩,
     hplay1.congr (fun a _ => hctr a) (fun a _ => hgama a),
     hout (noWrite_colourCom cap mb j),
     hvv _ (RamDriverIO.notMem_of_append (p := "cu") (s := toString j) (by decide)),

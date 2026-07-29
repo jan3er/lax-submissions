@@ -191,7 +191,7 @@ theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
     hnsW, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste, hitg, hntg⟩, hplayrec,
     hord, hxoff, hxmem, hasg, hxp, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, halv', hAlvB, hmask,
-      hgam', hGamB⟩, hwrange, hwa⟩, hcol', hcolbit', hcolread', htab'⟩ := h
+      hgam', hGamB⟩, hwrange⟩, hcol', hcolbit', hcolread', htab'⟩ := h
   refine ⟨⟨⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCB, levelMem_run hrun hlmem,
       hdep.run hrun, ?_,
       hnsW, hosz.run hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
@@ -200,7 +200,7 @@ theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
       (fun a _ => hfa (gamName a) (gamName_notMem_scratchArrs a)),
     ?_, ?_, ?_, ?_, ?_, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, ?_, hXaS, hXaB⟩, ⟨Wa, ?_, hWaS, hWaB⟩, ⟨Ra, ?_, hRaS, hRaB⟩, ?_, hAlvB, hmask,
-      ?_, hGamB⟩, hwrange, ?_⟩, ?_, hcolbit', hcolread', ?_⟩
+      ?_, hGamB⟩, hwrange⟩, ?_, hcolbit', hcolread', ?_⟩
   · rw [hrun.frame_var "n" (hV "n" (by simp))]; exact hn
   · rw [hfa "off" (by decide)]; exact hoff
   · rw [hfa "tgt" (by decide)]; exact htgt
@@ -226,7 +226,6 @@ theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
   · rw [hfa _ (resName_notMem_scratchArrs j)]; exact hRa
   · rw [hfa _ (alvName_notMem_scratchArrs (j + 1))]; exact halv'
   · rw [hfa _ (gamName_notMem_scratchArrs (j + 1))]; exact hgam'
-  · rw [hfa "wa" (by decide)]; exact hwa
   · intro cc hcc; rw [hfa _ (colName_notMem_scratchArrs (j + 1) cc)]; exact hcol' cc hcc
   · intro i hi
     obtain ⟨Tb, hTb, hTb1, hTbS⟩ := htab' i hi
@@ -863,112 +862,89 @@ theorem tabName_notMem_warrs_turn (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 
 
 `RamDriverCluster.InnerFrames` is a specification of `inner`, and `inner`
 is a program *variable*: nothing whatever follows about it from the
-obligation's own text. Two things have to be handed in, and both are
-handed in here rather than assumed of the driver.
+obligation's own text. Two things have to be handed in.
 
-*Termination.* A `Spec` is total correctness, so the frame cannot be
-proved without a run of `inner`; `hterm` is that run, at the
-obligation's own precondition. It is what
-`RamDriverCluster.levelImplements` calls `hinner` — except that
-`hinner`'s precondition also asks `RamDriver.PlayRec` of the mask, which
-`InnerFrames` does not carry and cannot, since it names no play.
+*The call itself.* A `Spec` is total correctness, so the frame cannot be
+proved without a run of `inner`; `hinner` is the nested level's own
+specification — `RamDriverCluster.InnerAvail`, which is exactly the
+antecedent `RamDriver.ClusterStepImplements` and
+`RamDriverCluster.ClusterFrames` carry. It is used twice: for the run,
+and for its *postcondition*, which is `RamDriver.LevelPost` at depth
+`j + 1` and therefore hands back everything a level owns —
+the block structure, the two scalars, `RamDriver.LevelMem`,
+`RamDriver.DepthMem`, `RamDriver.OrderMem` with its eight zeroed
+accumulators, and the depth-`(j+1)` masks and palette. **Wave E2**: that
+is why those are no longer frame conditions. They cannot be: the nested
+level runs `RamDriver.orderCom`, which writes every one of the eight,
+and `RamDriverBot.Ext`-fresh names besides, so `TurnFrozen` asking for
+them was refutable at `RamDriver.driverAt (j+1)`.
 
-*The frame itself.* `TurnFrozen` is the list of arrays the enclosing
-turn is still holding while the nested call runs, and `hA` says the call
-writes none of them; `hV` says it assigns none of the four scalars the
-turn is holding. Both are `Lax13Proofs.Imp.Com.warrs` and
-`Com.wvars` questions, decidable on concrete syntax.
+The bit clause `InnerAvail` needs of the palette is the ninth conjunct
+of `RamDriver.LevelPre` at depth `j + 1`, which `InnerFrames`'s own
+precondition carries — so nothing has to be handed in for it, and the
+whole family `hinner` can be applied under the obligation's `intro`.
 
-**What this costs at the driver.** `RamDriver.driverAt … (j+1)` does
-*not* satisfy `hA` or `hV`: above the bottom it is
-`RamDriver.orderCom`, which writes `ord`; `RamCover.coverCom`, which
-writes `xoff`, `xmem`, `asg` and assigns `xp`; and a loop opened by
-`.assign "c" (.lit 0)`. Every one of those is a name the turn is still
-holding — `RamDriverCluster.CoverHeld` pins the first four and the
-readback reads `c` for the centre it is writing at. So the frame is a
-statement about the driver's *name scheme*, not about this proof: the
-cover's answers and the centre cursor have to become per-depth names, or
-be saved and restored around the nested call, before `hA` and `hV` can
-be discharged at `driverAt (j+1)`. -/
+*The frame itself.* `TurnFrozen` is what is left: the arrays of the
+enclosing turn's *own* depth (and the game masks of the depths below,
+for the recorded play), which a level at depth `j + 1` does not write
+because its per-depth names are all at depth `j + 1` or above. That is
+`Lax3Proofs.RamDriverWrites.belowArr_notMem_warrs_driverAt`, and the
+three scalars are its scalar half. -/
 
 /-- The arrays the enclosing turn is still holding while the nested
-driver runs: the block structure, the cover's three answers, the
-accumulators a level's exit has to have re-zeroed, the two masks and the
-palette of the depth, and the cluster's own five. -/
+driver runs: the cover's three answers and the depth's order array, the
+two masks and the palette of the depth, the cluster's own three, and the
+game masks of the depths below — every one of them a name of a depth at
+or below `j`, hence one the level at depth `j + 1` does not write. -/
 def TurnFrozen (j : ℕ) (a : String) : Prop :=
-  a ∈ ["off", "tgt", "wa", "elm", "bh", "ooff", "noff",
-      "stf", "sta", "std", "ste"] ∨
-    a ∈ [alvName j, cluName j, resName j, batName j, alvName (j + 1),
+  a ∈ [alvName j, cluName j, resName j, batName j,
       ordName j, xofName j, xmmName j, asgName j] ∨
-    (∃ c, a = colName j c ∨ a = colName (j + 1) c) ∨ (∃ b, a = gamName b)
+    (∃ c, a = colName j c) ∨ (∃ b ≤ j, a = gamName b)
 
 /-- **The frame of the nested driver, discharged from its syntax.** -/
 theorem innerFrames {ℓ : ℕ} {inner : Com} {Kin : ℕ}
-    (hterm : ∀ σ : Env,
-      LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σ ∧
-        TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ ∧
-        ClusterData n mb j B G M X W w Alv' Gam' σ ∧
-        TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
-        PlayRec B cap G (j + 1) Alv' Gam' σ →
-      ∃ σ', Run B inner σ σ' Kin)
+    (hinner : RamDriverCluster.InnerAvail B q_top cap mb ns Ws ℓ j φ G O T inner Kin)
     (hA : ∀ a : String, TurnFrozen j a → a ∉ inner.warrs)
-    (hV : ∀ y ∈ ["n", "m"], y ∉ inner.wvars)
-    (hVctr : ∀ a : ℕ, ctrName a ∉ inner.wvars) (hVxp : xpName j ∉ inner.wvars)
+    (hVctr : ∀ a ≤ j, ctrName a ∉ inner.wvars) (hVxp : xpName j ∉ inner.wvars)
     (hVcur : curName j ∉ inner.wvars) :
     RamDriverCluster.InnerFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord
       Xoff Xmem asg m X W w Alv' Gam' C' inner Kin := by
   intro σ hσ
-  obtain ⟨σ', hrun⟩ := hterm σ hσ
+  obtain ⟨σ', hrun, ⟨hlevin, -, -⟩, -⟩ :=
+    (hinner Alv' Gam' C' hσ.1.2.2.2.2.2.2.2.2.1).run
+      ⟨hσ.1, hσ.2.2.2.1, hσ.2.2.2.2.1, hσ.2.2.2.2.2⟩
   have hfa : ∀ a : String, TurnFrozen j a → σ'.arrs a = σ.arrs a :=
     fun a ha => hrun.frame_arr a (hA a ha)
   have hfv : ∀ y : String, y ∉ inner.wvars → σ'.vars y = σ.vars y :=
     fun y hy => hrun.frame_var y hy
-  obtain ⟨⟨-, -, -, -, -, hcol', -⟩,
-    ⟨⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCB, hlmem, hdep, hmvar,
-      hnsW, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste, hitg, hntg⟩, hplayrec,
+  obtain ⟨hn', hoff', htgt', halv'', hgam'', hcol'', hAlvB', hGamB', hCB', hlmem', hdep',
+    hmvar', hordmem'⟩ := hlevin
+  obtain ⟨-,
+    ⟨⟨-, -, -, halvj, hgamj, hcolj, hMB, hGmB, hCB, -, -, -, -, -, -, -, -, -, -, -, -, -,
+      -, -⟩, hplayrec,
       hord, hxoff, hxmem, hasg, hxp, hmn, hordlt, hcout⟩,
-    ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, halv', hAlvB, hmask,
-      hgam', hGamB⟩, hwrange, hwa⟩, -, -⟩ := hσ
-  refine ⟨σ', hrun, ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCB, levelMem_run hrun hlmem,
-      hdep.run hrun, ?_,
-      hnsW, hosz.run hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-      run_mem_arrs_lt hrun "itg" hitg, run_mem_arrs_lt hrun "ntg" hntg⟩,
-    hplayrec.congr (fun a _ => hfv (ctrName a) (hVctr a))
-      (fun a _ => hfa (gamName a) (_root_.Or.inr (_root_.Or.inr (_root_.Or.inr ⟨a, rfl⟩)))),
+    ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, -, hAlvB, hmask,
+      -, hGamB⟩, hwrange⟩, -, -⟩ := hσ
+  refine ⟨σ', hrun, ⟨⟨hn', hoff', htgt', ?_, ?_, ?_, hMB, hGmB, hCB, hlmem', hdep', hmvar',
+      hordmem'⟩,
+    hplayrec.congr (fun a ha => hfv (ctrName a) (hVctr a (by omega)))
+      (fun a ha => hfa (gamName a) (_root_.Or.inr (_root_.Or.inr ⟨a, by omega, rfl⟩))),
     ?_, ?_, ?_, ?_, ?_, hmn, hordlt, hcout⟩,
-    ⟨⟨⟨Xa, ?_, hXaS, hXaB⟩, ⟨Wa, ?_, hWaS, hWaB⟩, ⟨Ra, ?_, hRaS, hRaB⟩, ?_, hAlvB, hmask,
-      ?_, hGamB⟩, hwrange, ?_⟩, ?_, ?_⟩
-  · rw [hrun.frame_var "n" (hV "n" (by simp))]; exact hn
-  · rw [hfa "off" (_root_.Or.inl (by simp))]; exact hoff
-  · rw [hfa "tgt" (_root_.Or.inl (by simp))]; exact htgt
-  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact halvj
-  · rw [hfa _ (_root_.Or.inr (_root_.Or.inr (_root_.Or.inr ⟨j, rfl⟩)))]; exact hgamj
+    ⟨⟨⟨Xa, ?_, hXaS, hXaB⟩, ⟨Wa, ?_, hWaS, hWaB⟩, ⟨Ra, ?_, hRaS, hRaB⟩, halv'', hAlvB, hmask,
+      hgam'', hGamB⟩, hwrange⟩, hcol'', ?_⟩
+  · rw [hfa _ (_root_.Or.inl (by simp))]; exact halvj
+  · rw [hfa _ (_root_.Or.inr (_root_.Or.inr ⟨j, le_rfl, rfl⟩))]; exact hgamj
   · intro cc hcc
-    rw [hfa _ (_root_.Or.inr (_root_.Or.inr (_root_.Or.inl ⟨cc, _root_.Or.inl rfl⟩)))]
+    rw [hfa _ (_root_.Or.inr (_root_.Or.inl ⟨cc, rfl⟩))]
     exact hcolj cc hcc
-  · rw [hrun.frame_var "m" (hV "m" (by simp))]; exact hmvar
-  · rw [hfa "elm" (_root_.Or.inl (by simp))]; exact helm
-  · rw [hfa "bh" (_root_.Or.inl (by simp))]; exact hbh
-  · rw [hfa "ooff" (_root_.Or.inl (by simp))]; exact hooff
-  · rw [hfa "noff" (_root_.Or.inl (by simp))]; exact hnoff
-  · rw [hfa "stf" (_root_.Or.inl (by simp))]; exact hstf
-  · rw [hfa "sta" (_root_.Or.inl (by simp))]; exact hsta
-  · rw [hfa "std" (_root_.Or.inl (by simp))]; exact hstd
-  · rw [hfa "ste" (_root_.Or.inl (by simp))]; exact hste
-  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact hord
-  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact hxoff
-  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact hxmem
-  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact hasg
+  · rw [hfa _ (_root_.Or.inl (by simp))]; exact hord
+  · rw [hfa _ (_root_.Or.inl (by simp))]; exact hxoff
+  · rw [hfa _ (_root_.Or.inl (by simp))]; exact hxmem
+  · rw [hfa _ (_root_.Or.inl (by simp))]; exact hasg
   · rw [hfv _ hVxp]; exact hxp
-  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact hXa
-  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact hWa
-  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact hRa
-  · rw [hfa _ (_root_.Or.inr (_root_.Or.inl (by simp)))]; exact halv'
-  · rw [hfa _ (_root_.Or.inr (_root_.Or.inr (_root_.Or.inr ⟨j + 1, rfl⟩)))]; exact hgam'
-  · rw [hfa "wa" (_root_.Or.inl (by simp))]; exact hwa
-  · intro cc hcc
-    rw [hfa _ (_root_.Or.inr (_root_.Or.inr (_root_.Or.inl ⟨cc, _root_.Or.inr rfl⟩)))]
-    exact hcol' cc hcc
+  · rw [hfa _ (_root_.Or.inl (by simp))]; exact hXa
+  · rw [hfa _ (_root_.Or.inl (by simp))]; exact hWa
+  · rw [hfa _ (_root_.Or.inl (by simp))]; exact hRa
   · exact hfv _ hVcur
 
 /-! ### What one turn leaves alone
@@ -988,11 +964,14 @@ that is `tabName_notMem_warrs_turn` above together with `hinnerTab` — the
 one clause the nested call cannot be asked for by `InnerFrames`, whose
 postcondition says nothing about the depth's tables.
 
-*The play* has to be handed in: `ClusterFrames`'s own hypothesis about
-`inner` is guarded by `RamDriver.PlayRec` at depth `j + 1`, and its
-precondition carries no play at all, so the turn cannot even *run* the
-nested call without `hplay`. `RamDriver.ClusterStepImplements` takes
-exactly that hypothesis; `ClusterFrames` is missing it. -/
+*The nested call's frame* is built here rather than handed in
+(**wave E2**): `RamDriverCluster.InnerFrames` is a `Spec` of the nested
+driver, so producing it needs that driver's termination, which is
+exactly the `hinner` this obligation carries as an *antecedent*. A
+caller doing the downward induction has `hinner` at every depth and
+cannot have `InnerFrames` before it, so the hypothesis has to sit under
+the `intro` — and it does: what is taken here is `innerFrames`'
+syntactic side, and the semantic side comes from `hinner`. -/
 
 open Classical in
 /-- **What one cluster leaves alone, discharged.** -/
@@ -1005,9 +984,9 @@ theorem clusterFrames {ℓ : ℕ} {inner : Com}
       EnumStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' Ke)
     (hcol : ∀ X W w Alv' Gam',
       ColourStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W w Alv' Gam' Kc)
-    (hfr : ∀ X W w Alv' Gam' C',
-      RamDriverCluster.InnerFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord
-        Xoff Xmem asg m X W w Alv' Gam' C' inner Kin)
+    (hA : ∀ a : String, TurnFrozen j a → a ∉ inner.warrs)
+    (hVctr : ∀ a ≤ j, ctrName a ∉ inner.wvars) (hVxp : xpName j ∉ inner.wvars)
+    (hVcur : curName j ∉ inner.wvars)
     (hscat : ∀ X W w Alv' Gam' C',
       ScatterStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
         Alv' Gam' C' Ks)
@@ -1020,16 +999,20 @@ theorem clusterFrames {ℓ : ℕ} {inner : Com}
       Xoff Xmem asg m inner Kin K := by
   classical
   intro hinner
+  have hfr : ∀ X W w Alv' Gam' C',
+      RamDriverCluster.InnerFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord
+        Xoff Xmem asg m X W w Alv' Gam' C' inner Kin :=
+    fun _ _ _ _ _ _ => innerFrames hinner hA hVctr hVxp hVcur
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hlev, htsz, hbarr, hplay, hcov, hcn⟩ := hσ
   have hturn : TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ :=
     ⟨hlev, hplay, hcov⟩
   obtain ⟨σ₁, hr₁, hturn₁, hout₁, hc₁, hwa₁, X, W, Alv', Gam', hball, hWne, hWcard,
       hbat₁, hplay₁⟩ := (hdes hcsr hB).run ⟨hturn, hcn⟩
-  obtain ⟨σ₂, hr₂, hturn₂, hplay₂, hout₂, hc₂, w, hdat₂⟩ :=
+  obtain ⟨σ₂, hr₂, hturn₂, hplay₂, hout₂, hc₂, w, hdat₂, hwa₂⟩ :=
     (henum X W Alv' Gam').run ⟨hturn₁, hbat₁, hplay₁, hWne, hWcard, hwa₁⟩
   obtain ⟨σ₃, hr₃, hturn₃, hdat₃, hplay₃, hout₃, hc₃, C', hcolarr₃, hcolbit₃, hcolread₃⟩ :=
-    (hcol X W w Alv' Gam' hcsr hB).run ⟨hturn₂, hdat₂, hplay₂⟩
+    (hcol X W w Alv' Gam' hcsr hB).run ⟨hturn₂, hdat₂, hwa₂, hplay₂⟩
   have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σ₃ := by
     obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, -, hmem₃, hdep₃, hm₃, hom₃⟩ := hturn₃.1
     obtain ⟨-, -, -, halv₃, hAlvB, -, hgam₃, hGamB⟩ := hdat₃.1
