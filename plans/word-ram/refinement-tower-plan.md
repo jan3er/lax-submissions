@@ -314,6 +314,28 @@ of overnight work — set expectations by the budget, not the recent luck.
 
 ## Progress log
 
+- **2026-07-29 (late) — GOVERNANCE: full project authority delegated
+  to the supervising agent** (Jan, in-session: "i fully give up
+  authority on this project, its all yours, you do not need to flag
+  things for review for me. i will evaluate the final product").
+  Consequences, recorded as owner decisions: the JAN-FLAG mechanism
+  and the interim review queue are retired; the fidelity charter, the
+  deviation ledger, and the D-flag discipline are UNCHANGED (they are
+  what makes the final product evaluable — they now serve the final
+  evaluation instead of interim review). Standing queue dispositions
+  (owner = supervisor): P0 design record — accepted as-is (two phases
+  of consumption constitute the review; defects surface as ledger
+  events); `pw_conc_inres` refutation — resolution stands (true
+  direction + hypothesis-free `bindT_refine`); B1 `ResSub` — stands
+  (HOL-faithful minus-as-class, counterexamples `#guard`ed); FOREACH
+  provenance — stands (AFP pre-currency, ledger-noted); §10.4
+  vocabulary adjustment — stands; P2 extra-rules vehicle — stands
+  (substrate-forced, no `notes`-attribute analogue); `#guard_msgs`
+  DB-size canary — stays (deliberate); `autoref_nat_lit` catch-all —
+  keep, revisit scheduled with the P4 backlog. Budget/phase structure
+  and acceptance gates unchanged; P7's numeric gate remains the
+  product-level evaluation target.
+
 - **2026-07-29 — P2 COMPLETE (one session, at the budget's lower
   bound) — acceptance passed.** Four waves: A (single-owner) landed
   `Autoref/Attrs.lean` (the shared DB-attribute module of §10 default
