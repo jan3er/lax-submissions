@@ -9,10 +9,17 @@ import Lax13Proofs.Refine.Autoref.Relators
 import Lax13Proofs.Refine.Autoref.Tagging
 import Lax13Proofs.Refine.Autoref.Solver
 import Lax13Proofs.Refine.Autoref.Param
+import Lax13Proofs.Refine.Autoref.Phases
+import Lax13Proofs.Refine.Autoref.IdOps
+import Lax13Proofs.Refine.Autoref.FixRel
+import Lax13Proofs.Refine.Autoref.Translate
+import Lax13Proofs.Refine.Autoref.Tool
+import Lax13Proofs.Refine.Autoref.BindingsHOL
 import Lax13Proofs.Refine.NREST.DataRefinement
 import Lax13Proofs.Refine.NREST.TimeRefinement
 import Lax13Proofs.Refine.NREST.BackwardsReasoning
 import Lax13Proofs.Refine.Examples.Bfs
+import Lax13Proofs.Refine.Examples.AutorefTutorial
 
 /-!
 The refinement tower: a fidelity-first port of the Isabelle NREST/Sepref
@@ -121,6 +128,56 @@ and P2's wave B2 — the tag layer and the side-condition solver registry:
   dispatchers, whose failure messages name the tag dispatched on and
   every solver considered. Its header carries the two ML signatures the
   port is measured against and its honest-limitations list.
+
+and P2's wave C — the Autoref phase pipeline and its entry point. The
+design record §7 lists one module, `Autoref/Tool.lean`; the port keeps
+the *source's* file split instead (`Autoref/Phases.lean`, delta P0), so
+that each phase's constants, its calculus and its implementation stay in
+one place and a reader can check a file against one Isabelle theory:
+
+* `Refine/Autoref/Phases.lean` — `Autoref_Phases.thy`: the `Phase`
+  record, the priority-ordered registry, the driver, and the `State`
+  threaded through it (design record §3 P2 row 4, "locales carrying
+  phase state → structures threaded through a `MetaM` pipeline"). Every
+  pipeline failure is wrapped here in an envelope naming the phase and
+  its priority.
+* `Refine/Autoref/IdOps.lean` — `Autoref_Id_Ops.thy`: the `ID_OP`
+  calculus, the `Autoref_Rel_Inf` calculus, `i_annot` / `:::ᵢ`, and the
+  first two phases — `id_op` (priority 10: operation identification,
+  `autoref_op_pat` rewriting, interface typing) and `rel_inf`
+  (priority 20: relator skeletons threaded through the application
+  structure by `CNV_ANNOT`).
+* `Refine/Autoref/FixRel.lean` — `Autoref_Fix_Rel.thy`: `PRIO_TAG` and
+  its family, `CONSTRAINT`, `PREFER_tag` / `DEFER_tag` / `GEN_OP`,
+  `TYREL`, the priority-sorted rule database, and the `fix_rel` phase
+  (priority 22).
+* `Refine/Autoref/Translate.lean` — `Autoref_Translate.thy`:
+  `autoref_APP` / `autoref_ABS` / `autoref_beta`, `REMOVE_INTERNAL`,
+  `SIDE_PRECOND` with its `PRECOND` / `PRECOND_OPT` solvers, and the
+  `trans` phase (priority 30) with its `REMOVE_INTERNAL_EQ` post-pass.
+* `Refine/Autoref/Tool.lean` — `Autoref_Tool.thy` (and
+  `Autoref_Gen_Algo.thy`, folded in): the four phases registered in the
+  source's order `id_op`(10) → `rel_inf`(20) → `fix_rel`(22) →
+  `trans`(30), the `GEN_ALGO` / `GEN_OP` solvers, the `autoref` tactic
+  with the source's `trace` / `debug` / `keep_goal` flags and `phases:`
+  argument, and the `autoref_synth` command — the Lean vehicle for the
+  source's `schematic_goal … by autoref` plus `concrete_definition`.
+* `Refine/Autoref/BindingsHOL.lean` — `Autoref_Bindings_HOL.thy`: the
+  `autoref_rules` database (wave B1's bindings, tagged across the module
+  boundary), the generic layer under `PRIO_TAG_GEN_ALGO`, `autoref_hd`,
+  `autoref_list_eq` with its `GEN_OP` premise, the `autoref_op_pat`
+  rules, and structural expansion with the `STRUCT_EQ` solver.
+
+and P2's acceptance:
+
+* `Refine/Examples/AutorefTutorial.lean` — the eight derivations that
+  close `Autoref_Bindings_HOL.thy`'s `subsection "Examples"`, the
+  reproduction target the extraction recommended, run *mechanically*:
+  every concrete term and every relator below is the pipeline's, no rule
+  is applied by hand. Its D4 gate `#guard`s each synthesized term
+  against the abstract term it refines, and two negative controls check
+  — message for message — that a pipeline failure names its phase and
+  its unmet side condition.
 
 and P1's acceptance program, design record §10.4:
 

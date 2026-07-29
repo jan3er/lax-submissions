@@ -29,7 +29,14 @@ import Lax13Proofs.Refine.Autoref.Relators
 import Lax13Proofs.Refine.Autoref.Tagging
 import Lax13Proofs.Refine.Autoref.Solver
 import Lax13Proofs.Refine.Autoref.Param
+import Lax13Proofs.Refine.Autoref.Phases
+import Lax13Proofs.Refine.Autoref.IdOps
+import Lax13Proofs.Refine.Autoref.FixRel
+import Lax13Proofs.Refine.Autoref.Translate
+import Lax13Proofs.Refine.Autoref.Tool
+import Lax13Proofs.Refine.Autoref.BindingsHOL
 import Lax13Proofs.Refine.NREST.DataRefinement
 import Lax13Proofs.Refine.NREST.TimeRefinement
 import Lax13Proofs.Refine.NREST.BackwardsReasoning
 import Lax13Proofs.Refine.Examples.Bfs
+import Lax13Proofs.Refine.Examples.AutorefTutorial
