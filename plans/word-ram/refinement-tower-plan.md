@@ -314,6 +314,63 @@ of overnight work — set expectations by the budget, not the recent luck.
 
 ## Progress log
 
+- **2026-07-30 (overnight) — P4 waves A+B landed (extracts ab58c34, A
+  fb594c3, B1 e5e417b, B2 5915bc7 merged d771d6d); wave C (translate/
+  frame/tool) dispatched.** Deep extracts: all ten `Sepref_*.thy`
+  fetched whole at the pin (full SHA 42dd7f59…) — correction: the
+  cost-carrying MERGE calculus EXISTS in `Sepref_Basic.thy` (ported,
+  not derived); the If/While translate-rule gap stands. **Wave A**
+  `Sepref/{Basic,Rules}.lean` (963+413 l): `hnRefine` clause-for-clause
+  with the source's `'c` kept as a destination-descriptor parameter
+  `d : κ` (P4/D-a — supersedes design §5's ∃ᵃ draft; that shape is the
+  scalar instance); `pureAssn` generic (D-b); `invalid_assn` split into
+  the verbatim pure marker + `deadAssn`/`junkCell` ownership sinks
+  (D-c — no dealloc in the substrate); MK_FREE degenerates to
+  entailment, bind = the source's own `hnr_bind_manual_free` shape as
+  `hnr_seq` (D-d, proof follows the source's cost threading; the two
+  cost lemmas it needed are `enat_resSub_add` + `leCostECost_add_right`);
+  MERGE entailment-form (D-e); pass rule pays skip (D-f); GC stays
+  credits-only (D-g). fref/hfref/hrComp/attainsSup/`hfcomp` at the
+  non-dependent instance (dependent form = named backlog). No design
+  objections; `returnT a ≤ m` needed no vocabulary delta. Agent flags
+  D-h..D-p (incl. `leof` not ported — augment_res premise unfolded).
+  **Wave B1** `Sepref/{Attrs,IrOps,CombRules}.lean` (70+820+651 l):
+  the three Translate DBs; mop layer at pinned ir.* currencies (F4);
+  six `@[sepref_fr_rules]` in hnCtxt discipline (aset destructive =
+  the linearity showcase; scratch = caller-owned `junkCell`, D-ab);
+  exchange lemmas — equality at MIf, ≤ at the loop (both reasons
+  recorded), concrete map `irE` + `wfR''_irE`; `CondRefine` fused-guard
+  judgment (D-af, substrate-forced — no bool cells); `hnr_If` via
+  MERGE; **`hnr_while_measured`** landed via the fueled route — post
+  is `Γ` with the result riding the judgment's own R-slot (self-
+  composing; induction = plain Nat.rec, no WellFounded plumbing), no
+  INV premise (invariant rides `nofailT`); unfueled general rule's
+  blocker named: Rec.lean lacks `nofailT (RECT B s) → ∃ n, fuelIter
+  B n s = RECT B s` (D-ai). Vacuity pinned explicitly (badInv gate).
+  Flags D-aa..D-aj. **Wave B2** (parallel satellite, seeded worktree)
+  `Sepref/{IdOp,Monadify}.lean` (1008+1151 l) + 5 DBs in
+  Autoref/Attrs.lean: PROTECT2/λ₂/PR_CONST/ID calculus verbatim with
+  the protect walk + DF_SOLVE_FWD stuck-trace driver; monadify's six
+  sub-phases as term-level `monadifyCore (pps, a) → (a', h : a = a')`
+  (goal wrapping is wave C's, D-bk); arity/comb equations for
+  returnT/MIf/whileT/whileIET (Bfs-evidenced coverage; whileIT does
+  not exist in P1 — it is whileIET). Four substrate bugs refuted and
+  pinned: Lean accepts `@[congr] SP_cong` but rewrites under SP anyway
+  → explicit `rewriteDB` walker (ACCEPTED, supervisor, substrate-
+  forced — the biggest structural delta from the source text); pattern
+  DBs are rule-nets, not simp sets; net matching needs `withReducible`;
+  DB entries need universe instantiation. Flags renumbered m..ab →
+  ba..bp at merge (range collision). Backlog accumulated for later
+  waves: result-pairing for tuple loop states (REQUIRED in wave C),
+  `bindT_mono_res`/`mono2_monadicWhileBody`/`monadicWhileIT_unfold_pure`
+  /`bindT_returnT_gen` placement moves at next P1 thaw, dependent
+  `hfcomp`, `sepref_copy_rules` unpopulated, unfueled while rule.
+  Verification at each wave: lake green (3,014 jobs at merge), lax
+  audit from archive root, axioms ⊆ {propext, Classical.choice,
+  Quot.sound} on all spot-checked decls. Session note: repeated
+  server-side 529 overloads cost the early night ~1.5 h of agent
+  restarts (no work lost — on-disk state + transcript resume).
+
 - **2026-07-29 (late) — P3 COMPLETE (one session, under the 2–3-session
   budget) — acceptance passed.** Three waves + one extraction, commits
   600d985/bb7ff84/0c19fee/888efde. Extraction:
