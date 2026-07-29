@@ -3764,10 +3764,1334 @@ theorem elimCert_spec {B n ns W : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ �
   show Spec B (ElimPre n ns W O T M) elimCom _ (600 * n + 600 * ns + 100)
   run_vcg [w1, w2, w3, w4, w5] <;> assumption
 
-/-! ### The frontier
+/-! ### The assembly's emit walk
 
-What this file discharges of `RamAugment.Implements`, and what it does
-not.
+`RamAugment.asmEmit act` is three walks under one accounting: the old
+in-block, unguarded — its freshness is `incsr_nodup` — then the
+transitive candidates as a nested walk of the in-blocks under
+`guardAsmTrans_of_emits`, then the engine's own in-block under
+`guardAsmIn_of_emits`. The three sets they accumulate union — as
+`(Base ∪ T) ∪ F` — to `valSet ((augOr D ρ).inN i)` by `asmRow_eq`,
+which is also the capacity all three run inside. -/
+
+/-- The rows of an `InCsr` tile its slot array. -/
+theorem incsr_sum_rowLen {n m : ℕ} {D : Orientation n} {IO IT : ℕ → ℕ}
+    (h : InCsr D m IO IT) : ∑ i ∈ Finset.range n, (IO (i + 1) - IO i) = m := by
+  have key : ∀ k, k ≤ n → ∑ i ∈ Finset.range k, (IO (i + 1) - IO i) = IO k := by
+    intro k
+    induction k with
+    | zero => intro _; simp [h.zero]
+    | succ k ih =>
+        intro hk
+        rw [Finset.sum_range_succ, ih (by omega)]
+        have := h.mono k (by omega)
+        omega
+  rw [key n le_rfl, h.last]
+
+/-- A weight summed over the slot array splits into a sum over each
+row. This is `tile_filter_card` for a weight instead of a predicate,
+and it is what turns the assembly's per-row cost into a cost over the
+whole array. -/
+theorem tile_sum {off : ℕ → ℕ} {nv m : ℕ} (hz : off 0 = 0) (hlast : off nv = m)
+    (hmono : ∀ i < nv, off i ≤ off (i + 1)) (f : ℕ → ℕ) :
+    ∑ p ∈ Finset.range m, f p
+      = ∑ u ∈ Finset.range nv, ∑ p ∈ Finset.Ico (off u) (off (u + 1)), f p := by
+  have key : ∀ k, k ≤ nv →
+      ∑ p ∈ Finset.range (off k), f p
+        = ∑ u ∈ Finset.range k, ∑ p ∈ Finset.Ico (off u) (off (u + 1)), f p := by
+    intro k
+    induction k with
+    | zero => intro _; simp [hz]
+    | succ k ih =>
+        intro hk
+        have hmk : off k ≤ off (k + 1) := hmono k (by omega)
+        have hsplit : Finset.range (off (k + 1))
+            = Finset.range (off k) ∪ Finset.Ico (off k) (off (k + 1)) := by
+          rw [Finset.range_eq_Ico, Finset.range_eq_Ico,
+            Finset.Ico_union_Ico_eq_Ico (Nat.zero_le _) hmk]
+        have hdis : Disjoint (Finset.range (off k)) (Finset.Ico (off k) (off (k + 1))) := by
+          rw [Finset.disjoint_left]
+          intro a ha ha'
+          rw [Finset.mem_range] at ha
+          rw [Finset.mem_Ico] at ha'
+          omega
+        rw [hsplit, Finset.sum_union hdis, ih (by omega), Finset.sum_range_succ]
+  rw [← hlast]; exact key nv le_rfl
+
+namespace Demo
+
+-- **the exchange, at the cost it pays for**: the assembly's third
+-- stamp walk charges the out-block of every vertex an out-slot names,
+-- so its bill is `∑_{p < m} outdeg (OT p)` — which is
+-- `∑_u slotCnt OT m u · outdeg u` and, by `slotCnt_out_eq`, the
+-- in-degrees against the out-degrees, at most `d · m`
+#guard (List.range 4).map (fun p => demoOO (demoOT p + 1) - demoOO (demoOT p)) = [1, 1, 1, 0]
+
+#guard ((List.range 4).map (fun p => demoOO (demoOT p + 1) - demoOO (demoOT p))).sum
+  = ((List.range 4).map (fun u => slotCnt demoOT 4 u * (demoOO (u + 1) - demoOO u))).sum
+
+#guard ((List.range 4).map (fun u => slotCnt demoOT 4 u * (demoOO (u + 1) - demoOO u))).sum
+  ≤ 2 * 4
+
+-- and `tile_sum`: a weight over the slots is the weights over the rows
+#guard ((List.range 4).map (fun p => demoDT p * demoDT p)).sum
+  = ((List.range 4).map (fun i =>
+      ((List.range (demoDO (i + 1) - demoDO i)).map
+        (fun t => demoDT (demoDO i + t) * demoDT (demoDO i + t))).sum)).sum
+
+end Demo
+
+/-- The six arrays and the one scalar the assembly's walks read:
+`NestArr`'s four, and the engine's own in-blocks. -/
+def AsmArr (n W : ℕ) (DO DT OO OT IO IT : ℕ → ℕ) (τ : Env) : Prop :=
+  NestArr n W DO DT OO OT τ ∧ τ.arrs "ioff" = arrOf (n + 1) IO ∧
+    τ.arrs "itg" = arrOf W IT
+
+namespace AsmArr
+
+variable {n W : ℕ} {DO DT OO OT IO IT : ℕ → ℕ} {τ τ' : Env}
+
+theorem setVar (h : AsmArr n W DO DT OO OT IO IT τ) (y : String) (hy : y ≠ "n") (x : ℕ) :
+    AsmArr n W DO DT OO OT IO IT (τ.setVar y x) :=
+  ⟨h.1.setVar y hy x, by simpa using h.2.1, by simpa using h.2.2⟩
+
+theorem setArr (h : AsmArr n W DO DT OO OT IO IT τ) {a : String} (h1 : a ≠ "doff")
+    (h2 : a ≠ "dtg") (h3 : a ≠ "ooff") (h4 : a ≠ "otg") (h5 : a ≠ "ioff") (h6 : a ≠ "itg")
+    (p x : ℕ) : AsmArr n W DO DT OO OT IO IT (τ.setArr a p x) :=
+  ⟨h.1.setArr h1 h2 h3 h4 p x,
+    by rw [arrs_setArr, if_neg (Ne.symm h5)]; exact h.2.1,
+    by rw [arrs_setArr, if_neg (Ne.symm h6)]; exact h.2.2⟩
+
+/-- The relation crosses any command that leaves the six arrays and the
+scalar `"n"` alone — which every accounting's action does. -/
+theorem of_frame {a₁ a₂ : String} (h : AsmArr n W DO DT OO OT IO IT τ)
+    (ha₁ : ReadArrs a₁) (ha₂ : ReadArrs a₂)
+    (hv : ∀ y, y ≠ "c" → τ'.vars y = τ.vars y)
+    (hfa : ∀ a, a ≠ a₁ → a ≠ a₂ → τ'.arrs a = τ.arrs a) :
+    AsmArr n W DO DT OO OT IO IT τ' :=
+  ⟨h.1.of_frame ha₁ ha₂ hv hfa,
+    by rw [hfa "ioff" (Ne.symm ha₁.2.2.2.2.2.2.2.2.2.1)
+      (Ne.symm ha₂.2.2.2.2.2.2.2.2.2.1)]; exact h.2.1,
+    by rw [hfa "itg" (Ne.symm ha₁.2.2.2.2.2.2.2.2.2.2)
+      (Ne.symm ha₂.2.2.2.2.2.2.2.2.2.2)]; exact h.2.2⟩
+
+/-- And it crosses the round's own stamping walks, which write nothing
+but the three stamp arrays. -/
+theorem of_stampFrame (h : AsmArr n W DO DT OO OT IO IT τ)
+    (hn : τ'.vars "n" = τ.vars "n")
+    (hfa : ∀ a, a ≠ "sta" → a ≠ "std" → a ≠ "ste" → τ'.arrs a = τ.arrs a) :
+    AsmArr n W DO DT OO OT IO IT τ' :=
+  ⟨⟨by rw [hn]; exact h.1.1,
+      by rw [hfa "doff" (by decide) (by decide) (by decide)]; exact h.1.2.1,
+      by rw [hfa "dtg" (by decide) (by decide) (by decide)]; exact h.1.2.2.1,
+      by rw [hfa "ooff" (by decide) (by decide) (by decide)]; exact h.1.2.2.2.1,
+      by rw [hfa "otg" (by decide) (by decide) (by decide)]; exact h.1.2.2.2.2⟩,
+    by rw [hfa "ioff" (by decide) (by decide) (by decide)]; exact h.2.1,
+    by rw [hfa "itg" (by decide) (by decide) (by decide)]; exact h.2.2⟩
+
+/-- The out-block structure is a statement about two of the six
+arrays. -/
+theorem blocks {m : ℕ} {σ : Env} (hbo : Blocks "ooff" "otg" n W m OO OT σ)
+    (h : AsmArr n W DO DT OO OT IO IT τ) : Blocks "ooff" "otg" n W m OO OT τ :=
+  hbo.of_eq (by rw [h.1.2.2.2.1, hbo.offArr]) (by rw [h.1.2.2.2.2, hbo.tgtArr])
+
+end AsmArr
+
+section AsmEmit
+
+variable {B n d W m me Ka i : ℕ} {a₁ a₂ : String} {act : Com}
+variable {D : Orientation n} {ρ : Fin n → ℕ} {DO DT OO OT IO IT R : ℕ → ℕ}
+variable {Acc : Finset ℕ → Env → Prop} {σ : Env}
+
+/-- **The assembly's three lists, emitted.** The old in-block runs
+unguarded; the transitive candidates and the engine's own in-block run
+under the two guards, sharing the stamp `ste` and the base the first
+list already handed the accounting. What reaches the action is
+`valSet ((augOr D ρ).inN i)`, once each, by `asmRow_eq`. -/
+theorem asmEmit_run
+    (ha₁ : ReadArrs a₁) (ha₂ : ReadArrs a₂)
+    (hactw : ∀ a, a ≠ a₁ → a ≠ a₂ → a ∉ act.warrs)
+    (hB1 : 1 < B) (hnB : n < B) (hi : i < n)
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d) (hmW : m ≤ W)
+    (hE : InCsr (RamElim.ElimCert.elimOr (fratGraph D) ρ) me IO IT) (hmeW : me ≤ W)
+    (hWB : W < B)
+    (hρ : ∀ v : Fin n, ρ v = R (v : ℕ)) (hRn : ∀ v, v < n → R v < n)
+    (hiv : σ.vars "i" = i) (harr : AsmArr n W DO DT OO OT IO IT σ)
+    (hrnk : σ.arrs "rnk" = arrOf n R)
+    (hsta : Marks "sta" n 1 (valSet (RamAugment.adjSet D ⟨i, hi⟩)) (fun _ => 0) σ)
+    (hstd : Marks "std" n 1 (valSet (RamAugment.demandOut D ⟨i, hi⟩)) (fun _ => 0) σ)
+    (hste : Marks "ste" n 1 (∅ : Finset ℕ) (fun _ => 0) σ)
+    (hAccSt : ∀ S τ p x, Acc S τ → Acc S (τ.setArr "ste" p x))
+    (hAccI : ∀ S τ, Acc S τ → τ.vars "i" = i)
+    (hAccV : ∀ S τ (y : String) (z : ℕ),
+      (y = "j" ∨ y = "jend" ∨ y = "w" ∨ y = "q" ∨ y = "qe" ∨ y = "u") → Acc S τ →
+      Acc S (τ.setVar y z))
+    (hAcc : Emits B n Ka a₁ a₂ act (valSet ((RamAugment.augOr D ρ).inN ⟨i, hi⟩)) Acc)
+    (hA0 : Acc ∅ σ) :
+    ∃ σ' K, Run B (RamAugment.asmEmit act) σ σ' K ∧
+      K ≤ ((Ka + 35) * d + Ka + 34) * (DO (i + 1) - DO i)
+          + (Ka + 24) * (IO (i + 1) - IO i) + 36 ∧
+      Acc (valSet ((RamAugment.augOr D ρ).inN ⟨i, hi⟩)) σ' ∧
+      AsmArr n W DO DT OO OT IO IT σ' ∧
+      σ'.arrs "rnk" = arrOf n R ∧
+      Marks "sta" n 1 (valSet (RamAugment.adjSet D ⟨i, hi⟩)) (fun _ => 0) σ' ∧
+      Marks "std" n 1 (valSet (RamAugment.demandOut D ⟨i, hi⟩)) (fun _ => 0) σ' ∧
+      (∃ S, S ⊆ rowAcc DO DT (fun w => rowTgt DO DT w) i ∪ rowTgt IO IT i ∧
+        Marks "ste" n 1 S (fun _ => 0) σ') ∧
+      (∀ a, a ≠ a₁ → a ≠ a₂ → a ≠ "ste" → σ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" → y ≠ "u" → y ≠ "c" →
+        σ'.vars y = σ.vars y) := by
+  classical
+  set A : Finset ℕ := valSet (RamAugment.adjSet D ⟨i, hi⟩) with hAdef
+  set Dm : Finset ℕ := valSet (RamAugment.demandOut D ⟨i, hi⟩) with hDmdef
+  set Cap : Finset ℕ := valSet ((RamAugment.augOr D ρ).inN ⟨i, hi⟩) with hCapdef
+  set Base : Finset ℕ := rowTgt DO DT i with hBasedef
+  set feT : ℕ → Finset ℕ := fun y => if y ∈ A then ∅ else
+    if y ∈ Dm ∧ ¬ R y < R i then ∅ else {y} with hfeT
+  set feF : ℕ → Finset ℕ := fun y => if y ∈ A then ∅ else {y} with hfeF
+  set T : Finset ℕ := rowAcc DO DT (fun w => rowAcc DO DT feT w) i with hTdef
+  set F : Finset ℕ := rowAcc IO IT feF i with hFdef
+  have hunion : Base ∪ T ∪ F = Cap := by
+    rw [hBasedef, hTdef, hFdef, hfeT, hfeF, hAdef, hDmdef, hCapdef]
+    exact asmRow_eq hcsr hE hi hρ
+  have hDle : ∀ z, z < n → DO (z + 1) ≤ m := fun z hz => incsr_le hcsr (by omega)
+  have hIle : ∀ z, z < n → IO (z + 1) ≤ me := fun z hz => incsr_le hE (by omega)
+  have hDd : ∀ z, z < n → DO (z + 1) - DO z ≤ d := fun z hz => by
+    have h : DO (z + 1) - DO z = (D.inN ⟨z, hz⟩).card := hcsr.len ⟨z, hz⟩
+    rw [h]; exact hdeg ⟨z, hz⟩
+  have hBcap : Base ⊆ Cap := by
+    rw [← hunion]; exact fun x hx => Finset.mem_union_left _ (Finset.mem_union_left _ hx)
+  have hTcap : T ⊆ Cap := by
+    rw [← hunion]; exact fun x hx => Finset.mem_union_left _ (Finset.mem_union_right _ hx)
+  have hFcap : F ⊆ Cap := by
+    rw [← hunion]; exact fun x hx => Finset.mem_union_right _ hx
+  have hBA : Base ⊆ A := by
+    rw [hBasedef, hAdef, rowTgt_eq_inN hcsr hi, adjSet_eq, valSet_union]
+    exact fun x hx => Finset.mem_union_left _ hx
+  -- the array facts the walks carry along in the accounting
+  set P : Env → Prop := fun τ => AsmArr n W DO DT OO OT IO IT τ ∧
+    Marks "std" n 1 Dm (fun _ => 0) τ ∧ τ.arrs "rnk" = arrOf n R with hPdef
+  have hPfr : ∀ τ τ', P τ → (∀ y, y ≠ "c" → τ'.vars y = τ.vars y) →
+      (∀ a, a ≠ a₁ → a ≠ a₂ → τ'.arrs a = τ.arrs a) → P τ' := by
+    rintro τ τ' ⟨h1, h2, h3⟩ hv hfa
+    exact ⟨h1.of_frame ha₁ ha₂ hv hfa,
+      h2.of_eq (hfa "std" (Ne.symm ha₁.2.2.2.2.2.2.1) (Ne.symm ha₂.2.2.2.2.2.2.1)),
+      by rw [hfa "rnk" (Ne.symm ha₁.2.2.2.2.2.2.2.2.1)
+        (Ne.symm ha₂.2.2.2.2.2.2.2.2.1)]; exact h3⟩
+  have hPv : ∀ (τ : Env) (y : String) (z : ℕ), y ≠ "n" → P τ → P (τ.setVar y z) := by
+    rintro τ y z hy ⟨h1, h2, h3⟩
+    exact ⟨h1.setVar y hy z, h2.setVar y z, by rw [arrs_setVar]; exact h3⟩
+  have hPste : ∀ (τ : Env) (p x : ℕ), P τ → P (τ.setArr "ste" p x) := by
+    rintro τ p x ⟨h1, h2, h3⟩
+    exact ⟨h1.setArr (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) p x,
+      h2.setArr_of_ne (by decide) p x, by rw [arrs_setArr, if_neg (by decide)]; exact h3⟩
+  have hAccP : Emits B n Ka a₁ a₂ act Cap (fun S τ => Acc S τ ∧ P τ) := hAcc.and hPfr
+  have hAccPSt : ∀ S τ p x, (Acc S τ ∧ P τ) → (Acc S (τ.setArr "ste" p x) ∧
+      P (τ.setArr "ste" p x)) := fun S τ p x h => ⟨hAccSt S τ p x h.1, hPste τ p x h.2⟩
+  have hAccPI : ∀ S τ, (Acc S τ ∧ P τ) → τ.vars "i" = i := fun S τ h => hAccI S τ h.1
+  have hAccPV : ∀ S τ (y : String) (z : ℕ),
+      (y = "j" ∨ y = "jend" ∨ y = "w" ∨ y = "q" ∨ y = "qe" ∨ y = "u") →
+      (Acc S τ ∧ P τ) → (Acc S (τ.setVar y z) ∧ P (τ.setVar y z)) := by
+    rintro S τ y z hy ⟨h1, h2⟩
+    exact ⟨hAccV S τ y z hy h1,
+      hPv τ y z (by rcases hy with rfl | rfl | rfl | rfl | rfl | rfl <;> decide) h2⟩
+  -- **the old in-block**, unguarded: a repeat would be two slots with the same target
+  obtain ⟨σ₁, K₁, hr₁, hK₁, hA₁, hfv₁, hfa₁⟩ :=
+    emitAllRow_run (B := B) (o := "doff") (t := "dtg") (x := "i") (j := "j") (jend := "jend")
+      (a₁ := a₁) (a₂ := a₂) (act := act) (n := n) (nv := n) (len := W) (v := i) (Ka := Ka)
+      (off := DO) (tgt := DT) (Acc := fun S τ => Acc S τ ∧ P τ) (E₀ := ∅) (Cap := Cap)
+      (σ := σ)
+      (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      hB1 hi (by omega) hnB harr.1.2.1 (hcsr.mono i hi) (le_trans (hDle i hi) hmW)
+      (by have := hDle i hi; omega) hiv
+      (fun _ _ h => h.2.1.1.2.2.1)
+      (fun p hp => hcsr.target_lt p (lt_of_lt_of_le hp (hDle i hi)))
+      (fun S τ y z hy h => hAccPV S τ y z (by
+        rcases hy with rfl | rfl | rfl
+        · exact Or.inl rfl
+        · exact Or.inr (Or.inl rfl)
+        · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr rfl))))) h)
+      (by
+        intro p h₁ h₂ hc
+        rw [Finset.empty_union, mem_accUpto] at hc
+        obtain ⟨s, hs₁, hs₂, hs₃⟩ := hc
+        have := incsr_nodup hcsr hi hs₁ (by omega) h₁ h₂ (Finset.mem_singleton.1 hs₃).symm
+        omega)
+      (fun p h₁ h₂ => hBcap (by rw [hBasedef]; exact mem_rowTgt.2 ⟨p, h₁, h₂, rfl⟩))
+      hAccP ⟨hA0, harr, hstd, hrnk⟩
+  have hP₁ : P σ₁ := hA₁.2
+  have hiv₁ : σ₁.vars "i" = i := by
+    rw [hfv₁ "i" (by decide) (by decide) (by decide) (by decide)]; exact hiv
+  have hsta₁ : Marks "sta" n 1 A (fun _ => 0) σ₁ :=
+    hsta.of_eq (hfa₁ "sta" (Ne.symm ha₁.2.2.2.2.2.1) (Ne.symm ha₂.2.2.2.2.2.1))
+  have hste₁ : Marks "ste" n 1 (∅ : Finset ℕ) (fun _ => 0) σ₁ :=
+    hste.of_eq (hfa₁ "ste" (Ne.symm ha₁.2.2.2.2.2.2.2.1) (Ne.symm ha₂.2.2.2.2.2.2.2.1))
+  -- **the transitive candidates**, a nested walk under the arc rule
+  have hgT := guardAsmTrans_of_emits (B := B) (n := n) (Ka := Ka) (i := i)
+      (a₁ := a₁) (a₂ := a₂) (act := act) (Acc := fun S τ => Acc S τ ∧ P τ)
+      (A := A) (Dm := Dm) (Base := Base) (Cap := Cap) (R := R)
+      ha₁.2.2.2.2.2.2.2.1 ha₂.2.2.2.2.2.2.2.1 ha₁.2.2.2.2.2.1 ha₂.2.2.2.2.2.1
+      ha₁.2.2.2.2.2.2.1 ha₂.2.2.2.2.2.2.1 ha₁.2.2.2.2.2.2.2.2.1 ha₂.2.2.2.2.2.2.2.2.1
+      hB1 hnB hi hRn hBA hAccPSt hAccPI hAccP
+  obtain ⟨σ₂, K₂, hr₂, hK₂, hJ₂, hfv₂⟩ :=
+    emitNest_run (B := B) (o := "doff") (t := "dtg") (o2 := "doff") (t2 := "dtg")
+      (n := n) (nv := n) (len := W) (nv2 := n) (len2 := W) (v := i) (Kg := Ka + 24)
+      (dd := d) (off := DO) (tgt := DT) (off2 := DO) (tgt2 := DT) (fe := feT)
+      (J := fun S τ => Marks "ste" n 1 S (fun _ => 0) τ ∧ Marks "sta" n 1 A (fun _ => 0) τ ∧
+        Marks "std" n 1 Dm (fun _ => 0) τ ∧ τ.arrs "rnk" = arrOf n R ∧
+        (Acc (Base ∪ S) τ ∧ P τ))
+      (E₀ := ∅) (Cap := Cap) (σ := σ₁)
+      hB1 hnB hi (by omega) hP₁.1.1.2.1 (hcsr.mono i hi) (le_trans (hDle i hi) hmW)
+      (by have := hDle i hi; omega) hiv₁
+      (fun _ _ h => h.2.2.2.2.2.1.1.2.2.1)
+      (fun p hp => hcsr.target_lt p (lt_of_lt_of_le hp (hDle i hi))) le_rfl
+      (fun _ _ h => h.2.2.2.2.2.1.1.2.1) (fun _ _ h => h.2.2.2.2.2.1.1.2.2.1)
+      (fun z hz => hcsr.mono z hz) (fun z hz => le_trans (hDle z hz) hmW)
+      (fun z hz => by have := hDle z hz; omega)
+      (fun z hz q hq => hcsr.target_lt q (lt_of_lt_of_le hq (hDle z hz)))
+      (fun z hz => hDd z hz)
+      (fun S τ y z hy h => ⟨h.1.setVar y z, h.2.1.setVar y z, h.2.2.1.setVar y z,
+        by rw [arrs_setVar]; exact h.2.2.2.1,
+        hAccPV _ τ y z (by
+          rcases hy with rfl | rfl | rfl | rfl | rfl | rfl
+          · exact Or.inl rfl
+          · exact Or.inr (Or.inl rfl)
+          · exact Or.inr (Or.inr (Or.inl rfl))
+          · exact Or.inr (Or.inr (Or.inr (Or.inl rfl)))
+          · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))
+          · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr rfl))))) h.2.2.2.2⟩)
+      (fun p h₁ h₂ => Finset.Subset.trans
+        (by rw [hTdef] at hTcap; exact subset_rowAcc h₁ h₂) hTcap)
+      hgT
+      ⟨hste₁, hsta₁, hP₁.2.1, hP₁.2.2,
+        by rw [Finset.union_empty]; exact (by rw [Finset.empty_union] at hA₁; exact hA₁.1),
+        hP₁⟩
+  have hP₂ : P σ₂ := hJ₂.2.2.2.2.2
+  have hiv₂ : σ₂.vars "i" = i := by
+    rw [hfv₂ "i" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide)]
+    exact hiv₁
+  -- **the engine's own in-block**, minus what `D` already carries
+  have hgF := guardAsmIn_of_emits (B := B) (n := n) (Ka := Ka)
+      (a₁ := a₁) (a₂ := a₂) (act := act) (Acc := fun S τ => Acc S τ ∧ P τ)
+      (A := A) (Base := Base) (Cap := Cap)
+      ha₁.2.2.2.2.2.2.2.1 ha₂.2.2.2.2.2.2.2.1 ha₁.2.2.2.2.2.1 ha₂.2.2.2.2.2.1
+      hB1 hnB hBA hAccPSt hAccP
+  obtain ⟨σ₃, K₃, hr₃, hK₃, hJ₃, hfv₃⟩ :=
+    emitRow_run (B := B) (o := "ioff") (t := "itg") (x := "i") (j := "j") (jend := "jend")
+      (n := n) (nv := n) (len := W) (v := i) (Kg := Ka + 13) (off := IO) (tgt := IT)
+      (fe := feF)
+      (J := fun S τ => Marks "ste" n 1 S (fun _ => 0) τ ∧ Marks "sta" n 1 A (fun _ => 0) τ ∧
+        (Acc (Base ∪ S) τ ∧ P τ))
+      (E₀ := T) (Cap := Cap) (σ := σ₂)
+      (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      hB1 hi (by omega) hnB hP₂.1.2.1 (hE.mono i hi) (le_trans (hIle i hi) hmeW)
+      (by have := hIle i hi; omega) hiv₂
+      (fun _ _ h => h.2.2.2.1.2.2)
+      (fun p hp => hE.target_lt p (lt_of_lt_of_le hp (hIle i hi)))
+      (fun S τ y z hy h => ⟨h.1.setVar y z, h.2.1.setVar y z,
+        hAccPV _ τ y z (by
+          rcases hy with rfl | rfl | rfl
+          · exact Or.inl rfl
+          · exact Or.inr (Or.inl rfl)
+          · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr rfl))))) h.2.2⟩)
+      (fun p h₁ h₂ => Finset.Subset.trans
+        (by rw [hFdef] at hFcap; exact subset_rowAcc h₁ h₂) hFcap)
+      hgF
+      ⟨by rw [Finset.empty_union] at hJ₂; exact hJ₂.1, hJ₂.2.1,
+        by rw [Finset.empty_union] at hJ₂; exact hJ₂.2.2.2.2.1, hP₂⟩
+  have hP₃ : P σ₃ := hJ₃.2.2.2
+  -- the three sets union to the block of `augOr`
+  have hAccFin : Acc Cap σ₃ := by
+    have h := hJ₃.2.2.1
+    rw [← Finset.union_assoc, hunion] at h
+    exact h
+  have hsub : T ∪ F ⊆ rowAcc DO DT (fun w => rowTgt DO DT w) i ∪ rowTgt IO IT i := by
+    have hTs : T ⊆ rowAcc DO DT (fun w => rowTgt DO DT w) i := by
+      rw [hTdef]
+      exact rowAcc_mono (fun w => rowAcc_mono (fun y => by
+        rw [hfeT]; simp only []; split
+        · exact Finset.empty_subset _
+        · split
+          · exact Finset.empty_subset _
+          · exact Finset.Subset.refl _) w) i
+    have hFs : F ⊆ rowTgt IO IT i := by
+      rw [hFdef]
+      exact rowAcc_mono (fun y => by
+        rw [hfeF]; simp only []; split
+        · exact Finset.empty_subset _
+        · exact Finset.Subset.refl _) i
+    exact Finset.union_subset (fun x hx => Finset.mem_union_left _ (hTs hx))
+      (fun x hx => Finset.mem_union_right _ (hFs hx))
+  refine ⟨σ₃, K₁ + (K₂ + K₃), hr₁.seq (hr₂.seq hr₃), ?_, hAccFin, hP₃.1, hP₃.2.2,
+    hJ₃.2.1, hP₃.2.1, ⟨T ∪ F, hsub, hJ₃.1⟩, fun a h1 h2 h3 => ?_,
+    fun y h1 h2 h3 h4 h5 h6 h7 => ?_⟩
+  · have e₁ : (Ka + 11) * (DO (i + 1) - DO i)
+        + ((Ka + 24 + 11) * d + 23) * (DO (i + 1) - DO i)
+        = ((Ka + 35) * d + Ka + 34) * (DO (i + 1) - DO i) := by ring
+    have e₂ : (Ka + 13 + 11) * (IO (i + 1) - IO i)
+        = (Ka + 24) * (IO (i + 1) - IO i) := by ring
+    omega
+  · rw [hr₃.frame_arr a (by
+        simp [RamAugment.blockScan, Csr.loadRow, Csr.scan, Com.warrs, h3, hactw a h1 h2]),
+      hr₂.frame_arr a (by
+        simp [RamAugment.blockScan, Csr.loadRow, Csr.scan, Com.warrs, h3, hactw a h1 h2]),
+      hr₁.frame_arr a (by
+        simp [RamAugment.blockScan, Csr.loadRow, Csr.scan, Com.warrs, hactw a h1 h2])]
+  · rw [hfv₃ y h1 h2 h6 h7, hfv₂ y h1 h2 h3 h4 h5 h6 h7, hfv₁ y h1 h2 h6 h7]
+
+/-! ### The assembly's turn
+
+`RamAugment.asmRow act` is `asmStamp 1`, the emit walk, `asmStamp 0`
+and `asmClearE`. The two clearing walks return all three stamps to zero
+— the `b = 0` walk's set is the `b = 1` walk's on the nose, and the
+guard's emitted set sits inside what `asmClearE` clears, by
+`rowAcc_mono`. -/
+
+/-- **One vertex's turn of the assembly.** -/
+theorem asmRow_run
+    (ha₁ : ReadArrs a₁) (ha₂ : ReadArrs a₂)
+    (hactw : ∀ a, a ≠ a₁ → a ≠ a₂ → a ∉ act.warrs)
+    (hB1 : 1 < B) (hnB : n < B) (hWB : W < B) (hi : i < n)
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d) (hmW : m ≤ W)
+    (hE : InCsr (RamElim.ElimCert.elimOr (fratGraph D) ρ) me IO IT) (hmeW : me ≤ W)
+    (hρ : ∀ v : Fin n, ρ v = R (v : ℕ)) (hRn : ∀ v, v < n → R v < n)
+    (hbo : Blocks "ooff" "otg" n W m OO OT σ)
+    (hsnd : ∀ u < n, ∀ q, OO u ≤ q → q < OO (u + 1) → Pts DO DT (OT q) u)
+    (hcmp : ∀ u < n, ∀ z < n, Pts DO DT z u → ∃ q, OO u ≤ q ∧ q < OO (u + 1) ∧ OT q = z)
+    (hiv : σ.vars "i" = i) (harr : AsmArr n W DO DT OO OT IO IT σ)
+    (hrnk : σ.arrs "rnk" = arrOf n R)
+    (hsta0 : ∃ g, σ.arrs "sta" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hstd0 : ∃ g, σ.arrs "std" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hste0 : ∃ g, σ.arrs "ste" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hAccFr : ∀ S τ τ', Acc S τ →
+      (∀ y, y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" → y ≠ "u" →
+        τ'.vars y = τ.vars y) →
+      (∀ a, a ≠ "sta" → a ≠ "std" → a ≠ "ste" → τ'.arrs a = τ.arrs a) → Acc S τ')
+    (hAccI : ∀ S τ, Acc S τ → τ.vars "i" = i)
+    (hAcc : Emits B n Ka a₁ a₂ act (valSet ((RamAugment.augOr D ρ).inN ⟨i, hi⟩)) Acc)
+    (hA0 : Acc ∅ σ) :
+    ∃ σ' K, Run B (RamAugment.asmRow act) σ σ' K ∧
+      K ≤ ((Ka + 49) * d + Ka + 85) * (DO (i + 1) - DO i)
+          + (28 * d + 98) * (OO (i + 1) - OO i)
+          + (Ka + 38) * (IO (i + 1) - IO i)
+          + 28 * (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)), (OO (OT p + 1) - OO (OT p)))
+          + 132 ∧
+      Acc (valSet ((RamAugment.augOr D ρ).inN ⟨i, hi⟩)) σ' ∧
+      AsmArr n W DO DT OO OT IO IT σ' ∧ σ'.arrs "rnk" = arrOf n R ∧
+      (∃ g, σ'.arrs "sta" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+      (∃ g, σ'.arrs "std" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+      (∃ g, σ'.arrs "ste" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+      (∀ a, a ≠ "sta" → a ≠ "std" → a ≠ "ste" → a ≠ a₁ → a ≠ a₂ →
+        σ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" → y ≠ "u" → y ≠ "c" →
+        σ'.vars y = σ.vars y) := by
+  classical
+  obtain ⟨gsta₀, hgsta₀, hgstaz₀⟩ := hsta0
+  obtain ⟨gstd₀, hgstd₀, hgstdz₀⟩ := hstd0
+  obtain ⟨gste₀, hgste₀, hgstez₀⟩ := hste0
+  have hmB : m < B := by omega
+  have hmeB : me < B := by omega
+  have hadj : rowTgt DO DT i ∪ rowTgt OO OT i = valSet (RamAugment.adjSet D ⟨i, hi⟩) :=
+    adjRow_eq hcsr hbo hsnd hcmp hi
+  have hdem : rowAcc OO OT (fun w => rowTgt DO DT w ∪ rowTgt OO OT w) i
+      = valSet (RamAugment.demandOut D ⟨i, hi⟩) := demandRow_eq hcsr hbo hsnd hcmp hi
+  have hAccSt : ∀ S τ p x, Acc S τ → Acc S (τ.setArr "ste" p x) := fun S τ p x h =>
+    hAccFr S τ _ h (fun y _ _ _ _ _ _ => by rw [vars_setArr])
+      (fun a _ _ ha => by rw [arrs_setArr, if_neg ha])
+  have hAccV : ∀ S τ (y : String) (z : ℕ),
+      (y = "j" ∨ y = "jend" ∨ y = "w" ∨ y = "q" ∨ y = "qe" ∨ y = "u") → Acc S τ →
+      Acc S (τ.setVar y z) := by
+    rintro S τ y z hy h
+    refine hAccFr S τ _ h (fun y' h1 h2 h3 h4 h5 h6 => ?_)
+      (fun a _ _ _ => by rw [arrs_setVar])
+    rw [vars_setVar, if_neg]
+    rcases hy with rfl | rfl | rfl | rfl | rfl | rfl
+    exacts [h1, h2, h3, h4, h5, h6]
+  -- (1) the two stamps, set
+  obtain ⟨σ₁, K₁, hr₁, hK₁, hm₁a, hm₁d, hfa₁, hfv₁⟩ :=
+    asmStamp_run (B := B) (n := n) (d := d) (W := W) (m := m) (i := i) (D := D) (DO := DO)
+      (DT := DT) (OO := OO) (OT := OT) (σ := σ) (b := 1) (gsta := gsta₀) (gstd := gstd₀)
+      hB1 hnB (by omega) hmB hi hcsr hdeg hmW hbo hiv harr.1 hgsta₀ hgstd₀
+  have hsta₁ : Marks "sta" n 1 (valSet (RamAugment.adjSet D ⟨i, hi⟩)) (fun _ => 0) σ₁ := by
+    obtain ⟨g, hg, hgk⟩ := hm₁a
+    exact ⟨g, hg, fun k hk => by rw [hgk k hk, hadj, hgstaz₀ k hk]⟩
+  have hstd₁ : Marks "std" n 1 (valSet (RamAugment.demandOut D ⟨i, hi⟩)) (fun _ => 0) σ₁ := by
+    obtain ⟨g, hg, hgk⟩ := hm₁d
+    exact ⟨g, hg, fun k hk => by rw [hgk k hk, hdem, hgstdz₀ k hk]⟩
+  have hste₁ : Marks "ste" n 1 (∅ : Finset ℕ) (fun _ => 0) σ₁ :=
+    Marks.zero ⟨gste₀, by rw [hfa₁ "ste" (by decide) (by decide)]; exact hgste₀, hgstez₀⟩
+  have harr₁ : AsmArr n W DO DT OO OT IO IT σ₁ :=
+    harr.of_stampFrame
+      (hfv₁ "n" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide))
+      (fun a h1 h2 _ => hfa₁ a h1 h2)
+  have hiv₁ : σ₁.vars "i" = i := by
+    rw [hfv₁ "i" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]
+    exact hiv
+  have hrnk₁ : σ₁.arrs "rnk" = arrOf n R := by
+    rw [hfa₁ "rnk" (by decide) (by decide)]; exact hrnk
+  have hA₁ : Acc ∅ σ₁ :=
+    hAccFr _ _ _ hA0 (fun y h1 h2 h3 h4 h5 h6 => hfv₁ y h1 h2 h3 h4 h5 h6)
+      (fun a h1 h2 _ => hfa₁ a h1 h2)
+  -- (2) the three lists, emitted
+  obtain ⟨σ₂, K₂, hr₂, hK₂, hA₂, harr₂, hrnk₂, hsta₂, hstd₂, ⟨S, hS, hste₂⟩, hfa₂, hfv₂⟩ :=
+    asmEmit_run (B := B) (n := n) (d := d) (W := W) (m := m) (me := me) (Ka := Ka)
+      (i := i) (a₁ := a₁) (a₂ := a₂) (act := act) (D := D) (ρ := ρ) (DO := DO) (DT := DT)
+      (OO := OO) (OT := OT) (IO := IO) (IT := IT) (R := R) (Acc := Acc) (σ := σ₁)
+      ha₁ ha₂ hactw hB1 hnB hi hcsr hdeg hmW hE hmeW hWB hρ hRn hiv₁ harr₁ hrnk₁
+      hsta₁ hstd₁ hste₁ hAccSt hAccI hAccV hAcc hA₁
+  obtain ⟨g₂a, hg₂a, hg₂ak⟩ := hsta₂
+  obtain ⟨g₂d, hg₂d, hg₂dk⟩ := hstd₂
+  obtain ⟨g₂e, hg₂e, hg₂ek⟩ := hste₂
+  -- (3) the two stamps, cleared
+  obtain ⟨σ₃, K₃, hr₃, hK₃, hm₃a, hm₃d, hfa₃, hfv₃⟩ :=
+    asmStamp_run (B := B) (n := n) (d := d) (W := W) (m := m) (i := i) (D := D) (DO := DO)
+      (DT := DT) (OO := OO) (OT := OT) (σ := σ₂) (b := 0) (gsta := g₂a) (gstd := g₂d)
+      hB1 hnB (by omega) hmB hi hcsr hdeg hmW (harr₂.blocks hbo)
+      (by rw [hfv₂ "i" (by decide) (by decide) (by decide) (by decide) (by decide)
+          (by decide) (by decide)]; exact hiv₁)
+      harr₂.1 hg₂a hg₂d
+  have harr₃ : AsmArr n W DO DT OO OT IO IT σ₃ :=
+    harr₂.of_stampFrame
+      (hfv₃ "n" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide))
+      (fun a h1 h2 _ => hfa₃ a h1 h2)
+  -- (4) the duplicate stamp, cleared
+  obtain ⟨σ₄, K₄, hr₄, hK₄, hm₄e, hfa₄, hfv₄⟩ :=
+    asmClearE_run (B := B) (n := n) (d := d) (W := W) (m := m) (i := i) (D := D) (DO := DO)
+      (DT := DT) (OO := OO) (OT := OT) (σ := σ₃) (me := me)
+      (Eo := RamElim.ElimCert.elimOr (fratGraph D) ρ) (IO := IO) (IT := IT) (gste := g₂e)
+      hB1 hnB hmB hmeB hi hcsr hdeg hmW hE hmeW
+      (by
+        rw [hfv₃ "i" (by decide) (by decide) (by decide) (by decide) (by decide)
+            (by decide),
+          hfv₂ "i" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+            (by decide)]
+        exact hiv₁)
+      harr₃.1 harr₃.2.1 harr₃.2.2
+      (by rw [hfa₃ "ste" (by decide) (by decide)]; exact hg₂e)
+  have harr₄ : AsmArr n W DO DT OO OT IO IT σ₄ :=
+    harr₃.of_stampFrame
+      (hfv₄ "n" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide))
+      (fun a _ _ h3 => hfa₄ a h3)
+  -- the three stamps are zero again
+  have hstaz : ∃ g, σ₄.arrs "sta" = arrOf n g ∧ ∀ k < n, g k = 0 := by
+    obtain ⟨g, hg, hgk⟩ := hm₃a
+    refine ⟨g, by rw [hfa₄ "sta" (by decide)]; exact hg, fun k hk => ?_⟩
+    rw [hgk k hk, hadj]
+    by_cases h : k ∈ valSet (RamAugment.adjSet D ⟨i, hi⟩)
+    · rw [if_pos h]
+    · rw [if_neg h, hg₂ak k hk, if_neg h]
+  have hstdz : ∃ g, σ₄.arrs "std" = arrOf n g ∧ ∀ k < n, g k = 0 := by
+    obtain ⟨g, hg, hgk⟩ := hm₃d
+    refine ⟨g, by rw [hfa₄ "std" (by decide)]; exact hg, fun k hk => ?_⟩
+    rw [hgk k hk, hdem]
+    by_cases h : k ∈ valSet (RamAugment.demandOut D ⟨i, hi⟩)
+    · rw [if_pos h]
+    · rw [if_neg h, hg₂dk k hk, if_neg h]
+  have hstez : ∃ g, σ₄.arrs "ste" = arrOf n g ∧ ∀ k < n, g k = 0 := by
+    obtain ⟨g, hg, hgk⟩ := hm₄e
+    refine ⟨g, hg, fun k hk => ?_⟩
+    rw [hgk k hk]
+    by_cases h : k ∈ rowAcc DO DT (fun w => rowTgt DO DT w) i ∪ rowTgt IO IT i
+    · rw [if_pos h]
+    · rw [if_neg h, hg₂ek k hk, if_neg (fun hc => h (hS hc))]
+  -- the accounting and the ranking cross the two clearing walks
+  have hA₄ : Acc (valSet ((RamAugment.augOr D ρ).inN ⟨i, hi⟩)) σ₄ :=
+    hAccFr _ _ _ (hAccFr _ _ _ hA₂ (fun y h1 h2 h3 h4 h5 h6 => hfv₃ y h1 h2 h3 h4 h5 h6)
+        (fun a h1 h2 _ => hfa₃ a h1 h2))
+      (fun y h1 h2 h3 h4 h5 h6 => hfv₄ y h1 h2 h3 h4 h5 h6) (fun a _ _ h3 => hfa₄ a h3)
+  have hrnk₄ : σ₄.arrs "rnk" = arrOf n R := by
+    rw [hfa₄ "rnk" (by decide), hfa₃ "rnk" (by decide) (by decide)]; exact hrnk₂
+  -- the cost: the two stamping walks' nested sums, split
+  have hsum : (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)),
+        (14 * (OO (OT p + 1) - OO (OT p)) + 14 * d + 35))
+      = 14 * (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)), (OO (OT p + 1) - OO (OT p)))
+        + (14 * d + 35) * (OO (i + 1) - OO i) := by
+    have h1 : (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)),
+          (14 * (OO (OT p + 1) - OO (OT p)) + 14 * d + 35))
+        = ∑ p ∈ Finset.Ico (OO i) (OO (i + 1)),
+            (14 * (OO (OT p + 1) - OO (OT p)) + (14 * d + 35)) :=
+      Finset.sum_congr rfl (fun p _ => by ring)
+    rw [h1, Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_const, Nat.card_Ico,
+      smul_eq_mul]
+    ring
+  rw [hsum] at hK₁ hK₃
+  refine ⟨σ₄, K₁ + (K₂ + (K₃ + K₄)), hr₁.seq (hr₂.seq (hr₃.seq hr₄)), ?_, hA₄, harr₄,
+    hrnk₄, hstaz, hstdz, hstez, fun a h1 h2 h3 h4 h5 => ?_,
+    fun y h1 h2 h3 h4 h5 h6 h7 => ?_⟩
+  · have e₁ : ((Ka + 35) * d + Ka + 34) * (DO (i + 1) - DO i)
+        + (14 * d + 23) * (DO (i + 1) - DO i)
+        + 14 * (DO (i + 1) - DO i) + 14 * (DO (i + 1) - DO i)
+        = ((Ka + 49) * d + Ka + 85) * (DO (i + 1) - DO i) := by ring
+    have e₂ : (14 * d + 35) * (OO (i + 1) - OO i) + (14 * d + 35) * (OO (i + 1) - OO i)
+        + 14 * (OO (i + 1) - OO i) + 14 * (OO (i + 1) - OO i)
+        = (28 * d + 98) * (OO (i + 1) - OO i) := by ring
+    have e₃ : (Ka + 24) * (IO (i + 1) - IO i) + 14 * (IO (i + 1) - IO i)
+        = (Ka + 38) * (IO (i + 1) - IO i) := by ring
+    omega
+  · rw [hfa₄ a h3, hfa₃ a h1 h2, hfa₂ a h4 h5 h3, hfa₁ a h1 h2]
+  · rw [hfv₄ y h1 h2 h3 h4 h5 h6, hfv₃ y h1 h2 h3 h4 h5 h6,
+      hfv₂ y h1 h2 h3 h4 h5 h6 h7, hfv₁ y h1 h2 h3 h4 h5 h6]
+
+end AsmEmit
+
+/-! ### The two assembly passes
+
+The counting sort once more, at the two accountings: `cntAcc_emits`
+for the degrees and `fillAcc_emits "ntg" "nfl"` for the blocks. The one
+piece of arithmetic that is not a row length is the third walk of
+`asmStamp`, which charges the out-block of every vertex an out-slot
+names; `tile_sum`, `sum_slot_weight` and `slotCnt_out_eq` turn that
+into `d · m`. -/
+
+/-- The new in-degree of a vertex, at the number level. -/
+noncomputable def augDeg {n : ℕ} (D : Orientation n) (ρ : Fin n → ℕ) (u : ℕ) : ℕ :=
+  if h : u < n then ((RamAugment.augOr D ρ).inN ⟨u, h⟩).card else 0
+
+/-- And its new block, at the number level. -/
+noncomputable def augSet {n : ℕ} (D : Orientation n) (ρ : Fin n → ℕ) (u : ℕ) : Finset ℕ :=
+  if h : u < n then valSet ((RamAugment.augOr D ρ).inN ⟨u, h⟩) else ∅
+
+theorem augSet_eq {n : ℕ} {D : Orientation n} {ρ : Fin n → ℕ} {u : ℕ} (h : u < n) :
+    augSet D ρ u = valSet ((RamAugment.augOr D ρ).inN ⟨u, h⟩) := dif_pos h
+
+theorem augDeg_eq {n : ℕ} {D : Orientation n} {ρ : Fin n → ℕ} {u : ℕ} (h : u < n) :
+    augDeg D ρ u = ((RamAugment.augOr D ρ).inN ⟨u, h⟩).card := dif_pos h
+
+theorem card_augSet {n : ℕ} (D : Orientation n) (ρ : Fin n → ℕ) (u : ℕ) :
+    (augSet D ρ u).card = augDeg D ρ u := by
+  by_cases h : u < n
+  · rw [augSet_eq h, card_valSet, augDeg_eq h]
+  · rw [augSet, dif_neg h, augDeg, dif_neg h]; simp
+
+theorem augDeg_le {n : ℕ} (D : Orientation n) (ρ : Fin n → ℕ) (u : ℕ) : augDeg D ρ u ≤ n := by
+  rw [augDeg]
+  split
+  · exact le_trans (Finset.card_le_univ _) (by simp)
+  · exact Nat.zero_le _
+
+/-- The new arcs are at most `n²`, which is the room `augWidth` keeps
+for them. -/
+theorem sum_augDeg_le {n : ℕ} (D : Orientation n) (ρ : Fin n → ℕ) :
+    RamElim.psum (augDeg D ρ) n ≤ n * n := by
+  show ∑ u ∈ Finset.range n, augDeg D ρ u ≤ n * n
+  calc ∑ u ∈ Finset.range n, augDeg D ρ u ≤ ∑ _u ∈ Finset.range n, n :=
+        Finset.sum_le_sum fun u _ => augDeg_le D ρ u
+    _ = n * n := by rw [Finset.sum_const, Finset.card_range, smul_eq_mul]
+
+/-- **The assembly's cost, summed.** Three of the four per-row charges
+are row lengths and tile their arrays; the fourth is the out-block of
+every vertex an out-slot names, and that is where the exchange is
+spent. -/
+theorem asm_cost_le {n d W m me c c₁ c₂ c₃ : ℕ} {D Eo : Orientation n}
+    {DO DT OO OT IO IT : ℕ → ℕ} {σ : Env}
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d) (hE : InCsr Eo me IO IT)
+    (hbo : Blocks "ooff" "otg" n W m OO OT σ)
+    (hxch : ∀ w, w < n → inDeg D w = slotCnt OT m w) :
+    ∑ i ∈ Finset.range n,
+        (c₁ * (DO (i + 1) - DO i) + c₂ * (OO (i + 1) - OO i) + c₃ * (IO (i + 1) - IO i)
+          + 28 * (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)), (OO (OT p + 1) - OO (OT p))) + c)
+      ≤ c₁ * m + c₂ * m + c₃ * me + 28 * (d * m) + c * n := by
+  classical
+  have hinDeg : ∀ u, u < n → inDeg D u ≤ d := fun u hu => by
+    rw [inDeg, dif_pos hu]; exact hdeg ⟨u, hu⟩
+  have hSout : ∑ i ∈ Finset.range n,
+      (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)), (OO (OT p + 1) - OO (OT p))) ≤ d * m := by
+    have h1 : ∑ i ∈ Finset.range n,
+        (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)), (OO (OT p + 1) - OO (OT p)))
+        = ∑ p ∈ Finset.range m, (OO (OT p + 1) - OO (OT p)) :=
+      (tile_sum hbo.zero hbo.last hbo.mono (fun p => OO (OT p + 1) - OO (OT p))).symm
+    have h2 : ∑ p ∈ Finset.range m, (OO (OT p + 1) - OO (OT p))
+        = ∑ u ∈ Finset.range n, slotCnt OT m u * (OO (u + 1) - OO u) :=
+      sum_slot_weight (T := OT) (nv := n) (fun u => OO (u + 1) - OO u) m
+        (fun s hs => hbo.target_lt s hs)
+    rw [h1, h2]
+    calc ∑ u ∈ Finset.range n, slotCnt OT m u * (OO (u + 1) - OO u)
+        ≤ ∑ u ∈ Finset.range n, d * (OO (u + 1) - OO u) := by
+          refine Finset.sum_le_sum fun u hu => ?_
+          rw [← hxch u (Finset.mem_range.1 hu)]
+          exact Nat.mul_le_mul_right _ (hinDeg u (Finset.mem_range.1 hu))
+      _ = d * m := by rw [← Finset.mul_sum, hbo.sum_rowLen]
+  have hd1 : ∑ i ∈ Finset.range n, c₁ * (DO (i + 1) - DO i) = c₁ * m := by
+    rw [← Finset.mul_sum, incsr_sum_rowLen hcsr]
+  have hd2 : ∑ i ∈ Finset.range n, c₂ * (OO (i + 1) - OO i) = c₂ * m := by
+    rw [← Finset.mul_sum, hbo.sum_rowLen]
+  have hd3 : ∑ i ∈ Finset.range n, c₃ * (IO (i + 1) - IO i) = c₃ * me := by
+    rw [← Finset.mul_sum, incsr_sum_rowLen hE]
+  simp only [Finset.sum_add_distrib]
+  rw [hd1, hd2, hd3, ← Finset.mul_sum, Finset.sum_const, Finset.card_range, smul_eq_mul]
+  have ecn : n * c = c * n := by ring
+  omega
+
+section AsmPasses
+
+variable {B n d W m me : ℕ} {D : Orientation n} {ρ : Fin n → ℕ}
+variable {DO DT OO OT IO IT R : ℕ → ℕ} {σ : Env}
+
+/-- **The new in-degrees, counted.** One turn zeroes the counter, runs
+the stamped assembly of `i`, and writes the count one place up in the
+offsets. -/
+theorem asmCount_run
+    (hnB : n + 1 < B) (hWB : W < B)
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d) (hmW : m ≤ W)
+    (hE : InCsr (RamElim.ElimCert.elimOr (fratGraph D) ρ) me IO IT) (hmeW : me ≤ W)
+    (hρ : ∀ v : Fin n, ρ v = R (v : ℕ)) (hRn : ∀ v, v < n → R v < n)
+    (hbo : Blocks "ooff" "otg" n W m OO OT σ)
+    (hsnd : ∀ u < n, ∀ q, OO u ≤ q → q < OO (u + 1) → Pts DO DT (OT q) u)
+    (hcmp : ∀ u < n, ∀ z < n, Pts DO DT z u → ∃ q, OO u ≤ q ∧ q < OO (u + 1) ∧ OT q = z)
+    (hxch : ∀ w, w < n → inDeg D w = slotCnt OT m w)
+    (harr : AsmArr n W DO DT OO OT IO IT σ) (hrnk : σ.arrs "rnk" = arrOf n R)
+    (hsta0 : ∃ g, σ.arrs "sta" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hstd0 : ∃ g, σ.arrs "std" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hste0 : ∃ g, σ.arrs "ste" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hnoff0 : ∃ g, σ.arrs "noff" = arrOf (n + 1) g ∧ ∀ k ≤ n, g k = 0) :
+    ∃ σ' K, Run B RamAugment.asmCount σ σ' K ∧
+      K ≤ 109 * (d * m) + 187 * m + 42 * me + 147 * n + 8 ∧
+      AsmArr n W DO DT OO OT IO IT σ' ∧ σ'.arrs "rnk" = arrOf n R ∧
+      (∃ g, σ'.arrs "sta" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+      (∃ g, σ'.arrs "std" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+      (∃ g, σ'.arrs "ste" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+      (∃ g, σ'.arrs "noff" = arrOf (n + 1) g ∧ g 0 = 0 ∧
+        ∀ u < n, g (u + 1) = augDeg D ρ u) ∧
+      (∀ a, a ≠ "sta" → a ≠ "std" → a ≠ "ste" → a ≠ "noff" → σ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "i" → y ≠ "c" → y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" →
+        y ≠ "u" → σ'.vars y = σ.vars y) := by
+  classical
+  obtain ⟨gno₀, hgno₀, hgnoz₀⟩ := hnoff0
+  set I : ℕ → Env → Prop := fun i τ => τ.vars "i" = i ∧ i ≤ n ∧
+    AsmArr n W DO DT OO OT IO IT τ ∧ τ.arrs "rnk" = arrOf n R ∧
+    (∃ g, τ.arrs "sta" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+    (∃ g, τ.arrs "std" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+    (∃ g, τ.arrs "ste" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+    (∃ g, τ.arrs "noff" = arrOf (n + 1) g ∧ g 0 = 0 ∧
+      ∀ u < i, g (u + 1) = augDeg D ρ u) with hIdef
+  have hstep : ∀ i, i < n → ∀ τ, I i τ →
+      ∃ τ' K, Run B (.seq (.assign "c" (.lit 0))
+          (.seq (RamAugment.asmRow (.assign "c" (.add (.var "c") (.lit 1))))
+            (.store "noff" (.add (.var "i") (.lit 1)) (.var "c")))) τ τ' K ∧
+        K ≤ ((4 + 49) * d + 4 + 85) * (DO (i + 1) - DO i)
+            + (28 * d + 98) * (OO (i + 1) - OO i) + (4 + 38) * (IO (i + 1) - IO i)
+            + 28 * (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)), (OO (OT p + 1) - OO (OT p)))
+            + 139 ∧ τ'.vars "i" = i ∧ I (i + 1) (τ'.setVar "i" (i + 1)) := by
+    intro i hi τ hτ
+    obtain ⟨hiv, -, harrτ, hrnkτ, hstaτ, hstdτ, hsteτ, ⟨gno, hgno, hgno0, hgnoI⟩⟩ := hτ
+    have hcard : (valSet ((RamAugment.augOr D ρ).inN ⟨i, hi⟩)).card = augDeg D ρ i := by
+      rw [card_valSet, augDeg_eq hi]
+    -- `c := 0`
+    set τ₁ := τ.setVar "c" 0 with hτ₁
+    have hr₁ : Run B (.assign "c" (.lit 0)) τ τ₁ 2 :=
+      (Run.assign (evalB_lit (by omega))).mono (by simp)
+    have hiv₁ : τ₁.vars "i" = i := by rw [hτ₁, vars_setVar, if_neg (by decide), hiv]
+    have harr₁ : AsmArr n W DO DT OO OT IO IT τ₁ := harrτ.setVar "c" (by decide) 0
+    have hAccFr : ∀ (S : Finset ℕ) (τ' τ'' : Env), CntAcc n i S τ' →
+        (∀ y, y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" → y ≠ "u" →
+          τ''.vars y = τ'.vars y) →
+        (∀ a, a ≠ "sta" → a ≠ "std" → a ≠ "ste" → τ''.arrs a = τ'.arrs a) →
+        CntAcc n i S τ'' := by
+      rintro S τ' τ'' ⟨h1, h2, h3⟩ hv -
+      exact ⟨by rw [hv "c" (by decide) (by decide) (by decide) (by decide) (by decide)
+          (by decide)]; exact h1,
+        by rw [hv "i" (by decide) (by decide) (by decide) (by decide) (by decide)
+          (by decide)]; exact h2, h3⟩
+    obtain ⟨τ₂, K₂, hr₂, hK₂, hA₂, harr₂, hrnk₂, hsta₂, hstd₂, hste₂, hfa₂, hfv₂⟩ :=
+      asmRow_run (B := B) (n := n) (d := d) (W := W) (m := m) (me := me) (Ka := 4) (i := i)
+        (a₁ := "@") (a₂ := "@") (act := .assign "c" (.add (.var "c") (.lit 1))) (D := D)
+        (ρ := ρ) (DO := DO) (DT := DT) (OO := OO) (OT := OT) (IO := IO) (IT := IT)
+        (R := R) (Acc := CntAcc n i) (σ := τ₁)
+        readArrs_at readArrs_at (by intro a _ _; simp [Com.warrs]) (by omega) (by omega)
+        hWB hi hcsr hdeg hmW hE hmeW hρ hRn (harr₁.blocks hbo) hsnd hcmp hiv₁ harr₁
+        (by rw [hτ₁, arrs_setVar]; exact hrnkτ)
+        (by obtain ⟨g, hg, hz⟩ := hstaτ; exact ⟨g, by rw [hτ₁, arrs_setVar]; exact hg, hz⟩)
+        (by obtain ⟨g, hg, hz⟩ := hstdτ; exact ⟨g, by rw [hτ₁, arrs_setVar]; exact hg, hz⟩)
+        (by obtain ⟨g, hg, hz⟩ := hsteτ; exact ⟨g, by rw [hτ₁, arrs_setVar]; exact hg, hz⟩)
+        hAccFr (fun _ _ h => h.2.1) (cntAcc_emits hnB)
+        ⟨by rw [hτ₁, vars_setVar, if_pos rfl]; simp, hiv₁, by simp⟩
+    -- `noff[i+1] := c`
+    have hiv₂ : τ₂.vars "i" = i := by
+      rw [hfv₂ "i" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide)]
+      exact hiv₁
+    have hcv₂ : τ₂.vars "c" = augDeg D ρ i := by rw [hA₂.1, hcard]
+    have eidx : (Expr.add (.var "i") (.lit 1)).evalB B τ₂ = some (i + 1) := by
+      have h := evalB_bin (B := B) (op := .add) (σ := τ₂) (m := τ₂.vars "i") (n := 1)
+        (evalB_var (by rw [hiv₂]; omega)) (evalB_lit (by omega))
+        (by rw [hiv₂]; simpa [Bop.apply] using (by omega : i + 1 < B))
+      rw [hiv₂] at h
+      simpa [Bop.apply] using h
+    have ecv : (Expr.var "c").evalB B τ₂ = some (augDeg D ρ i) := by
+      have hlt : augDeg D ρ i < B := lt_of_le_of_lt (augDeg_le D ρ i) (by omega)
+      have h := evalB_var (B := B) (x := "c") (σ := τ₂) (by rw [hcv₂]; omega)
+      rwa [hcv₂] at h
+    have hgno₂ : τ₂.arrs "noff" = arrOf (n + 1) gno := by
+      rw [hfa₂ "noff" (by decide) (by decide) (by decide) (by decide) (by decide), hτ₁,
+        arrs_setVar]
+      exact hgno
+    have hl : i + 1 < (τ₂.arrs "noff").length := by rw [hgno₂, length_arrOf]; omega
+    refine ⟨τ₂.setArr "noff" (i + 1) (augDeg D ρ i), 2 + (K₂ + 5),
+      hr₁.seq (hr₂.seq ((Run.store eidx ecv hl).mono
+        (by simp only [size_add, size_var, size_lit]; omega))), by omega,
+      by rw [vars_setArr]; exact hiv₂, ?_⟩
+    refine ⟨by simp, by omega,
+      (harr₂.setArr (a := "noff") (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide) (i + 1) (augDeg D ρ i)).setVar "i" (by decide) (i + 1),
+      by rw [arrs_setVar, arrs_setArr, if_neg (by decide)]; exact hrnk₂,
+      (by obtain ⟨g, hg, hz⟩ := hsta₂
+          exact ⟨g, by rw [arrs_setVar, arrs_setArr, if_neg (by decide)]; exact hg, hz⟩),
+      (by obtain ⟨g, hg, hz⟩ := hstd₂
+          exact ⟨g, by rw [arrs_setVar, arrs_setArr, if_neg (by decide)]; exact hg, hz⟩),
+      (by obtain ⟨g, hg, hz⟩ := hste₂
+          exact ⟨g, by rw [arrs_setVar, arrs_setArr, if_neg (by decide)]; exact hg, hz⟩),
+      ⟨fun k => if k = i + 1 then augDeg D ρ i else gno k, ?_, ?_, ?_⟩⟩
+    · rw [arrs_setVar, arrs_setArr, if_pos rfl, hgno₂, set_arrOf]
+    · simp only []; rw [if_neg (by omega)]; exact hgno0
+    · intro u hu
+      simp only []
+      rcases Nat.lt_or_ge u i with h | h
+      · rw [if_neg (by omega)]; exact hgnoI u h
+      · rw [if_pos (show u + 1 = i + 1 by omega), show u = i from by omega]
+  obtain ⟨σ', K, hrun, hK, hIn⟩ :=
+    forVerts_run (B := B) (n := n)
+      (costs := fun i => ((4 + 49) * d + 4 + 85) * (DO (i + 1) - DO i)
+          + (28 * d + 98) * (OO (i + 1) - OO i) + (4 + 38) * (IO (i + 1) - IO i)
+          + 28 * (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)), (OO (OT p + 1) - OO (OT p)))
+          + 139)
+      (I := I) (σ := σ) hnB (fun _ _ h => h.2.2.1.1.1) (fun _ _ h => h.1)
+      (fun _ _ h => h.2.1) hstep
+      ⟨by simp, by omega, harr.setVar "i" (by decide) 0,
+        by rw [arrs_setVar]; exact hrnk,
+        (by obtain ⟨g, hg, hz⟩ := hsta0; exact ⟨g, by rw [arrs_setVar]; exact hg, hz⟩),
+        (by obtain ⟨g, hg, hz⟩ := hstd0; exact ⟨g, by rw [arrs_setVar]; exact hg, hz⟩),
+        (by obtain ⟨g, hg, hz⟩ := hste0; exact ⟨g, by rw [arrs_setVar]; exact hg, hz⟩),
+        ⟨gno₀, by rw [arrs_setVar]; exact hgno₀, hgnoz₀ 0 (by omega),
+          fun u hu => absurd hu (by omega)⟩⟩
+  obtain ⟨-, -, harr', hrnk', hsta', hstd', hste', hnoff'⟩ := hIn
+  refine ⟨σ', K, hrun, le_trans hK ?_, harr', hrnk', hsta', hstd', hste', hnoff',
+    fun a h1 h2 h3 h4 => hrun.frame_arr a ?_,
+    fun y h1 h2 h3 h4 h5 h6 h7 h8 => hrun.frame_var y ?_⟩
+  · have hcong : ∑ i ∈ Finset.range n,
+        (((4 + 49) * d + 4 + 85) * (DO (i + 1) - DO i)
+            + (28 * d + 98) * (OO (i + 1) - OO i) + (4 + 38) * (IO (i + 1) - IO i)
+            + 28 * (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)), (OO (OT p + 1) - OO (OT p)))
+            + 139 + 8)
+        = ∑ i ∈ Finset.range n,
+          ((53 * d + 89) * (DO (i + 1) - DO i) + (28 * d + 98) * (OO (i + 1) - OO i)
+            + 42 * (IO (i + 1) - IO i)
+            + 28 * (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)), (OO (OT p + 1) - OO (OT p)))
+            + 147) := Finset.sum_congr rfl (fun i _ => by ring)
+    rw [hcong]
+    have hle := asm_cost_le (n := n) (d := d) (W := W) (m := m) (me := me) (c := 147)
+      (c₁ := 53 * d + 89) (c₂ := 28 * d + 98) (c₃ := 42) (D := D)
+      (Eo := RamElim.ElimCert.elimOr (fratGraph D) ρ) (DO := DO) (DT := DT) (OO := OO)
+      (OT := OT) (IO := IO) (IT := IT) (σ := σ) hcsr hdeg hE hbo hxch
+    have e₁ : (53 * d + 89) * m = 53 * (d * m) + 89 * m := by ring
+    have e₂ : (28 * d + 98) * m = 28 * (d * m) + 98 * m := by ring
+    omega
+  · simp [RamAugment.forVerts, RamAugment.asmRow, RamAugment.asmStamp, RamAugment.asmEmit,
+      RamAugment.asmClearE, RamAugment.blockScan, Csr.loadRow, Csr.scan, Com.warrs,
+      h1, h2, h3, h4]
+  · simp [RamAugment.forVerts, RamAugment.asmRow, RamAugment.asmStamp, RamAugment.asmEmit,
+      RamAugment.asmClearE, RamAugment.blockScan, Csr.loadRow, Csr.scan, Com.wvars,
+      h1, h2, h3, h4, h5, h6, h7, h8]
+
+/-- **The new in-lists, written out once each.** The same turn as the
+count, with the fill pointer of the current vertex for its action. -/
+theorem asmFill_run {m' : ℕ} {NT₀ : ℕ → ℕ}
+    (hnB : n + 1 < B) (hWB : W < B)
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d) (hmW : m ≤ W)
+    (hE : InCsr (RamElim.ElimCert.elimOr (fratGraph D) ρ) me IO IT) (hmeW : me ≤ W)
+    (hρ : ∀ v : Fin n, ρ v = R (v : ℕ)) (hRn : ∀ v, v < n → R v < n)
+    (hbo : Blocks "ooff" "otg" n W m OO OT σ)
+    (hsnd : ∀ u < n, ∀ q, OO u ≤ q → q < OO (u + 1) → Pts DO DT (OT q) u)
+    (hcmp : ∀ u < n, ∀ z < n, Pts DO DT z u → ∃ q, OO u ≤ q ∧ q < OO (u + 1) ∧ OT q = z)
+    (hxch : ∀ w, w < n → inDeg D w = slotCnt OT m w)
+    (hm' : RamElim.psum (augDeg D ρ) n = m') (hm'W : m' ≤ W)
+    (harr : AsmArr n W DO DT OO OT IO IT σ) (hrnk : σ.arrs "rnk" = arrOf n R)
+    (hsta0 : ∃ g, σ.arrs "sta" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hstd0 : ∃ g, σ.arrs "std" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hste0 : ∃ g, σ.arrs "ste" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hnfl : σ.arrs "nfl" = arrOf n (RamElim.psum (augDeg D ρ)))
+    (hntg : σ.arrs "ntg" = arrOf W NT₀) :
+    ∃ σ' K, Run B RamAugment.asmFill σ σ' K ∧
+      K ≤ 115 * (d * m) + 193 * m + 48 * me + 140 * n + 8 ∧
+      AsmArr n W DO DT OO OT IO IT σ' ∧ σ'.arrs "rnk" = arrOf n R ∧
+      (∃ NT, σ'.arrs "ntg" = arrOf W NT ∧ ∀ u < n,
+        (∀ q, RamElim.psum (augDeg D ρ) u ≤ q → q < RamElim.psum (augDeg D ρ) (u + 1) →
+          NT q ∈ augSet D ρ u) ∧
+        (∀ z ∈ augSet D ρ u, ∃ q, RamElim.psum (augDeg D ρ) u ≤ q ∧
+          q < RamElim.psum (augDeg D ρ) (u + 1) ∧ NT q = z)) ∧
+      (∀ a, a ≠ "sta" → a ≠ "std" → a ≠ "ste" → a ≠ "ntg" → a ≠ "nfl" →
+        σ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "i" → y ≠ "c" → y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" →
+        y ≠ "u" → σ'.vars y = σ.vars y) := by
+  classical
+  set FO : ℕ → ℕ := RamElim.psum (augDeg D ρ) with hFO
+  have hFOsucc : ∀ u, FO (u + 1) = FO u + augDeg D ρ u := fun u => RamElim.psum_succ _ u
+  have hFOle : ∀ u, u ≤ n → FO u ≤ m' := fun u hu => by
+    rw [← hm']; exact RamElim.psum_mono _ hu
+  set I : ℕ → Env → Prop := fun i τ => τ.vars "i" = i ∧ i ≤ n ∧
+    AsmArr n W DO DT OO OT IO IT τ ∧ τ.arrs "rnk" = arrOf n R ∧
+    (∃ g, τ.arrs "sta" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+    (∃ g, τ.arrs "std" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+    (∃ g, τ.arrs "ste" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
+    (∃ f, τ.arrs "nfl" = arrOf n f ∧ ∀ k, i ≤ k → f k = FO k) ∧
+    (∃ NT, τ.arrs "ntg" = arrOf W NT ∧ ∀ u < i,
+      (∀ q, FO u ≤ q → q < FO (u + 1) → NT q ∈ augSet D ρ u) ∧
+      (∀ z ∈ augSet D ρ u, ∃ q, FO u ≤ q ∧ q < FO (u + 1) ∧ NT q = z)) with hIdef
+  have hstep : ∀ i, i < n → ∀ τ, I i τ →
+      ∃ τ' K, Run B (RamAugment.asmRow
+          (.seq (.store "ntg" (.get "nfl" (.var "i")) (.var "u"))
+            (.store "nfl" (.var "i") (.add (.get "nfl" (.var "i")) (.lit 1))))) τ τ' K ∧
+        K ≤ ((10 + 49) * d + 10 + 85) * (DO (i + 1) - DO i)
+            + (28 * d + 98) * (OO (i + 1) - OO i) + (10 + 38) * (IO (i + 1) - IO i)
+            + 28 * (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)), (OO (OT p + 1) - OO (OT p)))
+            + 132 ∧ τ'.vars "i" = i ∧ I (i + 1) (τ'.setVar "i" (i + 1)) := by
+    intro i hi τ hτ
+    obtain ⟨hiv, -, harrτ, hrnkτ, hstaτ, hstdτ, hsteτ, ⟨f, hf, hfk⟩, ⟨NT, hNT, hNTI⟩⟩ := hτ
+    have hEs : augSet D ρ i = valSet ((RamAugment.augOr D ρ).inN ⟨i, hi⟩) := augSet_eq hi
+    have hcard : (valSet ((RamAugment.augOr D ρ).inN ⟨i, hi⟩)).card = augDeg D ρ i := by
+      rw [card_valSet, augDeg_eq hi]
+    have hEcard : FO i + (valSet ((RamAugment.augOr D ρ).inN ⟨i, hi⟩)).card = FO (i + 1) := by
+      rw [hcard, hFOsucc]
+    set Cap : Finset ℕ := valSet ((RamAugment.augOr D ρ).inN ⟨i, hi⟩) with hCap
+    have hAccFr : ∀ (S : Finset ℕ) (τ' τ'' : Env),
+        FillAcc "ntg" "nfl" n W i (FO i) NT f Cap S τ' →
+        (∀ y, y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" → y ≠ "u" →
+          τ''.vars y = τ'.vars y) →
+        (∀ a, a ≠ "sta" → a ≠ "std" → a ≠ "ste" → τ''.arrs a = τ'.arrs a) →
+        FillAcc "ntg" "nfl" n W i (FO i) NT f Cap S τ'' := by
+      rintro S τ' τ'' ⟨h1, h2, ⟨f', hf', hfi', hfk'⟩, ⟨g, hg, g1, g2, g3⟩⟩ hv hfa
+      exact ⟨by rw [hv "i" (by decide) (by decide) (by decide) (by decide) (by decide)
+          (by decide)]; exact h1, h2,
+        ⟨f', by rw [hfa "nfl" (by decide) (by decide) (by decide)]; exact hf', hfi', hfk'⟩,
+        ⟨g, by rw [hfa "ntg" (by decide) (by decide) (by decide)]; exact hg, g1, g2, g3⟩⟩
+    obtain ⟨τ', K', hr, hK, hA', harr', hrnk', hsta', hstd', hste', hfa', hfv'⟩ :=
+      asmRow_run (B := B) (n := n) (d := d) (W := W) (m := m) (me := me) (Ka := 10) (i := i)
+        (a₁ := "ntg") (a₂ := "nfl")
+        (act := .seq (.store "ntg" (.get "nfl" (.var "i")) (.var "u"))
+          (.store "nfl" (.var "i") (.add (.get "nfl" (.var "i")) (.lit 1))))
+        (D := D) (ρ := ρ) (DO := DO) (DT := DT) (OO := OO) (OT := OT) (IO := IO) (IT := IT)
+        (R := R) (Acc := FillAcc "ntg" "nfl" n W i (FO i) NT f Cap) (σ := τ)
+        readArrs_ntg readArrs_nfl (by intro a h1 h2; simp [Com.warrs, h1, h2]) (by omega)
+        (by omega) hWB hi hcsr hdeg hmW hE hmeW hρ hRn (harrτ.blocks hbo) hsnd hcmp hiv
+        harrτ hrnkτ hstaτ hstdτ hsteτ hAccFr (fun _ _ h => h.1)
+        (fillAcc_emits (by decide) hi (by omega) (by omega)
+          (by rw [hEcard]; exact le_trans (hFOle (i + 1) (by omega)) hm'W))
+        ⟨hiv, by simp, ⟨f, hf, by rw [hfk i le_rfl]; simp, fun k _ => rfl⟩,
+          ⟨NT, hNT, fun q h₁ h₂ => by simp at h₂; omega, fun z hz => absurd hz (by simp),
+            fun q _ => rfl⟩⟩
+    obtain ⟨-, -, ⟨f', hf'a, hf'i, hf'k⟩, ⟨G, hGa, hG₁, hG₂, hG₃⟩⟩ := hA'
+    refine ⟨τ', K', hr, hK,
+      hfv' "i" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) |>.trans hiv, ?_⟩
+    refine ⟨by simp, by omega, harr'.setVar "i" (by decide) (i + 1),
+      by rw [arrs_setVar]; exact hrnk',
+      (by obtain ⟨g, hg, hz⟩ := hsta'; exact ⟨g, by rw [arrs_setVar]; exact hg, hz⟩),
+      (by obtain ⟨g, hg, hz⟩ := hstd'; exact ⟨g, by rw [arrs_setVar]; exact hg, hz⟩),
+      (by obtain ⟨g, hg, hz⟩ := hste'; exact ⟨g, by rw [arrs_setVar]; exact hg, hz⟩),
+      ⟨f', by rw [arrs_setVar]; exact hf'a, ?_⟩, ⟨G, by rw [arrs_setVar]; exact hGa, ?_⟩⟩
+    · intro k hk
+      rw [hf'k k (by omega)]
+      exact hfk k (by omega)
+    · intro u hu
+      rcases Nat.lt_or_ge u i with h | h
+      · have hlo : FO (u + 1) ≤ FO i := RamElim.psum_mono _ (by omega)
+        refine ⟨fun q h₁ h₂ => ?_, fun z hz => ?_⟩
+        · rw [hG₃ q (Or.inl (by omega))]
+          exact (hNTI u h).1 q h₁ h₂
+        · obtain ⟨q, hq₁, hq₂, hq₃⟩ := (hNTI u h).2 z hz
+          exact ⟨q, hq₁, hq₂, by rw [hG₃ q (Or.inl (by omega))]; exact hq₃⟩
+      · have hui : u = i := by omega
+        subst hui
+        rw [hEs]
+        refine ⟨fun q h₁ h₂ => hG₁ q h₁ (by rw [hEcard]; exact h₂), fun z hz => ?_⟩
+        obtain ⟨q, hq₁, hq₂, hq₃⟩ := hG₂ z hz
+        exact ⟨q, hq₁, by rw [← hEcard]; exact hq₂, hq₃⟩
+  obtain ⟨σ', K, hrun, hK, hIn⟩ :=
+    forVerts_run (B := B) (n := n)
+      (costs := fun i => ((10 + 49) * d + 10 + 85) * (DO (i + 1) - DO i)
+          + (28 * d + 98) * (OO (i + 1) - OO i) + (10 + 38) * (IO (i + 1) - IO i)
+          + 28 * (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)), (OO (OT p + 1) - OO (OT p)))
+          + 132)
+      (I := I) (σ := σ) hnB (fun _ _ h => h.2.2.1.1.1) (fun _ _ h => h.1)
+      (fun _ _ h => h.2.1) hstep
+      ⟨by simp, by omega, harr.setVar "i" (by decide) 0,
+        by rw [arrs_setVar]; exact hrnk,
+        (by obtain ⟨g, hg, hz⟩ := hsta0; exact ⟨g, by rw [arrs_setVar]; exact hg, hz⟩),
+        (by obtain ⟨g, hg, hz⟩ := hstd0; exact ⟨g, by rw [arrs_setVar]; exact hg, hz⟩),
+        (by obtain ⟨g, hg, hz⟩ := hste0; exact ⟨g, by rw [arrs_setVar]; exact hg, hz⟩),
+        ⟨FO, by rw [arrs_setVar]; exact hnfl, fun k _ => rfl⟩,
+        ⟨NT₀, by rw [arrs_setVar]; exact hntg, fun u hu => absurd hu (by omega)⟩⟩
+  obtain ⟨-, -, harr', hrnk', -, -, -, -, hntg'⟩ := hIn
+  refine ⟨σ', K, hrun, le_trans hK ?_, harr', hrnk', hntg',
+    fun a h1 h2 h3 h4 h5 => hrun.frame_arr a ?_,
+    fun y h1 h2 h3 h4 h5 h6 h7 h8 => hrun.frame_var y ?_⟩
+  · have hcong : ∑ i ∈ Finset.range n,
+        (((10 + 49) * d + 10 + 85) * (DO (i + 1) - DO i)
+            + (28 * d + 98) * (OO (i + 1) - OO i) + (10 + 38) * (IO (i + 1) - IO i)
+            + 28 * (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)), (OO (OT p + 1) - OO (OT p)))
+            + 132 + 8)
+        = ∑ i ∈ Finset.range n,
+          ((59 * d + 95) * (DO (i + 1) - DO i) + (28 * d + 98) * (OO (i + 1) - OO i)
+            + 48 * (IO (i + 1) - IO i)
+            + 28 * (∑ p ∈ Finset.Ico (OO i) (OO (i + 1)), (OO (OT p + 1) - OO (OT p)))
+            + 140) := Finset.sum_congr rfl (fun i _ => by ring)
+    rw [hcong]
+    have hle := asm_cost_le (n := n) (d := d) (W := W) (m := m) (me := me) (c := 140)
+      (c₁ := 59 * d + 95) (c₂ := 28 * d + 98) (c₃ := 48) (D := D)
+      (Eo := RamElim.ElimCert.elimOr (fratGraph D) ρ) (DO := DO) (DT := DT) (OO := OO)
+      (OT := OT) (IO := IO) (IT := IT) (σ := σ) hcsr hdeg hE hbo hxch
+    have e₁ : (59 * d + 95) * m = 59 * (d * m) + 95 * m := by ring
+    have e₂ : (28 * d + 98) * m = 28 * (d * m) + 98 * m := by ring
+    omega
+  · simp [RamAugment.forVerts, RamAugment.asmRow, RamAugment.asmStamp, RamAugment.asmEmit,
+      RamAugment.asmClearE, RamAugment.blockScan, Csr.loadRow, Csr.scan, Com.warrs,
+      h1, h2, h3, h4, h5]
+  · simp [RamAugment.forVerts, RamAugment.asmRow, RamAugment.asmStamp, RamAugment.asmEmit,
+      RamAugment.asmClearE, RamAugment.blockScan, Csr.loadRow, Csr.scan, Com.wvars,
+      h1, h3, h4, h5, h6, h7, h8]
+
+/-- **The next orientation's block structure.** The three passes and
+the report, sequenced: what they leave in `noff`/`ntg` is
+`InCsr (augOr D ρ)`, the surface the next round reads as this one read
+its own, and what they leave in `mn` is its arc count. -/
+theorem asmPass_run
+    (hnB : n + 1 < B) (hWB : W < B)
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d) (hmW : m ≤ W)
+    (hE : InCsr (RamElim.ElimCert.elimOr (fratGraph D) ρ) me IO IT) (hmeW : me ≤ W)
+    (hρ : ∀ v : Fin n, ρ v = R (v : ℕ)) (hRn : ∀ v, v < n → R v < n)
+    (hbo : Blocks "ooff" "otg" n W m OO OT σ)
+    (hsnd : ∀ u < n, ∀ q, OO u ≤ q → q < OO (u + 1) → Pts DO DT (OT q) u)
+    (hcmp : ∀ u < n, ∀ z < n, Pts DO DT z u → ∃ q, OO u ≤ q ∧ q < OO (u + 1) ∧ OT q = z)
+    (hxch : ∀ w, w < n → inDeg D w = slotCnt OT m w)
+    (hm'W : RamElim.psum (augDeg D ρ) n ≤ W)
+    (harr : AsmArr n W DO DT OO OT IO IT σ) (hrnk : σ.arrs "rnk" = arrOf n R)
+    (hsta0 : ∃ g, σ.arrs "sta" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hstd0 : ∃ g, σ.arrs "std" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hste0 : ∃ g, σ.arrs "ste" = arrOf n g ∧ ∀ k < n, g k = 0)
+    (hnoff0 : ∃ g, σ.arrs "noff" = arrOf (n + 1) g ∧ ∀ k ≤ n, g k = 0)
+    (hnfl0 : ∃ g, σ.arrs "nfl" = arrOf n g) (hntg0 : ∃ g, σ.arrs "ntg" = arrOf W g) :
+    ∃ σ' K, Run B RamAugment.asmPass σ σ' K ∧
+      K ≤ 224 * (d * m) + 380 * m + 90 * me + 310 * n + 27 ∧
+      σ'.arrs "rnk" = arrOf n R ∧
+      σ'.arrs "noff" = arrOf (n + 1) (RamElim.psum (augDeg D ρ)) ∧
+      (∃ NT, σ'.arrs "ntg" = arrOf W NT ∧
+        InCsr (RamAugment.augOr D ρ) (RamElim.psum (augDeg D ρ) n)
+          (RamElim.psum (augDeg D ρ)) NT) ∧
+      σ'.vars "mn" = RamElim.psum (augDeg D ρ) n ∧
+      (∀ a, a ≠ "sta" → a ≠ "std" → a ≠ "ste" → a ≠ "noff" → a ≠ "ntg" → a ≠ "nfl" →
+        σ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "i" → y ≠ "c" → y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" →
+        y ≠ "u" → y ≠ "mn" → σ'.vars y = σ.vars y) := by
+  classical
+  obtain ⟨σ₁, K₁, hr₁, hK₁, harr₁, hrnk₁, hsta₁, hstd₁, hste₁, hnoff₁, hfa₁, hfv₁⟩ :=
+    asmCount_run hnB hWB hcsr hdeg hmW hE hmeW hρ hRn hbo hsnd hcmp hxch harr hrnk
+      hsta0 hstd0 hste0 hnoff0
+  obtain ⟨σ₂, K₂, hr₂, hK₂, hn₂, hnoffa₂, hnfl₂⟩ :=
+    prefixPass_run (B := B) (a := "noff") (b := "nfl") (n := n) (d := augDeg D ρ)
+      (σ := σ₁) (by decide) hnB (by omega) harr₁.1.1 hnoff₁
+      (by
+        obtain ⟨g, hg⟩ := hnfl0
+        refine ⟨g, ?_⟩
+        rw [hfa₁ "nfl" (by decide) (by decide) (by decide) (by decide)]
+        exact hg)
+  have hfa₂ : ∀ a, a ≠ "noff" → a ≠ "nfl" → σ₂.arrs a = σ₁.arrs a :=
+    fun a ha hb => hr₂.frame_arr a (by
+      simp [prefixCom, RamAugment.forVerts, Com.warrs, ha, hb])
+  have hfv₂ : ∀ y, y ≠ "i" → σ₂.vars y = σ₁.vars y :=
+    fun y hy => hr₂.frame_var y (by simp [prefixCom, RamAugment.forVerts, Com.wvars, hy])
+  have harr₂ : AsmArr n W DO DT OO OT IO IT σ₂ :=
+    ⟨⟨hn₂, by rw [hfa₂ "doff" (by decide) (by decide)]; exact harr₁.1.2.1,
+        by rw [hfa₂ "dtg" (by decide) (by decide)]; exact harr₁.1.2.2.1,
+        by rw [hfa₂ "ooff" (by decide) (by decide)]; exact harr₁.1.2.2.2.1,
+        by rw [hfa₂ "otg" (by decide) (by decide)]; exact harr₁.1.2.2.2.2⟩,
+      by rw [hfa₂ "ioff" (by decide) (by decide)]; exact harr₁.2.1,
+      by rw [hfa₂ "itg" (by decide) (by decide)]; exact harr₁.2.2⟩
+  obtain ⟨NT₀, hNT₀⟩ := hntg0
+  obtain ⟨σ₃, K₃, hr₃, hK₃, harr₃, hrnk₃, hntg₃, hfa₃, hfv₃⟩ :=
+    asmFill_run (B := B) (n := n) (d := d) (W := W) (m := m) (me := me) (D := D) (ρ := ρ)
+      (DO := DO) (DT := DT) (OO := OO) (OT := OT) (IO := IO) (IT := IT) (R := R)
+      (σ := σ₂) (m' := RamElim.psum (augDeg D ρ) n) (NT₀ := NT₀)
+      hnB hWB hcsr hdeg hmW hE hmeW hρ hRn (harr₂.blocks hbo) hsnd hcmp hxch rfl hm'W
+      harr₂ (by rw [hfa₂ "rnk" (by decide) (by decide)]; exact hrnk₁)
+      (by obtain ⟨g, hg, hz⟩ := hsta₁
+          exact ⟨g, by rw [hfa₂ "sta" (by decide) (by decide)]; exact hg, hz⟩)
+      (by obtain ⟨g, hg, hz⟩ := hstd₁
+          exact ⟨g, by rw [hfa₂ "std" (by decide) (by decide)]; exact hg, hz⟩)
+      (by obtain ⟨g, hg, hz⟩ := hste₁
+          exact ⟨g, by rw [hfa₂ "ste" (by decide) (by decide)]; exact hg, hz⟩)
+      hnfl₂
+      (by rw [hfa₂ "ntg" (by decide) (by decide),
+            hfa₁ "ntg" (by decide) (by decide) (by decide) (by decide)]
+          exact hNT₀)
+  -- the report
+  have hnoff₃ : σ₃.arrs "noff" = arrOf (n + 1) (RamElim.psum (augDeg D ρ)) := by
+    rw [hfa₃ "noff" (by decide) (by decide) (by decide) (by decide) (by decide)]
+    exact hnoffa₂
+  have hnv₃ : σ₃.vars "n" = n := harr₃.1.1
+  have en : (Expr.var "n").evalB B σ₃ = some n := by
+    have h := evalB_var (B := B) (x := "n") (σ := σ₃) (by rw [hnv₃]; omega)
+    rwa [hnv₃] at h
+  have eget : (Expr.get "noff" (.var "n")).evalB B σ₃
+      = some (RamElim.psum (augDeg D ρ) n) :=
+    evalB_get en (by rw [hnoff₃, getElem?_arrOf (RamElim.psum (augDeg D ρ)) (by omega)])
+      (by omega)
+  refine ⟨σ₃.setVar "mn" (RamElim.psum (augDeg D ρ) n), K₁ + (K₂ + (K₃ + 3)),
+    hr₁.seq (hr₂.seq (hr₃.seq ((Run.assign eget).mono (by simp)))), by omega,
+    by rw [arrs_setVar]; exact hrnk₃, by rw [arrs_setVar]; exact hnoff₃, ?_, by simp, ?_, ?_⟩
+  · obtain ⟨NT, hNTa, hNTb⟩ := hntg₃
+    refine ⟨NT, by rw [arrs_setVar]; exact hNTa, ⟨RamElim.psum_zero _, rfl,
+      fun i _ => RamElim.psum_mono _ (by omega), ?_, ?_, ?_⟩⟩
+    · intro j hj
+      obtain ⟨w, hw, ha, hb⟩ :=
+        RamElim.exists_block (ID := augDeg D ρ) (m := n) (t := j) hj
+      have h := (hNTb w hw).1 j ha hb
+      rw [augSet_eq hw] at h
+      exact valSet_lt h
+    · intro u v
+      constructor
+      · intro hmem
+        have hv : (v : ℕ) ∈ augSet D ρ (u : ℕ) := by
+          rw [augSet_eq u.isLt]; exact mem_valSet_of hmem
+        obtain ⟨q, hq₁, hq₂, hq₃⟩ := (hNTb (u : ℕ) u.isLt).2 (v : ℕ) hv
+        exact ⟨q, hq₁, hq₂, hq₃⟩
+      · rintro ⟨q, hq₁, hq₂, hq₃⟩
+        have h := (hNTb (u : ℕ) u.isLt).1 q hq₁ hq₂
+        rw [augSet_eq u.isLt] at h
+        obtain ⟨hlt, hmem⟩ := mem_valSet.1 h
+        have he : (⟨NT q, hlt⟩ : Fin n) = v := Fin.ext hq₃
+        rw [he] at hmem
+        exact hmem
+    · intro w
+      have he : (⟨(w : ℕ), w.isLt⟩ : Fin n) = w := Fin.ext rfl
+      rw [RamElim.psum_succ, augDeg_eq w.isLt, he]
+      omega
+  · intro a h1 h2 h3 h4 h5 h6
+    rw [arrs_setVar, hfa₃ a h1 h2 h3 h5 h6, hfa₂ a h4 h6, hfa₁ a h1 h2 h3 h4]
+  · intro y h1 h2 h3 h4 h5 h6 h7 h8 h9
+    rw [vars_setVar, if_neg h9, hfv₃ y h1 h2 h3 h4 h5 h6 h7 h8, hfv₂ y h1,
+      hfv₁ y h1 h2 h3 h4 h5 h6 h7 h8]
+
+end AsmPasses
+
+/-! ### The round, whole
+
+The five phases, sequenced: the out-lists, the fraternity graph, the
+mask, the elimination — through `elimCert_spec`, so that
+`RamAugment.ElimAvail` is never used — and the assembly. Every array a
+phase does not write is carried across it by the frame that phase
+exports, and the cost is one order inside `RamAugment.augCost`. -/
+
+/-- **The augmentation round implements its specification.** -/
+theorem implements {B n d nf W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} :
+    RamAugment.Implements B n d nf W m D DO DT := by
+  classical
+  intro _he hcsr hdeg hnf hmW hW hB
+  refine Spec.of_exists ?_
+  intro σ hσ
+  obtain ⟨hn, hdoff, hdtg, hooffA, hotgA, hoflA, hoffA, htgtA, hfflA, halvA, hdegA, helmA,
+    hrnkA, hidgA, hbhA, hbvA, hbnA, hioffA, hiflA, hitgA, hnoffA, hnflA, hntgA, hstfA,
+    hstaA, hstdA, hsteA⟩ := hσ
+  -- the width's arithmetic: `n`, `m`, `d · m`, `nf` and `n²` all fit under `W`
+  have hAW : n * (d + 1) ^ 2 + n * n + 1 ≤ W := hW
+  have hsq : (d + 1) ^ 2 = d * d + 2 * d + 1 := by ring
+  have hnW : n < W := by
+    have h1 : n * 1 ≤ n * (d + 1) ^ 2 := Nat.mul_le_mul_left n (by omega)
+    omega
+  have hnnW : n * n < W := by omega
+  have hdmW : d * m ≤ W := by
+    have h1 : d * m ≤ d * (n * d) := Nat.mul_le_mul_left d (arcs_le hcsr hdeg)
+    have h2 : d * (n * d) = n * (d * d) := by ring
+    have h3 : n * (d * d) ≤ n * (d + 1) ^ 2 := Nat.mul_le_mul_left n (by omega)
+    omega
+  have hnfW : nf < W := by
+    have h := RamAugment.fratSlots_lt_augWidth (D := D) hdeg
+    rw [hnf] at h
+    omega
+  -- (1) the out-lists
+  obtain ⟨σ₁, K₁, hr₁, hK₁, hScat, hfa₁, hfv₁⟩ :=
+    outPass_run (B := B) (n := n) (W := W) (m := m) (DO := DO) (DT := DT) (σ := σ)
+      (by omega) (by omega) hmW hn (Blocks.of_inCsr hcsr hdoff hdtg hmW) hooffA hoflA hotgA
+  obtain ⟨OT, hbo, hsnd, hcmp⟩ := hScat.blocks
+  have hxch : ∀ w, w < n → inDeg D w = slotCnt OT m w := fun w hw =>
+    slotCnt_out_eq hcsr hbo hcmp w (Finset.mem_range.2 hw)
+  have harr₁ : NestArr n W DO DT (outOff DT m) OT σ₁ :=
+    ⟨hScat.1, hScat.2.1.offArr, hScat.2.1.tgtArr, hbo.offArr, hbo.tgtArr⟩
+  -- (2) the fraternity graph
+  obtain ⟨σ₂, K₂, hr₂, hK₂, harr₂, hstf₂, hoff₂, ⟨FT, hFT, hcsrF⟩, hmf₂, hfa₂, hfv₂⟩ :=
+    fratPass_run (B := B) (n := n) (d := d) (W := W) (m := m) (D := D) (DO := DO)
+      (DT := DT) (OO := outOff DT m) (OT := OT) (σ := σ₁) (nf := nf)
+      (by omega) (by omega) (by omega) hcsr hdeg hmW hbo hsnd hcmp hnf harr₁
+      (by
+        obtain ⟨g, hg, hz⟩ := hstfA
+        exact ⟨g, by rw [hfa₁ "stf" (by decide) (by decide) (by decide)]; exact hg, hz⟩)
+      (by
+        obtain ⟨g, hg, hz⟩ := hoffA
+        exact ⟨g, by rw [hfa₁ "off" (by decide) (by decide) (by decide)]; exact hg, hz⟩)
+      (by
+        obtain ⟨g, hg⟩ := hfflA
+        exact ⟨g, by rw [hfa₁ "ffl" (by decide) (by decide) (by decide)]; exact hg⟩)
+      (by
+        obtain ⟨g, hg⟩ := htgtA
+        exact ⟨g, by rw [hfa₁ "tgt" (by decide) (by decide) (by decide)]; exact hg⟩)
+  -- (3) the mask
+  obtain ⟨σ₃, K₃, hr₃, hK₃, hn₃, halv₃, hfa₃, hfv₃⟩ :=
+    alvSet_run (B := B) (n := n) (σ := σ₂) (by omega) harr₂.1
+      (by
+        obtain ⟨g, hg⟩ := halvA
+        refine ⟨g, ?_⟩
+        rw [hfa₂ "alv" (by decide) (by decide) (by decide) (by decide),
+          hfa₁ "alv" (by decide) (by decide) (by decide)]
+        exact hg)
+  have hfa₃₀ : ∀ a, a ≠ "ooff" → a ≠ "ofl" → a ≠ "otg" → a ≠ "stf" → a ≠ "off" →
+      a ≠ "tgt" → a ≠ "ffl" → a ≠ "alv" → σ₃.arrs a = σ.arrs a :=
+    fun a h1 h2 h3 h4 h5 h6 h7 h8 => by
+      rw [hfa₃ a h8, hfa₂ a h4 h5 h6 h7, hfa₁ a h1 h2 h3]
+  -- (4) the elimination, at the postcondition that has both answers
+  obtain ⟨σ₄, hr₄, hmem₄, R', hrnkR', hRlt⟩ :=
+    (elimCert_spec (B := B) (n := n) (ns := nf) (W := W) (G := fratGraph D)
+        (O := RamElim.psum (fratDeg D)) (T := FT) (M := fun _ => 1)
+        hcsrF (by omega) (fun z _ => by show 1 < B; omega) (by omega)).run
+      ⟨hn₃, by rw [hfa₃ "off" (by decide)]; exact hoff₂,
+        by rw [hfa₃ "tgt" (by decide)]; exact hFT, halv₃,
+        (by
+          obtain ⟨g, hg⟩ := hdegA
+          exact ⟨g, by rw [hfa₃₀ "deg" (by decide) (by decide) (by decide) (by decide)
+            (by decide) (by decide) (by decide) (by decide)]; exact hg⟩),
+        (by
+          obtain ⟨g, hg, hz⟩ := helmA
+          exact ⟨g, by rw [hfa₃₀ "elm" (by decide) (by decide) (by decide) (by decide)
+            (by decide) (by decide) (by decide) (by decide)]; exact hg, hz⟩),
+        (by
+          obtain ⟨g, hg⟩ := hrnkA
+          exact ⟨g, by rw [hfa₃₀ "rnk" (by decide) (by decide) (by decide) (by decide)
+            (by decide) (by decide) (by decide) (by decide)]; exact hg⟩),
+        (by
+          obtain ⟨g, hg⟩ := hidgA
+          exact ⟨g, by rw [hfa₃₀ "idg" (by decide) (by decide) (by decide) (by decide)
+            (by decide) (by decide) (by decide) (by decide)]; exact hg⟩),
+        (by
+          obtain ⟨g, hg, hz⟩ := hbhA
+          exact ⟨g, by rw [hfa₃₀ "bh" (by decide) (by decide) (by decide) (by decide)
+            (by decide) (by decide) (by decide) (by decide)]; exact hg, hz⟩),
+        (by
+          obtain ⟨g, hg⟩ := hbvA
+          exact ⟨g, by rw [hfa₃₀ "bv" (by decide) (by decide) (by decide) (by decide)
+            (by decide) (by decide) (by decide) (by decide)]; exact hg⟩),
+        (by
+          obtain ⟨g, hg⟩ := hbnA
+          exact ⟨g, by rw [hfa₃₀ "bn" (by decide) (by decide) (by decide) (by decide)
+            (by decide) (by decide) (by decide) (by decide)]; exact hg⟩),
+        (by
+          obtain ⟨g, hg⟩ := hioffA
+          exact ⟨g, by rw [hfa₃₀ "ioff" (by decide) (by decide) (by decide) (by decide)
+            (by decide) (by decide) (by decide) (by decide)]; exact hg⟩),
+        (by
+          obtain ⟨g, hg⟩ := hiflA
+          exact ⟨g, by rw [hfa₃₀ "ifl" (by decide) (by decide) (by decide) (by decide)
+            (by decide) (by decide) (by decide) (by decide)]; exact hg⟩),
+        (by
+          obtain ⟨g, hg⟩ := hitgA
+          exact ⟨g, by rw [hfa₃₀ "itg" (by decide) (by decide) (by decide) (by decide)
+            (by decide) (by decide) (by decide) (by decide)]; exact hg⟩)⟩
+  obtain ⟨R, IO, IT, k, mm, hrnk₄, hkmax₄, hioff₄, hitg₄, hmmnf, hout⟩ := hmem₄
+  have hmask : RamBfs.masked (fratGraph D) (fun _ => 1) = fratGraph D :=
+    RamElim.masked_of_all_alive _ (fun v _ => by simp)
+  have hcert : ElimCert (fratGraph D) (fun v : Fin n => R (v : ℕ)) k := by
+    have h := hout.cert
+    rwa [hmask] at h
+  have harcs : InCsr
+      (RamElim.ElimCert.elimOr (fratGraph D) (fun v : Fin n => R (v : ℕ))) mm IO IT := by
+    have h := hout.arcs
+    rwa [hmask] at h
+  have hRR : ∀ j, j < n → R j = R' j := by
+    intro j hj
+    have h : (arrOf n R)[j]? = (arrOf n R')[j]? := by rw [← hrnk₄, ← hrnkR']
+    rw [getElem?_arrOf R hj, getElem?_arrOf R' hj] at h
+    exact Option.some.inj h
+  have hRn : ∀ v, v < n → R v < n := fun v hv => by rw [hRR v hv]; exact hRlt v hv
+  -- the arrays the assembly is handed, across all four phases
+  have hfaAll : ∀ a, a ≠ "ooff" → a ≠ "ofl" → a ≠ "otg" → a ≠ "stf" → a ≠ "off" →
+      a ≠ "tgt" → a ≠ "ffl" → a ≠ "alv" → a ∉ RamElim.elimCom.warrs →
+      σ₄.arrs a = σ.arrs a :=
+    fun a h1 h2 h3 h4 h5 h6 h7 h8 h9 => by
+      rw [hr₄.frame_arr a h9, hfa₃₀ a h1 h2 h3 h4 h5 h6 h7 h8]
+  have hooff₄ : σ₄.arrs "ooff" = arrOf (n + 1) (outOff DT m) := by
+    rw [hr₄.frame_arr "ooff" (by decide), hfa₃ "ooff" (by decide),
+      hfa₂ "ooff" (by decide) (by decide) (by decide) (by decide)]
+    exact hbo.offArr
+  have hotg₄ : σ₄.arrs "otg" = arrOf W OT := by
+    rw [hr₄.frame_arr "otg" (by decide), hfa₃ "otg" (by decide),
+      hfa₂ "otg" (by decide) (by decide) (by decide) (by decide)]
+    exact hbo.tgtArr
+  have hn₄ : σ₄.vars "n" = n := by
+    rw [hr₄.frame_var "n" (by decide), hfv₃ "n" (by decide),
+      hfv₂ "n" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide) (by decide),
+      hfv₁ "n" (by decide) (by decide) (by decide) (by decide)]
+    exact hn
+  have hdoff₄ : σ₄.arrs "doff" = arrOf (n + 1) DO := by
+    rw [hfaAll "doff" (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide)]
+    exact hdoff
+  have hdtg₄ : σ₄.arrs "dtg" = arrOf W DT := by
+    rw [hfaAll "dtg" (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide)]
+    exact hdtg
+  have harr₄ : AsmArr n W DO DT (outOff DT m) OT IO IT σ₄ :=
+    ⟨⟨hn₄, hdoff₄, hdtg₄, hooff₄, hotg₄⟩, hioff₄, hitg₄⟩
+  -- (5) the assembly
+  obtain ⟨σ₅, K₅, hr₅, hK₅, hrnk₅, hnoff₅, ⟨NT, hntg₅, hincsr₅⟩, hmn₅, -, hfv₅⟩ :=
+    asmPass_run (B := B) (n := n) (d := d) (W := W) (m := m) (me := mm) (D := D)
+      (ρ := fun v : Fin n => R (v : ℕ)) (DO := DO) (DT := DT) (OO := outOff DT m)
+      (OT := OT) (IO := IO) (IT := IT) (R := R) (σ := σ₄)
+      (by omega) (by omega) hcsr hdeg hmW harcs (by omega) (fun _ => rfl) hRn
+      (harr₄.blocks hbo) hsnd hcmp hxch
+      (le_trans (sum_augDeg_le D (fun v : Fin n => R (v : ℕ))) (by omega))
+      harr₄ hrnk₄
+      (by
+        obtain ⟨g, hg, hz⟩ := hstaA
+        exact ⟨g, by rw [hfaAll "sta" (by decide) (by decide) (by decide) (by decide)
+          (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hg, hz⟩)
+      (by
+        obtain ⟨g, hg, hz⟩ := hstdA
+        exact ⟨g, by rw [hfaAll "std" (by decide) (by decide) (by decide) (by decide)
+          (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hg, hz⟩)
+      (by
+        obtain ⟨g, hg, hz⟩ := hsteA
+        exact ⟨g, by rw [hfaAll "ste" (by decide) (by decide) (by decide) (by decide)
+          (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hg, hz⟩)
+      (by
+        obtain ⟨g, hg, hz⟩ := hnoffA
+        exact ⟨g, by rw [hfaAll "noff" (by decide) (by decide) (by decide) (by decide)
+          (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hg, hz⟩)
+      (by
+        obtain ⟨g, hg⟩ := hnflA
+        exact ⟨g, by rw [hfaAll "nfl" (by decide) (by decide) (by decide) (by decide)
+          (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hg⟩)
+      (by
+        obtain ⟨g, hg⟩ := hntgA
+        exact ⟨g, by rw [hfaAll "ntg" (by decide) (by decide) (by decide) (by decide)
+          (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hg⟩)
+  refine ⟨σ₅, K₁ + (K₂ + (K₃ + (elimCost n nf + K₅))),
+    hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq hr₅))), ?_,
+    R, RamElim.psum (augDeg D (fun v : Fin n => R (v : ℕ))),
+    NT, k, RamElim.psum (augDeg D (fun v : Fin n => R (v : ℕ))) n,
+    hrnk₅, ?_, hnoff₅, hntg₅, hmn₅,
+    le_trans (sum_augDeg_le D (fun v : Fin n => R (v : ℕ))) (by omega), hcert, hincsr₅⟩
+  · have hcost : RamAugment.augCost n W = 8000 * (n + W + 1) := rfl
+    have hec : elimCost n nf = 600 * n + 600 * nf + 100 := rfl
+    have e1 : (80 * d + 92) * m = 80 * (d * m) + 92 * m := by ring
+    omega
+  · rw [hfv₅ "kmax" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide)]
+    exact hkmax₄
+
+/-! ### The frontier — **COMPLETE**
+
+`RamAugment.Implements` is discharged in full by `implements` above;
+nothing of the round is left open. What follows is the map of what the
+file is built out of.
 
 **Done — the passes.** The combinators every pass is built from
 (`blockScan_run` and `forVerts_run`, and `rowScanC_run` /
@@ -3883,74 +5207,71 @@ stamps of a turn, at `b` — a set at `b = 1` and its erasure at `b = 0`,
 by `adjRow_eq` and `demandRow_eq`) and `asmClearE_run` (the duplicate
 stamps of a turn, cleared).
 
-**Open.** The assembly's emit walk, the two assembly passes, and the
-sequencing. Everything below is stated in the vocabulary above and
-needs no new mathematics.
+**Done — the assembly, whole.** The four walks of a turn, the two
+passes, and the round.
 
-1. `asmEmit_run`, the shape of `RamAugment.asmEmit act`. Three walks
-   under one accounting `Acc`, in order:
-   * `emitAllRow_run` over `doff`/`dtg` at `E₀ = ∅`. Its `hfresh` is
-     `incsr_nodup`: a repeat inside the in-block of `i` would be two
-     slots with the same target. `Cap` is
-     `valSet ((augOr D ρ).inN ⟨i, _⟩)`, which contains all three lists
-     by `asmRow_eq`. It leaves `Acc (rowTgt DO DT i)`.
-   * `emitNest_run` over `doff`/`dtg` twice with
-     `guardAsmTrans_of_emits` at `Base := rowTgt DO DT i`,
-     `A := valSet (adjSet D ⟨i,_⟩)`, `Dm := valSet (demandOut D ⟨i,_⟩)`
-     and `R` the rank array. `hBA : Base ⊆ A` is
-     `rowTgt_eq_inN` plus `adjSet = inN ∪ outSet`. Its `J` starts at
-     `S = ∅` — `ste` is all zero at the turn's start — and ends at the
-     transitive set `T`; the accounting ends at `Acc (Base ∪ T)`.
-   * `emitRow_run` over `ioff`/`itg` with `guardAsmIn_of_emits` at the
-     same `Base` and `E₀ := T`, ending at `Acc (Base ∪ (T ∪ F))`.
-   `asmRow_eq` reads the union — associated as
-   `(Base ∪ T) ∪ F` — as `valSet ((augOr D ρ).inN ⟨i,_⟩)`; use
-   `Finset.union_assoc`. The two `Marks` `asmStamp_run` left are the
-   guards' `A` and `Dm` hypotheses, and `Marks "ste" n 1 ∅` at the
-   start is the round's zeroed stamp.
-2. `asmRow_run` — `asmStamp_run 1`, `asmEmit_run`, `asmStamp_run 0`,
-   `asmClearE_run`, sequenced. What `asmStamp_run 0` and
-   `asmClearE_run` leave is *all three* stamps zero again, by the same
-   `Marks` composition `fratCount_run` uses for `stf`: the clearing
-   walk's set contains the setting walk's, so the `b = 0` pass returns
-   the array to `fun _ => 0`. For `ste` the containment is
-   `rowAcc_mono` again — the guard's `fe z ⊆ {z}`.
-3. `asmCount_run` and `asmFill_run` — `forVerts_run` over `asmRow_run`
-   at `cntAcc_emits` and at `fillAcc_emits "ntg" "nfl"`, exactly as
-   `fratCount_run` and `fratFill_run` do. The new degrees are
-   `((augOr D ρ).inN v).card`; `RamAugment.card_inN_augOr` is what says
-   the count is the block length, and `m' = ∑ ≤ n·n < W` is the
-   capacity `fillAcc_emits` asks for (`augWidth n d ≤ W` gives
-   `n·n < W`). `asmPrefix` is `prefixPass_run "noff" "nfl"` and the
-   report `mn := noff[n]`, as in `fratPass_run`.
-   **The cost.** `asmStamp_run`'s bound is *not* a constant times the
-   row length — its third walk charges the out-block of every vertex
-   the out-block of `i` names. Summed over `i`, that is
-   `∑_{p < m} outdeg (OT p)`, which `sum_slot_weight` turns into
-   `∑_u slotCnt OT m u · outdeg u` and `slotCnt_out_eq` into
-   `∑_u inDeg D u · outdeg u ≤ d · m`. This is the only place the
-   exchange is needed, and `tile_filter_card` is what splits the
-   per-row sums into the whole-array one.
-4. `asmPass_run`, then the sequencing into `implements`, in the shape
-   wave C2 pinned against `RamDriver.AugAvail`:
-   `theorem implements {B n d nf W m : ℕ} {D : Orientation n}
-   {DO DT : ℕ → ℕ} : RamAugment.Implements B n d nf W m D DO DT`,
-   with no theorem-level hypotheses. `RamAugment.ElimAvail` is unused,
-   by `elimCert_spec`. The five phases are `outPass_run`,
-   `fratPass_run`, `alvSet_run`, `elimCert_spec` (at `ns = nf`, with
-   `RamElim.masked_of_all_alive` turning the all-ones mask back into
-   `fratGraph D`), and `asmPass_run`; `RamAugment.AugPre`'s
-   twenty-six clauses cross the phases by the array frames each of the
-   five exports.
+* `asmEmit_run` is `RamAugment.asmEmit act`: three walks under one
+  accounting. The old in-block runs unguarded through `emitAllRow_run`,
+  its freshness `incsr_nodup` — a repeat inside the in-block of `i`
+  would be two slots with the same target. The transitive candidates
+  run through `emitNest_run` under `guardAsmTrans_of_emits` at
+  `Base := rowTgt DO DT i`, `A := valSet (adjSet D i)`,
+  `Dm := valSet (demandOut D i)` and `R` the rank array, with
+  `hBA : Base ⊆ A` off `rowTgt_eq_inN` and `adjSet = inN ∪ outSet`. The
+  engine's own in-block runs through `emitRow_run` under
+  `guardAsmIn_of_emits` at the same `Base` and `E₀` the transitive set.
+  `asmRow_eq` reads the union — associated by `Finset.union_assoc` as
+  `(Base ∪ T) ∪ F` — as `valSet ((augOr D ρ).inN i)`, which is also the
+  capacity all three run inside. The array facts the walks need but do
+  not carry — `AsmArr`, the stamp `std` and the rank array — ride in
+  the accounting through `Emits.and`.
+* `asmRow_run` is `asmStamp_run 1`, `asmEmit_run`, `asmStamp_run 0`,
+  `asmClearE_run`. All three stamps come back zero: the `b = 0` walk's
+  set is the `b = 1` walk's on the nose for `sta` and `std`, and for
+  `ste` the guard's emitted set sits inside what `asmClearE` clears, by
+  `rowAcc_mono` (the guards' `fe z ⊆ {z}`).
+* `asmCount_run` and `asmFill_run` are `forVerts_run` over
+  `asmRow_run` at `cntAcc_emits` and at `fillAcc_emits "ntg" "nfl"`,
+  exactly as `fratCount_run` and `fratFill_run` are. The new degrees
+  are `augDeg D ρ`, the blocks `augSet D ρ`; `sum_augDeg_le` is the
+  `m' ≤ n²` that `fillAcc_emits`'s capacity wants (`augWidth n d ≤ W`
+  gives `n² < W`). `asmPass_run` adds `prefixPass_run "noff" "nfl"` and
+  the report `mn := noff[n]`, and reads the result back as
+  `InCsr (augOr D ρ) m'`.
+* **The cost exchange.** `asmStamp_run`'s bound is *not* a constant
+  times the row length — its third walk charges the out-block of every
+  vertex the out-block of `i` names. Summed over `i` that is
+  `∑_{p < m} outdeg (OT p)`; `tile_sum` splits the per-row sums into
+  the whole-array one, `sum_slot_weight` turns it into
+  `∑_u slotCnt OT m u · outdeg u`, and `slotCnt_out_eq` into
+  `∑_u inDeg D u · outdeg u ≤ d · m`. That is `asm_cost_le`, and it is
+  the only place the exchange is needed.
 
-**The cost, and why it fits.** Every walk above is charged per slot of
-the block structure it walks. `outPass_run` is `42·m + 63·n + 24` and
-`fratPass_run` is `(80·d + 92)·m + 106·n + 40`; `alvSet_run` is
-`11·n + 8`; the engine's is `elimCost n nf = 600·n + 600·nf + 100`; the
-assembly's is `O(d·m + m + n)` by `slotCnt_out_eq` and
-`sum_slot_weight`. With `arcs_le` (`m ≤ n·d`) every `d·m` is at most
-`n·d² ≤ n·(d+1)² ≤ augWidth n d ≤ W`, and `nf = fratSlots D < augWidth
-n d ≤ W`, so the whole is `O(n + W)` with a constant of a few hundred —
-one to two orders inside `RamAugment.augCost`'s `8000·(n + W + 1)`. -/
+**Done — the round.** `implements`:
+
+    theorem implements {B n d nf W m : ℕ} {D : Orientation n}
+        {DO DT : ℕ → ℕ} : RamAugment.Implements B n d nf W m D DO DT
+
+with no theorem-level hypotheses, so
+`fun _ _ _ _ _ _ _ => implements` inhabits `RamDriver.AugAvail B n`.
+`RamAugment.ElimAvail` is *unused*: the engine enters through
+`elimCert_spec`. The five phases are `outPass_run`, `fratPass_run`,
+`alvSet_run`, `elimCert_spec` (at `ns = nf`, with
+`RamElim.masked_of_all_alive` turning the all-ones mask back into
+`fratGraph D`), and `asmPass_run`; `RamAugment.AugPre`'s twenty-seven
+clauses cross the phases by the array frames each of the five exports,
+and the elimination's by `a ∉ RamElim.elimCom.warrs`.
+
+**The cost, and why it fits.** Every walk is charged per slot of the
+block structure it walks. `outPass_run` is `42·m + 63·n + 24`,
+`fratPass_run` is `(80·d + 92)·m + 106·n + 40`, `alvSet_run` is
+`11·n + 8`, the engine's is `elimCost n nf = 600·n + 600·nf + 100`,
+`asmCount_run` is `109·(d·m) + 187·m + 42·me + 147·n + 8` and
+`asmFill_run` is `115·(d·m) + 193·m + 48·me + 140·n + 8`, so
+`asmPass_run` is `224·(d·m) + 380·m + 90·me + 310·n + 27`. With
+`arcs_le` (`m ≤ n·d`) every `d·m` is at most `n·d² ≤ n·(d+1)² ≤
+augWidth n d ≤ W`; `nf = fratSlots D < augWidth n d ≤ W`, `me ≤ nf`,
+`m ≤ W` and `n < W`. The sum is `1508·W + 1090·n + 199`, one order
+inside `RamAugment.augCost`'s `8000·(n + W + 1)`. -/
 
 end Lax3Proofs.RamDriverAugment
