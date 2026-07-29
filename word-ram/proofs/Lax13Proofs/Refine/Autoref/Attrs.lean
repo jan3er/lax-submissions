@@ -151,6 +151,74 @@ user pins the default relator for an abstract type. Populated by
 wave C. -/
 register_label_attr autoref_tyrel
 
+/-! ### P4, wave B2: the Sepref front-phase databases
+
+Five more, and here for the reason every database in this file is here:
+Lean runs `initialize` at *import* time, so `Sepref/IdOp.lean` and
+`Sepref/Monadify.lean` cannot both declare their attributes and tag
+their own rules with them. The names are the source's, from
+`thys/sepref/Sepref_Id_Op.thy` and `thys/sepref/Sepref_Monadify.thy` of
+`isabelle_llvm_time` @ `42dd7f5`.
+
+All five are `named_theorems_rev` in the source, not `named_theorems`.
+The distinction is *order*: Isabelle's `named_theorems` prepends, so
+`get` yields the most recently declared rule first, and Lammich's
+`Named_Theorems_Rev` (`Refine_Imperative_HOL.Named_Theorems_Rev`)
+appends, so `get` yields rules in declaration order — which is what the
+Sepref phases want, because a later, more specific arity or pattern
+equation must not shadow an earlier general one. Lean's
+`register_label_attr` + `Lean.labelled` gives declaration order
+(imported modules first, then the current module in declaration order),
+which *is* the `named_theorems_rev` order; no reversal is applied
+anywhere. Where a database is consumed as a **simp set** rather than as
+an ordered rule list — which is how all five are consumed, following the
+source's own `addsimps (Named_Theorems_Rev.get …)` — the order is
+immaterial to the result and matters only for termination, and the
+source's own `SP_cong`/`PR_CONST_cong` congruence discipline is what
+guarantees that (`Sepref/Monadify.lean`).
+
+* `id_rules` — the source's
+  `named_theorems_rev id_rules "Operation identification rules"`:
+  conceptual typings `c ::⇩i TYPE('T)`, keyed on `c`.
+* `pat_rules` — its
+  `named_theorems_rev pat_rules "Operation pattern rules"`: the
+  backtrackable pattern rewrites applied before type inference.
+* `def_pat_rules` — its `named_theorems_rev def_pat_rules "Definite
+  operation pattern rules (not backtracked over)"`, which the source's
+  `id_tac` runs from its own net, *before* `pat_rules`.
+* `sepref_monadify_arity` — its `named_theorems_rev
+  sepref_monadify_arity "Sepref.Monadify: Arity alignment equations"`:
+  the eta-expansion equations of monadify step 1.
+* `sepref_monadify_comb` — its `named_theorems_rev
+  sepref_monadify_comb "Sepref.Monadify: Combinator equations"`: the
+  `EVAL`-introducing equations of monadify step 2.
+-/
+
+/-- The source's `named_theorems_rev id_rules`
+(`Sepref_Id_Op.thy`): conceptual typings `c ::ᵢ I`, consulted by the
+`id_op` phase's leaf case. -/
+register_label_attr id_rules
+
+/-- The source's `named_theorems_rev pat_rules`
+(`Sepref_Id_Op.thy`): operation pattern rules, rewriting surface
+encodings into abstract operations before type inference. -/
+register_label_attr pat_rules
+
+/-- The source's `named_theorems_rev def_pat_rules`
+(`Sepref_Id_Op.thy`): definite operation pattern rules, not backtracked
+over, run before `pat_rules`. -/
+register_label_attr def_pat_rules
+
+/-- The source's `named_theorems_rev sepref_monadify_arity`
+(`Sepref_Monadify.thy`): arity-alignment (eta-expansion) equations,
+monadify step 1. -/
+register_label_attr sepref_monadify_arity
+
+/-- The source's `named_theorems_rev sepref_monadify_comb`
+(`Sepref_Monadify.thy`): combinator equations introducing `EVAL` tags,
+monadify step 2. -/
+register_label_attr sepref_monadify_comb
+
 section SolverRegistry
 
 open Lean

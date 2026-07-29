@@ -48,3 +48,5 @@ import Lax13Proofs.Refine.Ir.SepSolver
 import Lax13Proofs.Refine.Examples.Bfs
 import Lax13Proofs.Refine.Examples.ArrayFill
 import Lax13Proofs.Refine.Examples.AutorefTutorial
+import Lax13Proofs.Refine.Sepref.IdOp
+import Lax13Proofs.Refine.Sepref.Monadify
