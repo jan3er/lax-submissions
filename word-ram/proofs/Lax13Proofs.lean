@@ -60,3 +60,4 @@ import Lax13Proofs.Refine.Sepref.Frame
 import Lax13Proofs.Refine.Sepref.Translate
 import Lax13Proofs.Refine.Sepref.Tool
 import Lax13Proofs.Refine.Sepref.Definition
+import Lax13Proofs.Refine.Sepref.Examples.Acceptance
