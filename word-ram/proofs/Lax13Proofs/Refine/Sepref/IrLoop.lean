@@ -145,6 +145,45 @@ theorem bindT_spec_le {α β : Type} (P : α → Prop) (c : ECost) (g : α → N
   · rw [if_neg hx, NRest.consumeB_bot]
     exact bot_le
 
+/-- **Reading a specification back through a projection (P7/T-c).**
+A synthesized program ends at its loop state; the abstract program the
+caller specified ends at one *component* of it. The bound transfers
+because every result of `m` is a result of the projected bind at its
+image: if `x` is affordable at `Ca` in `m`, then `f x` is affordable at
+`Ca` in `bindT m (returnT ∘ f)`, and the specification prices that.
+
+Placement (P7/D-bi): this belongs beside `NREST/Pw.lean`'s `bindT`/
+`spec` calculus, not in a Sepref file; it is here because the rest of
+this campaign's `spec` lemmas are, and the P1 files are frozen. -/
+theorem le_spec_of_bindT_returnT {α β : Type} {m : NRest α ECost} {f : α → β} {Φ : β → Prop}
+    {T : ECost} (h : NRest.bindT m (fun x => NRest.returnT (f x)) ≤ NRest.spec Φ (fun _ => T)) :
+    m ≤ NRest.spec (fun x => Φ (f x)) (fun _ => T) := by
+  cases hm : m with
+  | fail =>
+    rw [hm, NRest.bindT_fail, NRest.spec] at h
+    exact absurd h (NRest.not_fail_le_rest _)
+  | rest M =>
+    rw [NRest.spec]
+    refine NRest.rest_le_rest_iff.mpr fun x => ?_
+    rcases withBot_eq_bot_or_coe (M x) with hx | ⟨Ca, hx⟩
+    · rw [hx]; exact bot_le
+    · have hle : NRest.consume (NRest.returnT x) Ca ≤ m := by
+        rw [hm, NRest.consume_returnT]
+        refine NRest.rest_le_rest_iff.mpr fun y => ?_
+        by_cases hy : y = x
+        · subst hy; rw [NRest.single_self, hx]
+        · rw [NRest.single_of_ne hy]; exact bot_le
+      have h2 := le_trans (NRest.bindT_mono hle fun _ => le_rfl) h
+      rw [bindT_unitT, NRest.consume_returnT, NRest.spec, NRest.rest_le_rest_iff] at h2
+      have h4 := h2 (f x)
+      rw [NRest.single_self] at h4
+      rw [hx]
+      by_cases hΦ : Φ (f x)
+      · simpa [hΦ] using h4
+      · exfalso
+        simp only [hΦ, if_false] at h4
+        exact WithBot.coe_ne_bot (le_bot_iff.mp h4)
+
 /-! ## 2. Two-currency energies -/
 
 /-- The energy of a loop with a linear budget in two independent sizes:

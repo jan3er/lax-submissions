@@ -198,6 +198,16 @@ delivers (P4/D-ee: the branches write the same destinations). -/
 noncomputable def pack3 (D Q : List ℕ) (a : ℕ) : NRest (List ℕ × List ℕ × ℕ) ECost :=
   bindT (mopPair Q a) fun p => mopPair D p
 
+/-- Binding a four-component state is charging its three tuple steps
+(P7/D-bi). `hnr_while_var` reads a loop's state off a *single* `hnCtxt`
+conjunct, so a loop entered in the middle of a block has to have its
+state built — the row scan is, and `popF` below builds it. -/
+theorem pack4_bindT {β : Type} (D Q : List ℕ) (a b : ℕ) (f : St → NRest β ECost) :
+    bindT (pack4 D Q a b) f
+      = NRest.consume (f (D, Q, a, b))
+          (irUnit Currency.skip + (irUnit Currency.skip + irUnit Currency.skip)) := by
+  simp only [pack4, mopPair_def, bindT_unitT, NRest.consume_consume]
+
 /-! ### The fill -/
 
 def fillBf (n : ℕ) : List ℕ × ℕ → Bool := fun s => decide (s.2 < n)
@@ -253,8 +263,9 @@ noncomputable def popF (n d sent : ℕ) (off tgt alv : List ℕ) : St → NRest 
               bindT (mopAget off v) fun k0 =>
                 bindT (mopBinop .add v 1) fun v1 =>
                   bindT (mopAget off v1) fun kend =>
-                    bindT (scanLoop n sent dv1 kend off tgt alv (s.1, s.2.1, s.2.2.2, k0))
-                      fun r => pack3 r.1 r.2.1 r.2.2.1)
+                    bindT (pack4 s.1 s.2.1 s.2.2.2 k0) fun z0 =>
+                      bindT (scanLoop n sent dv1 kend off tgt alv z0)
+                        fun r => pack3 r.1 r.2.1 r.2.2.1)
             (pack3 s.1 s.2.1 s.2.2.2)) fun r =>
           pack4 r.1 r.2.1 hd r.2.2
 
@@ -306,7 +317,8 @@ test. -/
 def popC : ACost String ℕ := cu Currency.aget + cu Currency.aget + cu Currency.add
   + cu Currency.ite + cu Currency.add + cu Currency.aget + cu Currency.add + cu Currency.aget
   + cu Currency.«while» + cu Currency.skip + cu Currency.skip + cu Currency.skip
-  + cu Currency.skip + cu Currency.skip
+  + cu Currency.skip + cu Currency.skip + cu Currency.skip + cu Currency.skip
+  + cu Currency.skip
 
 /-- An iteration is a body plus the guard test that let it run. -/
 def iter (C : ACost String ℕ) : ACost String ℕ := C + cu Currency.«while»
@@ -1007,7 +1019,7 @@ theorem popF_le (hc : Csr n ns G off tgt alv)
     rw [if_pos (by simp [hcap] : (decide (dv < d)) = true)]
     simp only [NRest.assert_pos hoff0, NRest.assert_pos hoff1, NRest.returnT_bindT,
       NRest.bindT_consume NRest.addSupContinuousB_acost, NRest.consume_consume,
-      NRest.bindT_assoc_acost]
+      NRest.bindT_assoc_acost, pack4_bindT]
     refine le_trans (NRest.consume_mono
       (le_trans (NRest.bindT_mono hscan fun _ => le_rfl) (bindT_spec_le _ _ _ _ _ hK)) le_rfl)
       (le_of_eq ?_)
@@ -1020,6 +1032,7 @@ theorem popF_le (hc : Csr n ns G off tgt alv)
     refine consume_returnT_le_spec ⟨h.popSkip hht hcap, rfl, fun _ _ => rfl⟩ ?_
     refine le_trans (cost_le_add _ (irUnit Currency.add + irUnit Currency.aget
       + irUnit Currency.add + irUnit Currency.aget + irUnit Currency.«while»
+      + irUnit Currency.skip + irUnit Currency.skip + irUnit Currency.skip
       + rowLen off t.2.1[t.2.2.1]! • liftACost (iter scanC))) (le_of_eq ?_)
     simp only [popC, iter, liftACost_add, liftACost_nsmul, liftACost_cu]
     ac_rfl
@@ -1310,7 +1323,7 @@ theorem popF_hd {z : St} (hP : popP n (d + 1) off tgt alv z) (hb : popBf z = tru
   · rw [if_pos (by simp only [decide_eq_true_eq]; exact hcap)]
     simp only [NRest.assert_pos hoff0, NRest.assert_pos hoff1, NRest.returnT_bindT,
       NRest.bindT_consume NRest.addSupContinuousB_acost, NRest.consume_consume,
-      NRest.bindT_assoc_acost]
+      NRest.bindT_assoc_acost, pack4_bindT]
     have hscan := scanLoop_le (Inv := scanP n (d + 1) off[z.2.1[z.2.2.1]! + 1]! off tgt alv)
       n (d + 1) (z.1[z.2.1[z.2.2.1]!]! + 1) off[z.2.1[z.2.2.1]! + 1]! off tgt alv
       (fun y hy hyb => ⟨hy, scanP_step (by omega) hy hyb⟩)

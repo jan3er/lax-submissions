@@ -205,77 +205,21 @@ theorem scan_variant' (n sent dv1 kend : ℕ) (off tgt alv : List ℕ) :
       (scanBf kend) (scanF' sent dv1 tgt alv) (fun s => kend - s.2.2.2) := by
   rw [scanF'_eq]; exact scan_variant n sent dv1 kend off tgt alv
 
-/-- Charging a `consume` past a bind, on the continuation. -/
-theorem bindT_le_consume {α β : Type} (m : NRest α ECost) (f g : α → NRest β ECost) (c : ECost)
-    (h : ∀ x, f x ≤ NRest.consume (g x) c) :
-    NRest.bindT m f ≤ NRest.consume (NRest.bindT m g) c :=
-  le_trans (NRest.bindT_mono le_rfl h)
-    (le_of_eq (bindT_consume_right NRest.addSupContinuousB_acost m g c))
+theorem popF'_eq (n d sent : ℕ) (off tgt alv : List ℕ) :
+    popF' n d sent off tgt alv = popF n d sent off tgt alv := by
+  funext s; simp only [popF', popF, mopSucc_eq, scanLoop'_eq]
 
-/-- …and on the bound program. -/
-theorem bindT_mono_le_consume {α β : Type} (m m' : NRest α ECost) (f : α → NRest β ECost)
-    (c : ECost) (h : m ≤ NRest.consume m' c) :
-    NRest.bindT m f ≤ NRest.consume (NRest.bindT m' f) c :=
-  le_trans (NRest.bindT_mono h fun _ => le_rfl)
-    (le_of_eq (NRest.bindT_consume NRest.addSupContinuousB_acost m' c f))
+theorem drainLoop'_eq (n d sent : ℕ) (off tgt alv : List ℕ) (s₀ : St) :
+    drainLoop' n d sent off tgt alv s₀ = drainLoop n d sent off tgt alv s₀ := by
+  rw [drainLoop', drainLoop, popF'_eq]
 
-theorem le_consume {α : Type} (m : NRest α ECost) (c : ECost) : m ≤ NRest.consume m c := by
-  have hz : (0 : ECost) ≤ c := by simpa using cost_le_add 0 c
-  have h : NRest.consume m 0 ≤ NRest.consume m c := NRest.consume_mono le_rfl hz
-  simpa using h
-
-/-- A dearer `then` arm makes a dearer branch. -/
-theorem irIf_le_consume {α : Type} (b : Bool) (t t' e : NRest α ECost) (c : ECost)
-    (h : t ≤ NRest.consume t' c) : irIf b t e ≤ NRest.consume (irIf b t' e) c := by
-  have hb : (if b = true then t else e) ≤ NRest.consume (if b = true then t' else e) c := by
-    cases b
-    · simpa using le_consume e c
-    · simpa using h
-  calc irIf b t e = NRest.consume (if b = true then t else e) (irUnit Currency.ite) := by
-        rw [irIf_def]
-    _ ≤ NRest.consume (NRest.consume (if b = true then t' else e) c) (irUnit Currency.ite) :=
-        NRest.consume_mono hb le_rfl
-    _ = NRest.consume (irIf b t' e) c := by
-        rw [irIf_def, NRest.consume_consume, NRest.consume_consume, add_comm]
-
-/-- The price of the inner loop's state: three `ir.skip`s per pop. -/
-noncomputable def packC : ECost :=
-  irUnit Currency.skip + (irUnit Currency.skip + irUnit Currency.skip)
-
-theorem pack4_eq (D Q : List ℕ) (a b : ℕ) :
-    pack4 D Q a b = NRest.consume (NRest.returnT (D, Q, a, b)) packC := by
-  simp only [pack4, mopPair_def, bindT_unitT, NRest.consume_consume, packC]
-
-/-- **The one cost `popF'` adds**: the inner loop's state, three tuple
-steps, and nothing else. -/
-theorem popF'_le_popF (n d : ℕ) (off tgt alv : List ℕ) (s : St) :
-    popF' n d (d + 1) off tgt alv s
-      ≤ NRest.consume (popF n d (d + 1) off tgt alv s) packC := by
-  simp only [popF', popF, mopSucc_eq, pack4_eq, bindT_unitT, scanLoop'_eq]
-  refine bindT_le_consume _ _ _ _ fun v => bindT_le_consume _ _ _ _ fun dv =>
-    bindT_le_consume _ _ _ _ fun hd =>
-      bindT_mono_le_consume _ _ _ _ (irIf_le_consume _ _ _ _ _ ?_)
-  exact bindT_le_consume _ _ _ _ fun dv1 => bindT_le_consume _ _ _ _ fun k0 =>
-    bindT_le_consume _ _ _ _ fun v1 => bindT_le_consume _ _ _ _ fun kend => le_rfl
-
-/-- …so the drain's variant is wave A's, one `consume` out (P7/D-bd,
-closed). -/
+/-- …and so does the drain's (P7/D-bd, closed: wave A's `popF` now
+builds the row scan's state itself, so the two bodies are the same
+program and `popC` carries the three tuple steps). -/
 theorem drain_variant' (n d : ℕ) (off tgt alv : List ℕ) :
     LOOP_VARIANT (fun s => popBf s = true → popP n (d + 1) off tgt alv s) popBf
       (popF' n d (d + 1) off tgt alv) (fun s => n - s.2.2.1) := by
-  intro z s' hI hb hle
-  have hht : z.2.2.1 < z.2.2.2 := by simpa [popBf] using hb
-  have hroom : z.2.2.2 + (undisc n (d + 1) alv z.1).card ≤ n := (hI hb).2.2.2.2
-  have h := le_trans hle (le_trans (popF'_le_popF n d off tgt alv z)
-    (le_trans (NRest.consume_mono (popF_hd (hI hb) hb) le_rfl)
-      (le_of_eq (Sepref.consume_spec _ _ _))))
-  rw [NRest.spec, returnT_le_rest_iff] at h
-  have hs' : s'.2.2.1 = z.2.2.1 + 1 := by
-    by_contra hne
-    rw [if_neg hne, le_bot_iff, ← WithBot.coe_zero] at h
-    exact WithBot.coe_ne_bot h
-  show n - s'.2.2.1 < n - z.2.2.1
-  omega
+  rw [popF'_eq]; exact drain_variant n d off tgt alv
 
 /-! ## 5. The synthesis: the fill loop
 
@@ -411,7 +355,49 @@ theorem bfsQSynth' (n d src : ℕ) (off tgt alv dist₀ q₀ : List ℕ) :
     (drain_variant' n d off tgt alv)
 
 
-/-! ## 7. The demo: `RamBfs`'s five-vertex arena, run on the synthesized
+/-! ## 7. The abstract bound, transferred to `bfsQS`
+
+`bfsQ_correct` is wave A's; `bfsQS` differs from `bfsQ` by three
+cost-only steps (§3) and by not performing the final projection, which
+the synthesized program has no rule for and does not need — the export
+reads `dist` off the result tuple. `le_spec_of_bindT_returnT` (P7/T-c)
+is what turns the second difference into a composition. -/
+
+/-- The two programs, normalized: everything but the constants agrees. -/
+theorem bfsQS_le_bfsQ (n d src : ℕ) (off tgt alv dist₀ q₀ : List ℕ) :
+    NRest.bindT (bfsQS n d src off tgt alv dist₀ q₀) (fun st' => NRest.returnT st'.1)
+      ≤ NRest.consume (bfsQ n d src off tgt alv dist₀ q₀) (irUnit Currency.skip) := by
+  simp only [bfsQS, bfsQ, fillLoop'_eq, drainLoop'_eq, mopPair_def, mopBinop_def, mopConstN_def,
+    Imp.Bop.apply_add, binopCurrency_add, NRest.returnT_bindT, NRest.bindT_assoc_acost,
+    NRest.bindT_consume NRest.addSupContinuousB_acost, NRest.consume_consume]
+  exact NRest.consume_mono le_rfl (cost_le_add _ _)
+
+/-- **The gate program's abstract bound.** The synthesized program's
+abstract counterpart decides every masked-distance threshold up to the
+cap, at `n` fill iterations, `n` pops, `ns` scanned slots and a
+constant. -/
+theorem bfsQS_correct {n ns d : ℕ} {G : SimpleGraph (Fin n)} {off tgt alv : List ℕ}
+    {src : ℕ} {dist₀ q₀ : List ℕ} (hc : Csr n ns G off tgt alv)
+    (hsrc : src < n) (hdlen : dist₀.length = n) (hqlen : q₀.length = n) :
+    bfsQS n d src off tgt alv dist₀ q₀
+      ≤ NRest.spec (fun st' : St => QPost n d src G alv hsrc st'.1)
+          (fun _ => irUnit Currency.skip + liftACost (bfsBudget n ns)) := by
+  refine le_spec_of_bindT_returnT (le_trans (bfsQS_le_bfsQ n d src off tgt alv dist₀ q₀) ?_)
+  rw [← Sepref.consume_spec]
+  exact NRest.consume_mono (bfsQ_correct hc hsrc hdlen hqlen) le_rfl
+
+/-- **The arena, pinned beside the bound (design note P7/S-1).** The
+graph the exported postcondition measures distance in is `G` with the
+mask's dead vertices isolated: an edge survives exactly when it is an
+edge of `G` and both endpoints are alive, "alive" being a nonzero entry
+of the `alv` array. That is the shape-match with `RamBfs.bfs_spec`'s
+`masked G M`, made inspectable rather than asserted. -/
+theorem masked_maskOf_adj {n : ℕ} {G : SimpleGraph (Fin n)} {alv : List ℕ} {u v : Fin n} :
+    (Bfs.masked G (maskOf n alv)).Adj u v
+      ↔ G.Adj u v ∧ 0 < alv[(u : ℕ)]! ∧ 0 < alv[(v : ℕ)]! := by
+  simp [Bfs.masked_adj, maskOf]
+
+/-! ## 8. The demo: `RamBfs`'s five-vertex arena, run on the synthesized
 program (ledger D4)
 
 The path `0—1—2—3` with an isolated vertex `4`, six adjacency slots —
@@ -459,7 +445,7 @@ did not evaluate to `true`
 #guard_msgs in
 #guard demoRun 3 0 0 = some [0, 1, 2, 3, 4]
 
-/-! ## 8. Axioms -/
+/-! ## 9. Axioms -/
 
 /-- info: 'Lax13Proofs.Refine.BfsQSynth.bfsQSynth'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
@@ -473,11 +459,15 @@ did not evaluate to `true`
 #guard_msgs in
 #print axioms drain_variant'
 
+/-- info: 'Lax13Proofs.Refine.BfsQSynth.bfsQS_correct' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms bfsQS_correct
+
 /-- info: 'Lax13Proofs.Refine.BfsQSynth.hnr_mop_succ' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms hnr_mop_succ
 
-/-! ## 9. What the blocker was, and what it cost (P7/D-be … P7/D-bh)
+/-! ## 10. What the blocker was, and what it cost (P7/D-be … P7/D-bh)
 
 The first pass of this wave could not synthesize the row scan at all: it
 explored for 3 min 22 s and stalled, and the whole program did not
@@ -531,100 +521,124 @@ reports now appear in the new order — `hnr_bind` before `hnr_seq`,
 same two paragraphs, swapped. That is the intended effect of P7/D-bf
 and it is re-pinned rather than suppressed.
 
-## 10. What is left of the gate chain
+## 11. What is left of the gate chain, and what it actually costs
+(P7/D-bj)
 
-The synthesized `Com` is here and closed (`bfsQSynth'`). The rest of
-P7's chain — `ir_bound_vcg`, `spec_of_hnRefine` + `readout_arr`, the
-`bfs_spec`-shaped export, the five-vertex demo — needs one abstract
-lemma that wave A does not have and this wave did not write:
+`bfsQSynth'` is the synthesized program and `bfsQS_correct` is its
+abstract bound; the two gaps §10 of the previous revision named are
+closed (`popF'_eq`, wave A's own `popF` now builds the row scan's
+state; `le_spec_of_bindT_returnT`, P7/T-c). What remains between here
+and a `bfs_spec`-shaped export is:
 
 ```
-bfsQS n d src off tgt alv dist₀ q₀
-  ≤ NRest.spec (fun st' => QPost n d src G alv hsrc st'.1)
-      (fun _ => liftACost (bfsBudget n ns + …))
+hbd : ∃ s' κ, Ir.BigStepB B bfsQSynth_impl s₀ s' κ     -- ir_bound_vcg
+    ▸ spec_of_hnRefine (bfsQSynth') (bfsQS_correct) …  -- Cash.lean
+    ▸ readout_arr at "dist"                            -- Cash.lean
 ```
 
-Two gaps between it and `bfsQ_correct`, both purely arithmetic:
+The middle two steps are one application each. The first is **not** the
+ten-line annotation P5's telemetry measured on its toys, and the reason
+is worth recording because it changes what the bounds pass costs on a
+real program.
 
-1. **`drainLoop'` versus `drainLoop`.** `popF'_le_popF` above is the
-   whole difference — one `packC` per pop — but `drainLoop_le` is a fuel
-   induction *at* `popF`, not parametric in the body, so the extra
-   `packC` has to ride through the induction. Either re-run wave A's
-   induction at `popC + packC`, or (cheaper, and the right call for a
-   next wave) move the `pack4` into wave A's own `popF` and widen
-   `popC` by three `ir.skip`s: wave A's `popF_le` already unfolds
-   `pack4` in its simp set and closes its cost goal by `ac_rfl`, so the
-   edit is `popC` plus three summands.
-2. **`bfsQS` versus `bfsQ`.** The prefix differs by the two inlined
-   constants (`d+1` and `0` come from cells rather than from a
-   `mopBinop`/`mopConstN`) and by the `mopPair` that builds the fill
-   loop's state — a constant, and the same `bindT_unitT` normalization
-   `pack4_eq` above already does. The missing projection is
-   `bfsQ = bindT bfsQS-shaped (fun st' => returnT st'.1)`, and the step
-   that consumes it is: from `bindT m (fun x => returnT (f x)) ≤ SPEC Φ T`
-   conclude `m ≤ SPEC (Φ ∘ f) T`, which holds because every result of
-   `m` is a result of the bind at `f` of it.
+`Codegen/BigStepB.lean`'s `aset` rule carries `hk : k < xs.length`: a
+store only steps when its index is in range. On P5's toys every store's
+index was the loop counter and the guard bounded it, so the obligation
+was free. Here the drain's inner scan performs `q[tl] := u`, and `tl`
+is bounded by *nothing in the program's control flow* — it is bounded
+because the queue never receives more vertices than there are
+undiscovered live ones, which is wave A's `room`/`undisc` counting
+argument (P7/D-d). So the bounds pass for this program has to re-run
+that argument over `Ir.State`, or be handed it.
 
-Nothing in either gap is about breadth-first search, separation logic
-or the tool; both are `consume` bookkeeping over programs that are
-already proved equal or ordered.
+Two honest routes, for whoever takes this next:
 
-## 11. Telemetry (P7 wave B's share of the gate numbers)
+1. **Re-run `room` at the IR.** The drain's bounds invariant carries
+   `tl + |undisc| ≤ n` exactly as `popP` does, and the scan's carries it
+   too; the counting steps are `Finset.card_erase_of_mem` in both
+   places, as in wave A's `scanP_step`. Straightforward, and perhaps
+   sixty lines, but it is a *second* proof of a fact already proved.
+2. **Export the fact from the abstract side.** `hnRefine` already knows
+   the program does not fail, and `mopAset`'s own `assert` is exactly
+   `k < xs.length`; what is missing is a lemma turning a plain `BigStep`
+   (which `hnRefineD` produces) plus a `StateBound` invariant into a
+   `BigStepB`. That lemma is the right fix — it would retire the whole
+   per-program bounds obligation, not just this one — and it belongs in
+   `Codegen/BigStepB.lean` beside `BigStep.bigStepB_of_eq`.
+
+Route 2 is the recommendation: P5's `hbd` hypothesis exists only to
+supply the value bound, and the run it re-derives is the run
+`spec_of_hnRefine` already has in hand.
+
+## 12. Telemetry (the plan's P7 gate numbers)
 
 * **Line counts** (a nesting-aware scan; it reproduces wave A's own
-  1,015 on wave A's file). This file: **579 raw**, 84 blank, 242
-  comment, **253 lines of Lean** — of which 108 are the pinned `Com`
-  itself (`#guard bfsQSynth_impl = …`, the tool's output, not authored
-  reasoning). Wave A: 1,435 raw / 1,015 Lean. P7 so far: **2,009 raw /
-  1,268 Lean**, or **1,160 Lean net of the pinned output**. Baseline
-  `RamBfs.lean`: 1,201 raw, cost `51n + 44ns + 30`; the cost comparison
-  is not available until §9's two gaps close and cashing runs.
+  1,015 on wave A's file before this wave's retrofit).
+  - baseline `RamBfs.lean`: **1,201 raw**, cost `51n + 44ns + 30`;
+  - wave A `BfsQ.lean`: **1,448 raw / 1,023 Lean** (was 1,435/1,015;
+    this wave added `pack4_bindT`, the `pack4` inside `popF`, three
+    summands to `popC` and three to one slack term);
+  - wave B, this file: **646 raw / 247 Lean**, of which **108 are the
+    pinned `Com`** (`#guard bfsQSynth_impl = …`, the tool's output, not
+    authored reasoning) and 24 the demo of §8;
+  - **P7 total: 2,094 raw / 1,270 Lean, or 1,162 Lean net of the pinned
+    tool output.**
+  Against the 400-line gate that is a miss by roughly a factor of
+  three, and §12 of wave A's file says where the lines are: the queue
+  invariant (`Fr`, `SInv`, the tiling) is a third of wave A and it is
+  the part a tower cannot shrink — it is the fourteen clauses
+  `RamBfs.Frontier` carries, for the same reasons. What the tower did
+  remove is the *machine* half: there is no `Run`, no `Env`, no
+  `wvars`/`warrs` bookkeeping and no hand-written frame anywhere in
+  either file.
 
-* **Hand-written frame clauses: 0**, in this file and in wave A's. No
-  `fri` call, no `sepConj` rearrangement, no `ac_rfl` on an assertion.
-  *Caveat, stated rather than hidden:* the three `MERGE_arrayAssn_*`
-  rules of §2 are entailments between single conjuncts registered in a
-  database and consumed by `mergeSolve`, never applied by hand — the
-  same shape as `Sepref/Frame.lean`'s own `MERGE_natAssn_junk`, which
-  P4's telemetry counts as not-a-frame-clause. Read the other way the
-  count for this file is 3, not 0.
+* **Hand-written frame clauses: 0**, across both files. No `fri` call,
+  no `sepConj` rearrangement, no `ac_rfl` on an assertion; the `ac_rfl`s
+  are on cost sums (`ECost`, an `AddCommMonoid`). *Caveat, stated
+  rather than hidden:* the three `MERGE_arrayAssn_*` rules of §2 are
+  entailments between single conjuncts registered in a database and
+  consumed by `mergeSolve`, never applied by hand — the same shape as
+  `Sepref/Frame.lean`'s own `MERGE_natAssn_junk`, which P4's telemetry
+  counts as not-a-frame-clause. Read the other way the count for this
+  file is 3, not 0.
 
 * **Synthesis wall clock**, warm build, `lake env lean` on this file
-  against a 3.8 s import-only baseline: whole file **51 s**, of which
+  against a 3.8 s import-only baseline: whole file **55 s**, of which
   `bfsQSynth` — three nested loops, two nested branches, a four-tuple
   state carrying two arrays at every level — is **about 49 s** and
-  `fillSynth` about 1.5 s. Before the three repairs of §8 the same
+  `fillSynth` about 1.5 s. Before §10's three repairs the same
   synthesis did not finish in nine minutes. Whole package: 3,041 jobs.
 
-* **Tower repairs made.** Five, all minimal, all flagged, and the full
-  package rebuilt green after each: `Frame.lean`'s `conjunctsSplit`
-  (P7/D-ba, projection spelling), `Frame.lean`'s `mergeSolve` key
-  (P7/D-bc, `junkArray`), `Frame.lean`'s `matchLoop` (P7/D-bg, pair by
-  the abstract value first), `Translate.lean`'s `transComb` order
-  (P7/D-bf) and its `fallbackTac` (P7/D-bh, `apply_assumption`).
-  Output-preserving: every pinned program in the package is unchanged;
-  the only pinned *text* that moved is P4's legibility demo, by exactly
-  the reordering P7/D-bf performs.
+* **Bounds-annotation lines: 0**, and §11 says why that number is not
+  the good news it looks like: the pass is not written, because on this
+  program it is not the ten-line annotation P5 measured.
 
-* **Axioms.** `bfsQSynth'`, `fillSynth`, `drain_variant'` and
-  `hnr_mop_succ` are pinned in §7 at `[propext, Classical.choice,
-  Quot.sound]` and nothing else.
+* **Cost constants vs the baseline's `51n + 44ns + 30`: not available.**
+  The comparison is a `cash`/`ecash` evaluation of `bfsBudget n ns` and
+  it is downstream of the bounds pass. What *is* fixed is the abstract
+  budget `bfsQS_correct` carries: `n • iter fillC + n • iter popC +
+  ns • iter scanC + bfsK + ir.skip`, linear in `n` and `ns` with
+  explicit small constants at the IR's own currencies, `fillC` three
+  units, `popC` seventeen, `scanC` fourteen.
 
-* **Refuted before proved.** §7 runs the *synthesized* program on
+* **Axioms.** `bfsQSynth'`, `fillSynth`, `drain_variant'`,
+  `bfsQS_correct` and `hnr_mop_succ` are pinned in §9 at `[propext,
+  Classical.choice, Quot.sound]` and nothing else.
+
+* **Refuted before proved.** §8 runs the *synthesized* program on
   `RamBfs`'s own five-vertex arena — mask on, mask off at vertex 2, two
   cap settings and a second source — against wave A's computable twin,
-  with one pinned negative control; the abstract twin is itself already
-  checked against `RamBfs`'s four published readings and against P1's
-  independent level-based twin. `mopSucc`'s rule was checked to be the one
-  the driver picks *before* the program was written to depend on it: the
-  fill loop's pinned `Com` is `binop add "i" "i" "one"`, in place. The
-  control — the same synthesis at wave A's `fillF`, with one extra
-  `junkCell "t"` in the precondition — fails, and names the reason:
-  `hnr_mop_pair` cannot match `hnCtxt natAssn ‹› "i"` against the goal's
-  `hnCtxt natAssn ‹› "t"`. The sum went to the scratch cell and the loop
-  state can no longer be rebuilt. `fillF'_eq`, `scanF'_eq`,
-  `scanLoop'_eq` and `popF'_le_popF` are the standing check that no
-  program change in §3 is anything but cost.
+  with one pinned negative control; the twin is itself already checked
+  against `RamBfs`'s four published readings and against P1's
+  independent level-based twin. `mopSucc`'s rule was checked to be the
+  one the driver picks *before* the program was written to depend on
+  it: the control — the same fill loop at wave A's `fillF`, with one
+  extra `junkCell "t"` — fails, and names the reason (`hnr_mop_pair`
+  cannot match `hnCtxt natAssn ‹› "i"` against the goal's
+  `hnCtxt natAssn ‹› "t"`: the sum went to the scratch cell and the loop
+  state can no longer be rebuilt). `fillF'_eq`, `scanF'_eq`,
+  `scanLoop'_eq` and `popF'_eq` are the standing check that no program
+  change in §3 is anything but cost.
 -/
 
 end BfsQSynth
