@@ -521,54 +521,91 @@ reports now appear in the new order — `hnr_bind` before `hnr_seq`,
 same two paragraphs, swapped. That is the intended effect of P7/D-bf
 and it is re-pinned rather than suppressed.
 
-## 11. What is left of the gate chain, and what it actually costs
-(P7/D-bj)
+## 11. The bounds obligation, diagnosed (P7/D-bj, P7/D-bk)
 
 `bfsQSynth'` is the synthesized program and `bfsQS_correct` is its
-abstract bound; the two gaps §10 of the previous revision named are
-closed (`popF'_eq`, wave A's own `popF` now builds the row scan's
-state; `le_spec_of_bindT_returnT`, P7/T-c). What remains between here
-and a `bfs_spec`-shaped export is:
+abstract bound. What stands between them and a `bfs_spec`-shaped export
+is one hypothesis of `Cash.lean`'s `spec_of_hnRefine`:
 
 ```
-hbd : ∃ s' κ, Ir.BigStepB B bfsQSynth_impl s₀ s' κ     -- ir_bound_vcg
-    ▸ spec_of_hnRefine (bfsQSynth') (bfsQS_correct) …  -- Cash.lean
-    ▸ readout_arr at "dist"                            -- Cash.lean
+hbd : ∃ s' κ, Ir.BigStepB B bfsQSynth_impl s₀ s' κ
 ```
 
-The middle two steps are one application each. The first is **not** the
-ten-line annotation P5's telemetry measured on its toys, and the reason
-is worth recording because it changes what the bounds pass costs on a
-real program.
+Everything after it is one application each (`spec_of_hnRefine`, then
+`readout_arr` at `"dist"`). This section is what that hypothesis
+actually costs, because the answer is not P5's.
+
+### P7/D-bj — why it is not P5's ten lines
 
 `Codegen/BigStepB.lean`'s `aset` rule carries `hk : k < xs.length`: a
-store only steps when its index is in range. On P5's toys every store's
-index was the loop counter and the guard bounded it, so the obligation
-was free. Here the drain's inner scan performs `q[tl] := u`, and `tl`
-is bounded by *nothing in the program's control flow* — it is bounded
-because the queue never receives more vertices than there are
-undiscovered live ones, which is wave A's `room`/`undisc` counting
-argument (P7/D-d). So the bounds pass for this program has to re-run
-that argument over `Ir.State`, or be handed it.
+store only steps when its index is in range. On P5's two toys every
+store's index was the loop counter and the guard bounded it, so the
+obligation was free, and P5's telemetry concluded "the annotation proper
+is ~10 lines per program". Here the row scan performs `q[tl] := u`, and
+`tl` is bounded by *nothing in the control flow*: `tl < n` holds because
+the queue never receives more vertices than there are undiscovered live
+ones — wave A's `room`/`undisc` counting argument (P7/D-d). A
+`ir_bound_vcg` pass in the `Runs` direction has to re-prove it.
 
-Two honest routes, for whoever takes this next:
+### P7/D-bk — the route taken, and the one not taken
 
-1. **Re-run `room` at the IR.** The drain's bounds invariant carries
-   `tl + |undisc| ≤ n` exactly as `popP` does, and the scan's carries it
-   too; the counting steps are `Finset.card_erase_of_mem` in both
-   places, as in wave A's `scanP_step`. Straightforward, and perhaps
-   sixty lines, but it is a *second* proof of a fact already proved.
-2. **Export the fact from the abstract side.** `hnRefine` already knows
-   the program does not fail, and `mopAset`'s own `assert` is exactly
-   `k < xs.length`; what is missing is a lemma turning a plain `BigStep`
-   (which `hnRefineD` produces) plus a `StateBound` invariant into a
-   `BigStepB`. That lemma is the right fix — it would retire the whole
-   per-program bounds obligation, not just this one — and it belongs in
-   `Codegen/BigStepB.lean` beside `BigStep.bigStepB_of_eq`.
+The authorized preference was route 2: derive `BigStepB B` *along* an
+existing `BigStep`, so that the run's own side conditions are given
+rather than re-proved. The premise is real and worth recording, because
+it retires exactly the expensive half:
 
-Route 2 is the recommendation: P5's `hbd` hypothesis exists only to
-supply the value bound, and the run it re-derives is the run
-`spec_of_hnRefine` already has in hand.
+* `BigStep`'s `aset` already carries `hk : k < xs.length` and its `aget`
+  carries `hv : xs[k]? = some v`. **Following a derivation therefore
+  hands over every in-range fact for free — the whole `room`/`undisc`
+  counting of P7/D-bj disappears.**
+* Comparing the two inductive definitions constructor by constructor,
+  `BigStepB` differs from `BigStep` in exactly three places:
+  `const` adds `n < B`, `binop` adds `op.apply m n < B`, and the four
+  control constructors ask for `Cond.evalB B` where `BigStep` asks for
+  `Cond.eval`. `skip`, `copy`, `aget`, `aset` and `seq` are identical.
+
+So the residual is three `< B` facts and nothing else. What it is *not*
+is state-local, and that is why the general lemma cannot be stated the
+way the brief hoped. A hypothesis of the form "at any bounded operands
+the result is bounded" is false for the only arithmetic this program
+does: `x := y + 1` at `y = B - 1` leaves `B`. The bound on a `binop`
+result is available only relative to where the run has got to — for
+`head := head + one` it is `head < tl ≤ n < B`, and `tl ≤ n` is
+maintained by the *previous* iteration's successful `q[tl] := u`. That
+is an invariant, and an invariant threaded through a derivation is a
+verification-condition generator: route 2's general lemma *is* route 1,
+with the in-range obligations deleted.
+
+**The recommendation, therefore, is a third shape** —
+`BigStep.bigStepB_of_inv` in `Codegen/BigStepB.lean`, beside
+`BigStep.bigStepB_of_eq`: an induction over an existing `BigStep` that
+threads a caller-supplied `Inv : State → Prop` and asks only for the
+three `< B` facts at the sites that create values. It is strictly
+cheaper than `ir_bound_vcg` (no in-range goals, no `Runs` construction,
+no termination), it is reusable by every synthesized program, and it is
+the honest form of the brief's route 2. Per the brief's own instruction
+— honesty over elegance — it is *not* forced into the state-local shape.
+
+### The residual, per site, for this program
+
+Written out so the next wave can price it. The invariant needs: `dist`
+entries `≤ d + 1`, `q` entries `< n`, `off` entries `≤ ns`, `tl ≤ n`,
+and the constants. Then:
+
+| site | what bounds the result |
+|---|---|
+| `i := i + one` (fill) | the guard `i < n`, and `n < B` |
+| `head := head + one` | the guard `head < tl` and `tl ≤ n` |
+| `dv1 := dv + one` | `dv = dist[v] ≤ d + 1`, and `d + 1 < B` |
+| `v1 := v + one` | `v = q[head] < n` |
+| `tl := tl + one` | the *same iteration's* `q[tl] := u`, whose `hk` gives `tl < n` — the store fact doing the work |
+| `k0 := k0 + one` | the guard `k0 < kend` and `kend = off[v1] ≤ ns` |
+| `tl := 1`, `tl := 0` | literals, `1 < B` |
+| `Cond.lt (.lit 0) (.cell "au")` | `0 < B` and `au = alv[u] < B` |
+
+`tl ≤ n` is the interesting row: it is inductive, and the step that
+maintains it is the store's own in-range side condition, not a counting
+argument. That is P7/D-bj's cost, retired — but only along a derivation.
 
 ## 12. Telemetry (the plan's P7 gate numbers)
 
@@ -578,10 +615,10 @@ supply the value bound, and the run it re-derives is the run
   - wave A `BfsQ.lean`: **1,448 raw / 1,023 Lean** (was 1,435/1,015;
     this wave added `pack4_bindT`, the `pack4` inside `popF`, three
     summands to `popC` and three to one slack term);
-  - wave B, this file: **646 raw / 247 Lean**, of which **108 are the
+  - wave B, this file: **690 raw / 247 Lean**, of which **108 are the
     pinned `Com`** (`#guard bfsQSynth_impl = …`, the tool's output, not
     authored reasoning) and 24 the demo of §8;
-  - **P7 total: 2,094 raw / 1,270 Lean, or 1,162 Lean net of the pinned
+  - **P7 total: 2,138 raw / 1,270 Lean, or 1,162 Lean net of the pinned
     tool output.**
   Against the 400-line gate that is a miss by roughly a factor of
   three, and §12 of wave A's file says where the lines are: the queue
@@ -609,9 +646,16 @@ supply the value bound, and the run it re-derives is the run
   `fillSynth` about 1.5 s. Before §10's three repairs the same
   synthesis did not finish in nine minutes. Whole package: 3,041 jobs.
 
-* **Bounds-annotation lines: 0**, and §11 says why that number is not
-  the good news it looks like: the pass is not written, because on this
-  program it is not the ten-line annotation P5 measured.
+* **Bounds-annotation lines: 0 written, and priced in §11.** The pass is
+  not written. What §11 establishes is the price: along a derivation
+  (the recommended `BigStep.bigStepB_of_inv`) the obligation is three
+  `< B` facts per creation site and *no* in-range goals — eight rows in
+  §11's table, over an invariant carrying `dist ≤ d+1`, `q < n`,
+  `off ≤ ns` and `tl ≤ n`. In the `Runs` direction (`ir_bound_vcg` as
+  it stands) the same pass additionally re-proves P7/D-d's
+  `room`/`undisc` counting at three loop levels. P5's "≈10 lines per
+  program" does not transfer to either; the honest figure for this
+  program is the invariant, and the invariant is the eight rows.
 
 * **Cost constants vs the baseline's `51n + 44ns + 30`: not available.**
   The comparison is a `cash`/`ecash` evaluation of `bfsBudget n ns` and
