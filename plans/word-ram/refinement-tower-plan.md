@@ -314,6 +314,44 @@ of overnight work — set expectations by the budget, not the recent luck.
 
 ## Progress log
 
+- **2026-07-30 — P4 COMPLETE (one session, under the 3–5 budget;
+  acceptance PASSED). Wave C f427b67, acceptance 0cd0f72.** **Wave C**
+  `Sepref/{Constraints,Frame,Translate,Tool,Definition}.lean` + Attrs
+  (+3,304 l): CONSTRAINT/CN_FALSE with the slot as a MetaM store (D-cd),
+  frame_tac = P3's `fri` plus the Sepref match rules (D-ch), `hnr_bind`
+  with `abstractPost` junking binder-dependent conjuncts (D-ct), tuple
+  states via `hnCtxt_prodAssn` + split-retry + `mopPair` (D-cu),
+  `LOOP_VARIANT` caller-supplied (D-cv, dies when Rec.lean exports
+  fuel-stability), nine-phase driver under the source's phase names +
+  the 11-entry `sepref_dbg_*` table, `sepref` tactic + `sepref_synth`
+  command. **Synthesis is by metavariable instantiation — the source's
+  own mechanism (D-cm); the fallback two-step mode was never needed.**
+  Refuted mid-build: definitionally-equal mops collide (each mop needs
+  its own currency). Flags D-ca…de. **Acceptance
+  `Sepref/Examples/Acceptance.lean` (762 l, 323 authored):** in-place
+  array reverse + filter-count (an If inside a While body) written at
+  the user layer (`monadicWhileIT`/`MIf`, user currencies), pushed
+  through `⇓C irE` (new `ExchOk` calculus + `irWhileIT_mono`), then
+  synthesized mechanically — **zero hand frame clauses, synthesis
+  2.8 s/1.8 s, axioms pinned clean, zero wave-C defects found**. 13
+  positive `#guard`s on computable twins, 3 pinned negative controls,
+  and a pinned 34-line legible `trans`-phase failure naming the missing
+  `junkCell`. Flags D-ea…ee (notably: `whileIET` is definitionally
+  cost-free so `monadicWhileIT` is the exchangeable user loop; a
+  measured-loop destination is the loop state, with the array-shaped
+  corollary recovered by entailment). Backlog carried to P5+:
+  reverse=`List.reverse` proved only by sample (List.set invariant,
+  out of P4 scope); ExchOk/`irWhileIT_mono`/`mopPair` placement moves
+  at next thaws; dependent `hfcomp`; unfueled while rule; `inres`
+  still unported. **P4-gate seed for P7: 323 authored lines for two
+  synthesized programs, 0 frame clauses.** P5 opened the same night:
+  design record `refinement-tower/p5-codegen-design.md` (113718a) —
+  embed/agree, `Ir.BigStepB` with creation-site-only side conditions,
+  simulation at cash factor ≤ 4, Spec-layer I/O harness, cashing
+  theorem; the value bound is a genuine per-program obligation (P5/D-a:
+  IR bounds VCG now, `wordAssn` retrofit recorded as fallback if P7
+  telemetry demands it); waves A1 (embed/sim) + A2 (harness) satellite.
+
 - **2026-07-30 (overnight) — P4 waves A+B landed (extracts ab58c34, A
   fb594c3, B1 e5e417b, B2 5915bc7 merged d771d6d); wave C (translate/
   frame/tool) dispatched.** Deep extracts: all ten `Sepref_*.thy`
