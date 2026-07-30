@@ -881,9 +881,268 @@ theorem turnQ_touched {D Q O : List ℕ} (hc : Csr n ns G off tgt alv) (hsrc : s
   have hhd : x.2.2.1 = x.2.2.2 := le_antisymm hx.1.1.hdle hx.1.2
   rw [hhd, ← liftACost_add, turn_cost_split]
 
+/-! ### The turn at a constant budget
+
+`turnQ_touched`'s price is a function of the result, which is the sharp
+statement but not the one a caller composes with. A caller who knows how
+much one turn can touch — for ND-MC's cover that is the cluster's own
+combinatorics — supplies the two bounds and gets a constant. -/
+
+/-- Two bounds on what one turn touches: the length of the queue it
+leaves, and the adjacency slots its pops scanned. -/
+def TouchBound (n d src : ℕ) (G : SimpleGraph (Fin n)) (alv off : List ℕ) (hsrc : src < n)
+    (T S : ℕ) : Prop :=
+  ∀ r : HSt × List ℕ × ℕ, TurnPost n d src G alv hsrc r →
+    r.2.2 ≤ T ∧ rowSum off r.2.1 r.2.2 ≤ S
+
+theorem turnCost_mono {T T' S S' : ℕ} (hT : T ≤ T') (hS : S ≤ S') :
+    turnCost T S ≤ turnCost T' S' := by
+  refine ACost.le_def.mpr fun k => ?_
+  have hmax : max T 1 ≤ max T' 1 := by omega
+  simp only [turnCost, ACost.toFun_add, ACost.toFun_nsmul, smul_eq_mul]
+  exact Nat.add_le_add (Nat.add_le_add (Nat.add_le_add (Nat.mul_le_mul_right _ hT)
+    (Nat.mul_le_mul_right _ hS)) (Nat.mul_le_mul_right _ hmax)) le_rfl
+
+theorem liftACost_mono {κ : Type} {a b : ACost κ ℕ} (h : a ≤ b) : liftACost a ≤ liftACost b :=
+  ACost.le_def.mpr fun k => by
+    simp only [toFun_liftACost]
+    exact_mod_cast ACost.le_def.mp h k
+
+/-- **The turn, at a constant budget.** -/
+theorem turnQ_bounded {D Q O : List ℕ} {T S : ℕ} (hc : Csr n ns G off tgt alv) (hsrc : src < n)
+    (hD : D = List.replicate n (d + 1)) (hQlen : Q.length = n) (hOlen : O.length = n)
+    (hb : TouchBound n d src G alv off hsrc T S) :
+    turnQ n d src off tgt alv D Q O
+      ≤ NRest.spec (TurnPost n d src G alv hsrc) (fun _ => liftACost (turnCost T S)) :=
+  le_trans (turnQ_touched hc hsrc hD hQlen hOlen)
+    (spec_mono (fun _ hx => hx) fun r hr =>
+      liftACost_mono (turnCost_mono (hb r hr).1 (hb r hr).2))
+
 end Turn
 
+/-! ## 7. Re-entrancy: `k` turns from one store, `Σ` prices, one init
+
+The turn's postcondition contains its precondition — the distance array
+is all-sentinel at both ends — so turns chain, and the `O(n)` fill that
+`BfsQSynth.bfsQS` pays *per invocation* is paid **once**, outside the
+chain. This is the shape the ND-MC cover turn consumes.
+
+`use` is the consumer's readout of one turn's answers: it reads `out`
+and the queue prefix and folds them into whatever it is accumulating.
+It is free at this layer because it is not part of *this* program — the
+bridge wave supplies a real emission pass over the prefix and pays for
+it there, and the point of the statement is that the pass is over the
+prefix and not over the carrier. -/
+
+section Reentrant
+
+variable {n ns d : ℕ} {G : SimpleGraph (Fin n)} {off tgt alv : List ℕ}
+
+/-- The store the turns thread: distance array, queue, answer array.
+The answer array of one turn becomes the scratch of the next — junk in,
+junk out (B4b/D-d). -/
+abbrev Store : Type := List ℕ × List ℕ × List ℕ
+
+/-- **The loop-carried precondition**, which is also the
+postcondition. -/
+def StoreClean (n d : ℕ) (st : Store) : Prop :=
+  st.1 = List.replicate n (d + 1) ∧ st.2.1.length = n ∧ st.2.2.length = n
+
+/-- **`k` turns, one per source.** -/
+noncomputable def turnsQ {γ : Type} (n d : ℕ) (off tgt alv : List ℕ)
+    (use : γ → ℕ → (HSt × List ℕ × ℕ) → γ) :
+    List ℕ → Store × γ → NRest (Store × γ) ECost
+  | [], z => NRest.returnT z
+  | src :: more, z =>
+      bindT (turnQ n d src off tgt alv z.1.1 z.1.2.1 z.1.2.2) fun r =>
+        turnsQ n d off tgt alv use more (((r.1.1, r.2.1, r.1.2.1) : Store), use z.2 src r)
+
+theorem returnT_le_spec {α : Type} {x : α} {P : α → Prop} {T : α → ECost} (hP : P x)
+    (h0 : (0 : ECost) ≤ T x) : NRest.returnT x ≤ NRest.spec P T := by
+  rw [← NRest.consume_zero (NRest.returnT x)]
+  exact consume_returnT_le_spec hP h0
+
+/-- **The Σ-form.** `k` successive turns from one trail-clean store cost
+`Σ_k turnCost T_k S_k`, hand the store back trail-clean, and carry the
+consumer's fold invariant. Neither `turnCost` nor the sum takes the
+carrier size; the only `O(n)` charge in a driver built on this is the
+one fill that establishes `StoreClean` before the first turn. -/
+theorem turnsQ_touched {γ : Type} {use : γ → ℕ → (HSt × List ℕ × ℕ) → γ}
+    (hc : Csr n ns G off tgt alv) (Inv : γ → Prop) (T S : ℕ → ℕ)
+    (hstep : ∀ g src r, Inv g → (∀ hsrc : src < n, TurnPost n d src G alv hsrc r) →
+      Inv (use g src r)) :
+    ∀ (srcs : List ℕ), (∀ v ∈ srcs, v < n) →
+      (∀ v ∈ srcs, ∀ hv : v < n, TouchBound n d v G alv off hv (T v) (S v)) →
+      ∀ z : Store × γ, StoreClean n d z.1 → Inv z.2 →
+        turnsQ n d off tgt alv use srcs z
+          ≤ NRest.spec (fun z' => StoreClean n d z'.1 ∧ Inv z'.2)
+              (fun _ => liftACost ((srcs.map fun v => turnCost (T v) (S v)).sum)) := by
+  intro srcs
+  induction srcs with
+  | nil =>
+    intro _ _ z hz hg
+    exact returnT_le_spec ⟨hz, hg⟩ (by simp)
+  | cons src more ih =>
+    intro hlt hbd z hz hg
+    have hsrc : src < n := hlt src (by simp)
+    obtain ⟨hD, hQ, hO⟩ := hz
+    have hb := hbd src (by simp) hsrc
+    show NRest.bindT (turnQ n d src off tgt alv z.1.1 z.1.2.1 z.1.2.2) _ ≤ _
+    refine le_trans (NRest.bindT_mono (turnQ_bounded hc hsrc hD hQ hO hb) fun _ => le_rfl)
+      (le_trans (bindT_spec_le (TurnPost n d src G alv hsrc)
+        (liftACost (turnCost (T src) (S src))) _
+        (fun z' : Store × γ => StoreClean n d z'.1 ∧ Inv z'.2)
+        (liftACost ((more.map fun v => turnCost (T v) (S v)).sum)) fun r hr => ?_)
+        (le_of_eq ?_))
+    · refine ih (fun v hv => hlt v (by simp [hv])) (fun v hv => hbd v (by simp [hv]))
+        ((r.1.1, r.2.1, r.1.2.1), use z.2 src r) ⟨hr.1, hr.2.2.1, hr.2.1⟩
+        (hstep z.2 src r hg fun _ => hr)
+    · refine congrArg (NRest.spec _) (funext fun _ => ?_)
+      simp only [List.map_cons, List.sum_cons, liftACost_add]
+
+end Reentrant
+
 end Drain
+
+/-! ## 8. The acceptance criterion — the price is the touched set
+
+`turnCost` takes two arguments and neither is the carrier, so "the same
+search costs the same at every carrier size" is a reading of the
+signature rather than a theorem — exactly as it is for
+`Iicf.resetCost k` (`treset_cost_touched_only`) and for
+`TrailRecursion.clusterCost`. What *is* checked below is the arithmetic
+and the two runs. -/
+
+/-- The turn's price in IMP+ time units: `44` per queue entry, `40` per
+scanned adjacency slot, `22` per harvested slot, and `24`. Computed from
+the per-iteration accounts by `decide +kernel`, not tuned. -/
+theorem cash_turnCost (T S : ℕ) :
+    Codegen.cash (turnCost T S) = 44 * T + 40 * S + 22 * (max T 1) + 24 := by
+  rw [turnCost, Codegen.cash_add, Codegen.cash_add, Codegen.cash_add,
+    BfsQSynth.cash_nsmul, BfsQSynth.cash_nsmul, BfsQSynth.cash_nsmul,
+    show Codegen.cash (iter popC) = 44 from by decide +kernel,
+    show Codegen.cash (iter scanC) = 40 from by decide +kernel,
+    show Codegen.cash (iter hcC) = 22 from by decide +kernel,
+    show Codegen.cash turnK = 24 from by decide +kernel]
+  ring
+
+/-- The number the turn is priced at, on a run: its queue length and the
+slots its pops scanned. -/
+def turnCash (off : List ℕ) (r : HSt × List ℕ × ℕ) : ℕ :=
+  Codegen.cash (turnCost r.2.2 (rowSum off r.2.1 r.2.2))
+
+/-! ### The same search at two carrier sizes
+
+The five-vertex arena, and then the *same four-vertex path* sitting
+inside a carrier of six thousand: 5 995 extra isolated vertices, the same
+six adjacency slots, the same source, the same cap. -/
+
+def bigN : ℕ := 6000
+def bigOff : List ℕ := [0, 1, 3, 5, 6] ++ List.replicate (bigN - 4) 6
+def bigAlv : List ℕ := List.replicate bigN 1
+
+def bigTurn (d src : ℕ) : HSt × List ℕ × ℕ :=
+  turnTw bigN d src bigOff demoTgt bigAlv (cleanD bigN d) (junkA bigN) (junkA bigN)
+
+-- Same answers…
+#guard readPrefix (bigTurn 3 0) = readPrefix (demoTurn 3 0 1)
+#guard readPrefix (bigTurn 3 0) = [(0, 0), (1, 1), (2, 2), (3, 3)]
+-- …same two counted quantities…
+#guard (bigTurn 3 0).2.2 = (demoTurn 3 0 1).2.2
+#guard rowSum bigOff (bigTurn 3 0).2.1 (bigTurn 3 0).2.2
+  = rowSum demoOff (demoTurn 3 0 1).2.1 (demoTurn 3 0 1).2.2
+-- …and therefore the same price, at a carrier 1 200 times larger.
+#guard turnCash bigOff (bigTurn 3 0) = turnCash demoOff (demoTurn 3 0 1)
+#guard turnCash demoOff (demoTurn 3 0 1) = 528
+
+-- **What the engine of record charges for the same two runs.** Its
+-- budget is `56·n + 40·ns + 33`, so it is a *thousandfold* worse at the
+-- larger carrier for exactly the same search.
+#guard BfsQSynth.bfsQK 5 6 = 553
+#guard BfsQSynth.bfsQK 6000 6 = 336273
+#guard BfsQSynth.bfsQK 5 6 - turnCash demoOff (demoTurn 3 0 1) = 25
+#guard 600 * turnCash bigOff (bigTurn 3 0) < BfsQSynth.bfsQK 6000 6
+
+-- **Negative control 1.** The turn's price is not covered by a budget
+-- one pop short, and the check can tell.
+/--
+error: Expression
+  decide (turnCash demoOff (demoTurn 3 0 1) ≤ 100)
+did not evaluate to `true`
+-/
+#guard_msgs in
+#guard turnCash demoOff (demoTurn 3 0 1) ≤ 100
+
+-- **Negative control 2.** The price does *not* track the carrier: the
+-- two runs above are the same search, and asserting that the larger one
+-- costs more is false.
+/--
+error: Expression
+  decide (turnCash demoOff (demoTurn 3 0 1) < turnCash bigOff (bigTurn 3 0))
+did not evaluate to `true`
+-/
+#guard_msgs in
+#guard turnCash demoOff (demoTurn 3 0 1) < turnCash bigOff (bigTurn 3 0)
+
+/-! ### The charge is per *reached vertex*, not per offer
+
+`IicfTrailArray`'s R0/D-g records that its trail charges once per
+*write*, because its push is unconditional, so a repeated index inside
+one arena is charged twice. This trail does not: the push is the
+relaxation, and the `du = sent` test makes it at most once per vertex —
+which is `Fr.qinj`. The demo arena exhibits the difference. Vertex `1`
+is offered by `0` and again by `2`; vertex `2` by `1` and by `3`. The
+scan therefore visits **six** slots and the harvest **four**. -/
+
+#guard rowSum demoOff (demoTurn 3 0 1).2.1 (demoTurn 3 0 1).2.2 = 6
+#guard max (demoTurn 3 0 1).2.2 1 = 4
+#guard (readPrefix (demoTurn 3 0 1)).map (fun p => p.1) = [0, 1, 2, 3]
+-- …so the harvested slots are strictly fewer than the offers, and the
+-- prefix names each vertex once.
+#guard (readPrefix (demoTurn 3 0 1)).length
+  < rowSum demoOff (demoTurn 3 0 1).2.1 (demoTurn 3 0 1).2.2
+#guard ((readPrefix (demoTurn 3 0 1)).map (fun p => p.1)).eraseDups
+  = (readPrefix (demoTurn 3 0 1)).map (fun p => p.1)
+
+-- **Negative control 3.** The prefix is not the whole carrier: with the
+-- mask cutting the path at vertex 2, it is two slots, not five.
+/--
+error: Expression
+  decide ((readPrefix (demoTurn 3 0 0)).length = 5)
+did not evaluate to `true`
+-/
+#guard_msgs in
+#guard (readPrefix (demoTurn 3 0 0)).length = 5
+
+/-! ## 9. Axioms -/
+
+/-- info: 'Lax13Proofs.Refine.BfsQTrail.drainLoop_touched' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms drainLoop_touched
+
+/-- info: 'Lax13Proofs.Refine.BfsQTrail.hcRun_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms hcRun_spec
+
+/-- info: 'Lax13Proofs.Refine.BfsQTrail.searchQ_touched' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms searchQ_touched
+
+/-- info: 'Lax13Proofs.Refine.BfsQTrail.turnQ_touched' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms turnQ_touched
+
+/-- info: 'Lax13Proofs.Refine.BfsQTrail.turnQ_bounded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms turnQ_bounded
+
+/-- info: 'Lax13Proofs.Refine.BfsQTrail.turnsQ_touched' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms turnsQ_touched
+
+/-- info: 'Lax13Proofs.Refine.BfsQTrail.cash_turnCost' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms cash_turnCost
 
 end BfsQTrail
 
