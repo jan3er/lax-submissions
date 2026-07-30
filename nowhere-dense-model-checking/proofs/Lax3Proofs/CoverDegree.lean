@@ -552,4 +552,99 @@ theorem sum_ncard_le_mul_of_subset {N : ℕ} (X : Fin N → Set (Fin N)) (S : Se
     _ = S.ncard * d := by
         rw [Finset.sum_const, smul_eq_mul, Set.ncard_eq_toFinset_card S hSfin]
 
+/-! ### The ordering property, as a phase postcondition (rebase B5)
+
+The Σ-interface's `OrderImplements` carries a parametric predicate
+`P π ord` on the ordering the phase produces
+(`integration-design.md` §5.4), and the `R = R*` phase discharges it at
+
+    P π _ := ∀ v, (wreach G π (2 · rc) v).ncard ≤ ⌈c · m ^ δ⌉₊
+
+— the exact hypothesis `RamCover.isNeighborhoodCover_of_out` consumes,
+so that the cover the *next* phase builds along `ord` has the
+subpolynomial degree the mass accounting stands on.
+
+`exists_wreach_degree` is that discharge in one step: it is
+`exists_cover_degree` with the cover projected away — the fibers of the
+produced cover at `v` *are* `wreach G π (2·rc) v`, so the cover's
+`degree_le` field is the predicate verbatim.  Its hypotheses are
+unchanged: all of them are postconditions of the two engines on the
+`R*`-chain (the chain and the greedy rounds from the augmentation
+rounds' `AugPost`, `d₀` and its minimality from the first elimination's
+`ElimPost`, `k` and its minimality from the final elimination — which
+the `R*` phase runs on the *symmetrized augmented graph*
+`(D R).toGraph`, not on the level's own graph; see the B5 report).
+
+The fibre identity `wreach_fibre_eq` is the one authored step, and its
+variance is the refutable content: see the falsification block. -/
+
+/-- **The fibers of the wreach cover are the wreach sets.**  The cluster
+family `X u = {w | u ∈ wreach G π r w}` of `isNeighborhoodCover_wreach`
+has, at each `v`, exactly `wreach G π r v` as the set of clusters
+containing `v`. -/
+theorem wreach_fibre_eq {m : ℕ} (G : SimpleGraph (Fin m)) (π : Equiv.Perm (Fin m)) (r : ℕ)
+    (v : Fin m) :
+    {u : Fin m | v ∈ {w : Fin m | u ∈ wreach G π r w}} = wreach G π r v := by
+  ext u
+  simp only [Set.mem_setOf_eq]
+
+/-- **The wreach-degree bound of the `R*` ordering phase**: on a nowhere
+dense class, for every cover radius `rc`, round count `R` with the
+radius arithmetic `3·t ≤ R`, `2·rc ≤ 2^t`, and every `δ > 0`, there is a
+constant `c` such that the ordering produced by an `R`-round greedy
+chain with greedy eliminations at both ends satisfies
+`(wreach G π (2·rc) v).ncard ≤ ⌈c · m^δ⌉₊` at every vertex.  This is the
+statement the revised `OrderImplements` carries as its predicate `P` and
+the form `RamCover.isNeighborhoodCover_of_out` consumes. -/
+theorem exists_wreach_degree (C : GraphClass) (hC : NowhereDense C) (rc R t : ℕ)
+    (ht : 3 * t ≤ R) (hrt : 2 * rc ≤ 2 ^ t) (δ : ℝ) (hδ : 0 < δ) :
+    ∃ c : ℝ, ∀ (n : ℕ) (Gn : SimpleGraph (Fin n)), C n Gn →
+      ∀ (m : ℕ) (G : SimpleGraph (Fin m)), G ⊑ Gn →
+        ∀ (D : ℕ → Orientation m) (π : Equiv.Perm (Fin m)) (d₀ k : ℕ),
+          IsAugChain G D R →
+          (∀ i < R, GreedyFratRound (D i) (D (i + 1))) →
+          (D 0).InDegLE d₀ →
+          (∀ k', LowDegreeVertices G k' → d₀ ≤ k') →
+          BackDegLE (D R).toGraph (fun v => ((π v : Fin m) : ℕ)) k →
+          (∀ k', LowDegreeVertices (D R).toGraph k' → k ≤ k') →
+          ∀ v : Fin m, (wreach G π (2 * rc) v).ncard ≤ ⌈c * (m : ℝ) ^ δ⌉₊ := by
+  obtain ⟨c, hc⟩ := exists_cover_degree C hC rc R t ht hrt δ hδ
+  refine ⟨c, fun n Gn hGn m G hsub D π d₀ k h₁ h₂ h₃ h₄ h₅ h₆ v => ?_⟩
+  have hdeg := (hc n Gn hGn m G hsub D π d₀ k h₁ h₂ h₃ h₄ h₅ h₆).degree_le v
+  rw [← wreach_fibre_eq G π (2 * rc) v]
+  exact hdeg
+
+/-! ### Falsification (B5)
+
+The authored content of the projection is the *variance* of the fibre
+identity: the clusters containing `v` are indexed by `wreach … v`
+itself, i.e. the fibre of the family `X u = {w | u ∈ R w}` at `v` is
+`R v` — **not** `{u | v ∈ R u}`, which is what a reader of
+`u ∈ wreach G π r w` gets by transposing the two binders.  The two
+readings agree on symmetric families, so the control below separates
+them on the smallest asymmetric one. -/
+
+section Falsification
+
+/-- The smallest asymmetric family: `0` is in both fibres, `1` in
+neither. -/
+private def fibDemo : Fin 2 → Set (Fin 2) := fun u => if u = 0 then {0, 1} else ∅
+
+-- the positive instance of the identity, at any point: the same `ext`
+-- argument as `wreach_fibre_eq`, on the demo family
+example (v : Fin 2) : {u : Fin 2 | v ∈ {w : Fin 2 | u ∈ fibDemo w}} = fibDemo v := by
+  ext u; simp only [Set.mem_setOf_eq]
+
+-- **Refuted**: the transposed reading.  At `v = 1` the true fibre is
+-- `fibDemo 1 = ∅` while the transposed set is `{0}`, so no proof of the
+-- projection can use the transposed form.
+example : ¬ ({u : Fin 2 | u ∈ fibDemo 1} = {u : Fin 2 | (1 : Fin 2) ∈ fibDemo u}) := by
+  intro h
+  have h0 : (0 : Fin 2) ∈ {u : Fin 2 | (1 : Fin 2) ∈ fibDemo u} := by
+    simp [fibDemo]
+  rw [← h] at h0
+  simp [fibDemo] at h0
+
+end Falsification
+
 end Lax3Proofs.CoverDegree
