@@ -68,3 +68,7 @@ import Lax13Proofs.Refine.Codegen.Harness
 import Lax13Proofs.Refine.Codegen.BoundVcg
 import Lax13Proofs.Refine.Codegen.Cash
 import Lax13Proofs.Refine.Codegen.Examples.EndToEnd
+import Lax13Proofs.Refine.Iicf.Basic
+import Lax13Proofs.Refine.Iicf.IicfArray
+import Lax13Proofs.Refine.Iicf.IicfTrailArray
+import Lax13Proofs.Refine.Iicf.ExercisesA
