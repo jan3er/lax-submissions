@@ -183,6 +183,32 @@ rules cannot misfire. Plus ND-MC's own: touched-only charging from
 the **first** brief of any per-arena pass (n² kills the headline);
 per-depth register names, never save/restore (cost-fatal, A3 finding).
 
+**R = 0 scope ruling (2026-07-30, supervisor, FLAG 2 discretion).**
+Wave 2E established that at R = 0 the driver's augmentation fold is
+`Com.skip`: the augment round and all counting sorts are dead code
+on the C0 path. Consequently **RamAugment is retained old-style**
+(its `RamDriverAugment.implements` is consumed by the frozen driver
+assembly and stays green); the tower augment passes landed by 2C
+(alvSet/prefix/count, plus whatever 2C′ banks) are R>0 capital, not
+C0 critical path. The R>0 completion (tgt widening per TgtCoupling,
+the round assembly, the sorts) is a future campaign's wave.
+
+**Σ-shape cost threading (2026-07-30, supervisor analysis — binds
+the integration wave and P4).** The frozen driver cost interface is
+uniform-per-turn: `hKl`'s `(Ks j + 8) * n` charges the max cluster
+cost times n turns, which loses exactly the `Σ|X_c|` saving the
+touched-only engines produce (star-like instance: uniform×n = n²,
+true sum linear — C0's almost-linear bound is underivable through
+the uniform shape). This is the old plan's "touched-only retrofit
+is LOAD-BEARING; the recursion as stated is n^ℓ" item surfacing at
+the driver layer: the rebase's engine costs are touched-only for
+free, but the DRIVER's cluster-loop threading must be revised to
+per-turn costs summed (Σ-shape) — a proofs-side hypothesis revision
+of `levelImplements`/`driver_correct`/`driverRoot_decides_sentence`
+(the C0 concept statement is untouched; P3's CostRecurrence solver
+is parametric and absorbs either shape). Scheduled into the
+integration wave; ledger entry required there.
+
 ## JAN-FLAGs
 
 1. **Disposal of the superseded layer.** After G4, the hand-walked
@@ -280,6 +306,25 @@ supersession pointer.
   synthesized engine registers as a leaf `sepref_fr_rules` op and
   fires (engine-in-engine composition works; precondition must be
   spelled as conjuncts, R2A/D-f).
+- 2026-07-30 (continued) — **P2 SYNTHESIS COMPLETE** in nine further
+  waves + one tool wave: 2B′ (all Elim phases synthesized; mopPair
+  skip-tax finding F-a), 2A′ (Scatter whole-engine, Progress into
+  the abstract state), 2E (**the R=0 reduction**: augment fold is
+  skip — RamAugment retained, no counting sorts; ordering phase
+  fully derived + BRefine-covered), 2C′ (outPass complete, round
+  cancelled per R=0 ruling), 2B″/2B‴ (Elim engine export
+  elimEngine_le with the rank bound restored; 2B″'s cost prediction
+  corrected by 2B‴ — dropped A₂·ls term; honest 296n+127ns+41),
+  2D+2F (Cover turn loop + the cluster reduction map + all mask/
+  load leaves; clusterLoad 16n²→12n+15m — first touched-only proof
+  of the load half), 2G (expandCom — the LAST leaf; the n·ns
+  product dies: 47n+30ns+4 vs (24ns+44)n+6). **T2 tool wave
+  (Fable, db-branch merged)**: BRefine nested-while + junk rules +
+  brefine driver (−52%/−77% measured), bpre→BRefine run adapter,
+  bind_ref_tag normalization, Bounds.lean promotion zero-breakage.
+  Endgame launched: F1 mop-up (five-phase Elim export + ReachedList,
+  Opus) ∥ Integration-A (Σ-shape driver revision + swap design,
+  Fable) → Integration-B waves → P4.
 - 2026-07-30 — **P2 satellites 2B (afde8b3) + 2C (c0e08f5) GREEN**:
   ElimSynth (five-phase twin, 12 golden #guards first-build; degree
   pass 36n+23ns+4 vs old 48n+44ns+10; rezero/ElimMem debt dies by
