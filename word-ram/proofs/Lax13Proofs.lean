@@ -72,3 +72,5 @@ import Lax13Proofs.Refine.Iicf.Basic
 import Lax13Proofs.Refine.Iicf.IicfArray
 import Lax13Proofs.Refine.Iicf.IicfTrailArray
 import Lax13Proofs.Refine.Iicf.ExercisesA
+import Lax13Proofs.Refine.Sepref.IrLoop
+import Lax13Proofs.Refine.Examples.BfsQ
