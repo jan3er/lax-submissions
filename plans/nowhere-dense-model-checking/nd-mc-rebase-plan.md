@@ -248,3 +248,42 @@ supersession pointer.
   scratch cells mid-block at `hnr_bind` (flattens exponent to ~1);
   (2) cheapen `fri`/`proveConjEq` on long conjunct lists; (3)
   DiscrTree for failure-path latency only. None block P2.
+- 2026-07-30 — **P2 satellite 2A GREEN** (fca93bf, ScatterSynth) +
+  three supervisor decisions under FLAG 2 discretion: (i)
+  **FormulaTables/BotEval retained as-is** — no machine content,
+  they are already the abstract layer; (ii) **the base case
+  (baseCom = reprCom + botCom fold) retained old-style** — botCom
+  recurses on formula syntax and generates cell names, outside
+  fixed-program synthesis; re-deriving reprCom alone buys nothing
+  while botCom stays; (iii) **the tower/hand boundary is pinned**:
+  tower synthesizes leaf engines; the name-generating recursion
+  (botCom, per-depth driver assembly) is retained capital. Scatter
+  phase 2 (greedy scan) + Cover + order phase all queue behind
+  **tool wave T1** (word-ram, single-owner, after ElimSynth lands):
+  (a) `fri` bound-tuple split — the blocking gap; (b) BRefine junk
+  rule; (c) `sepref_brefine_rules` DB + driver emission of
+  perm/frame; (d) promote mopSucc/mopAddIn to a shared module;
+  (e) frameMatch named-assertion diagnostic. Probe capital: a
+  synthesized engine registers as a leaf `sepref_fr_rules` op and
+  fires (engine-in-engine composition works; precondition must be
+  spelled as conjuncts, R2A/D-f).
+- 2026-07-30 — **P2 satellites 2B (afde8b3) + 2C (c0e08f5) GREEN**:
+  ElimSynth (five-phase twin, 12 golden #guards first-build; degree
+  pass 36n+23ns+4 vs old 48n+44ns+10; rezero/ElimMem debt dies by
+  the layer argument) and AugmentSynth (5/10 passes; slotCnt_out_eq
+  becomes cntPass_spec, a pass postcondition; K₁,₄ coupling bites
+  the file's own program). Gap narrowing across satellites fed T1.
+- 2026-07-30 — **T1 TOOL WAVE LANDED (db68602, Fable)**: the D-a
+  stall was whole-vs-split tuple spelling in `mergeSolve` pairing
+  (both prior hypotheses pass in isolation) — fixed via
+  conjunctsSplit normalization (T1/D-a); bound-tuple split in three
+  organs (fri simps T1/D-b, componentwise junkConjunct T1/D-d,
+  lazy matchLoop splitting T1/D-f) + a live-caught junk/absAgree
+  soundness guard (T1/D-e); shared mops (IrOpsExtra); wide-state
+  packN dissolved by measurement (11-deep state ≈18 s — crawls,
+  doesn't break). degPass: 3-min timeout → seconds; bfsThenSweep
+  and cntThenPref both green kernel-three. BRefine tooling memo'd
+  (junk rule, nested-while rule, brefine DB, Bounds.lean
+  promotion) — bounded tax ~50 lines/loop until then. Loop states
+  are resources: assemble with mopPair/pack, never literal tuples
+  (P4/D-m linearity — put in every P2 brief).
