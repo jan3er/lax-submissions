@@ -315,6 +315,43 @@ theorem spec_of_hnRefine {α κ : Type} {Γ Γ' F : Assn} {c : Ir.Com} {d : κ}
     have := le_trans (cash_le_ecash hT) hN
     exact_mod_cast this
 
+/-- **The run, on its own** (judgment call **P7/D-bm**). `hnRefine`'s wp
+adequacy produces a `BigStep` on the way to `spec_of_hnRefine`'s
+conclusion and then consumes it; a consumer that bounds its run *along*
+a derivation (`BigStep.bigStepB_of_inv`) needs the derivation first, and
+re-deriving it means re-running the adequacy chain by hand. So the
+projection is published: same three hypotheses, the run and nothing
+else. It is stated separately rather than as an extra conclusion of
+`spec_of_hnRefine` because the two are used in the opposite order — the
+run is what *builds* that theorem's `hbd`. -/
+theorem bigStep_of_hnRefine {α κ : Type} {Γ Γ' F : Assn} {c : Ir.Com} {d : κ}
+    {R : α → κ → Assn} {m : NRest α ECost} {Φ : α → Prop} {T : ECost} {s₀ : Ir.State}
+    (hnr : hnRefine Γ c Γ' d R m)
+    (hm : m ≤ NRest.spec Φ (fun _ => T))
+    (hs₀ : irSTATE (Γ ∗ F) (s₀, 0)) :
+    ∃ s' κ', Ir.BigStep c s₀ s' κ' := by
+  cases hmm : m with
+  | fail => exact absurd (hmm ▸ hm) (NRest.not_fail_le_rest _)
+  | rest M =>
+    obtain ⟨ra, Ca, hCa, hwp⟩ := hnRefineD hnr hmm hs₀
+    rw [zero_add, Ir.wp_def] at hwp
+    obtain ⟨s', κ', hstep, -, -⟩ := hwp
+    exact ⟨s', κ', hstep⟩
+
+/-- …and the two halves joined: the bounds witness `spec_of_hnRefine`
+asks for, produced from an invariant rather than from a second
+derivation. -/
+theorem exists_bigStepB_of_hnRefine {α κ : Type} {Γ Γ' F : Assn} {c : Ir.Com} {d : κ}
+    {R : α → κ → Assn} {m : NRest α ECost} {Φ : α → Prop} {T : ECost} {B : ℕ}
+    {s₀ : Ir.State} {Q : Ir.State → Prop}
+    (hnr : hnRefine Γ c Γ' d R m)
+    (hm : m ≤ NRest.spec Φ (fun _ => T))
+    (hs₀ : irSTATE (Γ ∗ F) (s₀, 0))
+    (hpre : Ir.bpre B c Q s₀) :
+    ∃ s' κ', Ir.BigStepB B c s₀ s' κ' := by
+  obtain ⟨s', κ', hstep⟩ := bigStep_of_hnRefine hnr hm hs₀
+  exact hstep.exists_bigStepB_of_inv hpre
+
 /-! ### The two readouts -/
 
 /-- A scalar destination: the result cell holds the abstract result. -/

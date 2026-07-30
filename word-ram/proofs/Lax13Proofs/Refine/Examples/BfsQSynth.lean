@@ -606,68 +606,898 @@ and the constants. Then:
 `tl ≤ n` is the interesting row: it is inductive, and the step that
 maintains it is the store's own in-range side condition, not a counting
 argument. That is P7/D-bj's cost, retired — but only along a derivation.
+-/
 
-## 12. Telemetry (the plan's P7 gate numbers)
+/-! ## 12. The bounds pass, executed (P7/D-bn)
+
+§11's recommendation, carried out. The general lemma is
+`BigStep.bigStepB_of_inv` (`Codegen/BigStepB.lean`, judgment call
+P7/D-bl); what is here is this program's annotation.
+
+**P7/D-bn — the invariant is smaller than §11's table, because
+`StateBound` does most of it.** §11 priced the pass over an invariant
+carrying `dist ≤ d+1`, `q < n`, `off ≤ ns` and `tl ≤ n`. Three of those
+four rows turn out to be unnecessary once the pass carries
+`Ir.StateBound B` itself as a conjunct: `BigStepB`'s own state invariant
+already says that every cell and every array entry is below the bound,
+which is all a guard needs and all a *read* value needs. What is left is
+the four facts arithmetic needs and a bound alone cannot give —
+
+* `one` really holds `1` (otherwise `x := x + one` is not `x + 1`);
+* `tl ≤ n`, which bounds `head + 1` through the loop guard `head < tl`;
+* the queue's entries *below the tail* are vertices, which bounds
+  `v + 1`;
+* the target array's entries are vertices, which is what keeps the
+  queue's entries vertices when `q[tl] := u` writes one.
+
+`off ≤ ns` and `dist ≤ d+1` disappear entirely: `k0 + 1 ≤ kend < B`
+comes from the guard and `StateBound`, and `dv + 1 ≤ d < B` likewise.
+The one place a *store's* side condition does the work is still the one
+§11 identified — `tl + 1 ≤ n` is read off `q[tl] := u`'s own
+`hk : tl < q.length`. -/
+
+section Bounds
+
+/-- The caller's store as an `Ir.State`: the two scratch arrays, the
+block structure, the mask, the five constants `bfsQPre` owns, and the
+eleven scratch cells zeroed. `demoState` is its five-vertex instance. -/
+def bfsQState (n d src : ℕ) (off tgt alv dist₀ q₀ : List ℕ) : Ir.State :=
+  Ir.State.ofPairs
+    [("i", 0), ("head", 0), ("n", n), ("sent", d + 1), ("d", d), ("src", src),
+      ("one", 1), ("a", 0), ("tl", 0), ("v", 0), ("dv", 0), ("dv1", 0), ("k0", 0),
+      ("v1", 0), ("kend", 0), ("u", 0), ("au", 0), ("du", 0)]
+    [("dist", dist₀), ("q", q₀), ("off", off), ("tgt", tgt), ("alv", alv)]
+
+/-! ### Reading a guard
+
+Three inversions of `Ir.Cond.eval`, one per guard shape the program
+uses. -/
+
+theorem eval_lt_cells {s : Ir.State} {x y : String} {r : Bool}
+    (h : (Ir.Cond.lt (.cell x) (.cell y)).eval s = some r) :
+    ∃ a b : ℕ, s.vars x = some a ∧ s.vars y = some b ∧ r = decide (a < b) := by
+  rw [Ir.Cond.eval_lt, Option.bind_eq_some_iff] at h
+  obtain ⟨a, ha, h⟩ := h
+  rw [Option.map_eq_some_iff] at h
+  obtain ⟨b, hb, rfl⟩ := h
+  exact ⟨a, b, by simpa using ha, by simpa using hb, rfl⟩
+
+theorem eval_lt_lit {s : Ir.State} {c : ℕ} {y : String} {r : Bool}
+    (h : (Ir.Cond.lt (.lit c) (.cell y)).eval s = some r) :
+    ∃ b : ℕ, s.vars y = some b ∧ r = decide (c < b) := by
+  rw [Ir.Cond.eval_lt, Option.bind_eq_some_iff] at h
+  obtain ⟨a, ha, h⟩ := h
+  rw [Option.map_eq_some_iff] at h
+  obtain ⟨b, hb, rfl⟩ := h
+  rw [Ir.Operand.eval_lit] at ha
+  cases ha
+  exact ⟨b, by simpa using hb, rfl⟩
+
+theorem eval_eq_cells {s : Ir.State} {x y : String} {r : Bool}
+    (h : (Ir.Cond.eq (.cell x) (.cell y)).eval s = some r) :
+    ∃ a b : ℕ, s.vars x = some a ∧ s.vars y = some b := by
+  rw [Ir.Cond.eval_eq, Option.bind_eq_some_iff] at h
+  obtain ⟨a, ha, h⟩ := h
+  rw [Option.map_eq_some_iff] at h
+  obtain ⟨b, hb, -⟩ := h
+  exact ⟨a, b, by simpa using ha, by simpa using hb⟩
+
+/-! ### The two invariants -/
+
+/-- The fill loop's invariant: the bound, the constant, the head still
+at zero, and the three facts the seed and the drain inherit. -/
+def FInv (n B : ℕ) (s : Ir.State) : Prop :=
+  Ir.StateBound B s ∧ s.vars "one" = some 1 ∧ s.vars "head" = some 0 ∧
+    (∀ w, s.vars "src" = some w → w < n) ∧
+    (∀ Q, s.arrs "q" = some Q → Q.length ≤ n) ∧
+    (∀ T, s.arrs "tgt" = some T → ∀ w ∈ T, w < n)
+
+/-- The invariant the drain and its row scan share: the bound, the
+constant, the tail with the queue prefix it has filled, and the target
+array. -/
+def DInv (n B : ℕ) (s : Ir.State) : Prop :=
+  Ir.StateBound B s ∧ s.vars "one" = some 1 ∧
+    (∃ t, s.vars "tl" = some t ∧ t ≤ n ∧
+      ∀ Q, s.arrs "q" = some Q → Q.length ≤ n ∧
+        ∀ j, j < t → ∀ w, Q[j]? = some w → w < n) ∧
+    (∀ T, s.arrs "tgt" = some T → ∀ w ∈ T, w < n)
+
+theorem FInv.setVar {n B : ℕ} {s : Ir.State} (h : FInv n B s) {x : String} {v : ℕ}
+    (h1 : x ≠ "one") (h2 : x ≠ "head") (h3 : x ≠ "src") (hv : v < B) :
+    FInv n B (s.setVar x v) := by
+  obtain ⟨hb, e1, e2, e3, e4, e5⟩ := h
+  refine ⟨hb.setVar hv, ?_, ?_, ?_, e4, e5⟩
+  · rw [Ir.State.vars_setVar, if_neg (Ne.symm h1)]; exact e1
+  · rw [Ir.State.vars_setVar, if_neg (Ne.symm h2)]; exact e2
+  · intro w hw
+    rw [Ir.State.vars_setVar, if_neg (Ne.symm h3)] at hw
+    exact e3 w hw
+
+theorem FInv.setArr {n B : ℕ} {s : Ir.State} (h : FInv n B s) {a : String} {xs : List ℕ}
+    (ha : s.arrs a = some xs) {k m : ℕ} (hm : m < B) (hne : a ≠ "tgt") :
+    FInv n B (s.setArr a (xs.set k m)) := by
+  obtain ⟨hb, e1, e2, e3, e4, e5⟩ := h
+  refine ⟨hb.setArr ha hm, e1, e2, e3, ?_, ?_⟩
+  · intro Q hQ
+    rw [Ir.State.arrs_setArr] at hQ
+    by_cases hq : "q" = a
+    · rw [if_pos hq] at hQ
+      cases hQ
+      rw [List.length_set]
+      exact e4 xs (hq ▸ ha)
+    · rw [if_neg hq] at hQ; exact e4 Q hQ
+  · intro T hT
+    rw [Ir.State.arrs_setArr, if_neg (fun hc => hne hc.symm)] at hT
+    exact e5 T hT
+
+theorem DInv.setVar {n B : ℕ} {s : Ir.State} (h : DInv n B s) {x : String} {v : ℕ}
+    (h1 : x ≠ "one") (h2 : x ≠ "tl") (hv : v < B) : DInv n B (s.setVar x v) := by
+  obtain ⟨hb, e1, ⟨t, ht, htn, hq⟩, e3⟩ := h
+  refine ⟨hb.setVar hv, ?_, ⟨t, ?_, htn, hq⟩, e3⟩
+  · rw [Ir.State.vars_setVar, if_neg (Ne.symm h1)]; exact e1
+  · rw [Ir.State.vars_setVar, if_neg (Ne.symm h2)]; exact ht
+
+/-- A store into `dist` touches nothing the invariant mentions but the
+bound. -/
+theorem DInv.setArrDist {n B : ℕ} {s : Ir.State} (h : DInv n B s) {xs : List ℕ}
+    (hxs : s.arrs "dist" = some xs) {k m : ℕ} (hm : m < B) :
+    DInv n B (s.setArr "dist" (xs.set k m)) := by
+  obtain ⟨hb, e1, ⟨t, ht, htn, hq⟩, e3⟩ := h
+  refine ⟨hb.setArr hxs hm, e1, ⟨t, ht, htn, ?_⟩, ?_⟩
+  · intro Q hQ
+    rw [Ir.State.arrs_setArr, if_neg (by decide)] at hQ
+    exact hq Q hQ
+  · intro T hT
+    rw [Ir.State.arrs_setArr, if_neg (by decide)] at hT
+    exact e3 T hT
+
+/-- …and a store of a vertex into the queue keeps the prefix a prefix of
+vertices, whatever index it lands at. -/
+theorem DInv.setArrQ {n B : ℕ} {s : Ir.State} (h : DInv n B s) {Qs : List ℕ}
+    (hQs : s.arrs "q" = some Qs) {k m : ℕ} (hm : m < B) (hmn : m < n) :
+    DInv n B (s.setArr "q" (Qs.set k m)) := by
+  obtain ⟨hb, e1, ⟨t, ht, htn, hq⟩, e3⟩ := h
+  obtain ⟨hlen, hpre⟩ := hq Qs hQs
+  refine ⟨hb.setArr hQs hm, e1, ⟨t, ht, htn, ?_⟩, ?_⟩
+  · intro Q hQ
+    rw [Ir.State.arrs_setArr, if_pos rfl] at hQ
+    cases hQ
+    refine ⟨by rw [List.length_set]; exact hlen, ?_⟩
+    intro j hj w hw
+    rcases eq_or_ne k j with rfl | hne
+    · rw [List.getElem?_set, if_pos rfl] at hw
+      split at hw
+      · cases hw; exact hmn
+      · exact absurd hw (by simp)
+    · rw [List.getElem?_set_ne hne] at hw
+      exact hpre j hj w hw
+  · intro T hT
+    rw [Ir.State.arrs_setArr, if_neg (by decide)] at hT
+    exact e3 T hT
+
+/-- After a vertex is stored at the tail, the tail may advance: the
+entry the extended prefix gains is the one just stored. -/
+theorem DInv.bumpTl {n B : ℕ} {s : Ir.State} (h : DInv n B s) {tv : ℕ}
+    (ht : s.vars "tl" = some tv) (htn1 : tv + 1 ≤ n) (hB1 : tv + 1 < B)
+    (hcov : ∀ Q, s.arrs "q" = some Q → ∀ w, Q[tv]? = some w → w < n) :
+    DInv n B (s.setVar "tl" (tv + 1)) := by
+  obtain ⟨hb, e1, ⟨t, ht', htn, hq⟩, e3⟩ := h
+  obtain rfl : tv = t := by rw [ht] at ht'; exact Option.some.inj ht'
+  refine ⟨hb.setVar hB1, ?_, ⟨tv + 1, by simp, htn1, ?_⟩, ?_⟩
+  · rw [Ir.State.vars_setVar, if_neg (by decide)]; exact e1
+  · intro Q hQ
+    rw [Ir.State.arrs_setVar] at hQ
+    refine ⟨(hq Q hQ).1, ?_⟩
+    intro j hj w hw
+    rcases eq_or_ne j tv with rfl | hne
+    · exact hcov Q hQ w hw
+    · exact (hq Q hQ).2 j (lt_of_le_of_ne (Nat.le_of_lt_succ hj) hne) w hw
+  · intro T hT
+    rw [Ir.State.arrs_setVar] at hT
+    exact e3 T hT
+
+/-! ### The bound and the initial store -/
+
+/-- What the bound owes the structure: the three linear facts. Everything
+else (`1 < B`, `0 < B`, `d < B`) follows. -/
+structure BfsBounds (n ns d B : ℕ) : Prop where
+  /-- The vertex count. -/
+  hn : n < B
+  /-- The slot count. -/
+  hns : ns < B
+  /-- The sentinel. -/
+  hd : d + 1 < B
+
+/-- Entries of the target array are vertices, in membership form. -/
+theorem tgt_mem_lt {n : ℕ} {off tgt alv : List ℕ} (hsh : Shape n off tgt alv) :
+    ∀ w ∈ tgt, w < n := by
+  intro w hw
+  obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.1 hw
+  have := hsh.2.2.2.2 j hj
+  rwa [getElem!_pos tgt j hj] at this
+
+/-- Entries of the offset array sit below the slot count. -/
+theorem off_mem_le {n : ℕ} {off tgt alv : List ℕ} (hsh : Shape n off tgt alv) :
+    ∀ w ∈ off, w ≤ tgt.length := by
+  intro w hw
+  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.1 hw
+  have hlen : off.length = n + 1 := hsh.1
+  have h1 : off[i]! ≤ off[n]! := Shape.mono' hsh (by omega) le_rfl
+  have h2 : off[n]! ≤ tgt.length := hsh.2.2.2.1
+  rw [getElem!_pos off i hi] at h1
+  omega
+
+/-- The initial store is bounded. -/
+theorem bfsQ_stateBound {n ns d B src : ℕ} {off tgt alv dist₀ q₀ : List ℕ}
+    (hB : BfsBounds n ns d B) (hsh : Shape n off tgt alv) (htl : tgt.length ≤ ns)
+    (hsrc : src < n)
+    (halv : ∀ w ∈ alv, w < B) (hd0 : ∀ w ∈ dist₀, w < B) (hq0 : ∀ w ∈ q₀, w < B) :
+    Ir.StateBound B (bfsQState n d src off tgt alv dist₀ q₀) := by
+  have h1 := hB.hn; have h2 := hB.hns; have h3 := hB.hd
+  refine stateBound_ofPairs ?_ ?_
+  · intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      | rfl | rfl | rfl | rfl | rfl | rfl <;> simp <;> omega
+  · intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl | rfl | rfl
+    · exact hd0
+    · exact hq0
+    · intro w hw
+      have h4 : w ≤ tgt.length := off_mem_le hsh w hw
+      omega
+    · intro w hw
+      have h4 : w < n := tgt_mem_lt hsh w hw
+      omega
+    · exact halv
+
+/-! ### The walk
+
+One lemma per loop body, one for the shared tail of the scan's three
+branch paths, and the assembly. Every in-range fact below arrives as a
+hypothesis of a `bpre` clause — none is proved. Identifications are by
+`Option.some.inj`, never `omega`, and the `< B` arithmetic is term-mode,
+because the clause binders are at `Ir.Val` and `omega` is blind through
+that abbrev (the P5 trap, hit again here). -/
+
+/-- Guard literal facts, at concrete conditions (keeps the implicit
+condition determined at elaboration). -/
+theorem litLt_lt_cells {B : ℕ} {x y : String} :
+    (Cond.lt (Operand.cell x) (Operand.cell y)).LitLt B := ⟨trivial, trivial⟩
+
+theorem litLt_eq_cells {B : ℕ} {x y : String} :
+    (Cond.eq (Operand.cell x) (Operand.cell y)).LitLt B := ⟨trivial, trivial⟩
+
+theorem litLt_lit0 {B : ℕ} (h0 : 0 < B) {y : String} :
+    (Cond.lt (Operand.lit 0) (Operand.cell y)).LitLt B := ⟨h0, trivial⟩
+
+/-- The tail every scan path shares: the slot counter bump. -/
+theorem scan_tail_bpre {n B : ℕ} {t' : Ir.State} (hI : DInv n B t')
+    {k₀v kev : ℕ} (hk₀ : t'.vars "k0" = some k₀v) (hke : t'.vars "kend" = some kev)
+    (hlt : k₀v < kev) :
+    bpre B ((Com.binop Imp.Bop.add "k0" "k0" "one").seq
+      (Com.skip.seq (Com.skip.seq Com.skip))) (DInv n B) t' := by
+  intro m₁ m₂ hm₁ hm₂
+  obtain rfl : k₀v = m₁ := by rw [hk₀] at hm₁; exact Option.some.inj hm₁
+  obtain rfl : m₂ = 1 := by rw [hI.2.1] at hm₂; exact (Option.some.inj hm₂).symm
+  have hkeB : kev < B := hI.1.var hke
+  simp only [Imp.Bop.apply_add]
+  exact ⟨lt_of_le_of_lt (Nat.succ_le_of_lt hlt) hkeB,
+    hI.setVar (x := "k0") (by decide) (by decide)
+      (lt_of_le_of_lt (Nat.succ_le_of_lt hlt) hkeB)⟩
+
+/-- One slot of the row scan preserves the drain invariant. The
+interesting step is the queue store: its own in-range hypothesis is what
+bounds the tail bump two lines later. -/
+theorem scan_body_bpre {n B : ℕ} (hn : n < B) {t : Ir.State} (hI : DInv n B t)
+    (hg : (Cond.lt (Operand.cell "k0") (Operand.cell "kend")).eval t = some true) :
+    bpre B
+      ((Com.aget "u" "tgt" "k0").seq
+        ((Com.aget "au" "alv" "u").seq
+          ((Com.aget "du" "dist" "u").seq
+            ((Com.ite (Cond.lt (Operand.lit 0) (Operand.cell "au"))
+                (Com.ite (Cond.eq (Operand.cell "du") (Operand.cell "sent"))
+                  ((Com.aset "dist" "u" "dv1").seq
+                    ((Com.aset "q" "tl" "u").seq
+                      ((Com.binop Imp.Bop.add "tl" "tl" "one").seq
+                        (Com.skip.seq Com.skip))))
+                  (Com.skip.seq Com.skip))
+                (Com.skip.seq Com.skip)).seq
+              ((Com.binop Imp.Bop.add "k0" "k0" "one").seq
+                (Com.skip.seq (Com.skip.seq Com.skip))))))) (DInv n B) t := by
+  have hI' := hI
+  obtain ⟨hsb, hone, ⟨tv, htv, htn, hq⟩, htgtc⟩ := hI
+  obtain ⟨k₀v, kev, hk₀, hke, hr⟩ := eval_lt_cells hg
+  have hlt : k₀v < kev := of_decide_eq_true hr.symm
+  have h0B : 0 < B := lt_of_le_of_lt (Nat.zero_le n) hn
+  -- the slot's target is a vertex
+  intro ku xsT u₀ hku hxsT hu₀
+  have hu₀n : u₀ < n := htgtc xsT hxsT u₀ (List.mem_of_getElem? hu₀)
+  have hu₀B : u₀ < B := lt_trans hu₀n hn
+  intro ka ysA a₀ hka hysA ha₀
+  have hysA' : t.arrs "alv" = some ysA := by simpa using hysA
+  have ha₀B : a₀ < B := hsb.getElem hysA' ha₀
+  intro kd zsD d₀ hkd hzsD hd₀
+  have hzsD' : t.arrs "dist" = some zsD := by simpa using hzsD
+  have hd₀B : d₀ < B := hsb.getElem hzsD' hd₀
+  have hI₃ : DInv n B (((t.setVar "u" u₀).setVar "au" a₀).setVar "du" d₀) :=
+    ((hI'.setVar (x := "u") (by decide) (by decide) hu₀B).setVar (x := "au")
+      (by decide) (by decide) ha₀B).setVar (x := "du") (by decide) (by decide) hd₀B
+  have hk₀₃ : (((t.setVar "u" u₀).setVar "au" a₀).setVar "du" d₀).vars "k0"
+      = some k₀v := by simpa using hk₀
+  have hke₃ : (((t.setVar "u" u₀).setVar "au" a₀).setVar "du" d₀).vars "kend"
+      = some kev := by simpa using hke
+  refine ⟨fun r h => Cond.evalB_of_stateBound hI₃.1 (litLt_lit0 h0B) h, ?_, ?_⟩
+  · -- the mask says alive
+    intro _
+    refine ⟨fun r h => Cond.evalB_of_stateBound hI₃.1 litLt_eq_cells h, ?_, ?_⟩
+    · -- undiscovered: the slot relaxes
+      intro _
+      intro k₄ m₄ ws hk₄ hm₄ hws hlen₄
+      obtain rfl : u₀ = k₄ := by
+        have h' : some u₀ = some k₄ := by simpa using hk₄
+        exact Option.some.inj h'
+      have hm₄B : m₄ < B := hI₃.1.var hm₄
+      have hI₄ : DInv n B ((((t.setVar "u" u₀).setVar "au" a₀).setVar "du" d₀).setArr
+          "dist" (ws.set u₀ m₄)) := hI₃.setArrDist hws hm₄B
+      intro k₅ m₅ qs hk₅ hm₅ hqs hlen₅
+      obtain rfl : u₀ = m₅ := by
+        have h' : some u₀ = some m₅ := by simpa using hm₅
+        exact Option.some.inj h'
+      obtain rfl : tv = k₅ := by
+        have h' : t.vars "tl" = some k₅ := by simpa using hk₅
+        rw [htv] at h'
+        exact Option.some.inj h'
+      have hqs' : t.arrs "q" = some qs := by simpa using hqs
+      obtain ⟨hqlen', hpre'⟩ := hq qs hqs'
+      have htvn : tv + 1 ≤ n := le_trans (Nat.succ_le_of_lt hlen₅) hqlen'
+      have htvB : tv + 1 < B := lt_of_le_of_lt htvn hn
+      have hI₅ : DInv n B (((((t.setVar "u" u₀).setVar "au" a₀).setVar "du" d₀).setArr
+          "dist" (ws.set u₀ m₄)).setArr "q" (qs.set tv u₀)) :=
+        hI₄.setArrQ hqs hu₀B hu₀n
+      -- the queue store: its in-range hypothesis `hlen₅` bounds the bump
+      intro m₆ m₇ hm₆ hm₇
+      obtain rfl : tv = m₆ := by
+        have h' : t.vars "tl" = some m₆ := by simpa using hm₆
+        rw [htv] at h'
+        exact Option.some.inj h'
+      obtain rfl : m₇ = 1 := by
+        have h' : t.vars "one" = some m₇ := by simpa using hm₇
+        rw [hone] at h'
+        exact (Option.some.inj h').symm
+      simp only [Imp.Bop.apply_add]
+      refine ⟨htvB, ?_⟩
+      -- the entry the extended prefix gains is the one just stored
+      have hcov : ∀ Q, (((((t.setVar "u" u₀).setVar "au" a₀).setVar "du" d₀).setArr
+          "dist" (ws.set u₀ m₄)).setArr "q" (qs.set tv u₀)).arrs "q" = some Q →
+          ∀ w, Q[tv]? = some w → w < n := by
+        intro Q hQ w hw
+        have hQ' : Q = qs.set tv u₀ := by
+          have h' : some (qs.set tv u₀) = some Q := by simpa using hQ
+          exact (Option.some.inj h').symm
+        subst hQ'
+        rw [List.getElem?_set_self hlen₅] at hw
+        cases hw
+        exact hu₀n
+      have hI₆ := hI₅.bumpTl (by simpa using htv) htvn htvB hcov
+      exact scan_tail_bpre hI₆ (by simpa using hk₀) (by simpa using hke) hlt
+    · -- already discovered: nothing to do
+      intro _
+      exact scan_tail_bpre hI₃ hk₀₃ hke₃ hlt
+  · -- dead: nothing to do
+    intro _
+    exact scan_tail_bpre hI₃ hk₀₃ hke₃ hlt
+
+/-- One pop preserves the drain invariant; the row scan rides inside. -/
+theorem drain_body_bpre {n B : ℕ} (hn : n < B) {t : Ir.State} (hI : DInv n B t)
+    (hg : (Cond.lt (Operand.cell "head") (Operand.cell "tl")).eval t = some true) :
+    bpre B
+      ((Com.aget "v" "q" "head").seq
+        ((Com.aget "dv" "dist" "v").seq
+          ((Com.binop Imp.Bop.add "head" "head" "one").seq
+            ((Com.ite (Cond.lt (Operand.cell "dv") (Operand.cell "d"))
+                ((Com.binop Imp.Bop.add "dv1" "dv" "one").seq
+                  ((Com.aget "k0" "off" "v").seq
+                    ((Com.binop Imp.Bop.add "v1" "v" "one").seq
+                      ((Com.aget "kend" "off" "v1").seq
+                        ((Com.skip.seq (Com.skip.seq Com.skip)).seq
+                          ((Com.while (Cond.lt (Operand.cell "k0") (Operand.cell "kend"))
+                              ((Com.aget "u" "tgt" "k0").seq
+                                ((Com.aget "au" "alv" "u").seq
+                                  ((Com.aget "du" "dist" "u").seq
+                                    ((Com.ite (Cond.lt (Operand.lit 0) (Operand.cell "au"))
+                                          (Com.ite (Cond.eq (Operand.cell "du")
+                                              (Operand.cell "sent"))
+                                            ((Com.aset "dist" "u" "dv1").seq
+                                              ((Com.aset "q" "tl" "u").seq
+                                                ((Com.binop Imp.Bop.add "tl" "tl" "one").seq
+                                                  (Com.skip.seq Com.skip))))
+                                            (Com.skip.seq Com.skip))
+                                          (Com.skip.seq Com.skip)).seq
+                                      ((Com.binop Imp.Bop.add "k0" "k0" "one").seq
+                                        (Com.skip.seq (Com.skip.seq Com.skip)))))))).seq
+                            (Com.skip.seq Com.skip)))))))
+                (Com.skip.seq Com.skip)).seq
+              (Com.skip.seq (Com.skip.seq Com.skip)))))) (DInv n B) t := by
+  have hI' := hI
+  obtain ⟨hsb, hone, ⟨tv, htv, htn, hq⟩, htgtc⟩ := hI
+  obtain ⟨hd, tv', hhd, htl', hr⟩ := eval_lt_cells hg
+  obtain rfl : tv = tv' := by rw [htv] at htl'; exact Option.some.inj htl'
+  have hlt : hd < tv := of_decide_eq_true hr.symm
+  -- the popped entry is a vertex: it sits below the tail
+  intro kh qs v₀ hkh hqs hv₀
+  obtain rfl : hd = kh := by rw [hhd] at hkh; exact Option.some.inj hkh
+  have hv₀n : v₀ < n := (hq qs hqs).2 hd hlt v₀ hv₀
+  have hv₀B : v₀ < B := lt_trans hv₀n hn
+  intro kv zs d₀ hkv hzs hd₀
+  have hzs' : t.arrs "dist" = some zs := by simpa using hzs
+  have hd₀B : d₀ < B := hsb.getElem hzs' hd₀
+  intro m₁ m₂ hm₁ hm₂
+  obtain rfl : hd = m₁ := by
+    have h' : t.vars "head" = some m₁ := by simpa using hm₁
+    rw [hhd] at h'
+    exact Option.some.inj h'
+  obtain rfl : m₂ = 1 := by
+    have h' : t.vars "one" = some m₂ := by simpa using hm₂
+    rw [hone] at h'
+    exact (Option.some.inj h').symm
+  simp only [Imp.Bop.apply_add]
+  have hhdB : hd + 1 < B := lt_of_le_of_lt (le_trans (Nat.succ_le_of_lt hlt) htn) hn
+  have hI₃ : DInv n B (((t.setVar "v" v₀).setVar "dv" d₀).setVar "head" (hd + 1)) :=
+    ((hI'.setVar (x := "v") (by decide) (by decide) hv₀B).setVar (x := "dv")
+      (by decide) (by decide) hd₀B).setVar (x := "head") (by decide) (by decide) hhdB
+  refine ⟨hhdB, fun r h => Cond.evalB_of_stateBound hI₃.1 litLt_lt_cells h, ?_, ?_⟩
+  · -- below the cap: the row is scanned
+    intro hgd
+    obtain ⟨dvv, dcv, hdvv, hdcv, hrd⟩ := eval_lt_cells hgd
+    obtain rfl : d₀ = dvv := by
+      have h' : some d₀ = some dvv := by simpa using hdvv
+      exact Option.some.inj h'
+    have hcap : d₀ < dcv := of_decide_eq_true hrd.symm
+    have hdcB : dcv < B := hI₃.1.var hdcv
+    have hd₀B' : d₀ + 1 < B := lt_of_le_of_lt (Nat.succ_le_of_lt hcap) hdcB
+    intro m₃ m₄ hm₃ hm₄
+    obtain rfl : d₀ = m₃ := by
+      have h' : some d₀ = some m₃ := by simpa using hm₃
+      exact Option.some.inj h'
+    obtain rfl : m₄ = 1 := by
+      have h' : t.vars "one" = some m₄ := by simpa using hm₄
+      rw [hone] at h'
+      exact (Option.some.inj h').symm
+    simp only [Imp.Bop.apply_add]
+    refine ⟨hd₀B', ?_⟩
+    intro k₆ os o₀ hk₆ hos ho₀
+    have hos' : t.arrs "off" = some os := by simpa using hos
+    have ho₀B : o₀ < B := hsb.getElem hos' ho₀
+    intro m₅ m₆ hm₅ hm₆
+    obtain rfl : v₀ = m₅ := by
+      have h' : some v₀ = some m₅ := by simpa using hm₅
+      exact Option.some.inj h'
+    obtain rfl : m₆ = 1 := by
+      have h' : t.vars "one" = some m₆ := by simpa using hm₆
+      rw [hone] at h'
+      exact (Option.some.inj h').symm
+    simp only [Imp.Bop.apply_add]
+    have hv₁B : v₀ + 1 < B := lt_of_le_of_lt (Nat.succ_le_of_lt hv₀n) hn
+    refine ⟨hv₁B, ?_⟩
+    intro k₇ os₂ o₁ hk₇ hos₂ ho₁
+    have hos₂' : t.arrs "off" = some os₂ := by simpa using hos₂
+    have ho₁B : o₁ < B := hsb.getElem hos₂' ho₁
+    -- the invariant at the row loop's entry
+    have hI₄ : DInv n B ((((t.setVar "v" v₀).setVar "dv" d₀).setVar "head"
+        (hd + 1)).setVar "dv1" (d₀ + 1)) :=
+      hI₃.setVar (x := "dv1") (by decide) (by decide) hd₀B'
+    have hI₅ : DInv n B (((((t.setVar "v" v₀).setVar "dv" d₀).setVar "head"
+        (hd + 1)).setVar "dv1" (d₀ + 1)).setVar "k0" o₀) :=
+      hI₄.setVar (x := "k0") (by decide) (by decide) ho₀B
+    have hI₆ : DInv n B ((((((t.setVar "v" v₀).setVar "dv" d₀).setVar "head"
+        (hd + 1)).setVar "dv1" (d₀ + 1)).setVar "k0" o₀).setVar "v1" (v₀ + 1)) :=
+      hI₅.setVar (x := "v1") (by decide) (by decide) hv₁B
+    have hI₇ : DInv n B (((((((t.setVar "v" v₀).setVar "dv" d₀).setVar "head"
+        (hd + 1)).setVar "dv1" (d₀ + 1)).setVar "k0" o₀).setVar "v1"
+        (v₀ + 1)).setVar "kend" o₁) :=
+      hI₆.setVar (x := "kend") (by decide) (by decide) ho₁B
+    refine ⟨DInv n B, hI₇, ?_, ?_, ?_⟩
+    · exact fun t' r hJ h => Cond.evalB_of_stateBound hJ.1 litLt_lt_cells h
+    · exact fun t' hJ hg' => scan_body_bpre hn hJ hg'
+    · exact fun t' hJ _ => hJ
+  · -- at the cap: nothing is scanned
+    intro _
+    exact hI₃
+
+/-- The fill body preserves its invariant. -/
+theorem fill_body_bpre {n B : ℕ} {t : Ir.State} (hI : FInv n B t)
+    (hg : (Cond.lt (Operand.cell "i") (Operand.cell "n")).eval t = some true) :
+    bpre B ((Com.aset "dist" "i" "sent").seq
+      ((Com.binop Imp.Bop.add "i" "i" "one").seq Com.skip)) (FInv n B) t := by
+  obtain ⟨iv, nv, hiv, hnv, hr⟩ := eval_lt_cells hg
+  have hlt : iv < nv := of_decide_eq_true hr.symm
+  have hnvB : nv < B := hI.1.var hnv
+  intro k m xs hk hm hxs hklen
+  have hmB : m < B := hI.1.var hm
+  have hI₁ : FInv n B (t.setArr "dist" (xs.set k m)) := hI.setArr hxs hmB (by decide)
+  intro m₁ m₂ hm₁ hm₂
+  obtain rfl : iv = m₁ := by
+    have h' : t.vars "i" = some m₁ := by simpa using hm₁
+    rw [hiv] at h'
+    exact Option.some.inj h'
+  obtain rfl : m₂ = 1 := by
+    have h' : t.vars "one" = some m₂ := by simpa using hm₂
+    rw [hI.2.1] at h'
+    exact (Option.some.inj h').symm
+  simp only [Imp.Bop.apply_add]
+  exact ⟨lt_of_le_of_lt (Nat.succ_le_of_lt hlt) hnvB,
+    hI₁.setVar (x := "i") (by decide) (by decide) (by decide)
+      (lt_of_le_of_lt (Nat.succ_le_of_lt hlt) hnvB)⟩
+
+/-- **The bounds pass for the synthesized program.** Every index-in-range
+fact of §11's table has disappeared into the run; what is discharged
+here is the three `< B` families and the two invariants. -/
+theorem bfsQ_bpre {n ns d B src : ℕ} {off tgt alv dist₀ q₀ : List ℕ}
+    (hB : BfsBounds n ns d B) (hsh : Shape n off tgt alv) (htl : tgt.length ≤ ns)
+    (hsrc : src < n)
+    (halv : ∀ w ∈ alv, w < B) (hd0 : ∀ w ∈ dist₀, w < B) (hq0 : ∀ w ∈ q₀, w < B)
+    (hdlen : dist₀.length = n) (hqlen : q₀.length = n) :
+    bpre B bfsQSynth_impl (fun _ => True)
+      (bfsQState n d src off tgt alv dist₀ q₀) := by
+  have hn : n < B := hB.hn
+  have h1B : 1 < B := by have := hB.hd; omega
+  have h0B : 0 < B := by omega
+  have hSB : Ir.StateBound B (bfsQState n d src off tgt alv dist₀ q₀) :=
+    bfsQ_stateBound hB hsh htl hsrc halv hd0 hq0
+  -- the fill loop
+  refine ⟨FInv n B, ?_, ?_, fun t hI hg => fill_body_bpre hI hg, ?_⟩
+  · -- the invariant, at the initial store
+    refine ⟨hSB, rfl, rfl, ?_, ?_, ?_⟩
+    · intro w hw
+      obtain rfl : w = src := (Option.some.inj hw).symm
+      exact hsrc
+    · intro Q hQ
+      obtain rfl : Q = q₀ := (Option.some.inj hQ).symm
+      exact le_of_eq hqlen
+    · intro T hT
+      obtain rfl : T = tgt := (Option.some.inj hT).symm
+      exact tgt_mem_lt hsh
+  · exact fun t' r hJ h => Cond.evalB_of_stateBound hJ.1 litLt_lt_cells h
+  -- the seed
+  intro t hI hgf
+  have hIt := hI
+  obtain ⟨hsb, hone, hhead, hsrcn, hqlenI, htgtI⟩ := hI
+  intro k m xs hk hm hxs hklen
+  obtain rfl : m = 0 := by rw [hhead] at hm; exact (Option.some.inj hm).symm
+  have hkn : k < n := hsrcn k hk
+  have hI₁ : FInv n B (t.setArr "dist" (xs.set k 0)) := hIt.setArr hxs h0B (by decide)
+  intro k₂ m₂ qs hk₂ hm₂ hqs hklen₂
+  obtain rfl : k₂ = 0 := by
+    have h' : t.vars "head" = some k₂ := by simpa using hk₂
+    rw [hhead] at h'
+    exact (Option.some.inj h').symm
+  obtain rfl : k = m₂ := by
+    have h' : t.vars "src" = some m₂ := by simpa using hm₂
+    rw [hk] at h'
+    exact Option.some.inj h'
+  have hkB : k < B := lt_trans hkn hn
+  have hI₂ : FInv n B ((t.setArr "dist" (xs.set k 0)).setArr "q" (qs.set 0 k)) :=
+    hI₁.setArr hqs hkB (by decide)
+  intro k₃ ys a₀ hk₃ hys ha₀
+  have hys' : t.arrs "alv" = some ys := by simpa using hys
+  have ha₀B : a₀ < B := hsb.getElem hys' ha₀
+  have hI₃ : FInv n B (((t.setArr "dist" (xs.set k 0)).setArr "q"
+      (qs.set 0 k)).setVar "a" a₀) :=
+    hI₂.setVar (x := "a") (by decide) (by decide) (by decide) ha₀B
+  have hqs' : t.arrs "q" = some qs := by simpa using hqs
+  have hqsn : qs.length ≤ n := hqlenI qs hqs'
+  -- the queue after the seed: its head entry is the source
+  have hqseed : ∀ Q', Q' = qs.set 0 k →
+      Q'.length ≤ n ∧ ∀ j, j < 1 → ∀ w, Q'[j]? = some w → w < n := by
+    rintro Q' rfl
+    refine ⟨by simpa [List.length_set] using hqsn, ?_⟩
+    intro j hj w hw
+    obtain rfl : j = 0 := by omega
+    rw [List.getElem?_set_self hklen₂] at hw
+    cases hw
+    exact hkn
+  have honeS : (((t.setArr "dist" (xs.set k 0)).setArr "q"
+      (qs.set 0 k)).setVar "a" a₀).vars "one" = some 1 := by simpa using hone
+  have htgtS : ∀ T, (((t.setArr "dist" (xs.set k 0)).setArr "q"
+      (qs.set 0 k)).setVar "a" a₀).arrs "tgt" = some T → ∀ w ∈ T, w < n := by
+    intro T hT
+    exact htgtI T (by simpa using hT)
+  have h1n : 1 ≤ n := lt_of_le_of_lt (Nat.zero_le k) hkn
+  refine ⟨fun r h => Cond.evalB_of_stateBound hI₃.1 litLt_lt_cells h, ?_, ?_⟩
+  · -- the source is alive: it enters the queue
+    intro _
+    refine ⟨h1B, ?_⟩
+    refine ⟨DInv n B, ?_, ?_, fun t' hJ hg' => drain_body_bpre hn hJ hg',
+      fun _ _ _ => trivial⟩
+    · refine ⟨hI₃.1.setVar h1B, by simpa using honeS, ⟨1, by simp, h1n, ?_⟩, ?_⟩
+      · intro Q' hQ'
+        refine hqseed Q' ?_
+        have h' : some (qs.set 0 k) = some Q' := by simpa using hQ'
+        exact (Option.some.inj h').symm
+      · intro T hT
+        exact htgtS T (by simpa using hT)
+    · exact fun t' r hJ h => Cond.evalB_of_stateBound hJ.1 litLt_lt_cells h
+  · -- the source is dead: the queue stays empty
+    intro _
+    refine ⟨h0B, ?_⟩
+    refine ⟨DInv n B, ?_, ?_, fun t' hJ hg' => drain_body_bpre hn hJ hg',
+      fun _ _ _ => trivial⟩
+    · refine ⟨hI₃.1.setVar h0B, by simpa using honeS, ⟨0, by simp, Nat.zero_le n, ?_⟩, ?_⟩
+      · intro Q' hQ'
+        refine ⟨(hqseed Q' ?_).1, ?_⟩
+        · have h' : some (qs.set 0 k) = some Q' := by simpa using hQ'
+          exact (Option.some.inj h').symm
+        · intro j hj
+          exact absurd hj (Nat.not_lt_zero j)
+      · intro T hT
+        exact htgtS T (by simpa using hT)
+    · exact fun t' r hJ h => Cond.evalB_of_stateBound hJ.1 litLt_lt_cells h
+
+/-! ### The state, held; the run, bounded -/
+
+/-- Everything the initial store owns beyond `bfsQPre`: nothing. The
+erase chain is in the precondition's peel order, so the ownership proof
+ends in `rfl`. -/
+def bfsQHole (n d src : ℕ) (off tgt alv dist₀ q₀ : List ℕ) : Assn :=
+  EXACT
+    ((vcells (bfsQState n d src off tgt alv dist₀ q₀) |>.erase "i" |>.erase "head"
+        |>.erase "n" |>.erase "sent" |>.erase "d" |>.erase "src" |>.erase "one"
+        |>.erase "a" |>.erase "tl" |>.erase "v" |>.erase "dv" |>.erase "dv1"
+        |>.erase "k0" |>.erase "v1" |>.erase "kend" |>.erase "u" |>.erase "au"
+        |>.erase "du",
+      acells (bfsQState n d src off tgt alv dist₀ q₀) |>.erase "dist" |>.erase "q"
+        |>.erase "off" |>.erase "tgt" |>.erase "alv"), 0)
+
+theorem bfsQ_state_holds (n d src : ℕ) (off tgt alv dist₀ q₀ : List ℕ) :
+    irSTATE (bfsQPre n d src off tgt alv dist₀ q₀
+        ∗ bfsQHole n d src off tgt alv dist₀ q₀)
+      (bfsQState n d src off tgt alv dist₀ q₀, 0) := by
+  show (bfsQPre n d src off tgt alv dist₀ q₀ ∗ bfsQHole n d src off tgt alv dist₀ q₀)
+    ((vcells (bfsQState n d src off tgt alv dist₀ q₀),
+      acells (bfsQState n d src off tgt alv dist₀ q₀)), 0)
+  simp only [bfsQPre, hnCtxt, natAssn_def, arrayAssn_def, sepConj_assoc]
+  refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  iterate 11
+    rw [junkCell_def, sepEx_sepConj]
+    refine ⟨0, Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩⟩
+  rfl
+
+/-- **The bounds witness, from the run the tower already has.** No
+`Runs` construction, no variants, no counting — `hnRefine` supplies the
+`BigStep`, `bfsQ_bpre` bounds it along its own derivation. -/
+theorem bfsQ_runs {n ns d B src : ℕ} {G : SimpleGraph (Fin n)}
+    {off tgt alv dist₀ q₀ : List ℕ}
+    (hc : Csr n ns G off tgt alv) (hsrc : src < n) (hB : BfsBounds n ns d B)
+    (halv : ∀ w ∈ alv, w < B) (hd0 : ∀ w ∈ dist₀, w < B) (hq0 : ∀ w ∈ q₀, w < B)
+    (hdlen : dist₀.length = n) (hqlen : q₀.length = n) :
+    ∃ s' κ', Ir.BigStepB B bfsQSynth_impl
+      (bfsQState n d src off tgt alv dist₀ q₀) s' κ' :=
+  exists_bigStepB_of_hnRefine (bfsQSynth' n d src off tgt alv dist₀ q₀)
+    (bfsQS_correct hc hsrc hdlen hqlen)
+    (bfsQ_state_holds n d src off tgt alv dist₀ q₀)
+    (bfsQ_bpre hB hc.shape (le_of_eq hc.tlen) hsrc halv hd0 hq0 hdlen hqlen)
+
+end Bounds
+
+/-! ## 13. The export (design note P7/S-1)
+
+The cashing chain, closed. `bfsQK` is what `spec_of_hnRefine` prices
+the abstract budget at; the export's precondition and postcondition are
+`bfs_spec`'s shape at this package's own vocabulary — every meaningful
+cell and array listed, the threshold post at `WD`/`maskOf`, the cost an
+explicit linear polynomial. -/
+
+section Export
+
+/-- `ecash` of a lifted account is `cash` of the account (the lift is
+`Cash.lean`'s own, restated at `liftACost`). -/
+theorem ecash_liftACost (κ : ACost String ℕ) : ecash (liftACost κ) = (Codegen.cash κ : ℕ∞) := by
+  simp only [ecash, Codegen.cash, liftACost, Nat.cast_list_sum, List.map_map]
+  congr 1
+
+theorem cash_nsmul (k : ℕ) (κ : Ir.Cost) : Codegen.cash (k • κ) = k * Codegen.cash κ := by
+  induction k with
+  | zero => simp
+  | succ k ih => rw [succ_nsmul, cash_add, ih]; ring
+
+/-- The budget, priced: each loop's per-iteration account is a numeral,
+the assembly is linear algebra. -/
+theorem cash_bfsBudget (n ns : ℕ) : Codegen.cash (bfsBudget n ns) = 56 * n + 40 * ns + 32 := by
+  rw [show bfsBudget n ns = n • iter fillC + n • iter popC + ns • iter scanC + bfsK from rfl,
+    cash_add, cash_add, cash_add, cash_nsmul, cash_nsmul, cash_nsmul,
+    show Codegen.cash (iter fillC) = 12 from by decide +kernel,
+    show Codegen.cash (iter popC) = 44 from by decide +kernel,
+    show Codegen.cash (iter scanC) = 40 from by decide +kernel,
+    show Codegen.cash bfsK = 32 from by decide +kernel]
+  ring
+
+/-- **The exported cost**: `56·n + 40·ns + 33` IMP+ time units (the
+baseline's hand-tuned figure is `51·n + 44·ns + 30`; this one is
+computed, not tuned — P7/D-br). -/
+def bfsQK (n ns : ℕ) : ℕ := 56 * n + 40 * ns + 33
+
+theorem ecash_bfsQTotal (n ns : ℕ) :
+    ecash (irUnit Currency.skip + liftACost (bfsBudget n ns)) = (bfsQK n ns : ℕ∞) := by
+  rw [ecash_add, ecash_irUnit_skip, ecash_liftACost, cash_bfsBudget, bfsQK]
+  push_cast
+  ring
+
+/-- The cashing chain at one initial store. -/
+theorem bfsQ_spec_at {n ns d B : ℕ} {G : SimpleGraph (Fin n)} {off tgt alv : List ℕ}
+    {src : ℕ} (dist₀ q₀ : List ℕ) (hc : Csr n ns G off tgt alv) (hsrc : src < n)
+    (hB : BfsBounds n ns d B) (halv : ∀ w ∈ alv, w < B) (hd0 : ∀ w ∈ dist₀, w < B)
+    (hq0 : ∀ w ∈ q₀, w < B) (hdlen : dist₀.length = n) (hqlen : q₀.length = n) :
+    Reasoning.Spec B (agree (bfsQState n d src off tgt alv dist₀ q₀))
+      (embed bfsQSynth_impl)
+      (fun _ σ' => ∃ D : List ℕ, σ'.arrs "dist" = D ∧ QPost n d src G alv hsrc D)
+      (bfsQK n ns) := by
+  have hspec := spec_of_hnRefine
+    (Φ := fun st' : St => QPost n d src G alv hsrc st'.1)
+    (Q := fun (ra : St) σ' => σ'.arrs "dist" = ra.1)
+    (bfsQSynth' n d src off tgt alv dist₀ q₀)
+    (bfsQS_correct hc hsrc hdlen hqlen)
+    (bfsQ_state_holds n d src off tgt alv dist₀ q₀)
+    (bfsQ_stateBound hB hc.shape (le_of_eq hc.tlen) hsrc halv hd0 hq0)
+    (bfsQ_runs hc hsrc hB halv hd0 hq0 hdlen hqlen)
+    (le_of_eq (ecash_bfsQTotal n ns))
+    ?_
+  · exact hspec.post (by rintro σ σ' - ⟨ra, hΦ, hread⟩; exact ⟨ra.1, hread, hΦ⟩)
+  · intro ra s' cr σ' hΦ hst hag
+    have he : (bfsQFrame n d src off tgt alv ∗
+        (arrayAssn ×ₐ arrayAssn ×ₐ natAssn ×ₐ natAssn) ra ("dist", "q", "head", "tl") ∗
+        bfsQHole n d src off tgt alv dist₀ q₀ ∗ GC)
+        = (bfsQFrame n d src off tgt alv ∗ arrayAssn ra.1 "dist" ∗
+          ((arrayAssn ra.2.1 "q" ∗ natAssn ra.2.2.1 "head" ∗ natAssn ra.2.2.2 "tl") ∗
+            bfsQHole n d src off tgt alv dist₀ q₀) ∗ GC) := by
+      simp only [prodAssn]
+      ac_rfl
+    rw [he] at hst
+    exact readout_arr hst hag
+
+/-- **The gate's export.** The synthesized queue BFS, embedded into
+IMP+, decides every masked-distance threshold up to the cap from any
+environment holding the block structure, the mask, the parameters, and
+two scratch arrays — within `56·n + 40·ns + 33` time units, every value
+below the bound. The statement is `RamBfs.bfs_spec`'s, at this package's
+own `WD`/`maskOf` (adjacency characterization: `masked_maskOf_adj`);
+the two deltas are P7/D-bo (the scratch arrays' initial entries sit
+below the bound — `Ir.StateBound` is state-global where the baseline's
+`BigStepB` bounds only what the run evaluates) and P7/D-bp (the scratch
+cells appear, pinned at zero, because assertion-level ownership makes
+them part of the footprint; the machine's memory starts zeroed, so the
+instantiation is the natural one). -/
+theorem bfsQ_spec {n ns d B src : ℕ} {G : SimpleGraph (Fin n)} {off tgt alv : List ℕ}
+    (hc : Csr n ns G off tgt alv) (hsrc : src < n) (hB : BfsBounds n ns d B)
+    (halv : ∀ w ∈ alv, w < B) :
+    Reasoning.Spec B
+      (fun σ => σ.vars "n" = n ∧ σ.vars "src" = src ∧ σ.vars "sent" = d + 1 ∧
+        σ.vars "d" = d ∧ σ.vars "one" = 1 ∧ σ.vars "i" = 0 ∧ σ.vars "head" = 0 ∧
+        σ.vars "a" = 0 ∧ σ.vars "tl" = 0 ∧ σ.vars "v" = 0 ∧ σ.vars "dv" = 0 ∧
+        σ.vars "dv1" = 0 ∧ σ.vars "k0" = 0 ∧ σ.vars "v1" = 0 ∧ σ.vars "kend" = 0 ∧
+        σ.vars "u" = 0 ∧ σ.vars "au" = 0 ∧ σ.vars "du" = 0 ∧
+        σ.arrs "off" = off ∧ σ.arrs "tgt" = tgt ∧ σ.arrs "alv" = alv ∧
+        (∃ dist₀, σ.arrs "dist" = dist₀ ∧ dist₀.length = n ∧ ∀ w ∈ dist₀, w < B) ∧
+        (∃ q₀, σ.arrs "q" = q₀ ∧ q₀.length = n ∧ ∀ w ∈ q₀, w < B))
+      (embed bfsQSynth_impl)
+      (fun _ σ' => ∃ D : List ℕ, σ'.arrs "dist" = D ∧ D.length = n ∧
+        ∀ v : Fin n, ∀ k, k ≤ d →
+          (D[(v : ℕ)]! ≤ k ↔ Bfs.WD G (maskOf n alv) k ⟨src, hsrc⟩ v))
+      (bfsQK n ns) := by
+  intro σ hσ
+  obtain ⟨hn', hsrc', hsent, hd', hone, hi, hhead, ha, htl', hv, hdv, hdv1, hk0, hv1,
+    hkend, hu, hau, hdu, hoff, htgt', halv', ⟨dist₀, hdist₀, hdlen, hdb⟩,
+    ⟨q₀, hq₀', hqlen, hqb⟩⟩ := hσ
+  have hag : agree (bfsQState n d src off tgt alv dist₀ q₀) σ := by
+    refine agree_ofPairs ?_ ?_
+    · intro p hp
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+      rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+        | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> assumption
+    · intro p hp
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+      rcases hp with rfl | rfl | rfl | rfl | rfl <;> assumption
+  obtain ⟨σ', hrun, D, hread, hQ⟩ :=
+    (bfsQ_spec_at dist₀ q₀ hc hsrc hB halv hdb hqb hdlen hqlen) σ hag
+  exact ⟨σ', hrun, D, hread, hQ.1, hQ.2⟩
+
+end Export
+
+-- The demo run's cost is covered by the exported budget (`n = 5`,
+-- `ns = 6`: `bfsQK 5 6 = 553`), and the check can tell a wrong budget.
+#guard (Ir.evalFuel 4000 bfsQSynth_impl (demoState 3 0 1)).map
+  (fun p => decide (Codegen.cash p.2 ≤ bfsQK 5 6)) = some true
+#guard ¬ ((Ir.evalFuel 4000 bfsQSynth_impl (demoState 3 0 1)).map
+  (fun p => decide (Codegen.cash p.2 ≤ 100)) = some true)
+
+/-- info: 'Lax13Proofs.Refine.BfsQSynth.bfsQ_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms bfsQ_spec
+
+/-! ## 14. Telemetry (the plan's P7 gate numbers, final)
 
 * **Line counts** (a nesting-aware scan; it reproduces wave A's own
   1,015 on wave A's file before this wave's retrofit).
   - baseline `RamBfs.lean`: **1,201 raw**, cost `51n + 44ns + 30`;
-  - wave A `BfsQ.lean`: **1,448 raw / 1,023 Lean** (was 1,435/1,015;
-    this wave added `pack4_bindT`, the `pack4` inside `popF`, three
-    summands to `popC` and three to one slack term);
-  - wave B, this file: **690 raw / 247 Lean**, of which **108 are the
-    pinned `Com`** (`#guard bfsQSynth_impl = …`, the tool's output, not
-    authored reasoning) and 24 the demo of §8;
-  - **P7 total: 2,138 raw / 1,270 Lean, or 1,162 Lean net of the pinned
-    tool output.**
-  Against the 400-line gate that is a miss by roughly a factor of
-  three, and §12 of wave A's file says where the lines are: the queue
-  invariant (`Fr`, `SInv`, the tiling) is a third of wave A and it is
-  the part a tower cannot shrink — it is the fourteen clauses
-  `RamBfs.Frontier` carries, for the same reasons. What the tower did
-  remove is the *machine* half: there is no `Run`, no `Env`, no
-  `wvars`/`warrs` bookkeeping and no hand-written frame anywhere in
-  either file.
+  - wave A `BfsQ.lean`: **1,448 raw / 1,023 Lean**;
+  - wave B, this file: **1,509 raw / 899 Lean**, of which **108 are the
+    pinned `Com`** (the tool's output, not authored reasoning), 24 the
+    demo of §8, **560 Lean the bounds pass of §12** (the two invariants,
+    their preservation lemmas, the three walk lemmas, the ownership
+    peel and the bound of the initial store) and 86 Lean the export
+    assembly of §13;
+  - **P7 total: 2,957 raw / 1,922 Lean, or 1,814 Lean net of the
+    pinned tool output.** Tower additions made along the way and
+    excluded per the design note's counting rule (disclosed):
+    `Codegen/BigStepB.lean` +204 raw (`bpre`,
+    `BigStep.bigStepB_of_inv` — reusable by every synthesized
+    program), `Codegen/Cash.lean` +37 raw (the run projection),
+    `Sepref/IrLoop.lean` +188 raw (wave A's tower gap),
+    the five driver repairs.
+  Against the 400-line gate that is a **miss by roughly 4.5×**, and
+  the miss decomposes: wave A's queue invariant (`Fr`, `SInv`, the
+  tiling — the fourteen clauses `RamBfs.Frontier` also carries) is a
+  third of wave A; the bounds pass is 560 lines where the baseline
+  pays for the same facts inside its `Run` derivation; synthesis
+  annotations proper (the goal statement, three `LOOP_VARIANT`s,
+  `mopSucc`) are small. What the tower removed entirely is the machine
+  half: no `Run`, no `Env`, no `wvars`/`warrs` bookkeeping, no
+  hand-written frame anywhere in either file.
 
 * **Hand-written frame clauses: 0**, across both files. No `fri` call,
-  no `sepConj` rearrangement, no `ac_rfl` on an assertion; the `ac_rfl`s
-  are on cost sums (`ECost`, an `AddCommMonoid`). *Caveat, stated
-  rather than hidden:* the three `MERGE_arrayAssn_*` rules of §2 are
-  entailments between single conjuncts registered in a database and
-  consumed by `mergeSolve`, never applied by hand — the same shape as
+  no `sepConj` rearrangement, and the two `ac_rfl`s outside rule
+  wrappers are on cost sums (`ECost`) and on the §13 readout equality
+  `he` — an assertion *equation* handed to `rw`, the shape
+  `spec_of_hnRefine`'s P5 consumer also uses; strictly counted that is
+  1 frame-shaped step in the export assembly, not in any derivation.
+  *Caveat, stated rather than hidden:* the three `MERGE_arrayAssn_*`
+  rules of §2 are entailments registered in a database and consumed by
+  `mergeSolve`, never applied by hand — the same shape as
   `Sepref/Frame.lean`'s own `MERGE_natAssn_junk`, which P4's telemetry
-  counts as not-a-frame-clause. Read the other way the count for this
-  file is 3, not 0.
+  counts as not-a-frame-clause. Read the other way the count is 3.
 
-* **Synthesis wall clock**, warm build, `lake env lean` on this file
-  against a 3.8 s import-only baseline: whole file **55 s**, of which
-  `bfsQSynth` — three nested loops, two nested branches, a four-tuple
-  state carrying two arrays at every level — is **about 49 s** and
-  `fillSynth` about 1.5 s. Before §10's three repairs the same
-  synthesis did not finish in nine minutes. Whole package: 3,041 jobs.
+* **Synthesis wall clock**, warm build: whole-program `bfsQSynth` —
+  three nested loops, two nested branches, a four-tuple state carrying
+  two arrays at every level — **≈49 s**; `fillSynth` ≈1.5 s. Before
+  §10's repairs the same synthesis did not finish in nine minutes.
 
-* **Bounds-annotation lines: 0 written, and priced in §11.** The pass is
-  not written. What §11 establishes is the price: along a derivation
-  (the recommended `BigStep.bigStepB_of_inv`) the obligation is three
-  `< B` facts per creation site and *no* in-range goals — eight rows in
-  §11's table, over an invariant carrying `dist ≤ d+1`, `q < n`,
-  `off ≤ ns` and `tl ≤ n`. In the `Runs` direction (`ir_bound_vcg` as
-  it stands) the same pass additionally re-proves P7/D-d's
-  `room`/`undisc` counting at three loop levels. P5's "≈10 lines per
-  program" does not transfer to either; the honest figure for this
-  program is the invariant, and the invariant is the eight rows.
+* **Bounds-annotation lines: 560** (§12, measured; the number §11
+  priced). The route is the one §11 recommended — along the run,
+  `BigStep.bigStepB_of_inv` — so there are **no in-range goals and no
+  `room`/`undisc` counting anywhere**: `q[tl] := u`'s own side
+  condition is what makes `tl ≤ n` inductive. What the 560 lines
+  actually are: the two invariants and their preservation lemmas
+  (≈150), the three loop-body walks (≈250), the ownership peel and
+  initial bound (≈100), glue (≈60). P5's "≈10 lines per program" is
+  confirmed **not** to transfer to a program whose write indices are
+  invariant-bounded; this is the honest figure the P8 verdict should
+  use, and it prices the alternative too — a `wordAssn`-style
+  refactor would move these lines into synthesis side conditions, not
+  delete them.
 
-* **Cost constants vs the baseline's `51n + 44ns + 30`: not available.**
-  The comparison is a `cash`/`ecash` evaluation of `bfsBudget n ns` and
-  it is downstream of the bounds pass. What *is* fixed is the abstract
-  budget `bfsQS_correct` carries: `n • iter fillC + n • iter popC +
-  ns • iter scanC + bfsK + ir.skip`, linear in `n` and `ns` with
-  explicit small constants at the IR's own currencies, `fillC` three
-  units, `popC` seventeen, `scanC` fourteen.
+* **Cost constants: `bfsQK n ns = 56·n + 40·ns + 33`** IMP+ time
+  units, from `ecash_bfsQTotal` (computed by `decide +kernel` from the
+  per-iteration accounts, not tuned), against the baseline's
+  hand-tuned `51n + 44ns + 30`. Same shape, coefficients within 10 %
+  either way (`56 > 51` on vertices, `40 < 44` on slots). The §13
+  demo `#guard` checks coverage on a real run (`cash ≤ bfsQK 5 6 =
+  553`) and refutes a wrong budget (100).
 
 * **Axioms.** `bfsQSynth'`, `fillSynth`, `drain_variant'`,
-  `bfsQS_correct` and `hnr_mop_succ` are pinned in §9 at `[propext,
-  Classical.choice, Quot.sound]` and nothing else.
+  `bfsQS_correct`, `hnr_mop_succ` (§9) and **`bfsQ_spec` (§13)** all
+  pinned at `[propext, Classical.choice, Quot.sound]`.
 
 * **Refuted before proved.** §8 runs the *synthesized* program on
   `RamBfs`'s own five-vertex arena — mask on, mask off at vertex 2, two
@@ -675,14 +1505,9 @@ argument. That is P7/D-bj's cost, retired — but only along a derivation.
   with one pinned negative control; the twin is itself already checked
   against `RamBfs`'s four published readings and against P1's
   independent level-based twin. `mopSucc`'s rule was checked to be the
-  one the driver picks *before* the program was written to depend on
-  it: the control — the same fill loop at wave A's `fillF`, with one
-  extra `junkCell "t"` — fails, and names the reason (`hnr_mop_pair`
-  cannot match `hnCtxt natAssn ‹› "i"` against the goal's
-  `hnCtxt natAssn ‹› "t"`: the sum went to the scratch cell and the loop
-  state can no longer be rebuilt). `fillF'_eq`, `scanF'_eq`,
-  `scanLoop'_eq` and `popF'_eq` are the standing check that no program
-  change in §3 is anything but cost.
+  one the driver picks before the program was written to depend on it
+  (§5's pinned failure). The `subst`-direction and `omega`-through-
+  `Ir.Val` traps both fired during §12 and are recorded in its header.
 -/
 
 end BfsQSynth

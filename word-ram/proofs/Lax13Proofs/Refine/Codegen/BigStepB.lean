@@ -319,6 +319,210 @@ theorem BigStep.bigStepB_of_eq {B : ℕ} {c : Com} {s s' s₂ : State} {κ κ₂
   obtain ⟨rfl, rfl⟩ := h.eq_of_bigStepB hB
   exact hB
 
+/-! ## Bounding a run one already has (judgment call P7/D-bl)
+
+`BigStep.bigStepB_of_eq` needs a bounded run to start with, and
+`BoundVcg.lean` builds one from nothing: it re-proves that every index
+is in range and that every loop terminates. For a program whose
+in-range facts are a counting argument — P7's queue BFS, where
+`q[tl] := u` is in range because the queue never receives more vertices
+than there are undiscovered live ones — that is the expensive half of
+the abstract proof, done twice.
+
+It is also unnecessary, because the consumer already *has* a run:
+`hnRefine`'s wp adequacy delivers a `BigStep`, and a `BigStep` carries
+its own `hk : k < xs.length` at every store and its own
+`hv : xs[k]? = some v` at every read. Comparing the two inductive
+definitions constructor by constructor, `BigStepB` adds exactly three
+things: `n < B` at `const`, `op.apply m n < B` at `binop`, and
+`Cond.evalB` in place of `Cond.eval` at the four control rules. So
+*along a derivation* the residual is three `< B` facts and nothing
+else — no in-range goals, no variants.
+
+**P7/D-bl — the residual is a weakest precondition, not a state-local
+side condition.** The tempting shape is a hypothesis "at bounded
+operands the result is bounded", discharged once per program. It is
+false for the only arithmetic this program does: `x := y + 1` at
+`y = B - 1` leaves `B`. The bound on a `binop` result is available only
+relative to where the run has got to — for `head := head + one` it is
+`head < tl ≤ n < B`, and `tl ≤ n` is maintained by the *previous*
+statement's successful `q[tl] := u`. That is an invariant, and an
+invariant threaded through a derivation is a verification-condition
+generator. `bpre` below is therefore `BoundVcg.lean`'s `bwp` with every
+obligation the derivation already discharges deleted:
+
+| clause | `bwp` (build a run) | `bpre` (bound a run one has) |
+|---|---|---|
+| `const` | cell defined, `n < B` | `n < B` |
+| `copy`/`aget` | cell defined, index in range | — |
+| `aset` | index in range | — (and `hk` is *handed to* the caller) |
+| `binop` | cell defined, result `< B` | result `< B` |
+| `ite`/`while` | the guard's `evalB` value | `eval` ⟹ `evalB` |
+| `while` | invariant **and variant** | invariant |
+
+The `aset` row is the one that pays for the whole file: `k < xs.length`
+moves from a goal to a hypothesis, and that is exactly what makes
+`tl ≤ n` inductive without the counting argument. -/
+
+/-! ### Literals of a guard
+
+The one obligation `StateBound` cannot discharge on its own: a cell is
+bounded because the invariant says so, a literal because it is a
+numeral (judgment call P5/D-i). -/
+
+/-- The literal an operand may carry is below the bound. -/
+def Operand.LitLt (B : ℕ) : Operand → Prop
+  | .cell _ => True
+  | .lit n => n < B
+
+/-- …for both operands of a condition. -/
+def Cond.LitLt (B : ℕ) : Cond → Prop
+  | .eq u v => u.LitLt B ∧ v.LitLt B
+  | .lt u v => u.LitLt B ∧ v.LitLt B
+
+/-- Under the state invariant, an operand with a small literal evaluates
+below the bound whenever it evaluates at all. -/
+theorem Operand.evalB_of_stateBound {B : ℕ} {s : State} (hs : StateBound B s) {u : Operand}
+    (hl : u.LitLt B) {v : Val} (h : u.eval s = some v) : u.evalB B s = some v := by
+  cases u with
+  | cell x => exact Operand.evalB_of_eval h (hs.var (by simpa using h))
+  | lit n => exact Operand.evalB_of_eval h (by cases h; exact hl)
+
+/-- …and so does a condition. -/
+theorem Cond.evalB_of_stateBound {B : ℕ} {s : State} (hs : StateBound B s) {b : Cond}
+    (hl : b.LitLt B) {r : Bool} (h : b.eval s = some r) : b.evalB B s = some r := by
+  cases b with
+  | eq u v =>
+      rw [Cond.eval_eq, Option.bind_eq_some_iff] at h
+      obtain ⟨m, hm, h⟩ := h
+      rw [Option.map_eq_some_iff] at h
+      obtain ⟨n, hn, rfl⟩ := h
+      rw [Cond.evalB_eq, Operand.evalB_of_stateBound hs hl.1 hm,
+        Operand.evalB_of_stateBound hs hl.2 hn]; rfl
+  | lt u v =>
+      rw [Cond.eval_lt, Option.bind_eq_some_iff] at h
+      obtain ⟨m, hm, h⟩ := h
+      rw [Option.map_eq_some_iff] at h
+      obtain ⟨n, hn, rfl⟩ := h
+      rw [Cond.evalB_lt, Operand.evalB_of_stateBound hs hl.1 hm,
+        Operand.evalB_of_stateBound hs hl.2 hn]; rfl
+
+/-! ### The residual precondition -/
+
+/-- `bpre B c Q s` — what a state must satisfy for an *existing* run of
+`c` from `s` to be a bounded run into `Q`. One clause per op, each of
+them the difference between the op's `BigStep` rule and its `BigStepB`
+rule: the definedness and in-range facts are hypotheses handed to the
+caller, and what is left is the `< B` of a created value and the
+bounded reading of a guard. A loop carries an invariant and no
+variant. -/
+def bpre (B : ℕ) : Com → (State → Prop) → State → Prop
+  | .skip, Q => Q
+  | .const x n, Q => fun s => n < B ∧ Q (s.setVar x n)
+  | .copy x y, Q => fun s => ∀ v, s.vars y = some v → Q (s.setVar x v)
+  | .binop op x y z, Q => fun s => ∀ m n, s.vars y = some m → s.vars z = some n →
+      op.apply m n < B ∧ Q (s.setVar x (op.apply m n))
+  | .aget x a i, Q => fun s => ∀ k xs v, s.vars i = some k → s.arrs a = some xs →
+      xs[k]? = some v → Q (s.setVar x v)
+  | .aset a i v, Q => fun s => ∀ k n xs, s.vars i = some k → s.vars v = some n →
+      s.arrs a = some xs → k < xs.length → Q (s.setArr a (xs.set k n))
+  | .seq c d, Q => bpre B c (bpre B d Q)
+  | .ite b c d, Q => fun s => (∀ r, b.eval s = some r → b.evalB B s = some r) ∧
+      (b.eval s = some true → bpre B c Q s) ∧ (b.eval s = some false → bpre B d Q s)
+  | .while b c, Q => fun s => ∃ Inv : State → Prop, Inv s ∧
+      (∀ t r, Inv t → b.eval t = some r → b.evalB B t = some r) ∧
+      (∀ t, Inv t → b.eval t = some true → bpre B c Inv t) ∧
+      (∀ t, Inv t → b.eval t = some false → Q t)
+
+@[simp] theorem bpre_skip (B : ℕ) (Q : State → Prop) : bpre B .skip Q = Q := rfl
+
+@[simp] theorem bpre_const (B : ℕ) (x : String) (n : Val) (Q : State → Prop) (s : State) :
+    bpre B (.const x n) Q s ↔ n < B ∧ Q (s.setVar x n) := Iff.rfl
+
+@[simp] theorem bpre_copy (B : ℕ) (x y : String) (Q : State → Prop) (s : State) :
+    bpre B (.copy x y) Q s ↔ ∀ v, s.vars y = some v → Q (s.setVar x v) := Iff.rfl
+
+@[simp] theorem bpre_binop (B : ℕ) (op : Imp.Bop) (x y z : String) (Q : State → Prop)
+    (s : State) :
+    bpre B (.binop op x y z) Q s ↔ ∀ m n, s.vars y = some m → s.vars z = some n →
+      op.apply m n < B ∧ Q (s.setVar x (op.apply m n)) := Iff.rfl
+
+@[simp] theorem bpre_aget (B : ℕ) (x a i : String) (Q : State → Prop) (s : State) :
+    bpre B (.aget x a i) Q s ↔ ∀ k xs v, s.vars i = some k → s.arrs a = some xs →
+      xs[k]? = some v → Q (s.setVar x v) := Iff.rfl
+
+@[simp] theorem bpre_aset (B : ℕ) (a i v : String) (Q : State → Prop) (s : State) :
+    bpre B (.aset a i v) Q s ↔ ∀ k n xs, s.vars i = some k → s.vars v = some n →
+      s.arrs a = some xs → k < xs.length → Q (s.setArr a (xs.set k n)) := Iff.rfl
+
+@[simp] theorem bpre_seq (B : ℕ) (c d : Com) (Q : State → Prop) :
+    bpre B (.seq c d) Q = bpre B c (bpre B d Q) := rfl
+
+@[simp] theorem bpre_ite (B : ℕ) (b : Cond) (c d : Com) (Q : State → Prop) (s : State) :
+    bpre B (.ite b c d) Q s ↔ (∀ r, b.eval s = some r → b.evalB B s = some r) ∧
+      (b.eval s = some true → bpre B c Q s) ∧
+      (b.eval s = some false → bpre B d Q s) := Iff.rfl
+
+theorem bpre_while (B : ℕ) (b : Cond) (c : Com) (Q : State → Prop) (s : State) :
+    bpre B (.while b c) Q s ↔ ∃ Inv : State → Prop, Inv s ∧
+      (∀ t r, Inv t → b.eval t = some r → b.evalB B t = some r) ∧
+      (∀ t, Inv t → b.eval t = some true → bpre B c Inv t) ∧
+      (∀ t, Inv t → b.eval t = some false → Q t) := Iff.rfl
+
+/-- **The bounds pass along a derivation** (judgment call P7/D-bl). A
+run one already has is a *bounded* run — same final state, same cost —
+as soon as the caller can thread an invariant through it that bounds
+the literals it writes, the results it computes and the operands its
+guards read. Every definedness fact, every in-range index and the
+termination of every loop come from the derivation and cost nothing.
+
+This is the theorem P7's export is assembled at: `hnRefine`'s wp
+adequacy hands over the `BigStep`, this hands back the `BigStepB` that
+`Sim.lean` consumes. -/
+theorem BigStep.bigStepB_of_inv {B : ℕ} {c : Com} {s s' : State} {κ : Cost}
+    (h : BigStep c s s' κ) :
+    ∀ {Q : State → Prop}, bpre B c Q s → BigStepB B c s s' κ ∧ Q s' := by
+  induction h with
+  | skip => intro Q hs; exact ⟨.skip, hs⟩
+  | const hx => intro Q hs; exact ⟨.const hx hs.1, hs.2⟩
+  | copy hx hy => intro Q hs; exact ⟨.copy hx hy, hs _ hy⟩
+  | binop hx hy hz =>
+      intro Q hs
+      exact ⟨.binop hx hy hz (hs _ _ hy hz).1, (hs _ _ hy hz).2⟩
+  | aget hx hi ha hv => intro Q hs; exact ⟨.aget hx hi ha hv, hs _ _ _ hi ha hv⟩
+  | aset hi hv ha hk => intro Q hs; exact ⟨.aset hi hv ha hk, hs _ _ _ hi hv ha hk⟩
+  | seq _ _ ih ih' =>
+      intro Q hs
+      obtain ⟨hb, hm⟩ := ih hs
+      obtain ⟨hb', hq⟩ := ih' hm
+      exact ⟨.seq hb hb', hq⟩
+  | ite_true hb _ ih =>
+      intro Q hs
+      obtain ⟨hg, ht, -⟩ := hs
+      obtain ⟨hc, hq⟩ := ih (ht hb)
+      exact ⟨.ite_true (hg _ hb) hc, hq⟩
+  | ite_false hb _ ih =>
+      intro Q hs
+      obtain ⟨hg, -, hf⟩ := hs
+      obtain ⟨hd, hq⟩ := ih (hf hb)
+      exact ⟨.ite_false (hg _ hb) hd, hq⟩
+  | while_true hb _ _ ih ih' =>
+      intro Q hs
+      obtain ⟨Inv, hI, hg, hbody, hexit⟩ := hs
+      obtain ⟨hc, hI'⟩ := ih (hbody _ hI hb)
+      obtain ⟨hw, hq⟩ := ih' (Q := Q) ⟨Inv, hI', hg, hbody, hexit⟩
+      exact ⟨.while_true (hg _ _ hI hb) hc hw, hq⟩
+  | while_false hb =>
+      intro Q hs
+      obtain ⟨Inv, hI, hg, -, hexit⟩ := hs
+      exact ⟨.while_false (hg _ _ hI hb), hexit _ hI hb⟩
+
+/-- The form the cashing theorem's `hbd` hypothesis is in. -/
+theorem BigStep.exists_bigStepB_of_inv {B : ℕ} {c : Com} {s s' : State} {κ : Cost}
+    {Q : State → Prop} (h : BigStep c s s' κ) (hs : bpre B c Q s) :
+    ∃ s₂ κ₂, BigStepB B c s s₂ κ₂ :=
+  ⟨s', κ, (h.bigStepB_of_inv hs).1⟩
+
 /-! ### The gate
 
 The bounded semantics is not a look-alike of the plain one: it is the
