@@ -391,6 +391,18 @@ where
     | (``emp, _) => acc
     | _ => acc.push e.consumeMData
 
+/-- A component of a pair: the entry itself when the pair is literal,
+and otherwise `Prod.fst`/`Prod.snd` *applied* — never `whnf`ed to the
+raw projection `a.1` (P7/D-ba). Both spellings are the same term, but
+`hnCtxt_prodAssn`'s rewrite produces the application and `ac_rfl`
+compares atoms syntactically, so a split that `whnf`s cannot be
+reconciled with one that rewrites — which is exactly what a loop state
+carrying two arrays asks `proveConjEq` to do. -/
+def projOf (fst : Bool) (a : Expr) : MetaM Expr := do
+  match (← whnf a).getAppFnArgs with
+  | (``Prod.mk, #[_, _, x, y]) => return if fst then x else y
+  | _ => mkAppM (if fst then ``Prod.fst else ``Prod.snd) #[a]
+
 /-- `conjuncts`, with pair assertions split into their components
 (P4/D-cu). Used as the *second* attempt at matching: the loop rule wants
 the state as one conjunct, the body's operations want it as two. -/
@@ -401,12 +413,8 @@ partial def conjunctsSplit (e : Expr) : MetaM (Array Expr) := do
     | (``hnCtxt, #[_, _, R, a, cc]) =>
       match R.getAppFnArgs with
       | (``prodAssn, #[_, _, _, _, A, B]) =>
-        let a1 ← mkAppM ``Prod.fst #[a]
-        let a2 ← mkAppM ``Prod.snd #[a]
-        let c1 ← mkAppM ``Prod.fst #[cc]
-        let c2 ← mkAppM ``Prod.snd #[cc]
-        let l ← mkAppM ``hnCtxt #[A, ← whnf a1, ← whnf c1]
-        let r ← mkAppM ``hnCtxt #[B, ← whnf a2, ← whnf c2]
+        let l ← mkAppM ``hnCtxt #[A, ← projOf true a, ← projOf true cc]
+        let r ← mkAppM ``hnCtxt #[B, ← projOf false a, ← projOf false cc]
         out := out ++ (← conjunctsSplit l) ++ (← conjunctsSplit r)
       | _ => out := out.push c
     | _ => out := out.push c
@@ -586,6 +594,7 @@ def mergeSolve (g : MVarId) : TermElabM Unit := do
     match e.getAppFnArgs with
     | (``hnCtxt, #[_, _, _, _, c]) => some c
     | (``junkCell, #[c]) => some c
+    | (``junkArray, #[c]) => some c
     | _ => none
   let mut usedR : Array Nat := #[]
   let mut pairs : Array (Expr × Expr) := #[]
