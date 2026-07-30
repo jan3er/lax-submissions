@@ -314,6 +314,62 @@ of overnight work — set expectations by the budget, not the recent luck.
 
 ## Progress log
 
+- **2026-07-30/31 — P7 COMPLETE (one session vs 1–2 budget). GATE
+  VERDICT: frame-clause criterion PASS (0 hand frame clauses across
+  the whole derivation); line-count criterion MISS (≈2.5× raw /
+  ≈4.5× vs the 400 target).** Design note `p7-gate-design.md`
+  (4c895c7). **Wave A** (`Refine/Examples/BfsQ.lean`, cd88e1a→merge
+  ab9f013, final 1,448 raw/1,023 Lean): first-order queue-based
+  `bfsQ` at the mop layer; `bfsQ_correct ≤ SPEC (QPost) (linear
+  budget)` by direct queue invariant (P7/D-a; a level is a whole run
+  of pops, so data refinement off `bfsAlg` would be a nested-loop
+  simulation); twin `#guard`ed against the baseline's five-vertex
+  arena AND P1's independent level-based twin; tower gap found+closed
+  (`irWhileIT` asserts once more than `whileT` — `IrLoop.lean`).
+  **Wave B** (`Refine/Examples/BfsQSynth.lean` + five flagged tower
+  repairs, commits 0961b04→4c2c561→8b33363→fc7ab25→4b5d933): the
+  ENTIRE BFS synthesized mechanically — three nested loops, nested
+  branches, two-array tuple states — in 49 s, Com pinned, demo runs
+  the synthesized program on the baseline's arena (mask on/off, two
+  caps, second source, negative control). Tower repairs, each
+  output-preserving (all pinned syntheses byte-identical):
+  `conjunctsSplit` whnf'd pair projections (root cause of P6 finding
+  3); merge key learns `junkArray`; `frameMatch` admitted constant
+  relators via HO `isDefEq` — the weak-HOU watch item hit head-on,
+  fixed by first-order `absAgree` pre-match (the source's own Termtab
+  discipline); `transComb` stable-partitions `hnr_seq` behind
+  `hnr_bind` (2^depth retranslation killed: scan 3m22s-stall → 13 s,
+  program >9min → 49 s); `fallbackTac` learns `apply_assumption`
+  (nested LOOP_VARIANTs are quantified). **Bounds finding (P7/D-bj →
+  D-bk):** invariant-bounded write indices make `ir_bound_vcg` re-run
+  wave A's counting argument; the state-local rescue lemma is UNSOUND
+  (binop bounds are history-relative); the honest shape is
+  `bigStepB_of_inv` via `bpre` — in-range facts free from the run's
+  own side conditions, only creation-site `<B` obligations remain;
+  the 560-line discharge is the real bounds-annotation figure (P5's
+  ~10-line toy telemetry does not transfer). **Export `bfsQ_spec`:**
+  bfs_spec-shaped cells-based Spec at `embed bfsQSynth_impl`,
+  threshold post at `WD`/`maskOf` with the adjacency characterization
+  pinned (P7/S-1), `K = 56n + 40ns + 33` COMPUTED (vs the baseline's
+  hand-tuned `51n + 44ns + 30`), coverage `#guard`ed, axioms clean.
+  **Gate accounting** (counting rule of the design note; both sides
+  raw): baseline 1,201; P7 total 2,957 raw / 1,922 Lean (1,814 net of
+  the 108-line pinned Com), plus disclosed reuse of P1's Bfs.lean
+  graph core. Decomposition of the miss: the queue invariant (~⅓ of
+  wave A — the same fourteen clauses the baseline's Frontier carries;
+  intrinsic to queue-BFS at any abstraction level), the 560-line
+  bounds pass (the price of D-a's untruncated arithmetic — the
+  genuinely new cost), synthesis annotations small. What the tower
+  removed is the machine half: no `Run`, no `Env`, no
+  `wvars`/`warrs`, no hand frame reasoning anywhere. Hand frame
+  clauses 0 (stated caveats: three `MERGE_arrayAssn_*` DB rules and
+  one assertion equation in the export assembly; read strictly, 4).
+  Supervision interventions: 3 mid-wave authorizations (driver-search
+  fix; route-2 attempt; route-2 fallback), 2 overload resumes + 1
+  model switch (Opus outage; final leg completed on Fable, Opus
+  draft surviving ~100% under audit). Per the plan's miss path, the
+  adoption analysis and options go to P8's verdict record.
+
 - **2026-07-30 — P6 COMPLETE (one session vs 2–3 budget; acceptance
   PASSED: every structure's rules consumed by the P4 translator on
   exercise programs, zero frame clauses, zero bespoke tactics).**
