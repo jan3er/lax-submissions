@@ -266,6 +266,9 @@ info: sepref_synth Lax13Proofs.Refine.Sepref.Iicf.resetSynth:
       ((Com.aget J T P).seq ((Com.aset A J D).seq ((Com.binop Imp.Bop.sub t t one).seq Com.skip))))
 -/
 #guard_msgs in
+-- The `hv` annotation is inert since R0/D-b (`CombRules.lean`'s
+-- `hnr_while` needs no variant); the signature is kept for the callers.
+set_option linter.unusedVariables false in
 sepref_synth resetSynth (A T t P J D one : String) (dflt n : ℕ) (xs tr : List ℕ) (k : ℕ)
     (hv : LOOP_VARIANT (resetI dflt n tr) resetBf (resetF dflt tr) resetV) :
   hnRefine (hnCtxt (arrayAssn ×ₐ natAssn) (xs, k) (A, t) ∗ hnCtxt arrayAssn tr T ∗

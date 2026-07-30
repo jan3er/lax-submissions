@@ -428,6 +428,10 @@ theorem fc_exchange (xs : List ℕ) (t : ℕ) :
 scratch cell the read lands in, the array, the threshold, the bound, and
 the two constants the two in-place additions need (P4/D-ee). -/
 
+-- The variant annotation below is inert since R0/D-b: no rule in
+-- `sepref_comb_rules` reads a `LOOP_VARIANT` any more. The signature
+-- is kept because this synthesis theorem is landed capital.
+set_option linter.unusedVariables false in
 sepref_synth fcLoop (xs : List ℕ) (t : ℕ)
     (hv : LOOP_VARIANT fcI (fcBf xs) (fcF xs t) (fcV xs)) :
   hnRefine (hnCtxt (natAssn ×ₐ natAssn) (0, 0) ("k", "acc") ∗ junkCell "v" ∗
@@ -598,6 +602,10 @@ theorem rv_exchange (xs : List ℕ) :
 scratch cells the two reads land in — listed in the order the body
 consumes them — and the constant the two index updates need. -/
 
+-- The variant annotation below is inert since R0/D-b: no rule in
+-- `sepref_comb_rules` reads a `LOOP_VARIANT` any more. The signature
+-- is kept because this synthesis theorem is landed capital.
+set_option linter.unusedVariables false in
 sepref_synth rvLoop (xs : List ℕ) (hv : LOOP_VARIANT rvI rvBf rvF rvV) :
   hnRefine (hnCtxt (natAssn ×ₐ natAssn ×ₐ arrayAssn) (0, xs.length - 1, xs) ("i", "j", "A") ∗
       junkCell "t1" ∗ junkCell "t2" ∗ hnCtxt natAssn 1 "one")
@@ -681,14 +689,14 @@ under the ownership
   Lax13Proofs.Refine.Sepref.hnCtxt Lax13Proofs.Refine.Sepref.arrayAssn xs "A" ∗
     Lax13Proofs.Refine.Sepref.hnCtxt Lax13Proofs.Refine.Sepref.natAssn i "i"
 The precondition owns no scratch cell; a destination-taking rule needs `junkCell "t2"` in it.
-combinator rules (3 more are stated at other abstract terms):
+combinator rules (2 more are stated at other abstract terms):
 Lax13Proofs.Refine.Sepref.hnr_bind: applied, but a sub-program stalled: sepref: no rule translates
   Lax13Proofs.Refine.NRest.assert (i < xs.length)
 under the ownership
   Lax13Proofs.Refine.Sepref.hnCtxt Lax13Proofs.Refine.Sepref.arrayAssn xs "A" ∗
     Lax13Proofs.Refine.Sepref.hnCtxt Lax13Proofs.Refine.Sepref.natAssn i "i"
 The precondition owns no scratch cell; a destination-taking rule needs `junkCell "t1"` in it.
-combinator rules: none is stated at this abstract term (5 tried).
+combinator rules: none is stated at this abstract term (4 tried).
 operator rules: none is stated at this abstract term (8 tried).
 Lax13Proofs.Refine.Sepref.hnr_seq: applied, but a sub-program stalled: sepref: no rule translates
   Lax13Proofs.Refine.NRest.assert (i < xs.length)
@@ -696,7 +704,7 @@ under the ownership
   Lax13Proofs.Refine.Sepref.hnCtxt Lax13Proofs.Refine.Sepref.arrayAssn xs "A" ∗
     Lax13Proofs.Refine.Sepref.hnCtxt Lax13Proofs.Refine.Sepref.natAssn i "i"
 The precondition owns no scratch cell; a destination-taking rule needs `junkCell "t1"` in it.
-combinator rules: none is stated at this abstract term (5 tried).
+combinator rules: none is stated at this abstract term (4 tried).
 operator rules: none is stated at this abstract term (8 tried).
 operator rules (7 more are stated at other abstract terms):
 Lax13Proofs.Refine.Sepref.hnr_mop_aget: the rule's precondition conjuncts

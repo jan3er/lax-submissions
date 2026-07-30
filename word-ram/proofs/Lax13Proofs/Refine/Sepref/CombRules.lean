@@ -60,6 +60,10 @@ debugging) and are omitted, per the AFP rule's own comment — they are
 wave C's business, not the logic's.
 
 **P4/D-ai — the loop rule is *measured*, and that is the landed form.**
+**(CLOSED by R0/D-b, §4b — the named blocker is refuted, not filled: the
+unfueled rule `hnr_while` is the database entry now, and the measured
+rule below is deregistered capital. The entry is kept verbatim because
+its blocker analysis is exactly what R0/D-b corrects.)**
 `hnr_while_measured` takes a variant `V : σ → ℕ` that decreases on every
 state the body can produce. The unfueled general rule — where termination
 comes from the abstract loop's own `nofailT` — is **backlog**, and the
@@ -291,7 +295,12 @@ accounting come out: `hnr_seq` threads the two payments, and the
 `ir.while` unit of this iteration's guard is prepaid in front of it by the
 same `afford_pay` / `minus_pay` pair `hnr_If` uses. -/
 
-@[sepref_comb_rules]
+/-- The measured rule. **Not** a `sepref_comb_rules` entry any more
+(R0/D-b): `hnr_while` below proves the same conclusion from strictly
+fewer premises, and a database entry that is tried and fails costs a
+whole body translation (P7/D-bf). It stays compiled — it is the shorter
+route when a variant is already at hand, and the acceptance files name
+it. -/
 theorem hnr_while_measured {σ κs : Type} {I : σ → Prop} {bf : σ → Bool}
     {f : σ → NRest σ ECost} {Rs : σ → κs → Assn} {Γ : Assn} {d : κs} {cond : Cond}
     {cbody : Com} (V : σ → ℕ)
@@ -356,6 +365,176 @@ theorem hnr_while_measured {σ κs : Type} {I : σ → Prop} {bf : σ → Bool}
           · rw [← hb]; exact COND s hI F st cr hst
           · rw [if_pos rfl, minus_pay, ← wp_seq]
             exact w
+
+/-! ## 4b. The *unfueled* loop rule (ND-MC rebase P0.3, ledger R0/D-b)
+
+P4/D-ai above left the general rule in backlog and named its blocker as
+one missing P1 lemma, `nofailT (RECT B s) → ∃ n, fuelIter B n s = RECT B s`.
+`NREST/Rec.lean`'s S7 **refutes** that lemma (`NoFuelBound.no_fuel_bound`:
+a `mono2` body whose `RECT` does not fail and which no fuel reaches),
+so the blocker is not a gap to be filled — the shape was wrong. ℕ-fuel
+counts *iterations of the whole state space*, and a body with unbounded
+nondeterminism terminates on every branch without any uniform bound.
+
+**R0/D-b — termination is accessibility, not a number.** `LoopTerm` is
+the inductive "every run from here reaches an exit": the exit states are
+accessible, and a state is accessible when the guard holds and *every*
+successor the body can produce is. It is well-founded without being
+finitely branching, which is exactly the room the counterexample needs,
+and it is a predicate over the *abstract program alone* — no proof idea,
+nothing for the caller to invent.
+
+`loopTerm_of_nofailT` is what makes it disappear from the interface: the
+loop's own non-failure, which the `hnRefine` judgment hands over for
+free, *is* accessibility. The proof is `Rec.lean`'s new
+`RECT_eq_top_of_postfixed`, at the post-fixed point that marks the
+inaccessible states with `⊤`: a state that is stuck sends the body to
+`FAILT`, either because its invariant fails, or because a successor of
+its is stuck too, and `bindT` propagates a failing continuation.
+
+So `hnr_while` is `hnr_while_measured` with the `VAR` premise deleted
+and nothing put in its place. The measured rule stays compiled (landed
+capital, and the shorter proof when a variant is at hand), but leaves
+the `sepref_comb_rules` database: everything it can synthesize,
+`hnr_while` synthesizes with one premise fewer, and a database entry
+that is tried and fails costs a whole body translation (P7/D-bf). -/
+
+/-- **The loop terminates here.** Accessibility for the abstract loop:
+the guard is false, or the guard is true and every successor the body
+can produce terminates. -/
+inductive LoopTerm {σ : Type} (bf : σ → Bool) (f : σ → NRest σ ECost) : σ → Prop
+  | exit {s : σ} (hb : bf s = false) : LoopTerm bf f s
+  | step {s : σ} (hb : bf s = true)
+      (h : ∀ s', (NRest.returnT s' : NRest σ ECost) ≤ f s → LoopTerm bf f s') :
+      LoopTerm bf f s
+
+/-- The stuck states send the loop's body functional to `FAILT`: this is
+the post-fixed point `RECT_eq_top_of_postfixed` is applied to. -/
+theorem irWhileBody_top_of_not_loopTerm {σ : Type} {I : σ → Prop} {bf : σ → Bool}
+    {f : σ → NRest σ ECost} (w : σ → NRest σ ECost)
+    (hw : ∀ y, ¬ LoopTerm bf f y → w y = ⊤) {s : σ} (hs : ¬ LoopTerm bf f s) :
+    irWhileBody I bf f (fun z => NRest.consume (w z) (irUnit Currency.«while»)) s = ⊤ := by
+  rw [irWhileBody_apply]
+  by_cases hI : I s
+  · rw [NRest.assert_pos hI, NRest.returnT_bindT]
+    cases hb : bf s with
+    | false => exact absurd (LoopTerm.exit hb) hs
+    | true =>
+      obtain ⟨s', hle, hs'⟩ : ∃ s', (NRest.returnT s' : NRest σ ECost) ≤ f s ∧
+          ¬ LoopTerm bf f s' := by
+        by_contra hcon
+        refine hs (LoopTerm.step hb fun s' hle => ?_)
+        by_contra hns'
+        exact hcon ⟨s', hle, hns'⟩
+      rw [if_pos rfl]
+      refine top_le_iff.mp (le_trans (le_of_eq ?_)
+        (NRest.bindT_mono hle (fun _ => le_rfl) (f := fun z =>
+          NRest.consume (w z) (irUnit Currency.«while»))))
+      rw [NRest.returnT_bindT, hw s' hs', NRest.top_eq_fail, NRest.consume_fail]
+  · rw [NRest.assert_neg hI, NRest.bindT_fail, NRest.top_eq_fail]
+
+/-- **Non-failure *is* termination (R0/D-b).** A loop that does not fail
+at `s` is accessible at `s`; contrapositively, a stuck state is `FAILT`,
+which is the total-correctness reading of `RECT` (`Rec.lean` S2). -/
+theorem loopTerm_of_nofailT {σ : Type} {I : σ → Prop} {bf : σ → Bool}
+    {f : σ → NRest σ ECost} {s : σ} (hnf : (irWhileIT I bf f s).nofailT) :
+    LoopTerm bf f s := by
+  classical
+  by_contra hs
+  refine hnf ?_
+  have hG : mono2 (fun D y => irWhileBody I bf f
+      (fun z => NRest.consume (D z) (irUnit Currency.«while»)) y) :=
+    mono2_consume_call (mono2_irWhileBody I bf f) (irUnit Currency.«while»)
+  set G := fun (D : σ → NRest σ ECost) (y : σ) => irWhileBody I bf f
+    (fun z => NRest.consume (D z) (irUnit Currency.«while»)) y with hGdef
+  set w : σ → NRest σ ECost := fun y => if LoopTerm bf f y then RECT G y else ⊤ with hwdef
+  have hRw : ∀ y, RECT G y ≤ w y := by
+    intro y
+    by_cases hy : LoopTerm bf f y
+    · rw [hwdef]; simp only [if_pos hy]; exact le_rfl
+    · rw [hwdef]; simp only [if_neg hy]; exact le_top
+  have hw : ∀ y, ¬ LoopTerm bf f y → w y = ⊤ := by
+    intro y hy; rw [hwdef]; simp only [if_neg hy]
+  have hpost : ∀ y, w y ≤ G w y := by
+    intro y
+    by_cases hy : LoopTerm bf f y
+    · rw [hwdef]
+      simp only [if_pos hy]
+      conv_lhs => rw [RECT_unfold_apply hG]
+      exact hG.monotone (fun z => hRw z) y
+    · rw [hw y hy, hGdef]
+      exact le_of_eq (irWhileBody_top_of_not_loopTerm w hw hy).symm
+  have htop : RECT G s = ⊤ := RECT_eq_top_of_postfixed hG hpost (hw s hs)
+  show irWhileIT I bf f s = ⊤
+  rw [irWhileIT, htop, NRest.top_eq_fail, NRest.consume_fail]
+
+/-- **The loop rule, unfueled (R0/D-b).** `hnr_while_measured` without
+the variant: the abstract loop's own non-failure — which `hnRefine`
+supplies — is the induction. Same conclusion, one premise fewer, and
+nothing for the caller to annotate. -/
+@[sepref_comb_rules]
+theorem hnr_while {σ κs : Type} {I : σ → Prop} {bf : σ → Bool}
+    {f : σ → NRest σ ECost} {Rs : σ → κs → Assn} {Γ : Assn} {d : κs} {cond : Cond}
+    {cbody : Com}
+    (COND : ∀ s, I s → CondRefine (hnCtxt Rs s d ∗ Γ) cond (bf s))
+    (BODY : ∀ s, I s → bf s = true → hnRefine (hnCtxt Rs s d ∗ Γ) cbody Γ d Rs (f s))
+    (s₀ : σ) :
+    hnRefine (hnCtxt Rs s₀ d ∗ Γ) (.while cond cbody) Γ d Rs (irWhileIT I bf f s₀) := by
+  refine hnRefine_nofailI fun hnf₀ => ?_
+  have hterm : LoopTerm bf f s₀ := loopTerm_of_nofailT hnf₀
+  clear hnf₀
+  induction hterm with
+  | @exit s hb =>
+    intro hnf M F st cr hm hst
+    rw [NRest.nofailT_iff] at hnf
+    have hI : I s := by
+      by_contra hcon
+      exact hnf (irWhileIT_of_not_inv hcon)
+    -- the exit: pay this guard evaluation, hand back the loop state
+    rw [irWhileIT_of_false hI hb, NRest.consume_returnT] at hm
+    have hM : M = NRest.single s ((irUnit Currency.«while» : ECost) : WithBot ECost) :=
+      (NRest.rest_inj_iff.1 hm).symm
+    refine ⟨s, irUnit Currency.«while», ?_, ?_⟩
+    · rw [hM, NRest.single_self]
+    · rw [← cash_irUnit, wp_while_unfold]
+      refine ⟨false, ?_, afford_pay' _ _, ?_⟩
+      · rw [← hb]; exact COND s hI F st cr hst
+      · rw [if_neg (by simp), minus_pay']
+        refine start_entailsE hst ?_
+        intro h hh
+        have h2 : (((hnCtxt Rs s d ∗ Γ) ∗ F) ∗ GC) h := entails_gc_right _ h hh
+        have e : (((hnCtxt Rs s d ∗ Γ) ∗ F) ∗ GC) = (Γ ∗ Rs s d ∗ F ∗ GC) := by
+          simp only [hnCtxt_def]; ac_rfl
+        rwa [e] at h2
+  | @step s hb _ ih =>
+    intro hnf M F st cr hm hst
+    rw [NRest.nofailT_iff] at hnf
+    have hI : I s := by
+      by_contra hcon
+      exact hnf (irWhileIT_of_not_inv hcon)
+    -- one iteration: body, then the loop again — exactly `hnr_seq`
+    rw [irWhileIT_of_true hI hb] at hm
+    have hseq : hnRefine (hnCtxt Rs s d ∗ Γ) (.seq cbody (.while cond cbody)) Γ d Rs
+        (NRest.bindT (f s) fun s' => irWhileIT I bf f s') :=
+      hnr_seq (BODY s hI hb) fun a ha => ih a ha
+    cases hX : NRest.bindT (f s) (fun s' => irWhileIT I bf f s') with
+    | fail =>
+      rw [hX, NRest.consume_fail] at hm
+      exact absurd hm (NRest.fail_ne_rest M)
+    | rest MX =>
+      rw [hX, NRest.consume_rest] at hm
+      obtain ⟨ra, Ca, hCa, w⟩ := hnRefineD hseq hX hst
+      refine ⟨ra, irUnit Currency.«while» + Ca, ?_, ?_⟩
+      · rw [show M = fun x => WithBot.map (irUnit Currency.«while» + ·) (MX x) from
+          (NRest.rest_inj_iff.1 hm).symm]
+        have hmono := withBot_map_mono (f := (irUnit Currency.«while» + ·))
+          (fun _ _ hab => add_le_add (le_refl _) hab) hCa
+        simpa using hmono
+      · rw [← cash_irUnit, wp_while_unfold]
+        refine ⟨true, ?_, afford_pay _ _ _, ?_⟩
+        · rw [← hb]; exact COND s hI F st cr hst
+        · rw [if_pos rfl, minus_pay, ← wp_seq]
+          exact w
 
 /-! ## 5. Gate (ledger D4, refute-before-prove)
 
@@ -501,6 +680,16 @@ theorem w_rule :
     hnRefine (hnCtxt natAssn 0 "x" ∗ wFrame) wProg wFrame "x" natAssn (irWhileIT wI wbf wf 0) := by
   show hnRefine (hnCtxt natAssn 0 "x" ∗ wFrame) (.while wCond wBody) wFrame "x" natAssn _
   exact hnr_while_measured (fun v => 3 - v) w_cond w_body w_var 0
+
+/-- **The same judgment, unfueled (R0/D-b).** `w_var` is not passed, and
+not proved for this application: the loop's own non-failure is the
+induction. Everything below — the value, the cost vector, the run —
+holds of this judgment exactly as of `w_rule`, because it is the same
+statement. -/
+theorem w_rule_unfueled :
+    hnRefine (hnCtxt natAssn 0 "x" ∗ wFrame) wProg wFrame "x" natAssn (irWhileIT wI wbf wf 0) := by
+  show hnRefine (hnCtxt natAssn 0 "x" ∗ wFrame) (.while wCond wBody) wFrame "x" natAssn _
+  exact hnr_while w_cond w_body 0
 
 /-! #### The abstract loop's value
 
@@ -657,6 +846,44 @@ theorem badInv_vacuous {σ κ : Type} (bf : σ → Bool) (f : σ → NRest σ EC
 /-- …and the vacuity is *only* vacuity: the same judgment at a *true*
 invariant is the real one, and it is `w_rule` above, which runs. -/
 example : wI 0 := trivial
+
+/-! ### Negative control 4 — a loop that genuinely diverges (R0/D-b)
+
+`loopTerm_of_nofailT`'s hypothesis is not decoration. `while true do
+skip` — guard always true, body the identity — is nowhere accessible,
+and the statement *without* the no-failure hypothesis ("every loop is
+`LoopTerm`") is therefore false. What the export says about this loop is
+the other half of the same fact: it **is** `FAILT`, which is the
+total-correctness reading of the greatest fixed point (`Rec.lean` S2,
+`Sanity.RECT_bodyLoop`) and is here derived through the new post-fixed
+point rather than from a stability computation. Note also that
+`hnr_while` proves the judgment for it — vacuously, exactly as at a
+failing invariant, and for the same reason. -/
+
+def dvI : ℕ → Prop := fun _ => True
+
+def dvBf : ℕ → Bool := fun _ => true
+
+noncomputable def dvF : ℕ → NRest ℕ ECost := fun s => NRest.returnT s
+
+/-- Divergence: no state of the spinning loop is accessible. -/
+theorem dv_not_loopTerm (s : ℕ) : ¬ LoopTerm dvBf dvF s := by
+  intro h
+  induction h with
+  | @exit s hb => exact absurd hb (by simp [dvBf])
+  | @step s _ _ ih => exact ih s le_rfl
+
+/-- …so it fails, by the export itself. -/
+theorem dv_fails (s : ℕ) : irWhileIT dvI dvBf dvF s = NRest.fail := by
+  by_contra h
+  exact dv_not_loopTerm s (loopTerm_of_nofailT (I := dvI) (NRest.nofailT_iff.mpr h))
+
+/-- …and the unfueled rule at it says nothing, which is what a rule at a
+failing abstract program must say. -/
+theorem dv_vacuous {κ : Type} (s : ℕ) (Γ Γ' : Assn) (c : Com) (d : κ) (R : ℕ → κ → Assn) :
+    hnRefine Γ c Γ' d R (irWhileIT dvI dvBf dvF s) := by
+  rw [dv_fails]
+  exact hnr_fail
 
 end Gate
 

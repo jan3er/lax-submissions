@@ -483,6 +483,10 @@ theorem qFill_variant (cap n : ℕ) (hn : n ≤ cap) :
   show n - (st.1 + 1) < n - st.1
   omega
 
+-- The variant annotation below is inert since R0/D-b: no rule in
+-- `sepref_comb_rules` reads a `LOOP_VARIANT` any more. The signature
+-- is kept because this synthesis theorem is landed capital.
+set_option linter.unusedVariables false in
 sepref_synth queueFill (cap n : ℕ)
     (hv : LOOP_VARIANT qFillI (qFillBf n) (qFillF cap) (fun st => n - st.1)) :
   hnRefine (hnCtxt (natAssn ×ₐ queueAssn cap) (0, (0, [])) ("i", ("Q", ("head", "tail"))) ∗
@@ -528,6 +532,10 @@ theorem qDrain_variant : LOOP_VARIANT qDrainI qDrainBf qDrainF (fun st => st.2.2
   | nil => exact absurd hs hb'
   | cons a t => simp
 
+-- The variant annotation below is inert since R0/D-b: no rule in
+-- `sepref_comb_rules` reads a `LOOP_VARIANT` any more. The signature
+-- is kept because this synthesis theorem is landed capital.
+set_option linter.unusedVariables false in
 sepref_synth queueDrain (cap : ℕ) (q₀ : ℕ × List ℕ)
     (hv : LOOP_VARIANT qDrainI qDrainBf qDrainF (fun st => st.2.2.length)) :
   hnRefine (hnCtxt (natAssn ×ₐ queueAssn cap) (0, q₀) ("acc", ("Q", ("head", "tail"))) ∗

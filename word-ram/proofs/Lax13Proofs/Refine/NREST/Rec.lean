@@ -151,6 +151,36 @@ the iteration stabilises, by `le_gfp`). Both are *theorems*, so a
 about `RECT` itself. This is why the file imports the gate module
 `Sanity.lean`: the finite carrier, its `DecidableEq`, and the executable
 `bindE`/`returnE` twins already live there.
+
+**S7 (ND-MC rebase P0.3 — the termination export, and the shape it
+cannot have; ledger R0/D-a).** `Sepref/Translate.lean`'s P4/D-cv and
+`Sepref/CombRules.lean`'s P4/D-ai both name one missing P1 lemma as the
+blocker that keeps the Sepref loop rule *measured*:
+
+> `nofailT (RECT B s) → ∃ n, fuelIter B n s = RECT B s`.
+
+**That statement is false**, and `NoFuelBound` below refutes it with a
+`mono2` body over `ℕ∞`: state `0` chooses a natural nondeterministically
+(`⨆`), each `n + 1` counts down to a `⊥` at `1`. Every approximant is
+`⊤` at `0` — for each fuel there is a branch that has not finished —
+while `RECT` itself is `⊥` there. Unbounded nondeterminism is exactly
+what ℕ-indexed fuel cannot see, and it is not exotic: a `whileT` whose
+body is a `spec` has it. What survives of the fuel route is its *other*
+half, strengthened from stability-everywhere to non-failure-here:
+`RECT_eq_fuelIter_of_ne_top` — as soon as one approximant is not `⊤` at
+a state, it *is* `RECT` there. The witness is `fuelResolved`, the
+approximant with its still-unresolved states sent to `⊥` instead of `⊤`,
+which flat-monotonicity makes a post-fixed point.
+
+The export the loop rule actually needs is therefore not about fuel at
+all: it is `le_RECT_of_postfixed` / `RECT_eq_top_of_postfixed` — "a
+post-fixed point is below `RECT`, so a state where one is `⊤` is a state
+where `RECT` is `⊤`". Termination then comes out as an *accessibility*
+predicate rather than a natural number (`Sepref/CombRules.lean`'s
+`LoopTerm`, ledger R0/D-b), which is well-founded without being finitely
+branching — the exact gap the counterexample marks. `⊤` on the
+non-accessible states is the post-fixed point that pushes divergence
+into `FAILT`, and that is what retires `LOOP_VARIANT`.
 -/
 
 namespace Lax13Proofs.Refine
@@ -471,6 +501,202 @@ theorem RECT_eq_of_fuelIter_stable {α β : Type} [CompleteLattice β] {B : (α 
   refine le_antisymm (RECT_le_fuelIter h n x) ?_
   rw [RECT_eq_gfp h]
   exact le_gfp (B := B) (u := fuelIter B n) (fun y => (hstab y).ge) x
+
+/-! ### From non-failure to termination (S7, ledger R0/D-a)
+
+Three lemmas and one refutation.
+
+`le_RECT_of_postfixed` is the whole *positive* content: `RECT` is a
+greatest fixed point, so every post-fixed point is below it, and a state
+where a post-fixed point is `⊤` is a state where `RECT` is `⊤`
+(`RECT_eq_top_of_postfixed`). Read contrapositively — "`RECT` does not
+fail here, so this state is not in the stuck set" — that is the
+termination export, and it is what `Sepref/CombRules.lean` builds
+`LoopTerm` on.
+
+`RECT_eq_fuelIter_of_ne_top` is what survives of the fuel route: not
+`∃ n` (refuted below), but the pointwise strengthening of
+`RECT_eq_of_fuelIter_stable`. -/
+
+/-- **A post-fixed point is below `RECT`.** `le_gfp` at `RECT`'s own
+side condition. -/
+theorem le_RECT_of_postfixed {α β : Type} [CompleteLattice β] {B : (α → β) → α → β}
+    (h : mono2 B) {w : α → β} (hw : ∀ x, w x ≤ B w x) (x : α) : w x ≤ RECT B x := by
+  rw [RECT_eq_gfp h]
+  exact le_gfp (B := B) (u := w) (fun y => hw y) x
+
+/-- **The divergence criterion.** A post-fixed point that is `⊤` at a
+state pins `RECT` to `⊤` there: this is how "the recursion cannot get
+out of this set of states" becomes "the recursion fails on it". -/
+theorem RECT_eq_top_of_postfixed {α β : Type} [CompleteLattice β] {B : (α → β) → α → β}
+    (h : mono2 B) {w : α → β} (hw : ∀ x, w x ≤ B w x) {x : α} (hx : w x = ⊤) :
+    RECT B x = ⊤ :=
+  top_le_iff.mp (hx ▸ le_RECT_of_postfixed h hw x)
+
+/-- The approximants descend in the *flat* order: one more step either
+resolves a state or leaves it at `⊤`. -/
+theorem flatfGe_fuelIter_succ {α β : Type} [CompleteLattice β] {B : (α → β) → α → β}
+    (h : mono2 B) (n : ℕ) : flatfGe (fuelIter B n) (fuelIter B (n + 1)) := by
+  induction n with
+  | zero => intro x; rw [fuelIter_zero, Pi.top_apply]; exact flatOrd_base _ _
+  | succ n ih => exact fun x => h.flatfMonoGe _ _ ih x
+
+/-- Once an approximant is not `⊤` at a state, no later one moves. -/
+theorem fuelIter_succ_of_ne_top {α β : Type} [CompleteLattice β] {B : (α → β) → α → β}
+    (h : mono2 B) {n : ℕ} {x : α} (hx : fuelIter B n x ≠ ⊤) :
+    fuelIter B (n + 1) x = fuelIter B n x :=
+  ((flatfGe_fuelIter_succ h n x).resolve_left hx).symm
+
+theorem fuelIter_eq_of_le_of_ne_top {α β : Type} [CompleteLattice β] {B : (α → β) → α → β}
+    (h : mono2 B) {n m : ℕ} {x : α} (hnm : n ≤ m) (hx : fuelIter B n x ≠ ⊤) :
+    fuelIter B m x = fuelIter B n x := by
+  induction m, hnm using Nat.le_induction with
+  | base => rfl
+  | succ m _ ih => rw [fuelIter_succ_of_ne_top h (by rw [ih]; exact hx), ih]
+
+open Classical in
+/-- The *resolved part* of an approximant: the same function, with the
+states it has not resolved yet sent to `⊥` instead of `⊤`. Flat
+monotonicity is exactly the statement that `B` cannot tell the two
+apart where it matters, which makes this a post-fixed point. -/
+noncomputable def fuelResolved {α β : Type} [CompleteLattice β] (B : (α → β) → α → β) (n : ℕ)
+    (x : α) : β :=
+  if fuelIter B n x = ⊤ then ⊥ else fuelIter B n x
+
+theorem fuelResolved_of_ne_top {α β : Type} [CompleteLattice β] {B : (α → β) → α → β} {n : ℕ}
+    {x : α} (hx : fuelIter B n x ≠ ⊤) : fuelResolved B n x = fuelIter B n x := by
+  rw [fuelResolved, if_neg hx]
+
+theorem fuelResolved_of_top {α β : Type} [CompleteLattice β] {B : (α → β) → α → β} {n : ℕ}
+    {x : α} (hx : fuelIter B n x = ⊤) : fuelResolved B n x = ⊥ := by
+  rw [fuelResolved, if_pos hx]
+
+theorem flatfGe_fuelResolved {α β : Type} [CompleteLattice β] {B : (α → β) → α → β} (n : ℕ) :
+    flatfGe (fuelIter B n) (fuelResolved B n) := by
+  intro y
+  by_cases hy : fuelIter B n y = ⊤
+  · exact Or.inl hy
+  · exact Or.inr (fuelResolved_of_ne_top hy).symm
+
+theorem fuelResolved_postfixed {α β : Type} [CompleteLattice β] {B : (α → β) → α → β}
+    (h : mono2 B) (n : ℕ) (y : α) : fuelResolved B n y ≤ B (fuelResolved B n) y := by
+  by_cases hy : fuelIter B n y = ⊤
+  · rw [fuelResolved_of_top hy]; exact bot_le
+  · have h1 : B (fuelIter B n) y ≠ ⊤ := by
+      show fuelIter B (n + 1) y ≠ ⊤
+      rw [fuelIter_succ_of_ne_top h hy]; exact hy
+    have h2 := (h.flatfMonoGe _ _ (flatfGe_fuelResolved n) y).resolve_left h1
+    rw [fuelResolved_of_ne_top hy, ← h2]
+    show fuelIter B n y ≤ fuelIter B (n + 1) y
+    rw [fuelIter_succ_of_ne_top h hy]
+
+/-- **The exactness criterion, pointwise.** `RECT_eq_of_fuelIter_stable`
+asks the whole iteration to stop moving; this asks only that *this*
+state be resolved, which is the form a loop rule can use. -/
+theorem RECT_eq_fuelIter_of_ne_top {α β : Type} [CompleteLattice β] {B : (α → β) → α → β}
+    (h : mono2 B) {n : ℕ} {x : α} (hx : fuelIter B n x ≠ ⊤) : RECT B x = fuelIter B n x := by
+  refine le_antisymm (RECT_le_fuelIter h n x) ?_
+  have hle := le_RECT_of_postfixed h (fuelResolved_postfixed h n) x
+  rwa [fuelResolved_of_ne_top hx] at hle
+
+/-! ### The converse is false (S7, refute-before-prove)
+
+The statement `Sepref/Translate.lean` (P4/D-cv) and
+`Sepref/CombRules.lean` (P4/D-ai) both name as the missing export —
+"`nofailT (RECT B s) → ∃ n, fuelIter B n s = RECT B s`" — does not hold.
+
+The body below is `mono2`, its `RECT` is `⊥` (not `⊤`, so it does not
+fail) at `0`, and *every* approximant is `⊤` there. The reason is
+unbounded nondeterminism: `B f 0 = ⨆ m, f (m + 1)` offers infinitely
+many branches, branch `m` needs `m` steps, and no single fuel covers
+them all — while the fixed point, which is a supremum and not a limit of
+approximants, sees all of them at once. Two edges worth naming: at fuel
+`0` every approximant is `⊤` by definition, so the statement is not
+merely unproved but has no true instance to lean on there; and the
+no-failure hypothesis is not the culprit — `Sanity.RECT_bodyLoop`
+already shows a diverging body's `RECT` *is* `FAILT`, so dropping the
+hypothesis breaks the statement in the other direction too. -/
+
+namespace NoFuelBound
+
+/-- The refuting body. `0` chooses a natural nondeterministically, `1`
+returns, `m + 2` counts down. -/
+noncomputable def B (f : ℕ → ℕ∞) : ℕ → ℕ∞
+  | 0 => ⨆ m, f (m + 1)
+  | 1 => ⊥
+  | (m + 2) => f (m + 1)
+
+/-- The body satisfies `RECT`'s side condition. The flat half is the
+interesting one: an infinite supremum is flat-monotone because a single
+`⊤` argument already sends it to `⊤`. -/
+theorem mono2_B : mono2 B := by
+  constructor
+  · refine monotoneRel_funOrd fun f g x hfg => ?_
+    match x with
+    | 0 =>
+      by_cases hex : ∃ m, f (m + 1) = ⊤
+      · obtain ⟨m, hm⟩ := hex
+        exact Or.inl (top_le_iff.mp (hm ▸ le_iSup (fun k => f (k + 1)) m))
+      · exact Or.inr (iSup_congr fun m => (hfg (m + 1)).resolve_left fun hm => hex ⟨m, hm⟩)
+    | 1 => exact Or.inr rfl
+    | (m + 2) => exact hfg (m + 1)
+  · refine monotone_of_apply fun f g x hfg => ?_
+    match x with
+    | 0 => exact iSup_mono fun m => hfg (m + 1)
+    | 1 => exact le_rfl
+    | (m + 2) => exact hfg (m + 1)
+
+/-- Fuel `k` has not reached the branches beyond `k`. -/
+theorem fuelIter_succ_top : ∀ k n : ℕ, k ≤ n → fuelIter B k (n + 1) = ⊤ := by
+  intro k
+  induction k with
+  | zero => intro n _; rw [fuelIter_zero, Pi.top_apply]
+  | succ k ih =>
+    intro n hn
+    obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+    show B (fuelIter B k) (m + 2) = ⊤
+    exact ih m (by omega)
+
+/-- …so at the choosing state every approximant fails. -/
+theorem fuelIter_zero_top (k : ℕ) : fuelIter B k 0 = ⊤ := by
+  cases k with
+  | zero => rw [fuelIter_zero, Pi.top_apply]
+  | succ k =>
+    show (⨆ m, fuelIter B k (m + 1)) = ⊤
+    exact top_le_iff.mp ((fuelIter_succ_top k k le_rfl) ▸ le_iSup (fun m => fuelIter B k (m + 1)) k)
+
+/-- The fixed point itself is `⊥` everywhere: every branch terminates,
+so every post-fixed point is forced down to `⊥` by the countdown. -/
+theorem RECT_B_eq_bot : RECT B = ⊥ := by
+  rw [RECT_eq_gfp mono2_B]
+  refine le_antisymm (gfp_le fun u hu => ?_) bot_le
+  have h1 : ∀ n, u (n + 1) = ⊥ := by
+    intro n
+    induction n with
+    | zero => exact le_bot_iff.mp (hu 1)
+    | succ n ih =>
+      have h2 := hu (n + 2)
+      rw [show B u (n + 2) = u (n + 1) from rfl, ih, le_bot_iff] at h2
+      exact h2
+  intro x
+  match x with
+  | 0 =>
+    refine le_trans (hu 0) ?_
+    show (⨆ m, u (m + 1)) ≤ ⊥
+    exact iSup_le fun m => (h1 m).le
+  | (n + 1) => exact (h1 n).le
+
+/-- **The refutation.** A `mono2` body whose `RECT` does not fail at `0`
+and which no fuel ever reaches there. -/
+theorem no_fuel_bound :
+    mono2 B ∧ RECT B 0 ≠ ⊤ ∧ ∀ n, fuelIter B n 0 ≠ RECT B 0 := by
+  refine ⟨mono2_B, ?_, fun n => ?_⟩
+  · rw [RECT_B_eq_bot, Pi.bot_apply]
+    exact bot_ne_top
+  · rw [fuelIter_zero_top n, RECT_B_eq_bot, Pi.bot_apply]
+    exact top_ne_bot
+
+end NoFuelBound
 
 /-! ### The D4 gate
 

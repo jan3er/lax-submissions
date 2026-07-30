@@ -377,6 +377,10 @@ theorem walk_variant (g : List ℕ × List ℕ) (e : ℕ) (he : e ≤ g.2.length
   show e - (st.1 + 1) < e - st.1
   omega
 
+-- The variant annotation below is inert since R0/D-b: no rule in
+-- `sepref_comb_rules` reads a `LOOP_VARIANT` any more. The signature
+-- is kept because this synthesis theorem is landed capital.
+set_option linter.unusedVariables false in
 sepref_synth csrRowWalk (n : ℕ) (g : List ℕ × List ℕ) (e s₀ : ℕ)
     (hv : LOOP_VARIANT walkI (walkBf e) (walkF g) (fun st => e - st.1)) :
   hnRefine (hnCtxt (natAssn ×ₐ natAssn) (s₀, 0) ("k", "acc") ∗ junkCell "w" ∗

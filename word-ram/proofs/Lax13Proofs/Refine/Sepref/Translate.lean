@@ -329,33 +329,57 @@ theorem hnr_mop_pair {α₁ α₂ κ₁ κ₂ : Type} (A : α₁ → κ₁ → A
       (mopPair a₁ a₂) :=
   hnRefineI_spect (pair_skip_rule A B a₁ a₂ c₁ c₂)
 
-/-! ### The loop variant, as an annotation (P4/D-cv)
+/-! ### The loop variant, as an annotation (P4/D-cv — **CLOSED**)
 
 `hnr_while_measured` (wave B1, P4/D-ai) takes an explicit variant
 `V : σ → ℕ`. Nothing in the goal determines it, and no side-condition
 solver can invent it: it is a *proof idea*, and the source does not have
 to invent one either (its `heap_WHILET` is a partial-correctness
 fixpoint, so it has no termination obligation at all — P4/D-ai records
-why ours does). The vehicle is therefore the one P2 already established
+why ours does). The vehicle was therefore the one P2 already established
 for facts the caller has to supply (`Autoref/Tool.lean` delta O1): a
 hypothesis in the local context. `LOOP_VARIANT` names the shape so that
 the hypothesis is recognisable, and the side-condition fallback's own
 `assumption` is what unifies `?V` with the caller's choice.
 
-Fallback, and the way this flag closes: when P1 exports
-`nofailT (RECT B s) → ∃ n, fuelIter B n s = RECT B s`, wave B1's
-unfueled loop rule lands, `LOOP_VARIANT` disappears, and loops synthesize
-with no annotation at all. -/
+**How the flag closed (ND-MC rebase P0.3, ledger R0/D-a, R0/D-b).** Not
+the way this note predicted. The escape it named — "when P1 exports
+`nofailT (RECT B s) → ∃ n, fuelIter B n s = RECT B s`" — is **false**,
+and `NREST/Rec.lean`'s `NoFuelBound.no_fuel_bound` refutes it: a `mono2`
+body whose `RECT` does not fail at a state that no ℕ-fuel ever reaches,
+because unbounded nondeterminism terminates on every branch with no
+uniform bound. What P1 exports instead is `RECT_eq_top_of_postfixed` —
+"a post-fixed point that is `⊤` at a state pins `RECT` to `⊤` there" —
+and termination comes out as the accessibility predicate
+`Sepref/CombRules.lean`'s `LoopTerm`, well-founded without being
+finitely branching. `loopTerm_of_nofailT` turns the loop's own
+non-failure (which the `hnRefine` judgment already hands the rule) into
+it, so `hnr_while` needs no termination premise at all.
+
+`hnr_while` is the `sepref_comb_rules` entry now; `hnr_while_measured`
+and `hnr_while_var` below are deregistered. Loops synthesize with no
+annotation — `Sepref/Definition.lean`'s `sumLoopFree` is the
+demonstration, the same program as `sumLoop` from a `sepref_synth` with
+no hypothesis at all. `LOOP_VARIANT` itself is kept (deprecated): the
+acceptance files' variant lemmas and the `hv` hypotheses of their
+landed synthesis theorems are stated in it, and those are capital, not
+scaffolding to delete. New consumers should supply nothing. -/
 
 /-- The variant obligation of `hnr_while_measured`, named so that a
-caller can supply it as a hypothesis (P4/D-cv). -/
+caller can supply it as a hypothesis (P4/D-cv).
+
+**Deprecated (R0/D-b):** no rule in the `sepref_comb_rules` database
+reads it any more. Kept for the landed acceptance theorems. -/
 def LOOP_VARIANT {σ : Type} (I : σ → Prop) (bf : σ → Bool) (f : σ → NRest σ ECost)
     (V : σ → ℕ) : Prop :=
   ∀ s s', I s → bf s = true → (NRest.returnT s' : NRest σ ECost) ≤ f s → V s' < V s
 
 /-- `hnr_while_measured` with the variant behind a `LOOP_VARIANT` tag, so
-that the translate loop can pick it up from the context (P4/D-cv). -/
-@[sepref_comb_rules]
+that the translate loop can pick it up from the context (P4/D-cv).
+
+**Deprecated (R0/D-b):** deregistered from `sepref_comb_rules` —
+`CombRules.lean`'s `hnr_while` proves the same conclusion with no
+variant. Kept compiled for the callers that name it. -/
 theorem hnr_while_var {σ κs : Type} {I : σ → Prop} {bf : σ → Bool}
     {f : σ → NRest σ ECost} {Rs : σ → κs → Assn} {Γ : Assn} {d : κs} {cond : Cond}
     {cbody : Com} {V : σ → ℕ}
@@ -698,7 +722,14 @@ local context, and `assumption` is what unifies `?V` with the caller's
 choice" — therefore has no nested-loop instance at all without this.
 `apply_assumption` sits *after* `omega`, so it is reached only where the
 cheap closers have already failed, and before `simp_all`, which is what
-was grinding on the quantified goal instead. -/
+was grinding on the quantified goal instead.
+
+**R0/D-b note.** The instance that motivated it is gone: no rule in the
+database reads a `LOOP_VARIANT` any more, so no side condition is a
+quantified caller hypothesis today. `apply_assumption` is kept — it is
+the general form of `assumption`, one entry in a `first` chain, and
+nothing measured says it costs anything now that the loop rule closes
+its own termination. Removing it is a separate, testable change. -/
 def fallbackTac : TermElabM (TSyntax `tactic) :=
   `(tactic| first
               | assumption

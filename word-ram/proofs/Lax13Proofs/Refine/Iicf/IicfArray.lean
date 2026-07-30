@@ -179,6 +179,10 @@ info: sepref_synth Lax13Proofs.Refine.Sepref.Iicf.fillLoop:
         ((Com.aset A i v).seq ((Com.binop Imp.Bop.add i i one).seq Com.skip))))
 -/
 #guard_msgs in
+-- The `hv` annotation is inert since R0/D-b (`CombRules.lean`'s
+-- `hnr_while` needs no variant); it is kept because `fillLoop`'s
+-- signature is what §5 below and the IICF callers use.
+set_option linter.unusedVariables false in
 sepref_synth fillLoop (i A v one n : String) (val : ℕ) (xs : List ℕ)
     (hv : LOOP_VARIANT (fillI xs.length) (fillBf xs.length) (fillF val) (fillV xs.length)) :
   hnRefine (junkCell i ∗ hnCtxt arrayAssn xs A ∗ hnCtxt natAssn val v ∗

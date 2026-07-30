@@ -406,6 +406,10 @@ theorem bmFill_variant : LOOP_VARIANT bmFillI bmFillBf bmFillF (fun st => st.2.l
   | nil => exact absurd hs hb'
   | cons a t => simp
 
+-- The variant annotation below is inert since R0/D-b: no rule in
+-- `sepref_comb_rules` reads a `LOOP_VARIANT` any more. The signature
+-- is kept because this synthesis theorem is landed capital.
+set_option linter.unusedVariables false in
 sepref_synth bmFill (l₀ : List ℕ)
     (hv : LOOP_VARIANT bmFillI bmFillBf bmFillF (fun st => st.2.length)) :
   hnRefine (hnCtxt (bmAssn ×ₐ stackAssn 8) (∅, l₀) ("m", ("S", "top")) ∗
@@ -455,6 +459,10 @@ theorem bmCount_variant (S : Finset ℕ) (n : ℕ) :
   show n - (st.1 + 1) < n - st.1
   omega
 
+-- The variant annotation below is inert since R0/D-b: no rule in
+-- `sepref_comb_rules` reads a `LOOP_VARIANT` any more. The signature
+-- is kept because this synthesis theorem is landed capital.
+set_option linter.unusedVariables false in
 sepref_synth bmCount (S : Finset ℕ) (n : ℕ)
     (hv : LOOP_VARIANT bmCountI (bmCountBf n) (bmCountF S) (fun st => n - st.1)) :
   hnRefine (hnCtxt (natAssn ×ₐ natAssn) (0, 0) ("i", "cnt") ∗ junkCell "w" ∗

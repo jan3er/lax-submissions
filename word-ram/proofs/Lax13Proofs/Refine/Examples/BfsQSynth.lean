@@ -62,6 +62,20 @@ rewriting, as `fill_variant'` and `scan_variant'` do; it needs
 `popF_hd`'s argument re-run under one `consume`. That is bookkeeping,
 not mathematics, and it is not on the critical path while §7's blocker
 stands.
+
+**P7/D-bd is moot as of R0/D-b (ND-MC rebase P0.3).** No variant is
+needed by anything: `Sepref/CombRules.lean`'s `hnr_while` reads
+termination off the abstract loop's own non-failure, and it is the
+`sepref_comb_rules` entry. The three `LOOP_VARIANT` hypotheses of
+`bfsQSynth` below and the one of `fillSynth` are inert — kept because
+those theorems are landed, not because the pipeline asks for them. Two
+consequences for the next wave: the drain loop needs no re-run of
+`popF_hd`'s argument at all, and the §3 distortion "the sentinel `d+1`
+and the two zero counters are written inline rather than bound, because
+a `LOOP_VARIANT` annotation cannot be supplied for a variable the
+enclosing `hnr_bind` has abstracted" no longer has a cause — that
+constraint on program shape is gone, and with it the only motive for
+`Sepref/Translate.lean`'s `apply_assumption` fallback (P7/D-bh).
 -/
 
 namespace Lax13Proofs.Refine
@@ -228,6 +242,10 @@ the tool with no bespoke tactic work and no hand-written frame clause.
 The `+1` is in place — P7/D-bb at work: with `mopBinop` it would have
 landed in whichever scratch cell the caller happened to own first. -/
 
+-- The variant annotation below is inert since R0/D-b: no rule in
+-- `sepref_comb_rules` reads a `LOOP_VARIANT` any more. The signature
+-- is kept because this synthesis theorem is landed capital.
+set_option linter.unusedVariables false in
 sepref_synth fillSynth (n sent : ℕ) (dist₀ : List ℕ)
     (hv : LOOP_VARIANT (fun s => fillBf n s = true → fillP n s) (fillBf n) (fillF' sent)
       (fun s => n - s.2)) :
@@ -262,6 +280,10 @@ three `LOOP_VARIANT` annotations — the three the abstract proof already
 had. -/
 
 set_option maxHeartbeats 1000000 in
+-- The variant annotation below is inert since R0/D-b: no rule in
+-- `sepref_comb_rules` reads a `LOOP_VARIANT` any more. The signature
+-- is kept because this synthesis theorem is landed capital.
+set_option linter.unusedVariables false in
 sepref_synth bfsQSynth (n d src : ℕ) (off tgt alv dist₀ q₀ : List ℕ)
     (hf : LOOP_VARIANT (fun s => fillBf n s = true → fillP n s) (fillBf n) (fillF' (d + 1))
       (fun s => n - s.2))

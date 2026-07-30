@@ -590,6 +590,10 @@ theorem fill_variant (cap n : ℕ) (hn : n ≤ cap) :
   show n - (st.1 + 1) < n - st.1
   omega
 
+-- The variant annotation below is inert since R0/D-b: no rule in
+-- `sepref_comb_rules` reads a `LOOP_VARIANT` any more. The signature
+-- is kept because this synthesis theorem is landed capital.
+set_option linter.unusedVariables false in
 sepref_synth stackFill (cap n : ℕ)
     (hv : LOOP_VARIANT fillI (fillBf n) (fillF cap) (fun st => n - st.1)) :
   hnRefine (hnCtxt (natAssn ×ₐ stackAssn cap) (0, []) ("i", ("S", "top")) ∗
@@ -641,6 +645,10 @@ theorem drain_variant : LOOP_VARIANT drainI drainBf drainF (fun st => st.2.lengt
   | nil => exact absurd hs hb'
   | cons a t => simp
 
+-- The variant annotation below is inert since R0/D-b: no rule in
+-- `sepref_comb_rules` reads a `LOOP_VARIANT` any more. The signature
+-- is kept because this synthesis theorem is landed capital.
+set_option linter.unusedVariables false in
 sepref_synth stackDrain (s₀ : List ℕ)
     (hv : LOOP_VARIANT drainI drainBf drainF (fun st => st.2.length)) :
   hnRefine (hnCtxt (natAssn ×ₐ stackAssn 8) (0, s₀) ("acc", ("S", "top")) ∗

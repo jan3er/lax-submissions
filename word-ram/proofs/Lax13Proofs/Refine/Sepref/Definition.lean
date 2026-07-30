@@ -299,6 +299,10 @@ theorem sum_variant (n : ℕ) : LOOP_VARIANT sumI (sumBf n) sumF (fun s => n - s
   show n - (s.1 + 1) < n - s.1
   omega
 
+-- The variant annotation below is inert since R0/D-b: no rule in
+-- `sepref_comb_rules` reads a `LOOP_VARIANT` any more. The signature
+-- is kept because this synthesis theorem is landed capital.
+set_option linter.unusedVariables false in
 sepref_synth sumLoop (n : ℕ)
     (hv : LOOP_VARIANT sumI (sumBf n) sumF (fun s => n - s.1)) :
   hnRefine (hnCtxt (natAssn ×ₐ natAssn) (0, 0) ("i", "acc") ∗ hnCtxt natAssn 1 "one" ∗
@@ -322,6 +326,37 @@ theorem sumLoop' (n : ℕ) :
 
 #print axioms sumLoop
 #print axioms sumLoop'
+
+/-! ### The same loop, with no annotation at all (R0/D-b)
+
+`sumLoop` above takes `hv : LOOP_VARIANT …` because P4/D-cv's loop rule
+demanded a variant. It does not any more: `CombRules.lean`'s `hnr_while`
+reads termination off the abstract loop's own non-failure
+(`loopTerm_of_nofailT`), and it is the `sepref_comb_rules` entry.
+
+So the annotation goes away with nothing put in its place — same goal,
+same synthesized program, no hypothesis. `sumLoop` and `sum_variant`
+stay compiled above: they are the landed form, and this is the delta. -/
+
+sepref_synth sumLoopFree (n : ℕ) :
+  hnRefine (hnCtxt (natAssn ×ₐ natAssn) (0, 0) ("i", "acc") ∗ hnCtxt natAssn 1 "one" ∗
+      hnCtxt natAssn n "n")
+    _ _ ("i", "acc") (natAssn ×ₐ natAssn)
+    (irWhileIT sumI (sumBf n) sumF (0, 0))
+
+-- The variant-free synthesis produces the *same* program.
+#guard sumLoopFree_impl = sumLoop_impl
+
+/-- …and the same theorem, with no hypothesis to discharge. -/
+theorem sumLoopFree' (n : ℕ) :
+    hnRefine (hnCtxt (natAssn ×ₐ natAssn) (0, 0) ("i", "acc") ∗ hnCtxt natAssn 1 "one" ∗
+        hnCtxt natAssn n "n")
+      sumLoopFree_impl (hnCtxt natAssn 1 "one" ∗ hnCtxt natAssn n "n") ("i", "acc")
+      (natAssn ×ₐ natAssn) (irWhileIT sumI (sumBf n) sumF (0, 0)) :=
+  sumLoopFree n
+
+#print axioms sumLoopFree
+#print axioms sumLoopFree'
 
 /-! ### Negative controls
 
@@ -359,7 +394,7 @@ sepref: no rule translates
   Lax13Proofs.Refine.Sepref.SynthGate.mopMystery n
 under the ownership
   Lax13Proofs.Refine.Sepref.junkCell "r" ∗ Lax13Proofs.Refine.Sepref.hnCtxt Lax13Proofs.Refine.Sepref.natAssn n "n"
-combinator rules: none is stated at this abstract term (5 tried).
+combinator rules: none is stated at this abstract term (4 tried).
 operator rules: none is stated at this abstract term (8 tried).
 -/
 #guard_msgs in
@@ -381,7 +416,7 @@ under the ownership
   Lax13Proofs.Refine.Sepref.hnCtxt Lax13Proofs.Refine.Sepref.natAssn a "a" ∗
     Lax13Proofs.Refine.Sepref.hnCtxt Lax13Proofs.Refine.Sepref.natAssn b "b"
 The precondition owns no scratch cell; a destination-taking rule needs `junkCell "t1"` in it.
-combinator rules: none is stated at this abstract term (5 tried).
+combinator rules: none is stated at this abstract term (4 tried).
 operator rules (6 more are stated at other abstract terms):
 Lax13Proofs.Refine.Sepref.hnr_mop_binop: the rule's precondition conjuncts
   Lax13Proofs.Refine.Sepref.junkCell "r"
