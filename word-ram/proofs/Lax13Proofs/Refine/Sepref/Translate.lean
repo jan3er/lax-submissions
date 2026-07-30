@@ -687,9 +687,28 @@ def abstractPost (g : MVarId) : TermElabM Unit := do
 /-! ### The side-condition dispatcher (source lines 300–331) -/
 
 /-- The source's fallback side tactic (`side_fallback_tac`), at P3's
-fixed list. -/
+fixed list, plus `apply_assumption` (P7/D-bh).
+
+`assumption` cannot instantiate a quantifier, and a `LOOP_VARIANT` for
+an *inner* loop is quantified: the loop's body mentions values the
+enclosing `hnr_bind` has abstracted (`scanLoop`'s offered distance and
+row end are read from arrays), so the caller can only supply
+`∀ dv1 kend, LOOP_VARIANT …`. P4/D-cv's vehicle — "a hypothesis in the
+local context, and `assumption` is what unifies `?V` with the caller's
+choice" — therefore has no nested-loop instance at all without this.
+`apply_assumption` sits *after* `omega`, so it is reached only where the
+cheap closers have already failed, and before `simp_all`, which is what
+was grinding on the quantified goal instead. -/
 def fallbackTac : TermElabM (TSyntax `tactic) :=
-  `(tactic| first | assumption | rfl | trivial | decide | omega | simp_all | simp)
+  `(tactic| first
+              | assumption
+              | rfl
+              | trivial
+              | decide
+              | omega
+              | apply_assumption
+              | simp_all
+              | simp)
 
 /-- Run a tactic on a goal, requiring it to close. -/
 def runClosing (g : MVarId) (t : TSyntax `tactic) : TermElabM Unit := do
@@ -726,6 +745,30 @@ def checkPending (nm : Name) (pending : List MVarId) : MetaM Unit := do
 
 /-! ### The translation loop (source lines 335–430) -/
 
+/-- **The order the combinator database is tried in (P7/D-bf).**
+
+`hnr_bind` subsumes `hnr_seq`: its extra premise is `∀ a, Γ₂ a ⊢ Γ'`,
+which `abstractPost` discharges by `entails_refl` exactly when the
+body's postcondition is binder-free — which is exactly when `hnr_seq`
+applies. So whichever of the two is tried first, the program that comes
+out is the same `Com.seq c₁ c₂`.
+
+The *cost* is not the same. `hnr_seq` tried first translates the whole
+continuation, discovers at the end that the frame mentions the bound
+value, and throws the translation away; `hnr_bind` then does it again.
+That is a factor of two per `bindT`, and it compounds down a nested
+program: a body with `k` binds costs `2^k`, and an inner loop's body is
+re-translated once per outer retry on top of that. Measured before the
+change: a three-read body with two nested branches stalls after 3 min
+22 s and a three-level program does not finish in nine minutes.
+
+The fix is a stable partition, not a sort: everything keeps its
+database order except `hnr_seq`, which moves to the back. It stays in
+the database because it is the rule that applies with no `IMP` premise
+at all, and a caller reading a synthesis proof should still see it
+where it is the honest one. -/
+def combLast : Array Name := #[``Lax13Proofs.Refine.Sepref.hnr_seq]
+
 mutual
 
 /-- The source's `side_cond_dispatch_tac`: classify the goal and route
@@ -757,10 +800,11 @@ partial def sideDispatch (cfg : Cfg) (fuel : Nat) (g : MVarId) : TermElabM Unit 
   | _ => runClosing g (← fallbackTac)
 
 /-- The source's `trans_comb_tac`: resolve against `sepref_comb_rules`,
-first match wins, no framing. -/
+first match wins, no framing. The order is `combLast`'s (P7/D-bf). -/
 partial def transComb (cfg : Cfg) (fuel : Nat) (g : MVarId) :
     TermElabM (Option (Array MessageData × Nat)) := do
-  let rules ← (try labelled `sepref_comb_rules catch _ => pure #[])
+  let db ← (try labelled `sepref_comb_rules catch _ => pure #[])
+  let rules := db.filter (!combLast.contains ·) ++ db.filter (combLast.contains ·)
   let mut reasons : Array MessageData := #[]
   let mut skipped : Nat := 0
   for nm in rules do

@@ -682,7 +682,7 @@ under the ownership
     Lax13Proofs.Refine.Sepref.hnCtxt Lax13Proofs.Refine.Sepref.natAssn i "i"
 The precondition owns no scratch cell; a destination-taking rule needs `junkCell "t2"` in it.
 combinator rules (3 more are stated at other abstract terms):
-Lax13Proofs.Refine.Sepref.hnr_seq: applied, but a sub-program stalled: sepref: no rule translates
+Lax13Proofs.Refine.Sepref.hnr_bind: applied, but a sub-program stalled: sepref: no rule translates
   Lax13Proofs.Refine.NRest.assert (i < xs.length)
 under the ownership
   Lax13Proofs.Refine.Sepref.hnCtxt Lax13Proofs.Refine.Sepref.arrayAssn xs "A" ∗
@@ -690,7 +690,7 @@ under the ownership
 The precondition owns no scratch cell; a destination-taking rule needs `junkCell "t1"` in it.
 combinator rules: none is stated at this abstract term (5 tried).
 operator rules: none is stated at this abstract term (8 tried).
-Lax13Proofs.Refine.Sepref.hnr_bind: applied, but a sub-program stalled: sepref: no rule translates
+Lax13Proofs.Refine.Sepref.hnr_seq: applied, but a sub-program stalled: sepref: no rule translates
   Lax13Proofs.Refine.NRest.assert (i < xs.length)
 under the ownership
   Lax13Proofs.Refine.Sepref.hnCtxt Lax13Proofs.Refine.Sepref.arrayAssn xs "A" ∗

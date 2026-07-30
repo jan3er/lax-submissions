@@ -452,6 +452,24 @@ Pair each conjunct of a rule's precondition with a distinct conjunct of
 the goal's, by `isDefEq`. Matching only, never dropping: the logic is
 precise, so what is not paired is the frame, not garbage. -/
 
+/-- **Pair by the abstract value first (P7/D-bg).** `hnCtxt R a c`
+unfolds to `R a c`, so `isDefEq` on the whole conjunct may solve a
+metavariable *relator* by a constant function: `hnCtxt ?A D ?c` matches
+`hnCtxt natAssn 1 "one"` at `?A := fun _ => natAssn 1`, `?c := "one"`.
+That is well-typed nonsense — it hands the operation a cell that does
+not hold its argument — and it is what a rule with an open relator
+(`hnr_mop_pair`) does to whichever conjunct the goal happens to list
+first. The source pairs by the abstract term before anything else
+(`prepare_fi_conv`'s `Termtab` key) and `mergeSolve` below already does;
+the frame matcher did not. One first-order check restores it. -/
+def absAgree (r g : Expr) : MetaM Bool := do
+  match r.getAppFnArgs, g.getAppFnArgs with
+  | (``hnCtxt, #[αr, _, _, ar, _]), (``hnCtxt, #[αg, _, _, ag, _]) =>
+    try
+      if ← isDefEq αr αg then isDefEq ar ag else return false
+    catch _ => return false
+  | _, _ => return true
+
 /-- Search for an injection of `rs` into `gs`, in `rs`-order, with
 backtracking. Returns the goal-side indices, one per `r`. -/
 partial def matchLoop (rs : List Expr) (gs : Array Expr) (used : Array Nat) :
@@ -462,7 +480,7 @@ partial def matchLoop (rs : List Expr) (gs : Array Expr) (used : Array Nat) :
   for i in [0 : gs.size] do
     unless used.contains i do
       let st ← saveState
-      if ← isDefEq r gs[i]! then
+      if (← absAgree r gs[i]!) && (← isDefEq r gs[i]!) then
         let res ← matchLoop rest gs (used.push i)
         if res.isSome then return res
         st.restore
