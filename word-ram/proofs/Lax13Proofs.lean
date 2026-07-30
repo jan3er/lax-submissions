@@ -72,3 +72,7 @@ import Lax13Proofs.Refine.Iicf.Basic
 import Lax13Proofs.Refine.Iicf.IicfArray
 import Lax13Proofs.Refine.Iicf.IicfTrailArray
 import Lax13Proofs.Refine.Iicf.ExercisesA
+import Lax13Proofs.Refine.Iicf.IicfStack
+import Lax13Proofs.Refine.Iicf.IicfQueue
+import Lax13Proofs.Refine.Iicf.IicfCsr
+import Lax13Proofs.Refine.Iicf.IicfBitmask
