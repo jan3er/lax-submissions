@@ -46,6 +46,8 @@ import Lax3Proofs.RamDriverRoot
 import Lax3Proofs.CostRecurrence
 import Lax3Proofs.UqwInstantiation
 import Lax3Proofs.TgtCoupling
+import Lax3Proofs.TgtWidenProbe
+import Lax3Proofs.CsrWide
 import Lax3Proofs.Refine.AugmentSynth
 import Lax3Proofs.Refine.AugmentSynth2
 import Lax3Proofs.Refine.AugmentTwins
@@ -67,4 +69,7 @@ import Lax3Proofs.Refine.CostShapeProbe
 import Lax3Proofs.Refine.MassMath
 import Lax3Proofs.Refine.MassAlive
 import Lax3Proofs.Refine.ArenaBlock
+import Lax3Proofs.Refine.DeadRow
+import Lax3Proofs.Refine.DeadSweep
 import Lax3Proofs.Refine.OrderBridge
+import Lax3Proofs.Refine.BlockLeaves

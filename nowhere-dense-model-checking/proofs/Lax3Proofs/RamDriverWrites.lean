@@ -885,6 +885,12 @@ theorem belowArr_notMem_warrs_driverAux (q_top cap mb ℓ W : ℕ) (φ : Lax3.Fi
       rcases mem_warrs_seq hq with hq | hq
       · exact belowArr_notMem_warrs_coverPhase cap d h hq
       rcases mem_warrs_seq hq with hq | hq
+      · -- the dead-row sweep (rebase B8): a suffix of the base case's own text
+        refine belowArr_notMem_warrs_baseCom q_top cap mb d φ h ?_
+        rw [show (baseCom q_top cap mb d φ).warrs
+            = (reprCom d (sigL cap mb d)).warrs ++ (sweepCom q_top cap mb d φ).warrs from rfl]
+        exact List.mem_append_right _ hq
+      rcases mem_warrs_seq hq with hq | hq
       · rw [warrs_assign] at hq; exact absurd hq List.not_mem_nil
       rw [warrs_while] at hq
       rcases mem_warrs_seq hq with hq | hq
@@ -922,6 +928,12 @@ theorem belowVar_notMem_wvars_driverAux (q_top cap mb ℓ W : ℕ) (φ : Lax3.Fi
       · exact belowVar_notMem_wvars_orderCom W d h hq
       rcases mem_wvars_seq hq with hq | hq
       · exact belowVar_notMem_wvars_coverPhase cap d h hq
+      rcases mem_wvars_seq hq with hq | hq
+      · -- the dead-row sweep (rebase B8): a suffix of the base case's own text
+        refine belowVar_notMem_wvars_baseCom q_top cap mb d φ h ?_
+        rw [show (baseCom q_top cap mb d φ).wvars
+            = (reprCom d (sigL cap mb d)).wvars ++ (sweepCom q_top cap mb d φ).wvars from rfl]
+        exact List.mem_append_right _ hq
       rcases mem_wvars_seq hq with hq | hq
       · rw [wvars_assign] at hq
         exact belowVar_ne h (le_refl d) (by tauto) (List.eq_of_mem_singleton hq)
@@ -1064,8 +1076,8 @@ open Classical in
 theorem wa_mem_warrs_driverAt {q_top cap mb ℓ W d : ℕ} {φ : Lax3.FirstOrder.FO 0}
     (h : d < ℓ) : "wa" ∈ (driverAt q_top cap mb 0 ℓ W φ d).warrs := by
   rw [driverAt_succ q_top cap mb 0 ℓ W φ h]
-  refine mem_warrs_seq_right (mem_warrs_seq_right (mem_warrs_seq_right
-    (mem_warrs_while_body (mem_warrs_seq_right (mem_warrs_seq_left ?_)))))
+  refine mem_warrs_seq_right (mem_warrs_seq_right (mem_warrs_seq_right (mem_warrs_seq_right
+    (mem_warrs_while_body (mem_warrs_seq_right (mem_warrs_seq_left ?_))))))
   rw [clusterCom]
   refine mem_warrs_seq_right (mem_warrs_seq_left ?_)
   rw [RamDriverFrames.warrs_enumBatch]

@@ -875,19 +875,18 @@ theorem arenaSize_le (n : ℕ) (M : ℕ → ℕ) : arenaSize n M ≤ n := by
 
 /-- **What the compaction scan leaves.** `cps` lists, in strictly
 increasing order, exactly the `cnum` positions below `n` whose block is
-nonempty.
+nonempty **and whose centre the mask leaves alive**.
 
-**Rebase B2, on wave B4's finding.** This predicate filters nothing —
-`Refine.MassAlive.block_nonempty` — so `le_mass` is an equality with `n`
-and buys no cost. The clause the Σ interface needs is
-`∀ k < cnum, A₀ (ord (cps k)) ≠ 0`; `Refine.ArenaBlock.mass_of_alive_compaction`
-is the whole cost supply, compiled, *given* that one clause, and
-`compactCom`'s docstring records why adding it is a wave of its own. -/
-structure Compacted (n cnum m : ℕ) (Xoff cps : ℕ → ℕ) : Prop where
-  /-- One turn per member of the cluster arena at most. True and cheap, but
-  **not** what the cost interface can read: with the emptiness predicate
-  alone `Refine.MassAlive.cnum_eq_of_nonempty` makes it an equality with
-  `n`. See `compactCom`'s docstring for the blocker. -/
+**Rebase B2, on wave B4's finding; the alive clause landed by B8.** The
+emptiness predicate alone filters nothing — `Refine.MassAlive.block_nonempty`
+— so `le_mass` was an equality with `n` and bought no cost. `alive` is
+the clause the Σ interface needs: `Refine.ArenaBlock.mass_of_alive_compaction`
+turns it, with the cover's own postcondition, into the whole cost supply
+of a level. What it costs is not the walk but the *induction*, and the
+answer is `RamDriver.sweepCom` at the head of the level — see
+`compactCom`. -/
+structure Compacted (n cnum m : ℕ) (M ord Xoff cps : ℕ → ℕ) : Prop where
+  /-- One turn per member of the cluster arena at most. -/
   le_mass : cnum ≤ m
   /-- And never more turns than there are positions. -/
   le_carrier : cnum ≤ n
@@ -897,13 +896,21 @@ structure Compacted (n cnum m : ℕ) (Xoff cps : ℕ → ℕ) : Prop where
   mono : ∀ k k' : ℕ, k < k' → k' < cnum → cps k < cps k'
   /-- Every listed position has a nonempty block. -/
   nonempty : ∀ k < cnum, Xoff (cps k) < Xoff (cps k + 1)
-  /-- And every position with a nonempty block is listed. -/
-  covers : ∀ c < n, Xoff c < Xoff (c + 1) → ∃ k < cnum, cps k = c
+  /-- **Every listed centre is alive.** The one clause the Σ-shaped cost
+  interface reads: `Refine.ArenaBlock.cnum_le_arenaSize` counts the turns
+  against the arena through it, and `Refine.MassAlive.aliveMass_le`
+  bounds their blocks. -/
+  alive : ∀ k < cnum, M (ord (cps k)) ≠ 0
+  /-- And every position with a nonempty block and a live centre is
+  listed. A *dead* centre is deliberately not listed: its cluster is its
+  own singleton (`Refine.MassAlive.clusterAt_dead`) and the level's
+  edgeless sweep has already written its row. -/
+  covers : ∀ c < n, Xoff c < Xoff (c + 1) → M (ord c) ≠ 0 → ∃ k < cnum, cps k = c
 
 /-- The list has no repetitions, which is what tells the turns of the
 compacted loop apart. -/
-theorem Compacted.inj {n cnum m : ℕ} {Xoff cps : ℕ → ℕ}
-    (h : Compacted n cnum m Xoff cps) {k k' : ℕ} (hk : k < cnum) (hk' : k' < cnum)
+theorem Compacted.inj {n cnum m : ℕ} {M ord Xoff cps : ℕ → ℕ}
+    (h : Compacted n cnum m M ord Xoff cps) {k k' : ℕ} (hk : k < cnum) (hk' : k' < cnum)
     (he : cps k = cps k') : k = k' := by
   rcases Nat.lt_trichotomy k k' with hlt | heq | hgt
   · exact absurd he (Nat.ne_of_lt (h.mono k k' hlt hk'))
@@ -1478,17 +1485,38 @@ noncomputable def botCom (jd : ℕ) {L : ℕ} : {k : ℕ} → DistFO L k → Str
                   (.seq (.assign out (orBitExpr (.var out) (.var (out ++ "a"))))
                     (.assign (out ++ "w") (.add (.var (out ++ "w")) (.lit 1)))))))))
 
+open Classical in
+/-- **The edgeless sweep of a depth**: walk the carrier and evaluate
+every formula of the depth's table at every vertex, on the *edgeless*
+arena. This is the vertex loop of the base case, named on its own
+because a level above the bottom runs it too.
+
+**Rebase B8.** At the bottom the edgeless reading is the whole answer
+(`eq_bot_of_playOk_full`). Above the bottom it is the answer at exactly
+the vertices the depth's mask has killed: a dead vertex has no incident
+edge in `RamBfs.masked`, so a *local* formula at it cannot see the rest
+of the arena — `Refine.DeadRow.sat_bot_of_dead` is that induction, and
+`FormulaTables.TableRank` is why every tabled formula is local. Running
+this pass at the head of a level therefore writes, correctly and once,
+the table rows of every vertex the level's own centre loop will not
+visit, which is what lets that loop skip the dead centres. The alive
+vertices' rows the pass writes are wrong and are overwritten by their
+own turns; the pass is not guarded on aliveness because a guard would
+cost a mask read per vertex and buy nothing — the dead vertices are the
+majority of a nested arena, not the minority. -/
+noncomputable def sweepCom (q_top cap mb jd : ℕ) (φ : Lax3.FirstOrder.FO 0) : Com :=
+  .seq (.assign "z" (.lit 0))
+    (.while (.lt (.var "z") (.var "n"))
+      (.seq (.assign (envName 0) (.var "z"))
+        (.seq (foldIdx (fun i β =>
+            .seq (botCom jd β "bb") (.store (tabName jd i) (.var "z") (.var "bb"))) 0
+            (tablesAt q_top cap mb φ jd))
+          (.assign "z" (.add (.var "z") (.lit 1))))))
+
 /-- **The base case.** Build the representative system once, then walk
 the vertices, evaluating every formula of the depth's table at each. -/
 noncomputable def baseCom (q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) : Com :=
-  .seq (reprCom ℓ (sigL cap mb ℓ))
-    (.seq (.assign "z" (.lit 0))
-      (.while (.lt (.var "z") (.var "n"))
-        (.seq (.assign (envName 0) (.var "z"))
-          (.seq (foldIdx (fun i β =>
-              .seq (botCom ℓ β "bb") (.store (tabName ℓ i) (.var "z") (.var "bb"))) 0
-              (tablesAt q_top cap mb φ ℓ))
-            (.assign "z" (.add (.var "z") (.lit 1)))))))
+  .seq (reprCom ℓ (sigL cap mb ℓ)) (sweepCom q_top cap mb ℓ φ)
 
 /-! ### The ordering pass
 
@@ -1791,27 +1819,28 @@ follows; making the whole cover phase active-set-driven is R1.6, a later
 wave's. What it buys now is the *loop*: one turn per listed centre
 instead of `n`, which is what the recursion's cost multiplies.
 
-**Rebase B2, on wave B4's finding — the predicate is NOT changed here,
-and this is the campaign's open blocker.** The Σ-shaped cost interface
-needs the loop to skip *dead* centres, not empty blocks:
-`Refine.MassAlive.block_nonempty` proves no block of a cover output is
-ever empty, so this guard filters nothing (`cnum = n`, by
-`Refine.MassAlive.cnum_eq_of_nonempty`), and only
-`Refine.MassAlive.aliveMass_le` — a bound on the *alive* centres'
-blocks — is affordable. Nesting `alv[ord[i]] ≠ 0` inside this guard is
-one line of program text.
+**Rebase B2's blocker, resolved by B8 — the predicate is the nested
+test.** The Σ-shaped cost interface needs the loop to skip *dead*
+centres, not empty blocks: `Refine.MassAlive.block_nonempty` proves no
+block of a cover output is ever empty, so the emptiness guard alone
+filters nothing (`cnum = n`, by `Refine.MassAlive.cnum_eq_of_nonempty`),
+and only `Refine.MassAlive.aliveMass_le` — a bound on the *alive*
+centres' blocks — is affordable. So the inner `ite` reads the mask at
+the position's own centre, `alv[ord[i]]`, and lists the position only if
+it is alive.
 
-What stops it is not the walk but the induction:
-`Refine.ArenaBlock.dead_vertex_has_no_alive_turn` compiles the reason.
-A vertex is in its assigned centre's cluster, and by
+What used to stop that is the induction, not the walk:
+`Refine.ArenaBlock.dead_vertex_has_no_alive_turn` compiles the reason. A
+vertex lies in its assigned centre's cluster, and by
 `Refine.MassAlive.inCluster_alive_iff` a cluster is alive-homogeneous,
-so an alive-filtered list omits exactly the dead vertices' positions —
-and `RamDriverCluster.levelImplements`' partition step needs *every*
-carrier vertex to have had a turn, because `RamDriver.TableInv` is a
-statement about every vertex and the turn's readback reads the
-depth-`(j+1)` table at cluster vertices that the batch has killed. So
-the filter costs the level a dead-vertex path, which is a semantic
-addition to the induction and a wave of its own. -/
+so an alive-filtered list omits exactly the *dead* vertices' positions —
+while `RamDriver.TableInv` asks for every carrier vertex's row. The
+answer is `RamDriver.sweepCom`, run once at the head of the level: on
+the arena a dead vertex sees, nothing happens, so its row is the
+edgeless row and the level can write it without a turn
+(`Refine.DeadRow.sat_bot_of_dead`). `RamDriverCluster.levelImplements`'
+partition step therefore splits — alive vertices by their turn, dead
+vertices by the sweep — and the loop runs at the alive turn count. -/
 def compactCom (j : ℕ) : Com :=
   .seq (.assign (cnumName j) (.lit 0))
     (.seq (.assign "i" (.lit 0))
@@ -1819,8 +1848,10 @@ def compactCom (j : ℕ) : Com :=
         (.seq
           (.ite (.lt (.get (xofName j) (.var "i"))
               (.get (xofName j) (.add (.var "i") (.lit 1))))
-            (.seq (.store (cpsName j) (.var (cnumName j)) (.var "i"))
-              (.assign (cnumName j) (.add (.var (cnumName j)) (.lit 1))))
+            (.ite (.lt (.lit 0) (.get (alvName j) (.get (ordName j) (.var "i"))))
+              (.seq (.store (cpsName j) (.var (cnumName j)) (.var "i"))
+                (.assign (cnumName j) (.add (.var (cnumName j)) (.lit 1))))
+              .skip)
             .skip)
           (.assign "i" (.add (.var "i") (.lit 1))))))
 
@@ -1841,12 +1872,13 @@ noncomputable def driverAux (q_top cap mb R ℓ W : ℕ) (φ : Lax3.FirstOrder.F
   | f + 1, j =>
       .seq (orderCom R W j)
         (.seq (coverPhase cap j)
-          (.seq (.assign (cixName j) (.lit 0))
-            (.while (.lt (.var (cixName j)) (.var (cnumName j)))
-              (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
-                (.seq (clusterCom q_top cap mb φ j
-                    (driverAux q_top cap mb R ℓ W φ f (j + 1)))
-                  (.assign (cixName j) (.add (.var (cixName j)) (.lit 1))))))))
+          (.seq (sweepCom q_top cap mb j φ)
+            (.seq (.assign (cixName j) (.lit 0))
+              (.while (.lt (.var (cixName j)) (.var (cnumName j)))
+                (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
+                  (.seq (clusterCom q_top cap mb φ j
+                      (driverAux q_top cap mb R ℓ W φ f (j + 1)))
+                    (.assign (cixName j) (.add (.var (cixName j)) (.lit 1)))))))))
 
 open Classical in
 /-- **The driver at depth `j`.** The fuel is the budget still to spend;
@@ -1866,12 +1898,13 @@ theorem driverAt_succ (q_top cap mb R ℓ W : ℕ) (φ : Lax3.FirstOrder.FO 0) {
     driverAt q_top cap mb R ℓ W φ j =
       .seq (orderCom R W j)
         (.seq (coverPhase cap j)
-          (.seq (.assign (cixName j) (.lit 0))
-            (.while (.lt (.var (cixName j)) (.var (cnumName j)))
-              (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
-                (.seq (clusterCom q_top cap mb φ j
-                    (driverAt q_top cap mb R ℓ W φ (j + 1)))
-                  (.assign (cixName j) (.add (.var (cixName j)) (.lit 1)))))))) := by
+          (.seq (sweepCom q_top cap mb j φ)
+            (.seq (.assign (cixName j) (.lit 0))
+              (.while (.lt (.var (cixName j)) (.var (cnumName j)))
+                (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
+                  (.seq (clusterCom q_top cap mb φ j
+                      (driverAt q_top cap mb R ℓ W φ (j + 1)))
+                    (.assign (cixName j) (.add (.var (cixName j)) (.lit 1))))))))) := by
   obtain ⟨f, hf⟩ : ∃ f, ℓ - j = f + 1 := ⟨ℓ - j - 1, by omega⟩
   rw [driverAt, hf, driverAux, driverAt, show ℓ - (j + 1) = f by omega]
 
@@ -2187,18 +2220,33 @@ def BaseMem (B q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) (σ : Env) : 
   ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ ℓ).length),
     BotMem B (tablesAt q_top cap mb φ ℓ)[i] "bb" σ
 
-/-- **The arrays of the bottom**: the representative table and the
-generated evaluator's candidates. A level above the bottom carries them
-because it will eventually run the bottom, and no pass between here and
-there produces them. -/
+/-- **The arrays of the generated evaluator**: the representative table
+of the bottom, and the candidate arrays of *every* depth's formulas. A
+level above the bottom carries them because it will eventually run the
+bottom, and no pass between here and there produces them.
+
+**Rebase B8.** The candidate half is quantified over all depths rather
+than at `ℓ` alone, because `RamDriver.sweepCom` — the level's edgeless
+sweep, which writes the rows of the vertices no turn visits — runs
+`botCom` at the level's *own* depth. This is a strengthening of the
+clause's meaning and not of the driver's surface: `BaseArrs B q_top cap
+mb ℓ φ σ` is textually what it was in every statement that mentions it,
+including `RamDriverRoot.driverRoot_decides_sentence`'s precondition, and
+it is the same kind of clause as `DepthMem` and `TablesSized` — a
+statement that the machine's memory holds the scratch the program
+addresses, true of a fresh machine and unprovable from anything below.
+The representative table stays at `ℓ`: `reprCom` is the base case's
+alone, since the sweep needs it only for unrestricted quantifiers and a
+tabled formula has none. -/
 def BaseArrs (B q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) (σ : Env) : Prop :=
-  Sized [("rep", 2 ^ sigL cap mb ℓ)] σ ∧ BaseMem B q_top cap mb ℓ φ σ
+  Sized [("rep", 2 ^ sigL cap mb ℓ)] σ ∧ ∀ jd : ℕ, BaseMem B q_top cap mb jd φ σ
 
 /-- **The clause survives any run**: every conjunct of it is a length. -/
 theorem BaseArrs.run {B q_top cap mb ℓ : ℕ} {φ : Lax3.FirstOrder.FO 0} {c : Com}
     {σ σ' : Env} {K : ℕ} (h : BaseArrs B q_top cap mb ℓ φ σ) (hr : Run B c σ σ' K) :
     BaseArrs B q_top cap mb ℓ φ σ' :=
-  ⟨h.1.run hr, fun i hi => botMem_of_length (fun a => run_length_arrs hr a) _ "bb" (h.2 i hi)⟩
+  ⟨h.1.run hr,
+    fun jd i hi => botMem_of_length (fun a => run_length_arrs hr a) _ "bb" (h.2 jd i hi)⟩
 
 end BaseMemory
 
@@ -2482,7 +2530,58 @@ def CoverImplements (cap mb ns W j : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ �
         ∃ (Xoff Xmem asg cps : ℕ → ℕ) (m cnum : ℕ),
           CoverHeldAt n j G M π ord cap Xoff Xmem asg m σ' ∧
           σ'.arrs (cpsName j) = arrOf n cps ∧ σ'.vars (cnumName j) = cnum ∧
-          Compacted n cnum m Xoff cps) K
+          Compacted n cnum m M ord Xoff cps) K
+
+/-! ### The dead-row sweep of a level
+
+**Rebase B8.** The obligation that resolves B2's stop. `sweepCom` runs
+between the cover phase and the centre loop, and what it leaves is the
+table row of every vertex the mask has killed — the vertices the
+alive-filtered compaction gives no turn. Its content is the *edgeless*
+reading, because a dead vertex has no incident edge in `masked G M` and
+every tabled formula is local (`Refine.DeadRow.sat_bot_of_dead`,
+`FormulaTables.tableRank_of_mem_tablesAt`).
+
+The postcondition names the five families the level still needs after
+the pass — its own precondition, the output tape, the recorded play's
+two, and the cover's four arrays plus its pointer and the compaction's
+two — because the pass is *between* the cover phase and the loop, so
+everything the cover phase produced has to survive it. It writes the
+depth's tables and its own scratch, and nothing else. -/
+
+/-- **What the sweep leaves**: at every vertex the mask kills, the
+depth's table holds a bit, and the bit is the truth value of the table's
+formula at that vertex in the *masked* arena. Stated in the shape
+`RamDriverCluster.LevelInv`'s own table clause is stated in — given the
+array, the function it is — so the level consumes it without a bridge. -/
+def DeadRows (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) {n : ℕ}
+    (G : SimpleGraph (Fin n)) (j : ℕ) (M : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (σ : Env) : Prop :=
+  ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length) (Tb : ℕ → ℕ),
+    σ.arrs (tabName j i) = arrOf n Tb →
+    ∀ v : Fin n, M (v : ℕ) = 0 →
+      Tb (v : ℕ) ≤ 1 ∧
+      (Tb (v : ℕ) ≠ 0 ↔ Sat (masked G M) (colRead n C (sigL cap mb j)) (fun _ => v)
+        (tablesAt q_top cap mb φ j)[i])
+
+/-- **The dead-row sweep at a level.** That `RamDriver.sweepCom` at the
+depth's own index writes the dead vertices' rows and disturbs nothing
+the level is holding. -/
+def SweepImplements (q_top cap mb ns W ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
+    (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
+  Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧
+      TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ)
+    (sweepCom q_top cap mb j φ)
+    (fun σ σ' => LevelPre B n cap mb ns W O T j M Gm C σ' ∧ σ'.out = σ.out ∧
+      (∀ a : ℕ, σ'.vars (ctrName a) = σ.vars (ctrName a)) ∧
+      (∀ a : ℕ, σ'.arrs (gamName a) = σ.arrs (gamName a)) ∧
+      (∀ a : ℕ, σ'.arrs (ordName a) = σ.arrs (ordName a)) ∧
+      (∀ a : ℕ, σ'.arrs (xofName a) = σ.arrs (xofName a)) ∧
+      (∀ a : ℕ, σ'.arrs (xmmName a) = σ.arrs (xmmName a)) ∧
+      (∀ a : ℕ, σ'.arrs (asgName a) = σ.arrs (asgName a)) ∧
+      (∀ a : ℕ, σ'.vars (xpName a) = σ.vars (xpName a)) ∧
+      (∀ a : ℕ, σ'.arrs (cpsName a) = σ.arrs (cpsName a)) ∧
+      (∀ a : ℕ, σ'.vars (cnumName a) = σ.vars (cnumName a)) ∧
+      DeadRows q_top cap mb φ G j M C σ') K
 
 /-! ### The readback of one cluster
 

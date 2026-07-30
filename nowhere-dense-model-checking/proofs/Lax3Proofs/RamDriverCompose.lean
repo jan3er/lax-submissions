@@ -232,10 +232,12 @@ theorem asgName_ne_asg (j : ℕ) : asgName j ≠ "asg" := by
 
 /-! ### What the cover phase writes -/
 
-theorem warrs_compactCom (j : ℕ) : (compactCom j).warrs = [cpsName j] := rfl
+theorem warrs_compactCom (j : ℕ) : (compactCom j).warrs = [cpsName j] := by
+  simp [compactCom, Com.warrs]
 
 theorem wvars_compactCom (j : ℕ) :
-    (compactCom j).wvars = [cnumName j, "i", cnumName j, "i"] := rfl
+    (compactCom j).wvars = [cnumName j, "i", cnumName j, "i"] := by
+  simp [compactCom, Com.wvars]
 
 theorem warrs_coverPhase (cap j : ℕ) : (coverPhase cap j).warrs =
     ["ord", "alv", "asg", "xoff", "dist", "dist", "q", "dist", "q", "xmem", "asg", "alv",
@@ -544,40 +546,56 @@ contributes at least one member, and the members of the positions below
 `i` all sit below `Xoff i`; at the exit `i = n` that reads
 `cnum ≤ Xoff n = mm`. -/
 
-/-- The invariant of `RamDriver.compactCom`. -/
-def CompInv (n j : ℕ) (Xoff : ℕ → ℕ) (σ : Env) : Prop :=
-  σ.vars "n" = n ∧ σ.arrs (xofName j) = arrOf (n + 1) Xoff ∧ σ.vars "i" ≤ n ∧
+/-- The invariant of `RamDriver.compactCom`. **Rebase B8:** the two
+arrays the aliveness test reads, and the aliveness of every listed
+position, join it. -/
+def CompInv (n j : ℕ) (M ord Xoff : ℕ → ℕ) (σ : Env) : Prop :=
+  σ.vars "n" = n ∧ σ.arrs (xofName j) = arrOf (n + 1) Xoff ∧
+    σ.arrs (alvName j) = arrOf n M ∧ σ.arrs (ordName j) = arrOf n ord ∧ σ.vars "i" ≤ n ∧
     ∃ cps : ℕ → ℕ, σ.arrs (cpsName j) = arrOf n cps ∧
       σ.vars (cnumName j) ≤ σ.vars "i" ∧ σ.vars (cnumName j) ≤ Xoff (σ.vars "i") ∧
-      (∀ k < σ.vars (cnumName j), cps k < σ.vars "i" ∧ Xoff (cps k) < Xoff (cps k + 1)) ∧
+      (∀ k < σ.vars (cnumName j), cps k < σ.vars "i" ∧ Xoff (cps k) < Xoff (cps k + 1) ∧
+        M (ord (cps k)) ≠ 0) ∧
       (∀ k k' : ℕ, k < k' → k' < σ.vars (cnumName j) → cps k < cps k') ∧
-      (∀ c < σ.vars "i", Xoff c < Xoff (c + 1) → ∃ k < σ.vars (cnumName j), cps k = c)
+      (∀ c < σ.vars "i", Xoff c < Xoff (c + 1) → M (ord c) ≠ 0 →
+        ∃ k < σ.vars (cnumName j), cps k = c)
 
 theorem cpsName_ne_xofName (j a : ℕ) : cpsName j ≠ xofName a := by
   simp [cpsName, xofName, String.ext_iff]
 
 /-- **One turn of the compaction scan.** The block at the counter is
-tested for emptiness; if it is not empty the position is appended to the
-list and the count goes up. -/
-theorem compact_body {B n j : ℕ} {Xoff : ℕ → ℕ}
+tested for emptiness and its centre for aliveness; if it is neither empty
+nor dead the position is appended to the list and the count goes up.
+
+**Rebase B8.** The inner test is the whole point of the pass: it is what
+takes the level's turn count off the carrier and onto the *arena*
+(`Refine.ArenaBlock.cnum_le_arenaSize`). The dead positions it drops are
+the ones whose rows `RamDriver.sweepCom` has already written. -/
+theorem compact_body {B n j : ℕ} {M ord Xoff : ℕ → ℕ}
     (hnB : n < B) (hmono : ∀ c < n, Xoff c ≤ Xoff (c + 1))
-    (hXB : ∀ k < n + 1, Xoff k < B) :
-    Spec B (fun σ => CompInv n j Xoff σ ∧ σ.vars "i" < n)
+    (hXB : ∀ k < n + 1, Xoff k < B) (hordlt : ∀ z < n, ord z < n)
+    (hMB : ∀ z < n, M z < B) :
+    Spec B (fun σ => CompInv n j M ord Xoff σ ∧ σ.vars "i" < n)
       (.seq
         (.ite (.lt (.get (xofName j) (.var "i"))
             (.get (xofName j) (.add (.var "i") (.lit 1))))
-          (.seq (.store (cpsName j) (.var (cnumName j)) (.var "i"))
-            (.assign (cnumName j) (.add (.var (cnumName j)) (.lit 1))))
+          (.ite (.lt (.lit 0) (.get (alvName j) (.get (ordName j) (.var "i"))))
+            (.seq (.store (cpsName j) (.var (cnumName j)) (.var "i"))
+              (.assign (cnumName j) (.add (.var (cnumName j)) (.lit 1))))
+            .skip)
           .skip)
         (.assign "i" (.add (.var "i") (.lit 1))))
-      (fun σ σ' => CompInv n j Xoff σ' ∧ σ'.vars "i" = σ.vars "i" + 1) 19 := by
+      (fun σ σ' => CompInv n j M ord Xoff σ' ∧ σ'.vars "i" = σ.vars "i" + 1) 27 := by
   have hnq : ("n" : String) ≠ cnumName j := by simp [cnumName, String.ext_iff]
   have hiq : ("i" : String) ≠ cnumName j := by simp [cnumName, String.ext_iff]
   have hxc : xofName j ≠ cpsName j := by simp [xofName, cpsName, String.ext_iff]
+  have hac : alvName j ≠ cpsName j := by simp [alvName, cpsName, String.ext_iff]
+  have hoc : ordName j ≠ cpsName j := by simp [ordName, cpsName, String.ext_iff]
   refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨⟨hn, hxof, -, cps, hcps, hcle, hcX, hcpslt, hcpsmono, hcov⟩, hlt⟩ := hσ
+  obtain ⟨⟨hn, hxof, halv, hodr, -, cps, hcps, hcle, hcX, hcpslt, hcpsmono, hcov⟩, hlt⟩ := hσ
   have hiB : σ.vars "i" < B := by omega
   have hKB : σ.vars (cnumName j) < B := by omega
+  have hordn : ord (σ.vars "i") < n := hordlt _ hlt
   have he1 : (Expr.get (xofName j) (.var "i")).evalB B σ = some (Xoff (σ.vars "i")) :=
     evalB_get (evalB_var hiB) (by rw [hxof]; exact getElem?_arrOf Xoff (by omega))
       (hXB _ (by omega))
@@ -589,6 +607,12 @@ theorem compact_body {B n j : ℕ} {Xoff : ℕ → ℕ}
   have he2 : (Expr.get (xofName j) (.add (.var "i") (.lit 1))).evalB B σ
       = some (Xoff (σ.vars "i" + 1)) :=
     evalB_get hidx (by rw [hxof]; exact getElem?_arrOf Xoff (by omega)) (hXB _ (by omega))
+  have he3 : (Expr.get (ordName j) (.var "i")).evalB B σ = some (ord (σ.vars "i")) :=
+    evalB_get (evalB_var hiB) (by rw [hodr]; exact getElem?_arrOf ord (by omega))
+      (lt_trans hordn hnB)
+  have he4 : (Expr.get (alvName j) (.get (ordName j) (.var "i"))).evalB B σ
+      = some (M (ord (σ.vars "i"))) :=
+    evalB_get he3 (by rw [halv]; exact getElem?_arrOf M hordn) (hMB _ hordn)
   have hstep : ∀ τ : Env, τ.vars "i" = σ.vars "i" →
       Run B (.assign "i" (.add (.var "i") (.lit 1))) τ
         (τ.setVar "i" (σ.vars "i" + 1)) 4 := by
@@ -599,71 +623,103 @@ theorem compact_body {B n j : ℕ} {Xoff : ℕ → ℕ}
     rw [Bop.apply_add, hτ] at h
     exact h.congr (by simp)
   by_cases hne : Xoff (σ.vars "i") < Xoff (σ.vars "i" + 1)
-  · -- the block is not empty: the position joins the list
-    have hcond : (Cond.lt (Expr.get (xofName j) (.var "i"))
+  · have hcond : (Cond.lt (Expr.get (xofName j) (.var "i"))
         (Expr.get (xofName j) (.add (.var "i") (.lit 1)))).evalB B σ = some true := by
       rw [evalB_condLt he1 he2]; simp [hne]
-    have hst : Run B (.store (cpsName j) (.var (cnumName j)) (.var "i")) σ
-        (σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")) (1 + 1 + 1) :=
-      Run.store (evalB_var hKB) (evalB_var hiB) (by rw [hcps, length_arrOf]; omega)
-    have hbump : Run B (.assign (cnumName j) (.add (.var (cnumName j)) (.lit 1)))
-        (σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i"))
-        ((σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")).setVar (cnumName j)
-          (σ.vars (cnumName j) + 1)) 4 := by
-      have h := Run.assign (B := B)
-        (σ := σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")) (x := cnumName j)
-        (e := .add (.var (cnumName j)) (.lit 1))
-        (evalB_bin (evalB_var (by simpa using hKB)) (evalB_lit (by omega))
-          (by simp only [Bop.apply_add, vars_setArr]; omega))
-      rw [Bop.apply_add, vars_setArr] at h
-      exact h.congr (by simp)
-    have hi₂ : ((σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")).setVar (cnumName j)
-        (σ.vars (cnumName j) + 1)).vars "i" = σ.vars "i" := by simp [hiq]
-    refine ⟨_, _, (Run.ite_true hcond (hst.seq hbump)).seq (hstep _ hi₂), by simp,
-      ?_, by simp⟩
-    -- the invariant, with the position appended
-    have hKρ : (((σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")).setVar
-        (cnumName j) (σ.vars (cnumName j) + 1)).setVar "i" (σ.vars "i" + 1)).vars
-        (cnumName j) = σ.vars (cnumName j) + 1 := by simp [Ne.symm hiq]
-    have hIρ : (((σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")).setVar
-        (cnumName j) (σ.vars (cnumName j) + 1)).setVar "i" (σ.vars "i" + 1)).vars "i"
-        = σ.vars "i" + 1 := by simp
-    refine ⟨by simp [hnq, hn], by simp [hxc, hxof], by rw [hIρ]; omega,
-      fun k => if k = σ.vars (cnumName j) then σ.vars "i" else cps k,
-      by simp [hcps, set_arrOf], by rw [hKρ, hIρ]; omega,
-      by rw [hKρ, hIρ]; omega, ?_, ?_, ?_⟩
-    · intro k hk
-      rw [hKρ] at hk
-      rw [hIρ]
-      by_cases hkK : k = σ.vars (cnumName j)
-      · subst hkK
-        refine ⟨by simp, ?_⟩
-        simp only [if_pos rfl]
-        exact hne
-      · have h₁ := (hcpslt k (by omega)).1
-        have h₂ := (hcpslt k (by omega)).2
-        refine ⟨by simp only [if_neg hkK]; omega, ?_⟩
-        simp only [if_neg hkK]
-        exact h₂
-    · intro k k' hkk hk'
-      rw [hKρ] at hk'
-      by_cases hk'K : k' = σ.vars (cnumName j)
-      · have h₁ := (hcpslt k (by omega)).1
-        simp only [if_pos hk'K, if_neg (show k ≠ σ.vars (cnumName j) by omega)]
-        omega
-      · simp only [if_neg hk'K, if_neg (show k ≠ σ.vars (cnumName j) by omega)]
-        exact hcpsmono k k' hkk (by omega)
-    · intro c hc hnec
-      rw [hIρ] at hc
-      rw [hKρ]
-      by_cases hci : c = σ.vars "i"
-      · refine ⟨σ.vars (cnumName j), by omega, ?_⟩
-        simp only [if_pos rfl]
-        exact hci.symm
-      · obtain ⟨k, hk, hkc⟩ := hcov c (by omega) hnec
-        refine ⟨k, by omega, ?_⟩
-        simp only [if_neg (show k ≠ σ.vars (cnumName j) by omega)]
-        exact hkc
+    by_cases hal : M (ord (σ.vars "i")) = 0
+    · -- the centre is dead: the position is skipped
+      have hcond2 : (Cond.lt (Expr.lit 0)
+          (Expr.get (alvName j) (.get (ordName j) (.var "i")))).evalB B σ = some false := by
+        rw [evalB_condLt (evalB_lit (by omega)) he4]; simp [hal]
+      refine ⟨_, _, (Run.ite_true hcond (Run.ite_false hcond2 Run.skip)).seq (hstep σ rfl),
+        by simp, ?_, by simp⟩
+      have hKρ : (σ.setVar "i" (σ.vars "i" + 1)).vars (cnumName j) = σ.vars (cnumName j) := by
+        simp [Ne.symm hiq]
+      have hIρ : (σ.setVar "i" (σ.vars "i" + 1)).vars "i" = σ.vars "i" + 1 := by simp
+      refine ⟨by simp [hnq, hn], by simp [hxof], by simp [halv], by simp [hodr],
+        by rw [hIρ]; omega, cps, by simp [hcps], by rw [hKρ, hIρ]; omega,
+        by rw [hKρ, hIρ]; exact le_trans hcX (hmono _ (by omega)), ?_, ?_, ?_⟩
+      · intro k hk
+        rw [hKρ] at hk
+        rw [hIρ]
+        exact ⟨by have := (hcpslt k hk).1; omega, (hcpslt k hk).2.1, (hcpslt k hk).2.2⟩
+      · intro k k' hkk hk'
+        rw [hKρ] at hk'
+        exact hcpsmono k k' hkk hk'
+      · intro c hc hnec hala
+        rw [hIρ] at hc
+        rw [hKρ]
+        refine hcov c ?_ hnec hala
+        rcases Nat.lt_or_ge c (σ.vars "i") with h | h
+        · exact h
+        · exact absurd (show M (ord c) = 0 by rw [show c = σ.vars "i" by omega]; exact hal) hala
+    · -- the block is not empty and the centre is alive: the position joins the list
+      have hcond2 : (Cond.lt (Expr.lit 0)
+          (Expr.get (alvName j) (.get (ordName j) (.var "i")))).evalB B σ = some true := by
+        rw [evalB_condLt (evalB_lit (by omega)) he4]; simp; omega
+      have hst : Run B (.store (cpsName j) (.var (cnumName j)) (.var "i")) σ
+          (σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")) (1 + 1 + 1) :=
+        Run.store (evalB_var hKB) (evalB_var hiB) (by rw [hcps, length_arrOf]; omega)
+      have hbump : Run B (.assign (cnumName j) (.add (.var (cnumName j)) (.lit 1)))
+          (σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i"))
+          ((σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")).setVar (cnumName j)
+            (σ.vars (cnumName j) + 1)) 4 := by
+        have h := Run.assign (B := B)
+          (σ := σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")) (x := cnumName j)
+          (e := .add (.var (cnumName j)) (.lit 1))
+          (evalB_bin (evalB_var (by simpa using hKB)) (evalB_lit (by omega))
+            (by simp only [Bop.apply_add, vars_setArr]; omega))
+        rw [Bop.apply_add, vars_setArr] at h
+        exact h.congr (by simp)
+      have hi₂ : ((σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")).setVar (cnumName j)
+          (σ.vars (cnumName j) + 1)).vars "i" = σ.vars "i" := by simp [hiq]
+      refine ⟨_, _,
+        (Run.ite_true hcond (Run.ite_true hcond2 (hst.seq hbump))).seq (hstep _ hi₂), by simp,
+        ?_, by simp⟩
+      have hKρ : (((σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")).setVar
+          (cnumName j) (σ.vars (cnumName j) + 1)).setVar "i" (σ.vars "i" + 1)).vars
+          (cnumName j) = σ.vars (cnumName j) + 1 := by simp [Ne.symm hiq]
+      have hIρ : (((σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")).setVar
+          (cnumName j) (σ.vars (cnumName j) + 1)).setVar "i" (σ.vars "i" + 1)).vars "i"
+          = σ.vars "i" + 1 := by simp
+      refine ⟨by simp [hnq, hn], by simp [hxc, hxof], by simp [hac, halv], by simp [hoc, hodr],
+        by rw [hIρ]; omega,
+        fun k => if k = σ.vars (cnumName j) then σ.vars "i" else cps k,
+        by simp [hcps, set_arrOf], by rw [hKρ, hIρ]; omega,
+        by rw [hKρ, hIρ]; omega, ?_, ?_, ?_⟩
+      · intro k hk
+        rw [hKρ] at hk
+        rw [hIρ]
+        by_cases hkK : k = σ.vars (cnumName j)
+        · subst hkK
+          refine ⟨by simp, ?_, ?_⟩
+          · simp only [if_pos rfl]; exact hne
+          · simp only [if_pos rfl]; exact hal
+        · have h₁ := (hcpslt k (by omega)).1
+          have h₂ := (hcpslt k (by omega)).2.1
+          have h₃ := (hcpslt k (by omega)).2.2
+          refine ⟨by simp only [if_neg hkK]; omega, ?_, ?_⟩
+          · simp only [if_neg hkK]; exact h₂
+          · simp only [if_neg hkK]; exact h₃
+      · intro k k' hkk hk'
+        rw [hKρ] at hk'
+        by_cases hk'K : k' = σ.vars (cnumName j)
+        · have h₁ := (hcpslt k (by omega)).1
+          simp only [if_pos hk'K, if_neg (show k ≠ σ.vars (cnumName j) by omega)]
+          omega
+        · simp only [if_neg hk'K, if_neg (show k ≠ σ.vars (cnumName j) by omega)]
+          exact hcpsmono k k' hkk (by omega)
+      · intro c hc hnec hala
+        rw [hIρ] at hc
+        rw [hKρ]
+        by_cases hci : c = σ.vars "i"
+        · refine ⟨σ.vars (cnumName j), by omega, ?_⟩
+          simp only [if_pos rfl]
+          exact hci.symm
+        · obtain ⟨k, hk, hkc⟩ := hcov c (by omega) hnec hala
+          refine ⟨k, by omega, ?_⟩
+          simp only [if_neg (show k ≠ σ.vars (cnumName j) by omega)]
+          exact hkc
   · -- the block is empty: the position is skipped
     have hle : Xoff (σ.vars "i" + 1) = Xoff (σ.vars "i") :=
       le_antisymm (by omega) (hmono _ (by omega))
@@ -674,19 +730,20 @@ theorem compact_body {B n j : ℕ} {Xoff : ℕ → ℕ}
     have hKρ : (σ.setVar "i" (σ.vars "i" + 1)).vars (cnumName j) = σ.vars (cnumName j) := by
       simp [Ne.symm hiq]
     have hIρ : (σ.setVar "i" (σ.vars "i" + 1)).vars "i" = σ.vars "i" + 1 := by simp
-    refine ⟨by simp [hnq, hn], by simp [hxof], by rw [hIρ]; omega, cps,
+    refine ⟨by simp [hnq, hn], by simp [hxof], by simp [halv], by simp [hodr],
+      by rw [hIρ]; omega, cps,
       by simp [hcps], by rw [hKρ, hIρ]; omega, by rw [hKρ, hIρ, hle]; exact hcX, ?_, ?_, ?_⟩
     · intro k hk
       rw [hKρ] at hk
       rw [hIρ]
-      exact ⟨by have := (hcpslt k hk).1; omega, (hcpslt k hk).2⟩
+      exact ⟨by have := (hcpslt k hk).1; omega, (hcpslt k hk).2.1, (hcpslt k hk).2.2⟩
     · intro k k' hkk hk'
       rw [hKρ] at hk'
       exact hcpsmono k k' hkk hk'
-    · intro c hc hnec
+    · intro c hc hnec hala
       rw [hIρ] at hc
       rw [hKρ]
-      refine hcov c ?_ hnec
+      refine hcov c ?_ hnec hala
       rcases Nat.lt_or_ge c (σ.vars "i") with h | h
       · exact h
       · exact absurd (show Xoff (σ.vars "i") < Xoff (σ.vars "i" + 1) by
@@ -694,47 +751,55 @@ theorem compact_body {B n j : ℕ} {Xoff : ℕ → ℕ}
 
 /-- The cost of the compaction scan: one carrier-width pass, whose turn
 is a two-sided test and, at most, a store and two increments. -/
-def compactCost (n : ℕ) : ℕ := 23 * n + 8
+def compactCost (n : ℕ) : ℕ := 31 * n + 8
 
 /-- **The compaction scan, discharged.** What it leaves is
-`RamDriver.Compacted` at the depth's own two names. -/
-theorem compact_spec {B n j : ℕ} {Xoff : ℕ → ℕ}
+`RamDriver.Compacted` at the depth's own two names — with the aliveness
+clause of rebase B8, which is what makes the level's turn count a
+statement about the *arena* and not about the carrier. -/
+theorem compact_spec {B n j : ℕ} {M ord Xoff : ℕ → ℕ}
     (hnB : n < B) (hmono : ∀ c < n, Xoff c ≤ Xoff (c + 1))
-    (hXB : ∀ k < n + 1, Xoff k < B) :
+    (hXB : ∀ k < n + 1, Xoff k < B) (hordlt : ∀ z < n, ord z < n)
+    (hMB : ∀ z < n, M z < B) :
     Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs (xofName j) = arrOf (n + 1) Xoff ∧
+        σ.arrs (alvName j) = arrOf n M ∧ σ.arrs (ordName j) = arrOf n ord ∧
         ∃ g : ℕ → ℕ, σ.arrs (cpsName j) = arrOf n g)
       (compactCom j)
       (fun _ σ' => σ'.vars "n" = n ∧ σ'.arrs (xofName j) = arrOf (n + 1) Xoff ∧
         ∃ cps : ℕ → ℕ, σ'.arrs (cpsName j) = arrOf n cps ∧
-          Compacted n (σ'.vars (cnumName j)) (Xoff n) Xoff cps)
+          Compacted n (σ'.vars (cnumName j)) (Xoff n) M ord Xoff cps)
       (compactCost n) := by
   have hnq : ("n" : String) ≠ cnumName j := by simp [cnumName, String.ext_iff]
   have hiq : ("i" : String) ≠ cnumName j := by simp [cnumName, String.ext_iff]
-  have hloop := Spec.forRangeZero (B := B) "i" "n" (CompInv n j Xoff) n 19 hnB
-    (fun _ hτ => hτ.2.2.1) (fun _ hτ => hτ.1) (compact_body hnB hmono hXB)
+  have hloop := Spec.forRangeZero (B := B) "i" "n" (CompInv n j M ord Xoff) n 27 hnB
+    (fun _ hτ => hτ.2.2.2.2.1) (fun _ hτ => hτ.1)
+    (compact_body hnB hmono hXB hordlt hMB)
   refine (Spec.seq (Spec.assign (B := B) (P := fun σ => σ.vars "n" = n ∧
-        σ.arrs (xofName j) = arrOf (n + 1) Xoff ∧ ∃ g : ℕ → ℕ, σ.arrs (cpsName j) = arrOf n g)
+        σ.arrs (xofName j) = arrOf (n + 1) Xoff ∧ σ.arrs (alvName j) = arrOf n M ∧
+        σ.arrs (ordName j) = arrOf n ord ∧ ∃ g : ℕ → ℕ, σ.arrs (cpsName j) = arrOf n g)
       (x := cnumName j) (e := .lit 0) (f := fun _ => 0)
       (fun _ _ => evalB_lit (by omega)))
     hloop ?_ ?_).mono (by rw [compactCost]; simp only [size_lit]; omega)
   · -- the invariant holds once both counters are zeroed
-    rintro σ σ' ⟨hn, hxof, g, hg⟩ rfl
-    refine ⟨by simp [hnq, hn], by simpa using hxof, by simp, g, by simpa using hg,
+    rintro σ σ' ⟨hn, hxof, halv, hodr, g, hg⟩ rfl
+    refine ⟨by simp [hnq, hn], by simpa using hxof, by simpa using halv, by simpa using hodr,
+      by simp, g, by simpa using hg,
       by simp [Ne.symm hiq], by simp [Ne.symm hiq], ?_, ?_, ?_⟩
     · intro k hk; simp [Ne.symm hiq] at hk
     · intro k k' _ hk'; simp [Ne.symm hiq] at hk'
     · intro c hc; simp at hc
-  · rintro σ σ' σ'' - - ⟨⟨hn'', hxof'', -, cps, hcps, hcle, hcX, hcpslt, hcpsmono, hcov⟩,
-      hi''⟩
+  · rintro σ σ' σ'' - -
+      ⟨⟨hn'', hxof'', -, -, -, cps, hcps, hcle, hcX, hcpslt, hcpsmono, hcov⟩, hi''⟩
     rw [hi''] at hcle hcX hcpslt hcov
     exact ⟨hn'', hxof'', cps, hcps,
-      ⟨hcX, hcle, fun k hk => (hcpslt k hk).1, hcpsmono, fun k hk => (hcpslt k hk).2, hcov⟩⟩
+      ⟨hcX, hcle, fun k hk => (hcpslt k hk).1, hcpsmono, fun k hk => (hcpslt k hk).2.1,
+        fun k hk => (hcpslt k hk).2.2, hcov⟩⟩
 
 /-- The cost of the cover phase: the pass, the two copies that set it
 up, the four of `RamDriver.coverSave` — the member copy charged at the
 whole cluster arena — and the compaction scan. -/
 def coverPhaseCost (n ns : ℕ) : ℕ :=
-  RamCover.coverCost n ns + 12 * (n * n) + 73 * n + 56
+  RamCover.coverCost n ns + 12 * (n * n) + 81 * n + 56
 
 /-- **The cover phase of a level, discharged.** -/
 theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
@@ -859,9 +924,34 @@ theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin 
     exact hvn₅
   have hdepρ : DepthMem n cap mb ρ := (hdep₅.run hr₆).setVar _ _
   -- the compaction scan
+  have halvρ : ρ.arrs (alvName j) = arrOf n M := by
+    rw [hρ, arrs_setVar,
+      hr₆.frame_arr _ (by rw [warrs_copyCom]; simp [alvName, asgName, String.ext_iff]),
+      hr₅.frame_arr _ (by rw [warrs_copyUpto]; simp [alvName, xmmName, String.ext_iff]),
+      hr₄.frame_arr _ (by rw [warrs_copyUpto]; simp [alvName, xofName, String.ext_iff]),
+      hr₃.frame_arr _ (by
+        rw [warrs_coverCom]
+        simp only [List.mem_cons, List.not_mem_nil, or_false]
+        push_neg
+        refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+          first
+            | exact alvName_ne_alv j
+            | simp [alvName, String.ext_iff]),
+      hr₂.frame_arr _ (by rw [warrs_copyCom]; simpa using alvName_ne_alv j),
+      hr₁.frame_arr _ (by rw [warrs_copyCom]; simp [alvName, String.ext_iff])]
+    exact halvj
+  have hordρ : ρ.arrs (ordName j) = arrOf n ord := by
+    rw [hρ, arrs_setVar,
+      hr₆.frame_arr _ (by rw [warrs_copyCom]; simp [ordName, asgName, String.ext_iff]),
+      hr₅.frame_arr _ (by rw [warrs_copyUpto]; simp [ordName, xmmName, String.ext_iff]),
+      hr₄.frame_arr _ (by rw [warrs_copyUpto]; simp [ordName, xofName, String.ext_iff]),
+      hr₃.frame_arr _ (by rw [warrs_coverCom]; simp [ordName, String.ext_iff]),
+      hr₂.frame_arr _ (by rw [warrs_copyCom]; simp [ordName, String.ext_iff]),
+      hr₁.frame_arr _ (by rw [warrs_copyCom]; simp [ordName, String.ext_iff])]
+    exact hordarr
   obtain ⟨σ₈, hr₈, hvn₈, hxof₈, cps, hcps₈, hcompact⟩ :=
-    (compact_spec (B := B) (j := j) hnB hout.mono hXoffB).run
-      (σ := ρ) ⟨hvnρ, hxofρ, hdepρ.get j (p := (cpsName j, n)) (by simp)⟩
+    (compact_spec (B := B) (j := j) hnB hout.mono hXoffB hordlt hMB).run
+      (σ := ρ) ⟨hvnρ, hxofρ, halvρ, hordρ, hdepρ.get j (p := (cpsName j, n)) (by simp)⟩
   -- the phase, assembled
   have hrS : Run B (coverSave j) σ₃ ρ _ := hr₄.seq (hr₅.seq (hr₆.seq hr₇))
   refine ⟨σ₈, _,
@@ -945,7 +1035,7 @@ theorem baseImplements {n : ℕ} {B q_top cap mb ns W ℓ : ℕ} {φ : Lax3.Firs
   obtain ⟨hlev, hts, hbarr⟩ := hσ
   obtain ⟨σ', hrun, htab⟩ :=
     (RamDriverBot.base_spec hB.one_lt hB.n_lt hL hbit hlocal).run
-      ⟨hlev.1, hlev.2.2.2.2.2.1, hbarr.2,
+      ⟨hlev.1, hlev.2.2.2.2.2.1, hbarr.2 ℓ,
         hbarr.1.get (p := ("rep", 2 ^ sigL cap mb ℓ)) (by simp),
         fun i hi => hts.get ℓ hi⟩
   refine ⟨σ', _, hrun, le_rfl,

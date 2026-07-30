@@ -32,24 +32,32 @@ them is about the machine:
 `Refine.MassAlive.aliveMass_le` and delivers, in one term, exactly the
 pair `RamDriverCluster.levelImplements` takes as its `hmass`.
 
-# The one clause that is missing, and why it is not added here
+# The clause that was missing, and how it was supplied (B8)
 
-Everything above is hypothetical on `halv : ∀ k < cnum, A₀ (ord (cps k)) ≠ 0`
-— the compaction lists live centres. B3's `RamDriver.compactCom` filters
-on *non-empty block* instead, and `MassAlive.block_nonempty` says every
-block of a cover output is non-empty, so B3's list is the whole carrier
-(`MassAlive.cnum_eq_of_nonempty`) and `halv` is not available. Adding
-the aliveness test to `compactCom` is one nested `ite`; what it costs is
-not the walk but the **induction**, and
+Everything above is hypothetical on `∀ k < cnum, A₀ (ord (cps k)) ≠ 0`
+— the compaction lists live centres. B3's `RamDriver.compactCom`
+filtered on *non-empty block* instead, and `MassAlive.block_nonempty`
+says every block of a cover output is non-empty, so B3's list was the
+whole carrier (`MassAlive.cnum_eq_of_nonempty`) and the clause was not
+available. Adding the aliveness test to `compactCom` is one nested
+`ite`; what it cost was not the walk but the **induction**, and
 `dead_vertex_has_no_alive_turn` below compiles the reason: a vertex lies
 in its assigned centre's cluster, clusters are alive-homogeneous
 (`MassAlive.inCluster_alive_iff`), so an alive-filtered list omits
 exactly the *dead* vertices' positions — while
 `RamDriverCluster.levelImplements`' partition step needs every carrier
-vertex to have had a turn (`RamDriver.TableInv` quantifies over all of
-them, and a turn's readback reads the depth-`(j+1)` table at cluster
-vertices the batch has killed). A dead-vertex path in the level is a
-semantic addition to the induction, so it is reported and not taken.
+vertex's table row (`RamDriver.TableInv` quantifies over all of them,
+and a turn's readback reads the depth-`(j+1)` table at cluster vertices
+the batch has killed).
+
+Wave B8 supplies the row without the turn. On the arena a dead vertex
+sees, nothing happens — it has no incident edge, so a *local* formula at
+it is decided by the edgeless reading (`Refine.DeadRow.sat_bot_of_dead`)
+— and `RamDriver.sweepCom`, the base case's own vertex walk run at the
+level's depth, writes exactly that. So `Compacted` now carries `alive`
+as a clause, `mass_of_alive_compaction` takes no side hypothesis at all,
+and the level's partition splits: the alive vertices by their turn, the
+dead ones by the sweep.
 
 Everything here is a statement about counting, not about a program; all
 of it was `#guard`-checked on degenerate covers before it was proved.
@@ -177,16 +185,18 @@ turn count under the arena size, and the turns' sub-arenas under
 Its hypotheses are the cover pass's own postcondition
 (`RamCover.CoverOut`, `OrdersBy`), the block injectivity of B6/B4
 (`MassMath.BlockInj`), the cover-degree bound of B5
-(`CoverDegree.exists_cover_degree`'s conclusion), and `halv` — the one
-clause `RamDriver.compactCom` does not yet establish, see the header. -/
+(`CoverDegree.exists_cover_degree`'s conclusion) and the compaction
+itself — **and nothing else**: `Compacted.alive` is now a clause of the
+compaction (wave B8), so the side hypothesis this theorem used to carry
+has become part of what `RamDriver.compactCom` proves. -/
 theorem mass_of_alive_compaction {cnum d : ℕ} (hord : OrdersBy n π ord)
     (h : CoverOut G A₀ π ord r m Xoff Xmem asg) (hinj : MassMath.BlockInj n Xoff Xmem)
     (hk : ∀ v : Fin n, (Lax12.ColoringNumbers.wreach (masked G A₀) π (2 * r) v).ncard ≤ d)
-    (hcomp : Compacted n cnum m Xoff cps) (halv : ∀ k < cnum, A₀ (ord (cps k)) ≠ 0) :
+    (hcomp : Compacted n cnum m A₀ ord Xoff cps) :
     cnum ≤ arenaSize n A₀ ∧
       (∑ k ∈ range cnum, blockSize Xoff (cps k)) ≤ d * (arenaSize n A₀ + 1) :=
-  ⟨cnum_le_arenaSize hord hcomp.lt hcomp.mono halv,
-    MassAlive.sum_blockSize_cps_le_mass_shape hord h hinj hk hcomp.mono hcomp.lt halv⟩
+  ⟨cnum_le_arenaSize hord hcomp.lt hcomp.mono hcomp.alive,
+    MassAlive.sum_blockSize_cps_le_mass_shape hord h hinj hk hcomp.mono hcomp.lt hcomp.alive⟩
 
 /-! ### The blocker, compiled -/
 

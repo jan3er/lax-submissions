@@ -1,5 +1,6 @@
 import Lax3Proofs.RamDriverWrites
 import Lax3Proofs.RamDriverAugment
+import Lax3Proofs.Refine.DeadSweep
 
 /-!
 **The end of the RAM chain**: `RamDriver.driverRoot`, at `R = 0`,
@@ -254,7 +255,7 @@ section Level
 
 variable {n : ℕ} {B q_top cap mb ns W ℓ s Kmass : ℕ} {N : ℕ → ℕ}
   {φ : Lax3.FirstOrder.FO 0} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
-  {Kb : ℕ} {Ki Ksc : ℕ → ℕ} {Ko Kc Ks Kl : ℕ → ℕ → ℕ}
+  {Kb : ℕ} {Ki Ksc : ℕ → ℕ} {Ko Kc Kd Ks Kl : ℕ → ℕ → ℕ}
 
 open Classical in
 /-- **Every level of the driver, discharged**, at `R = 0`.
@@ -262,11 +263,19 @@ open Classical in
 **Rebase B2.** Every cost is read at a size, so the two phase costs get
 their own parameters `Ko`/`Kc` with the landed walks' constants as their
 side conditions `hKo`/`hKc` — they were unified against the constants
-before, which the size slot no longer permits. `hmass` is the mass
-mathematics of brief B6, threaded parametrically until B4's block-driven
-cover pass exists; `hKl` is the level condition in the Σ shape, which
-`levelCost_of_sigma` below produces from
-`CostRecurrence.exists_driverCostsSigma`. -/
+before, which the size slot no longer permits. `hKl` is the level
+condition in the Σ shape, which `levelCost_of_sigma` below produces from
+`CostRecurrence.exists_driverCostsSigma`.
+
+**Rebase B8.** The level has a third carrier-width phase, the dead-row
+sweep, with its own size-read parameter `Kd` and side condition `hKd`;
+`Refine.DeadSweep.sweepImplements` is the walk. And `hmass` is **gone**:
+the mass mathematics is no longer threaded as an opaque bundle but
+*derived*, by `Refine.ArenaBlock.mass_of_alive_compaction`, from the two
+facts it actually needs — the cover's block injectivity `hbinj` and the
+cover-degree bound `hdeg`. That is what the compaction's new `alive`
+clause buys: the Σ interface now reads the turn count against the
+**arena** rather than against the carrier. -/
 theorem levelAt
     (hcap : cap = rhoMinus 0 q_top) (hmb : mb = ℓ * (2 * cap + 1)) (hℓ : ℓ = N (2 * s + 2))
     (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B) (hpow : 2 ^ sigL cap mb ℓ < B)
@@ -286,14 +295,15 @@ theorem levelAt
     (hKbase : ∀ m, RamDriverBot.baseCost q_top cap mb ℓ n φ ≤ Kl ℓ m)
     (hKo : ∀ j m, RamDriverCompose.orderPhaseCost n ns W ≤ Ko j m)
     (hKc : ∀ j m, RamDriverCompose.coverPhaseCost n ns ≤ Kc j m)
-    (hmass : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg cps : ℕ → ℕ)
-        (mm cnum : ℕ), RamCover.OrdersBy n π ord →
-      RamCover.CoverOut G M π ord cap mm Xoff Xmem asg → Compacted n cnum mm Xoff cps →
-      cnum ≤ arenaSize n M ∧
-        (∑ k ∈ Finset.range cnum, blockSize Xoff (cps k)) ≤ Kmass * (arenaSize n M + 1))
+    (hKd : ∀ j m, Refine.DeadSweep.sweepCost q_top cap mb j n φ ≤ Kd j m)
+    (hbinj : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (mm : ℕ),
+      RamCover.CoverOut G M π ord cap mm Xoff Xmem asg → Refine.MassMath.BlockInj n Xoff Xmem)
+    (hdeg : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (v : Fin n),
+      (Lax12.ColoringNumbers.wreach (RamBfs.masked G M) π (2 * cap) v).ncard ≤ Kmass)
     (hKl : ∀ j < ℓ, ∀ m t : ℕ, t ≤ m → ∀ bs : ℕ → ℕ,
       (∑ c ∈ Finset.range t, bs c) ≤ Kmass * (m + 1) →
-      Ko j m + (Kc j m + ((∑ c ∈ Finset.range t, (Ks j (bs c) + 11)) + 6)) ≤ Kl j m) :
+      Ko j m + (Kc j m + (Kd j m + ((∑ c ∈ Finset.range t, (Ks j (bs c) + 11)) + 6)))
+        ≤ Kl j m) :
     ∀ j ≤ ℓ, ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
       LevelImplements B q_top cap mb 0 ℓ W ns j φ G O T M Gm C (Kl j (arenaSize n M)) :=
   RamDriverCluster.levelImplements hB hWB hcsr
@@ -317,7 +327,12 @@ theorem levelAt
       clusterFramesAt hmb hj hB hcsr.csr (hbnd j hj) (hcostI j hj) (hKsc j hj)
         (hKmono (j + 1)) (hKs j hj _))
     (fun _ _ => loopFrames)
-    hmass hKl
+    (fun j _ M _ _ =>
+      (Refine.DeadSweep.sweepImplements (jd := j) hB).mono (hKd j (arenaSize n M)))
+    (fun M π ord Xoff Xmem asg cps mm cnum hordby hout hcomp =>
+      Refine.ArenaBlock.mass_of_alive_compaction hordby hout
+        (hbinj M π ord Xoff Xmem asg mm hout) (hdeg M π) hcomp)
+    hKl
 
 end Level
 
@@ -345,15 +360,24 @@ turn and it is absorbed **here**, in the thread, not in the solver:
 `turnCostSize … + 3`, which makes `hshift` its own turn clause.
 
 The solver stays canonical (B6's minimality), and the driver's interface
-stays the one its loop actually produces. -/
-theorem levelCost_of_sigma {Ko Kc Ks Kt Kl : ℕ → ℕ → ℕ}
+stays the one its loop actually produces.
+
+**Rebase B8.** The level has a third carrier-width phase — the dead-row
+sweep — and it is absorbed on the *cover* side of the solver's two-phase
+shape: the solver is applied with `Kc j m + Kd j m` where it expects the
+cover's constant. Nothing about the solver changes; the sweep is a phase
+constant read at the arena's size, exactly like `Ko` and `Kc`, and like
+them it inherits the touched-only debt (R1.6). -/
+theorem levelCost_of_sigma {Ko Kc Kd Ks Kt Kl : ℕ → ℕ → ℕ}
     (hshift : ∀ j s, Ks j s + 3 ≤ Kt j s)
     (hsolve : ∀ j < ℓ, ∀ m t : ℕ, t ≤ m → ∀ bs : ℕ → ℕ,
       (∑ c ∈ Finset.range t, bs c) ≤ D * (m + 1) →
-      Ko j m + (Kc j m + ((∑ c ∈ Finset.range t, (Kt j (bs c) + 8)) + 6)) ≤ Kl j m) :
+      Ko j m + ((Kc j m + Kd j m) + ((∑ c ∈ Finset.range t, (Kt j (bs c) + 8)) + 6))
+        ≤ Kl j m) :
     ∀ j < ℓ, ∀ m t : ℕ, t ≤ m → ∀ bs : ℕ → ℕ,
       (∑ c ∈ Finset.range t, bs c) ≤ D * (m + 1) →
-      Ko j m + (Kc j m + ((∑ c ∈ Finset.range t, (Ks j (bs c) + 11)) + 6)) ≤ Kl j m := by
+      Ko j m + (Kc j m + (Kd j m + ((∑ c ∈ Finset.range t, (Ks j (bs c) + 11)) + 6)))
+        ≤ Kl j m := by
   intro j hj m t htm bs hbs
   have hsum : (∑ c ∈ Finset.range t, (Ks j (bs c) + 11)) ≤
       ∑ c ∈ Finset.range t, (Kt j (bs c) + 8) :=
@@ -371,12 +395,13 @@ the same statement.
 
 This is what keeps B4, B5 and B7 unblocked while the leaves are still
 carrier-driven: they may supply size-blind costs and lose nothing. -/
-theorem uniform_recovers_level {n : ℕ} {Ko Kc Ks Kl : ℕ → ℕ}
-    (huni : ∀ j < ℓ, Ko j + (Kc j + ((Ks j + 11) * n + 6)) ≤ Kl j) :
+theorem uniform_recovers_level {n : ℕ} {Ko Kc Kd Ks Kl : ℕ → ℕ}
+    (huni : ∀ j < ℓ, Ko j + (Kc j + (Kd j + ((Ks j + 11) * n + 6))) ≤ Kl j) :
     ∀ j < ℓ, ∀ m t : ℕ, t ≤ m → m ≤ n → ∀ bs : ℕ → ℕ,
       (fun (j : ℕ) (_ : ℕ) => Ko j) j m +
         ((fun (j : ℕ) (_ : ℕ) => Kc j) j m +
-          ((∑ c ∈ Finset.range t, ((fun (j : ℕ) (_ : ℕ) => Ks j) j (bs c) + 11)) + 6))
+          ((fun (j : ℕ) (_ : ℕ) => Kd j) j m +
+            ((∑ c ∈ Finset.range t, ((fun (j : ℕ) (_ : ℕ) => Ks j) j (bs c) + 11)) + 6)))
         ≤ (fun (j : ℕ) (_ : ℕ) => Kl j) j m := by
   intro j hj m t htm hmn bs
   have hconst : (∑ _c ∈ Finset.range t, (Ks j + 11)) = (Ks j + 11) * t := by
@@ -395,7 +420,7 @@ section Main
 
 variable {n : ℕ} {B q_top cap mb ns W ℓ s Kmass : ℕ} {N : ℕ → ℕ}
   {φ : Lax3.FirstOrder.FO 0} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ} {x : List ℕ}
-  {Kb Kb₀ Ki₀ Kdec Ksent : ℕ} {Ki Ksc : ℕ → ℕ} {Ko Kc Ks Kl : ℕ → ℕ → ℕ}
+  {Kb Kb₀ Ki₀ Kdec Ksent : ℕ} {Ki Ksc : ℕ → ℕ} {Ko Kc Kd Ks Kl : ℕ → ℕ → ℕ}
 
 open Classical in
 /-- **The RAM driver decides the model-checking answer.**
@@ -415,7 +440,9 @@ postcondition are **byte-identical** to what they were; the cost is
 `Kl 0 n` because a level's budget is now a function of the size of the
 arena it runs on and the root's mask kills nothing
 (`RamDriver.arenaSize_of_all_alive`). `hKs`/`hKl` are the §5.7/§5.6
-shapes, and `hKmono`/`hmass` are new. -/
+shapes, `hKmono` is new, and — rebase B8 — the mass bundle `hmass` has
+become the two facts it is derived from (`hbinj`, `hdeg`) while the
+level gains its dead-row sweep (`hKd`). The conclusion is untouched. -/
 theorem driverRoot_decides_sentence
     -- the input word
     (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
@@ -442,14 +469,15 @@ theorem driverRoot_decides_sentence
     (hKbase : ∀ m, RamDriverBot.baseCost q_top cap mb ℓ n φ ≤ Kl ℓ m)
     (hKo : ∀ j m, RamDriverCompose.orderPhaseCost n ns W ≤ Ko j m)
     (hKc : ∀ j m, RamDriverCompose.coverPhaseCost n ns ≤ Kc j m)
-    (hmass : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg cps : ℕ → ℕ)
-        (mm cnum : ℕ), RamCover.OrdersBy n π ord →
-      RamCover.CoverOut G M π ord cap mm Xoff Xmem asg → Compacted n cnum mm Xoff cps →
-      cnum ≤ arenaSize n M ∧
-        (∑ k ∈ Finset.range cnum, blockSize Xoff (cps k)) ≤ Kmass * (arenaSize n M + 1))
+    (hKd : ∀ j m, Refine.DeadSweep.sweepCost q_top cap mb j n φ ≤ Kd j m)
+    (hbinj : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (mm : ℕ),
+      RamCover.CoverOut G M π ord cap mm Xoff Xmem asg → Refine.MassMath.BlockInj n Xoff Xmem)
+    (hdeg : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (v : Fin n),
+      (Lax12.ColoringNumbers.wreach (RamBfs.masked G M) π (2 * cap) v).ncard ≤ Kmass)
     (hKl : ∀ j < ℓ, ∀ m t : ℕ, t ≤ m → ∀ bs : ℕ → ℕ,
       (∑ c ∈ Finset.range t, bs c) ≤ Kmass * (m + 1) →
-      Ko j m + (Kc j m + ((∑ c ∈ Finset.range t, (Ks j (bs c) + 11)) + 6)) ≤ Kl j m)
+      Ko j m + (Kc j m + (Kd j m + ((∑ c ∈ Finset.range t, (Ks j (bs c) + 11)) + 6)))
+        ≤ Kl j m)
     (hKdec : RamDriverIO.decodeCost n ns ≤ Kdec)
     (hatoms : ∀ s ∈ (bcAtomsOf₀ q_top (Reduction.toDistFO (L := sigL cap mb 0) φ)).2,
       s.r + 1 < B ∧ s.t < B ∧ RamDriverIO.atomCost n ns s.t ≤ Kb₀)
@@ -465,7 +493,7 @@ theorem driverRoot_decides_sentence
     (RamDriverIO.decodeImplements hx hns hO hT hKdec)
     (fun M Gm C hall => by
       have h := levelAt hcap hmb hℓ hB hWB hpow hcsr hQ hbnd hcostI hKsc hKmono hKs
-        hKbase hKo hKc hmass hKl 0 (Nat.zero_le ℓ) M Gm C
+        hKbase hKo hKc hKd hbinj hdeg hKl 0 (Nat.zero_le ℓ) M Gm C
       rwa [arenaSize_of_all_alive hall] at h)
     (fun _ _ _ => RamDriverIO.sentenceImplements hrank hcsr.csr hatoms hKsent)
 

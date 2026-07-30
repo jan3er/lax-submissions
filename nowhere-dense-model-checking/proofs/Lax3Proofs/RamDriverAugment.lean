@@ -2112,10 +2112,20 @@ theorem FillAcc.setVar {ta fa : String} {n len i base : ℕ} {T F : ℕ → ℕ}
     ⟨f, by rw [arrs_setVar]; exact hf, hfi, hfk⟩,
     ⟨g, by rw [arrs_setVar]; exact hg, h₁, h₂, h₃⟩⟩
 
-/-- **The fill action.** -/
+/-- **The fill action.**
+
+The word bound the store needs is asked of the *capacity*, not of the
+array's length (rebase B5-cont-2): what the action writes is a cell
+below `base + Cap.card`, so `base + Cap.card < B` is what makes its
+index and the bumped pointer words, and the length enters only through
+`hcap`, which says the cells exist. At a length that is itself a word
+the two readings agree — `hcap` composed with `len < B` is `hcapB` —
+but a caller whose array is *wider* than the run addresses (the
+widened `tgt` of `fratFill_run`, whose width the round's caller chose
+and nothing bounds) has the capacity bound and not the length one. -/
 theorem fillAcc_emits {B n len i base : ℕ} {ta fa : String} {T F : ℕ → ℕ}
-    {Cap : Finset ℕ} (htf : ta ≠ fa) (hin : i < n) (hnB : n < B) (hlenB : len < B)
-    (hcap : base + Cap.card ≤ len) :
+    {Cap : Finset ℕ} (htf : ta ≠ fa) (hin : i < n) (hnB : n < B)
+    (hcapB : base + Cap.card < B) (hcap : base + Cap.card ≤ len) :
     Emits B n 10 ta fa
       (.seq (.store ta (.get fa (.var "i")) (.var "u"))
         (.store fa (.var "i") (.add (.get fa (.var "i")) (.lit 1))))
@@ -2123,10 +2133,11 @@ theorem fillAcc_emits {B n len i base : ℕ} {ta fa : String} {T F : ℕ → ℕ
   classical
   rintro S τ z ⟨hi, hsub, ⟨f, hf, hfi, hfk⟩, ⟨g, hg, h₁, h₂, h₃⟩⟩ hu hzn hzS hzc
   have hins : insert z S ⊆ Cap := Finset.insert_subset hzc hsub
-  have hlt : base + S.card < len := by
+  have hroom : base + S.card + 1 ≤ base + Cap.card := by
     have h := Finset.card_le_card hins
     rw [Finset.card_insert_of_notMem hzS] at h
     omega
+  have hlt : base + S.card < len := by omega
   have ei : (Expr.var "i").evalB B τ = some i := by
     have h := evalB_var (B := B) (x := "i") (σ := τ) (by rw [hi]; omega)
     rwa [hi] at h
@@ -2181,6 +2192,19 @@ theorem fillAcc_emits {B n len i base : ℕ} {ta fa : String} {T F : ℕ → ℕ
     rw [hcards] at hq
     rw [hg']; simp only []; rw [if_neg (by omega)]
     exact h₃ q (by omega)
+
+/-! The hypothesis swap above has one refutable reading — that it is no
+swap at all, the capacity bound and the length bound being the same
+ask. They are not: a fill whose window is a word may sit in an array
+whose *length* is not one, and that is precisely the case the round's
+widened `tgt` puts the lemma in. -/
+
+-- **refuted**: the length bound does not follow from the capacity one
+example : ¬ ∀ (B len base : ℕ) (Cap : Finset ℕ),
+    base + Cap.card < B → base + Cap.card ≤ len → len < B := by
+  intro h
+  have := h 3 5 0 ∅ (by simp) (by simp)
+  omega
 
 /-- An accounting may carry along anything the action leaves alone. -/
 theorem Emits.and {B n Ka : ℕ} {a₁ a₂ : String} {act : Com} {Cap : Finset ℕ}
@@ -3072,9 +3096,16 @@ theorem fratCount_run
 /-- **The partners, written out once each.** The same turn as the
 count, with the fill pointer of the current vertex for its action: the
 block the turn opens ends up naming `RamAugment.fratNbrs D i`, once
-each, since `FillAcc`'s window is as long as the emitted set. -/
-theorem fratFill_run {nf : ℕ} {FT₀ : ℕ → ℕ}
-    (hnB : n + 1 < B) (hmB : m < B) (hnfB : nf < B)
+each, since `FillAcc`'s window is as long as the emitted set.
+
+**The target array's width** (rebase B5-cont-2) is the caller's `nt`,
+and the round's own slot count `nf` only a lower bound of it: the pass
+writes into the prefix `0 … nf − 1` — the blocks tile it, one per
+vertex, `hnf` — and no clause of the postcondition speaks about the
+cells above. `nt` carries no word bound of its own; what the store
+needs is `nf < B`, which `fillAcc_emits`'s capacity form asks for. -/
+theorem fratFill_run {nf nt : ℕ} {FT₀ : ℕ → ℕ}
+    (hnB : n + 1 < B) (hmB : m < B) (hnfB : nf < B) (hnt : nf ≤ nt)
     (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d) (hmW : m ≤ W)
     (hbo : Blocks "ooff" "otg" n W m OO OT σ)
     (hsnd : ∀ u < n, ∀ q, OO u ≤ q → q < OO (u + 1) → Pts DO DT (OT q) u)
@@ -3083,11 +3114,11 @@ theorem fratFill_run {nf : ℕ} {FT₀ : ℕ → ℕ}
     (harr : NestArr n W DO DT OO OT σ)
     (hstf0 : ∃ g, σ.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0)
     (hffl : σ.arrs "ffl" = arrOf n (RamElim.psum (fratDeg D)))
-    (htgt : σ.arrs "tgt" = arrOf nf FT₀) :
+    (htgt : σ.arrs "tgt" = arrOf nt FT₀) :
     ∃ σ' K, Run B RamAugment.fratFill σ σ' K ∧
       K ≤ (43 * d + 46) * m + 38 * n + 8 ∧ NestArr n W DO DT OO OT σ' ∧
       (∃ g, σ'.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
-      (∃ FT, σ'.arrs "tgt" = arrOf nf FT ∧ ∀ u < n,
+      (∃ FT, σ'.arrs "tgt" = arrOf nt FT ∧ ∀ u < n,
         (∀ q, RamElim.psum (fratDeg D) u ≤ q → q < RamElim.psum (fratDeg D) (u + 1) →
           FT q ∈ fratSet D u) ∧
         (∀ z ∈ fratSet D u, ∃ q, RamElim.psum (fratDeg D) u ≤ q ∧
@@ -3105,7 +3136,7 @@ theorem fratFill_run {nf : ℕ} {FT₀ : ℕ → ℕ}
     NestArr n W DO DT OO OT τ ∧
     (∃ g, τ.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
     (∃ f, τ.arrs "ffl" = arrOf n f ∧ ∀ k, i ≤ k → f k = FO k) ∧
-    (∃ FT, τ.arrs "tgt" = arrOf nf FT ∧ ∀ u < i,
+    (∃ FT, τ.arrs "tgt" = arrOf nt FT ∧ ∀ u < i,
       (∀ q, FO u ≤ q → q < FO (u + 1) → FT q ∈ fratSet D u) ∧
       (∀ z ∈ fratSet D u, ∃ q, FO u ≤ q ∧ q < FO (u + 1) ∧ FT q = z)) with hI
   have hstep : ∀ i, i < n → ∀ τ, I i τ →
@@ -3142,7 +3173,7 @@ theorem fratFill_run {nf : ℕ} {FT₀ : ℕ → ℕ}
       by_cases hkz : k = i
       · rw [if_pos hkz, if_pos (Finset.mem_singleton.2 hkz)]
       · rw [if_neg hkz, if_neg (fun hc => hkz (Finset.mem_singleton.1 hc)), hgz k hk]
-    have hA0 : FillAcc "tgt" "ffl" n nf i (FO i) FT f (fratSet D i) ∅ τ₁ :=
+    have hA0 : FillAcc "tgt" "ffl" n nt i (FO i) FT f (fratSet D i) ∅ τ₁ :=
       ⟨hiv₁, by simp,
         ⟨f, by rw [hτ₁, arrs_setArr, if_neg (by decide)]; exact hf,
           by rw [hfk i le_rfl]; simp, fun k _ => rfl⟩,
@@ -3156,15 +3187,16 @@ theorem fratFill_run {nf : ℕ} {FT₀ : ℕ → ℕ}
         (act := .seq (.store "tgt" (.get "ffl" (.var "i")) (.var "u"))
           (.store "ffl" (.var "i") (.add (.get "ffl" (.var "i")) (.lit 1))))
         (D := D) (DO := DO) (DT := DT) (OO := OO) (OT := OT)
-        (Acc := FillAcc "tgt" "ffl" n nf i (FO i) FT f (fratSet D i))
+        (Acc := FillAcc "tgt" "ffl" n nt i (FO i) FT f (fratSet D i))
         (Cap := fratSet D i) (i := i) (σ := τ₁)
         readArrs_tgt readArrs_ffl (by omega) (by omega) hmB hi hcsr hdeg hmW
         (hbo.of_nestArr harr₁) hsnd hcmp hiv₁ harr₁ hm₁
         (fun S τ p x h => h.setArr (by decide) (by decide) p x)
         (fun S τ y z hy h => h.setVar
           (by rcases hy with rfl | rfl | rfl | rfl | rfl | rfl <;> decide) z)
-        (fillAcc_emits (by decide) hi (by omega) (by omega)
-          (by rw [hEcard]; exact hFOle (i + 1) (by omega)))
+        (fillAcc_emits (by decide) hi (by omega)
+          (by rw [hEcard]; exact lt_of_le_of_lt (hFOle (i + 1) (by omega)) hnfB)
+          (by rw [hEcard]; exact le_trans (hFOle (i + 1) (by omega)) hnt))
         (by rw [hEs]) hA0
     obtain ⟨g₃, hg₃, hg₃k⟩ := hm₃
     -- the clearing enumeration
@@ -3308,9 +3340,16 @@ theorem block_nodup {O T : ℕ → ℕ} {S : Finset ℕ} {u : ℕ}
 report, sequenced: what they leave in `off`/`tgt` is
 `RamElim.CsrSimple` of `RamAugment.fratGraph D` at
 `RamAugment.fratSlots D` slots, which is the engine's input surface, and
-what they leave in `mf` is that slot count. -/
-theorem fratPass_run {nf : ℕ}
-    (hnB : n + 1 < B) (hmB : m < B) (hnfB : nf < B)
+what they leave in `mf` is that slot count.
+
+The target array is the caller's, at its own width `nt ≥ nf` (rebase
+B5-cont-2): the pass fills the prefix and reports the slot count, and
+`CsrSimple` — which is a statement about the two *functions* — does
+not mention the width at all. That is exactly the shape
+`RamElim.ElimPreW` reads, so the fraternity graph goes into the
+engine without the array being cut to this round's size. -/
+theorem fratPass_run {nf nt : ℕ}
+    (hnB : n + 1 < B) (hmB : m < B) (hnfB : nf < B) (hnt : nf ≤ nt)
     (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d) (hmW : m ≤ W)
     (hbo : Blocks "ooff" "otg" n W m OO OT σ)
     (hsnd : ∀ u < n, ∀ q, OO u ≤ q → q < OO (u + 1) → Pts DO DT (OT q) u)
@@ -3319,12 +3358,12 @@ theorem fratPass_run {nf : ℕ}
     (harr : NestArr n W DO DT OO OT σ)
     (hstf0 : ∃ g, σ.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0)
     (hoff0 : ∃ g, σ.arrs "off" = arrOf (n + 1) g ∧ ∀ k ≤ n, g k = 0)
-    (hffl0 : ∃ g, σ.arrs "ffl" = arrOf n g) (htgt0 : ∃ g, σ.arrs "tgt" = arrOf nf g) :
+    (hffl0 : ∃ g, σ.arrs "ffl" = arrOf n g) (htgt0 : ∃ g, σ.arrs "tgt" = arrOf nt g) :
     ∃ σ' K, Run B RamAugment.fratPass σ σ' K ∧
       K ≤ (80 * d + 92) * m + 106 * n + 40 ∧ NestArr n W DO DT OO OT σ' ∧
       (∃ g, σ'.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
       σ'.arrs "off" = arrOf (n + 1) (RamElim.psum (fratDeg D)) ∧
-      (∃ FT, σ'.arrs "tgt" = arrOf nf FT ∧
+      (∃ FT, σ'.arrs "tgt" = arrOf nt FT ∧
         CsrSimple (fratGraph D) nf (RamElim.psum (fratDeg D)) FT) ∧
       σ'.vars "mf" = nf ∧
       (∀ a, a ≠ "stf" → a ≠ "off" → a ≠ "tgt" → a ≠ "ffl" → σ'.arrs a = σ.arrs a) ∧
@@ -3355,8 +3394,8 @@ theorem fratPass_run {nf : ℕ}
   obtain ⟨FT₀, hFT₀⟩ := htgt0
   obtain ⟨σ₃, K₃, hr₃, hK₃, harr₃, hstf₃, htgt₃, hfa₃, hfv₃⟩ :=
     fratFill_run (B := B) (n := n) (d := d) (W := W) (m := m) (D := D) (DO := DO) (DT := DT)
-      (OO := OO) (OT := OT) (σ := σ₂) (nf := nf) (FT₀ := FT₀) hnB hmB hnfB hcsr hdeg hmW
-      (hbo.of_nestArr harr₂) hsnd hcmp hFOn harr₂
+      (OO := OO) (OT := OT) (σ := σ₂) (nf := nf) (nt := nt) (FT₀ := FT₀) hnB hmB hnfB hnt
+      hcsr hdeg hmW (hbo.of_nestArr harr₂) hsnd hcmp hFOn harr₂
       ⟨g₂, by rw [hfa₂ "stf" (by decide) (by decide)]; exact hg₂, hg₂z⟩ hffl₂
       (by rw [hfa₂ "tgt" (by decide) (by decide), hfa₁ "tgt" (by decide) (by decide)];
           exact hFT₀)
@@ -3646,23 +3685,31 @@ a wave that may edit `RamElim` should add the conjunct there and delete
 **both** this bridge and `RamDriverCompose.elimRank_spec`, which exist
 for the same reason and die together. -/
 
-/-- **The elimination, keeping the rank bound its own surface drops.** -/
-theorem elimCert_spec {B n ns W : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ → ℕ}
+/-- **The elimination, keeping the rank bound its own surface drops —
+at the widened input surface.** The bridge is re-sequenced from the
+engine's *widened* phase walks (`RamElim.initDeg_specW`,
+`elimLoop_specW`, `fillPass_specW`, against the `AfterXW` predicates),
+so the block structure it reads may live in a target array wider than
+the call's own slot count. That is what the round needs: the
+fraternity graph is materialized in an array the round's caller
+allocated, and an IMP+ run cannot re-allocate one. Nothing else moves
+— the two answers and the cost are the pinned bridge's. -/
+theorem elimCert_specW {B n ns nt W : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ → ℕ}
     (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B) (hMB : ∀ z < n, M z < B)
-    (hW : ns ≤ W) :
-    Spec B (ElimPre n ns W O T M) elimCom
+    (hW : ns ≤ W) (hnt : ns ≤ nt) :
+    Spec B (RamElim.ElimPreW n ns nt W O T M) elimCom
       (fun _ σ' => ElimMem G M ns W σ' σ' ∧
         ∃ R, σ'.arrs "rnk" = arrOf n R ∧ (∀ v < n, R v < n))
       (elimCost n ns) := by
   have hDlt : ∀ v < n, RamElim.adeg G M v < n := fun v hv => by
     rw [RamElim.adeg_eq hv]; exact RamElim.card_nbrsIn_lt _ _
-  have w1 : Spec B (ElimPre n ns W O T M) RamElim.initDeg
-      (fun _ σ' => RamElim.AfterDeg n ns W G O T M σ') (48 * n + 44 * ns + 10) := by
+  have w1 : Spec B (RamElim.ElimPreW n ns nt W O T M) RamElim.initDeg
+      (fun _ σ' => RamElim.AfterDegW n ns nt W G O T M σ') (48 * n + 44 * ns + 10) := by
     intro σ hσ
     obtain ⟨hn, hoff, htgt, halv, hdeg0, helm, hrnk, hidg, hbh, hbv, hbn, hioff, hifl,
       hitg⟩ := hσ
     obtain ⟨σ', hrun, ⟨hI, hi⟩, -, hfa, -, -⟩ :=
-      (RamElim.initDeg_spec B n ns G O T M hcsr (by omega) (by omega) hMB).frame σ
+      (RamElim.initDeg_specW B n ns nt G O T M hcsr (by omega) (by omega) hnt hMB).frame σ
         ⟨hn, hoff, htgt, halv, hdeg0⟩
     obtain ⟨hn', hoff', htgt', halv', -, g, hdegg, hg⟩ := hI
     obtain ⟨e, he1, he2⟩ := helm
@@ -3685,8 +3732,8 @@ theorem elimCert_spec {B n ns W : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ �
       ⟨io, by rw [hfa "ioff" (by decide)]; exact hio1⟩,
       ⟨fl, by rw [hfa "ifl" (by decide)]; exact hfl1⟩,
       ⟨tg, by rw [hfa "itg" (by decide)]; exact htg1⟩⟩
-  have w2 : Spec B (RamElim.AfterDeg n ns W G O T M) RamElim.initBuck
-      (fun _ σ' => RamElim.AfterBuck n ns W G O T M σ') (29 * n + 10) := by
+  have w2 : Spec B (RamElim.AfterDegW n ns nt W G O T M) RamElim.initBuck
+      (fun _ σ' => RamElim.AfterBuckW n ns nt W G O T M σ') (29 * n + 10) := by
     intro σ hσ
     obtain ⟨hn, hoff, htgt, halv, hdeg, helm, hrnk, hidg, hbh, hbv, hbn, hioff, hifl,
       hitg⟩ := hσ
@@ -3709,13 +3756,13 @@ theorem elimCert_spec {B n ns W : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ �
       ⟨io, by rw [hfa "ioff" (by decide)]; exact hio1⟩,
       ⟨fl, by rw [hfa "ifl" (by decide)]; exact hfl1⟩,
       ⟨tg, by rw [hfa "itg" (by decide)]; exact htg1⟩⟩
-  have w3 : Spec B (RamElim.AfterBuck n ns W G O T M) RamElim.elimLoop
-      (fun _ σ' => RamElim.AfterLoop n ns W G O T M σ') (160 * n + 100 * ns + 52) := by
+  have w3 : Spec B (RamElim.AfterBuckW n ns nt W G O T M) RamElim.elimLoop
+      (fun _ σ' => RamElim.AfterLoopW n ns nt W G O T M σ') (160 * n + 100 * ns + 52) := by
     intro σ hσ
     obtain ⟨hbi, hi, hoff, htgt, halv, helm, hrnk, hidg, hioff, hifl, hitg⟩ := hσ
     obtain ⟨σ', hrun, ⟨R, ID, k, hn', hk', hrnk', hidg', hRlt, hcert, hIDc, hpsum⟩, -,
       hfa, -, -⟩ :=
-      (RamElim.elimLoop_spec B n ns W G O T M (RamElim.adeg G M) hcsr hB hW hMB
+      (RamElim.elimLoop_specW B n ns nt W G O T M (RamElim.adeg G M) hcsr hB hW hnt hMB
         (fun _ _ => rfl)).frame σ ⟨hbi, hi, hoff, htgt, halv, helm, hrnk, hidg⟩
     obtain ⟨io, hio1⟩ := hioff
     obtain ⟨fl, hfl1⟩ := hifl
@@ -3728,8 +3775,8 @@ theorem elimCert_spec {B n ns W : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ �
       ⟨io, by rw [hfa "ioff" (by decide)]; exact hio1⟩,
       ⟨fl, by rw [hfa "ifl" (by decide)]; exact hfl1⟩,
       ⟨tg, by rw [hfa "itg" (by decide)]; exact htg1⟩⟩
-  have w4 : Spec B (RamElim.AfterLoop n ns W G O T M) RamElim.offPass
-      (fun _ σ' => RamElim.AfterOff n ns W G O T M σ') (24 * n + 12) := by
+  have w4 : Spec B (RamElim.AfterLoopW n ns nt W G O T M) RamElim.offPass
+      (fun _ σ' => RamElim.AfterOffW n ns nt W G O T M σ') (24 * n + 12) := by
     intro σ hσ
     obtain ⟨R, ID, k, hn, hk, hoff, htgt, halv, hrnk, hidg, hRlt, hcert, hIDc, hpsum,
       hioff, hifl, hitg⟩ := hσ
@@ -3743,7 +3790,7 @@ theorem elimCert_spec {B n ns W : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ �
       by rw [hfa "rnk" (by decide)]; exact hrnk,
       hRlt, hcert, hIDc, hpsum, hio', hfl',
       ⟨tg, by rw [hfa "itg" (by decide)]; exact htg1⟩⟩
-  have w5 : Spec B (RamElim.AfterOff n ns W G O T M) RamElim.fillPass
+  have w5 : Spec B (RamElim.AfterOffW n ns nt W G O T M) RamElim.fillPass
       (fun _ σ' => ElimMem G M ns W σ' σ' ∧
         ∃ R, σ'.arrs "rnk" = arrOf n R ∧ (∀ v < n, R v < n))
       (32 * n + 32 * ns + 10) := by
@@ -3752,8 +3799,8 @@ theorem elimCert_spec {B n ns W : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ �
       hifl, hitg⟩ := hσ
     obtain ⟨g, hioffg, hioffv⟩ := hioff
     obtain ⟨σ', hrun, ⟨IT, hitg', harcs⟩, hfv, hfa, -, -⟩ :=
-      (RamElim.fillPass_spec B n ns W G O T M R ID hcsr hB hW hMB hRlt hIDc hpsum).frame σ
-        ⟨hn, hoff, htgt, halv, hrnk, hifl, hitg⟩
+      (RamElim.fillPass_specW B n ns nt W G O T M R ID hcsr hB hW hnt hMB hRlt hIDc
+        hpsum).frame σ ⟨hn, hoff, htgt, halv, hrnk, hifl, hitg⟩
     have hrnk' : σ'.arrs "rnk" = arrOf n R := by
       rw [hfa "rnk" (by decide)]; exact hrnk
     exact ⟨σ', hrun, ⟨R, RamElim.psum ID, IT, k, RamElim.psum ID n, hrnk',
@@ -3761,8 +3808,20 @@ theorem elimCert_spec {B n ns W : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ �
       by rw [hfa "ioff" (by decide), hioffg]
          exact RamDriverOrder.arrOf_congr (fun j hj => hioffv j (by omega)),
       hitg', by omega, ⟨hcert, harcs⟩⟩, R, hrnk', hRlt⟩
-  show Spec B (ElimPre n ns W O T M) elimCom _ (600 * n + 600 * ns + 100)
+  show Spec B (RamElim.ElimPreW n ns nt W O T M) elimCom _ (600 * n + 600 * ns + 100)
   run_vcg [w1, w2, w3, w4, w5] <;> assumption
+
+/-- **The elimination bridge at the pinned width** — the widened one at
+`nt = ns`. `RamElim.ElimPre` *is* `RamElim.ElimPreW` there, clause for
+clause, so nothing is re-walked. -/
+theorem elimCert_spec {B n ns W : ℕ} {G : SimpleGraph (Fin n)} {O T M : ℕ → ℕ}
+    (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B) (hMB : ∀ z < n, M z < B)
+    (hW : ns ≤ W) :
+    Spec B (ElimPre n ns W O T M) elimCom
+      (fun _ σ' => ElimMem G M ns W σ' σ' ∧
+        ∃ R, σ'.arrs "rnk" = arrOf n R ∧ (∀ v < n, R v < n))
+      (elimCost n ns) :=
+  elimCert_specW hcsr hB hMB hW le_rfl
 
 /-! ### The assembly's emit walk
 
@@ -4675,7 +4734,9 @@ theorem asmFill_run {m' : ℕ} {NT₀ : ℕ → ℕ}
         readArrs_ntg readArrs_nfl (by intro a h1 h2; simp [Com.warrs, h1, h2]) (by omega)
         (by omega) hWB hi hcsr hdeg hmW hE hmeW hρ hRn (harrτ.blocks hbo) hsnd hcmp hiv
         harrτ hrnkτ hstaτ hstdτ hsteτ hAccFr (fun _ _ h => h.1)
-        (fillAcc_emits (by decide) hi (by omega) (by omega)
+        (fillAcc_emits (by decide) hi (by omega)
+          (by rw [hEcard]
+              exact lt_of_le_of_lt (le_trans (hFOle (i + 1) (by omega)) hm'W) hWB)
           (by rw [hEcard]; exact le_trans (hFOle (i + 1) (by omega)) hm'W))
         ⟨hiv, by simp, ⟨f, hf, by rw [hfk i le_rfl]; simp, fun k _ => rfl⟩,
           ⟨NT, hNT, fun q h₁ h₂ => by simp at h₂; omega, fun z hz => absurd hz (by simp),
@@ -4882,11 +4943,21 @@ mask, the elimination — through `elimCert_spec`, so that
 phase does not write is carried across it by the frame that phase
 exports, and the cost is one order inside `RamAugment.augCost`. -/
 
-/-- **The augmentation round implements its specification.** -/
-theorem implements {B n d nf W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} :
-    RamAugment.Implements B n d nf W m D DO DT := by
+/-- **The augmentation round implements its specification, at the
+widened target array.** The round's own slot count `nf` is no longer a
+parameter of the surface: it is `RamAugment.fratSlots D`, which the
+fraternity build computes and reports in `mf`, and all the caller's
+array has to be is *wide enough* for it (`hntf`). Everything the round
+addresses in `tgt` is still below `nf` — the blocks tile the prefix —
+so neither the postcondition nor the cost moves; what changes is that
+a caller who allocated the array once, at a width of its own choosing,
+can run the round in it, which an IMP+ run has no other way to do. -/
+theorem implementsW {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} :
+    RamAugment.ImplementsW B n d nt W m D DO DT := by
   classical
-  intro _he hcsr hdeg hnf hmW hW hB
+  intro _he hcsr hdeg hntf hmW hW hB
+  obtain ⟨nf, hnf⟩ : ∃ nf, RamAugment.fratSlots D = nf := ⟨_, rfl⟩
+  rw [hnf] at hntf
   refine Spec.of_exists ?_
   intro σ hσ
   obtain ⟨hn, hdoff, hdtg, hooffA, hotgA, hoflA, hoffA, htgtA, hfflA, halvA, hdegA, helmA,
@@ -4920,8 +4991,8 @@ theorem implements {B n d nf W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ
   -- (2) the fraternity graph
   obtain ⟨σ₂, K₂, hr₂, hK₂, harr₂, hstf₂, hoff₂, ⟨FT, hFT, hcsrF⟩, hmf₂, hfa₂, hfv₂⟩ :=
     fratPass_run (B := B) (n := n) (d := d) (W := W) (m := m) (D := D) (DO := DO)
-      (DT := DT) (OO := outOff DT m) (OT := OT) (σ := σ₁) (nf := nf)
-      (by omega) (by omega) (by omega) hcsr hdeg hmW hbo hsnd hcmp hnf harr₁
+      (DT := DT) (OO := outOff DT m) (OT := OT) (σ := σ₁) (nf := nf) (nt := nt)
+      (by omega) (by omega) (by omega) hntf hcsr hdeg hmW hbo hsnd hcmp hnf harr₁
       (by
         obtain ⟨g, hg, hz⟩ := hstfA
         exact ⟨g, by rw [hfa₁ "stf" (by decide) (by decide) (by decide)]; exact hg, hz⟩)
@@ -4949,9 +5020,9 @@ theorem implements {B n d nf W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ
       rw [hfa₃ a h8, hfa₂ a h4 h5 h6 h7, hfa₁ a h1 h2 h3]
   -- (4) the elimination, at the postcondition that has both answers
   obtain ⟨σ₄, hr₄, hmem₄, R', hrnkR', hRlt⟩ :=
-    (elimCert_spec (B := B) (n := n) (ns := nf) (W := W) (G := fratGraph D)
+    (elimCert_specW (B := B) (n := n) (ns := nf) (nt := nt) (W := W) (G := fratGraph D)
         (O := RamElim.psum (fratDeg D)) (T := FT) (M := fun _ => 1)
-        hcsrF (by omega) (fun z _ => by show 1 < B; omega) (by omega)).run
+        hcsrF (by omega) (fun z _ => by show 1 < B; omega) (by omega) hntf).run
       ⟨hn₃, by rw [hfa₃ "off" (by decide)]; exact hoff₂,
         by rw [hfa₃ "tgt" (by decide)]; exact hFT, halv₃,
         (by
@@ -5087,6 +5158,58 @@ theorem implements {B n d nf W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ
       (by decide) (by decide) (by decide)]
     exact hkmax₄
 
+/-- **The augmentation round implements its frozen specification.** The
+walk is not repeated: `RamAugment.implements_of_implementsW` reads the
+widened round at `nt = nf`, where `RamAugment.AugPre` *is*
+`RamAugment.AugPreW` and the pinned `fratSlots D = nf` is the widened
+`fratSlots D ≤ nf`. The `RamAugment.ElimAvail` hypothesis stays unused
+on both sides — the engine enters through `elimCert_specW`. -/
+theorem implements {B n d nf W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} :
+    RamAugment.Implements B n d nf W m D DO DT :=
+  RamAugment.implements_of_implementsW implementsW
+
+section Falsification
+
+/-! The widened round's one authored delta is the width of `tgt`, and
+its refutable reading is that the widened surface is the pinned one —
+that a caller whose array is wider than the round's slot count gains
+nothing, the two preconditions being the same proposition. They are
+not: the empty round in a length-one target array already separates
+them, because the pinned surface asks for the array at the slot count
+on the nose. (The same reading refuted on the *engine* is
+`RamElim`'s falsification section, on the *relation*
+`CsrWide`'s, and on the *program* — a run that gets stuck at the
+pinned width — `TgtWidenProbe`'s `K₁,₄`.) -/
+
+/-- No vertices, no scratch, and one cell in `tgt`. -/
+private def wideAugEnv : Env where
+  vars := fun _ => 0
+  arrs := fun a =>
+    if a = "doff" ∨ a = "ooff" ∨ a = "off" ∨ a = "bh" ∨ a = "bv" ∨ a = "bn" ∨
+        a = "ioff" ∨ a = "noff" ∨ a = "tgt" then [0] else []
+  inp := []
+  out := []
+
+-- the widened surface holds of it, at slot count `0` in a width-`1`
+-- target array …
+example : RamAugment.AugPreW 0 1 0 (fun _ => 0) (fun _ => 0) wideAugEnv := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+    first
+      | exact ⟨fun _ => 0, by simp [wideAugEnv, arrOf], by simp⟩
+      | exact ⟨fun _ => 0, by simp [wideAugEnv, arrOf]⟩
+      | simp [wideAugEnv, arrOf]
+
+-- … and the pinned one is **refuted** on the same state: its `tgt`
+-- clause asks for the empty array, and the machine's is not empty. So
+-- `implementsW` is not `implements` re-stated — it runs the round in
+-- states the frozen surface excludes.
+example : ¬ RamAugment.AugPre 0 0 0 (fun _ => 0) (fun _ => 0) wideAugEnv := by
+  rintro ⟨-, -, -, -, -, -, -, ⟨g, htgt⟩, -⟩
+  simp [wideAugEnv, arrOf] at htgt
+
+end Falsification
+
 /-! ### The frontier — **COMPLETE**
 
 `RamAugment.Implements` is discharged in full by `implements` above;
@@ -5183,7 +5306,12 @@ ranking — at the two arcs `0 → 3`, `1 → 3` the example names.
 `RamAugment.fratPass` leaves `off`/`tgt` carrying
 `RamElim.CsrSimple (fratGraph D) nf (RamElim.psum (fratDeg D)) FT`, the
 engine's input surface, and `mf = nf = RamAugment.fratSlots D`, at a
-cost of `(80·d + 92)·m + 106·n + 40`. Its three pieces are
+cost of `(80·d + 92)·m + 106·n + 40`. The target array is the caller's,
+at a width `nt ≥ nf` of its own (rebase B5-cont-2): the blocks tile the
+prefix `0 … nf − 1`, `CsrSimple` is a statement about the two
+functions and mentions no width at all, and the word bound the fill's
+store needs is `nf < B` — which is why `fillAcc_emits` asks it of the
+capacity and not of the array's length. Its three pieces are
 
 * `fratEmit_run` / `fratClear_run` — the guarded nested walk and the
   walk that clears every stamp it could have set (`rowAcc_mono` is why
@@ -5196,11 +5324,14 @@ cost of `(80·d + 92)·m + 106·n + 40`. Its three pieces are
 `sum_fratDeg` is `RamElim.psum (fratDeg D) n = fratSlots D`, which is
 what makes `off n` the reported `mf`.
 
-**Done — the elimination bridge.** `elimCert_spec`, the engine's five
-phase specs re-sequenced at the one postcondition that has both the
-certificate and the rank bound. See its docstring for the defect record:
-it and `RamDriverCompose.elimRank_spec` die together when a wave that
-may edit `RamElim` adds the conjunct to `RamElim.ElimMem`.
+**Done — the elimination bridge.** `elimCert_specW`, the engine's five
+*widened* phase specs (`initDeg_specW`, `elimLoop_specW`,
+`fillPass_specW`, against the `AfterXW` predicates) re-sequenced at the
+one postcondition that has both the certificate and the rank bound;
+`elimCert_spec` is that walk at `nt = ns`, where `RamElim.ElimPre` is
+`RamElim.ElimPreW` clause for clause. See its docstring for the defect
+record: it and `RamDriverCompose.elimRank_spec` die together when a
+wave that may edit `RamElim` adds the conjunct to `RamElim.ElimMem`.
 
 **Done — two of the assembly's four walks.** `asmStamp_run` (the two
 stamps of a turn, at `b` — a set at `b = 1` and its erasure at `b = 0`,
@@ -5247,20 +5378,31 @@ passes, and the round.
   `∑_u inDeg D u · outdeg u ≤ d · m`. That is `asm_cost_le`, and it is
   the only place the exchange is needed.
 
-**Done — the round.** `implements`:
+**Done — the round.** `implementsW`:
+
+    theorem implementsW {B n d nt W m : ℕ} {D : Orientation n}
+        {DO DT : ℕ → ℕ} : RamAugment.ImplementsW B n d nt W m D DO DT
+
+with no theorem-level hypotheses, and the frozen
 
     theorem implements {B n d nf W m : ℕ} {D : Orientation n}
         {DO DT : ℕ → ℕ} : RamAugment.Implements B n d nf W m D DO DT
 
-with no theorem-level hypotheses, so
-`fun _ _ _ _ _ _ _ => implements` inhabits `RamDriver.AugAvail B n`.
-`RamAugment.ElimAvail` is *unused*: the engine enters through
-`elimCert_spec`. The five phases are `outPass_run`, `fratPass_run`,
-`alvSet_run`, `elimCert_spec` (at `ns = nf`, with
-`RamElim.masked_of_all_alive` turning the all-ones mask back into
-`fratGraph D`), and `asmPass_run`; `RamAugment.AugPre`'s twenty-seven
-clauses cross the phases by the array frames each of the five exports,
-and the elimination's by `a ∉ RamElim.elimCom.warrs`.
+is `RamAugment.implements_of_implementsW implementsW` — the walk is
+written once, not twice, `RamAugment.AugPre` being `AugPreW` at
+`nt = nf` and the pinned `fratSlots D = nf` the widened
+`fratSlots D ≤ nf`. So `fun _ _ _ _ _ _ _ => implements` still inhabits
+`RamDriver.AugAvail B n`. `RamAugment.ElimAvail` is *unused*: the
+engine enters through `elimCert_specW`. The five phases are
+`outPass_run`, `fratPass_run`, `alvSet_run`, `elimCert_specW` (at
+`ns = nf = RamAugment.fratSlots D`, which is no longer a parameter of
+the surface, with `RamElim.masked_of_all_alive` turning the all-ones
+mask back into `fratGraph D`), and `asmPass_run`;
+`RamAugment.AugPreW`'s twenty-seven clauses cross the phases by the
+array frames each of the five exports, and the elimination's by
+`a ∉ RamElim.elimCom.warrs`. The widening is gated: `wideAugEnv`
+satisfies `AugPreW` at a width above its slot count and refutes
+`AugPre` there.
 
 **The cost, and why it fits.** Every walk is charged per slot of the
 block structure it walks. `outPass_run` is `42·m + 63·n + 24`,
