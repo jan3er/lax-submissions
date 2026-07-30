@@ -1356,7 +1356,187 @@ theorem drain_variant (n d : ℕ) (off tgt alv : List ℕ) :
   show n - s'.2.2.1 < n - z.2.2.1
   omega
 
-/-! ## 8. Axioms -/
+/-! ## 8. The reached list (R2D/D-c)
+
+`bfsQ_correct` specifies the *distance array* and says nothing about
+the queue. A consumer that wants to scan the vertices the search
+actually reached — rather than test `D[z] ≤ d` at all `n` of them —
+needs one more clause: the first `max tl 1` slots of the queue list
+exactly the vertices the search put within the cap, each once.
+
+It is `Fr` at drain exit, read three times over, plus one graph fact:
+a masked walk ends at a *live* vertex unless it is trivial. The
+`max tl 1` is the dead-source case: the seed writes `q[0] := src`
+before the drain starts, the drain never runs, and the single slot is
+right. -/
+
+section Reached
+
+variable {D Q : List ℕ} {hd tl : ℕ}
+
+/-- **A masked walk ends alive unless it is trivial.** Every edge of
+`masked G M` has two live ends, so the last one gives the endpoint's
+mask bit; a walk with no edges gives the source back. -/
+theorem wd_alive_or_eq {M : Fin n → Bool} :
+    ∀ (k : ℕ) (w : Fin n), Bfs.WD G M k s w → s = w ∨ M w = true := by
+  intro k
+  induction k with
+  | zero => intro w hw; exact Or.inl hw.eq_of_zero
+  | succ k ih =>
+    intro w hw
+    rcases hw.tail with hshort | ⟨c, -, hcw⟩
+    · exact ih w hshort
+    · exact Or.inr (Bfs.masked_adj.mp hcw).2.2
+
+/-- **The glue.** A vertex the search put within the cap is alive, or
+it is the source. -/
+theorem Fr.alive_or_src (h : Fr n d G alv s D Q hd tl) (w : Fin n)
+    (hw : D[(w : ℕ)]! ≤ d) : 0 < alv[(w : ℕ)]! ∨ w = s := by
+  rcases wd_alive_or_eq (G := G) (s := s) _ w (h.sound w hw) with heq | hal
+  · exact Or.inr heq.symm
+  · exact Or.inl (maskOf_iff.mp hal)
+
+/-- **The clause the cover pass asks for**, at the list layer: the
+first `max tl 1` slots of the queue name vertices, name them once, and
+name exactly the vertices the distance array puts within the cap. -/
+def QReached (n d : ℕ) (D Q : List ℕ) (tl : ℕ) : Prop :=
+  (∀ k < max tl 1, Q[k]! < n) ∧
+    (∀ k < max tl 1, ∀ k' < max tl 1, Q[k]! = Q[k']! → k = k') ∧
+    (∀ w < n, D[w]! ≤ d ↔ ∃ k < max tl 1, Q[k]! = w)
+
+/-- **A dead source reaches nothing, and its queue is empty.** If the
+source's mask bit is clear then no live vertex can be on the queue —
+the queue's own soundness would make it the source. -/
+theorem Fr.tl_eq_zero_of_dead (h : Fr n d G alv s D Q tl tl)
+    (hdead : ¬ 0 < alv[(s : ℕ)]!) : tl = 0 := by
+  by_contra hne
+  have h0 : (0 : ℕ) < tl := by omega
+  obtain ⟨hd0, hal0⟩ := h.qmem 0 h0
+  have hq0n : Q[0]! < n := h.qlt 0 h0
+  have hsq : s = (⟨Q[0]!, hq0n⟩ : Fin n) :=
+    (Bfs.WD.of_dead (G := G) (M := maskOf n alv) (s := s)
+      (by simpa [maskOf] using hdead)).mp (h.sound ⟨Q[0]!, hq0n⟩ hd0)
+  rw [show (s : ℕ) = Q[0]! from congrArg Fin.val hsq] at hdead
+  exact hdead hal0
+
+/-- **The reached list, off the queue invariant at drain exit.** The
+one thing `Fr` does not know is the seed's `q[0] := src`, which is
+what the dead-source branch runs on. -/
+theorem Fr.qReached (h : Fr n d G alv s D Q tl tl) (hq0 : Q[0]! = (s : ℕ)) :
+    QReached n d D Q tl := by
+  by_cases hal : 0 < alv[(s : ℕ)]!
+  · -- the source is alive, so it is on the queue and `max tl 1 = tl`
+    obtain ⟨i, hi, -⟩ := h.qall (s : ℕ) s.isLt hal (by rw [h.src0]; omega)
+    have htl : max tl 1 = tl := by omega
+    simp only [QReached, htl]
+    refine ⟨h.qlt, h.qinj, fun w hw => ⟨fun hd => ?_, fun ⟨k, hk, hkw⟩ => ?_⟩⟩
+    · have halw : 0 < alv[w]! := by
+        rcases h.alive_or_src ⟨w, hw⟩ hd with hx | hx
+        · exact hx
+        · rw [show w = (s : ℕ) from congrArg Fin.val hx]; exact hal
+      exact h.qall w hw halw hd
+    · rw [← hkw]; exact (h.qmem k hk).1
+  · -- the source is dead: the queue never grew, and slot `0` is the seed
+    have htl0 : tl = 0 := h.tl_eq_zero_of_dead hal
+    subst htl0
+    have hmax : max (0 : ℕ) 1 = 1 := by omega
+    simp only [QReached, hmax]
+    refine ⟨fun k hk => ?_, fun k hk k' hk' _ => by omega, fun w hw => ⟨fun hd => ?_, ?_⟩⟩
+    · rw [show k = 0 by omega, hq0]; exact s.isLt
+    · have hsw : s = (⟨w, hw⟩ : Fin n) :=
+        (Bfs.WD.of_dead (G := G) (M := maskOf n alv) (s := s)
+          (by simpa [maskOf] using hal)).mp (h.sound ⟨w, hw⟩ hd)
+      exact ⟨0, by omega, by rw [hq0, show (s : ℕ) = w from congrArg Fin.val hsw]⟩
+    · rintro ⟨k, hk, hkw⟩
+      rw [show k = 0 by omega, hq0] at hkw
+      rw [← hkw, h.src0]
+      omega
+
+/-- **The drain, with the seed's slot `0` carried through.** A pop
+never writes below its own head, and the head never passes `0`; the
+`popF_le` clause that says so is what this induction reads. Otherwise
+this is `drainLoop_le`, with one conjunct added to the postcondition. -/
+theorem drainLoop_le' (hc : Csr n ns G off tgt alv) (q0 : ℕ) :
+    ∀ (fuel : ℕ) (z : St), Fr n d G alv s z.1 z.2.1 z.2.2.1 z.2.2.2 → z.2.1[0]! = q0 →
+      n - z.2.2.1 ≤ fuel →
+      drainLoop n d (d + 1) off tgt alv z
+        ≤ NRest.spec
+            (fun z' : St => (Fr n d G alv s z'.1 z'.2.1 z'.2.2.1 z'.2.2.2 ∧
+                z'.2.2.2 ≤ z'.2.2.1) ∧ z'.2.1[0]! = q0)
+            (fun _ => liftACost (E2 (iter popC) (iter scanC) (n - z.2.2.1)
+              (ns - rowSum off z.2.1 z.2.2.1) + cu Currency.«while»)) := by
+  have exit : ∀ z : St, Fr n d G alv s z.1 z.2.1 z.2.2.1 z.2.2.2 → z.2.1[0]! = q0 →
+      z.2.2.2 ≤ z.2.2.1 →
+      drainLoop n d (d + 1) off tgt alv z
+        ≤ NRest.spec
+            (fun z' : St => (Fr n d G alv s z'.1 z'.2.1 z'.2.2.1 z'.2.2.2 ∧
+                z'.2.2.2 ≤ z'.2.2.1) ∧ z'.2.1[0]! = q0)
+            (fun _ => liftACost (E2 (iter popC) (iter scanC) (n - z.2.2.1)
+              (ns - rowSum off z.2.1 z.2.2.1) + cu Currency.«while»)) := by
+    intro z hz hq hle
+    have hb : popBf z = false := by simp only [popBf, decide_eq_false_iff_not]; omega
+    simp only [drainLoop, irWhile_exit hb]
+    refine consume_returnT_le_spec ⟨⟨hz, hle⟩, hq⟩ ?_
+    rw [liftACost_add, liftACost_cu, add_comm]
+    exact cost_le_add _ _
+  intro fuel
+  induction fuel with
+  | zero => intro z hz hq hf; exact exit z hz hq (by have := hz.hdle; have := hz.tl_le; omega)
+  | succ fuel ih =>
+    intro z hz hq hf
+    by_cases hb : z.2.2.1 < z.2.2.2
+    · have hbt : popBf z = true := by simp [popBf, hb]
+      have hIs : popBf z = true → popP n (d + 1) off tgt alv z :=
+        fun _ => ⟨hc.shape, hz.dlen, hz.qlen, hz.qlt, hz.room⟩
+      have hS' : rowSum off z.2.1 (z.2.2.1 + 1)
+          = rowSum off z.2.1 z.2.2.1 + rowLen off z.2.1[z.2.2.1]! := Finset.sum_range_succ _ _
+      have hSle : rowSum off z.2.1 (z.2.2.1 + 1) ≤ ns := by
+        rw [rowSum]; exact hc.rowSum_le (tl := z.2.2.2) hz.qlt hz.qinj (by omega)
+      have hzn : z.2.2.1 < n := lt_of_lt_of_le hb hz.tl_le
+      have hcont : ∀ z' : St, (Fr n d G alv s z'.1 z'.2.1 z'.2.2.1 z'.2.2.2 ∧
+            z'.2.2.1 = z.2.2.1 + 1 ∧ ∀ i, i < z.2.2.1 + 1 → z'.2.1[i]! = z.2.1[i]!) →
+          drainLoop n d (d + 1) off tgt alv z'
+            ≤ NRest.spec
+                (fun z'' : St => (Fr n d G alv s z''.1 z''.2.1 z''.2.2.1 z''.2.2.2 ∧
+                  z''.2.2.2 ≤ z''.2.2.1) ∧ z''.2.1[0]! = q0)
+                (fun _ => liftACost (E2 (iter popC) (iter scanC) (n - (z.2.2.1 + 1))
+                  (ns - rowSum off z.2.1 (z.2.2.1 + 1)) + cu Currency.«while»)) := by
+        rintro z' ⟨hfr', hhd', hq'⟩
+        refine le_trans (ih z' hfr' (by rw [hq' 0 (by omega)]; exact hq) (by omega))
+          (spec_mono (fun _ hx => hx) fun _ _ => le_of_eq ?_)
+        have hrs : rowSum off z'.2.1 (z.2.2.1 + 1) = rowSum off z.2.1 (z.2.2.1 + 1) := by
+          rw [rowSum, rowSum]
+          exact Finset.sum_congr rfl fun i hi => by
+            rw [hq' i (by have := Finset.mem_range.mp hi; omega)]
+        rw [hhd', hrs]
+      have hcost : irUnit Currency.«while»
+          + (liftACost (popC + rowLen off z.2.1[z.2.2.1]! • iter scanC)
+            + liftACost (E2 (iter popC) (iter scanC) (n - (z.2.2.1 + 1))
+                (ns - rowSum off z.2.1 (z.2.2.1 + 1)) + cu Currency.«while»))
+          = liftACost (E2 (iter popC) (iter scanC) (n - z.2.2.1)
+              (ns - rowSum off z.2.1 z.2.2.1) + cu Currency.«while») := by
+        rw [show n - z.2.2.1 = (n - (z.2.2.1 + 1)) + 1 by omega,
+          show ns - rowSum off z.2.1 z.2.2.1
+            = (ns - rowSum off z.2.1 (z.2.2.1 + 1)) + rowLen off z.2.1[z.2.2.1]! by omega,
+          E2_split]
+        simp only [iter, liftACost_add, liftACost_nsmul, liftACost_cu]
+        ac_rfl
+      calc drainLoop n d (d + 1) off tgt alv z
+            = NRest.consume (NRest.bindT (popF n d (d + 1) off tgt alv z)
+                fun z' => drainLoop n d (d + 1) off tgt alv z') (irUnit Currency.«while») := by
+              simp only [drainLoop]; rw [irWhileIT_of_true hIs hbt]
+          _ ≤ NRest.consume (NRest.spec _ (fun _ => liftACost (popC + rowLen off z.2.1[z.2.2.1]! •
+                iter scanC) + liftACost (E2 (iter popC) (iter scanC) (n - (z.2.2.1 + 1))
+                  (ns - rowSum off z.2.1 (z.2.2.1 + 1)) + cu Currency.«while»)))
+                (irUnit Currency.«while») :=
+              NRest.consume_mono (le_trans (NRest.bindT_mono (popF_le hc hz hbt) fun _ => le_rfl)
+                (bindT_spec_le _ _ _ _ _ hcont)) le_rfl
+          _ = _ := by rw [consume_spec, ← hcost]
+    · exact exit z hz hq (by omega)
+
+end Reached
+
+/-! ## 9. Axioms -/
 
 /-- info: 'Lax13Proofs.Refine.BfsQ.bfsQ_correct' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

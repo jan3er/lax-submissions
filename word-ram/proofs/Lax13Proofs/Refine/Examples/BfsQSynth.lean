@@ -1435,6 +1435,124 @@ theorem bfsQ_spec {n ns d B src : ℕ} {G : SimpleGraph (Fin n)} {off tgt alv : 
     (bfsQ_spec_at dist₀ q₀ hc hsrc hB halv hdb hqb hdlen hqlen) σ hag
   exact ⟨σ', hrun, D, hread, hQ.1, hQ.2⟩
 
+/-! ## 14. The reached list, exported (R2D/D-c)
+
+`bfsQS_correct` routes through `bfsQ`, whose last step projects the
+distance array out of the result tuple, so its postcondition can only
+speak of that array. The gate program itself returns the whole state,
+queue included, and `BfsQ.Fr.qReached` reads the reached list off the
+queue invariant at drain exit. This is the same assembly as
+`BfsQ.bfsQ_correct`, run on `bfsQS` without the projection and against
+`drainLoop_le'`, which carries the seed's `q[0] := src` through the
+drain. -/
+
+section Reached
+
+open BfsQ (St QPost QReached Csr Fr bfsBudget bfsK popC scanC fillC iter cu rowSum
+  fillLoop_le drainLoop_le' get!_set)
+
+/-- **The gate program's reached list.** The synthesized search leaves,
+beside the distance array it already specified, a queue whose first
+`max tl 1` slots enumerate exactly the vertices it put within the
+cap. -/
+theorem bfsQS_reached {n ns d : ℕ} {G : SimpleGraph (Fin n)} {off tgt alv : List ℕ}
+    {src : ℕ} {dist₀ q₀ : List ℕ} (hc : Csr n ns G off tgt alv)
+    (hsrc : src < n) (hdlen : dist₀.length = n) (hqlen : q₀.length = n) :
+    bfsQS n d src off tgt alv dist₀ q₀
+      ≤ NRest.spec
+          (fun st' : St => QPost n d src G alv hsrc st'.1 ∧
+            QReached n d st'.1 st'.2.1 st'.2.2.2 ∧ st'.2.1.length = n)
+          (fun _ => irUnit Currency.skip + liftACost (bfsBudget n ns)) := by
+  have halv : src < alv.length := by rw [hc.shape.2.1]; exact hsrc
+  have hq0 : (q₀.set 0 src)[0]! = src := by
+    rw [get!_set q₀ 0 src 0 (by omega), if_pos rfl]
+  -- the seed and the drain, from a filled distance array
+  have htail : ∀ p : List ℕ × ℕ, (p.1.length = n ∧ ∀ j, j < n → p.1[j]! = d + 1) →
+      (NRest.bindT (mopAset p.1 src 0) fun D =>
+        NRest.bindT (mopAset q₀ 0 src) fun Q =>
+          NRest.bindT (mopAget alv src) fun a =>
+            NRest.bindT (irIf (decide (0 < a)) (mopConstN 1) (mopConstN 0)) fun tl =>
+              NRest.bindT (BfsQ.pack4 D Q 0 tl) fun st =>
+                BfsQ.drainLoop n d (d + 1) off tgt alv st)
+        ≤ NRest.spec
+            (fun st' : St => QPost n d src G alv hsrc st'.1 ∧
+              QReached n d st'.1 st'.2.1 st'.2.2.2 ∧ st'.2.1.length = n)
+            (fun _ => liftACost (n • iter popC + ns • iter scanC
+              + (cu Currency.aset + cu Currency.aset + cu Currency.aget + cu Currency.ite
+                + cu Currency.const + cu Currency.skip + cu Currency.skip + cu Currency.skip
+                + cu Currency.«while»))) := by
+    rintro p ⟨hplen, hpfill⟩
+    have hseed := Fr.seed (n := n) (d := d) (G := G) (alv := alv) (s := ⟨src, hsrc⟩)
+      hplen hqlen hpfill
+    have hrow0 : rowSum off (q₀.set 0 src) 0 = 0 := by simp [rowSum]
+    have hdrain := drainLoop_le' (d := d) (s := ⟨src, hsrc⟩) hc src n
+      (p.1.set src 0, q₀.set 0 src, 0, if 0 < alv[src]! then 1 else 0) hseed hq0 (by simp)
+    rw [hrow0, Nat.sub_zero, Nat.sub_zero] at hdrain
+    have hpost : ∀ z' : St, ((Fr n d G alv ⟨src, hsrc⟩ z'.1 z'.2.1 z'.2.2.1 z'.2.2.2 ∧
+        z'.2.2.2 ≤ z'.2.2.1) ∧ z'.2.1[0]! = src) →
+          QPost n d src G alv hsrc z'.1 ∧ QReached n d z'.1 z'.2.1 z'.2.2.2 ∧
+            z'.2.1.length = n := by
+      rintro z' ⟨⟨hfr, hle⟩, hz0⟩
+      rw [le_antisymm hfr.hdle hle] at hfr
+      exact ⟨⟨hfr.dlen, fun v k hk => hfr.dist_le_iff v hk⟩, hfr.qReached hz0, hfr.qlen⟩
+    have hstep : ∀ tl : ℕ, tl = (if 0 < alv[src]! then 1 else 0) →
+        (NRest.bindT (BfsQ.pack4 (p.1.set src 0) (q₀.set 0 src) 0 tl) fun st =>
+          BfsQ.drainLoop n d (d + 1) off tgt alv st)
+          ≤ NRest.spec
+              (fun st' : St => QPost n d src G alv hsrc st'.1 ∧
+                QReached n d st'.1 st'.2.1 st'.2.2.2 ∧ st'.2.1.length = n)
+              (fun _ => (irUnit Currency.skip + irUnit Currency.skip + irUnit Currency.skip)
+                + liftACost (E2 (iter popC) (iter scanC) n ns + cu Currency.«while»)) := by
+      rintro tl rfl
+      simp only [BfsQ.pack4, mopPair_def, bindT_unitT, NRest.consume_consume]
+      refine le_trans (NRest.consume_mono
+        (le_trans hdrain (spec_mono hpost fun _ _ => le_rfl)) le_rfl) (le_of_eq ?_)
+      rw [Sepref.consume_spec]
+      exact congrArg (NRest.spec _) (funext fun _ => by ac_rfl)
+    simp only [mopAset_def, mopAget_def, NRest.assert_pos (show src < p.1.length by omega),
+      NRest.assert_pos (show 0 < q₀.length by omega), NRest.assert_pos halv,
+      NRest.returnT_bindT, irIf_def, mopConstN_def,
+      NRest.bindT_consume NRest.addSupContinuousB_acost, NRest.consume_consume]
+    rw [show (if (decide (0 < alv[src]!)) = true
+          then NRest.consume (NRest.returnT 1) (irUnit Currency.const)
+          else NRest.consume (NRest.returnT 0) (irUnit Currency.const))
+        = NRest.consume (NRest.returnT (if 0 < alv[src]! then 1 else 0))
+            (irUnit Currency.const) from by
+      by_cases hal : 0 < alv[src]!
+      · rw [if_pos (by simp only [decide_eq_true_eq]; omega : (decide (0 < alv[src]!)) = true),
+          if_pos hal]
+      · rw [if_neg (by simp only [decide_eq_true_eq]; omega : ¬ (decide (0 < alv[src]!)) = true),
+          if_neg hal],
+      bindT_unitT]
+    refine le_trans (NRest.consume_mono (NRest.consume_mono (hstep _ rfl) le_rfl) le_rfl)
+      (le_of_eq ?_)
+    rw [Sepref.consume_spec, Sepref.consume_spec]
+    refine congrArg (NRest.spec _) (funext fun _ => ?_)
+    simp only [E2, iter, liftACost_add, liftACost_nsmul, liftACost_cu]
+    ac_rfl
+  simp only [bfsQS, fillLoop'_eq, drainLoop'_eq, mopPair_def, bindT_unitT]
+  refine le_trans (NRest.consume_mono
+    (le_trans (NRest.bindT_mono (fillLoop_le n (d + 1) n dist₀ 0 hdlen (by omega)
+      (fun j hj => absurd hj (by omega))) fun _ => le_rfl)
+      (bindT_spec_le _ _ _ _ _ htail)) le_rfl) ?_
+  rw [Sepref.consume_spec]
+  refine spec_mono (fun _ h => h) fun _ _ => ?_
+  have hsplit : irUnit Currency.skip + liftACost (bfsBudget n ns)
+      = (irUnit Currency.skip
+          + (liftACost ((n - (0 : ℕ)) • iter fillC + cu Currency.«while»)
+            + liftACost (n • iter popC + ns • iter scanC
+              + (cu Currency.aset + cu Currency.aset + cu Currency.aget + cu Currency.ite
+                + cu Currency.const + cu Currency.skip + cu Currency.skip + cu Currency.skip
+                + cu Currency.«while»))))
+        + (irUnit Currency.add + irUnit Currency.const) := by
+    simp only [bfsBudget, bfsK, iter, liftACost_add, liftACost_nsmul, liftACost_cu,
+      Nat.sub_zero]
+    ac_rfl
+  rw [hsplit]
+  exact cost_le_add _ _
+
+end Reached
+
 end Export
 
 -- The demo run's cost is covered by the exported budget (`n = 5`,
