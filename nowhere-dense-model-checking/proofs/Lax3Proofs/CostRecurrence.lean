@@ -1,5 +1,6 @@
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import Mathlib.Tactic.Ring
 
 /-!
@@ -369,5 +370,277 @@ private def stb : ℕ → ℕ := fun j => j
 example : solve sa sb 5 3 0 ≠ 5 := by decide
 
 end Falsification
+
+/-! ### The Σ shape
+
+`integration-design.md` §5.9. The uniform corollary above charges a
+level `n` turns at the worst turn's budget, which forces the
+coefficient `n` and hence the `n ^ ℓ` floor its §2.1 compiles. The
+revised interface charges a level the **sum** of its turns, each read at
+its own block size, and every cost becomes a function of the arena size
+`m`:
+
+* `Kl j m` — the level at depth `j` on an arena of `m` alive vertices;
+* `Kt j s` — one turn whose block has `s` members;
+* `Ko j m`, `Kc j m` — the ordering and cover phases, active-set driven,
+  so linear in the arena rather than in the carrier;
+* `tb j s` — the turn's own leaves, touched-only, linear in the block.
+
+The three shape hypotheses `hKo`/`hKc`/`htb` are exactly "linear in the
+size handed in" (`… ≤ coeff * (size + 1)`, the `+1` absorbing the
+per-call constants), and the mass hypothesis of the level is the one
+B6 supplies from the cover's degree bound: the block sizes of a level
+sum to at most `D * (m + 1)`.
+
+Under those, the linear ansatz `Kl j m = u j * (m + 1)` turns the level
+condition into the *same* affine recursion the file already solves —
+with the coefficient `D + 1` in place of `n`:
+
+```
+u j = (ko j + kc j + α j * (D + 1) + 14) + (D + 1) * u (j + 1)
+```
+
+The `+ 1` in the coefficient is not slack: the level pays one turn
+*overhead* per nonempty block on top of the block's own mass, and there
+can be `m` of them. The falsification block below compiles that — the
+side condition is refuted at coefficient `D`. -/
+
+/-- The per-level constant of the Σ-shaped recursion: the two phase
+coefficients, the turn-leaf coefficient charged at the mass
+coefficient, and the loop's own per-turn and per-level constants
+(`8` per turn, `6` per level). -/
+def driverASigma (ko kc α : ℕ → ℕ) (D j : ℕ) : ℕ :=
+  ko j + (kc j + (α j * (D + 1) + 14))
+
+/-- **The level witness**: the canonical solution at coefficient
+`D + 1`, read linearly in the arena size. -/
+def KlSigma (ko kc α : ℕ → ℕ) (D Cb ℓ j m : ℕ) : ℕ :=
+  solve (driverASigma ko kc α D) (fun _ => D + 1) Cb ℓ j * (m + 1)
+
+/-- **The turn witness**: the turn's own leaves at the block's size,
+plus the nested level at that same size. -/
+def KtSigma (ko kc α : ℕ → ℕ) (tb : ℕ → ℕ → ℕ) (D Cb ℓ j s : ℕ) : ℕ :=
+  tb j s + KlSigma ko kc α D Cb ℓ (j + 1) s
+
+/-- **The driver's Σ-shaped cost parameters, exhibited** (§5.9).
+
+From the level count `ℓ`, the mass coefficient `D`, the base
+coefficient `Cb`, and the three per-level *coefficients* `ko`, `kc`,
+`α` bounding the two phases and the turn's leaves linearly in the size
+they are handed, there are size-indexed `Kl` and `Kt` satisfying the
+revised side conditions of `driverRoot_decides_sentence` — the base,
+the monotonicity `hKmono` the descend clause needs, the turn condition
+§5.7 and the Σ-shaped level condition §5.6 — with `Kl 0` in closed form
+and `Kl` least among the solutions of the induced numeric recursion.
+
+Nothing here knows what the numbers are: `Ko`, `Kc`, `tb` and `turn`
+are opaque, and the only thing assumed about the turn cost is the same
+affinity in the nested driver's slot that `exists_driverCosts` assumes,
+now at each block size. The uniform corollary above is unchanged and
+stays: this is its refinement, not its replacement. -/
+theorem exists_driverCostsSigma (ℓ D Cb : ℕ) (ko kc α : ℕ → ℕ)
+    (Ko Kc tb : ℕ → ℕ → ℕ) (turn : ℕ → ℕ → ℕ → ℕ)
+    (hKo : ∀ j m, Ko j m ≤ ko j * (m + 1))
+    (hKc : ∀ j m, Kc j m ≤ kc j * (m + 1))
+    (htb : ∀ j s, tb j s ≤ α j * (s + 1))
+    (hturn : ∀ j s Kin, turn j s Kin ≤ tb j s + Kin) :
+    ∃ Kl Kt : ℕ → ℕ → ℕ,
+      (∀ m, Cb * (m + 1) ≤ Kl ℓ m) ∧
+      (∀ j, Monotone (Kl j)) ∧
+      (∀ j s, turn j s (Kl (j + 1) s) ≤ Kt j s) ∧
+      (∀ j < ℓ, ∀ m t : ℕ, t ≤ m → ∀ bs : ℕ → ℕ,
+        (∑ c ∈ range t, bs c) ≤ D * (m + 1) →
+        Ko j m + (Kc j m + ((∑ c ∈ range t, (Kt j (bs c) + 8)) + 6)) ≤ Kl j m) ∧
+      (∀ m, Kl 0 m =
+        ((∑ j ∈ range ℓ, driverASigma ko kc α D j * (D + 1) ^ j) + Cb * (D + 1) ^ ℓ) * (m + 1)) ∧
+      (∀ K : ℕ → ℕ, Cb ≤ K ℓ →
+        (∀ j < ℓ, driverASigma ko kc α D j + (D + 1) * K (j + 1) ≤ K j) →
+        ∀ j ≤ ℓ, ∀ m, Kl j m ≤ K j * (m + 1)) := by
+  classical
+  have hAdef : ∀ j, driverASigma ko kc α D j =
+      ko j + (kc j + (α j * (D + 1) + 14)) := fun _ => rfl
+  set A : ℕ → ℕ := driverASigma ko kc α D with hA
+  set u : ℕ → ℕ := solve A (fun _ => D + 1) Cb ℓ with hu
+  have hKl : ∀ j m, KlSigma ko kc α D Cb ℓ j m = u j * (m + 1) := fun _ _ => rfl
+  have hKt : ∀ j s, KtSigma ko kc α tb D Cb ℓ j s = tb j s + u (j + 1) * (s + 1) :=
+    fun _ _ => rfl
+  refine ⟨KlSigma ko kc α D Cb ℓ, KtSigma ko kc α tb D Cb ℓ,
+    fun m => by rw [hKl, hu, solve_top],
+    fun j a b hab => by rw [hKl, hKl]; exact Nat.mul_le_mul_left _ (by omega),
+    fun j s => by rw [hKt, hKl]; exact hturn j s _,
+    fun j hj m t htm bs hbs => ?_,
+    fun m => by rw [hKl, hu, solve_const],
+    fun K hbase hstep j hj m => by
+      rw [hKl]; exact Nat.mul_le_mul_right _ (solve_le_of_le hbase hstep j hj)⟩
+  rw [hKl]
+  simp only [hKt]
+  -- the block sizes, with one loop overhead each, fit the mass bound at coefficient `D + 1`
+  have hsum1 : (∑ c ∈ range t, (bs c + 1)) ≤ (D + 1) * (m + 1) := by
+    rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_range, smul_eq_mul, mul_one]
+    calc (∑ c ∈ range t, bs c) + t ≤ D * (m + 1) + (m + 1) := Nat.add_le_add hbs (by omega)
+      _ = (D + 1) * (m + 1) := by ring
+  -- one turn is its leaves plus the nested level, both linear in the block
+  have hterm : ∀ c ∈ range t,
+      (tb j (bs c) + u (j + 1) * (bs c + 1)) + 8 ≤ (α j + u (j + 1)) * (bs c + 1) + 8 := by
+    intro c _
+    have := htb j (bs c)
+    calc (tb j (bs c) + u (j + 1) * (bs c + 1)) + 8
+        ≤ (α j * (bs c + 1) + u (j + 1) * (bs c + 1)) + 8 := by omega
+      _ = (α j + u (j + 1)) * (bs c + 1) + 8 := by ring
+  have hsum2 : (∑ c ∈ range t, ((tb j (bs c) + u (j + 1) * (bs c + 1)) + 8)) ≤
+      (α j + u (j + 1)) * ((D + 1) * (m + 1)) + 8 * (m + 1) := by
+    calc (∑ c ∈ range t, ((tb j (bs c) + u (j + 1) * (bs c + 1)) + 8))
+        ≤ ∑ c ∈ range t, ((α j + u (j + 1)) * (bs c + 1) + 8) := Finset.sum_le_sum hterm
+      _ = (α j + u (j + 1)) * (∑ c ∈ range t, (bs c + 1)) + 8 * t := by
+          rw [Finset.sum_add_distrib, Finset.mul_sum, Finset.sum_const, Finset.card_range,
+            smul_eq_mul, mul_comm t 8]
+      _ ≤ (α j + u (j + 1)) * ((D + 1) * (m + 1)) + 8 * (m + 1) :=
+          Nat.add_le_add (Nat.mul_le_mul_left _ hsum1) (Nat.mul_le_mul_left _ (by omega))
+  have hstep : u j = A j + (D + 1) * u (j + 1) := by rw [hu]; exact solve_step hj
+  calc Ko j m + (Kc j m + ((∑ c ∈ range t,
+        ((tb j (bs c) + u (j + 1) * (bs c + 1)) + 8)) + 6))
+      ≤ ko j * (m + 1) + (kc j * (m + 1) +
+          (((α j + u (j + 1)) * ((D + 1) * (m + 1)) + 8 * (m + 1)) + 6 * (m + 1))) :=
+        Nat.add_le_add (hKo j m) (Nat.add_le_add (hKc j m) (Nat.add_le_add hsum2 (by omega)))
+    _ = (A j + (D + 1) * u (j + 1)) * (m + 1) := by rw [hAdef j]; ring
+    _ = u j * (m + 1) := by rw [← hstep]
+
+/-- The Σ-shaped root cost, geometrically: with every per-level constant
+at most `A`, the whole recursion is `(ℓ · A + Cb) · (D + 1) ^ ℓ`, which
+is the factor the real-exponent lemma below turns into `n ^ ε`. -/
+theorem solve_sigma_le {ko kc α : ℕ → ℕ} {D Cb ℓ A : ℕ}
+    (hA : ∀ j < ℓ, driverASigma ko kc α D j ≤ A) :
+    solve (driverASigma ko kc α D) (fun _ => D + 1) Cb ℓ 0 ≤ (ℓ * A + Cb) * (D + 1) ^ ℓ :=
+  solve_const_le hA (by omega)
+
+section SigmaFalsification
+
+/-! The Σ side condition, and the coefficient it needs, on data: mass
+coefficient `D = 1`, two levels, base `100`, per-level constant `14`,
+an arena of `m = 4` with `t = 4` blocks of sizes `2, 2, 1, 0` — the
+mass bound `∑ bs = 5 ≤ D · (m + 1)` held **tight**. -/
+
+private def sbs : ℕ → ℕ := fun c => [2, 2, 1, 0].getD c 0
+
+-- the mass hypothesis, at the edge
+#guard (∑ c ∈ range 4, sbs c) = 5
+#guard (∑ c ∈ range 4, sbs c) ≤ 1 * (4 + 1)
+
+-- the level's bill: four turns, each the nested level `100 · (s + 1)`
+-- plus the `8` of the loop, and the level's own `6`
+#guard (∑ c ∈ range 4, (100 * (sbs c + 1) + 8)) + 6 = 938
+
+-- the witness pays it at coefficient `D + 1 = 2`
+#guard 938 ≤ solve (fun _ => 14) (fun _ => 2) 100 2 1 * (4 + 1)
+
+-- **Refuted**: at coefficient `D` the same side condition fails — the
+-- per-turn overhead of up to `m` nonempty blocks is not in the mass.
+#guard ¬ (938 ≤ solve (fun _ => 14) (fun _ => 1) 100 2 1 * (4 + 1))
+
+-- **Refuted**: reading the level's sum over the *carrier's* `n` blocks
+-- instead of the `t ≤ m` compacted ones is not the same number.
+#guard ¬ ((∑ c ∈ range 8, (100 * (sbs c + 1) + 8)) + 6 ≤ 938)
+
+-- the per-level constant, and the degenerate levels
+#guard driverASigma (fun _ => 1) (fun _ => 2) (fun _ => 3) 1 0 = 1 + (2 + (3 * 2 + 14))
+#guard solve (driverASigma (fun _ => 1) (fun _ => 2) (fun _ => 3) 1) (fun _ => 2) 7 0 0 = 7
+
+end SigmaFalsification
+
+/-! ### The real exponent
+
+The last step of P4: the mass coefficient `exists_cover_degree` hands
+over is `D = ⌈c · n ^ (ε / ℓ)⌉₊`, and the recursion charges it `ℓ`
+times, so the headline needs `(D + 1) ^ ℓ ≤ c' · n ^ ε`. That is the
+same massage `CoverDegree.exists_cover_degree` performs internally on
+`X ^ (2 · 16 ^ R) = m ^ δ`, at the driver's exponent.
+
+Both hypotheses are necessary, not decoration: at `n = 0` the right
+side is `0` while the left is at least `1` (`ceil_rpow_pow_zero`
+compiles the refutation), and at `ℓ = 0` the `X ^ ℓ = n ^ ε` step is
+false. Everything is stated at `ℝ` — `^ ε` is `Real.rpow`, `^ ℓ` is
+the monoid power — with the ℕ-side consumer taking the cast form. -/
+
+/-- **The exponent massage.** With `X = n ^ (ε / ℓ)` at least one, the
+ceiling costs at most one and the `+ 1` one more, so the whole
+`ℓ`-th power collapses to `(c + 2) ^ ℓ · n ^ ε`. -/
+theorem ceil_rpow_pow_le {c ε : ℝ} (hc : 0 ≤ c) (hε : 0 < ε) {ℓ : ℕ} (hℓ : ℓ ≠ 0)
+    {n : ℕ} (hn : 1 ≤ n) :
+    ((⌈c * (n : ℝ) ^ (ε / (ℓ : ℝ))⌉₊ : ℝ) + 1) ^ ℓ ≤ (c + 2) ^ ℓ * (n : ℝ) ^ ε := by
+  have hn1 : (1 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
+  have hℓ0 : (0 : ℝ) < (ℓ : ℝ) := by
+    have : 0 < ℓ := Nat.pos_of_ne_zero hℓ
+    exact_mod_cast this
+  have hexp : 0 ≤ ε / (ℓ : ℝ) := le_of_lt (div_pos hε hℓ0)
+  set X : ℝ := (n : ℝ) ^ (ε / (ℓ : ℝ)) with hX
+  have hX1 : (1 : ℝ) ≤ X := by
+    rw [hX]
+    calc (1 : ℝ) = (1 : ℝ) ^ (ε / (ℓ : ℝ)) := (Real.one_rpow _).symm
+      _ ≤ (n : ℝ) ^ (ε / (ℓ : ℝ)) := Real.rpow_le_rpow (by norm_num) hn1 hexp
+  have hXnn : (0 : ℝ) ≤ X := le_trans zero_le_one hX1
+  have hceil : ((⌈c * X⌉₊ : ℕ) : ℝ) ≤ c * X + 1 :=
+    (Nat.ceil_lt_add_one (mul_nonneg hc hXnn)).le
+  have hstep : ((⌈c * X⌉₊ : ℕ) : ℝ) + 1 ≤ (c + 2) * X := by nlinarith
+  have hXP : X ^ ℓ = (n : ℝ) ^ ε := by
+    rw [hX, ← Real.rpow_natCast ((n : ℝ) ^ (ε / (ℓ : ℝ))) ℓ, ← Real.rpow_mul (by positivity)]
+    congr 1
+    field_simp
+  calc ((⌈c * X⌉₊ : ℝ) + 1) ^ ℓ ≤ ((c + 2) * X) ^ ℓ := by
+        refine pow_le_pow_left₀ (by positivity) hstep ℓ
+    _ = (c + 2) ^ ℓ * X ^ ℓ := by rw [mul_pow]
+    _ = (c + 2) ^ ℓ * (n : ℝ) ^ ε := by rw [hXP]
+
+/-- **Refuted at the empty carrier.** The bound is not unconditional in
+`n`: at `n = 0` the right side is zero and the left is one, which is
+why `ceil_rpow_pow_le` carries `1 ≤ n` (the C0 consumer reads it at
+`|x| + 1 ≥ 1`). -/
+theorem ceil_rpow_pow_zero {c ε : ℝ} (hε : 0 < ε) :
+    ¬ ((⌈c * (0 : ℝ) ^ (ε / (1 : ℝ))⌉₊ : ℝ) + 1) ^ 1 ≤ (c + 2) ^ 1 * (0 : ℝ) ^ ε := by
+  have h0 : (0 : ℝ) ^ ε = 0 := Real.zero_rpow (ne_of_gt hε)
+  have h1 : (0 : ℝ) ^ (ε / (1 : ℝ)) = 0 := Real.zero_rpow (by simpa using ne_of_gt hε)
+  rw [h0, h1]
+  norm_num
+
+/-- **The C0 shape.** The Σ recursion's root cost, at the mass
+coefficient the cover-degree theorem supplies, is almost linear: the
+`(D + 1) ^ ℓ` factor becomes `n ^ ε` and the arena's `n + 1` becomes
+the missing exponent one. This is the arithmetic P4 closes the headline
+with; the constant is `(ℓ · A + Cb) · (c + 2) ^ ℓ`, independent of
+`n`. -/
+theorem sigma_root_almostLinear {c ε : ℝ} (hc : 0 ≤ c) (hε : 0 < ε) {ℓ : ℕ} (hℓ : ℓ ≠ 0)
+    {C n K : ℕ} (hn : 1 ≤ n)
+    (hK : (K : ℝ) ≤ (C : ℝ) * ((⌈c * (n : ℝ) ^ (ε / (ℓ : ℝ))⌉₊ : ℝ) + 1) ^ ℓ * ((n : ℝ) + 1)) :
+    (K : ℝ) ≤ ((C : ℝ) * (c + 2) ^ ℓ) * ((n : ℝ) + 1) ^ (1 + ε) := by
+  have hn0 : (0 : ℝ) ≤ (n : ℝ) := Nat.cast_nonneg n
+  have hn1 : (0 : ℝ) < (n : ℝ) + 1 := by linarith
+  have hpow : (n : ℝ) ^ ε ≤ ((n : ℝ) + 1) ^ ε :=
+    Real.rpow_le_rpow hn0 (by linarith) (le_of_lt hε)
+  have hsplit : ((n : ℝ) + 1) ^ (1 + ε) = ((n : ℝ) + 1) * ((n : ℝ) + 1) ^ ε := by
+    rw [Real.rpow_add hn1, Real.rpow_one]
+  refine hK.trans ?_
+  rw [hsplit]
+  have hce := ceil_rpow_pow_le (c := c) (ε := ε) hc hε (ℓ := ℓ) hℓ (n := n) hn
+  have hC : (0 : ℝ) ≤ (C : ℝ) := Nat.cast_nonneg C
+  calc (C : ℝ) * ((⌈c * (n : ℝ) ^ (ε / (ℓ : ℝ))⌉₊ : ℝ) + 1) ^ ℓ * ((n : ℝ) + 1)
+      ≤ (C : ℝ) * ((c + 2) ^ ℓ * (n : ℝ) ^ ε) * ((n : ℝ) + 1) := by
+        have := mul_le_mul_of_nonneg_left hce hC
+        exact mul_le_mul_of_nonneg_right this (le_of_lt hn1)
+    _ ≤ (C : ℝ) * ((c + 2) ^ ℓ * ((n : ℝ) + 1) ^ ε) * ((n : ℝ) + 1) := by
+        have hcp : (0 : ℝ) ≤ (c + 2) ^ ℓ := by positivity
+        have := mul_le_mul_of_nonneg_left hpow hcp
+        exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left this hC) (le_of_lt hn1)
+    _ = (C : ℝ) * (c + 2) ^ ℓ * (((n : ℝ) + 1) * ((n : ℝ) + 1) ^ ε) := by ring
+
+-- the exponent arithmetic, on numbers: `c = 1`, `ε = 1`, `ℓ = 2`,
+-- `n = 256`, so `n ^ (ε / ℓ) = 16` and the left side is `17 ^ 2`
+#guard 17 ^ 2 ≤ 3 ^ 2 * 256
+
+-- **Refuted**: without the `+ 2` in the constant — reading the bound as
+-- `(⌈c · n ^ (ε/ℓ)⌉ + 1) ^ ℓ ≤ c ^ ℓ · n ^ ε` — it is false at `c = 1`.
+#guard ¬ (17 ^ 2 ≤ 1 ^ 2 * 256)
+
+-- **Refuted**: and the ceiling alone already breaks the naive reading
+-- `⌈c · n ^ (ε/ℓ)⌉ ^ ℓ ≤ c ^ ℓ · n ^ ε`, at `n = 250` (`⌈√250⌉ = 16`).
+#guard ¬ (16 ^ 2 ≤ 1 ^ 2 * 250)
 
 end Lax3Proofs.CostRecurrence

@@ -527,4 +527,29 @@ theorem sum_ncard_le_of_isNeighborhoodCover {N r d : ℕ} {G : SimpleGraph (Fin 
     ∑ u : Fin N, (X u).ncard ≤ N * d :=
   sum_ncard_le_mul X d h.degree_le
 
+/-- **Cluster mass charged to a support set.**  The same double
+counting, sharpened: if every cluster lies inside `S`, the fibre count
+runs over `S` alone and the total size is at most `|S| · d`.  This is
+the form the driver's *nested* levels cite — the arena of a recursive
+call is the alive set, not the carrier, and a mass bound against the
+carrier would leave the recursion's coefficient at `n`. -/
+theorem sum_ncard_le_mul_of_subset {N : ℕ} (X : Fin N → Set (Fin N)) (S : Set (Fin N)) (d : ℕ)
+    (hsub : ∀ u : Fin N, X u ⊆ S)
+    (h : ∀ w : Fin N, {u : Fin N | w ∈ X u}.ncard ≤ d) :
+    ∑ u : Fin N, (X u).ncard ≤ S.ncard * d := by
+  classical
+  have hSfin : S.Finite := Set.toFinite S
+  have hzero : ∀ w : Fin N, w ∉ hSfin.toFinset → {u : Fin N | w ∈ X u}.ncard = 0 := by
+    intro w hw
+    have hemp : {u : Fin N | w ∈ X u} = ∅ := by
+      refine Set.eq_empty_iff_forall_notMem.mpr fun u hu => ?_
+      exact hw (hSfin.mem_toFinset.mpr (hsub u hu))
+    rw [hemp, Set.ncard_empty]
+  rw [← card_incid_clusters, card_incid_fibers,
+    ← Finset.sum_subset (Finset.subset_univ hSfin.toFinset) (fun w _ hw => hzero w hw)]
+  calc ∑ w ∈ hSfin.toFinset, {u : Fin N | w ∈ X u}.ncard
+      ≤ ∑ _w ∈ hSfin.toFinset, d := Finset.sum_le_sum fun w _ => h w
+    _ = S.ncard * d := by
+        rw [Finset.sum_const, smul_eq_mul, Set.ncard_eq_toFinset_card S hSfin]
+
 end Lax3Proofs.CoverDegree
