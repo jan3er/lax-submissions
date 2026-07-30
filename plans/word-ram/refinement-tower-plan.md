@@ -314,6 +314,237 @@ of overnight work — set expectations by the budget, not the recent luck.
 
 ## Progress log
 
+- **2026-07-31 — P8 COMPLETE; CAMPAIGN CLOSED.** Verdict record,
+  final deviation-ledger review, adoption analysis (recommendation:
+  adopt as default + a one-session `wordAssn` spike), handoff notes
+  and thaw queue: `refinement-tower/p8-verdict.md`. Night log session
+  19. Landed on main by merge (no overlap with ND-MC's interim
+  commits). Total: P0–P8 in three sessions against a 15–24 session
+  budget; every phase at or under its lower bound; every acceptance
+  passed and pinned.
+
+- **2026-07-30/31 — P7 COMPLETE (one session vs 1–2 budget). GATE
+  VERDICT: frame-clause criterion PASS (0 hand frame clauses across
+  the whole derivation); line-count criterion MISS (≈2.5× raw /
+  ≈4.5× vs the 400 target).** Design note `p7-gate-design.md`
+  (4c895c7). **Wave A** (`Refine/Examples/BfsQ.lean`, cd88e1a→merge
+  ab9f013, final 1,448 raw/1,023 Lean): first-order queue-based
+  `bfsQ` at the mop layer; `bfsQ_correct ≤ SPEC (QPost) (linear
+  budget)` by direct queue invariant (P7/D-a; a level is a whole run
+  of pops, so data refinement off `bfsAlg` would be a nested-loop
+  simulation); twin `#guard`ed against the baseline's five-vertex
+  arena AND P1's independent level-based twin; tower gap found+closed
+  (`irWhileIT` asserts once more than `whileT` — `IrLoop.lean`).
+  **Wave B** (`Refine/Examples/BfsQSynth.lean` + five flagged tower
+  repairs, commits 0961b04→4c2c561→8b33363→fc7ab25→4b5d933): the
+  ENTIRE BFS synthesized mechanically — three nested loops, nested
+  branches, two-array tuple states — in 49 s, Com pinned, demo runs
+  the synthesized program on the baseline's arena (mask on/off, two
+  caps, second source, negative control). Tower repairs, each
+  output-preserving (all pinned syntheses byte-identical):
+  `conjunctsSplit` whnf'd pair projections (root cause of P6 finding
+  3); merge key learns `junkArray`; `frameMatch` admitted constant
+  relators via HO `isDefEq` — the weak-HOU watch item hit head-on,
+  fixed by first-order `absAgree` pre-match (the source's own Termtab
+  discipline); `transComb` stable-partitions `hnr_seq` behind
+  `hnr_bind` (2^depth retranslation killed: scan 3m22s-stall → 13 s,
+  program >9min → 49 s); `fallbackTac` learns `apply_assumption`
+  (nested LOOP_VARIANTs are quantified). **Bounds finding (P7/D-bj →
+  D-bk):** invariant-bounded write indices make `ir_bound_vcg` re-run
+  wave A's counting argument; the state-local rescue lemma is UNSOUND
+  (binop bounds are history-relative); the honest shape is
+  `bigStepB_of_inv` via `bpre` — in-range facts free from the run's
+  own side conditions, only creation-site `<B` obligations remain;
+  the 560-line discharge is the real bounds-annotation figure (P5's
+  ~10-line toy telemetry does not transfer). **Export `bfsQ_spec`:**
+  bfs_spec-shaped cells-based Spec at `embed bfsQSynth_impl`,
+  threshold post at `WD`/`maskOf` with the adjacency characterization
+  pinned (P7/S-1), `K = 56n + 40ns + 33` COMPUTED (vs the baseline's
+  hand-tuned `51n + 44ns + 30`), coverage `#guard`ed, axioms clean.
+  **Gate accounting** (counting rule of the design note; both sides
+  raw): baseline 1,201; P7 total 2,957 raw / 1,922 Lean (1,814 net of
+  the 108-line pinned Com), plus disclosed reuse of P1's Bfs.lean
+  graph core. Decomposition of the miss: the queue invariant (~⅓ of
+  wave A — the same fourteen clauses the baseline's Frontier carries;
+  intrinsic to queue-BFS at any abstraction level), the 560-line
+  bounds pass (the price of D-a's untruncated arithmetic — the
+  genuinely new cost), synthesis annotations small. What the tower
+  removed is the machine half: no `Run`, no `Env`, no
+  `wvars`/`warrs`, no hand frame reasoning anywhere. Hand frame
+  clauses 0 (stated caveats: three `MERGE_arrayAssn_*` DB rules and
+  one assertion equation in the export assembly; read strictly, 4).
+  Supervision interventions: 3 mid-wave authorizations (driver-search
+  fix; route-2 attempt; route-2 fallback), 2 overload resumes + 1
+  model switch (Opus outage; final leg completed on Fable, Opus
+  draft surviving ~100% under audit). Per the plan's miss path, the
+  adoption analysis and options go to P8's verdict record.
+
+- **2026-07-30 — P6 COMPLETE (one session vs 2–3 budget; acceptance
+  PASSED: every structure's rules consumed by the P4 translator on
+  exercise programs, zero frame clauses, zero bespoke tactics).**
+  Design record `p6-iicf-design.md` (69f164f) + extracts (e9ec5cd).
+  **P6-A** (arrays, 521d8d3→merge 3eef624): `Iicf/{Basic,IicfArray,
+  IicfTrailArray,ExercisesA}.lean`; mop_array_fill and ALL THREE
+  trail-array impls synthesized by our own sepref_synth (the pop-loop
+  reset included); the D5 characteristic theorem
+  `treset_cost_touched_only` (reset cost a function of the touch
+  counter alone). **P6-B** (structures, b7ada37→merge a76f5a6):
+  `Iicf/{IicfStack,IicfQueue,IicfCsr,IicfBitmask}.lean`; all ten op
+  bodies synthesized, composite rules as four-line wrappers (D-bc:
+  the frame matcher cannot look inside composite assertions — raw
+  synthesis + wrapper is the pattern); nine exercises incl. a
+  cross-structure loop (stack pop + bmInsert). **Pipeline findings
+  (P4 untouched, recorded for a future thaw):** (1) frameMatch splits
+  goals but never rule-side prodAssn — route tuple state through
+  hnr_mop_pair; (2) operator phase does not backtrack across rule
+  choice (junk-destination binop beats in-place when scratch is free)
+  — forced stack-grows-downward + write-twice dodges; a mop_move with
+  live destination is the clean fix; (3) two arrayAssn conjuncts in
+  one prodAssn loop state trip proveConjEq inside sepref_ac (valid
+  permutation, in-situ rfl failure) — read-only arrays belong in the
+  frame anyway; (4) hnr_bind blocks value-dependent guard rules —
+  branch on the returned value, convert back by lemma. Convention
+  divergence at merge (flagged, not reworked): P6-B's
+  hnRefine_reinterp/hnr_pre_ex_pure duplicate P6-A's
+  hnRefine_res_cast'/hnr_pre_*_conv in role; init-from-junk takes
+  concrete xs (B) vs junkArrayOfLen (A); dedupe queued for P8 or a
+  thaw wave. New mathlib import: Combinatorics.Colex (one simp
+  lemma). P7 opened the same night: gate design note
+  `p7-gate-design.md` (4c895c7 — counting rule fixed, package
+  boundary P7/S-1: export in word-ram at P1's masked/WD over the
+  alv-derived mask, no Lax3/Lax12 imports); wave A (bfsQ middle
+  refinement) dispatched satellite.
+
+- **2026-07-30 — P5 COMPLETE (one session vs 2–3 budget; acceptance
+  PASSED: the P4 toys land at machine-level `computesInTime`
+  mechanically).** Design record `p5-codegen-design.md` (113718a +
+  Spec-shape addendum — the P7 consumer `bfs_spec` is a cells-based
+  `Spec`, so the primary cashing export is Spec-shaped; the
+  Solves/computesInTime route wraps it with the tape harness, ledger
+  N3). **A1** (`Codegen/{Embed,BigStepB,Sim}.lean`, 115aa60→merge
+  c6a3fa5): name-identical embed, `Ir.BigStepB` — refuted the design's
+  "creation-sites-only" side conditions (literal guards need bounded
+  cond evaluation, P5/D-i), simulation `embed_sim` with the cash factor
+  EXACTLY 4 (every weight is the embedded op's IMP+ cost on the nose;
+  no Classical.choice). **A2** (`Codegen/Harness.lean`, 47c8f9a→merge
+  32b115d): readScalars/readArr/writeScalar/writeArr + three marshal
+  glue lemmas from `initEnv` to `σ'.out`, machine-gate runs incl. cost
+  cross-checks; kit had NO tape-loop Spec lemmas (all new; Fill reused
+  for the read loop). **B** (`Codegen/{BoundVcg,Cash}.lean` +
+  `Codegen/Examples/EndToEnd.lean`, c032bdc): `bwp` bounds-VCG +
+  `runs_while`; `spec_of_hnRefine` (hypothesis-form readout, P5/D-af);
+  cost chain affordability → SPEC bound → `cash_le_ecash` (tight) →
+  numeral; filter-count `K = 32n+17`, reverse `K = 49n−2`, axioms
+  pinned, machine runs #guarded. **Bounds telemetry closes P5/D-a: the
+  annotation proper is ~10 lines/program (6+1 `<B` goals) — the
+  `wordAssn` retrofit is NOT taken; P4 stays frozen.** Refuted/found en
+  route: `omega` is blind through the `Ir.Val` abbrev (bind indices at
+  ℕ); the root `lax` gate caught a `List.lookup` splitter leak that
+  `lake build` misses. Backlog: computable twins vs
+  `List.filter`/`List.reverse` #guarded not proved; a writes-none
+  `Spec` combinator; per-toy `B x = x.sum + 2` is coarse. P6 opened the
+  same night: design record `p6-iicf-design.md` (69f164f; IICF over
+  fixed cells, init-from-junk replaces new/free, impls synthesized by
+  our own sepref_synth per the source's "by sepref" idiom,
+  trail-backed touched-only arrays as the D5 default), extracts
+  e9ec5cd; waves P6-A (arrays+trail) and P6-B (stack/queue/CSR/bitmask)
+  dispatched satellite.
+
+- **2026-07-30 — P4 COMPLETE (one session, under the 3–5 budget;
+  acceptance PASSED). Wave C f427b67, acceptance 0cd0f72.** **Wave C**
+  `Sepref/{Constraints,Frame,Translate,Tool,Definition}.lean` + Attrs
+  (+3,304 l): CONSTRAINT/CN_FALSE with the slot as a MetaM store (D-cd),
+  frame_tac = P3's `fri` plus the Sepref match rules (D-ch), `hnr_bind`
+  with `abstractPost` junking binder-dependent conjuncts (D-ct), tuple
+  states via `hnCtxt_prodAssn` + split-retry + `mopPair` (D-cu),
+  `LOOP_VARIANT` caller-supplied (D-cv, dies when Rec.lean exports
+  fuel-stability), nine-phase driver under the source's phase names +
+  the 11-entry `sepref_dbg_*` table, `sepref` tactic + `sepref_synth`
+  command. **Synthesis is by metavariable instantiation — the source's
+  own mechanism (D-cm); the fallback two-step mode was never needed.**
+  Refuted mid-build: definitionally-equal mops collide (each mop needs
+  its own currency). Flags D-ca…de. **Acceptance
+  `Sepref/Examples/Acceptance.lean` (762 l, 323 authored):** in-place
+  array reverse + filter-count (an If inside a While body) written at
+  the user layer (`monadicWhileIT`/`MIf`, user currencies), pushed
+  through `⇓C irE` (new `ExchOk` calculus + `irWhileIT_mono`), then
+  synthesized mechanically — **zero hand frame clauses, synthesis
+  2.8 s/1.8 s, axioms pinned clean, zero wave-C defects found**. 13
+  positive `#guard`s on computable twins, 3 pinned negative controls,
+  and a pinned 34-line legible `trans`-phase failure naming the missing
+  `junkCell`. Flags D-ea…ee (notably: `whileIET` is definitionally
+  cost-free so `monadicWhileIT` is the exchangeable user loop; a
+  measured-loop destination is the loop state, with the array-shaped
+  corollary recovered by entailment). Backlog carried to P5+:
+  reverse=`List.reverse` proved only by sample (List.set invariant,
+  out of P4 scope); ExchOk/`irWhileIT_mono`/`mopPair` placement moves
+  at next thaws; dependent `hfcomp`; unfueled while rule; `inres`
+  still unported. **P4-gate seed for P7: 323 authored lines for two
+  synthesized programs, 0 frame clauses.** P5 opened the same night:
+  design record `refinement-tower/p5-codegen-design.md` (113718a) —
+  embed/agree, `Ir.BigStepB` with creation-site-only side conditions,
+  simulation at cash factor ≤ 4, Spec-layer I/O harness, cashing
+  theorem; the value bound is a genuine per-program obligation (P5/D-a:
+  IR bounds VCG now, `wordAssn` retrofit recorded as fallback if P7
+  telemetry demands it); waves A1 (embed/sim) + A2 (harness) satellite.
+
+- **2026-07-30 (overnight) — P4 waves A+B landed (extracts ab58c34, A
+  fb594c3, B1 e5e417b, B2 5915bc7 merged d771d6d); wave C (translate/
+  frame/tool) dispatched.** Deep extracts: all ten `Sepref_*.thy`
+  fetched whole at the pin (full SHA 42dd7f59…) — correction: the
+  cost-carrying MERGE calculus EXISTS in `Sepref_Basic.thy` (ported,
+  not derived); the If/While translate-rule gap stands. **Wave A**
+  `Sepref/{Basic,Rules}.lean` (963+413 l): `hnRefine` clause-for-clause
+  with the source's `'c` kept as a destination-descriptor parameter
+  `d : κ` (P4/D-a — supersedes design §5's ∃ᵃ draft; that shape is the
+  scalar instance); `pureAssn` generic (D-b); `invalid_assn` split into
+  the verbatim pure marker + `deadAssn`/`junkCell` ownership sinks
+  (D-c — no dealloc in the substrate); MK_FREE degenerates to
+  entailment, bind = the source's own `hnr_bind_manual_free` shape as
+  `hnr_seq` (D-d, proof follows the source's cost threading; the two
+  cost lemmas it needed are `enat_resSub_add` + `leCostECost_add_right`);
+  MERGE entailment-form (D-e); pass rule pays skip (D-f); GC stays
+  credits-only (D-g). fref/hfref/hrComp/attainsSup/`hfcomp` at the
+  non-dependent instance (dependent form = named backlog). No design
+  objections; `returnT a ≤ m` needed no vocabulary delta. Agent flags
+  D-h..D-p (incl. `leof` not ported — augment_res premise unfolded).
+  **Wave B1** `Sepref/{Attrs,IrOps,CombRules}.lean` (70+820+651 l):
+  the three Translate DBs; mop layer at pinned ir.* currencies (F4);
+  six `@[sepref_fr_rules]` in hnCtxt discipline (aset destructive =
+  the linearity showcase; scratch = caller-owned `junkCell`, D-ab);
+  exchange lemmas — equality at MIf, ≤ at the loop (both reasons
+  recorded), concrete map `irE` + `wfR''_irE`; `CondRefine` fused-guard
+  judgment (D-af, substrate-forced — no bool cells); `hnr_If` via
+  MERGE; **`hnr_while_measured`** landed via the fueled route — post
+  is `Γ` with the result riding the judgment's own R-slot (self-
+  composing; induction = plain Nat.rec, no WellFounded plumbing), no
+  INV premise (invariant rides `nofailT`); unfueled general rule's
+  blocker named: Rec.lean lacks `nofailT (RECT B s) → ∃ n, fuelIter
+  B n s = RECT B s` (D-ai). Vacuity pinned explicitly (badInv gate).
+  Flags D-aa..D-aj. **Wave B2** (parallel satellite, seeded worktree)
+  `Sepref/{IdOp,Monadify}.lean` (1008+1151 l) + 5 DBs in
+  Autoref/Attrs.lean: PROTECT2/λ₂/PR_CONST/ID calculus verbatim with
+  the protect walk + DF_SOLVE_FWD stuck-trace driver; monadify's six
+  sub-phases as term-level `monadifyCore (pps, a) → (a', h : a = a')`
+  (goal wrapping is wave C's, D-bk); arity/comb equations for
+  returnT/MIf/whileT/whileIET (Bfs-evidenced coverage; whileIT does
+  not exist in P1 — it is whileIET). Four substrate bugs refuted and
+  pinned: Lean accepts `@[congr] SP_cong` but rewrites under SP anyway
+  → explicit `rewriteDB` walker (ACCEPTED, supervisor, substrate-
+  forced — the biggest structural delta from the source text); pattern
+  DBs are rule-nets, not simp sets; net matching needs `withReducible`;
+  DB entries need universe instantiation. Flags renumbered m..ab →
+  ba..bp at merge (range collision). Backlog accumulated for later
+  waves: result-pairing for tuple loop states (REQUIRED in wave C),
+  `bindT_mono_res`/`mono2_monadicWhileBody`/`monadicWhileIT_unfold_pure`
+  /`bindT_returnT_gen` placement moves at next P1 thaw, dependent
+  `hfcomp`, `sepref_copy_rules` unpopulated, unfueled while rule.
+  Verification at each wave: lake green (3,014 jobs at merge), lax
+  audit from archive root, axioms ⊆ {propext, Classical.choice,
+  Quot.sound} on all spot-checked decls. Session note: repeated
+  server-side 529 overloads cost the early night ~1.5 h of agent
+  restarts (no work lost — on-disk state + transcript resume).
+
 - **2026-07-29 (late) — P3 COMPLETE (one session, under the 2–3-session
   budget) — acceptance passed.** Three waves + one extraction, commits
   600d985/bb7ff84/0c19fee/888efde. Extraction:

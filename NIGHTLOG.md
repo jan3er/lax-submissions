@@ -3460,3 +3460,29 @@ recursion, touched-only retrofit (LOAD-BEARING — recursion as stated
 is n^ℓ), R > 0 tgt widenings for the cover degree, derive hQ, ElimMem
 cleanup, ComputesInTime bridge, C0. Full lax gate green at every
 commit; 3444 jobs, zero sorry throughout.
+
+## Session 19 — 2026-07-30 ~21:00 UTC → 07-31 (overnight)
+Milestone: refinement tower P4–P8 — CAMPAIGN COMPLETE
+Commits: ab58c34…32f8cdf on worktree-refine-p0 (P4: extracts, waves
+A/B1/B2/C, acceptance; P5: design + codegen waves A1/A2/B; P6: IICF
+waves A/B; P7: gate waves A/B + final; phase-close commits each), plus
+p8-verdict.md.
+State: the full Sepref/NREST tower is live — sepref_synth writes deep
+IR programs from NREST specs (P4 acceptance: reverse + filter-count,
+323 authored lines, 0 frame clauses); verified codegen cashes them to
+computesInTime at factor exactly 4 (P5); IICF collections all
+synthesized-impl (P6); the P7 gate re-derived RamBfs end to end —
+whole-program synthesis in 49 s, export bfsQ_spec at computed cost
+56n+40ns+33 vs the baseline's hand-tuned 51n+44ns+30. GATE VERDICT:
+frame-clause criterion PASS (0), line criterion MISS (≈2.5× raw; the
+queue invariant is intrinsic and the 560-line bounds pass is D-a's
+price — full decomposition + adoption options in
+plans/word-ram/refinement-tower/p8-verdict.md). Build 3,041 jobs
+green, root lax audit green, all headline theorems axiom-pinned.
+Five flagged tower repairs during P7, all output-preserving (pinned
+syntheses byte-identical). Opus outage mid-P7 final leg: completed on
+Fable per Jan's live instruction; Opus draft survived ~100% under
+audit.
+Next: Jan's evaluation of p8-verdict.md (recommendation: adopt (a) +
+the wordAssn spike (b)); thaw-queue wave when convenient; land is a
+clean merge (main gained only ND-MC files since branch point).

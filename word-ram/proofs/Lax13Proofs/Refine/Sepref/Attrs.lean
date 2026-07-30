@@ -1,0 +1,159 @@
+import Mathlib.Tactic
+
+/-!
+The rule databases of the Sepref translate phase.
+
+`thys/sepref/Sepref_Translate.thy` declares its three rule collections in
+its header, quoted in `plans/word-ram/refinement-tower/p4-sepref-extracts.md`
+§2:
+
+```
+These frame-based rules are in the named theorem collection
+sepref_fr_rules, and the collection sepref_copy_rules
+contains rules to handle copying of parameters.
+Apart from the frame-based rules described above, there is also a set of
+rules for combinators, in the collection sepref_comb_rules,
+where no automatic copying of parameters is applied.
+```
+
+i.e. the `named_theorems sepref_fr_rules`, `sepref_comb_rules`,
+`sepref_copy_rules` of that theory's preamble.
+
+This module declares those three databases and nothing else, for the
+substrate reason `Autoref/Attrs.lean` documents at length (P1 delta B7):
+Lean runs `initialize` blocks at *import* time, so an attribute is not
+available to the module that declares it, and every rule that wants a tag
+has to live downstream. `Sepref/IrOps.lean` and `Sepref/CombRules.lean`
+are those downstream modules.
+
+**P4/D-aa — the three Sepref DBs are declared here, not in
+`Autoref/Attrs.lean`.** The P4 brief points at the shared DB-attribute
+module; the *implementation* is indeed shared (`register_label_attr`, the
+one mechanism design record §10 default 3 asks for), but the declaration
+site follows P3's own precedent — `Ir/Attrs.lean` declares the five
+`Frame_Infer`/`Basic_VCG` databases next to the layer that populates
+them rather than in `Autoref/Attrs.lean`. Keeping the per-layer file
+means the Sepref layer adds no edit to a file two other waves are
+reading, and the source's own file layout (each theory declaring its own
+`named_theorems`) is what is reproduced. Fallback: move the three
+declarations into `Autoref/Attrs.lean` and delete this file; no rule
+statement changes, only the import line of the two consumers.
+-/
+
+namespace Lax13Proofs.Refine.Sepref
+
+/-- The source's `named_theorems sepref_fr_rules` (`Sepref_Translate.thy`):
+the *frame-based* rule set — one `hn_refine` rule per abstract operation,
+applied with frame inference, with automatic copying of parameters that
+are still needed. Populated by `Sepref/IrOps.lean` with the IR's per-op
+rules at the currencies `Ir/Syntax.lean` declares. -/
+register_label_attr sepref_fr_rules
+
+/-- The source's `named_theorems sepref_comb_rules`: the *combinator* rule
+set, applied without automatic copying — the source's `hn_bind`,
+`hnr_If`, `hn_monadic_WHILE_lin` live here. Populated by
+`Sepref/CombRules.lean` (and by `hnr_seq`, which is stated in
+`Sepref/Basic.lean`, i.e. upstream of this declaration; wave C registers
+it). -/
+register_label_attr sepref_comb_rules
+
+/-- The source's `named_theorems sepref_copy_rules`: the rules by which
+the translate phase copies a parameter that a synthesized operation would
+destroy but that is still live. Declared now, populated when a consumer
+forces it: under P4/D-c the substrate has no dealloc and ownership is
+downgraded rather than freed, so the copy discipline enters only where a
+*destructive* op (`aset`, an in-place `binop`) meets a still-live
+argument — the `Com.copy` op priced at `Currency.copy` is the program the
+rules will produce. -/
+register_label_attr sepref_copy_rules
+
+/-! ## Wave C's databases
+
+`Sepref_Constraints.thy`, `Sepref_Frame.thy` and `Sepref_Tool.thy` each
+declare their own `named_theorems`; they are collected here for the
+reason the header gives (an attribute is unavailable to its declaring
+module, so every tagged rule has to be downstream). Ten declarations,
+all at once, so that no wave after C has to reopen this file.
+
+**P4/D-ca — the wave-C databases are declared here, not in ten
+files.** Same call as P4/D-aa above, extended: the *implementation* is
+the shared `register_label_attr` / `register_simp_attr` mechanism
+(design record §10 default 3), the *declaration site* is the Sepref
+layer's own attribute module. Fallback: split per source theory; no
+rule statement changes. -/
+
+/-- `Sepref_Constraints.thy`'s `named_theorems constraint_simps`
+("Simplification of constraints"). A simp set, because the source uses
+it as one (`put_simpset HOL_basic_ss ctxt addsimps …`). -/
+register_simp_attr constraint_simps
+
+/-- `Sepref_Constraints.thy`'s `named_theorems constraint_abbrevs`
+("Constraint Solver: Abbreviations"), likewise a simp set. -/
+register_simp_attr constraint_abbrevs
+
+/-- `Sepref_Constraints.thy`'s `constraint_rules` (`Named_Sorted_Thms`):
+the *unsafe* constraint rules — conditional, backtracked over. -/
+register_label_attr constraint_rules
+
+/-- `Sepref_Constraints.thy`'s `safe_constraint_rules`: the rules the
+solver may commit to (`DETERM o resolve_from_net_tac`). -/
+register_label_attr safe_constraint_rules
+
+/-- `Sepref_Frame.thy`'s `named_theorems_rev sepref_frame_match_rules`
+("Sepref: Additional frame rules"): extra per-pair entailments the
+frame inferencer may use on a matched conjunct pair, on top of
+`frame_thms`. -/
+register_label_attr sepref_frame_match_rules
+
+/-- `Sepref_Frame.thy`'s `named_theorems_rev sepref_frame_rem_rules`
+("Sepref: Additional rules to resolve remainder of frame-pairing"). -/
+register_label_attr sepref_frame_rem_rules
+
+/-- `Sepref_Frame.thy`'s `named_theorems sepref_frame_merge_rules`
+("Sepref: Additional merge rules"), on top of `merge_thms`. -/
+register_label_attr sepref_frame_merge_rules
+
+/-- **Ours (P4/D-cb).** The source has no counterpart: its `if`/`while`
+rules synthesize the guard as a *program*, through `sepref_fr_rules`
+like any other operation. Wave B1's `CondRefine` (P4/D-af) is a fused
+judgment instead, so its rule base needs a database of its own. The
+members are the six `condRefine_*` facts of `Sepref/CombRules.lean`;
+`Sepref/Translate.lean`'s condition solver is the consumer. Fallback if
+the guard is ever synthesized as a program again: delete this database
+and let `sepref_fr_rules` carry the bool-valued rules, as the source
+does. -/
+register_label_attr sepref_cond_rules
+
+/-- `Sepref_Tool.thy`'s `named_theorems sepref_preproc`
+("Sepref: Preprocessor simplifications"). -/
+register_simp_attr sepref_preproc
+
+/-- `Sepref_Tool.thy`'s `named_theorems sepref_opt_simps`
+("Sepref: Post-Translation optimizations, phase 1"). The source's
+`sepref_opt_simps2` is folded into it (P4/D-cc): its whole purpose is a
+second simp pass with the `case_prod` push-in direction, and the deep IR
+has no `case_prod`-shaped programs to push into — `Ir.Com` is a
+first-order inductive, and the only cleanups that arise are `Com.seq`
+identities. Fallback: declare the second set when a consumer produces a
+rule that must not run in the first pass. -/
+register_simp_attr sepref_opt_simps
+
+/-! ## The constraint slot (P4/D-cd)
+
+`Sepref_Constraints.thy` keeps deferred constraints in a designated
+*subgoal* of the proof state, protected by the constant
+`CONSTRAINT_SLOT`. `Sepref/Constraints.lean`'s header argues at length
+why the Lean rendering is a store of postponed metavariables instead;
+the store itself has to live here for the same reason every attribute
+does — Lean runs `initialize` blocks at import time, so an `initialize`
+value is unavailable to its own module, and `Sepref/Constraints.lean`
+is the module that reads and writes it. -/
+
+open Lean in
+/-- The source's `CONSTRAINT_SLOT` subgoal, as data (P4/D-cd). `none` is
+"no slot"; `some gs` is a slot holding the postponed constraint goals in
+insertion order. Read and written through `Sepref/Constraints.lean`'s
+`Constraints.*` API, never directly. -/
+initialize constraintSlotRef : IO.Ref (Option (Array MVarId)) ← IO.mkRef none
+
+end Lax13Proofs.Refine.Sepref
