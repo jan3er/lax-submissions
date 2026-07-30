@@ -205,3 +205,32 @@ supersession pointer.
   delegated authority; scaling probe added as P0 item 5, `packN`
   to trailing, P0-before-P2-briefs sequencing pinned. P0 session
   opens (worktree `ndmc-rebase-p0`, both packages seeded green).
+- 2026-07-30 — **P0.1 GREEN** (f8cfa36): dependent `hfcomp` +
+  frame-carrying `hnr_comp_dep` + bind-shape consumer test; blocker
+  candidate #1 cleared, no structural obstruction. Queued debt: the
+  `hrrCompDep` flattening lemma (only bites loop-composition).
+- 2026-07-30 — **P3 GREEN, early** (4fb7da2): CostRecurrence
+  (parametric solve, closed form, minimality), UqwInstantiation
+  (`hQ_of_nowhereDense`, exactly one endorsed Lax12 axiom),
+  TgtCoupling (coupling (a) settled negatively — K₁,₄ refutes
+  ns-reuse; (b) as single chain-budget width).
+- 2026-07-30 — **P0.3 GREEN** (e31be80): the D-cv fuel export
+  refuted (compiled counterexample, unbounded nondeterminism);
+  correct export is postfixed-point + `LoopTerm` accessibility;
+  unfueled `hnr_while` has no termination premise; LOOP_VARIANT
+  retired at all 14 loop sites.
+- 2026-07-30 — **P0.4 GREEN** (c26318a): recursive-arena trail
+  acceptance; nested loop-with-trail synthesized first-try; cost
+  signature n-free by construction; compiled proof the naive shape
+  admits no touched-only bound. D5 exercised.
+- 2026-07-30 — **P0.2 PARTIAL — binds P2 style** (98f26bc):
+  `wordAssn` rejected as formally vacuous; **`BRefine`** adopted
+  (second judgment component transporting creation-site `<B`
+  against the abstract correctness invariant). −28% measured on
+  the bounds class, −61% projected with tool support; fully
+  additive, FLAG 3 thaw unused. P2 briefs say BRefine.
+- 2026-07-30 — **P1 GATE G1 GREEN** (7e0bd9c): tower BFS under the
+  driver via Refine/BfsBridge.lean; zero diff at CoverImplements
+  and above; six thin bridges P1/B-a..B-g; worked example
+  cell-identical. The P2 swap pattern is validated and templated
+  (see the P1 report's 7 points, folded into P2 briefs).
