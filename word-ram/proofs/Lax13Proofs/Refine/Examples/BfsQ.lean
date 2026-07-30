@@ -73,6 +73,54 @@ differ only by the two `aset`s and the one `add` the relaxing path
 spends, and `scanC` is the maximum. The projection that drops the scan
 index at the end of the row (`pack3 r.1 r.2.1 r.2.2.1`) is free here;
 wave B junks the cell, as `rvLoop_array` does (P4/D-ec).
+
+**Fa/D-x — the target array's physical width is a number of its own
+(ND-MC rebase wave F-a, 2026-07-30).** `Csr` used to carry
+`tlen : tgt.length = ns` beside `last : off[n]! = ns`, pinning the
+array's length at the slot count. Nothing in the search wants that: the
+scan of row `v` runs over `off[v] … off[v+1] − 1`, and `Csr.row_le_ns`
+bounds that by `off[n]! = ns`, so no read of the program ever reaches a
+slot at or above `ns`. The pin was inherited from `RamBfs.CsrGraph`,
+where the array is *built* at exactly its slot count; the ND-MC cover
+pass materializes it at a caller-chosen width `W ≥ ns` and so could not
+present the relation at all (finding F-a of rebase wave B5 — the same
+severing the consumer package did for the reasoning kit's relation in
+`Lax3Proofs/CsrWide.lean`, at the same rationale).
+
+The field is therefore weakened to `tlen : ns ≤ tgt.length`, which
+`shape` and `last` already imply — it is kept as a field so that the
+relation still reads its width discipline off its own statement, and so
+that the four-field anonymous constructor every caller writes keeps its
+arity. Consequences, in full:
+
+* Every export over `Csr` — `bfsQ_correct`, `drainLoop_le'`,
+  `BfsQSynth.bfsQS_correct`, `bfsQ_spec_at`, `bfsQ_spec`,
+  `bfsQS_reached`, and `BfsQTrail`'s `drainLoop_touched`,
+  `searchQ_touched`, `turnQ_touched`, `turnQ_bounded`, `turnsQ_touched`
+  — is **statement-identical** and strictly more general: `Csr` is a
+  hypothesis of each, and it got weaker. No primed form is needed, and
+  the pinned callers reach the relation through `Csr.of_tlen_eq` (or
+  through the four-field constructor, unchanged).
+* Three internal bounds helpers change statement, because they were the
+  only places the old field was consumed: `BfsQSynth.off_mem_le` now
+  reads offsets against `off[n]!` rather than `tgt.length` (strictly
+  stronger, and width-free), and `bfsQ_stateBound` / `bfsQ_bpre` take
+  `off[n]! ≤ ns` where they took `tgt.length ≤ ns`. All three are
+  `Shape`-level lemmas with no consumer outside `BfsQSynth.lean`.
+* `Csr.widen` is the constructive half: the relation survives appending
+  any padding whose entries are vertices.
+
+**What the widening does *not* cover.** `Shape`'s range clause is still
+`∀ j < tgt.length, tgt[j]! < n` — over the *whole* array, not the
+occupied prefix — because it is consumed at full width by
+`bfsQ_stateBound` (the machine's `Ir.StateBound` is state-global: every
+entry of every array in the store must be a word) and by four ND-MC
+passes over the same relation (`ElimSynth`'s degree pass, `ElimSynth6`'s
+fill, `ExpandSynth`, `BlockLeaves`). So a widened caller must pad with
+in-range values — `Csr.widen` is stated at exactly that. That is no
+extra burden at the machine layer — the store bound demands `< B` of
+the padding anyway — but it is a real difference from `CsrWide`'s
+`∀ p < ns, tgt p < V`, and it is the residual of finding F-a.
 -/
 
 namespace Lax13Proofs.Refine
@@ -535,10 +583,18 @@ def maskOf (n : ℕ) (alv : List ℕ) : Fin n → Bool := fun v => decide (0 < a
 
 /-- The block structure, as a view of the graph: `RamBfs`'s `CsrGraph`
 with the arrays spelled as lists (design note P7/S-1 — nothing is
-imported from that package). -/
+imported from that package).
+
+`ns` is the **slot count** — the last offset — and `tgt.length` is the
+array's **physical width**; the two are separate numbers (Fa/D-x), with
+`tlen` the only thing that relates them. -/
 structure Csr (n ns : ℕ) (G : SimpleGraph (Fin n)) (off tgt alv : List ℕ) : Prop where
   shape : Shape n off tgt alv
-  tlen : tgt.length = ns
+  /-- The slot count is a *lower bound* of the physical width: the
+  target array may be materialized wider than the structure occupies
+  (Fa/D-x). Redundant given `shape` and `last`, and kept as a field so
+  that the relation still reads off its own statement. -/
+  tlen : ns ≤ tgt.length
   last : off[n]! = ns
   adj : ∀ u v : Fin n, G.Adj u v ↔
     ∃ j, off[(u : ℕ)]! ≤ j ∧ j < off[(u : ℕ) + 1]! ∧ tgt[j]! = (v : ℕ)
@@ -561,6 +617,162 @@ theorem Shape.row_le {n : ℕ} {off tgt alv : List ℕ} (h : Shape n off tgt alv
 theorem Csr.mono' {n ns : ℕ} {G : SimpleGraph (Fin n)} {off tgt alv : List ℕ}
     (h : Csr n ns G off tgt alv) : ∀ {i k}, i ≤ k → k ≤ n → off[i]! ≤ off[k]! :=
   h.shape.mono'
+
+/-! ### The width reading (Fa/D-x)
+
+`ns` counts the slots the structure occupies; `tgt.length` is the
+array the caller materialized. The search reads only slots below
+`off[n]! = ns`, so every read the pinned relation justified the
+decoupled one justifies too — `row_le_ns` is the whole of that
+argument, `of_tlen_eq` is the pinned relation as an instance, and
+`widen` is the caller's side of it. -/
+
+/-- Reading below a list's own length does not see what was appended
+after it. -/
+theorem getElem!_append_left {l₁ l₂ : List ℕ} {j : ℕ} (hj : j < l₁.length) :
+    (l₁ ++ l₂)[j]! = l₁[j]! := by
+  rw [getElem!_pos (l₁ ++ l₂) j (by simp only [List.length_append]; omega),
+    getElem!_pos l₁ j hj, List.getElem_append_left hj]
+
+namespace Csr
+
+variable {n ns : ℕ} {G : SimpleGraph (Fin n)} {off tgt alv : List ℕ}
+
+/-- **The pinned relation is the equal-width instance.** A caller who
+still holds the old coupling gets the relation by one `le_of_eq`. -/
+theorem of_tlen_eq (hs : Shape n off tgt alv) (ht : tgt.length = ns) (hl : off[n]! = ns)
+    (ha : ∀ u v : Fin n, G.Adj u v ↔
+      ∃ j, off[(u : ℕ)]! ≤ j ∧ j < off[(u : ℕ) + 1]! ∧ tgt[j]! = (v : ℕ)) :
+    Csr n ns G off tgt alv :=
+  ⟨hs, le_of_eq ht.symm, hl, ha⟩
+
+/-- Every offset sits inside the occupied prefix. -/
+theorem le_ns (hc : Csr n ns G off tgt alv) {i : ℕ} (hi : i ≤ n) : off[i]! ≤ ns :=
+  hc.last ▸ hc.mono' hi le_rfl
+
+/-- **A row ends inside the occupied prefix** — not merely inside the
+array. This is the clause the widening turns on: the scan of any row
+stays below `ns`, whatever the physical width is. -/
+theorem row_le_ns (hc : Csr n ns G off tgt alv) (v : Fin n) : off[(v : ℕ) + 1]! ≤ ns :=
+  hc.le_ns v.isLt
+
+/-- Reading below the occupied prefix does not see the padding. -/
+theorem getElem!_append_left {l₁ l₂ : List ℕ} {j : ℕ} (hj : j < l₁.length) :
+    (l₁ ++ l₂)[j]! = l₁[j]! := by
+  rw [getElem!_pos (l₁ ++ l₂) j (by simp only [List.length_append]; omega),
+    getElem!_pos l₁ j hj, List.getElem_append_left hj]
+
+/-- **Padding the target array is free** — the constructive half of the
+decoupling (Fa/D-x). The relation survives materializing the array at
+any greater width, provided the padding holds vertices (`Shape`'s
+range clause is over the whole array; the *adjacency* clause and every
+read stay below `off[n]! = ns`). This is what a widened caller
+supplies, and it is why the widening is a hypothesis generalization
+and not a re-proof. -/
+theorem widen (hc : Csr n ns G off tgt alv) {pad : List ℕ} (hpad : ∀ w ∈ pad, w < n) :
+    Csr n ns G off (tgt ++ pad) alv := by
+  have hlast : off[n]! ≤ tgt.length := hc.shape.2.2.2.1
+  have hread : ∀ j, j < off[n]! → (tgt ++ pad)[j]! = tgt[j]! :=
+    fun j hj => getElem!_append_left (by omega)
+  refine ⟨⟨hc.shape.1, hc.shape.2.1, hc.shape.2.2.1, by simp only [List.length_append]; omega,
+    fun j hj => ?_⟩, by rw [List.length_append]; have := hc.tlen; omega, hc.last, fun u v => ?_⟩
+  · rcases Nat.lt_or_ge j tgt.length with h | h
+    · rw [getElem!_append_left h]; exact hc.shape.2.2.2.2 j h
+    · rw [List.length_append] at hj
+      rw [getElem!_pos _ j (by simp only [List.length_append]; omega),
+        List.getElem_append_right h]
+      exact hpad _ (List.getElem_mem _)
+  · have hrow : off[(u : ℕ) + 1]! ≤ off[n]! := hc.mono' u.isLt le_rfl
+    rw [hc.adj u v]
+    exact ⟨fun ⟨j, h₁, h₂, h₃⟩ => ⟨j, h₁, h₂, by rw [hread j (by omega)]; exact h₃⟩,
+      fun ⟨j, h₁, h₂, h₃⟩ => ⟨j, h₁, h₂, by rwa [hread j (by omega)] at h₃⟩⟩
+
+end Csr
+
+/-! ### Refute before prove: the decoupling (Fa/D-x)
+
+The wave's one authored delta is the severed width coupling, so the
+refutable readings are the coupling it removes and the coupling it
+keeps. The arena is §1's, its target array materialized three slots
+wide of its six occupied ones. -/
+
+section WidthFalsification
+
+/-- §1's target array, materialized at width `9` for a structure that
+occupies `6` slots. The padding names vertices — `Shape`'s range clause
+is over the whole array — but no offset reaches it. -/
+def demoTgtPad : List ℕ := demoTgt ++ [4, 4, 4]
+
+/-- The same padded array with an `off` that *claims* the padding:
+vertex `3`'s row is stretched to the end. A different arena — the point
+of the differential below. -/
+def demoOffWide : List ℕ := [0, 1, 3, 5, 9, 9]
+
+-- the widened array is a legal shape, and the decoupled width clause
+-- holds of it …
+example : Shape 5 demoOff demoTgtPad (demoAlv 1) := by
+  refine ⟨rfl, rfl, ?_, by decide, ?_⟩
+  · intro i hi; interval_cases i <;> decide
+  · intro j hj
+    rw [show demoTgtPad.length = 9 from rfl] at hj
+    interval_cases j <;> decide
+
+example : 6 ≤ demoTgtPad.length := by decide
+
+-- … **refuted**: the pinned reading does not. `tgt.length = ns` is
+-- simply false at the widened width, which is why the old field
+-- blocked every widened caller.
+example : ¬ demoTgtPad.length = 6 := by decide
+
+-- **refuted**: the width may not be *smaller* than the slot count —
+-- the decoupling is one-sided. A short array has no relation at all,
+-- whatever the graph.
+example (G : SimpleGraph (Fin 5)) : ¬ Csr 5 6 G demoOff (demoTgt.take 4) (demoAlv 1) := by
+  intro h
+  have := h.tlen
+  simp only [List.length_take, List.length_cons, List.length_nil] at this
+  omega
+
+-- **refuted**: nothing above the last offset is read, so nothing above
+-- it is owned. "Every slot of the array has an owner" is true at the
+-- pinned width and false at the widened one — slot `6` lies above
+-- `off[5]! = 6`.
+example : ¬ ∀ j < demoTgtPad.length,
+    ∃ u : Fin 5, demoOff[(u : ℕ)]! ≤ j ∧ j < demoOff[(u : ℕ) + 1]! := by
+  intro h
+  obtain ⟨u, h₁, h₂⟩ := h 6 (by decide)
+  fin_cases u <;> simp_all [demoOff]
+
+/-! #### The differential: the widened search is the exact-width search
+
+Same arena, same masks, same caps — the padded array answers exactly
+what the six-slot array answers, at every one of §1's samples. -/
+
+#guard bfsTw 5 3 0 demoOff demoTgtPad (demoAlv 1) = bfsTw 5 3 0 demoOff demoTgt (demoAlv 1)
+#guard bfsTw 5 3 0 demoOff demoTgtPad (demoAlv 0) = bfsTw 5 3 0 demoOff demoTgt (demoAlv 0)
+#guard bfsTw 5 1 0 demoOff demoTgtPad (demoAlv 1) = bfsTw 5 1 0 demoOff demoTgt (demoAlv 1)
+#guard bfsTw 5 0 0 demoOff demoTgtPad (demoAlv 1) = bfsTw 5 0 0 demoOff demoTgt (demoAlv 1)
+#guard bfsTw 5 4 0 demoOff demoTgtPad (demoAlv 1) = bfsTw 5 4 0 demoOff demoTgt (demoAlv 1)
+#guard bfsTw 5 4 2 demoOff demoTgtPad (demoAlv 1) = bfsTw 5 4 2 demoOff demoTgt (demoAlv 1)
+
+-- **Negative control.** The padding is live data, not slots that could
+-- not matter: hand the same array an `off` that claims them and the
+-- answer changes (vertex `4` becomes reachable from `3`). So the six
+-- equalities above are the search declining to read what it was not
+-- told to read.
+#guard bfsTw 5 4 0 demoOffWide demoTgtPad (demoAlv 1)
+  ≠ bfsTw 5 4 0 demoOff demoTgtPad (demoAlv 1)
+
+-- …and the wrong reading fails, and says so.
+/--
+error: Expression
+  decide (bfsTw 5 4 0 demoOffWide demoTgtPad (demoAlv 1) = bfsTw 5 4 0 demoOff demoTgt (demoAlv 1))
+did not evaluate to `true`
+-/
+#guard_msgs in
+#guard bfsTw 5 4 0 demoOffWide demoTgtPad (demoAlv 1) = bfsTw 5 4 0 demoOff demoTgt (demoAlv 1)
+
+end WidthFalsification
 
 /-- **The queue invariant.** -/
 structure Fr (n d : ℕ) (G : SimpleGraph (Fin n)) (alv : List ℕ) (s : Fin n)

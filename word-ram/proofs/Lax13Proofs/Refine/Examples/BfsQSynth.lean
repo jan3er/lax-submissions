@@ -838,20 +838,25 @@ theorem tgt_mem_lt {n : ℕ} {off tgt alv : List ℕ} (hsh : Shape n off tgt alv
   have := hsh.2.2.2.2 j hj
   rwa [getElem!_pos tgt j hj] at this
 
-/-- Entries of the offset array sit below the slot count. -/
+/-- Entries of the offset array sit below the **last offset** — the
+slot count, not the physical width of the target array (Fa/D-x). The
+old reading `w ≤ tgt.length` is this one composed with `Shape`'s
+`off[n]! ≤ tgt.length`, and it is the one that pinned the width. -/
 theorem off_mem_le {n : ℕ} {off tgt alv : List ℕ} (hsh : Shape n off tgt alv) :
-    ∀ w ∈ off, w ≤ tgt.length := by
+    ∀ w ∈ off, w ≤ off[n]! := by
   intro w hw
   obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.1 hw
   have hlen : off.length = n + 1 := hsh.1
   have h1 : off[i]! ≤ off[n]! := Shape.mono' hsh (by omega) le_rfl
-  have h2 : off[n]! ≤ tgt.length := hsh.2.2.2.1
   rw [getElem!_pos off i hi] at h1
   omega
 
-/-- The initial store is bounded. -/
+/-- The initial store is bounded. The offsets are bounded through the
+last one (`hoff`), so the target array's width plays no part: at the
+pinned width `hoff` is `Shape`'s `off[n]! ≤ tgt.length ≤ ns`, at the
+widened one it is `Csr.last` (Fa/D-x). -/
 theorem bfsQ_stateBound {n ns d B src : ℕ} {off tgt alv dist₀ q₀ : List ℕ}
-    (hB : BfsBounds n ns d B) (hsh : Shape n off tgt alv) (htl : tgt.length ≤ ns)
+    (hB : BfsBounds n ns d B) (hsh : Shape n off tgt alv) (hoff : off[n]! ≤ ns)
     (hsrc : src < n)
     (halv : ∀ w ∈ alv, w < B) (hd0 : ∀ w ∈ dist₀, w < B) (hq0 : ∀ w ∈ q₀, w < B) :
     Ir.StateBound B (bfsQState n d src off tgt alv dist₀ q₀) := by
@@ -867,7 +872,7 @@ theorem bfsQ_stateBound {n ns d B src : ℕ} {off tgt alv dist₀ q₀ : List �
     · exact hd0
     · exact hq0
     · intro w hw
-      have h4 : w ≤ tgt.length := off_mem_le hsh w hw
+      have h4 : w ≤ off[n]! := off_mem_le hsh w hw
       omega
     · intro w hw
       have h4 : w < n := tgt_mem_lt hsh w hw
@@ -1157,7 +1162,7 @@ theorem fill_body_bpre {n B : ℕ} {t : Ir.State} (hI : FInv n B t)
 fact of §11's table has disappeared into the run; what is discharged
 here is the three `< B` families and the two invariants. -/
 theorem bfsQ_bpre {n ns d B src : ℕ} {off tgt alv dist₀ q₀ : List ℕ}
-    (hB : BfsBounds n ns d B) (hsh : Shape n off tgt alv) (htl : tgt.length ≤ ns)
+    (hB : BfsBounds n ns d B) (hsh : Shape n off tgt alv) (hoff : off[n]! ≤ ns)
     (hsrc : src < n)
     (halv : ∀ w ∈ alv, w < B) (hd0 : ∀ w ∈ dist₀, w < B) (hq0 : ∀ w ∈ q₀, w < B)
     (hdlen : dist₀.length = n) (hqlen : q₀.length = n) :
@@ -1167,7 +1172,7 @@ theorem bfsQ_bpre {n ns d B src : ℕ} {off tgt alv dist₀ q₀ : List ℕ}
   have h1B : 1 < B := by have := hB.hd; omega
   have h0B : 0 < B := by omega
   have hSB : Ir.StateBound B (bfsQState n d src off tgt alv dist₀ q₀) :=
-    bfsQ_stateBound hB hsh htl hsrc halv hd0 hq0
+    bfsQ_stateBound hB hsh hoff hsrc halv hd0 hq0
   -- the fill loop
   refine ⟨FInv n B, ?_, ?_, fun t hI hg => fill_body_bpre hI hg, ?_⟩
   · -- the invariant, at the initial store
@@ -1310,7 +1315,7 @@ theorem bfsQ_runs {n ns d B src : ℕ} {G : SimpleGraph (Fin n)}
   exists_bigStepB_of_hnRefine (bfsQSynth' n d src off tgt alv dist₀ q₀)
     (bfsQS_correct hc hsrc hdlen hqlen)
     (bfsQ_state_holds n d src off tgt alv dist₀ q₀)
-    (bfsQ_bpre hB hc.shape (le_of_eq hc.tlen) hsrc halv hd0 hq0 hdlen hqlen)
+    (bfsQ_bpre hB hc.shape (le_of_eq hc.last) hsrc halv hd0 hq0 hdlen hqlen)
 
 end Bounds
 
@@ -1372,7 +1377,7 @@ theorem bfsQ_spec_at {n ns d B : ℕ} {G : SimpleGraph (Fin n)} {off tgt alv : L
     (bfsQSynth' n d src off tgt alv dist₀ q₀)
     (bfsQS_correct hc hsrc hdlen hqlen)
     (bfsQ_state_holds n d src off tgt alv dist₀ q₀)
-    (bfsQ_stateBound hB hc.shape (le_of_eq hc.tlen) hsrc halv hd0 hq0)
+    (bfsQ_stateBound hB hc.shape (le_of_eq hc.last) hsrc halv hd0 hq0)
     (bfsQ_runs hc hsrc hB halv hd0 hq0 hdlen hqlen)
     (le_of_eq (ecash_bfsQTotal n ns))
     ?_
