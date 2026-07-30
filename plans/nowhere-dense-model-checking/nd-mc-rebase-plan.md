@@ -79,7 +79,8 @@ more expensive than it is today.
 
 ## Phases
 
-- [ ] **P0 — tower readiness (1–2 sessions).** All items live in
+- [x] **P0 — tower readiness (1–2 sessions).** **GATE G0 GREEN
+  2026-07-30**, all five items (see progress log). All items live in
   `Lax13Proofs/Refine/` (tower campaign is closed; these are its
   handoff/thaw items executed here because this campaign needs them):
   1. **Dependent `hfcomp`** — port it (P2 carry-over, never needed
@@ -234,3 +235,16 @@ supersession pointer.
   and above; six thin bridges P1/B-a..B-g; worked example
   cell-identical. The P2 swap pattern is validated and templated
   (see the P1 report's 7 points, folded into P2 briefs).
+- 2026-07-30 — **P0.5 GREEN — probe closes, G0 CLOSED** (probe
+  artifact deleted after recording; telemetry here is the record).
+  Synthesis scaling on a 16→100-op family, full DB, load-normalized:
+  exponent 1.28–1.35 (local ~1.4 in the upper half); 4× ops ≈ 6.2×
+  time; 3–5× BFS extrapolates to 45–135 s — minutes, not hours.
+  **DiscrTree indexing is the wrong target**: appending 20 rules
+  costs ≤2.6%, pre-match scan is a flat ~2 ms/goal (<0.5% at 100
+  ops); the growth is the frame/entailment layer (matchLoop/
+  proveConjEq walk the conjunct list; one `fri` call = 28% at 100
+  ops). Follow-ups if ever needed, payoff order: (1) release dead
+  scratch cells mid-block at `hnr_bind` (flattens exponent to ~1);
+  (2) cheapen `fri`/`proveConjEq` on long conjunct lists; (3)
+  DiscrTree for failure-path latency only. None block P2.
