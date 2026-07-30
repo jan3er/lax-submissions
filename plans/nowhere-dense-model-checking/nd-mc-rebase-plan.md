@@ -1,11 +1,28 @@
 # ND-MC rebase plan — the driver stack re-derived through the refinement tower
 
-Rev 1, 2026-07-30. **Status: OPEN — direction approved by Jan
+Rev 2, 2026-07-30. **Status: OPEN — direction approved by Jan
 2026-07-30 (conversation): fastest path to the tower-based ND-MC;
 the old-style cost wave is frozen, not executed.** JAN-FLAGs 1–3
-below are open; none block P0. This document is the contract:
-implementing sessions follow it, deviations need an owner decision
-first.
+resolved 2026-07-30 under Jan's delegated supervisor authority
+("full authority, may resolve the jan-flags"): all three at their
+documented defaults — (1) superseded layer deleted in P5 after G4,
+(2) per-engine retention at supervisor discretion with ledger
+entries, (3) `wordAssn` thaw pre-authorized on a green spike. This
+document is the contract: implementing sessions follow it,
+deviations need an owner decision first.
+
+Rev 2 delta (from a parallel supervisor instance's pre-rebase
+review, folded in): P0 gains item 5, a **synthesis-scaling probe**
+— the only tower cost that compounds over the campaign; BFS
+synthesized in 49 s with linear-scan rule matching, and P2 grows
+both the rule DBs and the program sizes. One oversized synthetic
+program (~3–5× BFS op count) with the full DB loaded, wall-clock
+measured; roughly-linear → done, superlinear → DiscrTree-index
+`sepref_fr_rules` (and the frame-match conjunct scan if profiled)
+**before** the engine waves. `packN` beyond 4 joins the trailing
+list, demand-driven. Sequencing nuance made explicit: item 2's
+outcome binds P2 brief style, so **P0 must fully land before any
+P2 brief is frozen**; P1 may interleave.
 
 **Working model** (unchanged): Fable supervises — plan, sequencing,
 review, acceptance calls, commits — and Opus subagents write the Lean.
@@ -80,9 +97,16 @@ more expensive than it is today.
      consumer: a per-arena pass of `clusterLoad` shape charging
      active-set only, via `treset_cost_touched_only`. This is D5's
      missing exercise and the mechanism C0's time bound stands on.
-  5. (trailing, only if slack) cheap thaw-queue placement/dedupe items.
+  5. **Synthesis-scaling probe** (Rev 2): one synthetic program at
+     ~3–5× BFS's op count, full rule DB loaded, synthesis wall-clock
+     measured against BFS's 49 s. Roughly linear → record and move
+     on; superlinear → DiscrTree-index `sepref_fr_rules` (and the
+     frame-match conjunct scan if the profile names it) before P2.
+  6. (trailing, only if slack) cheap thaw-queue placement/dedupe
+     items; `packN` beyond 4 (demand-driven, else first P2 brief
+     that hits a wider loop state picks it up).
 
-  **Gate G0:** items 1–4 green → proceed. Any structural blocker →
+  **Gate G0:** items 1–5 green → proceed. Any structural blocker →
   fallback checkpoint with Jan.
 
 - [ ] **P1 — spec-surface alignment acceptance (½–1 session, may
@@ -177,3 +201,7 @@ supersession pointer.
 
 - 2026-07-30 — Rev 1 written; direction approved in conversation
   (rebase-now over ship-then-rederive; no eval gates). No code yet.
+- 2026-07-30 — Rev 2: FLAGs 1–3 resolved at defaults under
+  delegated authority; scaling probe added as P0 item 5, `packN`
+  to trailing, P0-before-P2-briefs sequencing pinned. P0 session
+  opens (worktree `ndmc-rebase-p0`, both packages seeded green).
