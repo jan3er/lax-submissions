@@ -314,6 +314,15 @@ of overnight work — set expectations by the budget, not the recent luck.
 
 ## Progress log
 
+- **2026-07-31 — P8 COMPLETE; CAMPAIGN CLOSED.** Verdict record,
+  final deviation-ledger review, adoption analysis (recommendation:
+  adopt as default + a one-session `wordAssn` spike), handoff notes
+  and thaw queue: `refinement-tower/p8-verdict.md`. Night log session
+  19. Landed on main by merge (no overlap with ND-MC's interim
+  commits). Total: P0–P8 in three sessions against a 15–24 session
+  budget; every phase at or under its lower bound; every acceptance
+  passed and pinned.
+
 - **2026-07-30/31 — P7 COMPLETE (one session vs 1–2 budget). GATE
   VERDICT: frame-clause criterion PASS (0 hand frame clauses across
   the whole derivation); line-count criterion MISS (≈2.5× raw /
