@@ -158,6 +158,32 @@ theorem CsrW.owner_lt (hc : CsrW o t nv ns nt V off tgt σ) (hu : u ≤ nv) (hlo
     rw [hun, hc.last] at hlo
     omega
 
+/-! ### Transport
+
+The relation is a statement about two arrays, so it crosses any phase
+that writes something else — the kit's `Csr.of_eq` family, mirrored at
+the widened relation because a walk that loads a row after an
+extraction (`RamElim.elimTake_run`) transports it across the write. -/
+
+/-- **The transport lemma.** Any environment agreeing on the two arrays
+satisfies the relation. -/
+theorem CsrW.of_eq (hc : CsrW o t nv ns nt V off tgt σ) {σ' : Env}
+    (ho : σ'.arrs o = σ.arrs o) (ht : σ'.arrs t = σ.arrs t) :
+    CsrW o t nv ns nt V off tgt σ' :=
+  ⟨by rw [ho, hc.offArr], by rw [ht, hc.tgtArr], hc.2.2.1, hc.2.2.2.1, hc.2.2.2.2.1,
+    hc.2.2.2.2.2⟩
+
+/-- A scalar assignment leaves the structure alone. -/
+theorem CsrW.setVar (hc : CsrW o t nv ns nt V off tgt σ) (y : String) (x : ℕ) :
+    CsrW o t nv ns nt V off tgt (σ.setVar y x) :=
+  hc.of_eq (by rw [arrs_setVar]) (by rw [arrs_setVar])
+
+/-- A store into another array leaves the structure alone. -/
+theorem CsrW.setArr_of_ne (hc : CsrW o t nv ns nt V off tgt σ) (hbo : b ≠ o) (hbt : b ≠ t)
+    (k x : ℕ) : CsrW o t nv ns nt V off tgt (σ.setArr b k x) :=
+  hc.of_eq (by rw [arrs_setArr, if_neg (Ne.symm hbo)])
+    (by rw [arrs_setArr, if_neg (Ne.symm hbt)])
+
 /-! ### The two straight-line reads, at the widened relation
 
 Statement and proof mirror `Lib/Csr.lean`'s `loadRow_spec` and

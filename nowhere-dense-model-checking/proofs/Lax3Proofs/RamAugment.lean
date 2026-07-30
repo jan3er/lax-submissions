@@ -671,21 +671,23 @@ caller-chosen width with the call's slot count only a lower bound, so
 `fratSlots D < augWidth n d ≤ W` is all this round has to say to run
 the engine on a fraternity graph whose size is data-dependent.
 
-The one array still cut to `nf` is `tgt`, the fraternity graph itself:
-`RamElim.ElimPre` pins the *input* block structure to exactly the slot
-count of the call, because the engine reads it through the kit's `Csr`
-relation, which couples the target array's length to the last offset.
-That is why `nf` is a parameter here with `fratSlots D = nf` as a
-hypothesis rather than a number the round picks, and it is the whole of
-what remains of the coupling this surface used to have on four
-arrays. -/
-def AugPre (n nf W : ℕ) (DO DT : ℕ → ℕ) (σ : Env) : Prop :=
+The last array that was cut to the round's own slot count is `tgt`, the
+fraternity graph itself, and the rebase's `CsrWide` frees it too: the
+engine now reads its input through `CsrWide.CsrW`, which separates the
+target array's *width* from the structure's slot count, so
+`RamElim.ElimPreW` takes it at a caller-chosen `nt` with the call's
+slot count only a lower bound. The width is a parameter here, and the
+round asks of it exactly what it asks of `W` — that the fraternity
+graph fit, which `fratSlots_lt_augWidth` gives. `AugPre` below is this
+surface at `nt = nf`, where the coupling this file used to carry on
+four arrays was last visible. -/
+def AugPreW (n nt W : ℕ) (DO DT : ℕ → ℕ) (σ : Env) : Prop :=
   σ.vars "n" = n ∧
   σ.arrs "doff" = arrOf (n + 1) DO ∧ σ.arrs "dtg" = arrOf W DT ∧
   (∃ g, σ.arrs "ooff" = arrOf (n + 1) g ∧ ∀ j ≤ n, g j = 0) ∧
   (∃ g, σ.arrs "otg" = arrOf W g) ∧ (∃ g, σ.arrs "ofl" = arrOf n g) ∧
   (∃ g, σ.arrs "off" = arrOf (n + 1) g ∧ ∀ j ≤ n, g j = 0) ∧
-  (∃ g, σ.arrs "tgt" = arrOf nf g) ∧ (∃ g, σ.arrs "ffl" = arrOf n g) ∧
+  (∃ g, σ.arrs "tgt" = arrOf nt g) ∧ (∃ g, σ.arrs "ffl" = arrOf n g) ∧
   (∃ g, σ.arrs "alv" = arrOf n g) ∧ (∃ g, σ.arrs "deg" = arrOf n g) ∧
   (∃ g, σ.arrs "elm" = arrOf n g ∧ ∀ j < n, g j = 0) ∧
   (∃ g, σ.arrs "rnk" = arrOf n g) ∧ (∃ g, σ.arrs "idg" = arrOf n g) ∧
@@ -699,6 +701,15 @@ def AugPre (n nf W : ℕ) (DO DT : ℕ → ℕ) (σ : Env) : Prop :=
   (∃ g, σ.arrs "sta" = arrOf n g ∧ ∀ j < n, g j = 0) ∧
   (∃ g, σ.arrs "std" = arrOf n g ∧ ∀ j < n, g j = 0) ∧
   (∃ g, σ.arrs "ste" = arrOf n g ∧ ∀ j < n, g j = 0)
+
+/-- **What the round is handed at the pinned width** — the frozen
+surface, which is the widened one at `nt = nf`. The clause that pinned
+it is the `tgt` one, and the header above says why it no longer has
+to: `RamElim.ElimPreW` takes the input block structure at a
+caller-chosen width with the call's slot count only a lower bound, the
+same discipline the other three arrays already had. -/
+def AugPre (n nf W : ℕ) (DO DT : ℕ → ℕ) (σ : Env) : Prop :=
+  AugPreW n nf W DO DT σ
 
 /-- **What the round leaves**, in the vocabulary of the sections above:
 the rank array carries a greedy elimination of the fraternity graph of
@@ -748,6 +759,23 @@ away, so that discharging that one obligation discharges this
 hypothesis at every use. -/
 def ElimAvail (B n : ℕ) (F : SimpleGraph (Fin n)) : Prop :=
   ∀ (ns W : ℕ) (M O T : ℕ → ℕ), RamElim.Implements B n ns W F M O T
+
+/-- The same at the widened input surface: the engine available at
+every slot count *and* every target-array width the round can call it
+at. This is what a round whose fraternity graph lives in an array the
+caller allocated needs, and `RamElim.implementsW` supplies it. -/
+def ElimAvailW (B n : ℕ) (F : SimpleGraph (Fin n)) : Prop :=
+  ∀ (ns nt W : ℕ) (M O T : ℕ → ℕ), RamElim.ImplementsW B n ns nt W F M O T
+
+/-- **The widened engine is available**, unconditionally:
+`RamElim.implementsW` is a theorem, not an obligation. -/
+theorem elimAvailW {B n : ℕ} {F : SimpleGraph (Fin n)} : ElimAvailW B n F :=
+  fun _ _ _ _ _ _ => RamElim.implementsW
+
+/-- And the pinned availability is the widened one at `nt = ns`. -/
+theorem elimAvail_of_elimAvailW {B n : ℕ} {F : SimpleGraph (Fin n)}
+    (h : ElimAvailW B n F) : ElimAvail B n F :=
+  fun ns W M O T hcsr hB hMB hW => h ns ns W M O T hcsr hB hMB hW le_rfl
 
 /-- **The one thing this file leaves open.** `augCom` is exhibited,
 compiled and run — the worked example below checks the block structure
@@ -802,6 +830,35 @@ theorem augment_spec {B n d nf W m : ℕ} {D : Orientation n} {DO DT : ℕ → �
     (hm : m ≤ W) (hW : augWidth n d ≤ W) (hB : n + W + 1 < B) :
     Spec B (AugPre n nf W DO DT) augCom (AugPost n W D) (augCost n W) :=
   (h he hcsr hd hnf hm hW hB).post fun _ _ _ hq => augPost_of_augMem hq
+
+/-- **The round's Hoare triple at the widened target array.** The `nf`
+parameter is gone: it existed only to cut `tgt` to the round's own slot
+count, and the surface asks instead that the fraternity graph fit the
+width it is handed — `fratSlots D ≤ nt`, which at `nt = W` is
+`fratSlots_lt_augWidth` composed with `augWidth n d ≤ W` and so costs
+the caller nothing. Neither `AugMem` nor `augCost` moves: nothing the
+round writes lives above the slot count. -/
+def ImplementsW (B n d nt W m : ℕ) (D : Orientation n) (DO DT : ℕ → ℕ) : Prop :=
+  ElimAvailW B n (fratGraph D) →
+  InCsr D m DO DT → D.InDegLE d → fratSlots D ≤ nt → m ≤ W → augWidth n d ≤ W →
+  n + W + 1 < B →
+  Spec B (AugPreW n nt W DO DT) augCom (AugMem n W D) (augCost n W)
+
+/-- **One round, at the widened target array.** `augment_spec` with the
+input block structure read at the caller's width. -/
+theorem augment_specW {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ}
+    (h : ImplementsW B n d nt W m D DO DT) (hcsr : InCsr D m DO DT) (hd : D.InDegLE d)
+    (hnt : fratSlots D ≤ nt) (hm : m ≤ W) (hW : augWidth n d ≤ W) (hB : n + W + 1 < B) :
+    Spec B (AugPreW n nt W DO DT) augCom (AugPost n W D) (augCost n W) :=
+  (h elimAvailW hcsr hd hnt hm hW hB).post fun _ _ _ hq => augPost_of_augMem hq
+
+/-- **The pinned obligation is the widened one at `nt = nf`.** The two
+preconditions are the same proposition there, and the widened
+availability the round asks for is `elimAvailW`, so the frozen
+`Implements` costs nothing beyond the widened walk. -/
+theorem implements_of_implementsW {B n d nf W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ}
+    (h : ImplementsW B n d nf W m D DO DT) : Implements B n d nf W m D DO DT :=
+  fun _ hcsr hd hnf hm hW hB => h elimAvailW hcsr hd (le_of_eq hnf) hm hW hB
 
 /-! ### The composition surface
 
