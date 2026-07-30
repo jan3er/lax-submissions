@@ -65,3 +65,7 @@ import Lax13Proofs.Refine.Codegen.Embed
 import Lax13Proofs.Refine.Codegen.BigStepB
 import Lax13Proofs.Refine.Codegen.Sim
 import Lax13Proofs.Refine.Codegen.Harness
+import Lax13Proofs.Refine.Iicf.Basic
+import Lax13Proofs.Refine.Iicf.IicfArray
+import Lax13Proofs.Refine.Iicf.IicfTrailArray
+import Lax13Proofs.Refine.Iicf.ExercisesA
