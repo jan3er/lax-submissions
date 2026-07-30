@@ -57,3 +57,4 @@ import Lax3Proofs.Refine.ElimSynth4
 import Lax3Proofs.Refine.T1FriProbe
 import Lax3Proofs.Refine.CoverSynth
 import Lax3Proofs.Refine.OrderSynth
+import Lax3Proofs.Refine.ClusterSynth
