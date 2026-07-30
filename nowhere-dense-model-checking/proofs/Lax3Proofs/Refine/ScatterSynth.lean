@@ -1,6 +1,8 @@
 import Lax3Proofs.RamScatter
+import Lax3Proofs.Refine.BfsBridge
 import Lax13Proofs.Refine.Examples.BfsQSynth
 import Lax13Proofs.Refine.Sepref.Examples.WordAssnSpike
+import Lax13Proofs.Refine.Sepref.IrOpsExtra
 
 /-!
 # ND-MC rebase P2 / satellite 2A — the scatter engine's marking sweep,
@@ -14,12 +16,20 @@ re-derived through the refinement tower
 3. `markCom` — the marking sweep, a flat pass over the carrier applying
    `RamScatter.markVal` pointwise.
 
-This file re-derives phases 1 and 3 through the tower, end to end:
+This file re-derives **all three phases** through the tower, end to end:
 abstract `NRest` program → correctness → `sepref_synth` → `BRefine`
 bounds → cashing → a `Reasoning.Spec` export in the baseline's own
-vocabulary. Phase 2 is *not* re-derived here; §8b probes the one thing
-that blocks it and §9 prices the rest — the finding is architectural and
-is half of the satellite's report, not an omission.
+vocabulary.
+
+Sections 1–11 are satellite 2A: phases 1 and 3 derived, and the
+architectural finding about phase 2 (§8b probes the frame-layer gap,
+§9 prices the rest). Sections 12–17 are **wave 2A′**, written after tool
+wave T1 closed that gap: phase 2 — the greedy scan, with the whole
+depth-capped search inside its picking branch and the marking sweep
+after it — derived the same way, and the three phases assembled into one
+engine (§16) in `RamScatter.scatterCom`'s own shape. The marking sweep
+therefore appears twice: once standalone (§1–§10, at the `mk*` cells)
+and once inside the scan (§12, at the search's own scratch cells).
 
 ## What is consumed rather than re-proved
 
@@ -1456,5 +1466,1330 @@ has to decide is not "which engines are hard" but **"where the tower
 stops and the name-generating recursion begins"** — and that boundary
 is above the leaf engines and below `driverAt`.
 -/
+
+
+/-! ## 12. The greedy scan — phase 2, completed (wave 2A′)
+
+§9 priced this phase and named the one thing that blocked it: the
+picking branch runs a *whole other engine* (`RamBfs.bfsCom`, the tower's
+`BfsQSynth.bfsQSynth_impl`) and the frame layer could not split the
+search's bound result tuple for the sweep that consumes it. Tool wave
+T1 closed that (`Sepref/Frame.lean` T1/D-b, D-d, D-f), and what follows
+is the phase, derived end to end: an abstract `NRest` program whose
+loop state carries the exclusion bits, the search's two scratch arrays
+and the two counters; its correctness against `RamScatter`'s own arena
+mathematics; `sepref_synth`; the cashing chain; and the export.
+
+### Judgment calls
+
+**R2A/D-i — `Progress` moves into the loop state.** The baseline's
+`RamScatter.Progress` is a predicate on an `Imp.Env`: it reads the count
+out of a cell and the exclusion bits out of a function array. `AProg`
+below is the same disjunction with the machine removed — the count and
+the bit list are *components of the abstract loop state*. §9 predicted
+the fill loop's six-conjuncts-to-one shrink and that is what happened:
+`Progress` has no `σ.vars`, no `σ.arrs` and no `arrOf` in it, and the
+scan's `irWhileIT` invariant (`scatP`) is three index facts.
+
+**R2A/D-j — the search's entry cells become arguments of the leaf.**
+`hnr_mop_bfs` (§8b) pins `i` and `head` at the abstract value `0`,
+which is right for a *caller* but wrong for a *loop*: a second turn
+finds `i` junk and `head` holding the queue's tail. Zeroing them inside
+the program does not help, because the translate phase does not read a
+bound result's value off `hnr_seq`'s `returnT a ≤ m` guard (tool gap 5
+below), so the rule still does not fire. `mopBfsAt` takes the two entry
+values as *arguments* and asserts them zero itself; the assertion is
+discharged by the abstract program (`mopZeroI`/`mopZeroHd` return `0`)
+and the rule fires. Same for `src`: the search's source cell is written
+by a cell-pinned `mopSrcOf` whose result is threaded into the leaf's
+`src` argument.
+
+**R2A/D-k — the radius and the threshold enter through cells.** The
+baseline compiles both into the program text (`scatterCom r t` is a
+different program for every `r` and `t`). Here `d`/`sent` hold `r` and
+`r + 1` and `t` holds the threshold, so **one** synthesized program
+serves every radius and every threshold — the same improvement R2A/D-b
+made for the sweep, now for the whole engine. The sweep inside the scan
+reads its shifted radius off `sent`, so the standalone sweep's `mkr`
+cell is not owned by the scan at all.
+
+**R2A/D-l — one named debt, and it is the search's bounds pass.** See
+§15.
+-/
+
+section Scan
+
+open Lax13Proofs.Reasoning (arrOf length_arrOf arrOf_congr)
+open Lax13Proofs.Refine.BfsQ (Csr St QPost Fr pack4 fillLoop fillLoop_le drainLoop_le
+  popC scanC fillC bfsK bfsBudget rowSum)
+open Lax13Proofs.Refine.Sepref (E2)
+
+/-- The scan's loop state: exclusion bits, the search's two scratch
+arrays, the count and the scan counter. -/
+abbrev SSt : Type := List ℕ × List ℕ × List ℕ × ℕ × ℕ
+
+/-- What a turn of the scan delivers before the counter moves. -/
+abbrev PSt : Type := List ℕ × List ℕ × List ℕ × ℕ
+
+/-! ### The three cell-pinned zeroing operations -/
+
+noncomputable def mopZeroI : NRest ℕ ECost := mopConstN 0
+theorem mopZeroI_eq : mopZeroI = mopConstN 0 := rfl
+
+@[sepref_fr_rules]
+theorem hnr_mop_zeroI : hnRefine (junkCell "i") (.const "i" 0) (□ : Assn) "i" natAssn
+    mopZeroI := by rw [mopZeroI_eq]; exact hnr_mop_constN "i" 0
+
+attribute [irreducible] mopZeroI
+
+noncomputable def mopZeroHd : NRest ℕ ECost := mopConstN 0
+theorem mopZeroHd_eq : mopZeroHd = mopConstN 0 := rfl
+
+@[sepref_fr_rules]
+theorem hnr_mop_zeroHd : hnRefine (junkCell "head") (.const "head" 0) (□ : Assn) "head"
+    natAssn mopZeroHd := by rw [mopZeroHd_eq]; exact hnr_mop_constN "head" 0
+
+attribute [irreducible] mopZeroHd
+
+noncomputable def mopZeroSw : NRest ℕ ECost := mopConstN 0
+theorem mopZeroSw_eq : mopZeroSw = mopConstN 0 := rfl
+
+@[sepref_fr_rules]
+theorem hnr_mop_zeroSw : hnRefine (junkCell "sw") (.const "sw" 0) (□ : Assn) "sw" natAssn
+    mopZeroSw := by rw [mopZeroSw_eq]; exact hnr_mop_constN "sw" 0
+
+attribute [irreducible] mopZeroSw
+
+/-- `src := sv`, at the two cells the search and the scan own. -/
+noncomputable def mopSrcOf (v : ℕ) : NRest ℕ ECost := mopCopy v
+theorem mopSrcOf_eq (v : ℕ) : mopSrcOf v = mopCopy v := rfl
+
+@[sepref_fr_rules]
+theorem hnr_mop_srcOf (v : ℕ) :
+    hnRefine (junkCell "src" ∗ hnCtxt natAssn v "sv") (.copy "src" "sv")
+      (hnCtxt natAssn v "sv") "src" natAssn (mopSrcOf v) := by
+  rw [mopSrcOf_eq]; exact hnr_mop_copy "src" "sv" v
+
+attribute [irreducible] mopSrcOf
+
+/-! ### The search, as a leaf that may be re-entered
+
+`mopBfs`'s rule pins `i` and `head` at the abstract value `0`, and the
+translate phase does not read a bound result's value off `hnr_seq`'s
+`returnT a ≤ m` guard — so a zeroing step *inside* the program cannot
+feed it. The fix is to make the two entry values **arguments** of the
+operation and let the operation itself assert them zero. -/
+
+noncomputable def mopBfsAt (n d src i₀ hd₀ : ℕ) (off tgt alv dist₀ q₀ : List ℕ) :
+    NRest BfsQ.St ECost :=
+  bindT (NRest.assert (i₀ = 0 ∧ hd₀ = 0)) fun _ =>
+    BfsQSynth.bfsQS n d src off tgt alv dist₀ q₀
+
+@[sepref_fr_rules]
+theorem hnr_mop_bfsAt (n d src i₀ hd₀ : ℕ) (off tgt alv dist₀ q₀ : List ℕ) :
+    hnRefine
+      (hnCtxt arrayAssn dist₀ "dist" ∗ hnCtxt arrayAssn q₀ "q" ∗
+        hnCtxt natAssn i₀ "i" ∗ hnCtxt natAssn hd₀ "head" ∗
+        hnCtxt arrayAssn off "off" ∗ hnCtxt arrayAssn tgt "tgt" ∗
+        hnCtxt arrayAssn alv "alv" ∗ hnCtxt natAssn n "n" ∗
+        hnCtxt natAssn (d + 1) "sent" ∗ hnCtxt natAssn d "d" ∗
+        hnCtxt natAssn src "src" ∗ hnCtxt natAssn 1 "one" ∗
+        junkCell "a" ∗ junkCell "tl" ∗ junkCell "v" ∗ junkCell "dv" ∗ junkCell "dv1" ∗
+        junkCell "k0" ∗ junkCell "v1" ∗ junkCell "kend" ∗ junkCell "u" ∗ junkCell "au" ∗
+        junkCell "du")
+      BfsQSynth.bfsQSynth_impl
+      (junkCell "a" ∗ hnCtxt arrayAssn alv "alv" ∗ hnCtxt natAssn src "src" ∗
+        junkCell "i" ∗ hnCtxt arrayAssn off "off" ∗ hnCtxt arrayAssn tgt "tgt" ∗
+        hnCtxt natAssn n "n" ∗ hnCtxt natAssn (d + 1) "sent" ∗ hnCtxt natAssn d "d" ∗
+        hnCtxt natAssn 1 "one" ∗ junkCell "v" ∗ junkCell "dv" ∗ junkCell "dv1" ∗
+        junkCell "k0" ∗ junkCell "v1" ∗ junkCell "kend" ∗ junkCell "u" ∗ junkCell "au" ∗
+        junkCell "du")
+      ("dist", "q", "head", "tl")
+      (arrayAssn ×ₐ arrayAssn ×ₐ natAssn ×ₐ natAssn)
+      (mopBfsAt n d src i₀ hd₀ off tgt alv dist₀ q₀) := by
+  rw [mopBfsAt]
+  refine hnr_assert fun h => ?_
+  obtain ⟨rfl, rfl⟩ := h
+  exact BfsQSynth.bfsQSynth' n d src off tgt alv dist₀ q₀
+
+theorem mopBfsAt_eq (n d src i₀ hd₀ : ℕ) (off tgt alv dist₀ q₀ : List ℕ) :
+    mopBfsAt n d src i₀ hd₀ off tgt alv dist₀ q₀ =
+      bindT (NRest.assert (i₀ = 0 ∧ hd₀ = 0)) fun _ =>
+        BfsQSynth.bfsQS n d src off tgt alv dist₀ q₀ := rfl
+
+attribute [irreducible] mopBfsAt
+
+/-! ### Packing -/
+
+noncomputable def pack4' (E D Q : List ℕ) (c : ℕ) : NRest PSt ECost :=
+  bindT (mopPair Q c) fun p => bindT (mopPair D p) fun p' => mopPair E p'
+
+noncomputable def pack5 (E D Q : List ℕ) (c v : ℕ) : NRest SSt ECost :=
+  bindT (mopPair c v) fun p => bindT (mopPair Q p) fun p' =>
+    bindT (mopPair D p') fun p'' => mopPair E p''
+
+/-! ### The turn -/
+
+noncomputable def pickF (n d : ℕ) (off tgt alv : List ℕ) : SSt → NRest PSt ECost := fun s =>
+  bindT mopZeroI fun i₀ =>
+    bindT mopZeroHd fun hd₀ =>
+      bindT (mopSrcOf s.2.2.2.2) fun sv' =>
+        bindT (mopBfsAt n d sv' i₀ hd₀ off tgt alv s.2.1 s.2.2.1) fun st =>
+          bindT mopZeroSw fun z =>
+            bindT (mopPair s.1 z) fun p =>
+              bindT (markLoop n (d + 1) st.1 p) fun mr =>
+                bindT (mopSucc s.2.2.2.1) fun c' => pack4' mr.1 st.1 st.2.1 c'
+
+noncomputable def scatF (n d t : ℕ) (off tgt alv tab : List ℕ) : SSt → NRest SSt ECost :=
+  fun s =>
+    bindT (mopAget tab s.2.2.2.2) fun tb =>
+      bindT (mopAget s.1 s.2.2.2.2) fun ex =>
+        bindT (irIf (decide (s.2.2.2.1 < t))
+            (irIf (decide (0 < tb))
+              (irIf (decide (ex = 0)) (pickF n d off tgt alv s) (pack4' s.1 s.2.1 s.2.2.1 s.2.2.2.1))
+              (pack4' s.1 s.2.1 s.2.2.1 s.2.2.2.1))
+            (pack4' s.1 s.2.1 s.2.2.1 s.2.2.2.1)) fun z =>
+          bindT (mopSucc s.2.2.2.2) fun v' => pack5 z.1 z.2.1 z.2.2.1 z.2.2.2 v'
+
+def scatBf (n : ℕ) : SSt → Bool := fun s => decide (s.2.2.2.2 < n)
+
+def scatP (n : ℕ) (tab : List ℕ) : SSt → Prop := fun s =>
+  s.2.2.2.2 < n ∧ n ≤ tab.length ∧ n ≤ s.1.length
+
+noncomputable def scatLoop (n d t : ℕ) (off tgt alv tab : List ℕ) (s₀ : SSt) :
+    NRest SSt ECost :=
+  irWhileIT (fun s => scatBf n s = true → scatP n tab s) (scatBf n)
+    (scatF n d t off tgt alv tab) s₀
+
+/-! ### The synthesis -/
+
+set_option maxHeartbeats 4000000 in
+sepref_synth scatSynth (n d t : ℕ) (off tgt alv tab exc₀ dist₀ q₀ : List ℕ) :
+  hnRefine
+    (hnCtxt (arrayAssn ×ₐ arrayAssn ×ₐ arrayAssn ×ₐ natAssn ×ₐ natAssn)
+        (exc₀, dist₀, q₀, 0, 0) ("exc", "dist", "q", "cnt", "sv") ∗
+      hnCtxt arrayAssn off "off" ∗ hnCtxt arrayAssn tgt "tgt" ∗
+      hnCtxt arrayAssn alv "alv" ∗ hnCtxt arrayAssn tab "tab" ∗
+      hnCtxt natAssn n "n" ∗ hnCtxt natAssn (d + 1) "sent" ∗ hnCtxt natAssn d "d" ∗
+      hnCtxt natAssn t "t" ∗ hnCtxt natAssn 1 "one" ∗ hnCtxt natAssn 0 "zero" ∗
+      junkCell "sctb" ∗ junkCell "scex" ∗
+      junkCell "src" ∗ junkCell "i" ∗ junkCell "head" ∗ junkCell "sw" ∗
+      junkCell "a" ∗ junkCell "tl" ∗ junkCell "v" ∗ junkCell "dv" ∗ junkCell "dv1" ∗
+      junkCell "k0" ∗ junkCell "v1" ∗ junkCell "kend" ∗ junkCell "u" ∗ junkCell "au" ∗
+      junkCell "du")
+    _ _ ("exc", "dist", "q", "cnt", "sv")
+    (arrayAssn ×ₐ arrayAssn ×ₐ arrayAssn ×ₐ natAssn ×ₐ natAssn)
+    (scatLoop n d t off tgt alv tab (exc₀, dist₀, q₀, 0, 0))
+
+/-! ## The search's bound, with the queue's length kept
+
+`BfsQSynth.bfsQS_correct` routes through `bfsQ`, whose last step
+projects the result tuple onto `dist`; the queue's length — a field of
+`BfsQ.Fr` all along — is lost there. A scan that re-enters the search
+needs it, so the same derivation is run once more directly on `bfsQS`,
+whose result *is* the drain's. -/
+
+theorem bfsQS_correct' {n ns d : ℕ} {G : SimpleGraph (Fin n)} {off tgt alv : List ℕ}
+    {src : ℕ} {dist₀ q₀ : List ℕ} (hc : Csr n ns G off tgt alv)
+    (hsrc : src < n) (hdlen : dist₀.length = n) (hqlen : q₀.length = n) :
+    BfsQSynth.bfsQS n d src off tgt alv dist₀ q₀
+      ≤ NRest.spec (fun st' : St => QPost n d src G alv hsrc st'.1 ∧ st'.2.1.length = n)
+          (fun _ => irUnit Currency.skip + liftACost (bfsBudget n ns)) := by
+  have halv : src < alv.length := by rw [hc.shape.2.1]; exact hsrc
+  have htail : ∀ p : List ℕ × ℕ, (p.1.length = n ∧ ∀ j, j < n → p.1[j]! = d + 1) →
+      (NRest.bindT (mopAset p.1 src 0) fun D => NRest.bindT (mopAset q₀ 0 src) fun Q =>
+        NRest.bindT (mopAget alv src) fun a =>
+          NRest.bindT (irIf (decide (0 < a)) (mopConstN 1) (mopConstN 0)) fun tl =>
+            NRest.bindT (pack4 D Q 0 tl) fun st =>
+              BfsQSynth.drainLoop' n d (d + 1) off tgt alv st)
+        ≤ NRest.spec (fun st' : St => QPost n d src G alv hsrc st'.1 ∧ st'.2.1.length = n)
+            (fun _ => liftACost (n • iter popC + ns • iter scanC
+              + (cu Currency.aset + cu Currency.aset + cu Currency.aget + cu Currency.ite
+                + cu Currency.const + cu Currency.skip + cu Currency.skip + cu Currency.skip
+                + cu Currency.«while»))) := by
+    rintro p ⟨hplen, hpfill⟩
+    have hseed := Fr.seed (n := n) (d := d) (G := G) (alv := alv) (s := ⟨src, hsrc⟩)
+      hplen hqlen hpfill
+    have hrow0 : rowSum off (q₀.set 0 src) 0 = 0 := by simp [rowSum]
+    have hdrain := drainLoop_le (d := d) (s := ⟨src, hsrc⟩) hc n
+      (p.1.set src 0, q₀.set 0 src, 0, if 0 < alv[src]! then 1 else 0) hseed (by simp)
+    rw [hrow0, Nat.sub_zero, Nat.sub_zero] at hdrain
+    have hmono : NRest.spec
+        (fun z' : St => Fr n d G alv ⟨src, hsrc⟩ z'.1 z'.2.1 z'.2.2.1 z'.2.2.2 ∧
+          z'.2.2.2 ≤ z'.2.2.1)
+        (fun _ => liftACost (E2 (iter popC) (iter scanC) n ns + cu Currency.«while»))
+        ≤ NRest.spec (fun st' : St => QPost n d src G alv hsrc st'.1 ∧ st'.2.1.length = n)
+          (fun _ => liftACost (E2 (iter popC) (iter scanC) n ns + cu Currency.«while»)) := by
+      refine Sepref.spec_mono ?_ (fun _ _ => le_rfl)
+      rintro z' ⟨hfr, hle⟩
+      rw [le_antisymm hfr.hdle hle] at hfr
+      exact ⟨⟨hfr.dlen, fun v k hk => hfr.dist_le_iff v hk⟩, hfr.qlen⟩
+    have hstep : ∀ tl : ℕ, tl = (if 0 < alv[src]! then 1 else 0) →
+        (NRest.bindT (pack4 (p.1.set src 0) (q₀.set 0 src) 0 tl) fun st =>
+          BfsQSynth.drainLoop' n d (d + 1) off tgt alv st)
+          ≤ NRest.spec (fun st' : St => QPost n d src G alv hsrc st'.1 ∧ st'.2.1.length = n)
+              (fun _ => (irUnit Currency.skip + irUnit Currency.skip + irUnit Currency.skip)
+                + liftACost (E2 (iter popC) (iter scanC) n ns + cu Currency.«while»)) := by
+      rintro tl rfl
+      simp only [pack4, mopPair_def, bindT_unitT, NRest.consume_consume,
+        BfsQSynth.drainLoop'_eq]
+      refine le_trans (NRest.consume_mono (le_trans hdrain hmono) le_rfl) (le_of_eq ?_)
+      rw [Sepref.consume_spec]
+      exact congrArg (NRest.spec _) (funext fun _ => by ac_rfl)
+    simp only [mopAset_def, mopAget_def, NRest.assert_pos (show src < p.1.length by omega),
+      NRest.assert_pos (show 0 < q₀.length by omega), NRest.assert_pos halv,
+      NRest.returnT_bindT, irIf_def, mopConstN_def,
+      NRest.bindT_consume NRest.addSupContinuousB_acost, NRest.consume_consume]
+    rw [show (if (decide (0 < alv[src]!)) = true
+          then NRest.consume (NRest.returnT 1) (irUnit Currency.const)
+          else NRest.consume (NRest.returnT 0) (irUnit Currency.const))
+        = NRest.consume (NRest.returnT (if 0 < alv[src]! then 1 else 0))
+            (irUnit Currency.const) from by
+      by_cases hal : 0 < alv[src]!
+      · rw [if_pos (by simp only [decide_eq_true_eq]; omega : (decide (0 < alv[src]!)) = true),
+          if_pos hal]
+      · rw [if_neg (by simp only [decide_eq_true_eq]; omega : ¬ (decide (0 < alv[src]!)) = true),
+          if_neg hal],
+      bindT_unitT]
+    refine le_trans (NRest.consume_mono (NRest.consume_mono (hstep _ rfl) le_rfl) le_rfl)
+      (le_of_eq ?_)
+    rw [Sepref.consume_spec, Sepref.consume_spec]
+    refine congrArg (NRest.spec _) (funext fun _ => ?_)
+    simp only [E2, iter, liftACost_add, liftACost_nsmul, liftACost_cu, add_zero]
+    ac_rfl
+  simp only [BfsQSynth.bfsQS, mopPair_def, bindT_unitT, BfsQSynth.fillLoop'_eq]
+  refine le_trans (NRest.consume_mono
+    (le_trans (NRest.bindT_mono (fillLoop_le n (d + 1) n dist₀ 0 hdlen (by omega)
+      (fun j hj => absurd hj (by omega))) fun _ => le_rfl)
+      (Sepref.bindT_spec_le _ _ _ _ _ htail)) le_rfl) ?_
+  rw [Sepref.consume_spec]
+  refine Sepref.spec_mono (fun _ h => h) (fun _ _ => ?_)
+  simp only [bfsBudget, bfsK, iter, liftACost_add, liftACost_nsmul, liftACost_cu, Nat.sub_zero]
+  exact le_trans (cost_le_add _ (irUnit Currency.add + irUnit Currency.const))
+    (le_of_eq (by ac_rfl))
+
+/-! ## The greedy scan, priced -/
+
+/-- What a turn pays whatever it does: the two reads, the three tests,
+the branch's own re-assembly, the counter and the state's. -/
+def scatC : ACost String ℕ :=
+  cu Currency.aget + cu Currency.aget
+    + cu Currency.ite + cu Currency.ite + cu Currency.ite
+    + cu Currency.skip + cu Currency.skip + cu Currency.skip
+    + cu Currency.add
+    + cu Currency.skip + cu Currency.skip + cu Currency.skip + cu Currency.skip
+
+/-- …and what a turn that *picks* pays on top: the search's entry
+store, the search, the sweep's entry store, the sweep, and the count. -/
+def pickK : ACost String ℕ :=
+  cu Currency.const + cu Currency.const + cu Currency.copy + cu Currency.skip
+    + cu Currency.const + cu Currency.skip + cu Currency.«while» + cu Currency.add
+
+def pickC (n ns : ℕ) : ACost String ℕ := bfsBudget n ns + n • iter markC + pickK
+
+/-! ## `RamScatter.Progress`, over the abstract loop state
+
+The baseline states its scan invariant over an `Imp.Env` — the count in
+a cell, the exclusion bits in a function array. Here the same
+disjunction is a statement about the loop state's own components, and
+the machine has left it entirely (the six-conjuncts-to-one shrink the
+fill loop showed, at an invariant with content). -/
+
+def AProg (nn : ℕ) (G : SimpleGraph (Fin nn)) (M : ℕ → ℕ) (r t : ℕ) (X : Set (Fin nn))
+    (p cnt : ℕ) (E : List ℕ) : Prop :=
+  (cnt = t ∧ t ≤ (Lax3.ScatterSentences.greedySet (RamBfs.masked G M) r X).ncard) ∨
+    (cnt < t ∧ cnt = (RamScatter.selBelow G M r X p).ncard ∧
+      (∀ w, w < nn → E[w]! ≤ 1) ∧
+      ∀ w, w < nn → (E[w]! = 0 ↔
+        ∀ u, u < p → RamScatter.GSel G M r X u → ¬ RamBfs.WD G M r u w))
+
+variable {nn ns r t : ℕ} {G : SimpleGraph (Fin nn)} {M Tab O T : ℕ → ℕ} {X : Set (Fin nn)}
+
+theorem AProg.cnt_le {p cnt : ℕ} {E : List ℕ} (h : AProg nn G M r t X p cnt E) : cnt ≤ t := by
+  rcases h with ⟨h, -⟩ | ⟨h, -⟩ <;> omega
+
+/-- **A vertex the scan passes over changes nothing** —
+`RamScatter.progress_succ_of_not` at the list. -/
+theorem AProg_succ_of_not {p cnt : ℕ} {E : List ℕ} (hg : ¬ RamScatter.GSel G M r X p)
+    (h : AProg nn G M r t X p cnt E) : AProg nn G M r t X (p + 1) cnt E := by
+  rcases h with hB | ⟨h₁, h₂, hE1, hEiff⟩
+  · exact Or.inl hB
+  · refine Or.inr ⟨h₁, by rw [h₂, RamScatter.selBelow_succ_of_not hg], hE1, fun w hw => ?_⟩
+    rw [hEiff w hw]
+    refine ⟨fun hall u hu hgu => ?_, fun hall u hu hgu => hall u (by omega) hgu⟩
+    rcases Nat.lt_succ_iff_lt_or_eq.1 hu with hu' | rfl
+    · exact hall u hu' hgu
+    · exact absurd hgu hg
+
+/-! ## The picking branch, bounded -/
+
+theorem pickF_le (hcsr : RamBfs.CsrGraph G ns O T)
+    (E D Q : List ℕ) (cnt sv : ℕ) (hsv : sv < nn)
+    (hE : E.length = nn) (hD : D.length = nn) (hQ : Q.length = nn) :
+    pickF nn r (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) ((E, D, Q, cnt, sv) : SSt)
+      ≤ NRest.spec (fun z : PSt =>
+            z.1.length = nn ∧ z.2.1.length = nn ∧ z.2.2.1.length = nn ∧ z.2.2.2 = cnt + 1 ∧
+            (∀ w, w < nn → z.1[w]! = RamScatter.markVal r E[w]! z.2.1[w]!) ∧
+            (∀ w, w < nn → (z.2.1[w]! ≤ r ↔ RamBfs.WD G M r sv w)))
+          (fun _ => liftACost (pickC nn ns + (cu Currency.skip + cu Currency.skip
+            + cu Currency.skip))) := by
+  have hcsr' : Csr nn ns G (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) :=
+    Lax3Proofs.Refine.BfsBridge.csr_of_csrGraph hcsr
+  -- what the search leaves, and what the sweep then does with it
+  have htail : ∀ st : St,
+      (QPost nn r sv G (arrOf nn M) hsv st.1 ∧ st.2.1.length = nn) →
+      (NRest.bindT mopZeroSw fun z => NRest.bindT (mopPair E z) fun p =>
+        NRest.bindT (markLoop nn (r + 1) st.1 p) fun mr =>
+          NRest.bindT (mopSucc cnt) fun c' => pack4' mr.1 st.1 st.2.1 c')
+        ≤ NRest.spec (fun z : PSt =>
+              z.1.length = nn ∧ z.2.1.length = nn ∧ z.2.2.1.length = nn ∧ z.2.2.2 = cnt + 1 ∧
+              (∀ w, w < nn → z.1[w]! = RamScatter.markVal r E[w]! z.2.1[w]!) ∧
+              (∀ w, w < nn → (z.2.1[w]! ≤ r ↔ RamBfs.WD G M r sv w)))
+            (fun _ => liftACost (cu Currency.const + cu Currency.skip
+              + (nn • iter markC + cu Currency.«while») + cu Currency.add
+              + (cu Currency.skip + cu Currency.skip + cu Currency.skip))) := by
+    rintro st ⟨⟨hdlen, hdspec⟩, hqlen⟩
+    -- the distances the search decided, in the driver stack's vocabulary
+    have hwd : ∀ w, w < nn → (st.1[w]! ≤ r ↔ RamBfs.WD G M r sv w) := by
+      intro w hw
+      rw [RamBfs.wd_iff_withinDist hsv hw]
+      exact (hdspec ⟨w, hw⟩ r le_rfl).trans Lax3Proofs.Refine.BfsBridge.wd_iff_withinDist
+    -- the sweep
+    have hmark := markLoop_le nn (r + 1) st.1 E (le_of_eq hdlen.symm) nn E 0 hE
+      (by omega) (by omega) (fun j hj => absurd hj (Nat.not_lt_zero j)) (fun _ _ _ => rfl)
+    rw [Nat.sub_zero] at hmark
+    have hfin : ∀ mr : List ℕ × ℕ,
+        (mr.1.length = nn ∧ mr.2 = nn ∧ ∀ j, j < nn → mr.1[j]! = mkVal (r + 1) E[j]! st.1[j]!) →
+        (NRest.bindT (mopSucc cnt) fun c' => pack4' mr.1 st.1 st.2.1 c')
+          ≤ NRest.spec (fun z : PSt =>
+              z.1.length = nn ∧ z.2.1.length = nn ∧ z.2.2.1.length = nn ∧ z.2.2.2 = cnt + 1 ∧
+              (∀ w, w < nn → z.1[w]! = RamScatter.markVal r E[w]! z.2.1[w]!) ∧
+              (∀ w, w < nn → (z.2.1[w]! ≤ r ↔ RamBfs.WD G M r sv w)))
+            (fun _ => liftACost (cu Currency.add
+              + (cu Currency.skip + cu Currency.skip + cu Currency.skip))) := by
+      rintro mr ⟨hmlen, -, hmval⟩
+      simp only [mopSucc_eq, mopBinop_def, Lax13Proofs.Imp.Bop.apply_add, binopCurrency_add,
+        bindT_unitT, pack4', mopPair_def, NRest.consume_consume]
+      refine consume_returnT_le_spec
+        ⟨hmlen, hdlen, hqlen, rfl, fun w hw => by
+          rw [hmval w hw, mkVal_eq_markVal], hwd⟩ ?_
+      simp only [liftACost_add, liftACost_cu]
+      exact le_of_eq (by ac_rfl)
+    simp only [mopZeroSw_eq, mopConstN_def, bindT_unitT, mopPair_def, NRest.consume_consume]
+    refine le_trans (NRest.consume_mono
+      (le_trans (NRest.bindT_mono hmark fun _ => le_rfl)
+        (bindT_spec_le _ _ _ _ _ hfin)) le_rfl) (le_of_eq ?_)
+    rw [Sepref.consume_spec]
+    refine congrArg (NRest.spec _) (funext fun _ => ?_)
+    simp only [liftACost_add, liftACost_cu]
+    ac_rfl
+  -- the search itself
+  simp only [pickF, mopZeroI_eq, mopZeroHd_eq, mopSrcOf_eq, mopConstN_def, mopCopy_def,
+    bindT_unitT, mopBfsAt_eq, NRest.assert_pos (show True ∧ True from ⟨trivial, trivial⟩),
+    NRest.returnT_bindT, NRest.consume_consume]
+  refine le_trans (NRest.consume_mono
+    (le_trans (NRest.bindT_mono (bfsQS_correct' hcsr' hsv hD hQ) fun _ => le_rfl)
+      (bindT_spec_le _ _ _ _ _ htail)) le_rfl) (le_of_eq ?_)
+  rw [Sepref.consume_spec]
+  refine congrArg (NRest.spec _) (funext fun _ => ?_)
+  simp only [pickC, pickK, liftACost_add, liftACost_cu, liftACost_nsmul]
+  ac_rfl
+
+/-! ## The arena mathematics of one turn
+
+`RamScatter`'s own — `GSel`/`selBelow` and the counting lemmas are
+consumed, never restated. -/
+
+theorem not_gsel_of_pass {p cnt : ℕ} {E : List ℕ} (hp : p < nn)
+    (hTab : ∀ v : Fin nn, Tab (v : ℕ) ≠ 0 ↔ v ∈ X)
+    (hP : AProg nn G M r t X p cnt E) (hlt : cnt < t)
+    (h : Tab p = 0 ∨ E[p]! ≠ 0) : ¬ RamScatter.GSel G M r X p := by
+  obtain ⟨-, -, -, hEiff⟩ : cnt < t ∧ cnt = (RamScatter.selBelow G M r X p).ncard ∧
+      (∀ w, w < nn → E[w]! ≤ 1) ∧
+      (∀ w, w < nn → (E[w]! = 0 ↔
+        ∀ u, u < p → RamScatter.GSel G M r X u → ¬ RamBfs.WD G M r u w)) := by
+    rcases hP with ⟨h', -⟩ | h'
+    · omega
+    · exact h'
+  intro hg
+  obtain ⟨hX, hfar⟩ := (RamScatter.gsel_iff hp).1 hg
+  rcases h with h | h
+  · exact (hTab ⟨p, hp⟩).2 hX h
+  · exact h ((hEiff p hp).2 hfar)
+
+theorem AProg_keep {p cnt : ℕ} {E : List ℕ} (hp : p < nn)
+    (hTab : ∀ v : Fin nn, Tab (v : ℕ) ≠ 0 ↔ v ∈ X)
+    (hP : AProg nn G M r t X p cnt E)
+    (h : ¬ (cnt < t) ∨ Tab p = 0 ∨ E[p]! ≠ 0) :
+    AProg nn G M r t X (p + 1) cnt E := by
+  by_cases hlt : cnt < t
+  · rcases h with h | h
+    · exact absurd hlt h
+    · exact AProg_succ_of_not (not_gsel_of_pass hp hTab hP hlt h) hP
+  · rcases hP with hB | ⟨h', -⟩
+    · exact Or.inl hB
+    · exact absurd h' hlt
+
+/-- **What a turn that picks establishes.** `RamScatter.step_run`'s
+mathematics, at the loop state: the search decided the radius, so the
+new bits are exactly the recursion's next clause. -/
+theorem AProg_pick {p cnt : ℕ} {E E' D' : List ℕ} (hp : p < nn)
+    (hTab : ∀ v : Fin nn, Tab (v : ℕ) ≠ 0 ↔ v ∈ X)
+    (hP : AProg nn G M r t X p cnt E) (hlt : cnt < t)
+    (htab : Tab p ≠ 0) (hex : E[p]! = 0)
+    (hwd : ∀ w, w < nn → (D'[w]! ≤ r ↔ RamBfs.WD G M r p w))
+    (hEnew : ∀ w, w < nn → E'[w]! = RamScatter.markVal r E[w]! D'[w]!) :
+    AProg nn G M r t X (p + 1) (cnt + 1) E' := by
+  obtain ⟨-, hcnteq, -, hEiff⟩ : cnt < t ∧ cnt = (RamScatter.selBelow G M r X p).ncard ∧
+      (∀ w, w < nn → E[w]! ≤ 1) ∧
+      (∀ w, w < nn → (E[w]! = 0 ↔
+        ∀ u, u < p → RamScatter.GSel G M r X u → ¬ RamBfs.WD G M r u w)) := by
+    rcases hP with ⟨h', -⟩ | h'
+    · omega
+    · exact h'
+  have hgsel : RamScatter.GSel G M r X p :=
+    (RamScatter.gsel_iff hp).2 ⟨(hTab ⟨p, hp⟩).1 htab, (hEiff p hp).1 hex⟩
+  have hE'iff : ∀ w, w < nn → (RamScatter.markVal r E[w]! D'[w]! = 0 ↔
+      ∀ u, u < p + 1 → RamScatter.GSel G M r X u → ¬ RamBfs.WD G M r u w) := by
+    intro w hw
+    rw [RamScatter.markVal_eq_zero_iff, hEiff w hw]
+    constructor
+    · rintro ⟨hall, hgt⟩ u hu hgu
+      rcases Nat.lt_succ_iff_lt_or_eq.1 hu with hu' | rfl
+      · exact hall u hu' hgu
+      · exact fun hwd' => absurd ((hwd w hw).2 hwd') (by omega)
+    · intro hall
+      refine ⟨fun u hu hgu => hall u (by omega) hgu, ?_⟩
+      by_contra hcon
+      exact hall p (by omega) hgsel ((hwd w hw).1 (by omega))
+  have hncard : cnt + 1 = (RamScatter.selBelow G M r X (p + 1)).ncard := by
+    rw [RamScatter.ncard_selBelow_succ_of_gsel hp hgsel, hcnteq]
+  have hlei : cnt + 1 ≤ (Lax3.ScatterSentences.greedySet (RamBfs.masked G M) r X).ncard := by
+    rw [hncard]; exact RamScatter.ncard_selBelow_le
+  rcases Nat.lt_or_ge (cnt + 1) t with h | h
+  · exact Or.inr ⟨h, hncard, fun w hw => by
+      rw [hEnew w hw]; exact RamScatter.markVal_le_one .., fun w hw => by
+      rw [hEnew w hw]; exact hE'iff w hw⟩
+  · exact Or.inl ⟨by omega, by omega⟩
+
+/-! ## One turn of the scan, bounded -/
+
+theorem scatF_le_keep (hTab : ∀ v : Fin nn, Tab (v : ℕ) ≠ 0 ↔ v ∈ X)
+    (E D Q : List ℕ) (cnt sv : ℕ) (hsv : sv < nn)
+    (hE : E.length = nn) (hD : D.length = nn) (hQ : Q.length = nn)
+    (hP : AProg nn G M r t X sv cnt E)
+    (hno : ¬ (cnt < t) ∨ Tab sv = 0 ∨ E[sv]! ≠ 0) :
+    scatF nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+        ((E, D, Q, cnt, sv) : SSt)
+      ≤ NRest.spec (fun s' : SSt => s'.1.length = nn ∧ s'.2.1.length = nn ∧
+            s'.2.2.1.length = nn ∧ s'.2.2.2.2 = sv + 1 ∧ s'.2.2.2.1 = cnt ∧
+            AProg nn G M r t X (sv + 1) s'.2.2.2.1 s'.1)
+          (fun _ => liftACost scatC) := by
+  have hpost : AProg nn G M r t X (sv + 1) cnt E := AProg_keep hsv hTab hP hno
+  have htabval : (arrOf nn Tab)[sv]! = Tab sv :=
+    Lax3Proofs.Refine.BfsBridge.getElem!_arrOf Tab hsv
+  have hEsv : sv < E.length := by omega
+  have htabsv : sv < (arrOf nn Tab).length := by rw [length_arrOf]; exact hsv
+  by_cases hlt : cnt < t
+  · have hg1 : decide (cnt < t) = true := by simp [hlt]
+    by_cases htb : 0 < Tab sv
+    · have hex : E[sv]! ≠ 0 := by
+        rcases hno with h | h | h
+        · exact absurd hlt h
+        · omega
+        · exact h
+      have hg2 : decide (0 < (arrOf nn Tab)[sv]!) = true := by rw [htabval]; simp [htb]
+      have hg3 : decide (E[sv]! = 0) = false := by
+        simp only [decide_eq_false_iff_not]; exact hex
+      simp only [scatF, mopAget_def, NRest.assert_pos htabsv, NRest.assert_pos hEsv,
+        NRest.returnT_bindT, bindT_unitT, hg1, hg2, hg3, irIf_true, irIf_false,
+        NRest.bindT_consume NRest.addSupContinuousB_acost, pack4', pack5, mopPair_def,
+        mopSucc_eq, mopBinop_def, Lax13Proofs.Imp.Bop.apply_add, binopCurrency_add,
+        NRest.consume_consume]
+      refine consume_returnT_le_spec ⟨hE, hD, hQ, rfl, rfl, hpost⟩ (le_of_eq ?_)
+      simp only [scatC, liftACost_add, liftACost_cu]
+      ac_rfl
+    · have hg2 : decide (0 < (arrOf nn Tab)[sv]!) = false := by rw [htabval]; simp; omega
+      simp only [scatF, mopAget_def, NRest.assert_pos htabsv, NRest.assert_pos hEsv,
+        NRest.returnT_bindT, bindT_unitT, hg1, hg2, irIf_true, irIf_false,
+        NRest.bindT_consume NRest.addSupContinuousB_acost, pack4', pack5, mopPair_def,
+        mopSucc_eq, mopBinop_def, Lax13Proofs.Imp.Bop.apply_add, binopCurrency_add,
+        NRest.consume_consume]
+      refine consume_returnT_le_spec ⟨hE, hD, hQ, rfl, rfl, hpost⟩
+        (le_trans (cost_le_add _ (irUnit Currency.ite)) (le_of_eq ?_))
+      simp only [scatC, liftACost_add, liftACost_cu]
+      ac_rfl
+  · have hg1 : decide (cnt < t) = false := by simp [hlt]
+    simp only [scatF, mopAget_def, NRest.assert_pos htabsv, NRest.assert_pos hEsv,
+      NRest.returnT_bindT, bindT_unitT, hg1, irIf_false,
+      NRest.bindT_consume NRest.addSupContinuousB_acost, pack4', pack5, mopPair_def,
+      mopSucc_eq, mopBinop_def, Lax13Proofs.Imp.Bop.apply_add, binopCurrency_add,
+      NRest.consume_consume]
+    refine consume_returnT_le_spec ⟨hE, hD, hQ, rfl, rfl, hpost⟩
+      (le_trans (cost_le_add _ (irUnit Currency.ite + irUnit Currency.ite)) (le_of_eq ?_))
+    simp only [scatC, liftACost_add, liftACost_cu]
+    ac_rfl
+
+theorem scatF_le_pick (hcsr : RamBfs.CsrGraph G ns O T)
+    (hTab : ∀ v : Fin nn, Tab (v : ℕ) ≠ 0 ↔ v ∈ X)
+    (E D Q : List ℕ) (cnt sv : ℕ) (hsv : sv < nn)
+    (hE : E.length = nn) (hD : D.length = nn) (hQ : Q.length = nn)
+    (hP : AProg nn G M r t X sv cnt E)
+    (hlt : cnt < t) (htb : Tab sv ≠ 0) (hex : E[sv]! = 0) :
+    scatF nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+        ((E, D, Q, cnt, sv) : SSt)
+      ≤ NRest.spec (fun s' : SSt => s'.1.length = nn ∧ s'.2.1.length = nn ∧
+            s'.2.2.1.length = nn ∧ s'.2.2.2.2 = sv + 1 ∧ s'.2.2.2.1 = cnt + 1 ∧
+            AProg nn G M r t X (sv + 1) s'.2.2.2.1 s'.1)
+          (fun _ => liftACost (scatC + pickC nn ns)) := by
+  have htabval : (arrOf nn Tab)[sv]! = Tab sv :=
+    Lax3Proofs.Refine.BfsBridge.getElem!_arrOf Tab hsv
+  have hEsv : sv < E.length := by omega
+  have htabsv : sv < (arrOf nn Tab).length := by rw [length_arrOf]; exact hsv
+  have hg1 : decide (cnt < t) = true := by simp [hlt]
+  have hg2 : decide (0 < (arrOf nn Tab)[sv]!) = true := by rw [htabval]; simp; omega
+  have hg3 : decide (E[sv]! = 0) = true := by
+    simp only [decide_eq_true_eq]; exact hex
+  have hcont : ∀ z : PSt,
+      (z.1.length = nn ∧ z.2.1.length = nn ∧ z.2.2.1.length = nn ∧ z.2.2.2 = cnt + 1 ∧
+        (∀ w, w < nn → z.1[w]! = RamScatter.markVal r E[w]! z.2.1[w]!) ∧
+        (∀ w, w < nn → (z.2.1[w]! ≤ r ↔ RamBfs.WD G M r sv w))) →
+      (NRest.bindT (mopSucc sv) fun v' => pack5 z.1 z.2.1 z.2.2.1 z.2.2.2 v')
+        ≤ NRest.spec (fun s' : SSt => s'.1.length = nn ∧ s'.2.1.length = nn ∧
+              s'.2.2.1.length = nn ∧ s'.2.2.2.2 = sv + 1 ∧ s'.2.2.2.1 = cnt + 1 ∧
+              AProg nn G M r t X (sv + 1) s'.2.2.2.1 s'.1)
+            (fun _ => liftACost (cu Currency.add + cu Currency.skip + cu Currency.skip
+              + cu Currency.skip + cu Currency.skip)) := by
+    rintro z ⟨hz1, hz2, hz3, hz4, hz5, hz6⟩
+    simp only [mopSucc_eq, mopBinop_def, Lax13Proofs.Imp.Bop.apply_add, binopCurrency_add,
+      bindT_unitT, pack5, mopPair_def, NRest.consume_consume]
+    refine consume_returnT_le_spec ⟨hz1, hz2, hz3, rfl, hz4, ?_⟩ (le_of_eq ?_)
+    · rw [hz4]
+      exact AProg_pick hsv hTab hP hlt htb hex hz6 hz5
+    · simp only [liftACost_add, liftACost_cu]
+      ac_rfl
+  simp only [scatF, mopAget_def, NRest.assert_pos htabsv, NRest.assert_pos hEsv,
+    NRest.returnT_bindT, bindT_unitT, hg1, hg2, hg3, irIf_true,
+    NRest.bindT_consume NRest.addSupContinuousB_acost, NRest.consume_consume]
+  refine le_trans (NRest.consume_mono
+    (le_trans (NRest.bindT_mono (pickF_le hcsr E D Q cnt sv hsv hE hD hQ) fun _ => le_rfl)
+      (bindT_spec_le _ _ _ _ _ hcont)) le_rfl) (le_of_eq ?_)
+  rw [Sepref.consume_spec]
+  refine congrArg (NRest.spec _) (funext fun _ => ?_)
+  simp only [scatC, liftACost_add, liftACost_cu]
+  ac_rfl
+
+/-! ## The scan
+
+The energy is two-currency, as the baseline's `ScatterPot` is: one
+pick's worth per pick still allowed, one turn's worth per vertex not yet
+reached. -/
+
+theorem scatLoop_le (hcsr : RamBfs.CsrGraph G ns O T)
+    (hTab : ∀ v : Fin nn, Tab (v : ℕ) ≠ 0 ↔ v ∈ X) :
+    ∀ (fuel : ℕ) (E D Q : List ℕ) (cnt sv : ℕ), E.length = nn → D.length = nn →
+      Q.length = nn → sv ≤ nn → nn - sv ≤ fuel → AProg nn G M r t X sv cnt E →
+      scatLoop nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+          ((E, D, Q, cnt, sv) : SSt)
+        ≤ NRest.spec (fun s' : SSt => s'.2.2.2.2 = nn ∧ AProg nn G M r t X nn s'.2.2.2.1 s'.1)
+            (fun _ => liftACost ((t - cnt) • pickC nn ns + (nn - sv) • iter scatC
+              + cu Currency.«while»)) := by
+  have exit : ∀ (E D Q : List ℕ) (cnt sv : ℕ), sv ≤ nn → nn ≤ sv →
+      AProg nn G M r t X sv cnt E →
+      scatLoop nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+          ((E, D, Q, cnt, sv) : SSt)
+        ≤ NRest.spec (fun s' : SSt => s'.2.2.2.2 = nn ∧ AProg nn G M r t X nn s'.2.2.2.1 s'.1)
+            (fun _ => liftACost ((t - cnt) • pickC nn ns + (nn - sv) • iter scatC
+              + cu Currency.«while»)) := by
+    intro E D Q cnt sv hle hge hP
+    have hb : scatBf nn ((E, D, Q, cnt, sv) : SSt) = false := by
+      simp only [scatBf, decide_eq_false_iff_not]
+      show ¬ sv < nn
+      omega
+    simp only [scatLoop, irWhile_exit hb]
+    refine consume_returnT_le_spec ⟨show sv = nn by omega, ?_⟩ ?_
+    · exact (show sv = nn by omega) ▸ hP
+    · rw [show nn - sv = 0 by omega, zero_nsmul, add_zero, liftACost_add, liftACost_cu,
+        add_comm]
+      exact cost_le_add _ _
+  intro fuel
+  induction fuel with
+  | zero => intro E D Q cnt sv hE hD hQ hle hf hP; exact exit E D Q cnt sv hle (by omega) hP
+  | succ fuel ih =>
+    intro E D Q cnt sv hE hD hQ hle hf hP
+    by_cases hb : sv < nn
+    · have hbt : scatBf nn ((E, D, Q, cnt, sv) : SSt) = true := by
+        simp only [scatBf, decide_eq_true_eq]; exact hb
+      have hIs : scatBf nn ((E, D, Q, cnt, sv) : SSt) = true →
+          scatP nn (arrOf nn Tab) ((E, D, Q, cnt, sv) : SSt) :=
+        fun _ => ⟨hb, by rw [length_arrOf], show nn ≤ E.length by omega⟩
+      by_cases hpick : cnt < t ∧ Tab sv ≠ 0 ∧ E[sv]! = 0
+      · obtain ⟨hlt, htb, hex⟩ := hpick
+        have hcont : ∀ s' : SSt, (s'.1.length = nn ∧ s'.2.1.length = nn ∧
+            s'.2.2.1.length = nn ∧ s'.2.2.2.2 = sv + 1 ∧ s'.2.2.2.1 = cnt + 1 ∧
+            AProg nn G M r t X (sv + 1) s'.2.2.2.1 s'.1) →
+            scatLoop nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab) s'
+              ≤ NRest.spec
+                  (fun s'' : SSt => s''.2.2.2.2 = nn ∧ AProg nn G M r t X nn s''.2.2.2.1 s''.1)
+                  (fun _ => liftACost ((t - (cnt + 1)) • pickC nn ns
+                    + (nn - (sv + 1)) • iter scatC + cu Currency.«while»)) := by
+          rintro ⟨E', D', Q', c', v'⟩ ⟨h1, h2, h3, h4, h5, h6⟩
+          simp only at h1 h2 h3 h4 h5 h6
+          subst h4; subst h5
+          exact ih E' D' Q' (cnt + 1) (sv + 1) h1 h2 h3 (by omega) (by omega) h6
+        have hcost : irUnit Currency.«while»
+            + (liftACost (scatC + pickC nn ns)
+              + liftACost ((t - (cnt + 1)) • pickC nn ns + (nn - (sv + 1)) • iter scatC
+                + cu Currency.«while»))
+            = liftACost ((t - cnt) • pickC nn ns + (nn - sv) • iter scatC
+                + cu Currency.«while») := by
+          rw [show nn - sv = (nn - (sv + 1)) + 1 by omega,
+            show t - cnt = (t - (cnt + 1)) + 1 by omega, succ_nsmul, succ_nsmul]
+          simp only [iter, liftACost_add, liftACost_nsmul, liftACost_cu]
+          ac_rfl
+        calc scatLoop nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+                ((E, D, Q, cnt, sv) : SSt)
+            = NRest.consume (NRest.bindT
+                (scatF nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+                  ((E, D, Q, cnt, sv) : SSt))
+                fun s' => scatLoop nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M)
+                  (arrOf nn Tab) s') (irUnit Currency.«while») := by
+              simp only [scatLoop]; rw [irWhileIT_of_true hIs hbt]
+          _ ≤ NRest.consume (NRest.spec _ (fun _ => liftACost (scatC + pickC nn ns)
+                + liftACost ((t - (cnt + 1)) • pickC nn ns + (nn - (sv + 1)) • iter scatC
+                  + cu Currency.«while»))) (irUnit Currency.«while») :=
+              NRest.consume_mono (le_trans (NRest.bindT_mono
+                (scatF_le_pick hcsr hTab E D Q cnt sv hb hE hD hQ hP hlt htb hex)
+                fun _ => le_rfl) (bindT_spec_le _ _ _ _ _ hcont)) le_rfl
+          _ = _ := by rw [Sepref.consume_spec, ← hcost]
+      · have hno : ¬ (cnt < t) ∨ Tab sv = 0 ∨ E[sv]! ≠ 0 := by
+          by_cases h1 : cnt < t
+          · by_cases h2 : Tab sv = 0
+            · exact Or.inr (Or.inl h2)
+            · exact Or.inr (Or.inr fun hz => hpick ⟨h1, h2, hz⟩)
+          · exact Or.inl h1
+        have hcont : ∀ s' : SSt, (s'.1.length = nn ∧ s'.2.1.length = nn ∧
+            s'.2.2.1.length = nn ∧ s'.2.2.2.2 = sv + 1 ∧ s'.2.2.2.1 = cnt ∧
+            AProg nn G M r t X (sv + 1) s'.2.2.2.1 s'.1) →
+            scatLoop nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab) s'
+              ≤ NRest.spec
+                  (fun s'' : SSt => s''.2.2.2.2 = nn ∧ AProg nn G M r t X nn s''.2.2.2.1 s''.1)
+                  (fun _ => liftACost ((t - cnt) • pickC nn ns
+                    + (nn - (sv + 1)) • iter scatC + cu Currency.«while»)) := by
+          rintro ⟨E', D', Q', c', v'⟩ ⟨h1, h2, h3, h4, h5, h6⟩
+          simp only at h1 h2 h3 h4 h5 h6
+          subst h4
+          rw [h5]
+          exact ih E' D' Q' cnt (sv + 1) h1 h2 h3 (by omega) (by omega) (h5 ▸ h6)
+        have hcost : irUnit Currency.«while»
+            + (liftACost scatC
+              + liftACost ((t - cnt) • pickC nn ns + (nn - (sv + 1)) • iter scatC
+                + cu Currency.«while»))
+            = liftACost ((t - cnt) • pickC nn ns + (nn - sv) • iter scatC
+                + cu Currency.«while») := by
+          rw [show nn - sv = (nn - (sv + 1)) + 1 by omega, succ_nsmul]
+          simp only [iter, liftACost_add, liftACost_nsmul, liftACost_cu]
+          ac_rfl
+        calc scatLoop nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+                ((E, D, Q, cnt, sv) : SSt)
+            = NRest.consume (NRest.bindT
+                (scatF nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+                  ((E, D, Q, cnt, sv) : SSt))
+                fun s' => scatLoop nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M)
+                  (arrOf nn Tab) s') (irUnit Currency.«while») := by
+              simp only [scatLoop]; rw [irWhileIT_of_true hIs hbt]
+          _ ≤ NRest.consume (NRest.spec _ (fun _ => liftACost scatC
+                + liftACost ((t - cnt) • pickC nn ns + (nn - (sv + 1)) • iter scatC
+                  + cu Currency.«while»))) (irUnit Currency.«while») :=
+              NRest.consume_mono (le_trans (NRest.bindT_mono
+                (scatF_le_keep hTab E D Q cnt sv hb hE hD hQ hP hno)
+                fun _ => le_rfl) (bindT_spec_le _ _ _ _ _ hcont)) le_rfl
+          _ = _ := by rw [Sepref.consume_spec, ← hcost]
+    · exact exit E D Q cnt sv hle (by omega) hP
+
+/-! ## The exports -/
+
+section Export
+
+theorem AProg_final {cnt : ℕ} {E : List ℕ} (h : AProg nn G M r t X nn cnt E) :
+    cnt ≤ t ∧ ((t ≤ (Lax3.ScatterSentences.greedySet (RamBfs.masked G M) r X).ncard) ↔
+      ¬ cnt < t) := by
+  rcases h with ⟨h1, h2⟩ | ⟨h1, h2, -, -⟩
+  · exact ⟨by omega, ⟨fun _ => by omega, fun _ => h2⟩⟩
+  · rw [RamScatter.selBelow_all] at h2
+    exact ⟨by omega, ⟨fun hc => by omega, fun hc => by omega⟩⟩
+
+/-! ### The caller's store, ownership and bound -/
+
+def scatState (n d t : ℕ) (off tgt alv tab exc₀ dist₀ q₀ : List ℕ) : Ir.State :=
+  Ir.State.ofPairs
+    [("cnt", 0), ("sv", 0), ("n", n), ("sent", d + 1), ("d", d), ("t", t), ("one", 1),
+      ("zero", 0), ("sctb", 0), ("scex", 0), ("src", 0), ("i", 0), ("head", 0), ("sw", 0),
+      ("a", 0), ("tl", 0), ("v", 0), ("dv", 0), ("dv1", 0), ("k0", 0), ("v1", 0),
+      ("kend", 0), ("u", 0), ("au", 0), ("du", 0)]
+    [("exc", exc₀), ("dist", dist₀), ("q", q₀), ("off", off), ("tgt", tgt), ("alv", alv),
+      ("tab", tab)]
+
+def scatPre (n d t : ℕ) (off tgt alv tab exc₀ dist₀ q₀ : List ℕ) : Assn :=
+  hnCtxt (arrayAssn ×ₐ arrayAssn ×ₐ arrayAssn ×ₐ natAssn ×ₐ natAssn)
+      (exc₀, dist₀, q₀, 0, 0) ("exc", "dist", "q", "cnt", "sv") ∗
+    hnCtxt arrayAssn off "off" ∗ hnCtxt arrayAssn tgt "tgt" ∗
+    hnCtxt arrayAssn alv "alv" ∗ hnCtxt arrayAssn tab "tab" ∗
+    hnCtxt natAssn n "n" ∗ hnCtxt natAssn (d + 1) "sent" ∗ hnCtxt natAssn d "d" ∗
+    hnCtxt natAssn t "t" ∗ hnCtxt natAssn 1 "one" ∗ hnCtxt natAssn 0 "zero" ∗
+    junkCell "sctb" ∗ junkCell "scex" ∗
+    junkCell "src" ∗ junkCell "i" ∗ junkCell "head" ∗ junkCell "sw" ∗
+    junkCell "a" ∗ junkCell "tl" ∗ junkCell "v" ∗ junkCell "dv" ∗ junkCell "dv1" ∗
+    junkCell "k0" ∗ junkCell "v1" ∗ junkCell "kend" ∗ junkCell "u" ∗ junkCell "au" ∗
+    junkCell "du"
+
+def scatFrame (n d t : ℕ) (off tgt alv tab : List ℕ) : Assn :=
+  hnCtxt arrayAssn off "off" ∗ hnCtxt arrayAssn tgt "tgt" ∗
+    hnCtxt arrayAssn alv "alv" ∗ hnCtxt arrayAssn tab "tab" ∗
+    hnCtxt natAssn n "n" ∗ hnCtxt natAssn (d + 1) "sent" ∗ hnCtxt natAssn d "d" ∗
+    hnCtxt natAssn t "t" ∗ hnCtxt natAssn 1 "one" ∗ hnCtxt natAssn 0 "zero" ∗
+    junkCell "sctb" ∗ junkCell "scex" ∗
+    junkCell "src" ∗ junkCell "i" ∗ junkCell "head" ∗ junkCell "sw" ∗
+    junkCell "a" ∗ junkCell "tl" ∗ junkCell "v" ∗ junkCell "dv" ∗ junkCell "dv1" ∗
+    junkCell "k0" ∗ junkCell "v1" ∗ junkCell "kend" ∗ junkCell "u" ∗ junkCell "au" ∗
+    junkCell "du"
+
+theorem scatSynth' (n d t : ℕ) (off tgt alv tab exc₀ dist₀ q₀ : List ℕ) :
+    hnRefine (scatPre n d t off tgt alv tab exc₀ dist₀ q₀) scatSynth_impl
+      (scatFrame n d t off tgt alv tab) ("exc", "dist", "q", "cnt", "sv")
+      (arrayAssn ×ₐ arrayAssn ×ₐ arrayAssn ×ₐ natAssn ×ₐ natAssn)
+      (scatLoop n d t off tgt alv tab (exc₀, dist₀, q₀, 0, 0)) :=
+  scatSynth n d t off tgt alv tab exc₀ dist₀ q₀
+
+def scatHole (n d t : ℕ) (off tgt alv tab exc₀ dist₀ q₀ : List ℕ) : Assn :=
+  EXACT
+    ((vcells (scatState n d t off tgt alv tab exc₀ dist₀ q₀)
+        |>.erase "cnt" |>.erase "sv" |>.erase "n" |>.erase "sent" |>.erase "d"
+        |>.erase "t" |>.erase "one" |>.erase "zero" |>.erase "sctb" |>.erase "scex"
+        |>.erase "src" |>.erase "i" |>.erase "head" |>.erase "sw" |>.erase "a"
+        |>.erase "tl" |>.erase "v" |>.erase "dv" |>.erase "dv1" |>.erase "k0"
+        |>.erase "v1" |>.erase "kend" |>.erase "u" |>.erase "au" |>.erase "du",
+      acells (scatState n d t off tgt alv tab exc₀ dist₀ q₀)
+        |>.erase "exc" |>.erase "dist" |>.erase "q" |>.erase "off" |>.erase "tgt"
+        |>.erase "alv" |>.erase "tab"), 0)
+
+theorem scat_state_holds (n d t : ℕ) (off tgt alv tab exc₀ dist₀ q₀ : List ℕ) :
+    irSTATE (scatPre n d t off tgt alv tab exc₀ dist₀ q₀
+        ∗ scatHole n d t off tgt alv tab exc₀ dist₀ q₀)
+      (scatState n d t off tgt alv tab exc₀ dist₀ q₀, 0) := by
+  show (scatPre n d t off tgt alv tab exc₀ dist₀ q₀
+      ∗ scatHole n d t off tgt alv tab exc₀ dist₀ q₀)
+    ((vcells (scatState n d t off tgt alv tab exc₀ dist₀ q₀),
+      acells (scatState n d t off tgt alv tab exc₀ dist₀ q₀)), 0)
+  simp only [scatPre, hnCtxt, prodAssn, natAssn_def, arrayAssn_def, sepConj_assoc]
+  refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
+  iterate 16
+    rw [junkCell_def, sepEx_sepConj]
+    refine ⟨0, Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩⟩
+  rw [junkCell_def, sepEx_sepConj]
+  exact ⟨0, Ir.ptoVar_sepConj_iff.2 ⟨rfl, rfl⟩⟩
+
+theorem scatState_bound {B n d t : ℕ} {off tgt alv tab exc₀ dist₀ q₀ : List ℕ}
+    (hnB : n < B) (h1B : 1 < B) (hdB : d + 1 < B) (htB : t < B)
+    (hexc : ∀ w ∈ exc₀, w < B) (hdist : ∀ w ∈ dist₀, w < B) (hq : ∀ w ∈ q₀, w < B)
+    (hoff : ∀ w ∈ off, w < B) (htgt : ∀ w ∈ tgt, w < B) (halv : ∀ w ∈ alv, w < B)
+    (htab : ∀ w ∈ tab, w < B) :
+    Ir.StateBound B (scatState n d t off tgt alv tab exc₀ dist₀ q₀) := by
+  refine Codegen.stateBound_ofPairs ?_ ?_
+  · intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+      | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+      simpa using by omega
+  · intro p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> assumption
+
+/-! ### The cost, computed -/
+
+/-- **The scan's cost**: `(94·n + 40·ns + 50)·t + 33·n + 4` IMP+ time
+units. -/
+def scatK (n ns t : ℕ) : ℕ := (94 * n + 40 * ns + 50) * t + 33 * n + 4
+
+theorem cash_pickC (n ns : ℕ) : Codegen.cash (pickC n ns) = 94 * n + 40 * ns + 50 := by
+  rw [pickC, Codegen.cash_add, Codegen.cash_add, BfsQSynth.cash_bfsBudget, BfsQSynth.cash_nsmul,
+    show Codegen.cash (iter markC) = 38 from by decide +kernel,
+    show Codegen.cash pickK = 18 from by decide +kernel]
+  ring
+
+theorem ecash_scatTotal (n ns t : ℕ) :
+    ecash (liftACost (t • pickC n ns + n • iter scatC + cu Currency.«while»))
+      = (scatK n ns t : ℕ∞) := by
+  rw [BfsQSynth.ecash_liftACost, Codegen.cash_add, Codegen.cash_add, BfsQSynth.cash_nsmul,
+    BfsQSynth.cash_nsmul, cash_pickC,
+    show Codegen.cash (iter scatC) = 33 from by decide +kernel,
+    show Codegen.cash (cu Currency.«while») = 4 from by decide +kernel, scatK]
+  push_cast
+  ring
+
+/-! ### The bounds pass: the one named debt (R2A/D-l)
+
+Every other pass of this file carries its `BRefine` derivation. The scan
+cannot: its body contains `BfsQSynth.bfsQSynth_impl` whole, and the
+tower's bound for that program exists only as
+`BfsQSynth.bfsQ_bpre` — an `Ir.bpre` at *one pinned store* with the
+trivial postcondition. A `BRefine`-composed derivation has to pass an
+*assertion* through the search (`bpre B (bfs) (bpre B (sweep) Q)`), and
+`bpre` is a statement about every run, not the one `hnRefine` exhibits,
+so the search's own bounds pass has to be re-run in assertion form. That
+is `Examples/BfsQSynth.lean` §12 again — 560 lines — and it is a
+satellite of its own, not a step of this one.
+
+So the debt is *named*, not hidden: it is exactly the search's bounds
+pass lifted to the scan's store, it is a hypothesis of every export
+below, and nothing else in this file depends on it. -/
+
+def ScanBounded (B n d t : ℕ) (off tgt alv tab exc₀ dist₀ q₀ : List ℕ) : Prop :=
+  Ir.bpre B scatSynth_impl (fun _ => True) (scatState n d t off tgt alv tab exc₀ dist₀ q₀)
+
+/-! ### The cashing chain at one initial store -/
+
+theorem scan_spec_at {B : ℕ} (hcsr : RamBfs.CsrGraph G ns O T)
+    (hTab : ∀ v : Fin nn, Tab (v : ℕ) ≠ 0 ↔ v ∈ X)
+    (exc₀ dist₀ q₀ : List ℕ)
+    (hnB : nn < B) (h1B : 1 < B) (hrB : r + 1 < B) (htB : t < B)
+    (hexcB : ∀ w ∈ exc₀, w < B) (hdistB : ∀ w ∈ dist₀, w < B) (hqB : ∀ w ∈ q₀, w < B)
+    (hoffB : ∀ z, z < nn + 1 → O z < B) (htgtB : ∀ z, z < ns → T z < B)
+    (hMB : ∀ z, z < nn → M z < B) (hTabB : ∀ z, z < nn → Tab z < B)
+    (hElen : exc₀.length = nn) (hDlen : dist₀.length = nn) (hQlen : q₀.length = nn)
+    (hzero : ∀ j, j < nn → exc₀[j]! = 0)
+    (hdebt : ScanBounded B nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M)
+      (arrOf nn Tab) exc₀ dist₀ q₀) :
+    Lax13Proofs.Reasoning.Spec B
+      (agree (scatState nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+        exc₀ dist₀ q₀))
+      (embed scatSynth_impl)
+      (fun _ σ' => σ'.vars "cnt" ≤ t ∧
+        ((t ≤ (Lax3.ScatterSentences.greedySet (RamBfs.masked G M) r X).ncard) ↔
+          ¬ σ'.vars "cnt" < t))
+      (scatK nn ns t) := by
+  have hP0 : AProg nn G M r t X 0 0 exc₀ := by
+    rcases Nat.eq_zero_or_pos t with rfl | ht
+    · exact Or.inl ⟨rfl, by omega⟩
+    · refine Or.inr ⟨ht, by rw [RamScatter.selBelow_zero]; simp, fun w hw => by
+        rw [hzero w hw]; omega, fun w hw => ⟨fun _ u hu => absurd hu (Nat.not_lt_zero u),
+          fun _ => hzero w hw⟩⟩
+  have hle := scatLoop_le (X := X) hcsr hTab nn exc₀ dist₀ q₀ 0 0 hElen hDlen hQlen
+    (by omega) (by omega) hP0
+  rw [Nat.sub_zero, Nat.sub_zero] at hle
+  have hSB := scatState_bound (B := B) (n := nn) (d := r) (t := t) hnB h1B hrB htB
+    hexcB hdistB hqB (Lax3Proofs.Refine.BfsBridge.mem_arrOf_lt hoffB)
+    (Lax3Proofs.Refine.BfsBridge.mem_arrOf_lt htgtB)
+    (Lax3Proofs.Refine.BfsBridge.mem_arrOf_lt hMB)
+    (Lax3Proofs.Refine.BfsBridge.mem_arrOf_lt hTabB)
+  have hspec := spec_of_hnRefine
+    (Φ := fun s' : SSt => s'.2.2.2.2 = nn ∧ AProg nn G M r t X nn s'.2.2.2.1 s'.1)
+    (Q := fun (ra : SSt) σ' => σ'.vars "cnt" = ra.2.2.2.1)
+    (scatSynth' nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+      exc₀ dist₀ q₀) hle
+    (scat_state_holds nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+      exc₀ dist₀ q₀) hSB
+    (exists_bigStepB_of_hnRefine
+      (scatSynth' nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+        exc₀ dist₀ q₀) hle
+      (scat_state_holds nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+        exc₀ dist₀ q₀) hdebt)
+    (le_of_eq (ecash_scatTotal nn ns t)) ?_
+  · refine hspec.post ?_
+    rintro σ σ' - ⟨ra, ⟨-, hP⟩, hcnt⟩
+    obtain ⟨h1, h2⟩ := AProg_final hP
+    rw [hcnt]
+    exact ⟨h1, h2⟩
+  · intro ra s' cr σ' hΦ hst hag
+    have he : (scatFrame nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab) ∗
+        (arrayAssn ×ₐ arrayAssn ×ₐ arrayAssn ×ₐ natAssn ×ₐ natAssn) ra
+          ("exc", "dist", "q", "cnt", "sv") ∗
+        scatHole nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+          exc₀ dist₀ q₀ ∗ GC)
+        = (scatFrame nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab) ∗
+          natAssn ra.2.2.2.1 "cnt" ∗
+          ((arrayAssn ra.1 "exc" ∗ arrayAssn ra.2.1 "dist" ∗ arrayAssn ra.2.2.1 "q" ∗
+              natAssn ra.2.2.2.2 "sv") ∗
+            scatHole nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+              exc₀ dist₀ q₀) ∗ GC) := by
+      simp only [prodAssn]; ac_rfl
+    exact readout_scalar (he ▸ hst) hag
+
+end Export
+
+/-! ## Gate (ledger D4, refute before prove)
+
+The *synthesized* scan is run by `Ir/Semantics.lean`'s own evaluator on
+`RamScatter.Demo`'s arena — the path `0—1—2—3—4`, everything alive,
+radius `1` — and what comes out of the count cell is `#guard`ed against
+the baseline's own published readings (`RamScatter.Demo`: with vertex
+`2` in the table the greedy process takes `0`, `2`, `4` and the value is
+three; with it out it takes `0` and `3` and the value is two). Each
+positive check carries a negative control. -/
+
+section Gate
+
+def gState (b2 t : ℕ) : Ir.State :=
+  scatState 5 1 t [0, 1, 3, 5, 7, 8] [1, 0, 2, 1, 3, 2, 4, 3] [1, 1, 1, 1, 1]
+    [1, 1, b2, 1, 1] [0, 0, 0, 0, 0] [0, 0, 0, 0, 0] [0, 0, 0, 0, 0]
+
+def gCnt (b2 t : ℕ) : Option ℕ :=
+  (Ir.evalFuel 40000 scatSynth_impl (gState b2 t)).bind fun p => p.1.vars "cnt"
+
+def gExc (b2 t : ℕ) : Option (List ℕ) :=
+  (Ir.evalFuel 40000 scatSynth_impl (gState b2 t)).bind fun p => p.1.arrs "exc"
+
+-- the whole table, radius one: the process takes `0`, `2`, `4` …
+#guard gCnt 1 3 = some 3
+-- … and stops at the threshold, which is what makes the early exit real
+#guard gCnt 1 2 = some 2
+#guard gCnt 1 4 = some 3
+-- vertex `2` out of the table: the process takes `0` and then `3`
+#guard gCnt 0 3 = some 2
+#guard gCnt 0 2 = some 2
+-- the exclusion bits at the end are the balls of the chosen vertices
+#guard gExc 1 3 = some [1, 1, 1, 1, 1]
+#guard gExc 0 3 = some [1, 1, 1, 1, 1]
+
+-- **The negative controls.** The table bit bites, and the check can tell.
+/--
+error: Expression
+  decide (gCnt 0 3 = some 3)
+did not evaluate to `true`
+-/
+#guard_msgs in
+#guard gCnt 0 3 = some 3
+
+/--
+error: Expression
+  decide (gCnt 1 3 = some 4)
+did not evaluate to `true`
+-/
+#guard_msgs in
+#guard gCnt 1 3 = some 4
+
+-- …and the early exit is not a no-op: at threshold two the count stops
+-- at two even though three vertices are selectable.
+/--
+error: Expression
+  decide (gCnt 1 2 = some 3)
+did not evaluate to `true`
+-/
+#guard_msgs in
+#guard gCnt 1 2 = some 3
+
+-- The exported budget covers a real run (`n = 5`, `ns = 8`, `t = 3`:
+-- `scatK 5 8 3 = 3255`), and a wrong budget is refuted.
+#guard (Ir.evalFuel 40000 scatSynth_impl (gState 1 3)).map
+  (fun p => decide (Codegen.cash p.2 ≤ scatK 5 8 3)) = some true
+#guard ¬ ((Ir.evalFuel 40000 scatSynth_impl (gState 1 3)).map
+  (fun p => decide (Codegen.cash p.2 ≤ 500)) = some true)
+
+end Gate
+
+/-! ## Axioms -/
+
+/-- info: 'Lax3Proofs.Refine.ScatterSynth.scan_spec_at' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms scan_spec_at
+
+/-- info: 'Lax3Proofs.Refine.ScatterSynth.scatLoop_le' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms scatLoop_le
+
+/-- info: 'Lax3Proofs.Refine.ScatterSynth.scatSynth' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms scatSynth
+
+end Scan
+
+/-! ## 16. The whole engine, assembled (phases 1 + 2)
+
+`clear ; scan ; report`, in `RamScatter.scatterCom`'s own shape. The
+entry store the tower pins (P7/D-bp) is written by a straight-line
+setup block; the marking sweep is *inside* the scan now, so phase 3
+does not appear separately. -/
+
+section Whole
+
+open Lax13Proofs.Reasoning
+open Lax13Proofs.Imp (Com Expr)
+
+/-- The twenty-five scalars the tower's scan and clearing pass pin
+beyond `n` (which the caller supplies), each written with a literal. -/
+def scatSetup (r t : ℕ) : Lax13Proofs.Imp.Com :=
+  .seq (.assign "mkz" (.lit 0))
+      (.seq (.assign "one" (.lit 1))
+      (.seq (.assign "zero" (.lit 0))
+      (.seq (.assign "cnt" (.lit 0))
+      (.seq (.assign "sv" (.lit 0))
+      (.seq (.assign "sent" (.lit (r + 1)))
+      (.seq (.assign "d" (.lit r))
+      (.seq (.assign "t" (.lit t))
+      (.seq (.assign "sctb" (.lit 0))
+      (.seq (.assign "scex" (.lit 0))
+      (.seq (.assign "src" (.lit 0))
+      (.seq (.assign "i" (.lit 0))
+      (.seq (.assign "head" (.lit 0))
+      (.seq (.assign "sw" (.lit 0))
+      (.seq (.assign "a" (.lit 0))
+      (.seq (.assign "tl" (.lit 0))
+      (.seq (.assign "v" (.lit 0))
+      (.seq (.assign "dv" (.lit 0))
+      (.seq (.assign "dv1" (.lit 0))
+      (.seq (.assign "k0" (.lit 0))
+      (.seq (.assign "v1" (.lit 0))
+      (.seq (.assign "kend" (.lit 0))
+      (.seq (.assign "u" (.lit 0))
+      (.seq (.assign "au" (.lit 0))
+      ((.assign "du" (.lit 0))))))))))))))))))))))))))
+
+theorem scatSetup_wvars (r t : ℕ) : (scatSetup r t).wvars =
+    ["mkz", "one", "zero", "cnt", "sv", "sent", "d", "t", "sctb", "scex", "src", "i",
+      "head", "sw", "a", "tl", "v", "dv", "dv1", "k0", "v1", "kend", "u", "au", "du"] := rfl
+
+theorem scatSetup_warrs (r t : ℕ) : (scatSetup r t).warrs = ([] : List String) := rfl
+
+theorem scatSetup_spec {B r t : ℕ} (hrB : r + 1 < B) (htB : t < B) (h1B : 1 < B) :
+    Spec B (fun _ => True) (scatSetup r t)
+      (fun _ σ' => σ'.vars "mkz" = 0 ∧
+        σ'.vars "one" = 1 ∧
+        σ'.vars "zero" = 0 ∧
+        σ'.vars "cnt" = 0 ∧
+        σ'.vars "sv" = 0 ∧
+        σ'.vars "sent" = (r + 1) ∧
+        σ'.vars "d" = r ∧
+        σ'.vars "t" = t ∧
+        σ'.vars "sctb" = 0 ∧
+        σ'.vars "scex" = 0 ∧
+        σ'.vars "src" = 0 ∧
+        σ'.vars "i" = 0 ∧
+        σ'.vars "head" = 0 ∧
+        σ'.vars "sw" = 0 ∧
+        σ'.vars "a" = 0 ∧
+        σ'.vars "tl" = 0 ∧
+        σ'.vars "v" = 0 ∧
+        σ'.vars "dv" = 0 ∧
+        σ'.vars "dv1" = 0 ∧
+        σ'.vars "k0" = 0 ∧
+        σ'.vars "v1" = 0 ∧
+        σ'.vars "kend" = 0 ∧
+        σ'.vars "u" = 0 ∧
+        σ'.vars "au" = 0 ∧
+        σ'.vars "du" = 0) 50 := by
+  have h0 : (0 : ℕ) < B := by omega
+  have hone : (1 : ℕ) < B := h1B
+  have hd : r < B := by omega
+  refine Spec.of_exists fun σ _ => ?_
+  refine ⟨_, _, (Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit hone)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit hrB)).seq ((Run.assign (evalB_lit hd)).seq ((Run.assign (evalB_lit htB)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq ((Run.assign (evalB_lit h0)).seq (Run.assign (evalB_lit h0))))))))))))))))))))))))),
+    by simp only [size_lit]; omega, ?_⟩
+  refine ⟨by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp, by simp⟩
+
+/-- **The whole pass**: the entry store, the clearing pass, the scan and
+the report. -/
+def scatterTowerCom (r t : ℕ) : Lax13Proofs.Imp.Com :=
+  .seq (scatSetup r t)
+    (.seq (Codegen.embed clearSynth_impl)
+      (.seq (.assign "sw" (.lit 0))
+        (.seq (Codegen.embed scatSynth_impl)
+          (.ite (.lt (.var "cnt") (.lit t))
+            (.assign "flag" (.lit 0)) (.assign "flag" (.lit 1))))))
+
+/-- …and what it costs. -/
+def scatterTowerK (n ns t : ℕ) : ℕ := scatK n ns t + clearK n + 58
+
+/-- **The greedy scatter pass, re-derived through the tower.**
+`RamScatter.scatter_spec`'s statement — the same precondition
+vocabulary, the same `greedySet` answer in `flag` — at the tower's own
+cost and with the two standing deltas (P7/D-bo: the scratch arrays'
+entries are words state-globally, here for `exc` as well as `dist`/`q`;
+P7/D-bp: the entry store is pinned, which `scatSetup` writes). -/
+theorem scatterTowerCom_spec {B nn ns r t : ℕ} {G : SimpleGraph (Fin nn)} {M Tab O T : ℕ → ℕ}
+    {X : Set (Fin nn)}
+    (hcsr : RamBfs.CsrGraph G ns O T) (hnB : nn < B) (h1B : 1 < B) (hrB : r + 1 < B)
+    (htB : t < B) (hOB : ∀ z, z < nn + 1 → O z < B) (hTB : ∀ z, z < ns → T z < B)
+    (hMB : ∀ z, z < nn → M z < B) (hTabB : ∀ z, z < nn → Tab z < B)
+    (hTab : ∀ v : Fin nn, Tab (v : ℕ) ≠ 0 ↔ v ∈ X)
+    (hdebt : ∀ E D Q : List ℕ, E.length = nn → D.length = nn → Q.length = nn →
+      (∀ w ∈ E, w < B) → (∀ w ∈ D, w < B) → (∀ w ∈ Q, w < B) →
+      ScanBounded B nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M) (arrOf nn Tab)
+        E D Q) :
+    Spec B
+      (fun σ => σ.vars "n" = nn ∧ σ.arrs "off" = arrOf (nn + 1) O ∧
+        σ.arrs "tgt" = arrOf ns T ∧ σ.arrs "alv" = arrOf nn M ∧
+        σ.arrs "tab" = arrOf nn Tab ∧ RamScatter.Words B nn "dist" σ ∧
+        RamScatter.Words B nn "q" σ ∧ RamScatter.Words B nn "exc" σ)
+      (scatterTowerCom r t)
+      (fun _ σ' => (σ'.vars "flag" = 1 ↔
+          t ≤ (Lax3.ScatterSentences.greedySet (RamBfs.masked G M) r X).ncard) ∧
+        σ'.vars "flag" ≤ 1)
+      (scatterTowerK nn ns t) := by
+  have h0 : (0 : ℕ) < B := by omega
+  refine Spec.of_exists fun σ hσ => ?_
+  obtain ⟨hn, hoff, htgt, halv, htabA, ⟨gd, hdarr, hdB⟩, ⟨gq, hqarr, hqB⟩,
+    ⟨ge, hearr, heB⟩⟩ := hσ
+  -- the entry store
+  obtain ⟨σ₁, run₁, hset, hfv₁, hfa₁, -, -⟩ :=
+    (scatSetup_spec (r := r) (t := t) hrB htB h1B).frame.run (σ := σ) trivial
+  obtain ⟨s_mkz, s_one, s_zero, s_cnt, s_sv, s_sent, s_d, s_t, s_sctb, s_scex, s_src,
+    s_i, s_head, s_sw, s_a, s_tl, s_v, s_dv, s_dv1, s_k0, s_v1, s_kend, s_u, s_au,
+    s_du⟩ := hset
+  have harr₁ : ∀ a, σ₁.arrs a = σ.arrs a := fun a => hfa₁ a (by rw [scatSetup_warrs]; simp)
+  have hn₁ : σ₁.vars "n" = nn := by
+    rw [hfv₁ "n" (by rw [scatSetup_wvars]; decide)]; exact hn
+  -- the clearing pass
+  obtain ⟨σ₂, run₂, ⟨E, hEarr, hEsw, hElen, hEzero⟩, hfv₂, hfa₂, -, -⟩ :=
+    ((clearCom_spec (B := B) (n := nn) hnB h1B).frame).run (σ := σ₁)
+      ⟨hn₁, s_sw, s_one, s_mkz, arrOf nn ge, by rw [harr₁]; exact hearr,
+        length_arrOf nn ge, Lax3Proofs.Refine.BfsBridge.mem_arrOf_lt heB⟩
+  have hEB : ∀ w ∈ E, w < B := by
+    intro w hw
+    obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.1 hw
+    rw [← getElem!_pos E k hk, hEzero k (by omega)]
+    omega
+  have hv₂ : ∀ y : String, y ∉ (Codegen.embed clearSynth_impl).wvars → σ₂.vars y = σ₁.vars y :=
+    hfv₂
+  have ha₂ : ∀ a : String, a ∉ (Codegen.embed clearSynth_impl).warrs →
+      σ₂.arrs a = σ₁.arrs a := hfa₂
+  -- the sweep counter, back to zero
+  have run₃ : Run B (.assign "sw" (.lit 0)) σ₂ (σ₂.setVar "sw" 0) 2 :=
+    (Run.assign (v := 0) (evalB_lit h0)).mono (by norm_num)
+  -- the scan
+  have hag : agree (scatState nn r t (arrOf (nn + 1) O) (arrOf ns T) (arrOf nn M)
+      (arrOf nn Tab) E (arrOf nn gd) (arrOf nn gq)) (σ₂.setVar "sw" 0) := by
+    have hsw0 : (σ₂.setVar "sw" 0).vars "sw" = 0 := by simp
+    have hoth : ∀ y : String, y ≠ "sw" → (σ₂.setVar "sw" 0).vars y = σ₂.vars y := by
+      intro y hy; simp [hy]
+    have hothA : ∀ a : String, (σ₂.setVar "sw" 0).arrs a = σ₂.arrs a := by intro a; simp
+    refine Codegen.agree_ofPairs ?_ ?_
+    · intro p hp
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+      rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+        | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+        dsimp only <;>
+        first
+          | exact hsw0
+          | (rw [hoth _ (by decide), hv₂ _ (by decide)]; assumption)
+    · intro p hp
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+      rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+        dsimp only <;> rw [hothA] <;>
+        first
+          | exact hEarr
+          | (rw [ha₂ _ (by decide), harr₁]; assumption)
+  obtain ⟨σ₄, run₄, hcnt₄, hans₄⟩ :=
+    (scan_spec_at (nn := nn) (ns := ns) (r := r) (t := t) (G := G) (M := M) (Tab := Tab)
+      (O := O) (T := T) (X := X) hcsr hTab E (arrOf nn gd) (arrOf nn gq) hnB h1B hrB htB
+      hEB (Lax3Proofs.Refine.BfsBridge.mem_arrOf_lt hdB)
+      (Lax3Proofs.Refine.BfsBridge.mem_arrOf_lt hqB) hOB hTB hMB hTabB hElen
+      (length_arrOf nn gd) (length_arrOf nn gq) hEzero
+      (hdebt E (arrOf nn gd) (arrOf nn gq) hElen (length_arrOf nn gd) (length_arrOf nn gq)
+        hEB (Lax3Proofs.Refine.BfsBridge.mem_arrOf_lt hdB)
+        (Lax3Proofs.Refine.BfsBridge.mem_arrOf_lt hqB))).run (σ := σ₂.setVar "sw" 0) hag
+  -- the report
+  have hcntB : σ₄.vars "cnt" < B := by omega
+  have hcv : (Lax13Proofs.Imp.Cond.lt (Expr.var "cnt") (.lit t)).evalB B σ₄
+      = some (decide (σ₄.vars "cnt" < t)) := evalB_condLt (evalB_var hcntB) (evalB_lit htB)
+  by_cases hlt : σ₄.vars "cnt" < t
+  · refine ⟨σ₄.setVar "flag" 0, _,
+      run₁.seq (run₂.seq (run₃.seq (run₄.seq (Run.ite_true (by rw [hcv]; simp [hlt])
+        (Run.assign (v := 0) (evalB_lit h0)))))), ?_, ?_, ?_⟩
+    · simp only [scatterTowerK, Lax13Proofs.Imp.Cond.size, Lax13Proofs.Imp.Expr.size]
+      omega
+    · rw [show (σ₄.setVar "flag" 0).vars "flag" = 0 from by simp]
+      exact ⟨fun h => absurd h (by omega), fun hc => absurd hlt (hans₄.1 hc)⟩
+    · rw [show (σ₄.setVar "flag" 0).vars "flag" = 0 from by simp]; omega
+  · refine ⟨σ₄.setVar "flag" 1, _,
+      run₁.seq (run₂.seq (run₃.seq (run₄.seq (Run.ite_false (by rw [hcv]; simp [hlt])
+        (Run.assign (v := 1) (evalB_lit h1B)))))), ?_, ?_, ?_⟩
+    · simp only [scatterTowerK, Lax13Proofs.Imp.Cond.size, Lax13Proofs.Imp.Expr.size]
+      omega
+    · rw [show (σ₄.setVar "flag" 1).vars "flag" = 1 from by simp]
+      exact ⟨fun _ => hans₄.2 hlt, fun _ => rfl⟩
+    · rw [show (σ₄.setVar "flag" 1).vars "flag" = 1 from by simp]
+
+/-- info: 'Lax3Proofs.Refine.ScatterSynth.scatterTowerCom_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms scatterTowerCom_spec
+
+/-! ## 17. Telemetry (wave 2A′)
+
+* **Synthesis wall clock**, warm build: the greedy scan —
+  `Com.while` over a body with two array reads, three nested branches,
+  the whole synthesized BFS as one leaf, a nested `while` (the sweep)
+  and a five-component loop state carrying three arrays — **37 s** in
+  the isolated probe module (the leaf rules, the program and one
+  `#sepref_synth`), first run, no bespoke tactic work, no hand-written
+  frame clause, no `LOOP_VARIANT`, no `packN`. The whole file — both
+  waves, four syntheses, the two §8b probes and every gate — elaborates
+  in **60 s**.
+
+* **Cost constants, computed** (`decide +kernel` from the per-iteration
+  accounts, not tuned):
+
+  | | tower | baseline | ratio |
+  |---|---|---|---|
+  | one pick | `94·n + 40·ns + 50` | `74·n + 44·ns + 60` (`pickCost`) | ≈1.2 on `n` |
+  | the scan | `(94n + 40ns + 50)·t + 33·n + 4` | `pickCost·t + 25·n + 6` | — |
+  | the pass | `scatK + clearK n + 58` | `pickCost·t + 36·n + 20` | — |
+
+  The per-pick gap decomposes exactly: the search is `56n + 40ns + 32`
+  against the baseline's `51n + 44ns + 30` (P7/D-br, computed vs tuned),
+  and the sweep is `38·n` against `23·n` — R2A/D-a, the IR's
+  no-expression-layer choice, and nothing else. Everything outside those
+  two is `18` units against the baseline's `24`.
+
+* **Bounds pass.** Phases 1 and 3 carry `BRefine` derivations (§5).
+  Phase 2 does not: §15's named debt, and the reason is stated there —
+  the tower's bound for `bfsQSynth_impl` exists only as an `Ir.bpre` at
+  one pinned store with the trivial postcondition, so no `BRefine`
+  composition can pass an assertion through it. The debt is a hypothesis
+  of `scan_spec_at` and of `scatterTowerCom_spec`, and of nothing else.
+
+* **New tool gaps** (beyond §10's four):
+  5. **the translate phase does not read a bound result's value.**
+     `hnr_seq` hands the continuation `returnT a ≤ m`, from which
+     `a = 0` follows for `m = mopConstN 0`; the translate phase keeps
+     `a` opaque, so a rule whose precondition pins a *value* at a cell
+     (`hnCtxt natAssn 0 "i"`) cannot be fed by a zeroing step inside the
+     program. Worked around by R2A/D-j (make the entry values arguments
+     and assert them in the operation), which costs one `NRest.assert`
+     per pinned cell;
+  6. **a named `def` returning a program is opaque to the operator
+     phase** — `keepF s := pack4' …` reported "no rule translates
+     `keepF s`" where the inlined `pack4' …` translates. R2A/D-f's
+     `frameMatch` opacity, met one layer up, in the *operator* phase;
+  7. **no `BRefine` route from a landed `Ir.bpre`** — §15. This is the
+     one that costs a deliverable rather than a workaround.
+
+* **Refuted before proved.** §14 runs the *synthesized* scan on
+  `RamScatter.Demo`'s five-vertex arena at both settings of the table
+  bit of vertex `2` and at three thresholds, checking the count against
+  the baseline's own published readings (three and two), with three
+  pinned negative controls and a cost-coverage refutation. The early
+  exit is checked to be real (threshold two stops the count at two while
+  three vertices are selectable) — the one behaviour a "run the whole
+  scan" implementation would get wrong silently.
+
+* **Axioms.** `scan_spec_at`, `scatLoop_le`, `scatSynth` and
+  `scatterTowerCom_spec` pinned at
+  `[propext, Classical.choice, Quot.sound]`.
+-/
+
+end Whole
 
 end Lax3Proofs.Refine.ScatterSynth

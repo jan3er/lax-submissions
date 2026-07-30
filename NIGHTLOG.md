@@ -3486,3 +3486,25 @@ audit.
 Next: Jan's evaluation of p8-verdict.md (recommendation: adopt (a) +
 the wordAssn spike (b)); thaw-queue wave when convenient; land is a
 clean merge (main gained only ND-MC files since branch point).
+
+## Session 20 — 2026-07-30 (daytime, cross-cutting)
+Milestone: subagent retrospective + workflow integration — done
+Commits: d47bc76 (retro report + worker brief template), this session's
+integration commit (CLAUDE.md, nd-mc-rebase-plan.md, this entry).
+State: all 72 July worker transcripts reviewed (12 sessions, 07-24→29,
+4,644 tool calls) plus the wave-level git repair signal (11/316
+commits). Findings ranked in plans/subagent-retro-2026-07.md:
+orientation tax (median 35% of worker messages pre-first-edit; two
+3-agent chains on single obligations), refutable supervisor-authored
+surfaces as the largest rework class (A3's 397-message repair agent),
+compile-loop vs LSP iteration (1,040 builds vs ~220 LSP calls),
+shell-idiom file handling, ownership-clause archaeology (clause set is
+load-bearing; zero contamination once complete). Worker report quality
+high throughout; S4's revert-don't-half-prove canonized. Nulls: no
+rate-limit incidents, no retry loops, no clause violations, no
+dishonest success claims.
+Integration: plans/worker-brief-template.md is LIVE — CLAUDE.md now
+binds proof-worker briefs to it; nd-mc-rebase-plan.md gained a "Worker
+process" section (split at brief time, named falsification gate,
+budget check before long waves); memory indexed.
+Next: ND-MC rebase P0 (hfcomp first) with briefs from the template.

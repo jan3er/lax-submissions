@@ -29,6 +29,14 @@ the tower, and says exactly how far each one got:
 | `outCount` (both loops) | §4 | §4.5 | — (§9) | — (§9) |
 | `outFill` | twin only (`AugmentTwins`) | — | — | — |
 
+**Update (wave 2C′).** The out-fill row above is superseded:
+`Refine/AugmentSynth2.lean` derives it — abstract program, correctness
+against the twin, cost `26·n + 26·m + 4`, synthesized `Com`, gate — so
+**phase 1 is complete through the tower**, and that file's §2.1 runs the
+three synthesized programs one after another against `outPassTw`. Its §5
+records what a future `R > 0` wave would still need; the `BRefine` debt
+of §10 gap 3 below is unchanged and now covers two passes.
+
 The prefix pass is one program at three of the round's ten uses
 (`RamDriverAugment.prefixCom`), so the three derived passes cover **five
 of the ten**. Phases 2, 4 and 5 are not synthesized: §8 prices them and
