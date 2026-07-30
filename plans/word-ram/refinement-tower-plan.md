@@ -314,6 +314,41 @@ of overnight work — set expectations by the budget, not the recent luck.
 
 ## Progress log
 
+- **2026-07-30 — P5 COMPLETE (one session vs 2–3 budget; acceptance
+  PASSED: the P4 toys land at machine-level `computesInTime`
+  mechanically).** Design record `p5-codegen-design.md` (113718a +
+  Spec-shape addendum — the P7 consumer `bfs_spec` is a cells-based
+  `Spec`, so the primary cashing export is Spec-shaped; the
+  Solves/computesInTime route wraps it with the tape harness, ledger
+  N3). **A1** (`Codegen/{Embed,BigStepB,Sim}.lean`, 115aa60→merge
+  c6a3fa5): name-identical embed, `Ir.BigStepB` — refuted the design's
+  "creation-sites-only" side conditions (literal guards need bounded
+  cond evaluation, P5/D-i), simulation `embed_sim` with the cash factor
+  EXACTLY 4 (every weight is the embedded op's IMP+ cost on the nose;
+  no Classical.choice). **A2** (`Codegen/Harness.lean`, 47c8f9a→merge
+  32b115d): readScalars/readArr/writeScalar/writeArr + three marshal
+  glue lemmas from `initEnv` to `σ'.out`, machine-gate runs incl. cost
+  cross-checks; kit had NO tape-loop Spec lemmas (all new; Fill reused
+  for the read loop). **B** (`Codegen/{BoundVcg,Cash}.lean` +
+  `Codegen/Examples/EndToEnd.lean`, c032bdc): `bwp` bounds-VCG +
+  `runs_while`; `spec_of_hnRefine` (hypothesis-form readout, P5/D-af);
+  cost chain affordability → SPEC bound → `cash_le_ecash` (tight) →
+  numeral; filter-count `K = 32n+17`, reverse `K = 49n−2`, axioms
+  pinned, machine runs #guarded. **Bounds telemetry closes P5/D-a: the
+  annotation proper is ~10 lines/program (6+1 `<B` goals) — the
+  `wordAssn` retrofit is NOT taken; P4 stays frozen.** Refuted/found en
+  route: `omega` is blind through the `Ir.Val` abbrev (bind indices at
+  ℕ); the root `lax` gate caught a `List.lookup` splitter leak that
+  `lake build` misses. Backlog: computable twins vs
+  `List.filter`/`List.reverse` #guarded not proved; a writes-none
+  `Spec` combinator; per-toy `B x = x.sum + 2` is coarse. P6 opened the
+  same night: design record `p6-iicf-design.md` (69f164f; IICF over
+  fixed cells, init-from-junk replaces new/free, impls synthesized by
+  our own sepref_synth per the source's "by sepref" idiom,
+  trail-backed touched-only arrays as the D5 default), extracts
+  e9ec5cd; waves P6-A (arrays+trail) and P6-B (stack/queue/CSR/bitmask)
+  dispatched satellite.
+
 - **2026-07-30 — P4 COMPLETE (one session, under the 3–5 budget;
   acceptance PASSED). Wave C f427b67, acceptance 0cd0f72.** **Wave C**
   `Sepref/{Constraints,Frame,Translate,Tool,Definition}.lean` + Attrs
