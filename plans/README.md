@@ -24,6 +24,11 @@ Everything else is closed — most recently
 verdict and adoption analysis in `word-ram/refinement-tower/p8-verdict.md`,
 adoption resolved 2026-07-30 by the ND-MC rebase decision).
 
+Cross-cutting process files live at this directory's root:
+`submission-polish.md` (closed), `subagent-retro-2026-07.md` (July worker
+retrospective), and `worker-brief-template.md` (LIVE — instantiate for
+every proof-worker subagent brief).
+
 The live cross-campaign log stays at the root (`NIGHTLOG.md`) and cites
 these files by their original root-level names. The map:
 
