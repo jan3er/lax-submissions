@@ -442,11 +442,41 @@ theorem warrs_coverPhase_split (cap j : ℕ) : (coverPhase cap j).warrs =
       "xoff"] ++ [xofName j, xmmName j, asgName j] :=
   RamDriverCompose.warrs_coverPhase cap j
 
-theorem wvars_coverPhase_split (cap j : ℕ) : (coverPhase cap j).wvars =
-    ["i", "i", "i", "i", "i", "i", "xp", "c", "src", "i", "i", "tail", "tail", "head", "sc",
-      "v", "dv", "dn", "j", "jend", "w", "tail", "sc", "j", "head", "z", "dz", "xp", "z", "c",
-      "i", "i", "i", "i", "i", "i"] ++ [xpName j] :=
+/-- The scalars the cover phase writes, other than its own per-depth
+write pointer: the pass's own, and — since rebase P1 — the tower
+search's eighteen cells. **Ledger P1/B-f**: three of them (`dv1`, `v1`,
+`k0`) carry a digit, so the "no per-depth name is digit-free" argument
+that covers every other phase no longer covers this list on its own;
+`coverPhaseScalars_ok` splits it, and the three exceptions are told
+apart from `ctrName`/`xpName`/`curName` by their first letters. -/
+def coverPhaseScalars : List String :=
+  ["i", "i", "i", "i", "i", "i", "xp", "c", "src",
+    "sent", "d", "one", "i", "head", "a", "tl", "v", "dv", "dv1", "k0", "v1", "kend",
+    "u", "au", "du",
+    "i", "a", "tl", "tl", "v", "dv", "head", "dv1", "k0", "v1", "kend", "u", "au",
+    "du", "tl", "k0",
+    "z", "dz", "xp", "z", "c",
+    "i", "i", "i", "i", "i", "i"]
+
+theorem wvars_coverPhase_split (cap j : ℕ) :
+    (coverPhase cap j).wvars = coverPhaseScalars ++ [xpName j] :=
   RamDriverCompose.wvars_coverPhase cap j
+
+/-- Every scalar the phase writes is either digit-free — and so not a
+per-depth name — or one of the tower search's three digit-carrying junk
+cells. -/
+theorem coverPhaseScalars_ok :
+    ∀ z ∈ coverPhaseScalars, ¬ HasDigit z ∨ z = "dv1" ∨ z = "v1" ∨ z = "k0" := by decide
+
+/-- None of those three is a per-depth scalar: `ctrName`, `xpName` and
+`curName` all begin with a letter none of them begins with. -/
+theorem belowVar_ne_junk {d : ℕ} {y : String} (h : BelowVar d y) :
+    y ≠ "dv1" ∧ y ≠ "v1" ∧ y ≠ "k0" := by
+  obtain ⟨b, -, hc⟩ := h
+  rcases hc with rfl | rfl | rfl <;>
+    exact ⟨by simp [ctrName, xpName, curName, String.ext_iff],
+      by simp [ctrName, xpName, curName, String.ext_iff],
+      by simp [ctrName, xpName, curName, String.ext_iff]⟩
 
 theorem belowArr_notMem_warrs_coverPhase (cap d : ℕ) {a : String} (h : BelowArr d a) :
     a ∉ (coverPhase cap d).warrs := by
@@ -458,9 +488,13 @@ theorem belowArr_notMem_warrs_coverPhase (cap d : ℕ) {a : String} (h : BelowAr
 
 theorem belowVar_notMem_wvars_coverPhase (cap d : ℕ) {y : String} (h : BelowVar d y) :
     y ∉ (coverPhase cap d).wvars := by
+  have hj := belowVar_ne_junk h
   rw [wvars_coverPhase_split, List.mem_append]
   rintro (hm | hm)
-  · exact notHasDigit_mem (by decide) hm (hasDigit_of_belowVar h)
+  · rcases coverPhaseScalars_ok y hm with hnd | hq
+    · exact hnd (hasDigit_of_belowVar h)
+    · rcases hq with rfl | rfl | rfl
+      exacts [hj.1 rfl, hj.2.1 rfl, hj.2.2 rfl]
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
     exact belowVar_ne h (le_refl d) (by tauto) hm
 

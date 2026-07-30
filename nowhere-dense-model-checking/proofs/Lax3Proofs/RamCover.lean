@@ -1,5 +1,6 @@
 import Lax3Proofs.CoverConstruction
 import Lax3Proofs.RamBfs
+import Lax3Proofs.Refine.BfsBridge
 
 /-!
 The **cover pass** of Grohe–Kreutzer–Siebertz §6, as a word-RAM program
@@ -82,16 +83,46 @@ program computes — into `Lax3.NeighborhoodCovers.IsNeighborhoodCover`.
 The lemma, the covering argument, and the whole of the pass's loop:
 `CoverInv` is the invariant, `CoverInv.init` starts it, `CoverInv.step`
 is one turn — stated against the search's distance array, whose
-hypothesis is `RamBfs.bfs_spec`'s threshold postcondition verbatim —
-and `CoverInv.out` reads `CoverOut` off the state the loop exits in.
-`cover_spec` assembles the fill, the two commands that open the cluster
-arena, and the loop rule, and is proved from a single named
+hypothesis is the search specification's threshold postcondition
+verbatim — and `CoverInv.out` reads `CoverOut` off the state the loop
+exits in. `cover_spec` assembles the fill, the two commands that open
+the cluster arena, and the loop rule, and is proved from a single named
 obligation: `Implements`, the Hoare triple for *one turn* of the loop,
 `centreStep r`. What that obligation still owes is symbolic execution
 — the source load, the search, the emission scan and the kill — and
 nothing mathematical. The program is exhibited, compiled and run: the
 worked example checks its three answers on a five-vertex graph, at four
 settings of the mask and the radius, against the hand computation.
+
+### Ledger — the tower search underneath (rebase P1)
+
+The search the pass embeds is no longer `RamBfs.bfsCom` but the
+refinement tower's synthesized queue BFS, through
+`Lax3Proofs.Refine.BfsBridge.bfsQCom` (bridges P1/B-a … P1/B-c are
+recorded in that file). Two entries belong here.
+
+* **P1/B-d — the `q` word clause.** `CoverState` and `cover_spec`'s
+  precondition gain `∀ v ∈ σ.arrs "q", v < B`. The tower export's
+  `Ir.StateBound` is state-global, so it asks the *entering* cells of
+  both scratch arrays to be words, where the hand-walked baseline
+  bounded only what its run evaluated. The clause is free at every
+  caller: `RamDriver.LevelMem` has carried it all along, beside the
+  `dist` clause the pass already required for its own emission scan.
+
+* **P1/B-e — the cost surface does not move.** `centreCost` and
+  `coverCost` are unchanged. The tower search costs `56n + 40ns + 33`
+  against the baseline's `51n + 44ns + 30`, plus `32` for the setup
+  block, and the per-centre budget `100n + 50ns + 100` — deliberately
+  generous, the shape being what the campaign spends against — absorbs
+  the difference with room to spare (`90n + 40ns + 84` all told). So
+  nothing above `CoverImplements` sees a new constant; the sharp cost
+  is `bfsQK`'s and enters the recurrence at P4.
+
+The worked example is the differential test of the swap: the four
+`#guard`ed answers are unchanged, cell for cell, and only the cycle
+counts move (5636→5611, 4316→4554, 4257→3833, 5894→6201). A search
+that decided a different arena, or the threshold in the other
+direction, would show up there before any proof was attempted.
 -/
 
 namespace Lax3Proofs.RamCover
@@ -750,7 +781,7 @@ ordering, so the arena of the turn at position `c` isolates exactly the
 vertices the ordering puts before the centre. -/
 def centreStep (r : ℕ) : Com :=
   .seq (.assign "src" (.get "ord" (.var "c")))
-    (.seq (RamBfs.bfsCom (2 * r))
+    (.seq (Refine.BfsBridge.bfsQCom (2 * r))
       (.seq (emitLoop r)
         (.seq (.store "alv" (.var "src") (.lit 0))
           (.seq (.assign "c" (.add (.var "c") (.lit 1)))
@@ -794,16 +825,19 @@ frozen and the two scratch arrays of the search at their lengths. The
 counter and the write pointer are read off the environment, so that the
 loop rule owns them.
 
-**The two word clauses.** The bounded semantics has no value for a cell
-at or above the word bound, and the pass reads two arrays whose cells
-nothing else here pins: the mask `alv`, whose first read is
-`RamBfs.seedSrc`'s `.get "alv" (.var "src")` — `CoverInv.mask` says only
-which of its cells are *zero* — and the distance array `dist`, read at
-every vertex by the emission scan while `RamBfs.bfs_spec` characterizes
-it only below the cap. Without them `Implements` below is refuted by the
+**The three word clauses.** The bounded semantics has no value for a
+cell at or above the word bound, and the pass reads three arrays whose
+cells nothing else here pins: the mask `alv`, whose first read is the
+search's own `.get "alv" (.var "src")` — `CoverInv.mask` says only which
+of its cells are *zero* — the distance array `dist`, read at every
+vertex by the emission scan while the search characterizes it only below
+the cap, and (ledger P1/B-d) the search's other scratch array `q`, whose
+*entering* cells the tower export asks to be words because `Ir.StateBound`
+is state-global. Without the first `Implements` below is refuted by the
 state whose mask holds `B` at its single vertex, which `CoverInv`
-tolerates and the semantics does not. Both are preserved by any bounded
-run, so carrying them costs a line per turn. -/
+tolerates and the semantics does not. All three are preserved by any
+bounded run, so carrying them costs a line per turn — and every caller
+has them: at the driver they are `RamDriver.LevelMem`'s own conjuncts. -/
 def CoverState (B : ℕ) {n : ℕ} (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ) (π : Equiv.Perm (Fin n))
     (ns : ℕ) (O T ord : ℕ → ℕ) (r : ℕ) (σ : Env) : Prop :=
   ∃ Xoff Xmem asg M : ℕ → ℕ,
@@ -814,6 +848,7 @@ def CoverState (B : ℕ) {n : ℕ} (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ
     σ.arrs "asg" = arrOf n asg ∧
     σ.arrs "xoff" = arrOf (n + 1) Xoff ∧ σ.arrs "xmem" = arrOf (n * n) Xmem ∧
     (∀ v ∈ σ.arrs "alv", v < B) ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
+    (∀ v ∈ σ.arrs "q", v < B) ∧
     CoverInv G A₀ π ord r (σ.vars "c") (σ.vars "xp") Xoff Xmem asg M
 
 /-- **What the pass leaves**: the cluster arena in compressed-row form,
@@ -834,7 +869,7 @@ theorem CoverState.n_eq {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T 
 
 theorem CoverState.c_le {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
     σ.vars "c" ≤ n := by
-  obtain ⟨Xoff, Xmem, asg, M, -, -, -, -, -, -, -, -, -, -, -, -, hI⟩ := h
+  obtain ⟨Xoff, Xmem, asg, M, -, -, -, -, -, -, -, -, -, -, -, -, -, hI⟩ := h
   exact hI.pos_le
 
 /-- The mask's cells are words, which is what the search's own `hMB`
@@ -851,13 +886,20 @@ theorem CoverState.dist_lt {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O
   obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, hd, -⟩ := h
   exact hd
 
+/-- And so are the search's other scratch array's, which the tower
+export asks of the state it starts in (ledger P1/B-d). -/
+theorem CoverState.q_lt {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
+    ∀ v ∈ σ.arrs "q", v < B := by
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, hq, -⟩ := h
+  exact hq
+
 /-- **The specification comes off the invariant.** Nothing in this
 proof knows about the program: it is `CoverInv.out`, read once, at the
 state the loop exits in. -/
 theorem coverPost_of_state {B : ℕ} (hord : OrdersBy n π ord) {σ σ' : Env}
     (h : CoverState B G A₀ π ns O T ord r σ') (hc : σ'.vars "c" = n) :
     CoverPost G A₀ π ord r σ σ' := by
-  obtain ⟨Xoff, Xmem, asg, M, -, -, -, -, -, -, -, hasg, hxoff, hxmem, -, -, hI⟩ := h
+  obtain ⟨Xoff, Xmem, asg, M, -, -, -, -, -, -, -, hasg, hxoff, hxmem, -, -, -, hI⟩ := h
   rw [hc] at hI
   exact ⟨Xoff, Xmem, asg, σ'.vars "xp", hxoff, hxmem, hasg, rfl, hI.ptr_le, hI.out hord⟩
 
@@ -878,11 +920,11 @@ carries, and the per-centre cost.
 
 Everything that triple's postcondition *means* is proved above,
 unconditionally. `CoverInv.step` is the turn's mathematics — and its
-hypothesis `hD` is `RamBfs.bfs_spec`'s threshold postcondition
+hypothesis `hD` is the search specification's threshold postcondition
 verbatim, at the source `ord c` and the cap `2r`, so the composition
 against the search is an application and not an argument. What is left
 inside this triple is symbolic execution: the source load, the search
-(`RamBfs.bfs_spec`), the emission scan (`Spec.forRangeZero` over the
+(`Refine.BfsBridge.bfsQCom_spec`), the emission scan (`Spec.forRangeZero` over the
 vertices, its body the three-way conditional of `emitSlot`), the kill,
 and the two commands that close the block. The bounds they need are the
 array lengths of `CoverState` and the word bound; the cluster arena
@@ -918,7 +960,8 @@ walked in place. -/
 theorem cover_spec {B : ℕ} (h : Implements B n ns G A₀ O T ord π r)
     (hcsr : RamBfs.CsrGraph G ns O T) (hord : OrdersBy n π ord)
     (hB : n * n + ns + 2 * r + 2 < B) (hA : ∀ z < n, A₀ z < B) :
-    Spec B (fun σ => CoverPre n ns O T A₀ ord σ ∧ (∀ v ∈ σ.arrs "dist", v < B))
+    Spec B (fun σ => CoverPre n ns O T A₀ ord σ ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
+        (∀ v ∈ σ.arrs "q", v < B))
       (coverCom r) (CoverPost G A₀ π ord r)
       (coverCost n ns) := by
   -- what the fill may touch, read off its syntax: the counter and `asg`
@@ -934,7 +977,7 @@ theorem cover_spec {B : ℕ} (h : Implements B n ns G A₀ O T ord π r)
   have hnB : n < B := by omega
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨⟨hn, hoff, htgt, halv, hordarr, hdist, hq, ⟨ga, hasg⟩, ⟨gx, hxoff⟩, ⟨gm, hxmem⟩⟩,
-    hdw⟩ := hσ
+    hdw, hqw⟩ := hσ
   -- the two word clauses at entry: the mask's from `hA`, the search's from the caller
   have halvw : ∀ v ∈ σ.arrs "alv", v < B := fun v hv => by
     rw [halv] at hv
@@ -978,7 +1021,11 @@ theorem cover_spec {B : ℕ} (h : Implements B n ns G A₀ O T ord π r)
       by
         have he : (((σ₁.setVar "xp" 0).setArr "xoff" 0 0).setVar "c" 0).arrs "dist"
             = σ.arrs "dist" := by simp [hfa "dist" (hwa _ (by decide))]
-        rw [he]; exact hdw, ?_⟩
+        rw [he]; exact hdw,
+      by
+        have he : (((σ₁.setVar "xp" 0).setArr "xoff" 0 0).setVar "c" 0).arrs "q"
+            = σ.arrs "q" := by simp [hfa "q" (hwa _ (by decide))]
+        rw [he]; exact hqw, ?_⟩
     simp only [vars_setVar, vars_setArr]
     exact CoverInv.init (fun _ _ => rfl) (upd_self gx 0 0) hg₁
   -- the loop, against the invariant of the pass
@@ -1083,10 +1130,13 @@ def demoReport : Com :=
 /-- Build the structure, run the pass, report. -/
 def demoWatched (a2 r : ℕ) : Com := .seq (demoSetup a2) (.seq (coverCom r) demoReport)
 
-/-- Sixteen scalars, nine arrays, four temporaries. -/
+/-- Twenty-two scalars, nine arrays, four temporaries. The scalar list
+is the tower search's own eighteen cells — the four parameters, the
+constant, and the thirteen junk cells — plus the pass's `c`, `xp` and
+the emission scan's `z`, `dz`. -/
 def demoLayout : Lax13Proofs.Compile.Layout :=
-  ⟨["n", "src", "i", "head", "tail", "sc", "v", "w", "dv", "dn", "j", "jend",
-    "c", "xp", "z", "dz"],
+  ⟨["n", "src", "sent", "d", "one", "i", "head", "a", "tl", "v", "dv", "dv1", "k0",
+    "v1", "kend", "u", "au", "du", "c", "xp", "z", "dz"],
    ["off", "tgt", "alv", "dist", "q", "ord", "xoff", "xmem", "asg"], 4⟩
 
 /-- The machine program. -/
@@ -1098,9 +1148,13 @@ simulation theorem is about and not an accident. -/
 theorem demoWatched_ok (a2 r : ℕ) :
     Lax13Proofs.Compile.Com.Ok demoLayout (demoWatched a2 r) := by
   simp [demoWatched, demoSetup, demoOff, demoTgt, demoAlv, demoOrd, demoReport, coverCom,
-    initAsg, centreStep, emitLoop, emitSlot, RamBfs.bfsCom, RamBfs.initDist, RamBfs.seedSrc,
-    RamBfs.bfsDrain, RamBfs.expandRow, RamBfs.scanSlot, Fill.put, Csr.loadRow, Csr.scan,
-    Queue.drain, demoLayout, Lax13Proofs.Compile.Com.Ok, Lax13Proofs.Compile.Cond.Ok,
+    -- `Codegen.embed` is *not* unfolded here: its nine `@[simp]` equations do the
+    -- work, and unfolding it would leak `embed.match_1.splitter` into the tower's
+    -- namespace, which only the root `lax` audit catches
+    initAsg, centreStep, emitLoop, emitSlot, Refine.BfsBridge.bfsQCom,
+    Refine.BfsBridge.bfsSetup, Lax13Proofs.Refine.BfsQSynth.bfsQSynth_impl,
+    Fill.put, demoLayout,
+    Lax13Proofs.Compile.Com.Ok, Lax13Proofs.Compile.Cond.Ok,
     Lax13Proofs.Compile.condExpr, Lax13Proofs.Compile.Expr.Ok]
 
 /-- Run it at a word length that holds every number this graph
@@ -1111,19 +1165,19 @@ def demoRun (a2 r : ℕ) : Option (List ℕ × ℕ) :=
 -- radius `1`: the fibres `{0,1,2} | {1,2,3} | {2,3} | {3} | {4}`, and the
 -- first catches `0 0 1 2 4`
 #guard demoRun 1 1 =
-  some ([0, 3, 6, 8, 9, 10, 0, 1, 2, 1, 2, 3, 2, 3, 3, 4, 0, 0, 1, 2, 4], 5636)
+  some ([0, 3, 6, 8, 9, 10, 0, 1, 2, 1, 2, 3, 2, 3, 3, 4, 0, 0, 1, 2, 4], 5611)
 -- with vertex `2` dead the arena is the edge `0—1` and three isolated
 -- vertices, so every cluster but the first is a singleton
 #guard demoRun 0 1 =
-  some ([0, 2, 3, 4, 5, 6, 0, 1, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 2, 3, 4], 4316)
+  some ([0, 2, 3, 4, 5, 6, 0, 1, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 2, 3, 4], 4554)
 -- at radius `0` weak reachability is equality, so every cluster is its
 -- own centre and every vertex claims itself
 #guard demoRun 1 0 =
-  some ([0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4], 4257)
+  some ([0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4], 3833)
 -- and at radius `2` the first cluster swallows the whole path, which
 -- three of the four path vertices then claim
 #guard demoRun 1 2 =
-  some ([0, 4, 7, 9, 10, 11, 0, 1, 2, 3, 1, 2, 3, 2, 3, 3, 0, 0, 0, 1, 4], 5894)
+  some ([0, 4, 7, 9, 10, 11, 0, 1, 2, 3, 1, 2, 3, 2, 3, 3, 0, 0, 0, 1, 4], 6201)
 
 end Demo
 

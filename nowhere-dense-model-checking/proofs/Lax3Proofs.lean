@@ -21,6 +21,7 @@ import Lax3Proofs.Reduction
 import Lax3Proofs.Evaluator
 import Lax3Proofs.RamBfs
 import Lax3Proofs.RamBfsPaths
+import Lax3Proofs.Refine.BfsBridge
 import Lax3Proofs.OrderedCovers
 import Lax3Proofs.CoverDegree
 import Lax3Proofs.RamElim
@@ -42,3 +43,6 @@ import Lax3Proofs.RamDriverAugment
 import Lax3Proofs.RamDriverCompose
 import Lax3Proofs.RamDriverWrites
 import Lax3Proofs.RamDriverRoot
+import Lax3Proofs.CostRecurrence
+import Lax3Proofs.UqwInstantiation
+import Lax3Proofs.TgtCoupling

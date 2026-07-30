@@ -33,6 +33,22 @@ Three of the **composition obligations of the driver**, discharged:
   what the augmentation buys — the cover's degree, hence the cost — is
   the cost wave's business.
 
+### Ledger — the tower search underneath (rebase P1)
+
+**P1/B-g — nothing above the obligation boundary moved.** The cover
+pass now embeds the refinement tower's synthesized queue BFS
+(`Lax3Proofs.Refine.BfsBridge.bfsQCom`) where `RamBfs.bfsCom` stood.
+Four lines of this file change and no statement does: the two `rfl`
+lists `wvars_coverCom`/`wvars_coverPhase` grow by the tower's own
+scalar cells (the arrays written, and so `warrs_coverCom` and
+`warrs_coverPhase`, are the same two in the same order),
+`noWrite_coverPhase` reads the tower's `Codegen.noWrite_embed` instead
+of the old search's five constructors, and the call of
+`coverPass_spec` passes `LevelMem`'s `q` word clause beside its `dist`
+one (ledger P1/B-d in `RamCover`). `coverImplements` proves
+`RamDriver.CoverImplements` at `coverPhaseCost n ns`, verbatim as
+before — the per-centre budget absorbs the new constant (P1/B-e).
+
 Three pieces of reusable machinery come with them.
 
 * `levelPre_run` and `orderMem_run` — **a level's state is a frame**.
@@ -221,8 +237,12 @@ theorem warrs_coverPhase (cap j : ℕ) : (coverPhase cap j).warrs =
       "xoff", xofName j, xmmName j, asgName j] := rfl
 
 theorem wvars_coverPhase (cap j : ℕ) : (coverPhase cap j).wvars =
-    ["i", "i", "i", "i", "i", "i", "xp", "c", "src", "i", "i", "tail", "tail", "head", "sc",
-      "v", "dv", "dn", "j", "jend", "w", "tail", "sc", "j", "head", "z", "dz", "xp", "z", "c",
+    ["i", "i", "i", "i", "i", "i", "xp", "c", "src",
+      "sent", "d", "one", "i", "head", "a", "tl", "v", "dv", "dv1", "k0", "v1", "kend",
+      "u", "au", "du",
+      "i", "a", "tl", "tl", "v", "dv", "head", "dv1", "k0", "v1", "kend", "u", "au",
+      "du", "tl", "k0",
+      "z", "dz", "xp", "z", "c",
       "i", "i", "i", "i", "i", "i", xpName j] := rfl
 
 /-! ### The frame of a level's state
@@ -480,8 +500,12 @@ theorem warrs_copyCom (src dst : String) : (copyCom src dst).warrs = [dst] := rf
 theorem wvars_copyCom (src dst : String) : (copyCom src dst).wvars = ["i", "i"] := rfl
 
 theorem wvars_coverCom (r : ℕ) : (RamCover.coverCom r).wvars =
-    ["i", "i", "xp", "c", "src", "i", "i", "tail", "tail", "head", "sc", "v", "dv", "dn",
-      "j", "jend", "w", "tail", "sc", "j", "head", "z", "dz", "xp", "z", "c"] := rfl
+    ["i", "i", "xp", "c", "src",
+      "sent", "d", "one", "i", "head", "a", "tl", "v", "dv", "dv1", "k0", "v1", "kend",
+      "u", "au", "du",
+      "i", "a", "tl", "tl", "v", "dv", "head", "dv1", "k0", "v1", "kend", "u", "au",
+      "du", "tl", "k0",
+      "z", "dz", "xp", "z", "c"] := rfl
 
 theorem warrs_coverCom (r : ℕ) : (RamCover.coverCom r).warrs =
     ["asg", "xoff", "dist", "dist", "q", "dist", "q", "xmem", "asg", "alv", "xoff"] := rfl
@@ -493,8 +517,8 @@ theorem ordName_notMem_coverPhase (cap j a : ℕ) : ordName a ∉ (coverPhase ca
 theorem noWrite_coverPhase (cap j : ℕ) : (coverPhase cap j).NoWrite := by
   simp [coverPhase, coverSave, copyCom, copyUpto, fillUpto, RamCover.coverCom,
     RamCover.initAsg, RamCover.centreStep, RamCover.emitLoop, RamCover.emitSlot,
-    RamBfs.bfsCom, RamBfs.initDist, RamBfs.seedSrc, RamBfs.bfsDrain, RamBfs.expandRow,
-    RamBfs.scanSlot, Com.NoWrite]
+    Refine.BfsBridge.bfsQCom, Refine.BfsBridge.bfsSetup, Com.NoWrite,
+    Lax13Proofs.Refine.Codegen.noWrite_embed]
 
 /-- The cost of the cover phase: the pass, the two copies that set it
 up, and the four of `RamDriver.coverSave`, the member copy charged at
@@ -548,7 +572,7 @@ theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin 
       ⟨⟨hvn₂, hoff₂, htgt₂, halvA₂, hordA₂, hmem₂.1.get (p := ("dist", n)) (by simp),
         hmem₂.1.get (p := ("q", n)) (by simp), hmem₂.1.get (p := ("asg", n)) (by simp),
         hmem₂.1.get (p := ("xoff", n + 1)) (by simp),
-        hmem₂.1.get (p := ("xmem", n * n)) (by simp)⟩, hmem₂.2.1⟩
+        hmem₂.1.get (p := ("xmem", n * n)) (by simp)⟩, hmem₂.2.1, hmem₂.2.2⟩
   have hdep₃ : DepthMem n cap mb σ₃ := hdep₂.run hr₃
   have hvn₃ : σ₃.vars "n" = n := by
     rw [hr₃.frame_var "n" (by rw [wvars_coverCom]; decide)]; exact hvn₂

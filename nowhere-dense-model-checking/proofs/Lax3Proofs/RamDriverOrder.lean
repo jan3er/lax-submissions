@@ -21,42 +21,48 @@ variable {π : Equiv.Perm (Fin n)} {r : ℕ}
 /-! ### The word clauses the cover pass's invariant omits
 
 `RamCover.CoverState` pins the four arrays the pass writes and the
-three it reads, but says of no array that its cells are *words*. Two of
-them have to be, and neither follows from anything the invariant
+three it reads, but says of no array that its cells are *words*. Three
+of them have to be, and none follows from anything the invariant
 carries.
 
-* `alv` is read by the search — `RamBfs.seedSrc`'s very first act is
-  `.get "alv" (.var "src")` — so `RamBfs.bfs_spec`'s `hMB` is asked of
+* `alv` is read by the search — its very first act is
+  `.get "alv" (.var "src")` — so the search's `halv` is asked of
   the mask the turn runs against, which is `A₀` with some cells zeroed
   and therefore *not* pinned by `RamCover.CoverInv.mask`: that clause
   says only which cells are zero.
-* `dist` is read by the emission scan, at every vertex, and
-  `RamBfs.bfs_spec`'s postcondition characterizes its cells only *below
-  the cap* — a cell holding the sentinel is left unbounded, even though
-  `RamBfs.initDist` in fact put `2r + 1` there.
+* `dist` is read by the emission scan, at every vertex, and the
+  search's postcondition characterizes its cells only *below the cap*
+  — a cell holding the sentinel is left unbounded, even though the fill
+  in fact put `2r + 1` there.
+* `q`, since rebase P1, because the tower export's `Ir.StateBound` is
+  state-global: it asks the *entering* cells of both scratch arrays to
+  be words, where the hand-walked baseline bounded only what its run
+  evaluated (ledger P1/B-d).
 
-Both are `∀ v ∈ σ.arrs a, v < B`, the shape `RamDriver.LevelMem`
-already uses, and both are preserved by *any* bounded run
+All three are `∀ v ∈ σ.arrs a, v < B`, the shape `RamDriver.LevelMem`
+already uses, and all three are preserved by *any* bounded run
 (`RamDriver.run_mem_arrs_lt`), so carrying them costs one line per
 phase. At the driver they are free: `RamDriver.LevelMem` is the `dist`
-half verbatim and `RamDriver.LevelPre`'s `∀ z < n, M z < B` becomes the
-`alv` half the moment `RamDriver.copyCom` has run.
+and `q` halves verbatim and `RamDriver.LevelPre`'s `∀ z < n, M z < B`
+becomes the `alv` half the moment `RamDriver.copyCom` has run.
 
 The consequence for the surface is recorded at `coverTurnImplements`. -/
 
-/-- The two word clauses the cover pass needs and
-`RamCover.CoverState` does not carry: the mask and the distance array
-hold words. -/
+/-- The three word clauses the cover pass needs: the mask, the distance
+array and — since the tower search's precondition is state-global
+(ledger P1/B-d) — the search's other scratch array all hold words. -/
 def CoverWords (B : ℕ) (σ : Env) : Prop :=
-  (∀ v ∈ σ.arrs "alv", v < B) ∧ (∀ v ∈ σ.arrs "dist", v < B)
+  (∀ v ∈ σ.arrs "alv", v < B) ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
+    (∀ v ∈ σ.arrs "q", v < B)
 
-/-- Both clauses survive any bounded run, since a bounded run stores
-only words. -/
+/-- All three clauses survive any bounded run, since a bounded run
+stores only words. -/
 theorem CoverWords.run {B : ℕ} {c : Com} {σ σ' : Env} {K : ℕ} (hr : Run B c σ σ' K)
     (h : CoverWords B σ) : CoverWords B σ' :=
-  ⟨RamDriver.run_mem_arrs_lt hr "alv" h.1, RamDriver.run_mem_arrs_lt hr "dist" h.2⟩
+  ⟨RamDriver.run_mem_arrs_lt hr "alv" h.1, RamDriver.run_mem_arrs_lt hr "dist" h.2.1,
+    RamDriver.run_mem_arrs_lt hr "q" h.2.2⟩
 
-/-- And neither clause is about a scalar. -/
+/-- And no clause is about a scalar. -/
 theorem CoverWords.setVar {B : ℕ} {σ : Env} (x : String) (v : ℕ) (h : CoverWords B σ) :
     CoverWords B (σ.setVar x v) := h
 
@@ -380,13 +386,25 @@ The two frames the composition needs are read off the syntax: the
 search writes only its own scratch, and the emission scan only the
 arena and the assignment. Both lists are computed by `rfl`, since
 `Com.wvars` and `Com.warrs` do not look at the expressions and so are
-concrete lists even at a symbolic radius. -/
+concrete lists even at a symbolic radius.
 
-theorem bfsCom_wvars (d : ℕ) : (RamBfs.bfsCom d).wvars =
-    ["i", "i", "tail", "tail", "head", "sc", "v", "dv", "dn", "j", "jend", "w",
-      "tail", "sc", "j", "head"] := rfl
+Since rebase P1 the search is the refinement tower's synthesized queue
+BFS behind `Refine.BfsBridge.bfsQCom`, whose bridge lemma
+`Refine.BfsBridge.bfsQCom_spec` is `RamBfs.bfs_spec`'s statement
+verbatim but for the two extra word clauses of ledger P1/B-d. The
+arrays it writes are the same two, in the same order; the scalars it
+writes are the tower's own sixteen, so `bfsQCom_wvars` grows and three
+of its entries — `dv1`, `v1`, `k0` — carry a digit, which
+`RamDriverWrites.belowVar_notMem_wvars_coverPhase` has to be told about
+(ledger P1/B-f, recorded there). -/
 
-theorem bfsCom_warrs (d : ℕ) : (RamBfs.bfsCom d).warrs =
+theorem bfsQCom_wvars (d : ℕ) : (Refine.BfsBridge.bfsQCom d).wvars =
+    ["sent", "d", "one", "i", "head", "a", "tl", "v", "dv", "dv1", "k0", "v1", "kend",
+      "u", "au", "du",
+      "i", "a", "tl", "tl", "v", "dv", "head", "dv1", "k0", "v1", "kend", "u", "au",
+      "du", "tl", "k0"] := rfl
+
+theorem bfsQCom_warrs (d : ℕ) : (Refine.BfsBridge.bfsQCom d).warrs =
     ["dist", "dist", "q", "dist", "q"] := rfl
 
 theorem emitLoop_wvars (r : ℕ) : (RamCover.emitLoop r).wvars = ["z", "dz", "xp", "z"] := rfl
@@ -407,8 +425,8 @@ theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n 
   have hrB : 2 * r + 1 < B := by omega
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨⟨Xoff, Xmem, asg, M, hn, hoff, htgt, hordarr, halv, ⟨gd, hdist⟩, ⟨gq, hq⟩,
-    hasgarr, hxoffarr, hxmemarr, halvw, hdistw, hI⟩, hc⟩ := hσ
-  have hW : CoverWords B σ := ⟨halvw, hdistw⟩
+    hasgarr, hxoffarr, hxmemarr, halvw, hdistw, hqw, hI⟩, hc⟩ := hσ
+  have hW : CoverWords B σ := ⟨halvw, hdistw, hqw⟩
   have hv : ord (σ.vars "c") < n := hord.lt hc
   have hMB : ∀ z < n, M z < B := fun z hz => lt_of_mem_words hW.1 halv hz
   have hxp₀ : σ.vars "xp" + n ≤ n * n := by
@@ -424,35 +442,36 @@ theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n 
   set σ₁ := σ.setVar "src" (ord (σ.vars "c")) with hσ₁
   -- the search
   obtain ⟨σ₂, hrun₂, ⟨D, hdistD, hDspec⟩, hfv₂, hfa₂, -, -⟩ :=
-    ((RamBfs.bfs_spec (G := G) (M := M) (ns := ns) (O := O) (T := T)
+    ((Refine.BfsBridge.bfsQCom_spec (G := G) (M := M) (ns := ns) (O := O) (T := T)
       (s := ord (σ.vars "c")) (d := 2 * r) hcsr hv hnB hnsB hrB hMB).frame).run (σ := σ₁)
       ⟨by simp [hσ₁, hn], by simp [hσ₁], by simp [hσ₁, hoff], by simp [hσ₁, htgt],
-        by simp [hσ₁, halv], ⟨gd, by simp [hσ₁, hdist]⟩, ⟨gq, by simp [hσ₁, hq]⟩⟩
+        by simp [hσ₁, halv], ⟨gd, by simp [hσ₁, hdist]⟩, ⟨gq, by simp [hσ₁, hq]⟩,
+        by simpa [hσ₁] using (hW.run h1).2.1, by simpa [hσ₁] using (hW.run h1).2.2⟩
   have hW₂ : CoverWords B σ₂ := (hW.run h1).run hrun₂
-  have hDB : ∀ w < n, D w < B := fun w hw => lt_of_mem_words hW₂.2 hdistD hw
+  have hDB : ∀ w < n, D w < B := fun w hw => lt_of_mem_words hW₂.2.1 hdistD hw
   -- what the search left where it found it
   have b1 : σ₂.vars "n" = n := by
-    rw [hfv₂ "n" (by rw [bfsCom_wvars]; decide), hσ₁]; simpa using hn
+    rw [hfv₂ "n" (by rw [bfsQCom_wvars]; decide), hσ₁]; simpa using hn
   have b2 : σ₂.vars "c" = σ.vars "c" := by
-    rw [hfv₂ "c" (by rw [bfsCom_wvars]; decide), hσ₁]; simp
+    rw [hfv₂ "c" (by rw [bfsQCom_wvars]; decide), hσ₁]; simp
   have b3 : σ₂.vars "xp" = σ.vars "xp" := by
-    rw [hfv₂ "xp" (by rw [bfsCom_wvars]; decide), hσ₁]; simp
+    rw [hfv₂ "xp" (by rw [bfsQCom_wvars]; decide), hσ₁]; simp
   have b4 : σ₂.vars "src" = ord (σ.vars "c") := by
-    rw [hfv₂ "src" (by rw [bfsCom_wvars]; decide), hσ₁]; simp
+    rw [hfv₂ "src" (by rw [bfsQCom_wvars]; decide), hσ₁]; simp
   have b5 : σ₂.arrs "asg" = arrOf n asg := by
-    rw [hfa₂ "asg" (by rw [bfsCom_warrs]; decide), hσ₁]; simpa using hasgarr
+    rw [hfa₂ "asg" (by rw [bfsQCom_warrs]; decide), hσ₁]; simpa using hasgarr
   have b6 : σ₂.arrs "xmem" = arrOf (n * n) Xmem := by
-    rw [hfa₂ "xmem" (by rw [bfsCom_warrs]; decide), hσ₁]; simpa using hxmemarr
+    rw [hfa₂ "xmem" (by rw [bfsQCom_warrs]; decide), hσ₁]; simpa using hxmemarr
   have b7 : σ₂.arrs "alv" = arrOf n M := by
-    rw [hfa₂ "alv" (by rw [bfsCom_warrs]; decide), hσ₁]; simpa using halv
+    rw [hfa₂ "alv" (by rw [bfsQCom_warrs]; decide), hσ₁]; simpa using halv
   have b8 : σ₂.arrs "off" = arrOf (n + 1) O := by
-    rw [hfa₂ "off" (by rw [bfsCom_warrs]; decide), hσ₁]; simpa using hoff
+    rw [hfa₂ "off" (by rw [bfsQCom_warrs]; decide), hσ₁]; simpa using hoff
   have b9 : σ₂.arrs "tgt" = arrOf ns T := by
-    rw [hfa₂ "tgt" (by rw [bfsCom_warrs]; decide), hσ₁]; simpa using htgt
+    rw [hfa₂ "tgt" (by rw [bfsQCom_warrs]; decide), hσ₁]; simpa using htgt
   have b10 : σ₂.arrs "ord" = arrOf n ord := by
-    rw [hfa₂ "ord" (by rw [bfsCom_warrs]; decide), hσ₁]; simpa using hordarr
+    rw [hfa₂ "ord" (by rw [bfsQCom_warrs]; decide), hσ₁]; simpa using hordarr
   have b11 : σ₂.arrs "xoff" = arrOf (n + 1) Xoff := by
-    rw [hfa₂ "xoff" (by rw [bfsCom_warrs]; decide), hσ₁]; simpa using hxoffarr
+    rw [hfa₂ "xoff" (by rw [bfsQCom_warrs]; decide), hσ₁]; simpa using hxoffarr
   -- the emission scan starts against the arena the search left untouched
   have hzero : (σ₂.setVar "z" 0).vars "z" = 0 := by simp
   have hxpz : (σ₂.setVar "z" 0).vars "xp" = σ.vars "xp" := by simp [b3]
@@ -528,10 +547,13 @@ theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n 
   have hW₆ : CoverWords B σ₆ :=
     hW.run (h1.seq (hrun₂.seq (hrun₃.seq (h4.seq (h5.seq h6)))))
   refine ⟨σ₆, _, h1.seq (hrun₂.seq (hrun₃.seq (h4.seq (h5.seq h6)))), ?_, ?_, ?_⟩
-  · simp only [size_get, size_var, RamCover.centreCost]
+  · -- the tower search's `56n + 40ns + 33` and the setup block's `32` land inside the
+    -- per-centre budget the pass has always charged (ledger P1/B-e)
+    simp only [size_get, size_var, RamCover.centreCost, Refine.BfsBridge.bfsQCost,
+      Lax13Proofs.Refine.BfsQSynth.bfsQK]
     omega
   · refine ⟨upd Xoff (σ.vars "c" + 1) (σ₃.vars "xp"), Xm', as', upd M (ord (σ.vars "c")) 0, ?_,
-      ?_, ?_, ?_, ?_, ⟨D, ?_⟩, ?_, ?_, ?_, ?_, hW₆.1, hW₆.2, ?_⟩
+      ?_, ?_, ?_, ?_, ⟨D, ?_⟩, ?_, ?_, ?_, ?_, hW₆.1, hW₆.2.1, hW₆.2.2, ?_⟩
     · rw [hσ₆, vars_setArr, hσ₅, vars_setVar, if_neg (by decide), hσ₄, vars_setArr]; exact hn₃
     · rw [hσ₆, arrs_setArr, if_neg (by decide), hσ₅, arrs_setVar, hσ₄, arrs_setArr,
         if_neg (by decide)]; exact c3
@@ -561,7 +583,7 @@ theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n 
 
 /-! ### The obligation, and the repair it names
 
-`RamCover.Implements` is exactly this walk: the two word clauses are
+`RamCover.Implements` is exactly this walk: the three word clauses are
 now conjuncts of `RamCover.CoverState` itself, and they are there
 because without them the obligation is **refutable**.
 
@@ -569,27 +591,32 @@ The mask clause is the sharp one. Take `n = 1`, `A₀ 0 = 1`, and a mask
 array holding `B` at the single vertex: every other clause of
 `RamCover.CoverState` holds, since its only statement about the mask —
 `RamCover.CoverInv.mask` — says which cells are *zero* and this one is
-not; and `RamBfs.seedSrc`'s `.get "alv" (.var "src")` then has no
+not; and the search's first read of `alv` at the source then has no
 bounded evaluation, so `RamCover.centreStep` has no `Run` from that
 state at all and the `Spec` is false.
 
 The `dist` clause is a gap of a different kind. The cells really are
-words — `RamBfs.initDist` writes `2r + 1` into all of them before the
-search starts, and the search only lowers them — but
-`RamBfs.bfs_spec`'s postcondition characterizes the distance array only
-*below the cap*, so a cell holding the sentinel is left unbounded and
-the emission scan's `.get "dist" (.var "z")` cannot be justified.
-Carrying it in the invariant is one line; the alternative —
-`RamBfs.bfs_spec` gaining `∀ w < n, D w ≤ d + 1` — touches every caller
-of the search.
+words — the search's fill writes `2r + 1` into all of them before the
+drain starts, and the drain only lowers them — but the search's
+postcondition characterizes the distance array only *below the cap*, so
+a cell holding the sentinel is left unbounded and the emission scan's
+`.get "dist" (.var "z")` cannot be justified. Carrying it in the
+invariant is one line; the alternative — the search specification
+gaining `∀ w < n, D w ≤ d + 1` — touches every caller of the search.
 
-Neither clause costs the loop anything: both are preserved by any
+The `q` clause is rebase P1's (ledger P1/B-d). It is not a gap at all
+but a change of accounting: the tower export's `Ir.StateBound` is
+state-global, so the *entering* cells of both scratch arrays have to be
+words, where the hand-walked baseline bounded only what its own run
+evaluated.
+
+No clause costs the loop anything: all three are preserved by any
 bounded run (`RamDriver.run_mem_arrs_lt`), `RamCover.CoverInv.step` and
 `CoverInv.out` never mention the environment, and `RamCover.cover_spec`
-establishes both at entry from its own `hA` and one hypothesis on
-`dist`, which every caller has — at the driver it is
-`RamDriver.LevelMem`'s own conjunct. `CoverWords` survives above only as
-the shorthand this walk carries its two clauses in. -/
+establishes them at entry from its own `hA` and two hypotheses on
+`dist` and `q`, which every caller has — at the driver they are
+`RamDriver.LevelMem`'s own conjuncts. `CoverWords` survives above only
+as the shorthand this walk carries its three clauses in. -/
 
 /-- **The single-turn walk of the cover pass, discharged**: this is
 `RamCover.Implements` itself, with no clause left over. -/
@@ -608,7 +635,8 @@ application. -/
 /-- **The cover pass of Grohe–Kreutzer–Siebertz §6, walked.** -/
 theorem coverPass_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n π ord)
     (hB : n * n + ns + 2 * r + 2 < B) (hA : ∀ z < n, A₀ z < B) :
-    Spec B (fun σ => CoverPre n ns O T A₀ ord σ ∧ (∀ v ∈ σ.arrs "dist", v < B))
+    Spec B (fun σ => CoverPre n ns O T A₀ ord σ ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
+        (∀ v ∈ σ.arrs "q", v < B))
       (RamCover.coverCom r) (CoverPost G A₀ π ord r) (RamCover.coverCost n ns) :=
   RamCover.cover_spec (coverTurnImplements B n ns G A₀ O T ord π r) hcsr hord hB hA
 
@@ -979,7 +1007,7 @@ longer one call. `RamDriver.coverPhase` is the depth's ordering into
 `ord`, the depth's mask into `alv`, the pass, and the four copies of
 `RamDriver.coverSave` that make the answers the depth's own; the middle
 one is `coverPass_spec` (`RamDriver.LevelPre` supplies the mask bound
-and `RamDriver.LevelMem` the `dist` bound), and the six around it are
+and `RamDriver.LevelMem` the `dist` and `q` bounds), and the six around it are
 `copyUpto_spec` and `copyCom_spec` at contexts `LevelMem` and
 `RamDriver.DepthMem` provide. -/
 
