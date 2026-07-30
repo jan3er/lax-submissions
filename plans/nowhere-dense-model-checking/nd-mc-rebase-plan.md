@@ -158,6 +158,19 @@ more expensive than it is today.
 Budget: 6–10 sessions end to end; P3 inside the envelope, not added
 to it.
 
+## Worker process (every brief, every phase)
+
+Briefs are instantiated from `plans/worker-brief-template.md` (LIVE
+2026-07-30; retro evidence in `plans/subagent-retro-2026-07.md`). The
+three retro rules that bind hardest here: (1) split at brief time —
+any obligation whose honest estimate exceeds one agent-session is
+split *before* spawning (the July E1→E1c and B4→B4c chains each burned
+three agents on one obligation, ~35% of every spawn re-orienting);
+(2) the refutation pass of the P2 recipe is the template's named
+falsification-gate section, so it cannot drop out of a brief; (3)
+budget check before launching a long wave (a spawn died on the spend
+limit 07-29 and cost the wave three hours).
+
 ## Traps carried from the tower campaign (into every P2 brief)
 
 From p8-verdict §5: `omega` is blind through the `Ir.Val` abbrev —
