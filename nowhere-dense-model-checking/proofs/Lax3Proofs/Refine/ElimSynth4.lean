@@ -634,7 +634,7 @@ theorem elimTurnF_take_eq (n : ℕ) (off tgt alv : List ℕ) (e : ES)
             (fun r => NRest.returnT (takeState n e r)))
           (liftACost takeC0) := by
   simp only [elimTurnF, elimVertexF, takeState, takeScan0, slotOf, vtxOf, pack11, pack6,
-    pack5d, mopAget_def, mopAset_def, mopSucc_eq, mopPred_eq, mopAddIn_eq, mopBinop_def,
+    pack5d, mopAget_def, mopAset_def, mopSucc_eq, ElimSynth3.mopPred_eq, mopAddIn_eq, mopBinop_def,
     mopPair_def, irIf_def, NRest.assert_pos hbh, NRest.assert_pos hbv,
     NRest.assert_pos hbn, NRest.assert_pos helm, NRest.assert_pos hdeg,
     NRest.assert_pos hrnk, NRest.assert_pos hidg, NRest.assert_pos halv,
@@ -680,7 +680,7 @@ theorem elimTurnF_takeDead_le (n : ℕ) (off tgt alv : List ℕ) (e : ES)
           (liftACost deadC) := by
   refine le_of_eq ?_
   simp only [elimTurnF, elimVertexF, takeState, takeScan0, slotOf, vtxOf, pack11, pack6,
-    pack5d, mopAget_def, mopAset_def, mopSucc_eq, mopPred_eq, mopAddIn_eq, mopBinop_def,
+    pack5d, mopAget_def, mopAset_def, mopSucc_eq, ElimSynth3.mopPred_eq, mopAddIn_eq, mopBinop_def,
     mopPair_def, irIf_def, NRest.assert_pos hbh, NRest.assert_pos hbv,
     NRest.assert_pos hbn, NRest.assert_pos helm, NRest.assert_pos hdeg,
     NRest.assert_pos hrnk, NRest.assert_pos hidg, NRest.assert_pos halv,
