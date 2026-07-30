@@ -314,6 +314,42 @@ of overnight work — set expectations by the budget, not the recent luck.
 
 ## Progress log
 
+- **2026-07-30 — P6 COMPLETE (one session vs 2–3 budget; acceptance
+  PASSED: every structure's rules consumed by the P4 translator on
+  exercise programs, zero frame clauses, zero bespoke tactics).**
+  Design record `p6-iicf-design.md` (69f164f) + extracts (e9ec5cd).
+  **P6-A** (arrays, 521d8d3→merge 3eef624): `Iicf/{Basic,IicfArray,
+  IicfTrailArray,ExercisesA}.lean`; mop_array_fill and ALL THREE
+  trail-array impls synthesized by our own sepref_synth (the pop-loop
+  reset included); the D5 characteristic theorem
+  `treset_cost_touched_only` (reset cost a function of the touch
+  counter alone). **P6-B** (structures, b7ada37→merge a76f5a6):
+  `Iicf/{IicfStack,IicfQueue,IicfCsr,IicfBitmask}.lean`; all ten op
+  bodies synthesized, composite rules as four-line wrappers (D-bc:
+  the frame matcher cannot look inside composite assertions — raw
+  synthesis + wrapper is the pattern); nine exercises incl. a
+  cross-structure loop (stack pop + bmInsert). **Pipeline findings
+  (P4 untouched, recorded for a future thaw):** (1) frameMatch splits
+  goals but never rule-side prodAssn — route tuple state through
+  hnr_mop_pair; (2) operator phase does not backtrack across rule
+  choice (junk-destination binop beats in-place when scratch is free)
+  — forced stack-grows-downward + write-twice dodges; a mop_move with
+  live destination is the clean fix; (3) two arrayAssn conjuncts in
+  one prodAssn loop state trip proveConjEq inside sepref_ac (valid
+  permutation, in-situ rfl failure) — read-only arrays belong in the
+  frame anyway; (4) hnr_bind blocks value-dependent guard rules —
+  branch on the returned value, convert back by lemma. Convention
+  divergence at merge (flagged, not reworked): P6-B's
+  hnRefine_reinterp/hnr_pre_ex_pure duplicate P6-A's
+  hnRefine_res_cast'/hnr_pre_*_conv in role; init-from-junk takes
+  concrete xs (B) vs junkArrayOfLen (A); dedupe queued for P8 or a
+  thaw wave. New mathlib import: Combinatorics.Colex (one simp
+  lemma). P7 opened the same night: gate design note
+  `p7-gate-design.md` (4c895c7 — counting rule fixed, package
+  boundary P7/S-1: export in word-ram at P1's masked/WD over the
+  alv-derived mask, no Lax3/Lax12 imports); wave A (bfsQ middle
+  refinement) dispatched satellite.
+
 - **2026-07-30 — P5 COMPLETE (one session vs 2–3 budget; acceptance
   PASSED: the P4 toys land at machine-level `computesInTime`
   mechanically).** Design record `p5-codegen-design.md` (113718a +
