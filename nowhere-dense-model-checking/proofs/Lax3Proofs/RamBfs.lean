@@ -1074,7 +1074,17 @@ right length, `bfsCom d` leaves in `dist` a function that decides, at
 every threshold up to the cap, the distance bound of the arena — the
 graph `G` with the mask's dead vertices isolated. Nothing is asked of the
 source but that it is a vertex: a dead one is at distance zero from
-itself and from nothing else, which is what the arena says too. -/
+itself and from nothing else, which is what the arena says too.
+
+**At the widened target array** (rebase B5-cont-2): the block structure
+is read out of an array of the caller's own width `nt`, the structure's
+slot count `ns` being only a lower bound of it. Nothing the search
+addresses moves — every slot it reads lies below `O n = ns ≤ nt`, which
+is what `CsrWide.CsrW` states and what the two straight-line reads of
+`expandRow` go through — and neither the postcondition nor the cost
+mentions the width: the potential is still `44·ns`, because it is the
+*slots* the search pays for and not the array. `bfs_spec` is this
+walk at `nt = ns`. -/
 theorem bfs_specW {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) (hnB : n < B)
     (hnsB : ns < B) (hnt : ns ≤ nt) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B) :
     Spec B
@@ -1107,7 +1117,7 @@ theorem bfs_specW {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) (hnB : n < B
       (by rw [hfa "off" hwa₁]; exact hoff) (by rw [hfa "tgt" hwa₂]; exact htgt)
       (by rw [hfa "alv" hwa]; exact halv) hdist₁ hgd (by rw [hfa "q" hwa']; exact hq)
   -- and the search
-  obtain ⟨σ₃, K₃, hrun₃, hI₃, hhead₃, hpay⟩ := drain_run hcsr hnB hnsB hdB hMB hI₂
+  obtain ⟨σ₃, K₃, hrun₃, hI₃, hhead₃, hpay⟩ := drain_run hcsr hnB hnsB hnt hdB hMB hI₂
   obtain ⟨D₂, Q₂, -, hFr₂, -⟩ := hI₂
   obtain ⟨D, Q, ⟨-, -, -, -, -, hdist₃, -⟩, hFr, -⟩ := hI₃
   have htl₂ : σ₂.vars "tail" ≤ n := hFr₂.tl
@@ -1119,6 +1129,54 @@ theorem bfs_specW {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) (hnB : n < B
     omega
   · rw [hhead₃] at hFr
     exact (hFr.dist_le_iff v.isLt hk).trans (wd_iff_withinDist hs v.isLt)
+
+/-- **The search at the pinned target array** — the frozen export,
+which is the widened walk at `nt = ns`. Nothing is re-proved: the two
+preconditions are the same proposition there. -/
+theorem bfs_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) (hnB : n < B)
+    (hnsB : ns < B) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B) :
+    Spec B
+      (fun σ => σ.vars "n" = n ∧ σ.vars "src" = s ∧
+        σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+        σ.arrs "alv" = arrOf n M ∧ (∃ g, σ.arrs "dist" = arrOf n g) ∧
+        (∃ g, σ.arrs "q" = arrOf n g))
+      (bfsCom d)
+      (fun _ σ' => ∃ D, σ'.arrs "dist" = arrOf n D ∧
+        ∀ (v : Fin n) (k : ℕ), k ≤ d →
+          (D (v : ℕ) ≤ k ↔ WithinDist (masked G M) k ⟨s, hs⟩ v))
+      (51 * n + 44 * ns + 30) :=
+  bfs_specW hcsr hs hnB hnsB le_rfl hdB hMB
+
+section Falsification
+
+/-! The widening's one authored delta is `SearchEnv`'s `tgt` clause,
+and its refutable reading is that it is no delta — that the search's
+environment at a width above the slot count is the environment at the
+slot count. It is not: a search with no vertices and no slots, in a
+length-one target array, already separates them, because the pinned
+reading asks for the array at the slot count on the nose. -/
+
+/-- No vertices, no slots, and one cell in `tgt`. -/
+private def wideBfsEnv : Env where
+  vars := fun _ => 0
+  arrs := fun a => if a = "off" ∨ a = "tgt" then [0] else []
+  inp := []
+  out := []
+
+-- the search's environment holds of it at width `1` …
+example : SearchEnv 0 1 0 (fun _ => 0) (fun _ => 0) (fun _ => 0) (fun _ => 0)
+    (fun _ => 0) wideBfsEnv :=
+  ⟨rfl, rfl, by simp [wideBfsEnv, arrOf], by simp [wideBfsEnv, arrOf],
+    by simp [wideBfsEnv, arrOf], by simp [wideBfsEnv, arrOf], by simp [wideBfsEnv, arrOf]⟩
+
+-- … and is **refuted** at the slot count `0`, at every target function:
+-- the length is the width, not the number of slots.
+example : ¬ ∃ T, SearchEnv 0 0 0 (fun _ => 0) T (fun _ => 0) (fun _ => 0)
+    (fun _ => 0) wideBfsEnv := by
+  rintro ⟨T, -, -, -, htgt, -⟩
+  simp [wideBfsEnv, arrOf] at htgt
+
+end Falsification
 
 /-! ### The worked example
 

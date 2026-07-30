@@ -76,7 +76,7 @@ open Lax3.ColoredGraphs Lax3.ScatterSentences
 open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
 open Lax3Proofs.WalkDistance Lax3Proofs.RamBfs
 
-variable {n ns r t : ℕ} {G : SimpleGraph (Fin n)} {M Tab O T : ℕ → ℕ} {X : Set (Fin n)}
+variable {n ns nt r t : ℕ} {G : SimpleGraph (Fin n)} {M Tab O T : ℕ → ℕ} {X : Set (Fin n)}
 
 /-! ### The recursion the pass implements -/
 
@@ -431,9 +431,13 @@ and the table — together with the two arrays the search owns, which it
 does write to but always leaves as arrays of words. `Progress` is the
 disjunction the early exit forces. -/
 
-/-- The part of the machine's state the scan carries unchanged. -/
-def Arena (B n ns : ℕ) (O T M Tab : ℕ → ℕ) (σ : Env) : Prop :=
-  σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+/-- The part of the machine's state the scan carries unchanged. The
+target array is at the caller's width `nt` (rebase B5-cont-2), the
+block structure's slot count entering only through
+`CsrGraph G ns O T` and the cost — this relation never coupled the
+two, and the walk below carries `ns ≤ nt` next to the structure. -/
+def Arena (B n nt : ℕ) (O T M Tab : ℕ → ℕ) (σ : Env) : Prop :=
+  σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf nt T ∧
     σ.arrs "alv" = arrOf n M ∧ σ.arrs "tab" = arrOf n Tab ∧
     Words B n "dist" σ ∧ Words B n "q" σ
 
@@ -453,17 +457,17 @@ theorem Progress.cnt_le {p : ℕ} {σ : Env} (h : Progress G M r t X p σ) : σ.
   rcases h with ⟨h, -⟩ | ⟨h, -⟩ <;> omega
 
 /-- Both are statements about a handful of names, so both transport. -/
-theorem Arena.of_eq {B : ℕ} {σ σ' : Env} (h : Arena B n ns O T M Tab σ)
+theorem Arena.of_eq {B : ℕ} {σ σ' : Env} (h : Arena B n nt O T M Tab σ)
     (hv : σ'.vars "n" = σ.vars "n") (h₁ : σ'.arrs "off" = σ.arrs "off")
     (h₂ : σ'.arrs "tgt" = σ.arrs "tgt") (h₃ : σ'.arrs "alv" = σ.arrs "alv")
     (h₄ : σ'.arrs "tab" = σ.arrs "tab") (h₅ : σ'.arrs "dist" = σ.arrs "dist")
-    (h₆ : σ'.arrs "q" = σ.arrs "q") : Arena B n ns O T M Tab σ' := by
+    (h₆ : σ'.arrs "q" = σ.arrs "q") : Arena B n nt O T M Tab σ' := by
   obtain ⟨e₀, e₁, e₂, e₃, e₄, e₅, e₆⟩ := h
   exact ⟨by rw [hv, e₀], by rw [h₁, e₁], by rw [h₂, e₂], by rw [h₃, e₃], by rw [h₄, e₄],
     e₅.of_eq h₅, e₆.of_eq h₆⟩
 
-theorem Arena.setVar {B : ℕ} {σ : Env} {x : String} {v : ℕ} (h : Arena B n ns O T M Tab σ)
-    (hx : x ≠ "n") : Arena B n ns O T M Tab (σ.setVar x v) :=
+theorem Arena.setVar {B : ℕ} {σ : Env} {x : String} {v : ℕ} (h : Arena B n nt O T M Tab σ)
+    (hx : x ≠ "n") : Arena B n nt O T M Tab (σ.setVar x v) :=
   h.of_eq (by simp [Ne.symm hx]) rfl rfl rfl rfl rfl rfl
 
 theorem Progress.of_eq {p : ℕ} {σ σ' : Env} (h : Progress G M r t X p σ)
@@ -528,11 +532,12 @@ Nothing is claimed about the cost beyond the two cases the potential
 needs — a turn that does not pick is constant, a turn that picks costs a
 search and a sweep — because that is all the loop rule asks. -/
 theorem step_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
+    (hnt : ns ≤ nt)
     (hrB : r + 1 < B) (htB : t < B) (hMB : ∀ z < n, M z < B) (hTabB : ∀ z < n, Tab z < B)
     (hTab : ∀ v : Fin n, Tab (v : ℕ) ≠ 0 ↔ v ∈ X) {σ : Env}
-    (hA : Arena B n ns O T M Tab σ) (hsv : σ.vars "sv" < n)
+    (hA : Arena B n nt O T M Tab σ) (hsv : σ.vars "sv" < n)
     (hP : Progress G M r t X (σ.vars "sv") σ) :
-    ∃ σ' K, Run B (scatterStep r t) σ σ' K ∧ Arena B n ns O T M Tab σ' ∧
+    ∃ σ' K, Run B (scatterStep r t) σ σ' K ∧ Arena B n nt O T M Tab σ' ∧
       σ'.vars "sv" = σ.vars "sv" + 1 ∧ Progress G M r t X (σ'.vars "sv") σ' ∧
       ((σ'.vars "cnt" = σ.vars "cnt" ∧ K ≤ 21) ∨
         (σ'.vars "cnt" = σ.vars "cnt" + 1 ∧ σ.vars "cnt" < t ∧ K ≤ pickCost n ns)) := by
@@ -551,7 +556,7 @@ theorem step_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns <
   -- and what a turn that leaves the machine alone is worth
   have hnopick : ∀ K₁, Run B (scatterBody r t) σ σ K₁ → K₁ ≤ 17 →
       ¬ GSel G M r X (σ.vars "sv") →
-      ∃ σ' K, Run B (scatterStep r t) σ σ' K ∧ Arena B n ns O T M Tab σ' ∧
+      ∃ σ' K, Run B (scatterStep r t) σ σ' K ∧ Arena B n nt O T M Tab σ' ∧
         σ'.vars "sv" = σ.vars "sv" + 1 ∧ Progress G M r t X (σ'.vars "sv") σ' ∧
         ((σ'.vars "cnt" = σ.vars "cnt" ∧ K ≤ 21) ∨
           (σ'.vars "cnt" = σ.vars "cnt" + 1 ∧ σ.vars "cnt" < t ∧ K ≤ pickCost n ns)) := by
@@ -615,8 +620,8 @@ theorem step_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns <
         have hsrc₂ : τ₂.vars "src" = σ.vars "sv" := by rw [hτ₂]; simp
         -- search from it
         obtain ⟨τ₃, run₃, ⟨D, hDarr, hDspec⟩, hfv₃, hfa₃, -, -⟩ :=
-          ((bfs_spec (G := G) (M := M) (O := O) (T := T) (ns := ns) (d := r)
-            (s := σ.vars "sv") hcsr hsv hnB hnsB hrB hMB).frame).run (σ := τ₂)
+          ((bfs_specW (G := G) (M := M) (O := O) (T := T) (ns := ns) (nt := nt) (d := r)
+            (s := σ.vars "sv") hcsr hsv hnB hnsB hnt hrB hMB).frame).run (σ := τ₂)
             ⟨by rw [hv₂ "n" (by decide), hv₁ "n" (by decide), hn], hsrc₂,
               by rw [ha₂, ha₁]; exact hoff, by rw [ha₂, ha₁]; exact htgt,
               by rw [ha₂, ha₁]; exact halv,
@@ -642,7 +647,7 @@ theorem step_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns <
           intro a ha
           rw [hfa₄ a (notMem_mark_warrs r a (by fin_cases ha <;> simp)),
             hfa₃ a (notMem_bfs_warrs r a (by fin_cases ha <;> simp)), ha₂, ha₁]
-        have hA₄ : Arena B n ns O T M Tab τ₄ :=
+        have hA₄ : Arena B n nt O T M Tab τ₄ :=
           ⟨by rw [hfv₄ "n" (notMem_mark_wvars r "n" (by simp)),
               hfv₃ "n" (notMem_bfs_wvars r "n" (by simp)), hv₂ "n" (by decide),
               hv₁ "n" (by decide), hn],
@@ -712,9 +717,9 @@ on the second, so the whole scan costs one search per pick and a
 constant per vertex. -/
 
 /-- The invariant of the scan. -/
-def ScatterInv (B n ns : ℕ) (G : SimpleGraph (Fin n)) (M Tab O T : ℕ → ℕ) (r t : ℕ)
+def ScatterInv (B n nt : ℕ) (G : SimpleGraph (Fin n)) (M Tab O T : ℕ → ℕ) (r t : ℕ)
     (X : Set (Fin n)) (σ : Env) : Prop :=
-  Arena B n ns O T M Tab σ ∧ σ.vars "sv" ≤ n ∧ Progress G M r t X (σ.vars "sv") σ
+  Arena B n nt O T M Tab σ ∧ σ.vars "sv" ≤ n ∧ Progress G M r t X (σ.vars "sv") σ
 
 /-- The potential the scan is paid out of: one pick's worth per pick
 still allowed, and a constant per vertex not yet reached. -/
@@ -724,15 +729,16 @@ def ScatterPot (n ns t : ℕ) (σ : Env) : ℕ :=
 /-- **The scan.** At the exit the counter is at the end of the carrier,
 so the prefix the invariant speaks of is the whole greedy set. -/
 theorem loop_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
+    (hnt : ns ≤ nt)
     (hrB : r + 1 < B) (htB : t < B) (hMB : ∀ z < n, M z < B) (hTabB : ∀ z < n, Tab z < B)
     (hTab : ∀ v : Fin n, Tab (v : ℕ) ≠ 0 ↔ v ∈ X) :
-    Spec B (fun σ => ScatterInv B n ns G M Tab O T r t X (σ.setVar "sv" 0))
+    Spec B (fun σ => ScatterInv B n nt G M Tab O T r t X (σ.setVar "sv" 0))
       (scatterLoop r t)
-      (fun _ σ' => Arena B n ns O T M Tab σ' ∧ Progress G M r t X n σ' ∧ σ'.vars "sv" = n)
+      (fun _ σ' => Arena B n nt O T M Tab σ' ∧ Progress G M r t X n σ' ∧ σ'.vars "sv" = n)
       (pickCost n ns * t + 25 * n + 6) := by
-  have hwhile : Spec B (ScatterInv B n ns G M Tab O T r t X)
+  have hwhile : Spec B (ScatterInv B n nt G M Tab O T r t X)
       (.while (.lt (.var "sv") (.var "n")) (scatterStep r t))
-      (fun _ σ' => ScatterInv B n ns G M Tab O T r t X σ' ∧
+      (fun _ σ' => ScatterInv B n nt G M Tab O T r t X σ' ∧
         (Cond.lt (Expr.var "sv") (.var "n")).evalB B σ' = some false)
       (pickCost n ns * t + 25 * n + 4) := by
     refine Spec.while_potential _ (ScatterPot n ns t) (fun τ hτ => ?_) (fun τ hτ hb => ?_)
@@ -741,7 +747,7 @@ theorem loop_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns 
     · have hlt : τ.vars "sv" < n := by
         have := lt_of_condLt_true hb; rw [hτ.1.1] at this; exact this
       obtain ⟨τ', K, hrun, hA', hsv', hP', hcase⟩ :=
-        step_run hcsr hnB hnsB hrB htB hMB hTabB hTab hτ.1 hlt hτ.2.2
+        step_run hcsr hnB hnsB hnt hrB htB hMB hTabB hTab hτ.1 hlt hτ.2.2
       refine ⟨τ', K, hrun, ⟨hA', by omega, hP'⟩, ?_⟩
       have hn1 : n - τ.vars "sv" = (n - (τ.vars "sv" + 1)) + 1 := by omega
       simp only [ScatterPot, hsv', hn1]
@@ -788,12 +794,13 @@ mask, a table of the set `X`, a radius and a threshold, `scatterCom r t`
 leaves in `flag` the truth value of the scatter sentence: `1` exactly
 when the greedy `r`-scattered subset of `X` in the masked arena has at
 least `t` elements. -/
-theorem scatter_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
+theorem scatter_specW {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
+    (hnt : ns ≤ nt)
     (hrB : r + 1 < B) (htB : t < B) (hMB : ∀ z < n, M z < B) (hTabB : ∀ z < n, Tab z < B)
     (hTab : ∀ v : Fin n, Tab (v : ℕ) ≠ 0 ↔ v ∈ X) :
     Spec B
       (fun σ => σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧
-        σ.arrs "tgt" = arrOf ns T ∧ σ.arrs "alv" = arrOf n M ∧ σ.arrs "tab" = arrOf n Tab ∧
+        σ.arrs "tgt" = arrOf nt T ∧ σ.arrs "alv" = arrOf n M ∧ σ.arrs "tab" = arrOf n Tab ∧
         Words B n "dist" σ ∧ Words B n "q" σ ∧ (∃ g, σ.arrs "exc" = arrOf n g))
       (scatterCom r t)
       (fun _ σ' => (σ'.vars "flag" = 1 ↔ t ≤ (greedySet (masked G M) r X).ncard) ∧
@@ -821,13 +828,13 @@ theorem scatter_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : 
   have harr₂ : ∀ a, a ∈ ["off", "tgt", "alv", "tab", "dist", "q"] → τ₂.arrs a = σ.arrs a := by
     intro a ha
     rw [hfa₂ a (notMem_clear_warrs a ha), ha₁]
-  have hA₂ : Arena B n ns O T M Tab τ₂ :=
+  have hA₂ : Arena B n nt O T M Tab τ₂ :=
     ⟨hn₂, by rw [harr₂ "off" (by simp)]; exact hoff,
       by rw [harr₂ "tgt" (by simp)]; exact htgt, by rw [harr₂ "alv" (by simp)]; exact halv,
       by rw [harr₂ "tab" (by simp)]; exact htabA,
       hdistW.of_eq (harr₂ "dist" (by simp)), hqW.of_eq (harr₂ "q" (by simp))⟩
   -- the scan starts with nothing selected and nothing excluded
-  have hI₂ : ScatterInv B n ns G M Tab O T r t X (τ₂.setVar "sv" 0) := by
+  have hI₂ : ScatterInv B n nt G M Tab O T r t X (τ₂.setVar "sv" 0) := by
     refine ⟨hA₂.setVar (by decide), by simp, ?_⟩
     rw [show (τ₂.setVar "sv" 0).vars "sv" = 0 by simp]
     rcases Nat.eq_zero_or_pos t with rfl | ht
@@ -836,7 +843,7 @@ theorem scatter_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : 
         g, by simp [hg], fun w hw => by rw [hg0 w hw]; omega,
         fun w hw => by rw [hg0 w hw]; simp⟩
   obtain ⟨τ₃, run₃, hA₃, hP₃, hsv₃⟩ :=
-    (loop_spec hcsr hnB hnsB hrB htB hMB hTabB hTab).run (σ := τ₂) hI₂
+    (loop_spec hcsr hnB hnsB hnt hrB htB hMB hTabB hTab).run (σ := τ₂) hI₂
   -- the answer
   have hcntt : τ₃.vars "cnt" ≤ t := hP₃.cnt_le
   have hcntB : τ₃.vars "cnt" < B := by omega
@@ -859,6 +866,52 @@ theorem scatter_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : 
       run₁.seq (run₂.seq (run₃.seq (Run.ite_false (by rw [hcv]; simp [hlt])
         (Run.assign (v := 1) (evalB_lit (by omega)))))),
       by simp [scatterCost]; omega, by simp [hyes], by simp⟩
+
+/-- **The greedy scatter pass at the pinned target array** — the frozen
+export, which is the widened walk at `nt = ns`. Nothing is re-walked:
+the two preconditions are the same proposition there, and neither the
+answer nor `scatterCost` ever mentioned the width. -/
+theorem scatter_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
+    (hrB : r + 1 < B) (htB : t < B) (hMB : ∀ z < n, M z < B) (hTabB : ∀ z < n, Tab z < B)
+    (hTab : ∀ v : Fin n, Tab (v : ℕ) ≠ 0 ↔ v ∈ X) :
+    Spec B
+      (fun σ => σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧
+        σ.arrs "tgt" = arrOf ns T ∧ σ.arrs "alv" = arrOf n M ∧ σ.arrs "tab" = arrOf n Tab ∧
+        Words B n "dist" σ ∧ Words B n "q" σ ∧ (∃ g, σ.arrs "exc" = arrOf n g))
+      (scatterCom r t)
+      (fun _ σ' => (σ'.vars "flag" = 1 ↔ t ≤ (greedySet (masked G M) r X).ncard) ∧
+        σ'.vars "flag" ≤ 1)
+      (scatterCost n ns t) :=
+  scatter_specW hcsr hnB hnsB le_rfl hrB htB hMB hTabB hTab
+
+section Falsification
+
+/-! The widening's one authored delta in this file is `Arena`'s `tgt`
+clause, and its refutable reading is that it is no delta — that the
+pass's arena at a width above the slot count is the arena at the slot
+count. It is not: an empty arena in a length-one target array already
+separates them. -/
+
+/-- No vertices, no slots, and one cell in `tgt`. -/
+private def wideArenaEnv : Env where
+  vars := fun _ => 0
+  arrs := fun a => if a = "off" ∨ a = "tgt" then [0] else []
+  inp := []
+  out := []
+
+-- the arena holds of it at width `1` …
+example : Arena 1 0 1 (fun _ => 0) (fun _ => 0) (fun _ => 0) (fun _ => 0) wideArenaEnv :=
+  ⟨rfl, by simp [wideArenaEnv, arrOf], by simp [wideArenaEnv, arrOf],
+    by simp [wideArenaEnv, arrOf], by simp [wideArenaEnv, arrOf],
+    ⟨fun _ => 0, by simp [wideArenaEnv, arrOf], by simp⟩,
+    ⟨fun _ => 0, by simp [wideArenaEnv, arrOf], by simp⟩⟩
+
+-- … and is **refuted** at the slot count `0`, at every target function.
+example : ¬ ∃ T, Arena 1 0 0 (fun _ => 0) T (fun _ => 0) (fun _ => 0) wideArenaEnv := by
+  rintro ⟨T, -, -, htgt, -⟩
+  simp [wideArenaEnv, arrOf] at htgt
+
+end Falsification
 
 /-! ### The worked example
 

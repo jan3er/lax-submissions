@@ -72,7 +72,7 @@ open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
 open Lax3Proofs.WalkDistance
 open Lax3Proofs.RamBfs
 
-variable {n ns d s : ℕ} {G : SimpleGraph (Fin n)} {M O T : ℕ → ℕ}
+variable {n ns nt d s : ℕ} {G : SimpleGraph (Fin n)} {M O T : ℕ → ℕ}
 
 /-! ### The invariant, with the parent clause
 
@@ -426,15 +426,20 @@ def bfsParCom (d : ℕ) : Com := .seq (initDist d) (.seq seedSrcPar bfsParDrain)
 
 /-! ### The state of the machine -/
 
-/-- `RamBfs.SearchEnv` and the parent array. -/
-def SearchEnvPar (n ns s : ℕ) (O T M D Q P : ℕ → ℕ) (τ : Env) : Prop :=
-  SearchEnv n ns s O T M D Q τ ∧ τ.arrs "par" = arrOf n P
+/-- `RamBfs.SearchEnv` and the parent array — at the caller's target
+width `nt` (rebase B5-cont-2), the block structure's slot count
+entering only through `CsrGraph G ns O T` and the potential. The width
+clause here *is* `RamBfs.SearchEnv`'s, so the non-vacuity of the
+widening is gated once, in `RamBfs`'s falsification section, and not
+again. -/
+def SearchEnvPar (n nt s : ℕ) (O T M D Q P : ℕ → ℕ) (τ : Env) : Prop :=
+  SearchEnv n nt s O T M D Q τ ∧ τ.arrs "par" = arrOf n P
 
 /-- The invariant of the block scan: `RamBfs.ScanInv` with the parent
 array carried along. -/
-def ScanInvPar {n : ℕ} (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (ns d s head v dv sc₀ : ℕ)
+def ScanInvPar {n : ℕ} (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (nt d s head v dv sc₀ : ℕ)
     (O T Q₀ : ℕ → ℕ) (τ : Env) : Prop :=
-  ∃ D Q P, SearchEnvPar n ns s O T M D Q P τ ∧
+  ∃ D Q P, SearchEnvPar n nt s O T M D Q P τ ∧
     ParFrontier G M d s D Q P head (τ.vars "tail") ∧
     τ.vars "head" = head ∧ head < τ.vars "tail" ∧ Q head = v ∧ D v = dv ∧
     τ.vars "v" = v ∧ τ.vars "dv" = dv ∧ τ.vars "dn" = dv + 1 ∧
@@ -446,12 +451,12 @@ def ScanInvPar {n : ℕ} (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (ns d s hea
 /-- One slot of the block of `v`. The three paths are `RamBfs`'s three,
 and the relaxing one is `ParFrontier.relax`. -/
 theorem scanSlotPar_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
-    (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B)
+    (hnt : ns ≤ nt) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B)
     {head v dv sc₀ : ℕ} (hv : v < n) (hsc₀ : sc₀ + Csr.rowLen O v ≤ ns)
-    {Q₀ : ℕ → ℕ} {τ : Env} (hI : ScanInvPar G M ns d s head v dv sc₀ O T Q₀ τ)
+    {Q₀ : ℕ → ℕ} {τ : Env} (hI : ScanInvPar G M nt d s head v dv sc₀ O T Q₀ τ)
     (hjlt : τ.vars "j" < O (v + 1)) :
     ∃ τ' K, Run B scanSlotPar τ τ' K ∧ K ≤ 44 ∧
-      ScanInvPar G M ns d s head v dv sc₀ O T Q₀ τ' ∧ τ'.vars "j" = τ.vars "j" + 1 := by
+      ScanInvPar G M nt d s head v dv sc₀ O T Q₀ τ' ∧ τ'.vars "j" = τ.vars "j" + 1 := by
   obtain ⟨D, Q, P, ⟨⟨hn, hsrc, hoff, htgt, halv, hdist, hq⟩, hpar⟩, hF, hhead, hht, hqv, hDv,
     hvv, hdvv, hdnv, hje, hj₁, hj₂, hsc, hscan, hq₀⟩ := hI
   obtain ⟨hvn', hdvle, hmv⟩ := hF.base.qmem head hht
@@ -462,7 +467,7 @@ theorem scanSlotPar_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB
   have hjns : τ.vars "j" < ns := by omega
   have hwn : T (τ.vars "j") < n := hcsr.target_lt' hv hjlt
   have hrj : (τ.arrs "tgt").getD (τ.vars "j") 0 = T (τ.vars "j") := by
-    rw [htgt, getD_arrOf T hjns]
+    rw [htgt, getD_arrOf T (by omega)]
   have hrj' : (τ.arrs "tgt")[τ.vars "j"]?.getD 0 = T (τ.vars "j") := by
     rw [← List.getD_eq_getElem?_getD]; exact hrj
   have hjlen : τ.vars "j" < (τ.arrs "tgt").length := by rw [htgt, length_arrOf]; omega
@@ -569,40 +574,41 @@ theorem scanSlotPar_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB
 /-- **The whole block of `v`, scanned**: the kit's row scan, at
 forty-eight per slot. -/
 theorem scanPar_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
-    (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B)
+    (hnt : ns ≤ nt) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B)
     {head v dv sc₀ : ℕ} (hv : v < n) (hsc₀ : sc₀ + Csr.rowLen O v ≤ ns) {Q₀ : ℕ → ℕ} :
-    Spec B (fun τ => ScanInvPar G M ns d s head v dv sc₀ O T Q₀ τ ∧ τ.vars "j" = O v)
+    Spec B (fun τ => ScanInvPar G M nt d s head v dv sc₀ O T Q₀ τ ∧ τ.vars "j" = O v)
       (Csr.scan "j" "jend" scanSlotPar)
-      (fun _ τ' => ScanInvPar G M ns d s head v dv sc₀ O T Q₀ τ' ∧ τ'.vars "j" = O (v + 1))
+      (fun _ τ' => ScanInvPar G M nt d s head v dv sc₀ O T Q₀ τ' ∧ τ'.vars "j" = O (v + 1))
       (48 * Csr.rowLen O v + 4) := by
   have hrow : Csr.rowLen O v = O (v + 1) - O v := rfl
   have hns : O (v + 1) ≤ ns := hcsr.le_ns (by omega)
   refine Csr.rowScan_spec B (48 * Csr.rowLen O v + 4) (O (v + 1)) 44 "j" "jend" scanSlotPar
-    (ScanInvPar G M ns d s head v dv sc₀ O T Q₀) (by omega) (fun σ hσ => ?_)
+    (ScanInvPar G M nt d s head v dv sc₀ O T Q₀) (by omega) (fun σ hσ => ?_)
     (fun σ hσ hlt => ?_) (fun _ hσ => hσ.1) (fun σ hσ => by rw [hσ.2]; omega)
   · obtain ⟨D, Q, P, -, -, -, -, -, -, -, -, -, hje, -, hjle, -, -, -⟩ := hσ
     exact ⟨hje, hjle⟩
-  · obtain ⟨σ', K', hr, hK, hI', hj'⟩ := scanSlotPar_run hcsr hnB hnsB hdB hMB hv hsc₀ hσ hlt
+  · obtain ⟨σ', K', hr, hK, hI', hj'⟩ :=
+      scanSlotPar_run hcsr hnB hnsB hnt hdB hMB hv hsc₀ hσ hlt
     exact ⟨σ', K', hr, hI', hj', hK⟩
 
 /-! ### Emptying the queue -/
 
 /-- The invariant of the search loop. -/
-def DrainInvPar {n : ℕ} (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (ns d s : ℕ) (O T : ℕ → ℕ)
+def DrainInvPar {n : ℕ} (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (nt d s : ℕ) (O T : ℕ → ℕ)
     (τ : Env) : Prop :=
-  ∃ D Q P, SearchEnvPar n ns s O T M D Q P τ ∧
+  ∃ D Q P, SearchEnvPar n nt s O T M D Q P τ ∧
     ParFrontier G M d s D Q P (τ.vars "head") (τ.vars "tail") ∧
     τ.vars "sc" = ∑ i ∈ Finset.range (τ.vars "head"), Csr.rowLen O (Q i)
 
 /-- Taking one vertex off the queue and scanning its whole block. -/
 theorem expandRowPar_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
-    (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B) {D Q P : ℕ → ℕ} {τ : Env}
-    (hse : SearchEnvPar n ns s O T M D Q P τ)
+    (hnt : ns ≤ nt) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B) {D Q P : ℕ → ℕ} {τ : Env}
+    (hse : SearchEnvPar n nt s O T M D Q P τ)
     (hF : ParFrontier G M d s D Q P (τ.vars "head") (τ.vars "tail"))
     (hht : τ.vars "head" < τ.vars "tail")
     (hsum : τ.vars "sc" = ∑ i ∈ Finset.range (τ.vars "head"), Csr.rowLen O (Q i)) :
     ∃ τ' K, Run B expandRowPar τ τ' K ∧ K ≤ 48 * Csr.rowLen O (Q (τ.vars "head")) + 30 ∧
-      DrainInvPar G M ns d s O T τ' ∧ τ'.vars "head" = τ.vars "head" + 1 ∧
+      DrainInvPar G M nt d s O T τ' ∧ τ'.vars "head" = τ.vars "head" + 1 ∧
       τ'.vars "sc" = τ.vars "sc" + Csr.rowLen O (Q (τ.vars "head")) := by
   obtain ⟨⟨hn, hsrc, hoff, htgt, halv, hdist, hq⟩, hpar⟩ := id hse
   have htln := hF.base.tl
@@ -621,8 +627,9 @@ theorem expandRowPar_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hns
         (fun i hi j hj hqe => hF.base.qinj i (by omega) j (by omega) hqe)
     rw [Finset.sum_range_succ, hvdef] at hstep
     omega
-  have hcsrRel : Csr "off" "tgt" n ns n O T τ :=
-    ⟨hoff, htgt, fun i hi => hcsr.mono i hi, hcsr.last, fun p hp => hcsr.target_lt p hp⟩
+  have hcsrRel : CsrWide.CsrW "off" "tgt" n ns nt n O T τ :=
+    ⟨hoff, htgt, fun i hi => hcsr.mono i hi, hcsr.last, hnt,
+      fun p hp => hcsr.target_lt p hp⟩
   have hrv : (τ.arrs "q").getD (τ.vars "head") 0 = v := by
     rw [hq, getD_arrOf Q hhn, hvdef]
   have hrv' : (τ.arrs "q")[τ.vars "head"]?.getD 0 = v := by
@@ -649,14 +656,14 @@ theorem expandRowPar_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hns
   have hheadB : τ.vars "head" + 1 < B := by omega
   -- the scan, stated so that what it gives back is what this turn owes
   have hscanSpec : Spec B
-      (fun σ => ScanInvPar G M ns d s (τ.vars "head") v (D v) (τ.vars "sc") O T Q σ ∧
+      (fun σ => ScanInvPar G M nt d s (τ.vars "head") v (D v) (τ.vars "sc") O T Q σ ∧
         σ.vars "j" = O v)
       (Csr.scan "j" "jend" scanSlotPar)
-      (fun _ σ' => DrainInvPar G M ns d s O T (σ'.setVar "head" (τ.vars "head" + 1)) ∧
+      (fun _ σ' => DrainInvPar G M nt d s O T (σ'.setVar "head" (τ.vars "head" + 1)) ∧
         σ'.vars "head" = τ.vars "head" ∧
         σ'.vars "sc" = τ.vars "sc" + Csr.rowLen O v ∧ σ'.vars "head" + 1 < B)
       (48 * Csr.rowLen O v + 4) :=
-    (scanPar_spec hcsr hnB hnsB hdB hMB hvn hsc₀ (Q₀ := Q)).post fun _ σ' _ hQ => by
+    (scanPar_spec hcsr hnB hnsB hnt hdB hMB hvn hsc₀ (Q₀ := Q)).post fun _ σ' _ hQ => by
       obtain ⟨⟨D', Q', P', hse', hF', hhead', hht', hqv', hDv', hvv', hdvv', hdnv', hje',
         hjge', hjle', hsc', hscanned, hq₀'⟩, hj₄⟩ := hQ
       obtain ⟨⟨hn', hsrc', hoff', htgt', halv', hdist', hq'⟩, hpar'⟩ := id hse'
@@ -688,7 +695,8 @@ theorem expandRowPar_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hns
         rw [Finset.sum_range_succ,
           Finset.sum_congr rfl fun i hi => by rw [hq₀' i (Finset.mem_range.1 hi)],
           ← hsum, hqv', hscv]
-  run_vcg [Csr.loadRow_spec B n ns n "off" "tgt" "v" "j" "jend" O T (by decide) (by decide),
+  run_vcg [CsrWide.loadRow_spec B n ns nt n "off" "tgt" "v" "j" "jend" O T (by decide)
+      (by decide),
     hscanSpec]
   · -- what the block did is what the scan handed back
     simp_all
@@ -696,7 +704,8 @@ theorem expandRowPar_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hns
     exact ⟨⟨by simpa using hcsrRel, by omega, hnsB⟩, by simp [hrv']; omega,
       by simp [hrv']; omega⟩
   · -- the scan starts at the top of the block, in the state the reads left
-    obtain ⟨-, -, -, rfl⟩ := ‹Csr.LoadRowPost "off" "tgt" "v" "j" "jend" n ns n O T _ _›
+    obtain ⟨-, -, -, rfl⟩ :=
+      ‹CsrWide.LoadRowPostW "off" "tgt" "v" "j" "jend" n ns nt n O T _ _›
     refine ⟨⟨D, Q, P, ⟨⟨by simp [hn], by simp [hsrc], by simp [hoff], by simp [htgt],
         by simp [halv], by simp [hdist], by simp [hq]⟩, by simp [hpar]⟩,
       by simpa using hF, by simp, by simpa using hht, hvdef, rfl, by simp [hrv'],
@@ -716,18 +725,18 @@ def PotPar (n ns : ℕ) (τ : Env) : ℕ :=
 /-- **The search.** The queue is emptied, and the whole cost of doing so
 is paid out of the potential. -/
 theorem drainPar_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
-    (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B) {τ : Env}
-    (hI : DrainInvPar G M ns d s O T τ) :
-    ∃ τ' K, Run B bfsParDrain τ τ' K ∧ DrainInvPar G M ns d s O T τ' ∧
+    (hnt : ns ≤ nt) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B) {τ : Env}
+    (hI : DrainInvPar G M nt d s O T τ) :
+    ∃ τ' K, Run B bfsParDrain τ τ' K ∧ DrainInvPar G M nt d s O T τ' ∧
       τ'.vars "head" = τ'.vars "tail" ∧ K + PotPar n ns τ' ≤ PotPar n ns τ + 4 := by
-  refine Queue.drain_run B n n "q" "head" "tail" expandRowPar (DrainInvPar G M ns d s O T)
+  refine Queue.drain_run B n n "q" "head" "tail" expandRowPar (DrainInvPar G M nt d s O T)
     (PotPar n ns) (fun σ hσ => ?_) hnB (fun σ hσ hlt => ?_) hI
   · obtain ⟨D₁, Q₁, P₁, ⟨⟨-, -, -, -, -, -, hq⟩, -⟩, hFr, -⟩ := hσ
     exact ⟨Q₁, σ.vars "head", σ.vars "tail", hq, rfl, rfl, hFr.base.hd, hFr.base.tl,
       fun i hi => (hFr.base.qmem i hi).1⟩
   · obtain ⟨D₁, Q₁, P₁, hse, hFr, hsum⟩ := hσ
     obtain ⟨σ', K, hrun, hK, hI', hhead', hsc'⟩ :=
-      expandRowPar_run hcsr hnB hnsB hdB hMB hse hFr hlt hsum
+      expandRowPar_run hcsr hnB hnsB hnt hdB hMB hse hFr hlt hsum
     refine ⟨σ', K, hrun, hI', ?_⟩
     obtain ⟨D₂, Q₂, P₂, -, hFr', hsum'⟩ := hI'
     have hhd := hFr'.base.hd
@@ -748,11 +757,11 @@ it is alive, and at its own parent. -/
 theorem seedSrcPar_run {B : ℕ} (hs : s < n) (hnB : n < B) (hdB : d + 1 < B)
     (hMB : ∀ z < n, M z < B) {g g' g'' : ℕ → ℕ} {σ : Env}
     (hn : σ.vars "n" = n) (hsrc : σ.vars "src" = s)
-    (hoff : σ.arrs "off" = arrOf (n + 1) O) (htgt : σ.arrs "tgt" = arrOf ns T)
+    (hoff : σ.arrs "off" = arrOf (n + 1) O) (htgt : σ.arrs "tgt" = arrOf nt T)
     (halv : σ.arrs "alv" = arrOf n M) (hdist : σ.arrs "dist" = arrOf n g)
     (hgd : ∀ j < n, g j = d + 1) (hq : σ.arrs "q" = arrOf n g')
     (hpar : σ.arrs "par" = arrOf n g'') :
-    ∃ σ' K, Run B seedSrcPar σ σ' K ∧ K ≤ 24 ∧ DrainInvPar G M ns d s O T σ' ∧
+    ∃ σ' K, Run B seedSrcPar σ σ' K ∧ K ≤ 24 ∧ DrainInvPar G M nt d s O T σ' ∧
       σ'.vars "head" = 0 ∧ σ'.vars "sc" = 0 := by
   have hsB : σ.vars "src" < B := by rw [hsrc]; omega
   have hdlen : σ.vars "src" < (σ.arrs "dist").length := by
@@ -790,11 +799,11 @@ theorem seedSrcPar_run {B : ℕ} (hs : s < n) (hnB : n < B) (hdB : d + 1 < B)
 /-- **Depth-capped breadth-first search with parents.** Everything
 `RamBfs.bfs_spec` leaves in `dist`, and in `par` a shortest-path tree
 towards the source. -/
-theorem bfsPar_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) (hnB : n < B)
-    (hnsB : ns < B) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B) :
+theorem bfsPar_specW {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) (hnB : n < B)
+    (hnsB : ns < B) (hnt : ns ≤ nt) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B) :
     Spec B
       (fun σ => σ.vars "n" = n ∧ σ.vars "src" = s ∧
-        σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+        σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf nt T ∧
         σ.arrs "alv" = arrOf n M ∧ (∃ g, σ.arrs "dist" = arrOf n g) ∧
         (∃ g, σ.arrs "q" = arrOf n g) ∧ (∃ g, σ.arrs "par" = arrOf n g))
       (bfsParCom d)
@@ -816,12 +825,13 @@ theorem bfsPar_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) (hnB : n <
     ((Fill.loop_spec B n "dist" "i" "n" (.lit (d + 1)) (fun _ => d + 1) (by decide) hnB
       (fun _ _ _ _ => evalB_lit hdB)).frame).run (σ := σ) ⟨⟨g₀, hdist⟩, hn⟩
   obtain ⟨σ₂, K₂, hrun₂, hK₂, hI₂, hhead₂, hsc₂⟩ :=
-    seedSrcPar_run (G := G) (O := O) (T := T) (ns := ns) hs hnB hdB hMB
+    seedSrcPar_run (G := G) (O := O) (T := T) (nt := nt) hs hnB hdB hMB
       (by rw [hfv "n" hwv]; exact hn) (by rw [hfv "src" hwv']; exact hsrc)
       (by rw [hfa "off" hwa₁]; exact hoff) (by rw [hfa "tgt" hwa₂]; exact htgt)
       (by rw [hfa "alv" hwa]; exact halv) hdist₁ hgd (by rw [hfa "q" hwa']; exact hq)
       (by rw [hfa "par" hwa'']; exact hpar)
-  obtain ⟨σ₃, K₃, hrun₃, hI₃, hhead₃, hpay⟩ := drainPar_run hcsr hnB hnsB hdB hMB hI₂
+  obtain ⟨σ₃, K₃, hrun₃, hI₃, hhead₃, hpay⟩ :=
+    drainPar_run hcsr hnB hnsB hnt hdB hMB hI₂
   obtain ⟨D₂, Q₂, P₂, -, hFr₂, -⟩ := hI₂
   obtain ⟨D, Q, P, ⟨⟨-, -, -, -, -, hdist₃, -⟩, hpar₃⟩, hFr, -⟩ := hI₃
   have htl₂ : σ₂.vars "tail" ≤ n := hFr₂.base.tl
@@ -834,6 +844,25 @@ theorem bfsPar_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) (hnB : n <
   rw [hpot₂] at hpay
   simp only [size_lit]
   omega
+
+/-- **The search with parents at the pinned target array** — the frozen
+export, which is the widened walk at `nt = ns`. Nothing is re-walked:
+the two preconditions are the same proposition there, and neither the
+tree nor `PotPar` mentions the width. -/
+theorem bfsPar_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) (hnB : n < B)
+    (hnsB : ns < B) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B) :
+    Spec B
+      (fun σ => σ.vars "n" = n ∧ σ.vars "src" = s ∧
+        σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+        σ.arrs "alv" = arrOf n M ∧ (∃ g, σ.arrs "dist" = arrOf n g) ∧
+        (∃ g, σ.arrs "q" = arrOf n g) ∧ (∃ g, σ.arrs "par" = arrOf n g))
+      (bfsParCom d)
+      (fun _ σ' => ∃ D P, σ'.arrs "dist" = arrOf n D ∧ σ'.arrs "par" = arrOf n P ∧
+        (∀ (v : Fin n) (k : ℕ), k ≤ d →
+          (D (v : ℕ) ≤ k ↔ WithinDist (masked G M) k ⟨s, hs⟩ v)) ∧
+        ParTree G M d s D P)
+      (55 * n + 48 * ns + 34) :=
+  bfsPar_specW hcsr hs hnB hnsB le_rfl hdB hMB
 
 /-! ### Reading the path back
 
@@ -971,12 +1000,13 @@ a buffer whose first `pl + 1` cells name exactly the vertices of a walk
 from `s` to `t` of length at most the cap — which is what `ReachedR`'s
 walk clause asks of the round — and that set has at most `cap + 1`
 vertices, which is the round's size budget. -/
-theorem bfsPath_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) {t : ℕ} (ht : t < n)
-    (hnB : n < B) (hnsB : ns < B) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B)
+theorem bfsPath_specW {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) {t : ℕ} (ht : t < n)
+    (hnB : n < B) (hnsB : ns < B) (hnt : ns ≤ nt) (hdB : d + 1 < B)
+    (hMB : ∀ z < n, M z < B)
     (hwd : WithinDist (masked G M) d ⟨s, hs⟩ ⟨t, ht⟩) :
     Spec B
       (fun σ => σ.vars "n" = n ∧ σ.vars "src" = s ∧ σ.vars "tv" = t ∧
-        σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+        σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf nt T ∧
         σ.arrs "alv" = arrOf n M ∧ (∃ g, σ.arrs "dist" = arrOf n g) ∧
         (∃ g, σ.arrs "q" = arrOf n g) ∧ (∃ g, σ.arrs "par" = arrOf n g) ∧
         (∃ g, σ.arrs "path" = arrOf (d + 1) g))
@@ -996,7 +1026,7 @@ theorem bfsPath_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) {t : ℕ}
   refine Spec.of_exists (fun σ hσ => ?_)
   obtain ⟨hn, hsrc, htv, hoff, htgt, halv, hdi, hqq, hpp, ⟨g, hpath⟩⟩ := hσ
   obtain ⟨σ₁, hrun₁, ⟨D, P, hdist₁, hpar₁, -, hT⟩, hfv, hfa, -, -⟩ :=
-    ((bfsPar_spec hcsr hs hnB hnsB hdB hMB).frame).run (σ := σ)
+    ((bfsPar_specW hcsr hs hnB hnsB hnt hdB hMB).frame).run (σ := σ)
       ⟨hn, hsrc, hoff, htgt, halv, hdi, hqq, hpp⟩
   have hdt : D t ≤ d := hT.reach d le_rfl t ⟨hs, ht, hwd⟩
   obtain ⟨σ₂, hrun₂, hpl₂, Buf, hpath₂, hbuf₂⟩ :=
@@ -1008,6 +1038,26 @@ theorem bfsPath_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) {t : ℕ}
   · rw [bufSet_congr hbuf₂, ← hpsup]
   · rw [bufSet_congr hbuf₂, ← hpsup]
     exact ncard_support_le p (by omega)
+
+/-- **What the driver consumes, at the pinned target array** — the
+frozen export, which is the widened walk at `nt = ns`. -/
+theorem bfsPath_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) {t : ℕ} (ht : t < n)
+    (hnB : n < B) (hnsB : ns < B) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B)
+    (hwd : WithinDist (masked G M) d ⟨s, hs⟩ ⟨t, ht⟩) :
+    Spec B
+      (fun σ => σ.vars "n" = n ∧ σ.vars "src" = s ∧ σ.vars "tv" = t ∧
+        σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+        σ.arrs "alv" = arrOf n M ∧ (∃ g, σ.arrs "dist" = arrOf n g) ∧
+        (∃ g, σ.arrs "q" = arrOf n g) ∧ (∃ g, σ.arrs "par" = arrOf n g) ∧
+        (∃ g, σ.arrs "path" = arrOf (d + 1) g))
+      (bfsPathCom d)
+      (fun _ σ' => ∃ (L : ℕ) (Buf : ℕ → ℕ), σ'.vars "pl" = L ∧
+        σ'.arrs "path" = arrOf (d + 1) Buf ∧ L ≤ d ∧
+        ∃ p : (masked G M).Walk ⟨s, hs⟩ ⟨t, ht⟩, p.length ≤ d ∧
+          bufSet n L Buf = {z : Fin n | z ∈ p.support} ∧
+          (bufSet n L Buf).ncard ≤ d + 1)
+      (55 * n + 48 * ns + 16 * d + 66) :=
+  bfsPath_specW hcsr hs ht hnB hnsB le_rfl hdB hMB hwd
 
 /-! ### The recorded round, instantiated
 
