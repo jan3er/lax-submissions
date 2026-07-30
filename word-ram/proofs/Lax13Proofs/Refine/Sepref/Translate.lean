@@ -39,6 +39,21 @@ binder, and the abstraction threw "no junk form for its assertion"
 here by every engine composition). Acceptance:
 `Lax3Proofs.Refine.T1FriProbe.bfsThenSweep`.
 
+**T2/D-e — `bind_ref_tag` constant normalization.** (ND-MC rebase tool
+wave T2.) `hnr_bind`'s second premise carries `bind_ref_tag a m`
+(`returnT a ≤ m`); for a constant-producing `m` that pins `a`, and the
+loop used to recurse at an opaque `a` anyway, so downstream rules
+naming a literal value in a cell could not fire (R2D/D-b, 2A′ gap 5 —
+both engine waves paid an `assert` op per pinned cell to route around
+it: `mopBfsE`, `mopBfsAt`). Now `sideDispatch` recognises the premise
+shape, normalizes `m` to `consume (returnT v) κ` (all-transparency
+unfolding through the irreducible `mop*` aliases) and, **only after the
+opaque route has failed** — every previously green synthesis path is
+byte-identical — retries at `a := v` via `pin_bind_premise`, with the
+binder-dependent metavariable families re-pointed at constant families
+first. Acceptance: `Examples/BoundsProbe.lean` §4 (the R2D/D-b
+reproducer shape, synthesizing).
+
 **P4/D-cm — synthesis is by metavariable instantiation, as the source
 does it.** A translate goal is `hnRefine Γ ?c ?Γ' d R m` with `?c` and
 `?Γ'` assignable: applying a rule *is* the synthesis, the program falls
@@ -152,6 +167,30 @@ def bind_ref_tag {α : Type} (x : α) (m : NRest α ECost) : Prop :=
 
 @[simp] theorem bind_ref_tag_def {α : Type} (x : α) (m : NRest α ECost) :
     bind_ref_tag x m ↔ (NRest.returnT x : NRest α ECost) ≤ m := Iff.rfl
+
+/-- **T2/D-e — a constant-producing `m` pins the tag's value.** For
+`m = consume (returnT v) κ` — every `mop*`'s normal form — the only
+result the program admits is `v`, so `bind_ref_tag a m` forces `a = v`.
+This is the lemma the translate loop's constant normalization consumes
+(`pinBindPremise` below): before this, the tag was carried and never
+read, translation recursed at an opaque `a`, and every downstream rule
+naming a literal value in a cell failed to fire (R2D/D-b's reproducer,
+2A′'s gap 5 — both worked around with per-cell `assert` idioms,
+`mopBfsE`/`mopBfsAt`, which the fix makes unnecessary for new code). -/
+theorem bind_ref_tag_pin {α : Type} {a v : α} {t : ECost}
+    (h : bind_ref_tag a ((NRest.returnT v).consume t)) : a = v := by
+  rw [bind_ref_tag_def, NRest.consume_returnT, NRest.returnT] at h
+  have h' := NRest.rest_le_rest_iff.1 h a
+  by_cases hav : a = v
+  · exact hav
+  · rw [NRest.single_self, NRest.single_of_ne hav] at h'
+    simp at h'
+
+/-- …packaged for the `∀ a, bind_ref_tag a m → G a` premise `hnr_bind`
+produces: it suffices to translate at the pinned value. -/
+theorem pin_bind_premise {α : Type} {v : α} {t : ECost} {G : α → Prop}
+    (h : G v) : ∀ a : α, bind_ref_tag a ((NRest.returnT v).consume t) → G a :=
+  fun _ ha => (bind_ref_tag_pin ha) ▸ h
 
 /-- The source's `vassn_tag Γ ≡ ∃h. Γ h`: "Tag to keep track of
 preconditions in assertions". P3 calls `∃h. Γ h` `purePart`. -/
@@ -806,6 +845,75 @@ def checkPending (nm : Name) (pending : List MVarId) : MetaM Unit := do
       {open_.size} of its arguments:{MessageData.joinSep open_.toList ""}\n\
       (supply them by hand — a loop variant, for instance, is not inferable)"
 
+/-! ### T2/D-e — the constant normalization of `bind_ref_tag`
+
+`hnr_bind`'s second premise is `∀ a, bind_ref_tag a m → hnRefine … (f a)`,
+and for a constant-producing `m` the tag *pins* `a`. The loop below
+recognises that shape, normalizes `m` down to `consume (returnT v) κ`
+(unfolding through the `mop*` aliases, irreducible ones included — the
+`attribute [irreducible]` idiom is routing, not hiding), and — **only
+after the ordinary opaque route has failed**, so every previously green
+synthesis takes a byte-identical path — retries the premise through
+`pin_bind_premise` at `a := v`. Downstream rules naming a literal value
+in a cell then fire by `isDefEq`. The binder-dependent metavariable
+families the rule created (`Γ₂ a`) are re-pointed at constant families
+first, so the pinned goal stays first-order. -/
+
+/-- The value a constant-producing program pins: `m`, unfolded (all
+transparency) to `consume (returnT v) κ`, delivers `v`. Fueled: the
+`mop*` aliases are two unfoldings deep, and an engine-sized term that
+is *not* constant-producing should not be unfolded to the bottom just
+to learn that. -/
+partial def pinnedValue? (e : Expr) (fuel : Nat := 8) : MetaM (Option Expr) := do
+  let e := e.consumeMData
+  match e.getAppFnArgs with
+  | (``NRest.returnT, args) => return args.back?
+  | (``NRest.consume, #[_, _, _, m, _]) => pinnedValue? m fuel
+  | _ =>
+    match fuel with
+    | 0 => return none
+    | fuel + 1 =>
+      match ← withTransparency .all (unfoldDefinition? e) with
+      | some e' => pinnedValue? e' fuel
+      | none => return none
+
+/-- Is this goal a `∀ a, bind_ref_tag a m → …` premise whose `m` pins a
+*closed* value? Returns the value. -/
+def pinnableBindPremise? (g : MVarId) : MetaM (Option Expr) := do
+  let ty ← instantiateMVars (← g.getType)
+  let .forallE _ _ body _ := ty | return none
+  let .forallE _ tagTy _ _ := body | return none
+  let (``bind_ref_tag, #[_, _, m]) := tagTy.consumeMData.getAppFnArgs | return none
+  if m.hasLooseBVars then return none
+  let some v ← pinnedValue? m | return none
+  let vW ← withTransparency .all (whnf v)
+  if vW.hasFVar || vW.hasMVar || vW.hasLooseBVars then return none
+  return some v
+
+/-- Re-point every metavariable family applied to the pinned value at a
+constant family, so that the pinned goal's postcondition slot is a plain
+metavariable rather than a non-pattern application. -/
+partial def constifyMVarApps (v : Expr) (e : Expr) : MetaM Unit := do
+  match e with
+  | .app f a =>
+    constifyMVarApps v f
+    constifyMVarApps v a
+    if f.isMVar && a == v then
+      let mid := f.mvarId!
+      unless ← mid.isAssigned do
+        let mty ← instantiateMVars (← mid.getType)
+        if let .forallE _ dom body _ := mty then
+          unless body.hasLooseBVars do
+            let decl ← mid.getDecl
+            let fresh ← mkFreshExprMVarAt decl.lctx decl.localInstances body
+            mid.assign (mkLambda `_a .default dom fresh)
+  | .lam _ t b _ => constifyMVarApps v t; constifyMVarApps v b
+  | .forallE _ t b _ => constifyMVarApps v t; constifyMVarApps v b
+  | .letE _ t val b _ => constifyMVarApps v t; constifyMVarApps v val; constifyMVarApps v b
+  | .mdata _ b => constifyMVarApps v b
+  | .proj _ _ b => constifyMVarApps v b
+  | _ => pure ()
+
 /-! ### The translation loop (source lines 335–430) -/
 
 /-- **The order the combinator database is tried in (P7/D-bf).**
@@ -834,10 +942,35 @@ def combLast : Array Name := #[``Lax13Proofs.Refine.Sepref.hnr_seq]
 
 mutual
 
-/-- The source's `side_cond_dispatch_tac`: classify the goal and route
-it. `hn_refine` goals go back to `transGoal`; everything else is a side
-condition. -/
+/-- The source's `side_cond_dispatch_tac`, wrapped by T2/D-e: a
+`bind_ref_tag` premise with a constant-producing program takes the
+ordinary opaque route first, and on failure is retried at the pinned
+value. -/
 partial def sideDispatch (cfg : Cfg) (fuel : Nat) (g : MVarId) : TermElabM Unit := do
+  if ← g.isAssigned then return
+  match ← g.withContext (pinnableBindPremise? g) with
+  | none => sideDispatchCore cfg fuel g
+  | some v =>
+    let st ← saveState
+    try
+      sideDispatchCore cfg fuel g
+    catch e =>
+      st.restore
+      try
+        let gs ← g.withContext <| withTransparency .all <|
+          g.apply (← mkConstWithFreshMVarLevels ``pin_bind_premise)
+        let [g'] := gs
+          | throwError "sepref: pin_bind_premise left an unexpected goal shape"
+        g'.withContext do
+          constifyMVarApps v (← instantiateMVars (← g'.getType))
+        sideDispatchCore cfg fuel g'
+      catch _ =>
+        st.restore
+        throw e
+
+/-- The dispatcher proper: classify the goal and route it. `hn_refine`
+goals go back to `transGoal`; everything else is a side condition. -/
+partial def sideDispatchCore (cfg : Cfg) (fuel : Nat) (g : MVarId) : TermElabM Unit := do
   if ← g.isAssigned then return
   -- Premises may be universally quantified or implications; open them.
   let (_, g) ← g.intros
@@ -959,6 +1092,36 @@ partial def transGoal (cfg : Cfg) (fuel : Nat) (g : MVarId) : TermElabM Unit := 
           m!"\nThe precondition owns no scratch cell; a destination-taking rule needs \
 `junkCell \"{freshScratchName ty}\"` in it."
         else m!""
+      -- T2/D-g: name the two opacity classes instead of a bare miss.
+      -- R2A/D-f: a `def` folding a `∗`-chain matches as ONE atom, so no
+      -- rule conjunct can pair with it; 2A′ gap 6: a `def` folding a
+      -- compound *program* is invisible to the head-matching rule scan.
+      let mut opaqueNotes : Array MessageData := #[]
+      let assnHeads : Array Name :=
+        #[``hnCtxt, ``junkCell, ``junkArray, ``natAssn, ``arrayAssn, ``predLift,
+          ``sepEx, ``emp, ``sepConj, ``invalidAssn, ``hnVal]
+      for c in conjuncts Γ do
+        if let .const nm _ := c.getAppFn then
+          unless assnHeads.contains nm do
+            if let some c' ← unfoldDefinition? c then
+              if c'.consumeMData.getAppFnArgs.1 == ``sepConj then
+                opaqueNotes := opaqueNotes.push m!"\nThe conjunct{indentExpr c}\n\
+                  is a named assertion folding a `∗`-chain; the matcher compares \
+                  atoms, so no rule conjunct can pair with it — unfold it before \
+                  synthesis (`simp only [{nm}]`)."
+      -- The named-program note fires only when *nothing* is stated at
+      -- the term — a registered `mop*` that happens to unfold to a
+      -- `bindT` (its own `assert`) is not the opacity class.
+      if combReasons.1.isEmpty && opReasons.1.isEmpty then
+        if let .const nm _ := m.getAppFn then
+          if let some m' ← unfoldDefinition? m then
+            let h := m'.consumeMData.getAppFnArgs.1
+            if h == ``NRest.bindT || (`irWhileIT).isSuffixOf h then
+              opaqueNotes := opaqueNotes.push m!"\nThe abstract term's head `{nm}` is a \
+                named definition folding a compound program; the rule scan matches \
+                heads, so nothing is stated at it — unfold it before synthesis \
+                (`simp only [{nm}]`), or register a leaf rule at the name."
+      let opaqueMsg := MessageData.joinSep opaqueNotes.toList ""
       let section_ (kind : String) (rs : Array MessageData) (sk : Nat) : MessageData :=
         if rs.isEmpty then
           m!"\n{kind} rules: none is stated at this abstract term ({sk} tried)."
@@ -966,7 +1129,7 @@ partial def transGoal (cfg : Cfg) (fuel : Nat) (g : MVarId) : TermElabM Unit := 
           m!"\n{kind} rules ({sk} more are stated at other abstract terms):\n\
 {MessageData.joinSep rs.toList "\n"}"
       throwError "sepref: no rule translates{indentExpr m}\nunder the ownership\
-{indentExpr Γ}{poolMsg}\
+{indentExpr Γ}{poolMsg}{opaqueMsg}\
 {section_ "combinator" combReasons.1 combReasons.2}\
 {section_ "operator" opReasons.1 opReasons.2}"
 
