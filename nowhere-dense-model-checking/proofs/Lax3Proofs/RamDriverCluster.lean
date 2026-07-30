@@ -1,4 +1,6 @@
 import Lax3Proofs.RamDriver
+import Lax3Proofs.Refine.ArenaBlock
+import Lax3Proofs.Refine.SigmaLoop
 
 /-!
 The cluster step and the level of `Lax3Proofs.RamDriver`, discharged.
@@ -79,6 +81,7 @@ open Lax3Proofs.Horizon Lax3Proofs.SyntaxLemmas Lax3Proofs.WalkDistance
 open Lax3Proofs.FormulaTables Lax3Proofs.SplitterWin Lax3Proofs.SplitterWinRec
 open Lax3Proofs.RamBfs (masked masked_adj CsrGraph MAdj WD)
 open Lax3Proofs.RamDriver
+open Lax3Proofs.Refine.MassMath (blockSize clusterAt)
 open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
 
 /-! ### Two specifications of one command
@@ -284,6 +287,15 @@ theorem eq_of_arrOf_eq {N : ℕ} {f g : ℕ → ℕ} (h : arrOf N f = arrOf N g)
 def markSet (n : ℕ) (A : ℕ → ℕ) : Set (Fin n) := {v | A (v : ℕ) ≠ 0}
 
 theorem mem_markSet {A : ℕ → ℕ} {v : Fin n} : v ∈ markSet n A ↔ A (v : ℕ) ≠ 0 := Iff.rfl
+
+/-- **The size of an arena is its mark set, counted.** `RamDriver.arenaSize`
+is stated with the set written out, because the obligation `Prop`s of
+that file read it and `markSet` is defined here; the two are the same
+term. This is the `rfl` `Refine.MassMath.mass_le_of_alive` is stated
+against, so the mass bound instantiates at a driver mask without a
+rewrite. -/
+theorem arenaSize_eq_markSet (n : ℕ) (M : ℕ → ℕ) :
+    arenaSize n M = (markSet n M).ncard := rfl
 
 /-- The arena is a function of the mask on the carrier alone. -/
 theorem masked_congr {G : SimpleGraph (Fin n)} {M M' : ℕ → ℕ} (h : ∀ k, k < n → M k = M' k) :
@@ -585,7 +597,20 @@ with any other set: that the ball its chain built is the ball of the
 `alvName j` — that the batch stays inside that ball, that it holds the
 connector, and that for every earlier round the state records and the
 search reaches it holds the support of the walk the search found, where
-the ball keeps it. -/
+the ball keeps it.
+
+**Rebase B2 (§5.3): the size clause.** The postcondition carries one
+more line — `arenaSize n Alv' ≤ blockSize Xoff (σ.vars (curName j))`,
+that the arena the next depth is handed is no bigger than the block of
+the centre this turn is processing. It is the *only* new obligation the
+Σ-shaped cost interface puts on the program, and it is not a new fact
+about the program: the descent's own `clusterLoad` marks exactly the
+turn's block, its next-depth mask is that indicator with two more masks
+multiplied in, and `Refine.ArenaBlock.ncard_clusterAt_le_blockSize`
+counts a cluster against the block that lists it. Without this clause
+the nested driver's budget — now a function of the arena it is handed —
+cannot be turned into a number the turn's cost condition may mention,
+since `Alv'` is existentially quantified here. -/
 def DescendStep (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n))
     (O T M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m K : ℕ) : Prop :=
@@ -598,6 +623,7 @@ def DescendStep (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n))
       ∃ (X W : Set (Fin n)) (Alv' Gam' : ℕ → ℕ),
         (∀ v : Fin n, asg (v : ℕ) = σ.vars (curName j) → ball (masked G M) cap v ⊆ X) ∧
         W.Nonempty ∧ W.ncard ≤ mb ∧
+        arenaSize n Alv' ≤ blockSize Xoff (σ.vars (curName j)) ∧
         BatchData n j B G M X W Alv' Gam' σ' ∧
         PlayRec B cap G (j + 1) Alv' Gam' σ') K
 
@@ -761,15 +787,19 @@ both carry, named so that the frame of the nested call can be asked for
 *under* it — see `clusterStepImplements`'s `hfr`.
 
 It is definitionally the antecedent as those two write it out, so
-`intro`ing them gives a term of this type. -/
+`intro`ing them gives a term of this type.
+
+**Rebase B2 (§5.2).** `Kin` is now a *function of the arena size*,
+applied at `arenaSize n M'` — the nested driver on a small sub-arena is
+cheap, which is the whole content of the Σ interface. -/
 def InnerAvail (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
-    (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (inner : Com) (Kin : ℕ) : Prop :=
+    (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (inner : Com) (Kin : ℕ → ℕ) : Prop :=
   ∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ), (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
     Spec B (fun σ => LevelPre B n cap mb ns Ws O T (j + 1) M' Gm' C' σ ∧
         TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
         PlayRec B cap G (j + 1) M' Gm' σ) inner
       (fun σ σ' => LevelPost B q_top cap mb φ G ns Ws O T (j + 1) M' Gm' C' σ σ' ∧
-        σ'.out = σ.out) Kin
+        σ'.out = σ.out) (Kin (arenaSize n M'))
 
 /-- **What the nested driver leaves alone.** The driver's obligation
 hands the nested call in as a `Spec` about the depth-`(j+1)` state and
@@ -825,7 +855,8 @@ is the program's own and nothing is asked of it. -/
 theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.FirstOrder.FO 0}
     {G : SimpleGraph (Fin n)}
     {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
-    {ord Xoff Xmem asgf : ℕ → ℕ} {mm : ℕ} {inner : Com} {Kd Ke Kc Kin Ks Kr K : ℕ}
+    {ord Xoff Xmem asgf : ℕ → ℕ} {mm k : ℕ} {inner : Com} {Kin : ℕ → ℕ}
+    {Kd Ke Kc Ks Kr K : ℕ}
     (hcap : cap = rhoMinus 0 q_top)
     (hdes : DescendStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asgf mm Kd)
     (henum : ∀ X W Alv' Gam',
@@ -834,26 +865,32 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
       ColourStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asgf mm X W w Alv' Gam' Kc)
     (hfr : InnerAvail B q_top cap mb ns Ws ℓ j φ G O T inner Kin → ∀ X W w Alv' Gam' C',
       InnerFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asgf mm X W w
-        Alv' Gam' C' inner Kin)
+        Alv' Gam' C' inner (Kin (arenaSize n Alv')))
     (hscat : ∀ X W w Alv' Gam' C',
       ScatterStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asgf mm X W w
         Alv' Gam' C' Ks)
     (hread : ∀ X W w Alv' Gam' C',
       ReadbackStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asgf mm X W w
         Alv' Gam' C' Kr)
-    (hK : Kd + (Ke + (Kc + (Kin + (Ks + Kr)))) ≤ K) :
-    ClusterStepImplements B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asgf mm
+    (hmono : Monotone Kin)
+    (hK : Kd + (Ke + (Kc + (Kin (blockSize Xoff k) + (Ks + Kr)))) ≤ K) :
+    ClusterStepImplements B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asgf mm k
       inner Kin K := by
   classical
-  intro hB hcsr _ hinner
+  intro hB hcsr hkn _ hinner
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hlev, htsz, hbarr, hplay, hheld, hcn⟩ := hσ
+  have hcnlt : σ.vars (curName j) < n := by rw [hcn]; exact hkn
   have hturn : TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asgf mm σ :=
     ⟨hlev, hplay, hheld⟩
   -- the descent: the cluster, the batch, the two masks of the next depth, and the round
   obtain ⟨σ₁, hr₁, hturn₁, hout₁, hc₁, hwa₁, X, W, Alv', Gam', hball, hWne, hWcard,
-      hbat₁, hplay₁⟩ :=
-    (hdes hcsr hB).run ⟨hturn, hcn⟩
+      hsize₁, hbat₁, hplay₁⟩ :=
+    (hdes hcsr hB).run ⟨hturn, hcnlt⟩
+  -- **the size clause**: the nested arena is inside this turn's block, so the nested
+  -- driver's budget — a function of the arena it is handed — is bounded by the turn's
+  rw [hcn] at hsize₁
+  have hinsize : Kin (arenaSize n Alv') ≤ Kin (blockSize Xoff k) := hmono hsize₁
   -- the padding
   obtain ⟨σ₂, hr₂, hturn₂, hplay₂, hout₂, hc₂, w, hdat₂, hwa₂⟩ :=
     (henum X W Alv' Gam').run ⟨hturn₁, hbat₁, hplay₁, hWne, hWcard, hwa₁⟩
@@ -885,9 +922,9 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
   obtain ⟨σ₆, hr₆, hturn₆, hout₆, hc₆, hrb₆⟩ :=
     (hread X W w Alv' Gam' C').run (σ := σ₅)
       ⟨hturn₅, hdat₅, hcolarr₅, hcolbit₃, hcolread₃, htab₅, htsz₅,
-        by rw [hc₅₀]; exact hcn, hflag₅⟩
+        by rw [hc₅₀]; exact hcnlt, hflag₅⟩
   have hrun := hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq (hr₅.seq hr₆))))
-  refine ⟨σ₆, _, hrun, hK, hturn₆.1, htsz₅.run hr₆, hbarr₃.run (hr₄.seq (hr₅.seq hr₆)),
+  refine ⟨σ₆, _, hrun, by omega, hturn₆.1, htsz₅.run hr₆, hbarr₃.run (hr₄.seq (hr₅.seq hr₆)),
     hturn₆.2.1,
     by rw [hout₆, hout₅, hout₄, hout₃, hout₂, hout₁],
     by rw [hc₆, hc₅, hc₄, hc₃, hc₂, hc₁], fun i hi => ?_⟩
@@ -1022,17 +1059,18 @@ specification of one command. -/
 def ClusterFrames (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
-    (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (inner : Com) (Kin K : ℕ) : Prop :=
+    (ord Xoff Xmem asg : ℕ → ℕ) (m k : ℕ) (inner : Com) (Kin : ℕ → ℕ) (K : ℕ) : Prop :=
+  k < n →
   (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ), (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
       Spec B (fun σ => LevelPre B n cap mb ns Ws O T (j + 1) M' Gm' C' σ ∧
           TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
           PlayRec B cap G (j + 1) M' Gm' σ) inner
         (fun σ σ' => LevelPost B q_top cap mb φ G ns Ws O T (j + 1) M' Gm' C' σ σ' ∧
-          σ'.out = σ.out) Kin) →
+          σ'.out = σ.out) (Kin (arenaSize n M'))) →
     Spec B (fun σ => LevelPre B n cap mb ns Ws O T j M Gm C σ ∧
         TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
         PlayRec B cap G j M Gm σ ∧
-        CoverHeld n j G M π ord cap Xoff Xmem asg m σ ∧ σ.vars (curName j) < n)
+        CoverHeld n j G M π ord cap Xoff Xmem asg m σ ∧ σ.vars (curName j) = k)
       (clusterCom q_top cap mb φ j inner)
       (fun σ σ' => CoverHeld n j G M π ord cap Xoff Xmem asg m σ' ∧
         ∀ (i : ℕ), i < (tablesAt q_top cap mb φ j).length → ∀ Tb Tb₀ : ℕ → ℕ,
@@ -1073,13 +1111,44 @@ table invariant of its depth, for every depth at or above the bottom.
 
 Downward induction on the budget still to spend. At `j = ℓ` it is the
 base case's hypothesis. Below `ℓ` it is the ordering pass, the cover
-pass, and `Spec.forRangeZero` over the centres with
+pass, and `Refine.SigmaLoop.forRangeZeroSum` over the centres with
 `RamDriver.ClusterStepImplements` as its body — the nested driver
 entering that body as the induction hypothesis at `j + 1`. What the loop
 leaves is the table invariant of the whole carrier, because the turns
 partition it: `RamCover.CoverOut.asg_lt` assigns every vertex to a
 centre, so at the exit every vertex has had its own turn, and
 `ClusterFrames` is why no later turn undid it.
+
+**Rebase B2: the Σ/size interface** (`integration-design.md` §5.6).
+Every cost is now read at a size. A level costs `Kl j m` on an arena of
+`m` alive vertices, a turn `Ks j s` on a block of `s` members, and the
+loop pays the **sum** of its turns rather than `n` times the worst one —
+`Refine.SigmaLoop.forRangeZeroSum` in place of `Spec.forRangeZero`. Two
+new hypotheses carry the arithmetic that makes the sum affordable, and
+neither is about the program:
+
+* `hmass`, the mass mathematics — that the compacted loop takes at most
+  `arenaSize n M` turns, and that the turns' blocks sum to at most
+  `Kmass · (arenaSize n M + 1)`. `Refine.ArenaBlock.mass_of_alive_compaction`
+  is that pair, compiled, from wave B4's `Refine.MassAlive.aliveMass_le`
+  plus **one clause `RamDriver.compactCom` does not yet establish**: that
+  the listed centres are alive. It is threaded parametrically here
+  because supplying it means filtering the compaction, and an
+  alive-filtered compaction leaves the *dead* vertices without a turn —
+  `Refine.ArenaBlock.dead_vertex_has_no_alive_turn` compiles that, and
+  the partition step below is what it contradicts. That is the campaign's
+  open item; nothing in this theorem's shape depends on how it is
+  resolved.
+* `hK`, the level's cost side condition in the Σ shape —
+  `CostRecurrence.exists_driverCostsSigma` discharges it in one call, up
+  to the three-unit shift the compacted loop's `cps` read costs
+  (`RamDriverRoot.levelCost_of_sigma`).
+
+`Refine.ArenaBlock.sum_blockSize_compacted_le` is what connects them:
+the turns' blocks are distinct blocks of the one arena, so their sizes
+sum to at most its mass. **No semantic clause of the induction moved**:
+the partition argument, the frames and the table invariant are B3's,
+untouched.
 
 The carrier is no longer asked to be nonempty: `RamDriver.TablesSized`
 is the depth's table arrays at the carrier's length, carried by the
@@ -1096,7 +1165,7 @@ clause is data of the input encoding. -/
 theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s : ℕ}
     {φ : Lax3.FirstOrder.FO 0}
     {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
-    {Ko Kc Ks Kl : ℕ → ℕ}
+    {Ko Kc Ks Kl : ℕ → ℕ → ℕ} {Kmass : ℕ}
     (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B)
     (hcsr : RamElim.CsrSimple G ns O T)
     (helim : ElimAvail B n) (haug : AugAvail B n) (hcovav : CoverAvail B cap ns G O T)
@@ -1105,20 +1174,20 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
         DistIndependent (deleteVerts G S) (2 * cap) Bd)
     (hℓ : ℓ = N (2 * s + 2))
     (hbase : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ), masked G M = ⊥ →
-      LevelImplements B q_top cap mb R ℓ W ns ℓ φ G O T M Gm C (Kl ℓ))
+      LevelImplements B q_top cap mb R ℓ W ns ℓ φ G O T M Gm C (Kl ℓ (arenaSize n M)))
     (horder : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
-      OrderImplements B n R W cap mb ns j G O T M Gm C (Ko j))
+      OrderImplements B n R W cap mb ns j G O T M Gm C (Ko j (arenaSize n M)))
     (hcover : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ)
         (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ),
-      CoverImplements B cap mb ns W j G O T M Gm C π ord (Kc j))
+      CoverImplements B cap mb ns W j G O T M Gm C π ord (Kc j (arenaSize n M)))
     (hstep : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ)
-        (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (mm : ℕ),
-      ClusterStepImplements B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg mm
-        (driverAt q_top cap mb R ℓ W φ (j + 1)) (Kl (j + 1)) (Ks j))
+        (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (mm k : ℕ),
+      ClusterStepImplements B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg mm k
+        (driverAt q_top cap mb R ℓ W φ (j + 1)) (Kl (j + 1)) (Ks j (blockSize Xoff k)))
     (hframe : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ)
-        (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (mm : ℕ),
-      ClusterFrames B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg mm
-        (driverAt q_top cap mb R ℓ W φ (j + 1)) (Kl (j + 1)) (Ks j))
+        (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (mm k : ℕ),
+      ClusterFrames B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg mm k
+        (driverAt q_top cap mb R ℓ W φ (j + 1)) (Kl (j + 1)) (Ks j (blockSize Xoff k)))
     (hloopfr : ∀ (j : ℕ), j < ℓ →
       cpsName j ∉ (clusterCom q_top cap mb φ j
           (driverAt q_top cap mb R ℓ W φ (j + 1))).warrs ∧
@@ -1126,12 +1195,19 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
           (driverAt q_top cap mb R ℓ W φ (j + 1))).wvars ∧
         cixName j ∉ (clusterCom q_top cap mb φ j
           (driverAt q_top cap mb R ℓ W φ (j + 1))).wvars)
-    (hK : ∀ (j : ℕ), j < ℓ → Ko j + (Kc j + ((Ks j + 11) * n + 6)) ≤ Kl j) :
+    (hmass : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg cps : ℕ → ℕ)
+        (mm cnum : ℕ), RamCover.OrdersBy n π ord →
+      RamCover.CoverOut G M π ord cap mm Xoff Xmem asg → Compacted n cnum mm Xoff cps →
+      cnum ≤ arenaSize n M ∧
+        (∑ k ∈ Finset.range cnum, blockSize Xoff (cps k)) ≤ Kmass * (arenaSize n M + 1))
+    (hK : ∀ (j : ℕ), j < ℓ → ∀ m t : ℕ, t ≤ m → ∀ bs : ℕ → ℕ,
+      (∑ c ∈ Finset.range t, bs c) ≤ Kmass * (m + 1) →
+      Ko j m + (Kc j m + ((∑ c ∈ Finset.range t, (Ks j (bs c) + 11)) + 6)) ≤ Kl j m) :
     ∀ (j : ℕ), j ≤ ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
-      LevelImplements B q_top cap mb R ℓ W ns j φ G O T M Gm C (Kl j) := by
+      LevelImplements B q_top cap mb R ℓ W ns j φ G O T M Gm C (Kl j (arenaSize n M)) := by
   classical
   have key : ∀ (f j : ℕ), ℓ - j = f → j ≤ ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
-      LevelImplements B q_top cap mb R ℓ W ns j φ G O T M Gm C (Kl j) := by
+      LevelImplements B q_top cap mb R ℓ W ns j φ G O T M Gm C (Kl j (arenaSize n M)) := by
     intro f
     induction f with
     | zero =>
@@ -1153,7 +1229,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
               PlayRec B cap G (j + 1) M' Gm' σ)
             (driverAt q_top cap mb R ℓ W φ (j + 1))
             (fun σ σ' => LevelPost B q_top cap mb φ G ns W O T (j + 1) M' Gm' C' σ σ' ∧
-              σ'.out = σ.out) (Kl (j + 1)) :=
+              σ'.out = σ.out) (Kl (j + 1) (arenaSize n M')) :=
         fun M' Gm' C' hb' => ih (j + 1) (by omega) (by omega) M' Gm' C' hb'
       refine Spec.of_exists fun σ hσ => ?_
       rw [driverAt_succ q_top cap mb R ℓ W φ hjl]
@@ -1186,39 +1262,44 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
         obtain ⟨k, hk, hkc⟩ := hcomp₂.covers (asg v) hlt (by omega)
         exact ⟨k, hk, hkc.symm⟩
       obtain ⟨hfrA, hfrQ, hfrI⟩ := hloopfr j hjl
-      -- one turn of the loop over the *listed* centres: the obligation, its frame,
-      -- and the syntactic frame of the three names the loop header owns
-      have hcl : Spec B (fun τ => LevelPre B n cap mb ns W O T j M Gm C τ ∧
-            TablesSized q_top cap mb φ n τ ∧ BaseArrs B q_top cap mb ℓ φ τ ∧
-            PlayRec B cap G j M Gm τ ∧
-            CoverHeld n j G M π ord cap Xoff Xmem asg mm τ ∧ τ.vars (curName j) < n)
-          (clusterCom q_top cap mb φ j (driverAt q_top cap mb R ℓ W φ (j + 1))) _ (Ks j) :=
-        spec_conj (hstep j hjl M Gm C π ord Xoff Xmem asg mm hB hcsr.csr hbit hinner)
-          (hframe j hjl M Gm C π ord Xoff Xmem asg mm hinner)
-      have hbody : Spec B
+      -- one turn of the loop over the *listed* centres, **at its own block**: the
+      -- obligation, its frame, and the syntactic frame of the three loop-header names
+      have hbody : ∀ kk : ℕ, kk < cnum → Spec B
           (fun τ =>
             LevelInv B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg cps mm cnum
-              σ₂.out τ ∧ τ.vars (cixName j) < cnum)
+              σ₂.out τ ∧ τ.vars (cixName j) = kk)
           (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
             (.seq (clusterCom q_top cap mb φ j (driverAt q_top cap mb R ℓ W φ (j + 1)))
               (.assign (cixName j) (.add (.var (cixName j)) (.lit 1)))))
-          (fun τ τ' =>
+          (fun _ τ' =>
             LevelInv B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg cps mm cnum
               σ₂.out τ' ∧
-            τ'.vars (cixName j) = τ.vars (cixName j) + 1) (Ks j + 7) := by
+            τ'.vars (cixName j) = kk + 1) (Ks j (blockSize Xoff (cps kk)) + 7) := by
+        intro kk hkk
+        have hpos : cps kk < n := hcomp₂.lt _ hkk
+        have hcl : Spec B (fun τ => LevelPre B n cap mb ns W O T j M Gm C τ ∧
+              TablesSized q_top cap mb φ n τ ∧ BaseArrs B q_top cap mb ℓ φ τ ∧
+              PlayRec B cap G j M Gm τ ∧
+              CoverHeld n j G M π ord cap Xoff Xmem asg mm τ ∧ τ.vars (curName j) = cps kk)
+            (clusterCom q_top cap mb φ j (driverAt q_top cap mb R ℓ W φ (j + 1))) _
+            (Ks j (blockSize Xoff (cps kk))) :=
+          spec_conj
+            (hstep j hjl M Gm C π ord Xoff Xmem asg mm (cps kk) hB hcsr.csr hpos hbit hinner)
+            (hframe j hjl M Gm C π ord Xoff Xmem asg mm (cps kk) hpos hinner)
         refine Spec.of_exists fun τ hτ => ?_
         obtain ⟨⟨hlevτ, htszτ, hbarrτ, hplayτ, hheldτ, hcpsτ, hcnumτ, houtτ, -, htabτ⟩,
           hcix⟩ := hτ
+        have hcixlt : τ.vars (cixName j) < cnum := by rw [hcix]; exact hkk
         have hcixB : τ.vars (cixName j) < B := by omega
-        have hpos : cps (τ.vars (cixName j)) < n := hcomp₂.lt _ hcix
+        have hposτ : cps (τ.vars (cixName j)) < n := by rw [hcix]; exact hpos
         -- the turn's position is read out of the compacted list
         have hread : Run B (.assign (curName j) (.get (cpsName j) (.var (cixName j)))) τ
             (τ.setVar (curName j) (cps (τ.vars (cixName j)))) 3 := by
           have h := Run.assign (B := B) (σ := τ) (x := curName j)
             (e := .get (cpsName j) (.var (cixName j)))
             (evalB_get (evalB_var hcixB)
-              (by rw [hcpsτ]; exact getElem?_arrOf cps (lt_of_lt_of_le hcix hcomp₂.le_carrier))
-              (lt_trans hpos hB.n_lt))
+              (by rw [hcpsτ]; exact getElem?_arrOf cps (lt_of_lt_of_le hcixlt hcomp₂.le_carrier))
+              (lt_trans hposτ hB.n_lt))
           simpa using h
         set τ₁ := τ.setVar (curName j) (cps (τ.vars (cixName j))) with hτ₁
         have hcur₁ : τ₁.vars (curName j) = cps (τ.vars (cixName j)) := by
@@ -1228,7 +1309,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
           (hcl.frame).run (σ := τ₁)
             ⟨levelPre_setVar_c hlevτ _, tablesSized_setVar_c htszτ _ _,
               baseArrs_setVar_c hbarrτ _ _, playRec_setVar_c hplayτ _,
-              coverHeld_setVar_c hheldτ _, by rw [hcur₁]; exact hpos⟩
+              coverHeld_setVar_c hheldτ _, by rw [hcur₁, hcix]⟩
         have hcix₂ : τ₂.vars (cixName j) = τ.vars (cixName j) := by
           rw [hfv _ hfrI, hτ₁, vars_setVar, if_neg (cixName_ne_curName j j)]
         have hbump : Run B (.assign (cixName j) (.add (.var (cixName j)) (.lit 1))) τ₂
@@ -1265,7 +1346,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
             obtain ⟨Tb₀, harr₀⟩ := htszτ.get j hi
             have hne : asg (v : ℕ) ≠ τ₁.vars (curName j) := by
               rw [hcur₁, hkv]
-              exact fun hq => absurd (hcomp₂.inj (by omega) hcix hq) (by omega)
+              exact fun hq => absurd (hcomp₂.inj (by omega) hcixlt hq) (by omega)
             have := hfr' i hi Tb' Tb₀ harr' (by rw [hτ₁, arrs_setVar]; exact harr₀) v hne
             rw [hTb, this]
             exact htabτ i hi Tb₀ harr₀ v ⟨k, hlt, hkv⟩
@@ -1273,13 +1354,14 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
             have hkeq : k = τ.vars (cixName j) := by omega
             rw [hTb]
             exact hcorr' v (by rw [hcur₁, hkv, hkeq])
-        · rw [vars_setVar, if_pos rfl]
-      -- the loop, over the compacted list
+        · rw [vars_setVar, if_pos rfl]; omega
+      -- the loop, over the compacted list, **paying the sum of its turns**
       obtain ⟨σ₃, hr₃, hI₃, hcn₃⟩ :=
-        (Spec.forRangeZero (cixName j) (cnumName j)
+        (Refine.SigmaLoop.forRangeZeroSum (cixName j) (cnumName j)
           (LevelInv B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg cps mm cnum
             σ₂.out) cnum
-          (Ks j + 7) hcnB (fun _ hτ => hτ.2.2.2.2.2.2.2.2.1) (fun _ hτ => hτ.2.2.2.2.2.2.1)
+          (fun kk => Ks j (blockSize Xoff (cps kk)) + 7) hcnB
+          (fun _ hτ => hτ.2.2.2.2.2.2.2.2.1) (fun _ hτ => hτ.2.2.2.2.2.2.1)
           hbody).run
           (σ := σ₂) ⟨levelPre_setVar_ci hlev₂ 0, tablesSized_setVar_c htsz₂ _ 0,
             baseArrs_setVar_c hbarr₂ _ 0, playRec_setVar_ci hplay₂ 0,
@@ -1297,14 +1379,19 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
           exact (hI₃.2.2.2.2.2.2.2.2.2 i hi Tb harr ⟨v, hv⟩ ⟨k, by rw [hcn₃]; exact hk, hkv⟩).1
         · obtain ⟨k, hk, hkv⟩ := hasgcps (v : ℕ) v.isLt
           exact (hI₃.2.2.2.2.2.2.2.2.2 i hi Tb harr v ⟨k, by rw [hcn₃]; exact hk, hkv⟩).2
-      have hcost : (Ks j + 7 + 4) * cnum + 6 ≤ (Ks j + 11) * n + 6 := by
-        have h1 : Ks j + 7 + 4 = Ks j + 11 := by omega
-        rw [h1]
-        have := Nat.mul_le_mul_left (Ks j + 11) hcomp₂.le_carrier
-        omega
+      -- **the cost, in the Σ shape.** The turns' blocks are distinct blocks of the one
+      -- cluster arena, so their sizes sum to at most its mass; the mass mathematics
+      -- turns that into the coefficient the level condition consumes.
+      obtain ⟨hturns, hbs⟩ :=
+        hmass M π ord Xoff Xmem asg cps mm cnum hordby hheld₂.2.2.2.2.2.2.2 hcomp₂
+      have hsum : (∑ kk ∈ Finset.range cnum, (Ks j (blockSize Xoff (cps kk)) + 7 + 4)) =
+          ∑ kk ∈ Finset.range cnum, (Ks j (blockSize Xoff (cps kk)) + 11) :=
+        Finset.sum_congr rfl fun _ _ => by omega
+      have hcost := hK j hjl (arenaSize n M) cnum hturns
+        (fun c => blockSize Xoff (cps c)) hbs
       refine ⟨σ₃, _, hr₁.seq (hr₂.seq hr₃), ?_,
         ⟨hI₃.1, hI₃.2.1, htabinv⟩, by rw [hI₃.2.2.2.2.2.2.2.1, hout₂, hout₁]⟩
-      have := hK j hjl
+      rw [hsum]
       omega
   exact fun j hj => key (ℓ - j) j rfl hj
 

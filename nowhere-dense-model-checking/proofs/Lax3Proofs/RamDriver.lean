@@ -5,6 +5,7 @@ import Lax3Proofs.RamAugment
 import Lax3Proofs.RamBfsPaths
 import Lax3Proofs.RamCover
 import Lax3Proofs.RamScatter
+import Lax3Proofs.Refine.MassMath
 import Lax3Proofs.SplitterWinRec
 
 /-!
@@ -159,6 +160,7 @@ open Lax12.UniformQuasiWideness
 open Lax3Proofs.Horizon Lax3Proofs.SyntaxLemmas Lax3Proofs.WalkDistance
 open Lax3Proofs.FormulaTables Lax3Proofs.SplitterWin Lax3Proofs.SplitterWinRec
 open Lax3Proofs.RamBfs (masked masked_adj CsrGraph)
+open Lax3Proofs.Refine.MassMath (blockSize)
 open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
 
 /-! ### Three additions to the reasoning kit
@@ -835,14 +837,57 @@ theorem cnumName_ne_curName (j a : ℕ) : cnumName j ≠ curName a := by
 theorem curName_ne_cpsName (j a : ℕ) : cpsName j ≠ ordName a := by
   simp [cpsName, ordName, String.ext_iff]
 
+/-! ### The size vocabulary of the Σ-shaped cost interface
+
+`integration-design.md` §5. Every cost of the driver is read at a
+**size**: a level at the number of vertices its mask leaves alive, a
+turn at the number of members of the cover block it processes. The two
+numbers are these, and nothing else about them is needed here — what
+relates them is the descent's own postcondition (`DescendStep`'s §5.3
+clause, `RamDriverCluster`) and the mass mathematics
+(`Refine.MassMath`, brief B6).
+
+`blockSize` is `Refine.MassMath`'s, opened above: the same number the
+mass equation is stated over, so a consumer never has to bridge two
+readings of a block's length. `arenaSize` is `markSet` counted —
+`RamDriverCluster.arenaSize_eq_markSet` is that identity, `rfl`. It is
+stated here rather than there because the obligation `Prop`s of this
+file read it. -/
+
+/-- **The size of an arena**: how many of the carrier's vertices the
+mask leaves alive. This is the size a level's cost is read at. -/
+noncomputable def arenaSize (n : ℕ) (M : ℕ → ℕ) : ℕ := {v : Fin n | M (v : ℕ) ≠ 0}.ncard
+
+/-- A mask that kills nothing leaves the whole carrier — the root's
+case, which is why the root's cost is `Kl 0 n`. -/
+theorem arenaSize_of_all_alive {n : ℕ} {M : ℕ → ℕ} (h : ∀ v < n, M v ≠ 0) :
+    arenaSize n M = n := by
+  have : {v : Fin n | M (v : ℕ) ≠ 0} = (Set.univ : Set (Fin n)) :=
+    Set.eq_univ_of_forall fun v => h (v : ℕ) v.isLt
+  rw [arenaSize, this]
+  simp
+
+/-- And no mask leaves more than the carrier. -/
+theorem arenaSize_le (n : ℕ) (M : ℕ → ℕ) : arenaSize n M ≤ n := by
+  have h := Set.ncard_le_ncard (Set.subset_univ {v : Fin n | M (v : ℕ) ≠ 0})
+    (Set.finite_univ)
+  simpa [arenaSize] using h
+
 /-- **What the compaction scan leaves.** `cps` lists, in strictly
 increasing order, exactly the `cnum` positions below `n` whose block is
-nonempty. The two counting clauses are what the cost half consumes:
-`cnum ≤ n` keeps the loop inside the carrier, and `cnum ≤ m` — one
-turn per *member* of the arena, not one per carrier cell — is the escape
-from finding F1's program floor. -/
+nonempty.
+
+**Rebase B2, on wave B4's finding.** This predicate filters nothing —
+`Refine.MassAlive.block_nonempty` — so `le_mass` is an equality with `n`
+and buys no cost. The clause the Σ interface needs is
+`∀ k < cnum, A₀ (ord (cps k)) ≠ 0`; `Refine.ArenaBlock.mass_of_alive_compaction`
+is the whole cost supply, compiled, *given* that one clause, and
+`compactCom`'s docstring records why adding it is a wave of its own. -/
 structure Compacted (n cnum m : ℕ) (Xoff cps : ℕ → ℕ) : Prop where
-  /-- One turn per member of the cluster arena at most. -/
+  /-- One turn per member of the cluster arena at most. True and cheap, but
+  **not** what the cost interface can read: with the emptiness predicate
+  alone `Refine.MassAlive.cnum_eq_of_nonempty` makes it an equality with
+  `n`. See `compactCom`'s docstring for the blocker. -/
   le_mass : cnum ≤ m
   /-- And never more turns than there are positions. -/
   le_carrier : cnum ≤ n
@@ -1743,8 +1788,30 @@ into `cpsName j` and counting them into `cnumName j`. The scan reads
 
 It is a carrier-width pass, like the three copies of `coverSave` it
 follows; making the whole cover phase active-set-driven is R1.6, a later
-wave's. What it buys now is the *loop*: `cnum ≤ mm` turns instead of
-`n`, which is what the recursion's cost multiplies. -/
+wave's. What it buys now is the *loop*: one turn per listed centre
+instead of `n`, which is what the recursion's cost multiplies.
+
+**Rebase B2, on wave B4's finding — the predicate is NOT changed here,
+and this is the campaign's open blocker.** The Σ-shaped cost interface
+needs the loop to skip *dead* centres, not empty blocks:
+`Refine.MassAlive.block_nonempty` proves no block of a cover output is
+ever empty, so this guard filters nothing (`cnum = n`, by
+`Refine.MassAlive.cnum_eq_of_nonempty`), and only
+`Refine.MassAlive.aliveMass_le` — a bound on the *alive* centres'
+blocks — is affordable. Nesting `alv[ord[i]] ≠ 0` inside this guard is
+one line of program text.
+
+What stops it is not the walk but the induction:
+`Refine.ArenaBlock.dead_vertex_has_no_alive_turn` compiles the reason.
+A vertex is in its assigned centre's cluster, and by
+`Refine.MassAlive.inCluster_alive_iff` a cluster is alive-homogeneous,
+so an alive-filtered list omits exactly the dead vertices' positions —
+and `RamDriverCluster.levelImplements`' partition step needs *every*
+carrier vertex to have had a turn, because `RamDriver.TableInv` is a
+statement about every vertex and the turn's readback reads the
+depth-`(j+1)` table at cluster vertices that the batch has killed. So
+the filter costs the level a dead-vertex path, which is a semantic
+addition to the induction and a wave of its own. -/
 def compactCom (j : ℕ) : Com :=
   .seq (.assign (cnumName j) (.lit 0))
     (.seq (.assign "i" (.lit 0))
@@ -2472,24 +2539,36 @@ the ball the expansion chain built in the *game* arena and the batch
 and why `descendCom` writes `gamName (j+1)` from `gamName j`: the
 equality a recorded round needs is exact only if the ball is taken in the
 game arena, and `ballStage`'s parity is what makes the chain end in the
-ball's own array. -/
+ball's own array.
+
+**Rebase B2 (§5.2).** The turn is now stated *at its own position*. The
+precondition pins `curName j` to the parameter `k` instead of merely
+bounding it, so the obligation's cost `K` — which the centre loop
+instantiates per turn — may be read at the turn's own block,
+`blockSize Xoff k`; and the nested driver's budget `Kin` is a function of
+the **size of the arena it is handed**, applied at `arenaSize n M'`
+inside the antecedent, which is the whole point of the Σ interface. What
+turns that varying budget back into a number the turn's cost condition
+can mention is `RamDriverCluster.DescendStep`'s §5.3 clause,
+`arenaSize n Alv' ≤ blockSize Xoff k`, together with monotonicity of
+`Kin`. Nothing semantic moves: the postcondition is untouched. -/
 def ClusterStepImplements (q_top cap mb ns W ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ)
-    (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ)
-    (inner : Com) (Kin K : ℕ) : Prop :=
-  WordBound B n ns cap mb → CsrGraph G ns O T →
+    (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m k : ℕ)
+    (inner : Com) (Kin : ℕ → ℕ) (K : ℕ) : Prop :=
+  WordBound B n ns cap mb → CsrGraph G ns O T → k < n →
   (∀ c < sigL cap mb j, ∀ v < n, C c v ≤ 1) →
   (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ), (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
       Spec B (fun σ => LevelPre B n cap mb ns W O T (j + 1) M' Gm' C' σ ∧
           TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
           PlayRec B cap G (j + 1) M' Gm' σ) inner
         (fun σ σ' => LevelPost B q_top cap mb φ G ns W O T (j + 1) M' Gm' C' σ σ' ∧
-          σ'.out = σ.out) Kin) →
+          σ'.out = σ.out) (Kin (arenaSize n M'))) →
     Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧
         TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
         PlayRec B cap G j M Gm σ ∧
-        CoverHeldAt n j G M π ord cap Xoff Xmem asg m σ ∧ σ.vars (curName j) < n)
+        CoverHeldAt n j G M π ord cap Xoff Xmem asg m σ ∧ σ.vars (curName j) = k)
       (clusterCom q_top cap mb φ j inner)
       (fun σ σ' => LevelPre B n cap mb ns W O T j M Gm C σ' ∧
         TablesSized q_top cap mb φ n σ' ∧ BaseArrs B q_top cap mb ℓ φ σ' ∧

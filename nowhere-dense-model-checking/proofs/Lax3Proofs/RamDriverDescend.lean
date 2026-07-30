@@ -171,6 +171,7 @@ open Lax3Proofs.Horizon Lax3Proofs.SyntaxLemmas Lax3Proofs.WalkDistance
 open Lax3Proofs.FormulaTables Lax3Proofs.SplitterWin Lax3Proofs.SplitterWinRec
 open Lax3Proofs.RamBfs (masked masked_adj CsrGraph MAdj WD)
 open Lax3Proofs.RamDriver Lax3Proofs.RamDriverCluster
+open Lax3Proofs.Refine.MassMath (blockSize)
 open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
 
 variable {n : ℕ}
@@ -3836,7 +3837,7 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
   -- everything the obligation asks for
   refine ⟨σ₈, _, hrun, ?_, hturn₈, hrun.out_eq (noWrite_descendCom cap j),
     by rw [hfv (curName j) hcurne (curName_notMem_descendScalars j)], ?_, markSet n Xa, markSet n Wa, Alv', Gam', ?_,
-      ⟨vc, hvW⟩, ?_, ⟨⟨Xa, hclu₈, rfl, hXbit⟩, ⟨Wa, hbat₈, rfl, hWaB⟩, ⟨Ra, hres₈, hResEq, hRaB⟩,
+      ⟨vc, hvW⟩, ?_, ?_, ⟨⟨Xa, hclu₈, rfl, hXbit⟩, ⟨Wa, hbat₈, rfl, hWaB⟩, ⟨Ra, hres₈, hResEq, hRaB⟩,
         halv₈, hAlvB, hAlvEq, hgam₈, hGamB'⟩, ?_⟩
   · simp only [descendCost, ballCost, batchCost] at hK ⊢
     omega
@@ -3850,6 +3851,20 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
     rw [hmb]
     calc 1 + j * (2 * cap + 1) ≤ (j + 1) * (2 * cap + 1) := by nlinarith
       _ ≤ ℓ * (2 * cap + 1) := Nat.mul_le_mul_right _ (by omega)
+  · -- **the size clause** (§5.3): the arena the next depth is handed is inside this
+    -- turn's cluster — its mask is the cluster indicator with two more masks multiplied
+    -- in — and a cluster is no bigger than the block that lists it
+    have hsub : ∀ v : Fin n, Alv' (v : ℕ) ≠ 0 → v ∈ markSet n Xa := by
+      intro v hv hc
+      refine hv ?_
+      rw [hAlvval (v : ℕ) v.isLt, hRaval (v : ℕ) v.isLt, hc]
+      ring
+    rw [hcc]
+    calc arenaSize n Alv' ≤ (markSet n Xa).ncard :=
+          Refine.ArenaBlock.arenaSize_le_ncard hsub
+      _ ≤ blockSize Xoff cc := by
+          rw [hXmark]
+          exact Refine.ArenaBlock.ncard_clusterAt_le_blockSize hcout hcur
   · refine playRec_succ ⟨rounds, hrec, hle, hplayR⟩
       (fun a ha => hfv (ctrName a) (ctrName_ne (by omega))
         (ctrName_notMem_descendScalars a))

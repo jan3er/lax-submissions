@@ -251,4 +251,62 @@ theorem compactList_length_le (Xoff : ℕ → ℕ) (hz : Xoff 0 = 0)
       · rw [if_pos h]; simp; omega
       · rw [if_neg h]; simp; have := hm i; omega
 
+/-! ### 5. The Σ level condition, on the star
+
+**Rebase B2, falsification record.** The side condition
+`RamDriverCluster.levelImplements` now takes is
+
+```
+Ko j m + (Kc j m + ((∑_{c<t} (Ks j (bs c) + 11)) + 6)) ≤ Kl j m
+```
+
+against `t ≤ m` and `∑_{c<t} bs c ≤ Kmass · (m + 1)`. The checks below
+were run before the surgery, on the star instance of §1 — one cluster of
+seven and seven singletons, `m = 8` — with the per-turn budget the
+linear ansatz gives (`Ks j s = u · (s + 1)`, `u = 10`) and the phases at
+`5` each.
+
+The two negative controls are the two mis-readings the brief names.
+The first is the one the design's own §5 warns about: charging the sum
+over the carrier's `n` blocks rather than the compacted `t` overshoots,
+so the loop bound and the cost bound must be the *same* number. The
+second is the interface's own contrast — the uniform reading, `t` copies
+of the worst turn, does not fit under the same `Kl`. -/
+
+section SigmaSideCondition
+
+/-- The star's block sizes: one cluster of seven, then seven singletons. -/
+private def starBs : ℕ → ℕ := fun c => if c = 0 then 7 else 1
+
+/-- The per-turn budget of the linear ansatz at coefficient `10`. -/
+private def starKs : ℕ → ℕ := fun s => 10 * (s + 1)
+
+-- the mass hypothesis, on the star: eight turns, fourteen members,
+-- inside `Kmass · (m + 1)` at `Kmass = 2`, `m = 8`
+#guard (∑ c ∈ Finset.range 8, starBs c) = 14
+#guard (∑ c ∈ Finset.range 8, starBs c) ≤ 2 * (8 + 1)
+#guard (8 : ℕ) ≤ 8
+
+-- the level's bill, in the Σ shape, and a `Kl` that pays it
+#guard 5 + (5 + ((∑ c ∈ Finset.range 8, (starKs (starBs c) + 11)) + 6)) = 324
+#guard 5 + (5 + ((∑ c ∈ Finset.range 8, (starKs (starBs c) + 11)) + 6)) ≤ 40 * (8 + 1)
+
+-- **Refuted**: summing over the carrier's `n = 32` positions instead of
+-- the compacted `t = 8` is a different — larger — number, so the loop's
+-- turn count and the cost sum's range are the same quantity or the
+-- condition is unsound.
+#guard ¬ ((∑ c ∈ Finset.range 32, (starKs (starBs c) + 11)) ≤
+  ∑ c ∈ Finset.range 8, (starKs (starBs c) + 11))
+
+-- **Refuted**: the uniform reading — every turn at the worst block —
+-- does not fit under the same level budget, which is the whole gap this
+-- wave exists to close.
+#guard ¬ (5 + (5 + ((starKs 7 + 11) * 8 + 6)) ≤ 40 * (8 + 1))
+
+-- and the constant instantiation agrees with the uniform bound exactly
+-- (`SigmaLoop.sum_const_eq_uniform`, at the loop's own `+ 7`)
+#guard (∑ _c ∈ Finset.range 8, (starKs 7 + 7 + 4)) + 6 = (starKs 7 + 7 + 4) * 8 + 6
+
+end SigmaSideCondition
+
 end Lax3Proofs.Refine.CostShapeProbe

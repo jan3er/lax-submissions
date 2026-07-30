@@ -65,4 +65,6 @@ import Lax3Proofs.Refine.ExpandSynth
 import Lax3Proofs.Refine.SigmaLoop
 import Lax3Proofs.Refine.CostShapeProbe
 import Lax3Proofs.Refine.MassMath
+import Lax3Proofs.Refine.MassAlive
+import Lax3Proofs.Refine.ArenaBlock
 import Lax3Proofs.Refine.OrderBridge
