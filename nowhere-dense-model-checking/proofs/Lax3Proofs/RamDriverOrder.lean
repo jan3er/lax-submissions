@@ -121,6 +121,7 @@ def EmitInv (n : ℕ) (D Xmem asg : ℕ → ℕ) (c xp₀ r : ℕ) (σ : Env) : 
     σ.vars "z" ≤ n ∧ xp₀ ≤ σ.vars "xp" ∧ σ.vars "xp" ≤ xp₀ + σ.vars "z" ∧
     (∀ p < xp₀, Xm p = Xmem p) ∧
     (∀ w, (∃ p, xp₀ ≤ p ∧ p < σ.vars "xp" ∧ Xm p = w) ↔ (w < σ.vars "z" ∧ D w ≤ 2 * r)) ∧
+    (∀ p q, xp₀ ≤ p → p < q → q < σ.vars "xp" → Xm p < Xm q) ∧
     (∀ w < n, as w = if w < σ.vars "z" then emitCell D asg c n r w else asg w)
 
 /-- **The assignment clause, one vertex on.** The array is rewritten at
@@ -160,6 +161,35 @@ theorem block_extend_emit {D Xm : ℕ → ℕ} {xp₀ xp z r : ℕ} (hxpa : xp�
       exact ⟨p, hp₁, by omega, by rw [upd_of_ne _ (show p ≠ xp by omega)]; exact hp₃⟩
     · exact ⟨xp, hxpa, by omega, by rw [upd_self]; omega⟩
 
+/-- **The block is filled in increasing order** (rebase B6/D1). The
+emission scan walks the carrier upwards and appends, so the value at a
+later slot of the block is a larger vertex than the value at an earlier
+one — which is `RamCover.CoverInv.block_inj` in the form the walk can
+carry, and `inj_of_strictMono` is the projection. -/
+theorem mono_extend_emit {D Xm : ℕ → ℕ} {xp₀ xp z r : ℕ}
+    (hblock : ∀ w, (∃ p, xp₀ ≤ p ∧ p < xp ∧ Xm p = w) ↔ (w < z ∧ D w ≤ 2 * r))
+    (hmono : ∀ p q, xp₀ ≤ p → p < q → q < xp → Xm p < Xm q) :
+    ∀ p q, xp₀ ≤ p → p < q → q < xp + 1 → upd Xm xp z p < upd Xm xp z q := by
+  intro p q hp hpq hq
+  rcases Nat.lt_or_ge q xp with h | h
+  · rw [upd_of_ne _ (show p ≠ xp by omega), upd_of_ne _ (show q ≠ xp by omega)]
+    exact hmono p q hp hpq h
+  · have hqe : q = xp := by omega
+    subst hqe
+    rw [upd_self, upd_of_ne _ (show p ≠ q by omega)]
+    exact ((hblock (Xm p)).mp ⟨p, hp, by omega, rfl⟩).1
+
+/-- **Strict monotonicity is injectivity**, in the form
+`RamCover.CoverInv.step` asks for. -/
+theorem inj_of_strictMono {Xm : ℕ → ℕ} {a b : ℕ}
+    (h : ∀ p q, a ≤ p → p < q → q < b → Xm p < Xm q) :
+    ∀ p q, a ≤ p → p < b → a ≤ q → q < b → Xm p = Xm q → p = q := by
+  intro p q hp₁ hp₂ hq₁ hq₂ he
+  rcases Nat.lt_trichotomy p q with h' | h' | h'
+  · exact absurd he (Nat.ne_of_lt (h p q hp₁ h' hq₂))
+  · exact h'
+  · exact absurd he.symm (Nat.ne_of_lt (h q p hq₁ h' hp₂))
+
 /-- **And when it is not.** A vertex outside the cluster adds nothing,
 and cannot be the one the extended clause asks about. -/
 theorem block_extend_skip {D Xm : ℕ → ℕ} {xp₀ xp z r : ℕ}
@@ -188,8 +218,8 @@ theorem emitSlot_spec {B n : ℕ} {D Xmem asg : ℕ → ℕ} {c xp₀ r : ℕ}
       30 := by
   have hnB : n < B := lt_of_le_of_lt (RamDriver.le_mul_self n) hnnB
   refine Spec.of_exists fun τ hτ => ?_
-  obtain ⟨⟨Xm, as, hnv, hcv, hdist, has, hxmem, hzle, hxpa, hxpb, hkeep, hblock, hrule⟩,
-    hz⟩ := hτ
+  obtain ⟨⟨Xm, as, hnv, hcv, hdist, has, hxmem, hzle, hxpa, hxpb, hkeep, hblock, hmono,
+    hrule⟩, hz⟩ := hτ
   -- the two array reads of the body, and the bounds they need
   have hasle : ∀ w, w < n → as w ≤ n := by
     intro w hw
@@ -233,6 +263,7 @@ theorem emitSlot_spec {B n : ℕ} {D Xmem asg : ℕ → ℕ} {c xp₀ r : ℕ}
       (∀ p < xp₀, Xm' p = Xmem p) ∧
       (∀ w, (∃ p, xp₀ ≤ p ∧ p < τ₂.vars "xp" ∧ Xm' p = w) ↔
         (w < τ.vars "z" + 1 ∧ D w ≤ 2 * r)) ∧
+      (∀ p q, xp₀ ≤ p → p < q → q < τ₂.vars "xp" → Xm' p < Xm' q) ∧
       (∀ w < n, as' w = if w < τ.vars "z" + 1 then emitCell D asg c n r w else asg w) := by
     have e1 : τ₁.vars "n" = n := by simp [hτ₁, hnv]
     have e2 : τ₁.vars "c" = c := by simp [hτ₁, hcv]
@@ -278,6 +309,7 @@ theorem emitSlot_spec {B n : ℕ} {D Xmem asg : ℕ → ℕ} {c xp₀ r : ℕ}
       have hxmemb : τb.arrs "xmem" = arrOf (n * n) (upd Xm (τ.vars "xp") (τ.vars "z")) := by
         rw [hτb, arrs_setVar, hτa, arrs_setArr, if_pos rfl, e7, set_arrOf_eq_upd]
       have hblockb := block_extend_emit (D := D) hxpa hblock hle
+      have hmonob := mono_extend_emit (D := D) (z := τ.vars "z") hblock hmono
       have hkeepb : ∀ p < xp₀, upd Xm (τ.vars "xp") (τ.vars "z") p = Xmem p := by
         intro p hp
         rw [upd_of_ne _ (show p ≠ τ.vars "xp" by omega)]
@@ -301,7 +333,8 @@ theorem emitSlot_spec {B n : ℕ} {D Xmem asg : ℕ → ℕ} {c xp₀ r : ℕ}
           refine ⟨τb, _, upd Xm (τ.vars "xp") (τ.vars "z"), as,
             Run.ite_true hcond (hs1.seq (hs2.seq (Run.ite_true hcond'
               (Run.ite_true hcond'' Run.skip)))), by simp, hnb, hcb, hzb, hdb, hasb, hxmemb,
-            by omega, by omega, hkeepb, by rw [hxb]; exact hblockb, ?_⟩
+            by omega, by omega, hkeepb, by rw [hxb]; exact hblockb,
+            by rw [hxb]; exact hmonob, ?_⟩
           exact rule_extend hrule (fun _ _ _ => rfl)
             (by rw [hasz]; exact (emitCell_of_claimed (by rw [← hasz]; exact hset)).symm)
         · -- nothing had: this centre is the first catcher
@@ -323,7 +356,8 @@ theorem emitSlot_spec {B n : ℕ} {D Xmem asg : ℕ → ℕ} {c xp₀ r : ℕ}
             by rw [arrs_setArr, if_pos rfl, hasb, set_arrOf_eq_upd],
             by rw [arrs_setArr, if_neg (by decide)]; exact hxmemb,
             by rw [vars_setArr]; omega, by rw [vars_setArr]; omega,
-            hkeepb, by rw [vars_setArr, hxb]; exact hblockb, ?_⟩
+            hkeepb, by rw [vars_setArr, hxb]; exact hblockb,
+            by rw [vars_setArr, hxb]; exact hmonob, ?_⟩
           refine rule_extend hrule (fun w _ hw => upd_of_ne _ hw) ?_
           rw [upd_self]
           exact (emitCell_of_first (by rw [← hasz]; exact hset) hler).symm
@@ -332,18 +366,18 @@ theorem emitSlot_spec {B n : ℕ} {D Xmem asg : ℕ → ℕ} {c xp₀ r : ℕ}
         refine ⟨τb, _, upd Xm (τ.vars "xp") (τ.vars "z"), as,
           Run.ite_true hcond (hs1.seq (hs2.seq (Run.ite_false hcond' Run.skip))),
           by simp, hnb, hcb, hzb, hdb, hasb, hxmemb, by omega, by omega, hkeepb,
-          by rw [hxb]; exact hblockb, ?_⟩
+          by rw [hxb]; exact hblockb, by rw [hxb]; exact hmonob, ?_⟩
         exact rule_extend hrule (fun _ _ _ => rfl)
           (by rw [hasz]; exact (emitCell_of_not_catch (hasg _ hz) hler).symm)
     · -- the vertex is outside the cluster: nothing happens
       rw [decide_eq_false (by simpa using hle)] at hcond
       refine ⟨τ₁, _, Xm, as, Run.ite_false hcond Run.skip, by simp, e1, e2, e3, e5, e6, e7,
         by rw [e4]; exact hxpa, by rw [e4]; omega, hkeep,
-        by rw [e4]; exact block_extend_skip hblock hle, ?_⟩
+        by rw [e4]; exact block_extend_skip hblock hle, by rw [e4]; exact hmono, ?_⟩
       exact rule_extend hrule (fun _ _ _ => rfl)
         (by rw [hasz]; exact (emitCell_of_not_catch (hasg _ hz) (by omega)).symm)
   obtain ⟨τ₂, K₂, Xm', as', h2, hK₂, hnv₂, hcv₂, hzv₂, hdist₂, has₂, hxmem₂,
-    hxpa₂, hxpb₂, hkeep₂, hblock₂, hrule₂⟩ := hmid
+    hxpa₂, hxpb₂, hkeep₂, hblock₂, hmono₂, hrule₂⟩ := hmid
   -- `z := z + 1`
   have h3 : Run B (.assign "z" (.add (.var "z") (.lit 1))) τ₂
       (τ₂.setVar "z" (τ.vars "z" + 1)) (1 + (Expr.add (.var "z") (.lit 1)).size) := by
@@ -357,7 +391,7 @@ theorem emitSlot_spec {B n : ℕ} {D Xmem asg : ℕ → ℕ} {c xp₀ r : ℕ}
   · exact ⟨Xm', as', by simpa using hnv₂, by simpa using hcv₂, by simpa using hdist₂,
       by simpa using has₂, by simpa using hxmem₂, by simp; omega,
       by simpa using hxpa₂, by simpa using hxpb₂, hkeep₂,
-      by simpa using hblock₂, by simpa using hrule₂⟩
+      by simpa using hblock₂, by simpa using hmono₂, by simpa using hrule₂⟩
 
 /-- **The emission scan**, the kit's counted scan over the carrier with
 `emitSlot_spec` as its body. -/
@@ -479,11 +513,12 @@ theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n 
     refine ⟨Xmem, asg, by simpa using b1, by simpa using b2, by simpa using hdistD,
       by simpa using b5, by simpa using b6, by rw [hzero]; omega,
       by rw [hxpz], by rw [hxpz, hzero]; omega, fun _ _ => rfl, fun w => ?_,
+      fun p q hp hpq hq => by rw [hxpz] at hq; omega,
       fun w _ => by rw [hzero, if_neg (by omega)]⟩
     rw [hxpz, hzero]
     exact ⟨fun h => by obtain ⟨p, h₁, h₂, -⟩ := h; omega, fun h => absurd h.1 (by omega)⟩
   obtain ⟨σ₃, hrun₃, ⟨⟨Xm', as', hn₃, hc₃, hdist₃, hasg₃, hxmem₃, -, hxpa₃, hxpb₃,
-      hkeep₃, hblock₃, hrule₃⟩, hz₃⟩, hfv₃, hfa₃, -, -⟩ :=
+      hkeep₃, hblock₃, hmono₃, hrule₃⟩, hz₃⟩, hfv₃, hfa₃, -, -⟩ :=
     ((emitLoop_spec (B := B) (n := n) (D := D) (Xmem := Xmem) (asg := asg)
       (c := σ.vars "c") (xp₀ := σ.vars "xp") (r := r) hc hnnB hrB
       (fun w hw => hI.asg_le w hw) hDB hxp₀).frame).run (σ := σ₂) hpre
@@ -541,6 +576,7 @@ theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n 
     (xp' := σ₃.vars "xp") hord hI hc hDspec
     (fun c' hc' => upd_of_ne _ (by omega)) (upd_self _ _ _) hkeep₃
     (by rw [hz₃] at hblock₃; exact hblock₃) hxpa₃ (by rw [hz₃] at hxpb₃; exact hxpb₃)
+    (inj_of_strictMono hmono₃)
     (fun w hw => by rw [hrule₃ w hw, hz₃, if_pos hw, emitCell])
     (fun u _ => upd_apply _ _ _ _)
   -- the state the turn leaves

@@ -232,9 +232,14 @@ theorem asgName_ne_asg (j : ℕ) : asgName j ≠ "asg" := by
 
 /-! ### What the cover phase writes -/
 
+theorem warrs_compactCom (j : ℕ) : (compactCom j).warrs = [cpsName j] := rfl
+
+theorem wvars_compactCom (j : ℕ) :
+    (compactCom j).wvars = [cnumName j, "i", cnumName j, "i"] := rfl
+
 theorem warrs_coverPhase (cap j : ℕ) : (coverPhase cap j).warrs =
     ["ord", "alv", "asg", "xoff", "dist", "dist", "q", "dist", "q", "xmem", "asg", "alv",
-      "xoff", xofName j, xmmName j, asgName j] := rfl
+      "xoff", xofName j, xmmName j, asgName j, cpsName j] := rfl
 
 theorem wvars_coverPhase (cap j : ℕ) : (coverPhase cap j).wvars =
     ["i", "i", "i", "i", "i", "i", "xp", "c", "src",
@@ -243,7 +248,7 @@ theorem wvars_coverPhase (cap j : ℕ) : (coverPhase cap j).wvars =
       "i", "a", "tl", "tl", "v", "dv", "head", "dv1", "k0", "v1", "kend", "u", "au",
       "du", "tl", "k0",
       "z", "dz", "xp", "z", "c",
-      "i", "i", "i", "i", "i", "i", xpName j] := rfl
+      "i", "i", "i", "i", "i", "i", xpName j, cnumName j, "i", cnumName j, "i"] := rfl
 
 /-! ### The frame of a level's state
 
@@ -302,23 +307,23 @@ theorem levelPre_run {B n cap mb ns W j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ
 
 theorem alvName_notMem_coverPhase (cap j a : ℕ) : alvName a ∉ (coverPhase cap j).warrs := by
   rw [warrs_coverPhase]
-  simp [alvName, xofName, xmmName, asgName, String.ext_iff]
+  simp [alvName, xofName, xmmName, asgName, cpsName, String.ext_iff]
 
 theorem gamName_notMem_coverPhase (cap j a : ℕ) : gamName a ∉ (coverPhase cap j).warrs := by
   rw [warrs_coverPhase]
-  simp [gamName, xofName, xmmName, asgName, String.ext_iff]
+  simp [gamName, xofName, xmmName, asgName, cpsName, String.ext_iff]
 
 theorem colName_notMem_coverPhase (cap j a c : ℕ) : colName a c ∉ (coverPhase cap j).warrs := by
   rw [warrs_coverPhase]
-  simp [colName, xofName, xmmName, asgName, String.ext_iff]
+  simp [colName, xofName, xmmName, asgName, cpsName, String.ext_iff]
 
 theorem off_notMem_coverPhase (cap j : ℕ) : "off" ∉ (coverPhase cap j).warrs := by
   rw [warrs_coverPhase]
-  simp [xofName, xmmName, asgName, String.ext_iff]
+  simp [xofName, xmmName, asgName, cpsName, String.ext_iff]
 
 theorem tgt_notMem_coverPhase (cap j : ℕ) : "tgt" ∉ (coverPhase cap j).warrs := by
   rw [warrs_coverPhase]
-  simp [xofName, xmmName, asgName, String.ext_iff]
+  simp [xofName, xmmName, asgName, cpsName, String.ext_iff]
 
 theorem zero_notMem_coverPhase (cap j : ℕ) :
     ∀ a ∈ zeroArrs, a ∉ (coverPhase cap j).warrs := by
@@ -326,19 +331,19 @@ theorem zero_notMem_coverPhase (cap j : ℕ) :
   intro a ha
   simp only [zeroArrs, List.mem_cons, List.not_mem_nil, or_false] at ha
   rcases ha with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
-    simp [xofName, xmmName, asgName, String.ext_iff]
+    simp [xofName, xmmName, asgName, cpsName, String.ext_iff]
 
 theorem ctrName_notMem_coverPhase (cap j a : ℕ) : ctrName a ∉ (coverPhase cap j).wvars := by
   rw [wvars_coverPhase]
-  simp [ctrName, xpName, String.ext_iff]
+  simp [ctrName, xpName, cnumName, String.ext_iff]
 
 theorem n_notMem_coverPhase (cap j : ℕ) : "n" ∉ (coverPhase cap j).wvars := by
   rw [wvars_coverPhase]
-  simp [xpName, String.ext_iff]
+  simp [xpName, cnumName, String.ext_iff]
 
 theorem m_notMem_coverPhase (cap j : ℕ) : "m" ∉ (coverPhase cap j).wvars := by
   rw [wvars_coverPhase]
-  simp [xpName, String.ext_iff]
+  simp [xpName, cnumName, String.ext_iff]
 
 /-! ### A copy into a prefix of a longer array
 
@@ -464,13 +469,16 @@ theorem coverOut_congr {Xmem' : ℕ → ℕ} (h : CoverOut G A₀ π ord r m Xof
   have hblk : ∀ c < n, ∀ p, p < Xoff (c + 1) → p < m := fun c hc p hp =>
     lt_of_lt_of_le hp (coverOut_off_le h (c + 1) (by omega))
   refine ⟨h.zero, h.last, h.mono, fun p hp => by rw [hX p hp]; exact h.mem_lt p hp,
-    fun c hc w => ?_, h.asg_lt, h.asg_cover⟩
-  rw [← h.block c hc w]
-  constructor
-  · rintro ⟨p, hp1, hp2, hp3⟩
-    exact ⟨p, hp1, hp2, by rw [← hX p (hblk c hc p hp2)]; exact hp3⟩
-  · rintro ⟨p, hp1, hp2, hp3⟩
-    exact ⟨p, hp1, hp2, by rw [hX p (hblk c hc p hp2)]; exact hp3⟩
+    fun c hc w => ?_, fun c hc p q hp₁ hp₂ hq₁ hq₂ he => ?_, h.asg_lt, h.asg_cover⟩
+  · rw [← h.block c hc w]
+    constructor
+    · rintro ⟨p, hp1, hp2, hp3⟩
+      exact ⟨p, hp1, hp2, by rw [← hX p (hblk c hc p hp2)]; exact hp3⟩
+    · rintro ⟨p, hp1, hp2, hp3⟩
+      exact ⟨p, hp1, hp2, by rw [hX p (hblk c hc p hp2)]; exact hp3⟩
+  · refine h.block_inj c hc p q hp₁ hp₂ hq₁ hq₂ ?_
+    rw [← hX p (hblk c hc p hp₂), ← hX q (hblk c hc q hq₂)]
+    exact he
 
 end CoverAnswer
 
@@ -512,18 +520,221 @@ theorem warrs_coverCom (r : ℕ) : (RamCover.coverCom r).warrs =
 
 theorem ordName_notMem_coverPhase (cap j a : ℕ) : ordName a ∉ (coverPhase cap j).warrs := by
   rw [warrs_coverPhase]
-  simp [ordName, xofName, xmmName, asgName, String.ext_iff]
+  simp [ordName, xofName, xmmName, asgName, cpsName, String.ext_iff]
 
 theorem noWrite_coverPhase (cap j : ℕ) : (coverPhase cap j).NoWrite := by
-  simp [coverPhase, coverSave, copyCom, copyUpto, fillUpto, RamCover.coverCom,
+  simp [coverPhase, coverSave, compactCom, copyCom, copyUpto, fillUpto, RamCover.coverCom,
     RamCover.initAsg, RamCover.centreStep, RamCover.emitLoop, RamCover.emitSlot,
     Refine.BfsBridge.bfsQCom, Refine.BfsBridge.bfsSetup, Com.NoWrite,
     Lax13Proofs.Refine.Codegen.noWrite_embed]
 
+/-! ### The compaction scan
+
+**Rebase B3.** `RamDriver.compactCom` is the last pass of the cover
+phase: one scan of the depth's own block offsets, listing the positions
+whose block is nonempty. The level's centre loop iterates that list
+instead of the carrier, which is what takes the recursion's turn count
+off `n` and onto the arena's mass.
+
+The invariant is the obvious one — below the counter, every position
+with a nonempty block has been listed, in increasing order — with one
+clause that is not obvious and is the whole point: **the count never
+overtakes the block offsets**, `cnum ≤ Xoff i`. Each listed position
+contributes at least one member, and the members of the positions below
+`i` all sit below `Xoff i`; at the exit `i = n` that reads
+`cnum ≤ Xoff n = mm`. -/
+
+/-- The invariant of `RamDriver.compactCom`. -/
+def CompInv (n j : ℕ) (Xoff : ℕ → ℕ) (σ : Env) : Prop :=
+  σ.vars "n" = n ∧ σ.arrs (xofName j) = arrOf (n + 1) Xoff ∧ σ.vars "i" ≤ n ∧
+    ∃ cps : ℕ → ℕ, σ.arrs (cpsName j) = arrOf n cps ∧
+      σ.vars (cnumName j) ≤ σ.vars "i" ∧ σ.vars (cnumName j) ≤ Xoff (σ.vars "i") ∧
+      (∀ k < σ.vars (cnumName j), cps k < σ.vars "i" ∧ Xoff (cps k) < Xoff (cps k + 1)) ∧
+      (∀ k k' : ℕ, k < k' → k' < σ.vars (cnumName j) → cps k < cps k') ∧
+      (∀ c < σ.vars "i", Xoff c < Xoff (c + 1) → ∃ k < σ.vars (cnumName j), cps k = c)
+
+theorem cpsName_ne_xofName (j a : ℕ) : cpsName j ≠ xofName a := by
+  simp [cpsName, xofName, String.ext_iff]
+
+/-- **One turn of the compaction scan.** The block at the counter is
+tested for emptiness; if it is not empty the position is appended to the
+list and the count goes up. -/
+theorem compact_body {B n j : ℕ} {Xoff : ℕ → ℕ}
+    (hnB : n < B) (hmono : ∀ c < n, Xoff c ≤ Xoff (c + 1))
+    (hXB : ∀ k < n + 1, Xoff k < B) :
+    Spec B (fun σ => CompInv n j Xoff σ ∧ σ.vars "i" < n)
+      (.seq
+        (.ite (.lt (.get (xofName j) (.var "i"))
+            (.get (xofName j) (.add (.var "i") (.lit 1))))
+          (.seq (.store (cpsName j) (.var (cnumName j)) (.var "i"))
+            (.assign (cnumName j) (.add (.var (cnumName j)) (.lit 1))))
+          .skip)
+        (.assign "i" (.add (.var "i") (.lit 1))))
+      (fun σ σ' => CompInv n j Xoff σ' ∧ σ'.vars "i" = σ.vars "i" + 1) 19 := by
+  have hnq : ("n" : String) ≠ cnumName j := by simp [cnumName, String.ext_iff]
+  have hiq : ("i" : String) ≠ cnumName j := by simp [cnumName, String.ext_iff]
+  have hxc : xofName j ≠ cpsName j := by simp [xofName, cpsName, String.ext_iff]
+  refine Spec.of_exists fun σ hσ => ?_
+  obtain ⟨⟨hn, hxof, -, cps, hcps, hcle, hcX, hcpslt, hcpsmono, hcov⟩, hlt⟩ := hσ
+  have hiB : σ.vars "i" < B := by omega
+  have hKB : σ.vars (cnumName j) < B := by omega
+  have he1 : (Expr.get (xofName j) (.var "i")).evalB B σ = some (Xoff (σ.vars "i")) :=
+    evalB_get (evalB_var hiB) (by rw [hxof]; exact getElem?_arrOf Xoff (by omega))
+      (hXB _ (by omega))
+  have hidx : (Expr.add (.var "i") (.lit 1)).evalB B σ = some (σ.vars "i" + 1) := by
+    have h := evalB_bin (B := B) (σ := σ) (op := .add) (e := .var "i") (f := .lit 1)
+      (evalB_var hiB) (evalB_lit (by omega)) (by simp only [Bop.apply_add]; omega)
+    rw [Bop.apply_add] at h
+    exact h
+  have he2 : (Expr.get (xofName j) (.add (.var "i") (.lit 1))).evalB B σ
+      = some (Xoff (σ.vars "i" + 1)) :=
+    evalB_get hidx (by rw [hxof]; exact getElem?_arrOf Xoff (by omega)) (hXB _ (by omega))
+  have hstep : ∀ τ : Env, τ.vars "i" = σ.vars "i" →
+      Run B (.assign "i" (.add (.var "i") (.lit 1))) τ
+        (τ.setVar "i" (σ.vars "i" + 1)) 4 := by
+    intro τ hτ
+    have h := Run.assign (B := B) (σ := τ) (x := "i") (e := .add (.var "i") (.lit 1))
+      (evalB_bin (evalB_var (by rw [hτ]; exact hiB)) (evalB_lit (by omega))
+        (by simp only [Bop.apply_add, hτ]; omega))
+    rw [Bop.apply_add, hτ] at h
+    exact h.congr (by simp)
+  by_cases hne : Xoff (σ.vars "i") < Xoff (σ.vars "i" + 1)
+  · -- the block is not empty: the position joins the list
+    have hcond : (Cond.lt (Expr.get (xofName j) (.var "i"))
+        (Expr.get (xofName j) (.add (.var "i") (.lit 1)))).evalB B σ = some true := by
+      rw [evalB_condLt he1 he2]; simp [hne]
+    have hst : Run B (.store (cpsName j) (.var (cnumName j)) (.var "i")) σ
+        (σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")) (1 + 1 + 1) :=
+      Run.store (evalB_var hKB) (evalB_var hiB) (by rw [hcps, length_arrOf]; omega)
+    have hbump : Run B (.assign (cnumName j) (.add (.var (cnumName j)) (.lit 1)))
+        (σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i"))
+        ((σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")).setVar (cnumName j)
+          (σ.vars (cnumName j) + 1)) 4 := by
+      have h := Run.assign (B := B)
+        (σ := σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")) (x := cnumName j)
+        (e := .add (.var (cnumName j)) (.lit 1))
+        (evalB_bin (evalB_var (by simpa using hKB)) (evalB_lit (by omega))
+          (by simp only [Bop.apply_add, vars_setArr]; omega))
+      rw [Bop.apply_add, vars_setArr] at h
+      exact h.congr (by simp)
+    have hi₂ : ((σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")).setVar (cnumName j)
+        (σ.vars (cnumName j) + 1)).vars "i" = σ.vars "i" := by simp [hiq]
+    refine ⟨_, _, (Run.ite_true hcond (hst.seq hbump)).seq (hstep _ hi₂), by simp,
+      ?_, by simp⟩
+    -- the invariant, with the position appended
+    have hKρ : (((σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")).setVar
+        (cnumName j) (σ.vars (cnumName j) + 1)).setVar "i" (σ.vars "i" + 1)).vars
+        (cnumName j) = σ.vars (cnumName j) + 1 := by simp [Ne.symm hiq]
+    have hIρ : (((σ.setArr (cpsName j) (σ.vars (cnumName j)) (σ.vars "i")).setVar
+        (cnumName j) (σ.vars (cnumName j) + 1)).setVar "i" (σ.vars "i" + 1)).vars "i"
+        = σ.vars "i" + 1 := by simp
+    refine ⟨by simp [hnq, hn], by simp [hxc, hxof], by rw [hIρ]; omega,
+      fun k => if k = σ.vars (cnumName j) then σ.vars "i" else cps k,
+      by simp [hcps, set_arrOf], by rw [hKρ, hIρ]; omega,
+      by rw [hKρ, hIρ]; omega, ?_, ?_, ?_⟩
+    · intro k hk
+      rw [hKρ] at hk
+      rw [hIρ]
+      by_cases hkK : k = σ.vars (cnumName j)
+      · subst hkK
+        refine ⟨by simp, ?_⟩
+        simp only [if_pos rfl]
+        exact hne
+      · have h₁ := (hcpslt k (by omega)).1
+        have h₂ := (hcpslt k (by omega)).2
+        refine ⟨by simp only [if_neg hkK]; omega, ?_⟩
+        simp only [if_neg hkK]
+        exact h₂
+    · intro k k' hkk hk'
+      rw [hKρ] at hk'
+      by_cases hk'K : k' = σ.vars (cnumName j)
+      · have h₁ := (hcpslt k (by omega)).1
+        simp only [if_pos hk'K, if_neg (show k ≠ σ.vars (cnumName j) by omega)]
+        omega
+      · simp only [if_neg hk'K, if_neg (show k ≠ σ.vars (cnumName j) by omega)]
+        exact hcpsmono k k' hkk (by omega)
+    · intro c hc hnec
+      rw [hIρ] at hc
+      rw [hKρ]
+      by_cases hci : c = σ.vars "i"
+      · refine ⟨σ.vars (cnumName j), by omega, ?_⟩
+        simp only [if_pos rfl]
+        exact hci.symm
+      · obtain ⟨k, hk, hkc⟩ := hcov c (by omega) hnec
+        refine ⟨k, by omega, ?_⟩
+        simp only [if_neg (show k ≠ σ.vars (cnumName j) by omega)]
+        exact hkc
+  · -- the block is empty: the position is skipped
+    have hle : Xoff (σ.vars "i" + 1) = Xoff (σ.vars "i") :=
+      le_antisymm (by omega) (hmono _ (by omega))
+    have hcond : (Cond.lt (Expr.get (xofName j) (.var "i"))
+        (Expr.get (xofName j) (.add (.var "i") (.lit 1)))).evalB B σ = some false := by
+      rw [evalB_condLt he1 he2]; simp [hne]
+    refine ⟨_, _, (Run.ite_false hcond Run.skip).seq (hstep σ rfl), by simp, ?_, by simp⟩
+    have hKρ : (σ.setVar "i" (σ.vars "i" + 1)).vars (cnumName j) = σ.vars (cnumName j) := by
+      simp [Ne.symm hiq]
+    have hIρ : (σ.setVar "i" (σ.vars "i" + 1)).vars "i" = σ.vars "i" + 1 := by simp
+    refine ⟨by simp [hnq, hn], by simp [hxof], by rw [hIρ]; omega, cps,
+      by simp [hcps], by rw [hKρ, hIρ]; omega, by rw [hKρ, hIρ, hle]; exact hcX, ?_, ?_, ?_⟩
+    · intro k hk
+      rw [hKρ] at hk
+      rw [hIρ]
+      exact ⟨by have := (hcpslt k hk).1; omega, (hcpslt k hk).2⟩
+    · intro k k' hkk hk'
+      rw [hKρ] at hk'
+      exact hcpsmono k k' hkk hk'
+    · intro c hc hnec
+      rw [hIρ] at hc
+      rw [hKρ]
+      refine hcov c ?_ hnec
+      rcases Nat.lt_or_ge c (σ.vars "i") with h | h
+      · exact h
+      · exact absurd (show Xoff (σ.vars "i") < Xoff (σ.vars "i" + 1) by
+          rw [show σ.vars "i" = c by omega]; exact hnec) hne
+
+/-- The cost of the compaction scan: one carrier-width pass, whose turn
+is a two-sided test and, at most, a store and two increments. -/
+def compactCost (n : ℕ) : ℕ := 23 * n + 8
+
+/-- **The compaction scan, discharged.** What it leaves is
+`RamDriver.Compacted` at the depth's own two names. -/
+theorem compact_spec {B n j : ℕ} {Xoff : ℕ → ℕ}
+    (hnB : n < B) (hmono : ∀ c < n, Xoff c ≤ Xoff (c + 1))
+    (hXB : ∀ k < n + 1, Xoff k < B) :
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs (xofName j) = arrOf (n + 1) Xoff ∧
+        ∃ g : ℕ → ℕ, σ.arrs (cpsName j) = arrOf n g)
+      (compactCom j)
+      (fun _ σ' => σ'.vars "n" = n ∧ σ'.arrs (xofName j) = arrOf (n + 1) Xoff ∧
+        ∃ cps : ℕ → ℕ, σ'.arrs (cpsName j) = arrOf n cps ∧
+          Compacted n (σ'.vars (cnumName j)) (Xoff n) Xoff cps)
+      (compactCost n) := by
+  have hnq : ("n" : String) ≠ cnumName j := by simp [cnumName, String.ext_iff]
+  have hiq : ("i" : String) ≠ cnumName j := by simp [cnumName, String.ext_iff]
+  have hloop := Spec.forRangeZero (B := B) "i" "n" (CompInv n j Xoff) n 19 hnB
+    (fun _ hτ => hτ.2.2.1) (fun _ hτ => hτ.1) (compact_body hnB hmono hXB)
+  refine (Spec.seq (Spec.assign (B := B) (P := fun σ => σ.vars "n" = n ∧
+        σ.arrs (xofName j) = arrOf (n + 1) Xoff ∧ ∃ g : ℕ → ℕ, σ.arrs (cpsName j) = arrOf n g)
+      (x := cnumName j) (e := .lit 0) (f := fun _ => 0)
+      (fun _ _ => evalB_lit (by omega)))
+    hloop ?_ ?_).mono (by rw [compactCost]; simp only [size_lit]; omega)
+  · -- the invariant holds once both counters are zeroed
+    rintro σ σ' ⟨hn, hxof, g, hg⟩ rfl
+    refine ⟨by simp [hnq, hn], by simpa using hxof, by simp, g, by simpa using hg,
+      by simp [Ne.symm hiq], by simp [Ne.symm hiq], ?_, ?_, ?_⟩
+    · intro k hk; simp [Ne.symm hiq] at hk
+    · intro k k' _ hk'; simp [Ne.symm hiq] at hk'
+    · intro c hc; simp at hc
+  · rintro σ σ' σ'' - - ⟨⟨hn'', hxof'', -, cps, hcps, hcle, hcX, hcpslt, hcpsmono, hcov⟩,
+      hi''⟩
+    rw [hi''] at hcle hcX hcpslt hcov
+    exact ⟨hn'', hxof'', cps, hcps,
+      ⟨hcX, hcle, fun k hk => (hcpslt k hk).1, hcpsmono, fun k hk => (hcpslt k hk).2, hcov⟩⟩
+
 /-- The cost of the cover phase: the pass, the two copies that set it
-up, and the four of `RamDriver.coverSave`, the member copy charged at
-the whole cluster arena. -/
-def coverPhaseCost (n ns : ℕ) : ℕ := RamCover.coverCost n ns + 12 * (n * n) + 50 * n + 48
+up, the four of `RamDriver.coverSave` — the member copy charged at the
+whole cluster arena — and the compaction scan. -/
+def coverPhaseCost (n ns : ℕ) : ℕ :=
+  RamCover.coverCost n ns + 12 * (n * n) + 73 * n + 56
 
 /-- **The cover phase of a level, discharged.** -/
 theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
@@ -629,16 +840,38 @@ theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin 
       (evalB_var (show σ₆.vars "xp" < B by rw [hxp₆]; omega))
     rw [hxp₆] at h
     simpa using h
+  set ρ := σ₆.setVar (xpName j) m with hρ
+  -- the cover's four answers, at the depth's own names, before the scan
+  have hxofρ : ρ.arrs (xofName j) = arrOf (n + 1) Xoff := by
+    rw [hρ, arrs_setVar,
+      hr₆.frame_arr _ (by rw [warrs_copyCom]; simp [xofName, asgName, String.ext_iff]),
+      hr₅.frame_arr _ (by rw [warrs_copyUpto]; simp [xofName, xmmName, String.ext_iff]), hv₄,
+      RamDriverOrder.arrOf_congr hagr₄]
+  have hxmmρ : ρ.arrs (xmmName j) = arrOf (n * n) v₅ := by
+    rw [hρ, arrs_setVar,
+      hr₆.frame_arr _ (by rw [warrs_copyCom]; simp [xmmName, asgName, String.ext_iff]), hv₅]
+  have hasgρ : ρ.arrs (asgName j) = arrOf n asg := by
+    rw [hρ, arrs_setVar, hv₆, RamDriverOrder.arrOf_congr hagr₆]
+  have hxpρ : ρ.vars (xpName j) = m := by rw [hρ, vars_setVar, if_pos rfl]
+  have hvnρ : ρ.vars "n" = n := by
+    rw [hρ, vars_setVar, if_neg (by simp [xpName, String.ext_iff]),
+      hr₆.frame_var "n" (by rw [wvars_copyCom]; decide)]
+    exact hvn₅
+  have hdepρ : DepthMem n cap mb ρ := (hdep₅.run hr₆).setVar _ _
+  -- the compaction scan
+  obtain ⟨σ₈, hr₈, hvn₈, hxof₈, cps, hcps₈, hcompact⟩ :=
+    (compact_spec (B := B) (j := j) hnB hout.mono hXoffB).run
+      (σ := ρ) ⟨hvnρ, hxofρ, hdepρ.get j (p := (cpsName j, n)) (by simp)⟩
   -- the phase, assembled
-  refine ⟨σ₆.setVar (xpName j) m, _,
-    hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq (hr₅.seq (hr₆.seq hr₇))))), ?_, ?_⟩
-  · rw [coverPhaseCost]
+  have hrS : Run B (coverSave j) σ₃ ρ _ := hr₄.seq (hr₅.seq (hr₆.seq hr₇))
+  refine ⟨σ₈, _,
+    hr₁.seq (hr₂.seq (hr₃.seq (hrS.seq hr₈))), ?_, ?_⟩
+  · rw [coverPhaseCost, compactCost]
     simp only [size_add, size_var, size_lit]
     have h12 : 12 * m ≤ 12 * (n * n) := Nat.mul_le_mul_left 12 hmle
     omega
-  set ρ := σ₆.setVar (xpName j) m with hρ
-  have hrT : Run B (coverPhase cap j) σ ρ _ :=
-    hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq (hr₅.seq (hr₆.seq hr₇)))))
+  have hrT : Run B (coverPhase cap j) σ σ₈ _ :=
+    hr₁.seq (hr₂.seq (hr₃.seq (hrS.seq hr₈)))
   refine ⟨levelPre_run hlev hrT (n_notMem_coverPhase cap j) (m_notMem_coverPhase cap j)
       (off_notMem_coverPhase cap j) (tgt_notMem_coverPhase cap j)
       (alvName_notMem_coverPhase cap j j) (gamName_notMem_coverPhase cap j j)
@@ -646,16 +879,17 @@ theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin 
     hrT.out_eq (noWrite_coverPhase cap j),
     fun a => hrT.frame_var _ (ctrName_notMem_coverPhase cap j a),
     fun a => hrT.frame_arr _ (gamName_notMem_coverPhase cap j a),
-    Xoff, v₅, asg, m, ?_, ?_, ?_, ?_, ?_, hmle, hordlt, coverOut_congr hout hagr₅⟩
+    Xoff, v₅, asg, cps, m, σ₈.vars (cnumName j),
+    ⟨?_, hxof₈, ?_, ?_, ?_, hmle, hordlt, coverOut_congr hout hagr₅⟩,
+    hcps₈, rfl, ?_⟩
   · rw [hrT.frame_arr _ (ordName_notMem_coverPhase cap j j)]; exact hordarr
-  · rw [hρ, arrs_setVar,
-      hr₆.frame_arr _ (by rw [warrs_copyCom]; simp [xofName, asgName, String.ext_iff]),
-      hr₅.frame_arr _ (by rw [warrs_copyUpto]; simp [xofName, xmmName, String.ext_iff]), hv₄,
-      RamDriverOrder.arrOf_congr hagr₄]
-  · rw [hρ, arrs_setVar,
-      hr₆.frame_arr _ (by rw [warrs_copyCom]; simp [xmmName, asgName, String.ext_iff]), hv₅]
-  · rw [hρ, arrs_setVar, hv₆, RamDriverOrder.arrOf_congr hagr₆]
-  · rw [hρ, vars_setVar, if_pos rfl]
+  · rw [hr₈.frame_arr _ (by rw [warrs_compactCom]; simp [cpsName, xmmName, String.ext_iff])]
+    exact hxmmρ
+  · rw [hr₈.frame_arr _ (by rw [warrs_compactCom]; simp [cpsName, asgName, String.ext_iff])]
+    exact hasgρ
+  · rw [hr₈.frame_var _ (by rw [wvars_compactCom]; simp [xpName, cnumName, String.ext_iff])]
+    exact hxpρ
+  · rw [← hout.last]; exact hcompact
 
 /-! ### The base case
 

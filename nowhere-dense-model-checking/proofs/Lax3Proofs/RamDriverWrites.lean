@@ -138,6 +138,15 @@ theorem hasDigit_xpName (b : ℕ) : HasDigit (xpName b) :=
 theorem hasDigit_curName (b : ℕ) : HasDigit (curName b) :=
   hasDigit_append_right _ (hasDigit_toString b)
 
+theorem hasDigit_cpsName (b : ℕ) : HasDigit (cpsName b) :=
+  hasDigit_append_right _ (hasDigit_toString b)
+
+theorem hasDigit_cnumName (b : ℕ) : HasDigit (cnumName b) :=
+  hasDigit_append_right _ (hasDigit_toString b)
+
+theorem hasDigit_cixName (b : ℕ) : HasDigit (cixName b) :=
+  hasDigit_append_right _ (hasDigit_toString b)
+
 /-! ### The depth is recoverable from the name -/
 
 /-- **A fixed prefix with a numeral appended determines the number.** -/
@@ -184,6 +193,15 @@ theorem xpName_inj {b b' : ℕ} (h : xpName b = xpName b') : b = b' :=
 theorem curName_inj {b b' : ℕ} (h : curName b = curName b') : b = b' :=
   append_toString_inj (p := "cu") h
 
+theorem cpsName_inj {b b' : ℕ} (h : cpsName b = cpsName b') : b = b' :=
+  append_toString_inj (p := "cs") h
+
+theorem cnumName_inj {b b' : ℕ} (h : cnumName b = cnumName b') : b = b' :=
+  append_toString_inj (p := "cq") h
+
+theorem cixName_inj {b b' : ℕ} (h : cixName b = cixName b') : b = b' :=
+  append_toString_inj (p := "ci") h
+
 /-- **The colour arrays are addressed injectively**, by the same reading
 as `RamDriverBase.tabName_inj`. -/
 theorem colName_inj {b c b' c' : ℕ} (h : colName b c = colName b' c') : b = b' ∧ c = c' := by
@@ -204,11 +222,11 @@ recoverable, so the depth's *own* names are not either. -/
 def BelowArr (d : ℕ) (a : String) : Prop :=
   ∃ b < d, a = alvName b ∨ a = gamName b ∨ a = cluName b ∨ a = resName b ∨
     a = batName b ∨ a = ordName b ∨ a = xofName b ∨ a = xmmName b ∨ a = asgName b ∨
-    (∃ c, a = colName b c) ∨ (∃ i, a = tabName b i)
+    a = cpsName b ∨ (∃ c, a = colName b c) ∨ (∃ i, a = tabName b i)
 
 /-- **A per-depth scalar of a depth below `d`.** -/
 def BelowVar (d : ℕ) (y : String) : Prop :=
-  ∃ b < d, y = ctrName b ∨ y = xpName b ∨ y = curName b
+  ∃ b < d, y = ctrName b ∨ y = xpName b ∨ y = curName b ∨ y = cnumName b ∨ y = cixName b
 
 theorem BelowArr.mono {d d' : ℕ} {a : String} (h : BelowArr d a) (hd : d ≤ d') :
     BelowArr d' a := by
@@ -220,15 +238,16 @@ theorem BelowVar.mono {d d' : ℕ} {y : String} (h : BelowVar d y) (hd : d ≤ d
 
 theorem hasDigit_of_belowArr {d : ℕ} {a : String} (h : BelowArr d a) : HasDigit a := by
   obtain ⟨b, -, hc⟩ := h
-  rcases hc with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | ⟨c, rfl⟩ | ⟨i, rfl⟩
+  rcases hc with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | ⟨c, rfl⟩ | ⟨i, rfl⟩
   exacts [hasDigit_alvName b, hasDigit_gamName b, hasDigit_cluName b, hasDigit_resName b,
     hasDigit_batName b, hasDigit_ordName b, hasDigit_xofName b, hasDigit_xmmName b,
-    hasDigit_asgName b, hasDigit_colName b c, hasDigit_tabName b i]
+    hasDigit_asgName b, hasDigit_cpsName b, hasDigit_colName b c, hasDigit_tabName b i]
 
 theorem hasDigit_of_belowVar {d : ℕ} {y : String} (h : BelowVar d y) : HasDigit y := by
   obtain ⟨b, -, hc⟩ := h
-  rcases hc with rfl | rfl | rfl
-  exacts [hasDigit_ctrName b, hasDigit_xpName b, hasDigit_curName b]
+  rcases hc with rfl | rfl | rfl | rfl | rfl
+  exacts [hasDigit_ctrName b, hasDigit_xpName b, hasDigit_curName b, hasDigit_cnumName b,
+    hasDigit_cixName b]
 
 set_option maxHeartbeats 2000000 in
 /-- **A name of a depth below is not a name of a depth at or above.**
@@ -240,12 +259,13 @@ theorem belowArr_ne {d : ℕ} {a : String} (h : BelowArr d a) {b' : ℕ} (hb : d
     {a' : String}
     (h' : a' = alvName b' ∨ a' = gamName b' ∨ a' = cluName b' ∨ a' = resName b' ∨
       a' = balName b' ∨ a' = balAltName b' ∨ a' = batName b' ∨ a' = ordName b' ∨
-      a' = xofName b' ∨ a' = xmmName b' ∨ a' = asgName b' ∨ (∃ c, a' = colName b' c) ∨
-      (∃ i, a' = tabName b' i)) : a ≠ a' := by
+      a' = xofName b' ∨ a' = xmmName b' ∨ a' = asgName b' ∨ a' = cpsName b' ∨
+      (∃ c, a' = colName b' c) ∨ (∃ i, a' = tabName b' i)) : a ≠ a' := by
   obtain ⟨b, hbd, hc⟩ := h
   have hbb : b ≠ b' := by omega
-  rcases hc with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | ⟨c, rfl⟩ | ⟨i, rfl⟩ <;>
-    rcases h' with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
+  rcases hc with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | ⟨c, rfl⟩ |
+      ⟨i, rfl⟩ <;>
+    rcases h' with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
       ⟨c', rfl⟩ | ⟨i', rfl⟩ <;>
     first
       | (intro hq; exact hbb (alvName_inj hq))
@@ -257,37 +277,45 @@ theorem belowArr_ne {d : ℕ} {a : String} (h : BelowArr d a) {b' : ℕ} (hb : d
       | (intro hq; exact hbb (xofName_inj hq))
       | (intro hq; exact hbb (xmmName_inj hq))
       | (intro hq; exact hbb (asgName_inj hq))
+      | (intro hq; exact hbb (cpsName_inj hq))
       | (intro hq; exact hbb (colName_inj hq).1)
       | (intro hq; exact hbb (RamDriverBase.tabName_inj hq).1)
       | simp [alvName, gamName, cluName, resName, balName, balAltName, batName, ordName,
-          xofName, xmmName, asgName, colName, tabName, String.ext_iff]
+          xofName, xmmName, asgName, cpsName, colName, tabName, String.ext_iff]
 
 theorem belowVar_ne {d : ℕ} {y : String} (h : BelowVar d y) {b' : ℕ} (hb : d ≤ b')
-    {y' : String} (h' : y' = ctrName b' ∨ y' = xpName b' ∨ y' = curName b') : y ≠ y' := by
+    {y' : String} (h' : y' = ctrName b' ∨ y' = xpName b' ∨ y' = curName b' ∨
+      y' = cnumName b' ∨ y' = cixName b') : y ≠ y' := by
   obtain ⟨b, hbd, hc⟩ := h
   have hbb : b ≠ b' := by omega
-  rcases hc with rfl | rfl | rfl <;> rcases h' with rfl | rfl | rfl <;>
+  rcases hc with rfl | rfl | rfl | rfl | rfl <;>
+    rcases h' with rfl | rfl | rfl | rfl | rfl <;>
     first
       | (intro hq; exact hbb (ctrName_inj hq))
       | (intro hq; exact hbb (xpName_inj hq))
       | (intro hq; exact hbb (curName_inj hq))
-      | simp [ctrName, xpName, curName, String.ext_iff]
+      | (intro hq; exact hbb (cnumName_inj hq))
+      | (intro hq; exact hbb (cixName_inj hq))
+      | simp [ctrName, xpName, curName, cnumName, cixName, String.ext_iff]
 
 /-- No scalar of a depth below carries the separator, so none is a
 scatter flag. -/
 theorem belowVar_notMem_underscore {d : ℕ} {y : String} (h : BelowVar d y) :
     '_' ∉ y.toList := by
   obtain ⟨b, -, hc⟩ := h
-  rcases hc with rfl | rfl | rfl
+  rcases hc with rfl | rfl | rfl | rfl | rfl
   exacts [by rw [ctrName]; exact underscore_notMem_prefixed (by decide) b,
     by rw [xpName]; exact underscore_notMem_prefixed (by decide) b,
-    by rw [curName]; exact underscore_notMem_prefixed (by decide) b]
+    by rw [curName]; exact underscore_notMem_prefixed (by decide) b,
+    by rw [cnumName]; exact underscore_notMem_prefixed (by decide) b,
+    by rw [cixName]; exact underscore_notMem_prefixed (by decide) b]
 
 /-- Nor is any of them one of the base evaluator's own scalars. -/
 theorem belowVar_ne_envName {d : ℕ} {y : String} (h : BelowVar d y) (i : ℕ) :
     y ≠ envName i := by
   obtain ⟨b, -, hc⟩ := h
-  rcases hc with rfl | rfl | rfl <;> simp [ctrName, xpName, curName, envName, String.ext_iff]
+  rcases hc with rfl | rfl | rfl | rfl | rfl <;>
+    simp [ctrName, xpName, curName, cnumName, cixName, envName, String.ext_iff]
 
 /-! ### The generated evaluator's names
 
@@ -306,7 +334,8 @@ theorem not_ext_bb_append {p : String} (hlen : 2 ≤ p.toList.length)
 theorem not_ext_bb_of_belowArr {d : ℕ} {a : String} (h : BelowArr d a) :
     ¬ RamDriverBot.Ext "bb" a := by
   obtain ⟨b, -, hc⟩ := h
-  rcases hc with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | ⟨c, rfl⟩ | ⟨i, rfl⟩
+  rcases hc with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | ⟨c, rfl⟩ |
+    ⟨i, rfl⟩
   exacts [by rw [alvName]; exact not_ext_bb_append (by decide) (by decide) _,
     by rw [gamName]; exact not_ext_bb_append (by decide) (by decide) _,
     by rw [cluName]; exact not_ext_bb_append (by decide) (by decide) _,
@@ -316,6 +345,7 @@ theorem not_ext_bb_of_belowArr {d : ℕ} {a : String} (h : BelowArr d a) :
     by rw [xofName]; exact not_ext_bb_append (by decide) (by decide) _,
     by rw [xmmName]; exact not_ext_bb_append (by decide) (by decide) _,
     by rw [asgName]; exact not_ext_bb_append (by decide) (by decide) _,
+    by rw [cpsName]; exact not_ext_bb_append (by decide) (by decide) _,
     fun hq => RamDriverBot.not_ext_b_colName b c (RamDriverCompose.ext_b_of_ext_bb hq),
     fun hq => RamDriverBot.not_ext_b_tabName b i (RamDriverCompose.ext_b_of_ext_bb hq)]
 
@@ -439,7 +469,7 @@ theorem belowVar_notMem_wvars_orderCom (W d : ℕ) {y : String} (h : BelowVar d 
 
 theorem warrs_coverPhase_split (cap j : ℕ) : (coverPhase cap j).warrs =
     ["ord", "alv", "asg", "xoff", "dist", "dist", "q", "dist", "q", "xmem", "asg", "alv",
-      "xoff"] ++ [xofName j, xmmName j, asgName j] :=
+      "xoff"] ++ [xofName j, xmmName j, asgName j, cpsName j] :=
   RamDriverCompose.warrs_coverPhase cap j
 
 /-- The scalars the cover phase writes, other than its own per-depth
@@ -459,7 +489,8 @@ def coverPhaseScalars : List String :=
     "i", "i", "i", "i", "i", "i"]
 
 theorem wvars_coverPhase_split (cap j : ℕ) :
-    (coverPhase cap j).wvars = coverPhaseScalars ++ [xpName j] :=
+    (coverPhase cap j).wvars =
+      coverPhaseScalars ++ [xpName j, cnumName j, "i", cnumName j, "i"] :=
   RamDriverCompose.wvars_coverPhase cap j
 
 /-- Every scalar the phase writes is either digit-free — and so not a
@@ -473,10 +504,10 @@ theorem coverPhaseScalars_ok :
 theorem belowVar_ne_junk {d : ℕ} {y : String} (h : BelowVar d y) :
     y ≠ "dv1" ∧ y ≠ "v1" ∧ y ≠ "k0" := by
   obtain ⟨b, -, hc⟩ := h
-  rcases hc with rfl | rfl | rfl <;>
-    exact ⟨by simp [ctrName, xpName, curName, String.ext_iff],
-      by simp [ctrName, xpName, curName, String.ext_iff],
-      by simp [ctrName, xpName, curName, String.ext_iff]⟩
+  rcases hc with rfl | rfl | rfl | rfl | rfl <;>
+    exact ⟨by simp [ctrName, xpName, curName, cnumName, cixName, String.ext_iff],
+      by simp [ctrName, xpName, curName, cnumName, cixName, String.ext_iff],
+      by simp [ctrName, xpName, curName, cnumName, cixName, String.ext_iff]⟩
 
 theorem belowArr_notMem_warrs_coverPhase (cap d : ℕ) {a : String} (h : BelowArr d a) :
     a ∉ (coverPhase cap d).warrs := by
@@ -484,7 +515,7 @@ theorem belowArr_notMem_warrs_coverPhase (cap d : ℕ) {a : String} (h : BelowAr
   rintro (hm | hm)
   · exact notHasDigit_mem (by decide) hm (hasDigit_of_belowArr h)
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
-    rcases hm with hq | hq | hq <;> exact belowArr_ne h (le_refl d) (by tauto) hq
+    rcases hm with hq | hq | hq | hq <;> exact belowArr_ne h (le_refl d) (by tauto) hq
 
 theorem belowVar_notMem_wvars_coverPhase (cap d : ℕ) {y : String} (h : BelowVar d y) :
     y ∉ (coverPhase cap d).wvars := by
@@ -496,7 +527,12 @@ theorem belowVar_notMem_wvars_coverPhase (cap d : ℕ) {y : String} (h : BelowVa
     · rcases hq with rfl | rfl | rfl
       exacts [hj.1 rfl, hj.2.1 rfl, hj.2.2 rfl]
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
-    exact belowVar_ne h (le_refl d) (by tauto) hm
+    rcases hm with hq | hq | hq | hq | hq
+    exacts [belowVar_ne h (le_refl d) (by tauto) hq,
+      belowVar_ne h (le_refl d) (by tauto) hq,
+      absurd (hq ▸ hasDigit_of_belowVar h) (by decide),
+      belowVar_ne h (le_refl d) (by tauto) hq,
+      absurd (hq ▸ hasDigit_of_belowVar h) (by decide)]
 
 /-! ### The padding, the colouring, the scatter phase and the readback -/
 
@@ -519,8 +555,7 @@ theorem belowArr_notMem_warrs_colourCom (cap mb d : ℕ) {a : String} (h : Below
     a ∉ (colourCom cap mb d).warrs := by
   intro hm
   obtain ⟨c, hc⟩ := RamDriverFrames.mem_warrs_colourCom cap mb d hm
-  exact belowArr_ne h (Nat.le_succ d) (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
-    (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨c, rfl⟩)))))))))))) hc
+  exact belowArr_ne h (Nat.le_succ d) (by tauto) hc
 
 theorem wvars_expandCom_eq (msk src dst : String) :
     (expandCom msk src dst).wvars = (expandCom "" "" "").wvars := rfl
@@ -613,8 +648,7 @@ theorem belowArr_notMem_warrs_readbackCom (q_top cap mb d : ℕ) (φ : Lax3.Firs
     {a : String} (h : BelowArr d a) : a ∉ (readbackCom q_top cap mb φ d).warrs := by
   intro hm
   obtain ⟨i, hi⟩ := RamDriverBase.mem_warrs_readbackCom hm
-  exact belowArr_ne h (le_refl d) (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
-    (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨i, rfl⟩))))))))))))  hi
+  exact belowArr_ne h (le_refl d) (by tauto) hi
 
 theorem belowVar_notMem_wvars_readbackCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
     {y : String} (h : BelowVar d y) : y ∉ (readbackCom q_top cap mb φ d).wvars :=
@@ -798,10 +832,12 @@ theorem belowVar_notMem_wvars_descendCom (cap d : ℕ) {y : String} (h : BelowVa
 theorem not_ext_bb_of_belowVar {d : ℕ} {y : String} (h : BelowVar d y) :
     ¬ RamDriverBot.Ext "bb" y := by
   obtain ⟨b, -, hc⟩ := h
-  rcases hc with rfl | rfl | rfl
+  rcases hc with rfl | rfl | rfl | rfl | rfl
   exacts [by rw [ctrName]; exact not_ext_bb_append (by decide) (by decide) _,
     by rw [xpName]; exact not_ext_bb_append (by decide) (by decide) _,
-    by rw [curName]; exact not_ext_bb_append (by decide) (by decide) _]
+    by rw [curName]; exact not_ext_bb_append (by decide) (by decide) _,
+    by rw [cnumName]; exact not_ext_bb_append (by decide) (by decide) _,
+    by rw [cixName]; exact not_ext_bb_append (by decide) (by decide) _]
 
 theorem belowArr_notMem_warrs_baseCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
     {a : String} (h : BelowArr d a) : a ∉ (baseCom q_top cap mb d φ).warrs := by
@@ -810,8 +846,7 @@ theorem belowArr_notMem_warrs_baseCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrd
     fun β hβ => (tableRank_of_mem_tablesAt d β hβ).1
   rcases RamDriverBot.warrs_baseCom hlocal a hm with hq | ⟨i, hq⟩ | hq
   · exact belowArr_ne_rep h hq
-  · exact belowArr_ne h (le_refl d) (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
-      (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨i, rfl⟩)))))))))))) hq
+  · exact belowArr_ne h (le_refl d) (by tauto) hq
   · exact not_ext_bb_of_belowArr h hq
 
 theorem belowVar_notMem_wvars_baseCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
@@ -853,6 +888,8 @@ theorem belowArr_notMem_warrs_driverAux (q_top cap mb ℓ W : ℕ) (φ : Lax3.Fi
       · rw [warrs_assign] at hq; exact absurd hq List.not_mem_nil
       rw [warrs_while] at hq
       rcases mem_warrs_seq hq with hq | hq
+      · rw [warrs_assign] at hq; exact absurd hq List.not_mem_nil
+      rcases mem_warrs_seq hq with hq | hq
       · rw [clusterCom] at hq
         rcases mem_warrs_seq hq with hr | hr
         · exact belowArr_notMem_warrs_descendCom cap d h hr
@@ -890,6 +927,9 @@ theorem belowVar_notMem_wvars_driverAux (q_top cap mb ℓ W : ℕ) (φ : Lax3.Fi
         exact belowVar_ne h (le_refl d) (by tauto) (List.eq_of_mem_singleton hq)
       rw [wvars_while] at hq
       rcases mem_wvars_seq hq with hq | hq
+      · rw [wvars_assign] at hq
+        exact belowVar_ne h (le_refl d) (by tauto) (List.eq_of_mem_singleton hq)
+      rcases mem_wvars_seq hq with hq | hq
       · rw [clusterCom] at hq
         rcases mem_wvars_seq hq with hr | hr
         · exact belowVar_notMem_wvars_descendCom cap d h hr
@@ -917,6 +957,89 @@ theorem belowVar_notMem_wvars_driverAt {q_top cap mb ℓ W d : ℕ} {φ : Lax3.F
   rw [driverAt]
   exact belowVar_notMem_wvars_driverAux q_top cap mb ℓ W φ (ℓ - d) d h
 
+/-! ### The three names the compacted loop header owns
+
+**Rebase B3.** The centre loop reads the compacted centre list
+`cpsName j`, its length `cnumName j` and its own index `cixName j`
+*between* turns, so the turn — the nested call included — must leave all
+three alone. None of the six phases writes them: the five that are not
+the nested call write fixed scratch names, the depth's own cluster
+arrays, the next depth's palette and the depth's tables, and the nested
+call is a level at depth `j + 1`, which
+`belowArr_notMem_warrs_driverAt` already covers. -/
+
+open Classical in
+/-- **The compacted list survives a turn.** -/
+theorem cpsName_notMem_warrs_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
+    {inner : Com} (hin : cpsName d ∉ inner.warrs) :
+    cpsName d ∉ (clusterCom q_top cap mb φ d inner).warrs := by
+  rw [clusterCom]
+  intro hq
+  rcases mem_warrs_seq hq with hr | hr
+  · rcases hasDigit_warrs_descendCom cap d hr (hasDigit_cpsName d) with
+      hc | hc | hc | hc | hc | hc | hc <;>
+      exact absurd hc (by simp [cpsName, cluName, resName, balName, balAltName, batName,
+        alvName, gamName, String.ext_iff])
+  rcases mem_warrs_seq hr with hr | hr
+  · rw [RamDriverFrames.warrs_enumBatch] at hr
+    exact notHasDigit_mem (by decide) hr (hasDigit_cpsName d)
+  rcases mem_warrs_seq hr with hr | hr
+  · obtain ⟨c, hc⟩ := RamDriverFrames.mem_warrs_colourCom cap mb d hr
+    exact absurd hc (by simp [cpsName, colName, String.ext_iff])
+  rcases mem_warrs_seq hr with hr | hr
+  · exact hin hr
+  rcases mem_warrs_seq hr with hr | hr
+  · exact (by decide : ∀ q ∈ scratchArrs, ¬ HasDigit q) _
+      (RamDriverFrames.warrs_scatterFold q_top cap mb φ d _ 0 _ hr) (hasDigit_cpsName d)
+  · obtain ⟨i, hi⟩ := RamDriverBase.mem_warrs_readbackCom hr
+    exact absurd hi (by simp [cpsName, tabName, String.ext_iff])
+
+open Classical in
+/-- **A per-depth scalar of the depth's own loop header survives a
+turn**, given that it is not the depth's connector — which is the one
+per-depth scalar the descent assigns. -/
+theorem perDepthVar_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
+    {inner : Com} {y : String} (hy : HasDigit y) (hyctr : y ≠ ctrName d)
+    (hyus : '_' ∉ y.toList) (hin : y ∉ inner.wvars) :
+    y ∉ (clusterCom q_top cap mb φ d inner).wvars := by
+  rw [clusterCom]
+  intro hq
+  rcases mem_wvars_seq hq with hr | hr
+  · exact hyctr (hasDigit_wvars_descendCom cap d hr hy)
+  rcases mem_wvars_seq hr with hr | hr
+  · rw [wvars_enumBatch_eq] at hr
+    exact notHasDigit_mem (l := (enumBatch "" 0).wvars) (by decide) hr hy
+  rcases mem_wvars_seq hr with hr | hr
+  · exact notHasDigit_wvars_colourCom cap mb d y hr hy
+  rcases mem_wvars_seq hr with hr | hr
+  · exact hin hr
+  rcases mem_wvars_seq hr with hr | hr
+  · have hy2 : y ≠ "i" := fun hq' => (by decide : ¬ HasDigit "i") (hq' ▸ hy)
+    have hy3 : y ∉ (RamScatter.scatterCom 0 0).wvars := fun hq' =>
+      (by decide : ∀ q ∈ (RamScatter.scatterCom 0 0).wvars, ¬ HasDigit q) _ hq' hy
+    obtain ⟨i, β, -, hm'⟩ := mem_wvars_foldIdx _ _ 0 hr
+    rw [RamDriverFrames.scatterCom_eq] at hm'
+    obtain ⟨k, σs, -, hm''⟩ := mem_wvars_foldIdx _ _ 0 hm'
+    exact RamDriverFrames.notMem_wvars_atomCom hyus hy2 hy3 hm''
+  · exact RamDriverBase.not_mem_wvars_readbackCom
+      (fun hq' => (by decide : ¬ HasDigit "z") (hq' ▸ hy)) hr
+
+open Classical in
+theorem cnumName_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
+    {inner : Com} (hin : cnumName d ∉ inner.wvars) :
+    cnumName d ∉ (clusterCom q_top cap mb φ d inner).wvars :=
+  perDepthVar_notMem_wvars_clusterCom q_top cap mb d φ (hasDigit_cnumName d)
+    (by simp [cnumName, ctrName, String.ext_iff])
+    (by rw [cnumName]; exact underscore_notMem_prefixed (by decide) d) hin
+
+open Classical in
+theorem cixName_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
+    {inner : Com} (hin : cixName d ∉ inner.wvars) :
+    cixName d ∉ (clusterCom q_top cap mb φ d inner).wvars :=
+  perDepthVar_notMem_wvars_clusterCom q_top cap mb d φ (hasDigit_cixName d)
+    (by simp [cixName, ctrName, String.ext_iff])
+    (by rw [cixName]; exact underscore_notMem_prefixed (by decide) d) hin
+
 /-! ### Two names that are **not** frames of the recursion
 
 Wave E2's counterexamples. `RamDriverFrames.TurnFrozen` used to ask the
@@ -942,7 +1065,7 @@ theorem wa_mem_warrs_driverAt {q_top cap mb ℓ W d : ℕ} {φ : Lax3.FirstOrder
     (h : d < ℓ) : "wa" ∈ (driverAt q_top cap mb 0 ℓ W φ d).warrs := by
   rw [driverAt_succ q_top cap mb 0 ℓ W φ h]
   refine mem_warrs_seq_right (mem_warrs_seq_right (mem_warrs_seq_right
-    (mem_warrs_while_body (mem_warrs_seq_left ?_))))
+    (mem_warrs_while_body (mem_warrs_seq_right (mem_warrs_seq_left ?_)))))
   rw [clusterCom]
   refine mem_warrs_seq_right (mem_warrs_seq_left ?_)
   rw [RamDriverFrames.warrs_enumBatch]

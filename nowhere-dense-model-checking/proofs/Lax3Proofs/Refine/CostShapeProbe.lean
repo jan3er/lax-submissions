@@ -121,7 +121,7 @@ theorem uniform_interface_floor {n ns cap mb q_top W ℓ : ℕ}
     (hKs : ∀ j < ℓ,
       RamDriverRoot.turnCost n ns cap mb q_top j φ (Ksc j) (Kl (j + 1)) ≤ Ks j)
     (hKl : ∀ j < ℓ, RamDriverCompose.orderPhaseCost n ns W +
-      (RamDriverCompose.coverPhaseCost n ns + ((Ks j + 8) * n + 6)) ≤ Kl j) :
+      (RamDriverCompose.coverPhaseCost n ns + ((Ks j + 11) * n + 6)) ≤ Kl j) :
     ∀ j ≤ ℓ, n ^ (ℓ - j) * Kl ℓ ≤ Kl j := by
   have key : ∀ f j, ℓ - j = f → j ≤ ℓ → n ^ f * Kl ℓ ≤ Kl j := by
     intro f
@@ -140,7 +140,7 @@ theorem uniform_interface_floor {n ns cap mb q_top W ℓ : ℕ}
             (hKs j hjl)
         have h₂ : Ks j * n ≤ Kl j := by
           have h := hKl j hjl
-          have : Ks j * n ≤ (Ks j + 8) * n := Nat.mul_le_mul_right n (by omega)
+          have : Ks j * n ≤ (Ks j + 11) * n := Nat.mul_le_mul_right n (by omega)
           omega
         calc n ^ (f + 1) * Kl ℓ = n ^ f * Kl ℓ * n := by ring
           _ ≤ Kl (j + 1) * n := Nat.mul_le_mul_right n hnext
@@ -154,7 +154,7 @@ theorem uniform_interface_floor_zero {n ns cap mb q_top W ℓ : ℕ}
     (hKs : ∀ j < ℓ,
       RamDriverRoot.turnCost n ns cap mb q_top j φ (Ksc j) (Kl (j + 1)) ≤ Ks j)
     (hKl : ∀ j < ℓ, RamDriverCompose.orderPhaseCost n ns W +
-      (RamDriverCompose.coverPhaseCost n ns + ((Ks j + 8) * n + 6)) ≤ Kl j) :
+      (RamDriverCompose.coverPhaseCost n ns + ((Ks j + 11) * n + 6)) ≤ Kl j) :
     n ^ ℓ * Kl ℓ ≤ Kl 0 := by
   simpa using uniform_interface_floor hKs hKl 0 (Nat.zero_le ℓ)
 
@@ -179,5 +179,76 @@ theorem sigma_coefficients_geometric {a : ℕ → ℕ} {D Cbase ℓ A : ℕ}
 -- `D = 2` (the Σ recursion at a degree-2 cover)
 #guard CostRecurrence.solve (fun _ => 10) (fun _ => 100) 1 3 0 = 1101010
 #guard CostRecurrence.solve (fun _ => 10) (fun _ => 2) 1 3 0 = 78
+
+/-! ### 4. The compaction, and the escape from the program floor
+
+**Rebase B3, falsification record.** The centre loop no longer iterates
+the carrier: `RamDriver.compactCom` lists the cover positions whose
+block is nonempty and the loop iterates *that*. `compactList` is the
+same function on paper, and the `#guard`s below are the differential
+test against the old loop, run before the walk was written:
+
+* on a worked eight-vertex instance the compacted loop takes exactly
+  the turns of the old loop that meet a vertex — the positions the old
+  loop visited and the new one skips are precisely those whose block is
+  empty, and no vertex is assigned to one (that is the partition
+  argument `RamDriverCluster.levelImplements` re-derives);
+* on the one-cluster instance — the shape the star probe of §1 is drawn
+  from — the compacted loop takes **one** turn where the old one took
+  `n`, which is the program floor of finding F1 escaping at a single
+  level;
+* and the negative control: the compacted count is not the carrier.
+
+`compactList_length_le` is the model's half of the clause the machine
+proof calls `Compacted.le_mass` — the turn count is bounded by the
+arena's *mass*, not by the carrier. That is the inequality the Σ
+recurrence of §3 multiplies. -/
+
+/-- The compaction, as a function of the block offsets. -/
+def compactList (Xoff : ℕ → ℕ) : ℕ → List ℕ
+  | 0 => []
+  | i + 1 => compactList Xoff i ++ (if Xoff i < Xoff (i + 1) then [i] else [])
+
+/-- The offsets of a cover with one block holding the whole arena. -/
+def oneBlockOff (n c : ℕ) : ℕ := if c = 0 then 0 else n
+
+/-- A worked eight-vertex instance: four nonempty blocks, at the
+positions `1`, `3`, `6` and `7`. -/
+def sampleXoff (c : ℕ) : ℕ := [0, 0, 3, 3, 5, 5, 5, 7, 8].getD c 8
+
+/-- Its assignment array: every vertex sits in the block of its own
+centre. -/
+def sampleAsg (v : ℕ) : ℕ := [1, 1, 1, 3, 3, 6, 6, 7].getD v 0
+
+#guard compactList sampleXoff 8 = [1, 3, 6, 7]
+#guard (compactList sampleXoff 8).length = 4
+#guard (List.range 8).length = 8
+-- every vertex's centre survives the compaction
+#guard (List.range 8).all fun v => (compactList sampleXoff 8).contains (sampleAsg v)
+-- and the old loop's productive turns are exactly the new loop's turns
+#guard (List.range 8).filter (fun c => (List.range 8).any fun v => sampleAsg v == c)
+    = compactList sampleXoff 8
+-- one big cluster: one turn, where the old loop took thirty-two
+#guard compactList (oneBlockOff 32) 32 = [0]
+#guard (compactList (oneBlockOff 32) 32).length = 1
+-- negative control: the compacted count is *not* the carrier
+#guard (compactList (oneBlockOff 32) 32).length ≠ 32
+-- and it never exceeds the mass
+#guard (compactList sampleXoff 8).length ≤ sampleXoff 8
+
+/-- **The compacted turn count is bounded by the mass**, not by the
+carrier: each listed position contributes at least one member. This is
+`RamDriver.Compacted.le_mass` on the model. -/
+theorem compactList_length_le (Xoff : ℕ → ℕ) (hz : Xoff 0 = 0)
+    (hm : ∀ c, Xoff c ≤ Xoff (c + 1)) :
+    ∀ i, (compactList Xoff i).length ≤ Xoff i := by
+  intro i
+  induction i with
+  | zero => simp [compactList, hz]
+  | succ i ih =>
+      rw [compactList, List.length_append]
+      by_cases h : Xoff i < Xoff (i + 1)
+      · rw [if_pos h]; simp; omega
+      · rw [if_neg h]; simp; have := hm i; omega
 
 end Lax3Proofs.Refine.CostShapeProbe

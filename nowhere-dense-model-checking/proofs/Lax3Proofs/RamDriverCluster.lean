@@ -936,8 +936,9 @@ variable {B cap mb ns Ws j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → 
 
 /-- The depth's state does not see the cursor: no clause of it is about
 a scalar other than the carrier's size and the edge count. -/
-theorem levelPre_setVar_c (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (k : ℕ) :
-    LevelPre B n cap mb ns Ws O T j M Gm C (σ.setVar (curName j) k) := by
+theorem levelPre_setVar (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (x : String)
+    (hxn : x ≠ "n") (hxm : x ≠ "m") (k : ℕ) :
+    LevelPre B n cap mb ns Ws O T j M Gm C (σ.setVar x k) := by
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, ⟨hsz, hd, hq⟩, hdep, hm, hle, hosz, hz⟩ := h
   refine ⟨?_, by simpa using h2, by simpa using h3, by simpa using h4,
     by simpa using h5, by simpa using h6, h7, h8, h9,
@@ -945,8 +946,16 @@ theorem levelPre_setVar_c (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (k : �
     fun a => ⟨fun p hp => by simpa using (hdep a).1 p hp,
       fun c hc => by simpa using (hdep a).2 c hc⟩,
     ?_, hle, fun p hp => by simpa using hosz p hp, by simpa using hz⟩
-  · rw [vars_setVar, if_neg (Ne.symm (curName_ne_n j))]; exact h1
-  · rw [vars_setVar, if_neg (Ne.symm (curName_ne_m j))]; exact hm
+  · rw [vars_setVar, if_neg (Ne.symm hxn)]; exact h1
+  · rw [vars_setVar, if_neg (Ne.symm hxm)]; exact hm
+
+theorem levelPre_setVar_c (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (k : ℕ) :
+    LevelPre B n cap mb ns Ws O T j M Gm C (σ.setVar (curName j) k) :=
+  levelPre_setVar h _ (curName_ne_n j) (curName_ne_m j) k
+
+theorem levelPre_setVar_ci (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (k : ℕ) :
+    LevelPre B n cap mb ns Ws O T j M Gm C (σ.setVar (cixName j) k) :=
+  levelPre_setVar h _ (cixName_ne_n j) (cixName_ne_m j) k
 
 /-- Nor does the table clause. -/
 theorem tablesSized_setVar_c {q_top : ℕ} {φ : Lax3.FirstOrder.FO 0}
@@ -962,21 +971,44 @@ theorem baseArrs_setVar_c {q_top ℓ : ℕ} {φ : Lax3.FirstOrder.FO 0}
     fun i hi => botMem_of_length (fun a => by rw [arrs_setVar]) _ "bb" (h.2 i hi)⟩
 
 /-- Nor the recorded play, whose scalars are the earlier connectors. -/
+theorem playRec_setVar {G : SimpleGraph (Fin n)}
+    (h : PlayRec B cap G j M Gm σ) (x : String) (hx : ∀ a : ℕ, x ≠ ctrName a) (k : ℕ) :
+    PlayRec B cap G j M Gm (σ.setVar x k) :=
+  h.congr (fun a _ => by rw [vars_setVar, if_neg (Ne.symm (hx a))])
+    (fun a _ => by rw [arrs_setVar])
+
 theorem playRec_setVar_c {G : SimpleGraph (Fin n)}
     (h : PlayRec B cap G j M Gm σ) (k : ℕ) :
     PlayRec B cap G j M Gm (σ.setVar (curName j) k) :=
-  h.congr (fun a _ => by rw [vars_setVar, if_neg (Ne.symm (curName_ne_ctrName j a))])
-    (fun a _ => by rw [arrs_setVar])
+  playRec_setVar h _ (curName_ne_ctrName j) k
+
+theorem playRec_setVar_ci {G : SimpleGraph (Fin n)}
+    (h : PlayRec B cap G j M Gm σ) (k : ℕ) :
+    PlayRec B cap G j M Gm (σ.setVar (cixName j) k) :=
+  playRec_setVar h _ (cixName_ne_ctrName j) k
 
 /-- Nor do the cover's answers. -/
+theorem coverHeld_setVar {G : SimpleGraph (Fin n)} {π : Equiv.Perm (Fin n)}
+    {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ}
+    (h : CoverHeld n j G M π ord cap Xoff Xmem asg m σ) (x : String)
+    (hx : x ≠ xpName j) (k : ℕ) :
+    CoverHeld n j G M π ord cap Xoff Xmem asg m (σ.setVar x k) :=
+  ⟨by simpa using h.1, by simpa using h.2.1, by simpa using h.2.2.1,
+    by simpa using h.2.2.2.1,
+    by rw [vars_setVar, if_neg (Ne.symm hx)]; exact h.2.2.2.2.1,
+    h.2.2.2.2.2.1, h.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2⟩
+
 theorem coverHeld_setVar_c {G : SimpleGraph (Fin n)} {π : Equiv.Perm (Fin n)}
     {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ}
     (h : CoverHeld n j G M π ord cap Xoff Xmem asg m σ) (k : ℕ) :
     CoverHeld n j G M π ord cap Xoff Xmem asg m (σ.setVar (curName j) k) :=
-  ⟨by simpa using h.1, by simpa using h.2.1, by simpa using h.2.2.1,
-    by simpa using h.2.2.2.1,
-    by rw [vars_setVar, if_neg (Ne.symm (curName_ne_xpName j j))]; exact h.2.2.2.2.1,
-    h.2.2.2.2.2.1, h.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2⟩
+  coverHeld_setVar h _ (curName_ne_xpName j j) k
+
+theorem coverHeld_setVar_ci {G : SimpleGraph (Fin n)} {π : Equiv.Perm (Fin n)}
+    {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ}
+    (h : CoverHeld n j G M π ord cap Xoff Xmem asg m σ) (k : ℕ) :
+    CoverHeld n j G M π ord cap Xoff Xmem asg m (σ.setVar (cixName j) k) :=
+  coverHeld_setVar h _ (cixName_ne_xpName j j) k
 
 /-- **What one cluster leaves alone.** `RamDriver.ClusterStepImplements`
 says what the turn wrote at the vertices of the centre it was
@@ -1008,20 +1040,29 @@ def ClusterFrames (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
           ∀ v : Fin n, asg (v : ℕ) ≠ σ.vars (curName j) → Tb (v : ℕ) = Tb₀ (v : ℕ)) K
 
 /-- **What the centre loop carries.** The depth's state, its table
-arrays, the cover's answers, the output tape as it was, and the tables
-of the vertices whose centre has already been processed. The last
-clause is stated over *any* cell function the array happens to have,
-since a turn hands its own back. -/
+arrays, the cover's answers, the compacted centre list, the output tape
+as it was, and the tables of the vertices whose centre has already been
+processed. The last clause is stated over *any* cell function the array
+happens to have, since a turn hands its own back.
+
+**Rebase B3.** The loop counter is `cixName j`, an index into the
+compacted list `cps`, and "already processed" is therefore
+`∃ k < cix, asg v = cps k` rather than `asg v < cur`: the turns still
+partition the carrier, but they enumerate the *listed* positions and no
+longer the carrier. `Compacted.covers` at the exit is what says every
+vertex has had its turn — its assigned position holds it, so its block
+is nonempty, so the compaction listed it. -/
 def LevelInv (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
-    (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (outs : List ℕ) (σ : Env) : Prop :=
+    (ord Xoff Xmem asg cps : ℕ → ℕ) (m cnum : ℕ) (outs : List ℕ) (σ : Env) : Prop :=
   LevelPre B n cap mb ns Ws O T j M Gm C σ ∧ TablesSized q_top cap mb φ n σ ∧
     BaseArrs B q_top cap mb ℓ φ σ ∧ PlayRec B cap G j M Gm σ ∧
     CoverHeld n j G M π ord cap Xoff Xmem asg m σ ∧
-    σ.out = outs ∧ σ.vars (curName j) ≤ n ∧
+    σ.arrs (cpsName j) = arrOf n cps ∧ σ.vars (cnumName j) = cnum ∧
+    σ.out = outs ∧ σ.vars (cixName j) ≤ cnum ∧
     ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length) (Tb : ℕ → ℕ),
       σ.arrs (tabName j i) = arrOf n Tb →
-      ∀ v : Fin n, asg (v : ℕ) < σ.vars (curName j) →
+      ∀ v : Fin n, (∃ k < σ.vars (cixName j), asg (v : ℕ) = cps k) →
         Tb (v : ℕ) ≤ 1 ∧
         (Tb (v : ℕ) ≠ 0 ↔ Sat (masked G M) (colRead n C (sigL cap mb j)) (fun _ => v)
           (tablesAt q_top cap mb φ j)[i])
@@ -1078,7 +1119,14 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
         (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (mm : ℕ),
       ClusterFrames B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg mm
         (driverAt q_top cap mb R ℓ W φ (j + 1)) (Kl (j + 1)) (Ks j))
-    (hK : ∀ (j : ℕ), j < ℓ → Ko j + (Kc j + ((Ks j + 8) * n + 6)) ≤ Kl j) :
+    (hloopfr : ∀ (j : ℕ), j < ℓ →
+      cpsName j ∉ (clusterCom q_top cap mb φ j
+          (driverAt q_top cap mb R ℓ W φ (j + 1))).warrs ∧
+        cnumName j ∉ (clusterCom q_top cap mb φ j
+          (driverAt q_top cap mb R ℓ W φ (j + 1))).wvars ∧
+        cixName j ∉ (clusterCom q_top cap mb φ j
+          (driverAt q_top cap mb R ℓ W φ (j + 1))).wvars)
+    (hK : ∀ (j : ℕ), j < ℓ → Ko j + (Kc j + ((Ks j + 11) * n + 6)) ≤ Kl j) :
     ∀ (j : ℕ), j ≤ ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
       LevelImplements B q_top cap mb R ℓ W ns j φ G O T M Gm C (Kl j) := by
   classical
@@ -1116,15 +1164,30 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
       have hbarr₁ : BaseArrs B q_top cap mb ℓ φ σ₁ := hσ.2.2.1.run hr₁
       have hplay₁ : PlayRec B cap G j M Gm σ₁ :=
         hσ.2.2.2.congr (fun a _ => hctr₁ a) (fun a _ => hgam₁ a)
-      -- the cover pass
-      obtain ⟨σ₂, hr₂, hlev₂, hout₂, hctr₂, hgam₂, Xoff, Xmem, asg, mm, hheld₂⟩ :=
+      -- the cover pass, and the compaction that ends it
+      obtain ⟨σ₂, hr₂, hlev₂, hout₂, hctr₂, hgam₂, Xoff, Xmem, asg, cps, mm, cnum,
+          hheld₂, hcps₂, hcnum₂, hcomp₂⟩ :=
         (hcover j hjl M Gm C π ord hB hcsr.csr hcovav hordby).run
           ⟨hlev₁, hord₁, fun z hz => hordby.lt hz⟩
       have htsz₂ : TablesSized q_top cap mb φ n σ₂ := htsz₁.run hr₂
       have hbarr₂ : BaseArrs B q_top cap mb ℓ φ σ₂ := hbarr₁.run hr₂
       have hplay₂ : PlayRec B cap G j M Gm σ₂ :=
         hplay₁.congr (fun a _ => hctr₂ a) (fun a _ => hgam₂ a)
-      -- one turn of the loop over the centres: the driver's obligation and its frame
+      have hcnB : cnum < B := lt_of_le_of_lt hcomp₂.le_carrier hB.n_lt
+      -- **the partition, re-derived.** Every vertex's assigned position holds the
+      -- vertex itself, so its block is not empty, so the compaction listed it
+      have hasgcps : ∀ v < n, ∃ k < cnum, asg v = cps k := by
+        intro v hv
+        have hout := hheld₂.2.2.2.2.2.2.2
+        have hlt : asg v < n := hout.asg_lt v hv
+        have hself : RamCover.InCluster (masked G M) π cap (ord (asg v)) v :=
+          hout.asg_cover v hv (mem_ball_self _ _ _)
+        obtain ⟨p, hp₁, hp₂, -⟩ := (hout.block (asg v) hlt v).mpr hself
+        obtain ⟨k, hk, hkc⟩ := hcomp₂.covers (asg v) hlt (by omega)
+        exact ⟨k, hk, hkc.symm⟩
+      obtain ⟨hfrA, hfrQ, hfrI⟩ := hloopfr j hjl
+      -- one turn of the loop over the *listed* centres: the obligation, its frame,
+      -- and the syntactic frame of the three names the loop header owns
       have hcl : Spec B (fun τ => LevelPre B n cap mb ns W O T j M Gm C τ ∧
             TablesSized q_top cap mb φ n τ ∧ BaseArrs B q_top cap mb ℓ φ τ ∧
             PlayRec B cap G j M Gm τ ∧
@@ -1134,69 +1197,114 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
           (hframe j hjl M Gm C π ord Xoff Xmem asg mm hinner)
       have hbody : Spec B
           (fun τ =>
-            LevelInv B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg mm
-              σ₂.out τ ∧ τ.vars (curName j) < n)
-          (.seq (clusterCom q_top cap mb φ j (driverAt q_top cap mb R ℓ W φ (j + 1)))
-            (.assign (curName j) (.add (.var (curName j)) (.lit 1))))
+            LevelInv B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg cps mm cnum
+              σ₂.out τ ∧ τ.vars (cixName j) < cnum)
+          (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
+            (.seq (clusterCom q_top cap mb φ j (driverAt q_top cap mb R ℓ W φ (j + 1)))
+              (.assign (cixName j) (.add (.var (cixName j)) (.lit 1)))))
           (fun τ τ' =>
-            LevelInv B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg mm
+            LevelInv B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg cps mm cnum
               σ₂.out τ' ∧
-            τ'.vars (curName j) = τ.vars (curName j) + 1) (Ks j + 4) := by
-        refine Spec.seq
-          (hcl.pre fun τ hτ => ⟨hτ.1.1, hτ.1.2.1, hτ.1.2.2.1, hτ.1.2.2.2.1,
-            hτ.1.2.2.2.2.1, hτ.2⟩)
-          (Spec.assign (B := B) (x := curName j) (P := fun τ => τ.vars (curName j) < n)
-            (f := fun τ => τ.vars (curName j) + 1) fun τ hτ =>
-              evalB_bin (evalB_var (by have := hB.n_lt; omega)) (evalB_lit (by omega))
-                (by simp only [Bop.apply_add]; have := hB.n_lt; omega))
-          (fun τ τ' hτ hq => by rw [hq.1.2.2.2.2.2.1]; exact hτ.2) ?_
-        · rintro τ τ' τ'' ⟨hI, hcn⟩
-            ⟨⟨hlev', htsz', hbarr', hplay', hout', hc', htab'⟩, hheld', hfr'⟩ rfl
-          have hc'' : (τ'.setVar (curName j) (τ'.vars (curName j) + 1)).vars (curName j)
-              = τ.vars (curName j) + 1 := by simp [hc']
-          refine ⟨⟨levelPre_setVar_c hlev' _, tablesSized_setVar_c htsz' _ _,
-            baseArrs_setVar_c hbarr' _ _, playRec_setVar_c hplay' _,
-            coverHeld_setVar_c hheld' _,
-            by simpa using hout'.trans hI.2.2.2.2.2.1, by rw [hc'']; omega, ?_⟩, hc''⟩
-          · intro i hi Tb harr v hv
-            rw [hc''] at hv
-            rw [arrs_setVar] at harr
-            obtain ⟨Tb', harr', hcorr'⟩ := htab' i hi
-            have hTb : Tb (v : ℕ) = Tb' (v : ℕ) :=
-              eq_of_arrOf_eq (harr.symm.trans harr') v.isLt
-            rcases Nat.lt_or_ge (asg (v : ℕ)) (τ.vars (curName j)) with hlt | hge
-            · -- an earlier centre's vertex: the turn left its cell alone
-              obtain ⟨Tb₀, harr₀⟩ := hI.2.1.get j hi
-              have := hfr' i hi Tb' Tb₀ harr' harr₀ v (by omega)
-              rw [hTb, this]
-              exact hI.2.2.2.2.2.2.2 i hi Tb₀ harr₀ v hlt
-            · -- this centre's own vertex
-              have hasgv : asg (v : ℕ) = τ.vars (curName j) := by omega
-              rw [hTb]
-              exact hcorr' v hasgv
-      -- the loop
+            τ'.vars (cixName j) = τ.vars (cixName j) + 1) (Ks j + 7) := by
+        refine Spec.of_exists fun τ hτ => ?_
+        obtain ⟨⟨hlevτ, htszτ, hbarrτ, hplayτ, hheldτ, hcpsτ, hcnumτ, houtτ, -, htabτ⟩,
+          hcix⟩ := hτ
+        have hcixB : τ.vars (cixName j) < B := by omega
+        have hpos : cps (τ.vars (cixName j)) < n := hcomp₂.lt _ hcix
+        -- the turn's position is read out of the compacted list
+        have hread : Run B (.assign (curName j) (.get (cpsName j) (.var (cixName j)))) τ
+            (τ.setVar (curName j) (cps (τ.vars (cixName j)))) 3 := by
+          have h := Run.assign (B := B) (σ := τ) (x := curName j)
+            (e := .get (cpsName j) (.var (cixName j)))
+            (evalB_get (evalB_var hcixB)
+              (by rw [hcpsτ]; exact getElem?_arrOf cps (lt_of_lt_of_le hcix hcomp₂.le_carrier))
+              (lt_trans hpos hB.n_lt))
+          simpa using h
+        set τ₁ := τ.setVar (curName j) (cps (τ.vars (cixName j))) with hτ₁
+        have hcur₁ : τ₁.vars (curName j) = cps (τ.vars (cixName j)) := by
+          rw [hτ₁, vars_setVar, if_pos rfl]
+        obtain ⟨τ₂, hr, ⟨⟨hlev', htsz', hbarr', hplay', hout', hc', htab'⟩, hheld', hfr'⟩,
+            hfv, hfa, -, -⟩ :=
+          (hcl.frame).run (σ := τ₁)
+            ⟨levelPre_setVar_c hlevτ _, tablesSized_setVar_c htszτ _ _,
+              baseArrs_setVar_c hbarrτ _ _, playRec_setVar_c hplayτ _,
+              coverHeld_setVar_c hheldτ _, by rw [hcur₁]; exact hpos⟩
+        have hcix₂ : τ₂.vars (cixName j) = τ.vars (cixName j) := by
+          rw [hfv _ hfrI, hτ₁, vars_setVar, if_neg (cixName_ne_curName j j)]
+        have hbump : Run B (.assign (cixName j) (.add (.var (cixName j)) (.lit 1))) τ₂
+            (τ₂.setVar (cixName j) (τ.vars (cixName j) + 1)) 4 := by
+          have h := Run.assign (B := B) (σ := τ₂) (x := cixName j)
+            (e := .add (.var (cixName j)) (.lit 1))
+            (evalB_bin (evalB_var (by rw [hcix₂]; exact hcixB)) (evalB_lit (by omega))
+              (by simp only [Bop.apply_add, hcix₂]; omega))
+          rw [Bop.apply_add, hcix₂] at h
+          simpa using h
+        refine ⟨τ₂.setVar (cixName j) (τ.vars (cixName j) + 1), _,
+          hread.seq (hr.seq hbump), by omega, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
+        · exact levelPre_setVar_ci hlev' _
+        · exact tablesSized_setVar_c htsz' _ _
+        · exact baseArrs_setVar_c hbarr' _ _
+        · exact playRec_setVar_ci hplay' _
+        · exact coverHeld_setVar_ci hheld' _
+        · rw [arrs_setVar, hfa _ hfrA, hτ₁, arrs_setVar]; exact hcpsτ
+        · rw [vars_setVar, if_neg (Ne.symm (cixName_ne_cnumName j j)), hfv _ hfrQ, hτ₁,
+            vars_setVar, if_neg (cnumName_ne_curName j j)]
+          exact hcnumτ
+        · rw [out_setVar, hout', hτ₁, out_setVar]; exact houtτ
+        · rw [vars_setVar, if_pos rfl]; omega
+        · -- the tables: this turn's vertices, and the earlier turns' left alone
+          intro i hi Tb harr v hv
+          rw [vars_setVar, if_pos rfl] at hv
+          rw [arrs_setVar] at harr
+          obtain ⟨Tb', harr', hcorr'⟩ := htab' i hi
+          have hTb : Tb (v : ℕ) = Tb' (v : ℕ) :=
+            eq_of_arrOf_eq (harr.symm.trans harr') v.isLt
+          obtain ⟨k, hk, hkv⟩ := hv
+          rcases Nat.lt_or_ge k (τ.vars (cixName j)) with hlt | hge
+          · -- an earlier listed centre: the turn left its cell alone
+            obtain ⟨Tb₀, harr₀⟩ := htszτ.get j hi
+            have hne : asg (v : ℕ) ≠ τ₁.vars (curName j) := by
+              rw [hcur₁, hkv]
+              exact fun hq => absurd (hcomp₂.inj (by omega) hcix hq) (by omega)
+            have := hfr' i hi Tb' Tb₀ harr' (by rw [hτ₁, arrs_setVar]; exact harr₀) v hne
+            rw [hTb, this]
+            exact htabτ i hi Tb₀ harr₀ v ⟨k, hlt, hkv⟩
+          · -- this turn's own vertex
+            have hkeq : k = τ.vars (cixName j) := by omega
+            rw [hTb]
+            exact hcorr' v (by rw [hcur₁, hkv, hkeq])
+        · rw [vars_setVar, if_pos rfl]
+      -- the loop, over the compacted list
       obtain ⟨σ₃, hr₃, hI₃, hcn₃⟩ :=
-        (Spec.forRangeZero (curName j) "n"
-          (LevelInv B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg mm σ₂.out) n
-          (Ks j + 4) hB.n_lt (fun _ hτ => hτ.2.2.2.2.2.2.1) (fun _ hτ => hτ.1.1) hbody).run
-          (σ := σ₂) ⟨levelPre_setVar_c hlev₂ 0, tablesSized_setVar_c htsz₂ _ 0,
-            baseArrs_setVar_c hbarr₂ _ 0, playRec_setVar_c hplay₂ 0,
-            coverHeld_setVar_c hheld₂ 0, by simp,
-            by simp, by intro i hi Tb harr v hv; simp at hv⟩
+        (Spec.forRangeZero (cixName j) (cnumName j)
+          (LevelInv B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg cps mm cnum
+            σ₂.out) cnum
+          (Ks j + 7) hcnB (fun _ hτ => hτ.2.2.2.2.2.2.2.2.1) (fun _ hτ => hτ.2.2.2.2.2.2.1)
+          hbody).run
+          (σ := σ₂) ⟨levelPre_setVar_ci hlev₂ 0, tablesSized_setVar_c htsz₂ _ 0,
+            baseArrs_setVar_c hbarr₂ _ 0, playRec_setVar_ci hplay₂ 0,
+            coverHeld_setVar_ci hheld₂ 0, by simpa using hcps₂,
+            by rw [vars_setVar, if_neg (Ne.symm (cixName_ne_cnumName j j))]; exact hcnum₂,
+            by simp,
+            by simp,
+            by intro i hi Tb harr v hv; rw [vars_setVar, if_pos rfl] at hv; omega⟩
       -- the exit: the turns partitioned the carrier
       have htabinv : TableInv q_top cap mb φ G j M C σ₃ := by
         intro i hi
         obtain ⟨Tb, harr⟩ := hI₃.2.1.get j hi
-        exact ⟨Tb, harr,
-          fun v hv => (hI₃.2.2.2.2.2.2.2 i hi Tb harr ⟨v, hv⟩
-            (by rw [hcn₃]; exact hheld₂.2.2.2.2.2.2.2.asg_lt v hv)).1,
-          fun v => (hI₃.2.2.2.2.2.2.2 i hi Tb harr v
-            (by rw [hcn₃]; exact hheld₂.2.2.2.2.2.2.2.asg_lt (v : ℕ) v.isLt)).2⟩
-      have hcost : (Ks j + 4 + 4) * n + 6 = (Ks j + 8) * n + 6 := by ring_nf
+        refine ⟨Tb, harr, fun v hv => ?_, fun v => ?_⟩
+        · obtain ⟨k, hk, hkv⟩ := hasgcps v hv
+          exact (hI₃.2.2.2.2.2.2.2.2.2 i hi Tb harr ⟨v, hv⟩ ⟨k, by rw [hcn₃]; exact hk, hkv⟩).1
+        · obtain ⟨k, hk, hkv⟩ := hasgcps (v : ℕ) v.isLt
+          exact (hI₃.2.2.2.2.2.2.2.2.2 i hi Tb harr v ⟨k, by rw [hcn₃]; exact hk, hkv⟩).2
+      have hcost : (Ks j + 7 + 4) * cnum + 6 ≤ (Ks j + 11) * n + 6 := by
+        have h1 : Ks j + 7 + 4 = Ks j + 11 := by omega
+        rw [h1]
+        have := Nat.mul_le_mul_left (Ks j + 11) hcomp₂.le_carrier
+        omega
       refine ⟨σ₃, _, hr₁.seq (hr₂.seq hr₃), ?_,
-        ⟨hI₃.1, hI₃.2.1, htabinv⟩, by rw [hI₃.2.2.2.2.2.1, hout₂, hout₁]⟩
+        ⟨hI₃.1, hI₃.2.1, htabinv⟩, by rw [hI₃.2.2.2.2.2.2.2.1, hout₂, hout₁]⟩
       have := hK j hjl
-      rw [hcost]
       omega
   exact fun j hj => key (ℓ - j) j rfl hj
 

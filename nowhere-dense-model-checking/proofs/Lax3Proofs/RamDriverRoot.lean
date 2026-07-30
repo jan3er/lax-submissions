@@ -93,18 +93,49 @@ theorem ctrName_notMem_wvars_driverAt {a : ℕ} (h : a ≤ j) :
 
 theorem xpName_notMem_wvars_driverAt :
     xpName j ∉ (driverAt q_top cap mb 0 ℓ W φ (j + 1)).wvars :=
-  RamDriverWrites.belowVar_notMem_wvars_driverAt
-    ⟨j, Nat.lt_succ_self j, Or.inr (Or.inl rfl)⟩
+  RamDriverWrites.belowVar_notMem_wvars_driverAt ⟨j, Nat.lt_succ_self j, by tauto⟩
 
 theorem curName_notMem_wvars_driverAt :
     curName j ∉ (driverAt q_top cap mb 0 ℓ W φ (j + 1)).wvars :=
-  RamDriverWrites.belowVar_notMem_wvars_driverAt
-    ⟨j, Nat.lt_succ_self j, Or.inr (Or.inr rfl)⟩
+  RamDriverWrites.belowVar_notMem_wvars_driverAt ⟨j, Nat.lt_succ_self j, by tauto⟩
 
 theorem tabName_notMem_warrs_driverAt (i : ℕ) :
     tabName j i ∉ (driverAt q_top cap mb 0 ℓ W φ (j + 1)).warrs :=
   RamDriverWrites.belowArr_notMem_warrs_driverAt
     ⟨j, Nat.lt_succ_self j, by tauto⟩
+
+/-! **Rebase B3.** The three names the compacted centre loop header owns
+are frames of the whole turn: the nested level is a level at depth
+`j + 1`, and the five other phases write no per-depth name but the
+depth's connector, its cluster arrays and its tables. -/
+
+theorem cpsName_notMem_warrs_driverAt :
+    cpsName j ∉ (driverAt q_top cap mb 0 ℓ W φ (j + 1)).warrs :=
+  RamDriverWrites.belowArr_notMem_warrs_driverAt ⟨j, Nat.lt_succ_self j, by tauto⟩
+
+theorem cnumName_notMem_wvars_driverAt :
+    cnumName j ∉ (driverAt q_top cap mb 0 ℓ W φ (j + 1)).wvars :=
+  RamDriverWrites.belowVar_notMem_wvars_driverAt ⟨j, Nat.lt_succ_self j, by tauto⟩
+
+theorem cixName_notMem_wvars_driverAt :
+    cixName j ∉ (driverAt q_top cap mb 0 ℓ W φ (j + 1)).wvars :=
+  RamDriverWrites.belowVar_notMem_wvars_driverAt ⟨j, Nat.lt_succ_self j, by tauto⟩
+
+open Classical in
+/-- **The loop header's three names survive one turn.** -/
+theorem loopFrames :
+    cpsName j ∉ (clusterCom q_top cap mb φ j
+        (driverAt q_top cap mb 0 ℓ W φ (j + 1))).warrs ∧
+      cnumName j ∉ (clusterCom q_top cap mb φ j
+        (driverAt q_top cap mb 0 ℓ W φ (j + 1))).wvars ∧
+      cixName j ∉ (clusterCom q_top cap mb φ j
+        (driverAt q_top cap mb 0 ℓ W φ (j + 1))).wvars :=
+  ⟨RamDriverWrites.cpsName_notMem_warrs_clusterCom q_top cap mb j φ
+      cpsName_notMem_warrs_driverAt,
+    RamDriverWrites.cnumName_notMem_wvars_clusterCom q_top cap mb j φ
+      cnumName_notMem_wvars_driverAt,
+    RamDriverWrites.cixName_notMem_wvars_clusterCom q_top cap mb j φ
+      cixName_notMem_wvars_driverAt⟩
 
 end Frames
 
@@ -211,7 +242,7 @@ theorem levelAt
     (hKs : ∀ j < ℓ, turnCost n ns cap mb q_top j φ (Ksc j) (Kl (j + 1)) ≤ Ks j)
     (hKbase : RamDriverBot.baseCost q_top cap mb ℓ n φ ≤ Kl ℓ)
     (hKl : ∀ j < ℓ, RamDriverCompose.orderPhaseCost n ns W +
-      (RamDriverCompose.coverPhaseCost n ns + ((Ks j + 8) * n + 6)) ≤ Kl j) :
+      (RamDriverCompose.coverPhaseCost n ns + ((Ks j + 11) * n + 6)) ≤ Kl j) :
     ∀ j ≤ ℓ, ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
       LevelImplements B q_top cap mb 0 ℓ W ns j φ G O T M Gm C (Kl j) :=
   RamDriverCluster.levelImplements hB hWB hcsr
@@ -229,6 +260,7 @@ theorem levelAt
       clusterStepAt hcap hmb hj hB hcsr.csr (hbnd j hj) (hcostI j hj) (hKsc j hj) (hKs j hj))
     (fun j hj _ _ _ _ _ _ _ _ _ =>
       clusterFramesAt hmb hj hB hcsr.csr (hbnd j hj) (hcostI j hj) (hKsc j hj) (hKs j hj))
+    (fun _ _ => loopFrames)
     hKl
 
 end Level
@@ -277,7 +309,7 @@ theorem driverRoot_decides_sentence
     (hKs : ∀ j < ℓ, turnCost n ns cap mb q_top j φ (Ksc j) (Kl (j + 1)) ≤ Ks j)
     (hKbase : RamDriverBot.baseCost q_top cap mb ℓ n φ ≤ Kl ℓ)
     (hKl : ∀ j < ℓ, RamDriverCompose.orderPhaseCost n ns W +
-      (RamDriverCompose.coverPhaseCost n ns + ((Ks j + 8) * n + 6)) ≤ Kl j)
+      (RamDriverCompose.coverPhaseCost n ns + ((Ks j + 11) * n + 6)) ≤ Kl j)
     (hKdec : RamDriverIO.decodeCost n ns ≤ Kdec)
     (hatoms : ∀ s ∈ (bcAtomsOf₀ q_top (Reduction.toDistFO (L := sigL cap mb 0) φ)).2,
       s.r + 1 < B ∧ s.t < B ∧ RamDriverIO.atomCost n ns s.t ≤ Kb₀)

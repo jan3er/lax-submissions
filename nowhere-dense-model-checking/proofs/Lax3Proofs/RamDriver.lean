@@ -773,6 +773,98 @@ theorem curName_ne_xpName (j a : ℕ) : curName j ≠ xpName a := by
 theorem ordName_ne_alvName (j a : ℕ) : ordName j ≠ alvName a := by
   simp [ordName, alvName, String.ext_iff]
 
+/-! ### The compacted centre list
+
+**Rebase B3.** The cover of a level has one block per *position* of the
+ordering, and almost all of them are empty: the cover assigns every
+vertex to one centre, so at most `mm` of the `n` positions carry a
+vertex, and `mm` is the arena's mass. The centre loop used to run `n`
+turns regardless — the `n^ℓ` program floor of the integration wave's
+finding F1 — and what it costs to run a turn on an empty block is not
+zero: the turn runs the *whole nested driver*, which at depth `j+1`
+opens an ordering pass and a cover pass of its own on the empty arena.
+
+So the cover phase now ends with one scan that lists the positions whose
+block is nonempty, in order, and the loop iterates that list. The loop
+counter is a *new* scalar and the list entry is written into `curName j`
+at the top of each turn, so every pass inside the turn — the descent,
+the cluster load, the readback's assignment test — reads exactly the
+name it read before, at exactly the same kind of value: a cover position
+whose block is the cluster of the turn. Nothing inside `clusterCom`
+changes, and no walk of a turn is re-derived.
+
+`RamDriver.Compacted` is what the scan leaves, and
+`RamDriverCluster.levelImplements`'s partition argument runs over it:
+the turns still partition the carrier, because every vertex's assigned
+position has a nonempty block — it holds the vertex itself. -/
+
+/-- The compacted centre list of depth `j`: the cover positions with a
+nonempty block, in increasing order. -/
+def cpsName (j : ℕ) : String := "cs" ++ toString j
+
+/-- The length of that list — the number of turns the level's centre
+loop actually takes. -/
+def cnumName (j : ℕ) : String := "cq" ++ toString j
+
+/-- The index into that list: the loop variable of the compacted centre
+loop of depth `j`. `curName j` still holds the *position*, which is what
+every pass of a turn reads. -/
+def cixName (j : ℕ) : String := "ci" ++ toString j
+
+theorem cixName_ne_n (j : ℕ) : cixName j ≠ "n" := by simp [cixName, String.ext_iff]
+
+theorem cixName_ne_m (j : ℕ) : cixName j ≠ "m" := by simp [cixName, String.ext_iff]
+
+theorem cixName_ne_ctrName (j a : ℕ) : cixName j ≠ ctrName a := by
+  simp [cixName, ctrName, String.ext_iff]
+
+theorem cixName_ne_xpName (j a : ℕ) : cixName j ≠ xpName a := by
+  simp [cixName, xpName, String.ext_iff]
+
+theorem cixName_ne_curName (j a : ℕ) : cixName j ≠ curName a := by
+  simp [cixName, curName, String.ext_iff]
+
+theorem cixName_ne_cnumName (j a : ℕ) : cixName j ≠ cnumName a := by
+  simp [cixName, cnumName, String.ext_iff]
+
+theorem cnumName_ne_n (j : ℕ) : cnumName j ≠ "n" := by simp [cnumName, String.ext_iff]
+
+theorem cnumName_ne_curName (j a : ℕ) : cnumName j ≠ curName a := by
+  simp [cnumName, curName, String.ext_iff]
+
+theorem curName_ne_cpsName (j a : ℕ) : cpsName j ≠ ordName a := by
+  simp [cpsName, ordName, String.ext_iff]
+
+/-- **What the compaction scan leaves.** `cps` lists, in strictly
+increasing order, exactly the `cnum` positions below `n` whose block is
+nonempty. The two counting clauses are what the cost half consumes:
+`cnum ≤ n` keeps the loop inside the carrier, and `cnum ≤ m` — one
+turn per *member* of the arena, not one per carrier cell — is the escape
+from finding F1's program floor. -/
+structure Compacted (n cnum m : ℕ) (Xoff cps : ℕ → ℕ) : Prop where
+  /-- One turn per member of the cluster arena at most. -/
+  le_mass : cnum ≤ m
+  /-- And never more turns than there are positions. -/
+  le_carrier : cnum ≤ n
+  /-- Every listed position is a position. -/
+  lt : ∀ k < cnum, cps k < n
+  /-- The list is strictly increasing. -/
+  mono : ∀ k k' : ℕ, k < k' → k' < cnum → cps k < cps k'
+  /-- Every listed position has a nonempty block. -/
+  nonempty : ∀ k < cnum, Xoff (cps k) < Xoff (cps k + 1)
+  /-- And every position with a nonempty block is listed. -/
+  covers : ∀ c < n, Xoff c < Xoff (c + 1) → ∃ k < cnum, cps k = c
+
+/-- The list has no repetitions, which is what tells the turns of the
+compacted loop apart. -/
+theorem Compacted.inj {n cnum m : ℕ} {Xoff cps : ℕ → ℕ}
+    (h : Compacted n cnum m Xoff cps) {k k' : ℕ} (hk : k < cnum) (hk' : k' < cnum)
+    (he : cps k = cps k') : k = k' := by
+  rcases Nat.lt_trichotomy k k' with hlt | heq | hgt
+  · exact absurd he (Nat.ne_of_lt (h.mono k k' hlt hk'))
+  · exact heq
+  · exact absurd he.symm (Nat.ne_of_lt (h.mono k' k hgt hk))
+
 /-! ### The play, as the machine records it
 
 `PlayOk` says that *some* list of rounds is a play of the recorded game
@@ -1643,13 +1735,35 @@ def coverSave (j : ℕ) : Com :=
       (.seq (copyCom "asg" (asgName j))
         (.assign (xpName j) (.var "xp"))))
 
+/-- **The compaction scan** (rebase B3). One pass over the depth's own
+copy of the block offsets, listing the positions whose block is nonempty
+into `cpsName j` and counting them into `cnumName j`. The scan reads
+`xofName j` and writes nothing else the level holds, so it runs after
+`coverSave` and before the first turn.
+
+It is a carrier-width pass, like the three copies of `coverSave` it
+follows; making the whole cover phase active-set-driven is R1.6, a later
+wave's. What it buys now is the *loop*: `cnum ≤ mm` turns instead of
+`n`, which is what the recursion's cost multiplies. -/
+def compactCom (j : ℕ) : Com :=
+  .seq (.assign (cnumName j) (.lit 0))
+    (.seq (.assign "i" (.lit 0))
+      (.while (.lt (.var "i") (.var "n"))
+        (.seq
+          (.ite (.lt (.get (xofName j) (.var "i"))
+              (.get (xofName j) (.add (.var "i") (.lit 1))))
+            (.seq (.store (cpsName j) (.var (cnumName j)) (.var "i"))
+              (.assign (cnumName j) (.add (.var (cnumName j)) (.lit 1))))
+            .skip)
+          (.assign "i" (.add (.var "i") (.lit 1))))))
+
 /-- **The cover phase of a level**: the depth's ordering into the name
 the cover reads, the depth's mask into the name it destroys, the pass,
 and the four copies that make its answers the depth's own. -/
 def coverPhase (cap j : ℕ) : Com :=
   .seq (copyCom (ordName j) "ord")
     (.seq (copyCom (alvName j) "alv")
-      (.seq (RamCover.coverCom cap) (coverSave j)))
+      (.seq (RamCover.coverCom cap) (.seq (coverSave j) (compactCom j))))
 
 open Classical in
 /-- The driver at depth `j`, by downward recursion on the remaining
@@ -1660,11 +1774,12 @@ noncomputable def driverAux (q_top cap mb R ℓ W : ℕ) (φ : Lax3.FirstOrder.F
   | f + 1, j =>
       .seq (orderCom R W j)
         (.seq (coverPhase cap j)
-          (.seq (.assign (curName j) (.lit 0))
-            (.while (.lt (.var (curName j)) (.var "n"))
-              (.seq (clusterCom q_top cap mb φ j
-                  (driverAux q_top cap mb R ℓ W φ f (j + 1)))
-                (.assign (curName j) (.add (.var (curName j)) (.lit 1)))))))
+          (.seq (.assign (cixName j) (.lit 0))
+            (.while (.lt (.var (cixName j)) (.var (cnumName j)))
+              (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
+                (.seq (clusterCom q_top cap mb φ j
+                    (driverAux q_top cap mb R ℓ W φ f (j + 1)))
+                  (.assign (cixName j) (.add (.var (cixName j)) (.lit 1))))))))
 
 open Classical in
 /-- **The driver at depth `j`.** The fuel is the budget still to spend;
@@ -1684,11 +1799,12 @@ theorem driverAt_succ (q_top cap mb R ℓ W : ℕ) (φ : Lax3.FirstOrder.FO 0) {
     driverAt q_top cap mb R ℓ W φ j =
       .seq (orderCom R W j)
         (.seq (coverPhase cap j)
-          (.seq (.assign (curName j) (.lit 0))
-            (.while (.lt (.var (curName j)) (.var "n"))
-              (.seq (clusterCom q_top cap mb φ j
-                  (driverAt q_top cap mb R ℓ W φ (j + 1)))
-                (.assign (curName j) (.add (.var (curName j)) (.lit 1))))))) := by
+          (.seq (.assign (cixName j) (.lit 0))
+            (.while (.lt (.var (cixName j)) (.var (cnumName j)))
+              (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
+                (.seq (clusterCom q_top cap mb φ j
+                    (driverAt q_top cap mb R ℓ W φ (j + 1)))
+                  (.assign (cixName j) (.add (.var (cixName j)) (.lit 1)))))))) := by
   obtain ⟨f, hf⟩ : ∃ f, ℓ - j = f + 1 := ⟨ℓ - j - 1, by omega⟩
   rw [driverAt, hf, driverAux, driverAt, show ℓ - (j + 1) = f by omega]
 
@@ -1834,14 +1950,16 @@ so the whole thing survives any run. -/
 def DepthMem (n cap mb : ℕ) (σ : Env) : Prop :=
   ∀ j : ℕ, Sized [(alvName j, n), (gamName j, n), (cluName j, n), (resName j, n),
       (balName j, n), (balAltName j, n), (batName j, n),
-      (ordName j, n), (xofName j, n + 1), (xmmName j, n * n), (asgName j, n)] σ ∧
+      (ordName j, n), (xofName j, n + 1), (xmmName j, n * n), (asgName j, n),
+      (cpsName j, n)] σ ∧
     (∀ c < sigL cap mb j, ∃ g : ℕ → ℕ, σ.arrs (colName j c) = arrOf n g)
 
 /-- One array of one depth, out of the clause. -/
 theorem DepthMem.get {n cap mb : ℕ} {σ : Env} (h : DepthMem n cap mb σ) (j : ℕ)
     {p : String × ℕ} (hp : p ∈ [(alvName j, n), (gamName j, n), (cluName j, n), (resName j, n),
       (balName j, n), (balAltName j, n), (batName j, n),
-      (ordName j, n), (xofName j, n + 1), (xmmName j, n * n), (asgName j, n)]) :
+      (ordName j, n), (xofName j, n + 1), (xmmName j, n * n), (asgName j, n),
+      (cpsName j, n)]) :
     ∃ g : ℕ → ℕ, σ.arrs p.1 = arrOf p.2 g := (h j).1 p hp
 
 /-- One colour array of one depth. -/
@@ -2294,8 +2412,10 @@ def CoverImplements (cap mb ns W j : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ �
       (fun σ σ' => LevelPre B n cap mb ns W O T j M Gm C σ' ∧ σ'.out = σ.out ∧
         (∀ a : ℕ, σ'.vars (ctrName a) = σ.vars (ctrName a)) ∧
         (∀ a : ℕ, σ'.arrs (gamName a) = σ.arrs (gamName a)) ∧
-        ∃ (Xoff Xmem asg : ℕ → ℕ) (m : ℕ),
-          CoverHeldAt n j G M π ord cap Xoff Xmem asg m σ') K
+        ∃ (Xoff Xmem asg cps : ℕ → ℕ) (m cnum : ℕ),
+          CoverHeldAt n j G M π ord cap Xoff Xmem asg m σ' ∧
+          σ'.arrs (cpsName j) = arrOf n cps ∧ σ'.vars (cnumName j) = cnum ∧
+          Compacted n cnum m Xoff cps) K
 
 /-! ### The readback of one cluster
 
