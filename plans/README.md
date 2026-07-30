@@ -10,8 +10,8 @@ and brief files here, not at the root.
 
 | plan | what |
 |------|------|
-| `nowhere-dense-model-checking/nd-mc-plan.md` | FO model checking is FPT on nowhere dense classes (GKS), rebuilt on the Dreier–Toruńczyk rank-preserving locality theorem (arXiv 2606.23180) instead of the broken GKS locality; splitter game + sparse covers on top of Lax12, RAM realization on Lax13/Lax11. Rev 3 accepted — isolation splitter game, Q1–Q5 closed (Lax3, real-ε bound, colored-graph surface, four citable theorems); P0 starts next session; RAM phases P5–P7 gated on the IMP+ toolkit campaign closing. |
-| `word-ram/refinement-tower-plan.md` | port Lammich's refinement stack (NREST → Sepref-style synthesis → purpose-built IR → verified codegen into IMP+) so algorithmic results cost what mathematical results cost: write the algorithm abstractly, synthesize program + invariants + obligations. Fidelity-first charter (stay close to the Isabelle source). Rev 3 accepted 2026-07-29, flags resolved, runs in parallel with ND-MC. P0 + P1 done 2026-07-29 in one session: design record + byte-exact extracts (`refinement-tower/`, awaiting Jan's post-hoc review), NREST core complete in `Lax13Proofs/Refine/` (monad, RECT/whileT, ⇓R, ⇓C, gwp + refine_vcg seed), acceptance passed — abstract masked BFS at 481 authored lines vs 1,201 baseline, 0 hand frame clauses. P2 (relators/rule DBs) next session; fidelity events queued for Jan in the plan's progress log. |
+| `nowhere-dense-model-checking/nd-mc-plan.md` | FO model checking is FPT on nowhere dense classes (GKS), rebuilt on the Dreier–Toruńczyk rank-preserving locality theorem (arXiv 2606.23180) instead of the broken GKS locality; splitter game + sparse covers on top of Lax12, RAM realization on Lax13/Lax11. Math core P0–P4 complete; P5/P6 done; P7 correctness half done 2026-07-29 (`driverRoot_decides_sentence`, kernel-three). The P7 cost wave is **frozen as fallback** — superseded 2026-07-30 by the rebase plan below; only C0 + P8 remain, and they land there. |
+| `nowhere-dense-model-checking/nd-mc-rebase-plan.md` | the ND-MC RAM program layer re-derived through the refinement tower against the frozen correctness-half spec surface; C0 discharged on tower-computed costs (touched-only via trail arrays), then draft submission. Rev 1 OPEN 2026-07-30, direction approved by Jan (fastest-to-rebased, no eval gates); P0 = tower readiness (dependent `hfcomp`, `wordAssn` spike, `RECT` fuel-stability, trail-array acceptance) with a hard fallback checkpoint; FLAGs 1–3 open, none blocking. |
 
 **Proposed campaigns**
 
@@ -19,7 +19,10 @@ and brief files here, not at the root.
 |------|------|
 | `pcp-theorem/pcp-plan.md` | the PCP theorem by Dinur gap amplification — the first formal hardness artifact in any assistant. Machine-free Amplification Theorem as the P7 flagship (explicit size-linear gap-doubling transformation on constraint graphs, no machine model anywhere); PCP proper at P8 over the word RAM with tower-verified reduction cost. Five-submission ladder: `constraint-graphs/`, `spectral-expanders/`, `linearity-testing/`, `gap-amplification/`, `pcp-theorem/`. Rev 1 PROPOSAL 2026-07-29, queued behind the RAM campaigns (flag 2 resolved by Jan same day: waits until the dust settles on tower + ND-MC RAM) — flags 1, 3, 4 (charter scope, NP-over-RAM surface, split) open. |
 
-Everything else is closed.
+Everything else is closed — most recently
+`word-ram/refinement-tower-plan.md` (P0–P8 in three sessions; closing
+verdict and adoption analysis in `word-ram/refinement-tower/p8-verdict.md`,
+adoption resolved 2026-07-30 by the ND-MC rebase decision).
 
 The live cross-campaign log stays at the root (`NIGHTLOG.md`) and cites
 these files by their original root-level names. The map:

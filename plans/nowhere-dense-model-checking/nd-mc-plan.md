@@ -554,6 +554,13 @@ not to a premature P5.
   augment walk (`RamDriverAugment`, 5277 lines over three
   continuations) closed hypothesis-free with the in/out-degree
   exchange `slotCnt_out_eq` as its one non-obvious cost fact.
+  **SUPERSEDED 2026-07-30 (Jan): the cost wave below is FROZEN, not
+  executed** — the campaign continues in `nd-mc-rebase-plan.md`
+  (program layer re-derived through the refinement tower; items
+  (1)/(3-math)/(4) survive there as its P3, (6) as its P4; (2) and
+  (5) die with the hand-walked engines). This text is kept verbatim
+  as the fallback contract should the rebase hit a structural
+  blocker.
   **Then the cost wave** (next session): (1) solve the Kl/Ks
   recursion; (2) touched-only retrofit — LOAD-BEARING, the recursion
   as stated is n^ℓ since per-turn phases charge the whole arena
