@@ -59,3 +59,4 @@ import Lax3Proofs.Refine.T1FriProbe
 import Lax3Proofs.Refine.CoverSynth
 import Lax3Proofs.Refine.OrderSynth
 import Lax3Proofs.Refine.ClusterSynth
+import Lax3Proofs.Refine.ExpandSynth
