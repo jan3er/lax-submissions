@@ -82,3 +82,5 @@ import Lax13Proofs.Refine.Examples.BfsQSynth
 import Lax13Proofs.Refine.Examples.TrailRecursion
 import Lax13Proofs.Refine.Sepref.Examples.WordAssnSpike
 import Lax13Proofs.Refine.Examples.BfsQBounded
+import Lax13Proofs.Refine.Sepref.IrOpsExtra
+import Lax13Proofs.Refine.Examples.T1Probe

@@ -27,6 +27,18 @@ is applied.
 
 ## Judgment calls
 
+**T1/D-d — the post-abstraction junks pair contexts componentwise.**
+(ND-MC rebase tool wave T1.) `junkConjunct` splits a
+`hnCtxt (A ×ₐ B) v c` conjunct (`rfl`) and junks the components
+recursively. Before this, a leaf engine returning a tuple — the
+engine-as-`sepref_fr_rules`-operation idiom the 2A satellite validated
+— could not be *bound*: the block's postcondition still owns the tuple
+components the continuation did not consume, the ownership mentions the
+binder, and the abstraction threw "no junk form for its assertion"
+(exactly the R2/D-e stall the P0.2 spike predicted for `wordAssn`, met
+here by every engine composition). Acceptance:
+`Lax3Proofs.Refine.T1FriProbe.bfsThenSweep`.
+
 **P4/D-cm — synthesis is by metavariable instantiation, as the source
 does it.** A translate goal is `hnRefine Γ ?c ?Γ' d R m` with `?c` and
 `?Γ'` assignable: applying a rule *is* the synthesis, the program falls
@@ -516,6 +528,8 @@ def applyRuleAt (nm : Name) (framed : Bool) (g : MVarId) : TermElabM Attempt := 
       -- First attempt: the goal's conjuncts as written. Second attempt:
       -- with pair assertions split (P4/D-cu) — the loop rule wants the
       -- tuple state whole, the body's operations want its components.
+      -- Third attempt (T1/D-f): lazy per-conjunct splitting, for rules
+      -- needing one pair split and another kept whole.
       let m1 ← frameMatch fixed goalConjs
       let (goalConjs, m2) ←
         if m1.isSome then pure (goalConjs, m1)
@@ -523,6 +537,9 @@ def applyRuleAt (nm : Name) (framed : Bool) (g : MVarId) : TermElabM Attempt := 
           let gs ← conjunctsSplit Γ
           if gs == goalConjs then pure (goalConjs, m1)
           else pure (gs, ← frameMatch fixed gs)
+      let (goalConjs, m2) ←
+        if m2.isSome then pure (goalConjs, m2)
+        else pure (goalConjs, ← frameMatch fixed (conjuncts Γ) (splitFuel := 16))
       let some (matched, frame) := m2
         | throwError "{← noPairMsg fixed goalConjs}"
       match restOpt with
@@ -595,6 +612,9 @@ def condSolve (g : MVarId) : TermElabM Unit := do
         else do
           let gs ← conjunctsSplit Γ
           if gs == goalConjs then pure (goalConjs, m1) else pure (gs, ← frameMatch rc gs)
+      let (goalConjs, m2) ←
+        if m2.isSome then pure (goalConjs, m2)
+        else pure (goalConjs, ← frameMatch rc (conjuncts Γ) (splitFuel := 16))
       let some (matched, frame) := m2
         | throwError "{← noPairMsg rc goalConjs}"
       let α ← carrierOf Γ
@@ -657,13 +677,25 @@ def allowedFVars (Q : Expr) : MetaM (Array FVarId) := do
   return out
 
 /-- Weaken one conjunct so that it mentions only `allowed` free
-variables, returning the weakened conjunct and the entailment. -/
-def junkConjunct (allowed : Array FVarId) (e : Expr) : MetaM (Expr × Expr) := do
+variables, returning the weakened conjunct and the entailment.
+
+T1/D-d: a *pair* context splits (`hnCtxt_prodAssn` is `rfl`) and each
+component junks recursively — a leaf engine returning a tuple leaves
+`hnCtxt (A ×ₐ B) st (…)` in the block's postcondition, and before this
+case the abstraction threw "no junk form" at it (the R2/D-e stall, met
+for real by the 2A/2B engine compositions). -/
+partial def junkConjunct (allowed : Array FVarId) (e : Expr) : MetaM (Expr × Expr) := do
   if (fvarsOf e).all (fun f => allowed.contains f) then
     return (e, ← mkAppM ``entails_refl #[e])
   match e.getAppFnArgs with
   | (``hnCtxt, #[_, _, R, v, c]) =>
-    if R.isConstOf ``natAssn then
+    if let (``prodAssn, #[_, _, _, _, A, B]) := R.getAppFnArgs then
+      let l ← mkAppM ``hnCtxt #[A, ← projOf true v, ← projOf true c]
+      let r ← mkAppM ``hnCtxt #[B, ← projOf false v, ← projOf false c]
+      let (tl, pl) ← junkConjunct allowed l
+      let (tr, pr) ← junkConjunct allowed r
+      return (← mkAppM ``sepConj #[tl, tr], ← mkAppM ``conj_entails_mono #[pl, pr])
+    else if R.isConstOf ``natAssn then
       return (← mkAppM ``junkCell #[c], ← mkAppM ``natAssn_entails_junkCell #[v, c])
     else if R.isConstOf ``arrayAssn then
       return (← mkAppM ``junkArray #[c], ← mkAppM ``arrayAssn_entails_junkArray #[v, c])

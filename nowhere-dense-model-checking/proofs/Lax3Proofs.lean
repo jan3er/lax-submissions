@@ -46,3 +46,8 @@ import Lax3Proofs.RamDriverRoot
 import Lax3Proofs.CostRecurrence
 import Lax3Proofs.UqwInstantiation
 import Lax3Proofs.TgtCoupling
+import Lax3Proofs.Refine.AugmentSynth
+import Lax3Proofs.Refine.AugmentTwins
+import Lax3Proofs.Refine.ScatterSynth
+import Lax3Proofs.Refine.ElimSynth
+import Lax3Proofs.Refine.T1FriProbe

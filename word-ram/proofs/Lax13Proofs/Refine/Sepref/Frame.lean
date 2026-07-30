@@ -27,6 +27,23 @@ and the others are set to hn_invalid.
 
 ## Judgment calls
 
+**T1/D-a — `merge_tac` pairs in the split spelling.** (ND-MC rebase
+tool wave T1.) `mergeSolve` normalizes both branch postconditions with
+`conjunctsSplit` before pairing: an arm that consumed a projection of a
+bound tuple leaves its post with the pair ownership split while the
+other arm's is whole, the two spell the same assertion (`rfl`), and
+pairing by cell key could not see it. This was the P2/2B/D-a stall —
+`hnr_If` failing inside a nested translation, then the combinator
+phase's retry cascade burning the heartbeat budget "at `whnf`". The
+`degRowF` reproducer family is `Examples/T1Probe.lean` (R1/R2 pass
+before the fix, R3a/R3 stall before and pass after, `r3Loop` pinned).
+
+**T1/D-b — `fri` sees pair contexts in the split spelling** (the
+attribute registration at `hnCtxt_prodAssn`/`prodAssn_apply` below;
+same disease in the frame solver, met by the 2A leaf-composition
+probe). The `fri` direction of P4/D-cu's `conjunctsSplit`; acceptance
+is `Lax3Proofs.Refine.T1FriProbe.bfsThenSweep` in the ND-MC package.
+
 **P4/D-ch — `frame_tac` is P3's `fri`, with the Sepref match rules in
 its rule base.** The source's `frame_tac` is
 `prepare_frame_tac THEN' resolve conj_entails_mono THEN_ALL_NEW_LIST
@@ -50,6 +67,16 @@ per-pair `conj_entails_mono` split: `fri` matches conjunct against
 conjunct directly. Fallback if the two solvers must diverge: `frameMatch` below is a standalone, exact, permutation-only
 matcher (it is what the translate phase uses), and `frame_tac` can be
 re-based on it in a dozen lines.
+
+**T1/D-e, T1/D-f — junk-guarded pairing, and lazy pair splitting as a
+third attempt.** See `absAgree` and `matchLoop`'s docstrings; both are
+ND-MC rebase tool-wave T1 additions. D-e closes P7/D-bg's remaining
+hole (an open-relator rule conjunct eating a junk conjunct); D-f is
+the per-conjunct split the mixed whole/split matching shapes need
+(`hnr_mop_pair` binding one component of an earlier result to a fresh
+pack). D-f is reachable only through `applyRuleAt`/`condSolve`'s
+attempt-3, so every synthesis that was green before T1 takes an
+identical path.
 
 **P4/D-ci — the *rule-application* alignment lives in the matcher, not
 in a goal conversion.** The source's `align_goal_conv` rewrites the
@@ -322,6 +349,23 @@ theorem hnCtxt_prodAssn {α₁ α₂ κ₁ κ₂ : Type} (A : α₁ → κ₁ �
     (a : α₁ × α₂) (c : κ₁ × κ₂) :
     hnCtxt (A ×ₐ B) a c = hnCtxt A a.1 c.1 ∗ hnCtxt B a.2 c.2 := rfl
 
+/-- The same split without the `hnCtxt` wrapper — `hnr_mop_pair`-shaped
+posts spell the pair assertion bare. -/
+theorem prodAssn_apply {α₁ α₂ κ₁ κ₂ : Type} (A : α₁ → κ₁ → Assn) (B : α₂ → κ₂ → Assn)
+    (a : α₁ × α₂) (c : κ₁ × κ₂) :
+    (A ×ₐ B) a c = A a.1 c.1 ∗ B a.2 c.2 := rfl
+
+/- **T1/D-b — `fri` sees pair contexts in the split spelling.** The
+2A satellite's probe found the frame solver failing on
+"`arrayAssn st.1 "dist"` wanted, `hnCtxt (… ×ₐ …) st (…)` owned": the
+two spell the same assertion (`rfl`, above), but `fri` matches conjunct
+atoms and a pair context is one atom. Registering the two `rfl`
+equations in `fri_prepare_simps` normalizes BOTH sides of every `fri`
+goal to the component spelling before matching, which is the `fri`
+direction of P4/D-cu's `conjunctsSplit`. Definitional, so no proof-term
+cost and no soundness surface; the whole tower rebuilt green under it. -/
+attribute [fri_prepare_simps] hnCtxt_prodAssn prodAssn_apply
+
 /-! ### Junk for arrays
 
 `Sepref/Basic.lean` gave the scalar case (`junkCell`, P4/D-f); the array
@@ -468,37 +512,74 @@ def absAgree (r g : Expr) : MetaM Bool := do
     try
       if ← isDefEq αr αg then isDefEq ar ag else return false
     catch _ => return false
+  -- T1/D-e: an `hnCtxt` rule conjunct never pairs with a *junk* goal
+  -- conjunct. With an *open* relator, `isDefEq` happily eats a
+  -- `junkCell` (`hnCtxt ?B b ?c ≡ ?B b ?c` matches `∃ᵃ v, n ↦ᵥ v` at
+  -- `?B := fun _ => sepEx _`) — P7/D-bg's well-typed nonsense through
+  -- the junk route, first hit by `mopPair` under a goal that lists a
+  -- junk cell before the value cell. Only the junk heads are excluded:
+  -- BARE ownership spellings (`natAssn a c` without the `hnCtxt`
+  -- wrapper) are legitimate matches and stay admissible.
+  | (``hnCtxt, _), (``junkCell, _) => return false
+  | (``hnCtxt, _), (``junkArray, _) => return false
   | _, _ => return true
 
 /-- Search for an injection of `rs` into `gs`, in `rs`-order, with
-backtracking. Returns the goal-side indices, one per `r`. -/
-partial def matchLoop (rs : List Expr) (gs : Array Expr) (used : Array Nat) :
-    MetaM (Option (Array Nat)) := do
-  if rs.isEmpty then return some used
+backtracking. Returns the goal-side indices, one per `r`, together with
+the (possibly refined) goal conjunct list.
+
+T1/D-f — **lazy per-conjunct pair splitting.** The old two-attempt
+scheme (as-written, then `conjunctsSplit` on *everything*) is
+all-or-nothing, and a rule like `hnr_mop_pair` binding one component of
+an earlier result to a freshly packed pair needs one goal pair SPLIT
+and the other WHOLE — satisfiable by neither attempt. So the split is
+now a fallback inside the search: when a rule conjunct matches no
+unused goal conjunct, one unused pair context is split (`rfl`) and the
+search retries; backtracking explores the split choices. The returned
+conjunct list is the goal's spelling refined by exactly the splits the
+match needed, and the permutation proof (`sepref_ac`) reconciles it
+with the original by the same `rfl` equations. The default fuel is 0 —
+existing call paths are byte-identical; the lazy split fires only in
+the explicit attempt-3 of `applyRuleAt` / `condSolve`. -/
+partial def matchLoop (rs : List Expr) (gs : Array Expr) (used : Array Nat)
+    (splitFuel : Nat := 0) : MetaM (Option (Array Nat × Array Expr)) := do
+  if rs.isEmpty then return some (used, gs)
   let r := rs.head!
   let rest := rs.tail
   for i in [0 : gs.size] do
     unless used.contains i do
       let st ← saveState
       if (← absAgree r gs[i]!) && (← isDefEq r gs[i]!) then
-        let res ← matchLoop rest gs (used.push i)
+        let res ← matchLoop rest gs (used.push i) splitFuel
         if res.isSome then return res
         st.restore
       else st.restore
+  -- Fallback: split one unused pair context and retry this same `r`.
+  if splitFuel > 0 then
+    for i in [0 : gs.size] do
+      unless used.contains i do
+        if let (``hnCtxt, #[_, _, R, a, cc]) := gs[i]!.getAppFnArgs then
+          if let (``prodAssn, #[_, _, _, _, A, B]) := R.getAppFnArgs then
+            let st ← saveState
+            let l ← mkAppM ``hnCtxt #[A, ← projOf true a, ← projOf true cc]
+            let rr ← mkAppM ``hnCtxt #[B, ← projOf false a, ← projOf false cc]
+            let res ← matchLoop rs ((gs.set! i l).push rr) used (splitFuel - 1)
+            if res.isSome then return res
+            st.restore
   return none
 
 /-- The source's `prepare_fi_conv`, as data: pair the rule's conjuncts
 against the goal's, and return `(matched, frame)` — both in terms of the
-*goal's* spelling, so that the permutation equality is a pure
-permutation. -/
-def frameMatch (ruleConjs goalConjs : Array Expr) :
-    MetaM (Option (Array Expr × Array Expr)) := do
-  let res ← matchLoop ruleConjs.toList goalConjs #[]
+*goal's* spelling (refined by any T1/D-f splits), so that the
+permutation equality is `sepref_ac`-provable. -/
+def frameMatch (ruleConjs goalConjs : Array Expr)
+    (splitFuel : Nat := 0) : MetaM (Option (Array Expr × Array Expr)) := do
+  let res ← matchLoop ruleConjs.toList goalConjs #[] splitFuel
   if res.isNone then return none
-  let idx := res.get!
-  let matched := idx.map fun i => goalConjs[i]!
-  let frame := (List.range goalConjs.size).filter (fun i => !idx.contains i)
-  return some (matched, (frame.map fun i => goalConjs[i]!).toArray)
+  let (idx, gs) := res.get!
+  let matched := idx.map fun i => gs[i]!
+  let frame := (List.range gs.size).filter (fun i => !idx.contains i)
+  return some (matched, (frame.map fun i => gs[i]!).toArray)
 
 /-- The message a failed pairing produces — the source's
 `align_conv: Could not match all arguments`, with the offending
@@ -602,8 +683,16 @@ def mergeSolve (g : MVarId) : TermElabM Unit := do
       throwError "sepref: MERGE_triv did not close{indentExpr ty}"
     g.assign prf
     return
-  let ls := conjuncts l
-  let rs := conjuncts r
+  -- T1/D-a: normalize BOTH sides to the split spelling before pairing.
+  -- A branch arm that consumed a projection of a bound tuple leaves its
+  -- postcondition with the tuple ownership split (`hnCtxt A r.1 c.1 ∗ …`)
+  -- while the other arm's is whole (`hnCtxt (A ×ₐ B) r c`); the two spell
+  -- the same assertion (`hnCtxt_prodAssn` is `rfl`), but pairing by cell
+  -- key cannot see it — the whole conjunct's key is the cell *pair*. The
+  -- split is definitional, and `proveConjEq`'s `sepref_ac` already
+  -- reconciles the spellings on the congruence side.
+  let ls ← conjunctsSplit l
+  let rs ← conjunctsSplit r
   let α ← carrierOf l
   -- Align: for each left conjunct, the right conjunct that owns the same
   -- thing. Pairing is by `isDefEq` first, then by the shared concrete
