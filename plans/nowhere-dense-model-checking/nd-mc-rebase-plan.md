@@ -193,6 +193,25 @@ assembly and stays green); the tower augment passes landed by 2C
 C0 critical path. The R>0 completion (tgt widening per TgtCoupling,
 the round assembly, the sorts) is a future campaign's wave.
 
+**Integration-A findings (2026-07-30, Fable wave — SUPERSEDES the
+two ruling blocks below in part; full record in
+`integration-design.md`).** (F1) The frozen driver *program* is
+Ω(n^ℓ) in its text (n centre turns per level unconditional, inner
+recursion unconditional — compiled floor theorem
+`uniform_interface_floor_zero` in `Refine/CostShapeProbe.lean`);
+the Σ-revision therefore includes the R1 program-skeleton change
+(compacted centre loop, block-driven zeroing) — supervisor
+decision D-1 APPROVED. (F2) At R = 0 there is no cover-degree mass
+bound (`exists_cover_degree` needs 3t ≤ R; cap ≥ 9), so C0's cost
+path runs at `R* = 3⌈log₂(2·cap)⌉` — the augment rounds, counting
+sorts, and the tgt widening are LOAD-BEARING after all (the R=0
+ruling below stands for correctness only; the 2C/2C′ augment
+capital returns to the critical path); supervisor decision D-2
+option (a) APPROVED. Positive: the size-indexed interface + R1
+lands the recurrence in `CostRecurrence.solve` at coefficient D+1
+→ n^{1+ε} confirmed (paper + compiled star probe). Road: briefs
+B1–B7 in integration-design.md §8.
+
 **Σ-shape cost threading (2026-07-30, supervisor analysis — binds
 the integration wave and P4).** The frozen driver cost interface is
 uniform-per-turn: `hKl`'s `(Ks j + 8) * n` charges the max cluster
