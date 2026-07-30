@@ -1573,6 +1573,64 @@ def restoreCsr : Com :=
   .seq (copyUpto "gof" "off" (.add (.var "n") (.lit 1)))
     (copyUpto "gtg" "tgt" (.add (.var "m") (.var "m")))
 
+/-! ### The symmetrization
+
+The one pass the ordering phase needs that no engine owns. The
+augmentation fold leaves the chain's last orientation as an *in*-list
+block structure in `doff`/`dtg`; the final elimination reads an
+*undirected* block structure — `Lax3Proofs.RamElim.CsrSimple` — out of
+`off`/`tgt`, since `Lax3Proofs.RamElim.elimCom` addresses no other pair
+of names. So the orientation has to be symmetrized in memory, and this
+is the pass that does it. -/
+
+/-- The body of the symmetrization's row copy: store the slot's target
+at the write pointer, and step the pointer. -/
+def symStore : Com :=
+  .seq (.store "tgt" (.var "sy") (.var "u")) (.assign "sy" (.add (.var "sy") (.lit 1)))
+
+/-- The row of the symmetrized structure: the in-block, then the
+out-block, both written at the pointer `"sy"`. -/
+def symRow : Com :=
+  .seq (.assign "sy" (.get "off" (.var "i")))
+    (.seq (RamAugment.blockScan "doff" "dtg" "i" "j" "jend" "u" symStore)
+      (RamAugment.blockScan "ooff" "otg" "i" "j" "jend" "u" symStore))
+
+/-- **The symmetrization** (rebase F-c). Three passes.
+
+* `RamAugment.outPass` — the counting sort the round already owns —
+  turns the in-lists `doff`/`dtg` into the out-lists `ooff`/`otg`. It
+  is run here for its own sake and not as part of a round, which is
+  what makes it available: at the point the ordering phase reaches
+  this, `ooff` is zeroed (by `OrderMem` before the first round, by
+  `augRelinkCom` after every one), which is exactly the counting
+  sort's entry condition.
+* The offsets of the union are the sums of the two structures'
+  offsets: a vertex's degree in `D.toGraph` is its in-degree plus its
+  out-degree, and a prefix sum of a sum is the sum of the prefix sums.
+  So the offset pass is one `fillUpto` over `n + 1` cells, and no
+  second counting sort is needed.
+* `symRow`, per vertex: the in-block copied, then the out-block.
+
+What it leaves in `off`/`tgt` is `RamElim.CsrSimple D.toGraph (m + m)`
+— the union is *disjoint*, an orientation having no two-cycles, which
+is where the "each row names a vertex once" clause comes from and why
+the slot count is exactly twice the arc count.
+
+**Why the phase cannot do without it.** `RamElim.ElimPre` reads a
+graph, not an orientation, and the ordering the driver's *cost* stands
+on is the one the final elimination takes on the **augmented** graph
+(`Lax3Proofs.CoverDegree.exists_wreach_degree` asks for
+`BackDegLE (D R).toGraph … k` and its minimality, both postconditions
+of an elimination of `(D R).toGraph`). Before this pass the phase
+restored the level's own structure and eliminated *that*, which
+produces an ordering — enough for the postcondition, which names only
+some ordering — but not the ordering the degree bound is about. -/
+def symCom : Com :=
+  .seq RamAugment.outPass
+    (.seq (fillUpto "off" (.add (.var "n") (.lit 1))
+        (.add (.get "doff" (.var "i")) (.get "ooff" (.var "i"))))
+      (RamAugment.forVerts symRow))
+
 /-- **The re-zeroing tail.** Eight flat passes, one per clause of
 `OrderMem`'s zeroing half: the elimination flags and the bucket heads
 the two eliminations left used, the two counting-sort accumulators, and
@@ -2472,9 +2530,26 @@ input format — so the clause is data of the input word, produced at the
 root and threaded down through `RamDriverCluster.levelImplements`.
 
 It buys nothing about the *result*: the postcondition still mentions
-only the ordering. -/
+only the ordering.
+
+**The ordering-property slot `P`** (rebase B2/F-c, `integration-design`
+§5.4). The postcondition's existential carries one *parametric*
+conjunct beside `RamCover.OrdersBy`. At `R = 0` — every call site the
+driver has today — it is instantiated at `fun _ _ => True` and costs
+nothing: `RamDriverCompose.orderImplements₀` discharges it with
+`trivial` and `RamDriverCluster.levelImplements` quantifies it away.
+At `R = R*` it is what the phase is *for*:
+
+    P π _ := ∀ v, (wreach G π (2 · cap) v).ncard ≤ D
+
+— the hypothesis `RamCover.isNeighborhoodCover_of_out` consumes, which
+`Lax3Proofs.CoverDegree.exists_wreach_degree` produces from the chain
+the fold builds and the two eliminations at its ends. Without a slot
+here that statement has nowhere to be said: a phase obligation is the
+only place the driver learns anything about *which* ordering it got. -/
 def OrderImplements (n R W cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
-    (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
+    (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ)
+    (P : Equiv.Perm (Fin n) → (ℕ → ℕ) → Prop) (K : ℕ) : Prop :=
   WordBound B n ns cap mb → RamElim.CsrSimple G ns O T → n + W + 1 < B →
   ElimAvail B n → AugAvail B n →
     Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ)
@@ -2484,7 +2559,7 @@ def OrderImplements (n R W cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T : �
         (∀ a : ℕ, σ'.vars (ctrName a) = σ.vars (ctrName a)) ∧
         (∀ a : ℕ, σ'.arrs (gamName a) = σ.arrs (gamName a)) ∧
         ∃ (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ),
-          σ'.arrs (ordName j) = arrOf n ord ∧ RamCover.OrdersBy n π ord) K
+          σ'.arrs (ordName j) = arrOf n ord ∧ RamCover.OrdersBy n π ord ∧ P π ord) K
 
 /-- **The cover's three answers, at the depth's own names.** This is
 `RamCover.CoverPost` with the arrays it existentially quantifies named

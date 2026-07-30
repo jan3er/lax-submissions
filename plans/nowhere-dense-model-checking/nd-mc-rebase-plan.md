@@ -364,3 +364,31 @@ supersession pointer.
   promotion) — bounded tax ~50 lines/loop until then. Loop states
   are resources: assemble with mopPair/pack, never literal tuples
   (P4/D-m linearity — put in every P2 brief).
+- 2026-07-31 — **F-c PARTIAL — the symmetrization landed, the
+  `orderCom` rewiring is NOT** (this session). Delivered green,
+  zero consumer breakage: (i) **`RamDriver.symCom`** — the pass
+  B5 approved, `RamAugment.outPass` + one `fillUpto` over the
+  offsets (a vertex's degree in `D.toGraph` is its in-degree plus
+  its out-degree, so the union's offsets are the *sums* of the two
+  structures' offsets — no second counting sort) + `symRow`, two
+  `blockScan`s per vertex; (ii) its walk **`symPass_run`**
+  (`RamDriverAugment`, §Symmetrize, ~600 lines) leaving
+  `RamElim.CsrSimple D.toGraph (m+m)` in `off`/`tgt`, with
+  `symCopy_run` / `csrSimple_of_rowsDone` /
+  `slotCnt_eq_card_outSet` / `card_symNbrs` / `two_mul_arcs_le` as
+  reusable capital; (iii) the **§5.4 `P` slot** in
+  `RamDriver.OrderImplements`, instantiated `fun _ _ => True` at
+  every existing call site (`orderImplements₀`,
+  `levelImplements`'s `horder`, `OrderBridge`'s three
+  statements) — `driverRoot_decides_sentence` byte-identical;
+  (iv) the **K₁,₄ symmetrization gate** in `TgtWidenProbe`:
+  differential refutation of the old text (its final elimination
+  reports the *star's* bound `kmax = 1`, the symmetrized run the
+  *augmented* graph's `kmax = 4` — `(D₁).toGraph = K₅` seen cell
+  by cell), plus `symCom` stuck at the level's 8 slots and
+  completing at `R = 0`.
+  **NOT landed, and what B7 inherits**: the `orderCom` text
+  rewiring (`symCom` inserted after the fold, `restoreCsr` moved
+  after the final elimination) with the `R = 0` re-discharge of
+  `orderImplements₀` at the new text, and the `R*` fold. Both are
+  unblocked, not merely unstarted — see the F-c report.

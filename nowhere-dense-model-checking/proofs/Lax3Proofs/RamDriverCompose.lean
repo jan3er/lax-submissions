@@ -1528,7 +1528,8 @@ depth's own four arrays, the lengths, the value bounds and the two word
 clauses — crosses by the syntactic section above. -/
 theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} :
-    OrderImplements B n 0 W cap mb ns j G O T M Gm C (orderPhaseCost n ns W) := by
+    OrderImplements B n 0 W cap mb ns j G O T M Gm C (fun _ _ => True)
+      (orderPhaseCost n ns W) := by
   intro hB hcsr hWB _helim _haug
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hvn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCbit, hmem, hdep, hmv,
@@ -1719,7 +1720,7 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     hrT.out_eq (noWrite_orderCom₀ W j),
     fun a => hrT.frame_var _ (ctrName_notMem_orderCom₀ W j a),
     fun a => hrT.frame_arr _ (gamName_notMem_orderCom₀ W j a),
-    π, ordv, ?_, hordby⟩
+    π, ordv, ?_, hordby, trivial⟩
   · rw [orderPhaseCost, RamElim.elimCost]
     simp only [size_add, size_var, size_lit]
     omega

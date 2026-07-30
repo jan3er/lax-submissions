@@ -280,8 +280,9 @@ theorem orderTowerK_le_orderPhaseCost (n ns W : ℕ) :
 at the tower's price is one at the frozen budget. -/
 theorem orderImplements_mono {B n R W cap mb ns j K K' : ℕ} {G : SimpleGraph (Fin n)}
     {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ}
-    (h : RamDriver.OrderImplements B n R W cap mb ns j G O T M Gm C K) (hK : K ≤ K') :
-    RamDriver.OrderImplements B n R W cap mb ns j G O T M Gm C K' :=
+    {P : Equiv.Perm (Fin n) → (ℕ → ℕ) → Prop}
+    (h : RamDriver.OrderImplements B n R W cap mb ns j G O T M Gm C P K) (hK : K ≤ K') :
+    RamDriver.OrderImplements B n R W cap mb ns j G O T M Gm C P K' :=
   fun hB hcsr hWB helim haug => (h hB hcsr hWB helim haug).mono hK
 
 -- the two figures at the demo's size, and the frozen budget beside them
@@ -344,9 +345,11 @@ theorem orderSpec_of_towerPost {c : Com}
         (∀ a : ℕ, σ'.vars (ctrName a) = σ.vars (ctrName a)) ∧
         (∀ a : ℕ, σ'.arrs (gamName a) = σ.arrs (gamName a)) ∧
         ∃ (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ),
-          σ'.arrs (ordName j) = arrOf n ord ∧ RamCover.OrdersBy n π ord) K :=
-  h.post fun _ _ _ hq =>
-    ⟨hq.1, hq.2.1, hq.2.2.1, hq.2.2.2.1, orderClause_of_orderPost hq.2.2.2.2 rfl⟩
+          σ'.arrs (ordName j) = arrOf n ord ∧ RamCover.OrdersBy n π ord ∧ True) K :=
+  h.post fun _ _ _ hq => by
+    refine ⟨hq.1, hq.2.1, hq.2.2.1, hq.2.2.2.1, ?_⟩
+    obtain ⟨π, ord, h₁, h₂⟩ := orderClause_of_orderPost hq.2.2.2.2 rfl
+    exact ⟨π, ord, h₁, h₂, trivial⟩
 
 /-- **`RamDriver.OrderImplements`, from the tower's phase
 postcondition.** Everything the obligation asks for, discharged from a
@@ -362,7 +365,7 @@ theorem orderImplements_of_spec {R : ℕ} {G : SimpleGraph (Fin n)}
           (∀ a : ℕ, σ'.vars (ctrName a) = σ.vars (ctrName a)) ∧
           (∀ a : ℕ, σ'.arrs (gamName a) = σ.arrs (gamName a)) ∧
           OrderPost n (σ'.arrs (ordName j))) K) :
-    RamDriver.OrderImplements B n R W cap mb ns j G O T M Gm C K :=
+    RamDriver.OrderImplements B n R W cap mb ns j G O T M Gm C (fun _ _ => True) K :=
   fun hB hcsr hWB helim haug => orderSpec_of_towerPost (h hB hcsr hWB helim haug)
 
 /-! ### 5.1 Adequacy — the bridge, run on the only discharger there is
@@ -396,7 +399,7 @@ theorem orderImplements₀_towerPost {B cap mb ns W j : ℕ} {G : SimpleGraph (F
       (RamDriverCompose.orderPhaseCost n ns W) := by
   intro hB hcsr hWB helim haug
   refine (RamDriverCompose.orderImplements₀ hB hcsr hWB helim haug).post ?_
-  rintro σ σ' - ⟨h1, h2, h3, h4, π, ord, hord, hOrd⟩
+  rintro σ σ' - ⟨h1, h2, h3, h4, π, ord, hord, hOrd, -⟩
   exact ⟨h1, h2, h3, h4, orderPost_of_orderClause hord hOrd⟩
 
 /-- **The frozen obligation, through the bridge.** Identical statement
@@ -404,7 +407,7 @@ to `RamDriverCompose.orderImplements₀`, obtained by handing
 `orderImplements_of_spec` the tower-shaped postcondition. -/
 theorem orderImplements₀_via_bridge {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} :
-    RamDriver.OrderImplements B n 0 W cap mb ns j G O T M Gm C
+    RamDriver.OrderImplements B n 0 W cap mb ns j G O T M Gm C (fun _ _ => True)
       (RamDriverCompose.orderPhaseCost n ns W) :=
   orderImplements_of_spec orderImplements₀_towerPost
 

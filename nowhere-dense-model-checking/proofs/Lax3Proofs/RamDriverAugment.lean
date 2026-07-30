@@ -5210,11 +5210,704 @@ example : ¬ RamAugment.AugPre 0 0 0 (fun _ => 0) (fun _ => 0) wideAugEnv := by
 
 end Falsification
 
+/-! ### The symmetrization (rebase F-c)
+
+The one pass of the ordering phase that belongs to no engine.
+`RamDriver.symCom` turns the in-lists of an orientation — which is what
+a round of the fold and the elimination alike leave — into the
+*undirected* block structure of `Orientation.toGraph`, which is what
+`Lax3Proofs.RamElim.elimCom` reads and the only thing it reads.
+
+The pass costs nothing new in machinery: `RamAugment.outPass`, the
+round's own counting sort, supplies the out-lists, the offsets of the
+union are the *sums* of the two structures' offsets (a prefix sum of a
+sum being the sum of the prefix sums), and the rows are two
+`RamAugment.blockScan`s apiece. What is authored is the arithmetic of
+the two halves of a row and the `RamElim.CsrSimple` clause `nodup`,
+which is where the orientation's asymmetry is spent: the in-block and
+the out-block of a vertex are disjoint, so the row is as long as the
+set it names and a block that names a set of its own size names it
+once (`block_nodup`).
+
+**Why the phase needs it.** `RamElim.ElimPre` reads a *graph*, and the
+ordering the driver's cost stands on is the one the final elimination
+takes on the **augmented** graph:
+`Lax3Proofs.CoverDegree.exists_wreach_degree` consumes
+`BackDegLE (D R).toGraph … k` and its minimality, both of them
+postconditions of an elimination of `(D R).toGraph`, and before this
+pass the phase restored the level's own structure and eliminated that
+instead. See `RamDriver.symCom`. -/
+
+section Symmetrize
+
+variable {n : ℕ}
+
+/-! ### Offsets that do not decrease -/
+
+/-- Every offset of a non-decreasing family is below the last. -/
+theorem off_le_last {O : ℕ → ℕ} {nv s : ℕ} (hmono : ∀ i < nv, O i ≤ O (i + 1))
+    (hlast : O nv = s) : ∀ k ≤ nv, O k ≤ s := by
+  have key : ∀ d k, k + d = nv → O k ≤ O nv := by
+    intro d
+    induction d with
+    | zero => intro k hk; rw [show k = nv by omega]
+    | succ d ih => intro k hk; exact le_trans (hmono k (by omega)) (ih (k + 1) (by omega))
+  intro k hk; rw [← hlast]; exact key (nv - k) k (by omega)
+
+/-- **The blocks tile the array**: every slot below the last offset lies
+in exactly one block. -/
+theorem exists_block_of_mono {O : ℕ → ℕ} {nv s t : ℕ} (hz : O 0 = 0) (hlast : O nv = s)
+    (hmono : ∀ i < nv, O i ≤ O (i + 1)) (ht : t < s) : ∃ z, z < nv ∧ O z ≤ t ∧ t < O (z + 1) := by
+  subst hlast
+  induction nv with
+  | zero => omega
+  | succ nv ih =>
+      rcases Nat.lt_or_ge t (O nv) with hlt | hge
+      · obtain ⟨z, hz₁, hz₂, hz₃⟩ := ih (fun i hi => hmono i (by omega)) hlt
+        exact ⟨z, by omega, hz₂, hz₃⟩
+      · exact ⟨nv, by omega, hge, ht⟩
+
+/-! ### The symmetrized row, as a set -/
+
+/-- The neighbours of `z` in `D.toGraph`, at the number level: the row
+the symmetrization writes. -/
+noncomputable def symNbrs (D : Orientation n) (z : ℕ) : Finset ℕ :=
+  if h : z < n then valSet (RamAugment.adjSet D ⟨z, h⟩) else ∅
+
+theorem mem_symNbrs {D : Orientation n} {z v : ℕ} (hz : z < n) (hv : v < n) :
+    v ∈ symNbrs D z ↔ D.toGraph.Adj ⟨v, hv⟩ ⟨z, hz⟩ := by
+  rw [symNbrs, dif_pos hz, mem_valSet]
+  constructor
+  · rintro ⟨h', hm⟩; exact RamAugment.mem_adjSet.1 hm
+  · intro h; exact ⟨hv, RamAugment.mem_adjSet.2 h⟩
+
+theorem symNbrs_lt {D : Orientation n} {z v : ℕ} (h : v ∈ symNbrs D z) : v < n := by
+  rw [symNbrs] at h
+  split at h
+  · exact valSet_lt h
+  · simp at h
+
+/-- **The union is disjoint**: an orientation has no two-cycles, so a
+vertex's row is its in-block followed by its out-block with nothing in
+common, and the row's length is the sum of the two degrees. -/
+theorem card_symNbrs {D : Orientation n} {z : ℕ} (hz : z < n) :
+    (symNbrs D z).card = (D.inN ⟨z, hz⟩).card + (RamAugment.outSet D ⟨z, hz⟩).card := by
+  classical
+  rw [symNbrs, dif_pos hz, card_valSet, RamAugment.adjSet, Finset.card_union_of_disjoint]
+  refine Finset.disjoint_left.2 fun u hu hu' => ?_
+  exact D.asymm u ⟨z, hz⟩ hu (RamAugment.mem_outSet.1 hu')
+
+/-! ### The out-block's size -/
+
+/-- **A block names each of its in-neighbours once.** -/
+theorem inBlock_nodup {m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} (h : InCsr D m DO DT)
+    {z : ℕ} (hz : z < n) {s₁ s₂ : ℕ} (a₁ : DO z ≤ s₁) (a₂ : s₁ < DO (z + 1))
+    (a₃ : DO z ≤ s₂) (a₄ : s₂ < DO (z + 1)) (he : DT s₁ = DT s₂) : s₁ = s₂ := by
+  classical
+  have hend : DO (z + 1) ≤ m := off_le_last h.mono h.last (z + 1) (by omega)
+  refine block_nodup (S := valSet (D.inN ⟨z, hz⟩))
+    (by rw [card_valSet, h.len ⟨z, hz⟩]) (h.mono z hz)
+    (fun q hq₁ hq₂ => mem_valSet.2 ⟨h.target_lt q (by omega),
+      (h.mem_iff ⟨z, hz⟩ ⟨DT q, h.target_lt q (by omega)⟩).2 ⟨q, hq₁, hq₂, rfl⟩⟩)
+    (fun v hv => by
+      obtain ⟨hv', hvm⟩ := mem_valSet.1 hv
+      exact (h.mem_iff ⟨z, hz⟩ ⟨v, hv'⟩).1 hvm)
+    a₁ a₂ a₃ a₄ he
+
+/-- **A slot names `u` once per vertex `u` points at.** The in-blocks
+tile the arc array and each names its own in-neighbours once, so the
+slots carrying the target `u` are in bijection with the out-block of
+`u`. -/
+theorem slotCnt_eq_card_outSet {m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ}
+    (h : InCsr D m DO DT) {u : ℕ} (hu : u < n) :
+    slotCnt DT m u = (RamAugment.outSet D ⟨u, hu⟩).card := by
+  classical
+  set P : ℕ → Prop := fun z => ∃ s, DO z ≤ s ∧ s < DO (z + 1) ∧ DT s = u with hP
+  have hg : ∀ z ∈ Finset.range n,
+      ((Finset.Ico (DO z) (DO (z + 1))).filter (fun s => DT s = u)).card
+        = if P z then 1 else 0 := by
+    intro z hzm
+    have hz : z < n := Finset.mem_range.1 hzm
+    by_cases hp : P z
+    · obtain ⟨s, hs₁, hs₂, hs₃⟩ := hp
+      rw [if_pos ⟨s, hs₁, hs₂, hs₃⟩]
+      refine Finset.card_eq_one.2 ⟨s, ?_⟩
+      ext t
+      simp only [Finset.mem_filter, Finset.mem_Ico, Finset.mem_singleton]
+      constructor
+      · rintro ⟨⟨ht₁, ht₂⟩, ht₃⟩
+        exact inBlock_nodup h hz ht₁ ht₂ hs₁ hs₂ (by rw [ht₃, hs₃])
+      · rintro rfl; exact ⟨⟨hs₁, hs₂⟩, hs₃⟩
+    · rw [if_neg hp]
+      refine Finset.card_eq_zero.2 (Finset.eq_empty_of_forall_notMem fun s hs => ?_)
+      simp only [Finset.mem_filter, Finset.mem_Ico] at hs
+      exact hp ⟨s, hs.1.1, hs.1.2, hs.2⟩
+  have h1 : slotCnt DT m u = ∑ z ∈ Finset.range n, (if P z then 1 else 0) := by
+    rw [slotCnt, tile_filter_card h.zero h.last h.mono (fun s => DT s = u)]
+    exact Finset.sum_congr rfl hg
+  have h3 : valSet (RamAugment.outSet D ⟨u, hu⟩) = (Finset.range n).filter P := by
+    ext z
+    simp only [Finset.mem_filter, Finset.mem_range]
+    constructor
+    · intro hz
+      obtain ⟨hz', hzm⟩ := mem_valSet.1 hz
+      exact ⟨hz', (h.mem_iff ⟨z, hz'⟩ ⟨u, hu⟩).1 (RamAugment.mem_outSet.1 hzm)⟩
+    · rintro ⟨hz, hpz⟩
+      exact mem_valSet.2 ⟨hz, RamAugment.mem_outSet.2 ((h.mem_iff ⟨z, hz⟩ ⟨u, hu⟩).2 hpz)⟩
+  rw [h1, ← Finset.card_filter, ← h3, card_valSet]
+
+/-! ### A block, copied into the target array at a running pointer -/
+
+/-- **One block of a structure, appended to the target array.** The row
+of the vertex held in `"i"` is scanned and its targets are stored, in
+order, from the write pointer `"sy"` on. What the caller gets back is
+the target array with that stretch overwritten by the row, everything
+below the pointer and above the stretch untouched, and the pointer at
+the end of the stretch — which is what makes the two calls of the
+symmetrization compose. -/
+theorem symCopy_run {B : ℕ} {o t : String} {nv len nt base v : ℕ}
+    {off src T : ℕ → ℕ} {σ : Env}
+    (htT : t ≠ "tgt") (hB1 : 1 < B) (hv : v < nv) (hvB : v + 1 < B)
+    (hoff : σ.arrs o = arrOf (nv + 1) off)
+    (hle : off v ≤ off (v + 1)) (hlen : off (v + 1) ≤ len) (hoffB : off (v + 1) < B)
+    (hiv : σ.vars "i" = v)
+    (hsrcA : σ.arrs t = arrOf len src) (hsrcB : ∀ p < off (v + 1), src p < B)
+    (htgtA : σ.arrs "tgt" = arrOf nt T) (hsy : σ.vars "sy" = base)
+    (hfit : base + (off (v + 1) - off v) ≤ nt)
+    (hbaseB : base + (off (v + 1) - off v) < B) :
+    ∃ σ' K T', Run B (RamAugment.blockScan o t "i" "j" "jend" "u" RamDriver.symStore) σ σ' K ∧
+      K ≤ 19 * (off (v + 1) - off v) + 12 ∧
+      σ'.arrs "tgt" = arrOf nt T' ∧
+      (∀ p, p < base → T' p = T p) ∧
+      (∀ p, base + (off (v + 1) - off v) ≤ p → T' p = T p) ∧
+      (∀ p, base ≤ p → p < base + (off (v + 1) - off v) → T' p = src (off v + (p - base))) ∧
+      σ'.vars "sy" = base + (off (v + 1) - off v) ∧
+      (∀ a, a ≠ "tgt" → σ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "j" → y ≠ "jend" → y ≠ "u" → y ≠ "sy" → σ'.vars y = σ.vars y) := by
+  classical
+  set I : Env → Prop := fun τ =>
+    τ.vars "jend" = off (v + 1) ∧ off v ≤ τ.vars "j" ∧ τ.vars "j" ≤ off (v + 1) ∧
+      τ.vars "sy" = base + (τ.vars "j" - off v) ∧
+      (∃ T', τ.arrs "tgt" = arrOf nt T' ∧
+        (∀ p, p < base → T' p = T p) ∧
+        (∀ p, base + (τ.vars "j" - off v) ≤ p → T' p = T p) ∧
+        (∀ p, base ≤ p → p < base + (τ.vars "j" - off v) → T' p = src (off v + (p - base)))) ∧
+      (∀ a, a ≠ "tgt" → τ.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "j" → y ≠ "jend" → y ≠ "u" → y ≠ "sy" → τ.vars y = σ.vars y) with hI
+  have hjs : ((σ.setVar "j" (off v)).setVar "jend" (off (v + 1))).vars "j" = off v := by simp
+  have hstart : I ((σ.setVar "j" (off v)).setVar "jend" (off (v + 1))) := by
+    refine ⟨by simp, by rw [hjs], by rw [hjs]; exact hle, by rw [hjs]; simp [hsy], ⟨T, by simpa using htgtA,
+      fun p _ => rfl, fun p _ => rfl, fun p h₁ h₂ => ?_⟩,
+      fun a _ => by simp, fun y h₁ h₂ _ _ => by simp [h₁, h₂]⟩
+    rw [hjs] at h₂; omega
+  have hstep : ∀ τ, I τ → τ.vars "j" < off (v + 1) →
+      ∃ τ' K, Run B RamDriver.symStore (τ.setVar "u" (src (τ.vars "j"))) τ' K ∧ K ≤ 8 ∧
+        τ'.vars "j" = τ.vars "j" ∧ I (τ'.setVar "j" (τ.vars "j" + 1)) := by
+    intro τ hτ hjlt
+    obtain ⟨hje, hj1, hj2, hsyτ, ⟨T', htgt', hbelow, habove, hin⟩, hfa, hfv⟩ := hτ
+    have hqlt : τ.vars "sy" < base + (off (v + 1) - off v) := by omega
+    have hqnt : τ.vars "sy" < nt := by omega
+    have hqB : τ.vars "sy" + 1 < B := by omega
+    have hsrcjB : src (τ.vars "j") < B := hsrcB _ hjlt
+    set ρ₀ := τ.setVar "u" (src (τ.vars "j")) with hρ₀
+    have hsyρ : ρ₀.vars "sy" = τ.vars "sy" := by rw [hρ₀, vars_setVar, if_neg (by decide)]
+    have htgtρ : ρ₀.arrs "tgt" = arrOf nt T' := by rw [hρ₀, arrs_setVar]; exact htgt'
+    have euρ : ρ₀.vars "u" = src (τ.vars "j") := by rw [hρ₀, vars_setVar, if_pos rfl]
+    have esy : (Expr.var "sy").evalB B ρ₀ = some (τ.vars "sy") := by
+      rw [← hsyρ]; exact evalB_var (by rw [hsyρ]; omega)
+    have eu : (Expr.var "u").evalB B ρ₀ = some (src (τ.vars "j")) := by
+      rw [← euρ]; exact evalB_var (by rw [euρ]; exact hsrcjB)
+    have hlenρ : τ.vars "sy" < (ρ₀.arrs "tgt").length := by rw [htgtρ, length_arrOf]; omega
+    set ρ₁ := ρ₀.setArr "tgt" (τ.vars "sy") (src (τ.vars "j")) with hρ₁
+    set T'' : ℕ → ℕ := fun k => if k = τ.vars "sy" then src (τ.vars "j") else T' k with hT''
+    have htgtρ₁ : ρ₁.arrs "tgt" = arrOf nt T'' := by
+      rw [hρ₁, arrs_setArr, if_pos rfl, htgtρ, set_arrOf]
+    have hsyρ₁ : ρ₁.vars "sy" = τ.vars "sy" := by rw [hρ₁, vars_setArr, hsyρ]
+    have eadd : (Expr.add (.var "sy") (.lit 1)).evalB B ρ₁ = some (τ.vars "sy" + 1) := by
+      have h := evalB_bin (B := B) (op := .add) (σ := ρ₁) (m := ρ₁.vars "sy") (n := 1)
+        (evalB_var (by rw [hsyρ₁]; omega)) (evalB_lit hB1)
+        (by rw [hsyρ₁]; simpa [Bop.apply] using hqB)
+      rw [hsyρ₁] at h
+      simpa [Bop.apply] using h
+    refine ⟨ρ₁.setVar "sy" (τ.vars "sy" + 1), 8,
+      ((Run.store esy eu hlenρ).seq (Run.assign eadd)).mono
+        (by simp only [size_var, size_add, size_lit]; omega),
+      le_rfl, by rw [vars_setVar, if_neg (by decide), hρ₁, vars_setArr, hρ₀, vars_setVar,
+        if_neg (by decide)], ?_⟩
+    have hjnew : ((ρ₁.setVar "sy" (τ.vars "sy" + 1)).setVar "j" (τ.vars "j" + 1)).vars "j"
+        = τ.vars "j" + 1 := by simp
+    have hsynew : ((ρ₁.setVar "sy" (τ.vars "sy" + 1)).setVar "j" (τ.vars "j" + 1)).vars "sy"
+        = τ.vars "sy" + 1 := by
+      rw [vars_setVar, if_neg (by decide), vars_setVar, if_pos rfl]
+    refine ⟨by rw [vars_setVar, if_neg (by decide), vars_setVar, if_neg (by decide), hρ₁,
+        vars_setArr, hρ₀, vars_setVar, if_neg (by decide)]; exact hje,
+      by rw [hjnew]; omega, by rw [hjnew]; omega,
+      by rw [hjnew, hsynew]; omega, ⟨T'', ?_, ?_, ?_, ?_⟩, ?_, ?_⟩
+    · rw [arrs_setVar, arrs_setVar, htgtρ₁]
+    · intro p hp
+      rw [hT'']; simp only []
+      rw [if_neg (by omega)]
+      exact hbelow p hp
+    · intro p hp
+      rw [hjnew] at hp
+      rw [hT'']; simp only []
+      rw [if_neg (by omega)]
+      exact habove p (by omega)
+    · intro p h₁ h₂
+      rw [hjnew] at h₂
+      rw [hT'']; simp only []
+      by_cases hpq : p = τ.vars "sy"
+      · rw [if_pos hpq, hpq]; congr 1; omega
+      · rw [if_neg hpq]; exact hin p h₁ (by omega)
+    · intro a ha
+      rw [arrs_setVar, arrs_setVar, hρ₁, arrs_setArr, if_neg ha, hρ₀, arrs_setVar]
+      exact hfa a ha
+    · intro y h₁ h₂ h₃ h₄
+      rw [vars_setVar, if_neg h₁, vars_setVar, if_neg h₄, hρ₁,
+        vars_setArr, hρ₀, vars_setVar, if_neg h₃]
+      exact hfv y h₁ h₂ h₃ h₄
+  obtain ⟨σ', K, hrun, hK, hI', hj'⟩ :=
+    blockScan_run (B := B) (o := o) (t := t) (x := "i") (j := "j") (jend := "jend") (w := "u")
+      (c := RamDriver.symStore) (nv := nv) (len := len) (Kb := 8) (v := v) (off := off)
+      (tgt := src) (I := I) (σ := σ) (by decide) (by decide) hB1 hv hvB hoff hle hlen hoffB
+      hiv (fun τ hτ => by rw [hτ.2.2.2.2.2.1 t htT]; exact hsrcA)
+      (fun p hp => hsrcB p hp) (fun τ hτ => ⟨hτ.1, hτ.2.2.1⟩) hstart hstep
+  obtain ⟨hje', hj1', hj2', hsy', ⟨T', htgt', hbelow, habove, hin⟩, hfa, hfv⟩ := hI'
+  rw [hj'] at hsy' habove hin
+  exact ⟨σ', K, T', hrun, by omega, htgt', hbelow, habove, hin, hsy', hfa, hfv⟩
+
+/-! ### The rows written so far -/
+
+/-- What the vertex loop has established after `i` turns: every row
+below `i` names exactly the neighbours of its vertex in `D.toGraph`. -/
+def RowsDone (D : Orientation n) (O T : ℕ → ℕ) (i : ℕ) : Prop :=
+  ∀ z < i, (∀ p, O z ≤ p → p < O (z + 1) → T p ∈ symNbrs D z) ∧
+    (∀ v ∈ symNbrs D z, ∃ p, O z ≤ p ∧ p < O (z + 1) ∧ T p = v)
+
+/-- **What the symmetrization leaves is the engine's input surface.**
+Soundness and completeness of every row give the block structure; the
+row length being the size of the row's set gives `nodup`, which is
+where the orientation's asymmetry is spent. -/
+theorem csrSimple_of_rowsDone {D : Orientation n} {O T : ℕ → ℕ} {s : ℕ}
+    (hz : O 0 = 0) (hlast : O n = s) (hmono : ∀ i < n, O i ≤ O (i + 1))
+    (hcard : ∀ z < n, O (z + 1) - O z = (symNbrs D z).card)
+    (h : RowsDone D O T n) : CsrSimple D.toGraph s O T := by
+  classical
+  refine ⟨⟨hz, hlast, hmono, fun j hj => ?_, fun u v => ?_⟩, fun u hu j₁ j₂ a₁ a₂ a₃ a₄ he => ?_⟩
+  · obtain ⟨z, hz₁, hz₂, hz₃⟩ := exists_block_of_mono hz hlast hmono hj
+    exact symNbrs_lt ((h z hz₁).1 j hz₂ hz₃)
+  · constructor
+    · intro hadj
+      obtain ⟨p, h₁, h₂, h₃⟩ := (h (u : ℕ) u.isLt).2 (v : ℕ)
+        ((mem_symNbrs u.isLt v.isLt).2 (by simpa using hadj.symm))
+      exact ⟨p, h₁, h₂, h₃⟩
+    · rintro ⟨p, h₁, h₂, h₃⟩
+      have hm := (h (u : ℕ) u.isLt).1 p h₁ h₂
+      have hlt : T p < n := symNbrs_lt hm
+      have := (mem_symNbrs u.isLt hlt).1 hm
+      have he : (⟨T p, hlt⟩ : Fin n) = v := Fin.ext h₃
+      rw [he] at this
+      exact this.symm
+  · exact block_nodup (S := symNbrs D u) (hcard u hu) (hmono u hu)
+      (fun q hq₁ hq₂ => (h u hu).1 q hq₁ hq₂) (fun w hw => (h u hu).2 w hw) a₁ a₂ a₃ a₄ he
+
+/-! ### One row -/
+
+set_option maxHeartbeats 1000000 in
+/-- **A vertex's row, written.** The write pointer is opened at the
+vertex's offset, the in-block is copied, then the out-block; what comes
+out is the row of `D.toGraph` at that vertex, sound and complete, with
+everything outside the row untouched. -/
+theorem symRow_run {B W nt m i : ℕ} {D : Orientation n} {DO DT OO OT T : ℕ → ℕ} {σ : Env}
+    (hnB : n + 1 < B) (hmmB : m + m < B) (hi : i < n) (hfit : m + m ≤ nt)
+    (hin : InCsr D m DO DT)
+    (hbd : Blocks "doff" "dtg" n W m DO DT σ)
+    (hbo : Blocks "ooff" "otg" n W m OO OT σ)
+    (hsnd : ∀ u < n, ∀ q, OO u ≤ q → q < OO (u + 1) → Pts DO DT (OT q) u)
+    (hcmp : ∀ u < n, ∀ z < n, Pts DO DT z u → ∃ q, OO u ≤ q ∧ q < OO (u + 1) ∧ OT q = z)
+    (hoffA : σ.arrs "off" = arrOf (n + 1) (fun k => DO k + OO k))
+    (hiv : σ.vars "i" = i) (htgtA : σ.arrs "tgt" = arrOf nt T) :
+    ∃ σ' K T', Run B RamDriver.symRow σ σ' K ∧
+      K ≤ 19 * (DO (i + 1) - DO i) + 19 * (OO (i + 1) - OO i) + 30 ∧
+      σ'.arrs "tgt" = arrOf nt T' ∧
+      (∀ p, p < DO i + OO i → T' p = T p) ∧
+      (∀ p, DO (i + 1) + OO (i + 1) ≤ p → T' p = T p) ∧
+      (∀ p, DO i + OO i ≤ p → p < DO (i + 1) + OO (i + 1) → T' p ∈ symNbrs D i) ∧
+      (∀ v ∈ symNbrs D i, ∃ p, DO i + OO i ≤ p ∧ p < DO (i + 1) + OO (i + 1) ∧ T' p = v) ∧
+      (∀ a, a ≠ "tgt" → σ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "j" → y ≠ "jend" → y ≠ "u" → y ≠ "sy" → σ'.vars y = σ.vars y) := by
+  classical
+  have hB1 : 1 < B := by omega
+  have hdle : DO i ≤ DO (i + 1) := hbd.mono i hi
+  have hole : OO i ≤ OO (i + 1) := hbo.mono i hi
+  have hdlast : DO (i + 1) ≤ m := hbd.off_le (by omega)
+  have holast : OO (i + 1) ≤ m := hbo.off_le (by omega)
+  -- (1) the write pointer, opened at the vertex's offset
+  have eoff : (Expr.get "off" (.var "i")).evalB B σ = some (DO i + OO i) := by
+    refine evalB_get (k := i) (by rw [← hiv]; exact evalB_var (by omega)) ?_ (by omega)
+    rw [hoffA, getElem?_arrOf (fun k => DO k + OO k) (by omega)]
+  set σ₀ := σ.setVar "sy" (DO i + OO i) with hσ₀
+  have r₀ : Run B (.assign "sy" (.get "off" (.var "i"))) σ σ₀ (1 + (Expr.get "off" (.var "i")).size) :=
+    Run.assign eoff
+  -- (2) the in-block
+  obtain ⟨σ₁, K₁, T₁, r₁, hK₁, htgt₁, hlo₁, hhi₁, hmid₁, hsy₁, hfa₁, hfv₁⟩ :=
+    symCopy_run (B := B) (o := "doff") (t := "dtg") (nv := n) (len := W) (nt := nt)
+      (base := DO i + OO i) (v := i) (off := DO) (src := DT) (T := T) (σ := σ₀)
+      (by decide) hB1 hi (by omega) (by rw [hσ₀, arrs_setVar]; exact hbd.offArr) hdle (le_trans hdlast hbd.le)
+      (by omega) (by rw [hσ₀, vars_setVar, if_neg (by decide)]; exact hiv)
+      (by rw [hσ₀, arrs_setVar]; exact hbd.tgtArr)
+      (fun p hp => lt_trans (hbd.target_lt p (by omega)) (by omega))
+      (by rw [hσ₀, arrs_setVar]; exact htgtA) (by simp [hσ₀]) (by omega) (by omega)
+  -- (3) the out-block
+  obtain ⟨σ₂, K₂, T₂, r₂, hK₂, htgt₂, hlo₂, hhi₂, hmid₂, hsy₂, hfa₂, hfv₂⟩ :=
+    symCopy_run (B := B) (o := "ooff") (t := "otg") (nv := n) (len := W) (nt := nt)
+      (base := DO i + OO i + (DO (i + 1) - DO i)) (v := i) (off := OO) (src := OT) (T := T₁)
+      (σ := σ₁)
+      (by decide) hB1 hi (by omega)
+      (by rw [hfa₁ "ooff" (by decide), hσ₀, arrs_setVar]; exact hbo.offArr) hole (le_trans holast hbo.le)
+      (by omega)
+      (by rw [hfv₁ "i" (by decide) (by decide) (by decide) (by decide), hσ₀, vars_setVar,
+        if_neg (by decide)]; exact hiv)
+      (by rw [hfa₁ "otg" (by decide), hσ₀, arrs_setVar]; exact hbo.tgtArr)
+      (fun p hp => lt_trans (hbo.target_lt p (by omega)) (by omega))
+      htgt₁ hsy₁ (by omega) (by omega)
+  refine ⟨σ₂, _, T₂, r₀.seq (r₁.seq r₂), ?_, htgt₂, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · simp only [size_get, size_var]; omega
+  · intro p hp
+    rw [hlo₂ p (by omega), hlo₁ p (by omega)]
+  · intro p hp
+    rw [hhi₂ p (by omega), hhi₁ p (by omega)]
+  · -- soundness of the row
+    intro p h₁ h₂
+    rcases Nat.lt_or_ge p (DO i + OO i + (DO (i + 1) - DO i)) with hlt | hge
+    · have hval : T₂ p = DT (DO i + (p - (DO i + OO i))) := by
+        rw [hlo₂ p (by omega)]; exact hmid₁ p (by omega) (by omega)
+      set s := DO i + (p - (DO i + OO i)) with hs
+      have hs₁ : DO i ≤ s := by omega
+      have hs₂ : s < DO (i + 1) := by omega
+      have hlt' : DT s < n := hbd.target_lt s (by omega)
+      rw [hval, symNbrs, dif_pos hi]
+      exact mem_valSet.2 ⟨hlt', RamAugment.mem_adjSet.2
+        (Or.inl ((hin.mem_iff ⟨i, hi⟩ ⟨DT s, hlt'⟩).2 ⟨s, hs₁, hs₂, rfl⟩))⟩
+    · have hval : T₂ p = OT (OO i + (p - (DO i + OO i + (DO (i + 1) - DO i)))) := by
+        exact hmid₂ p (by omega) (by omega)
+      set q := OO i + (p - (DO i + OO i + (DO (i + 1) - DO i))) with hq
+      have hq₁ : OO i ≤ q := by omega
+      have hq₂ : q < OO (i + 1) := by omega
+      have hlt' : OT q < n := hbo.target_lt q (by omega)
+      rw [hval, symNbrs, dif_pos hi]
+      exact mem_valSet.2 ⟨hlt', RamAugment.mem_adjSet.2
+        (Or.inr (RamAugment.mem_outSet.1 ((pts_iff_mem_outSet hin hlt' hi).1 (hsnd i hi q hq₁ hq₂))))⟩
+  · -- completeness of the row
+    intro v hv
+    have hvn : v < n := symNbrs_lt hv
+    rw [symNbrs, dif_pos hi] at hv
+    obtain ⟨hv', hvm⟩ := mem_valSet.1 hv
+    rcases RamAugment.mem_adjSet.1 hvm with hinN | houtN
+    · obtain ⟨s, hs₁, hs₂, hs₃⟩ := (hin.mem_iff ⟨i, hi⟩ ⟨v, hv'⟩).1 hinN
+      have hs₁' : DO i ≤ s := hs₁
+      have hs₂' : s < DO (i + 1) := hs₂
+      have hs₃' : DT s = v := hs₃
+      refine ⟨DO i + OO i + (s - DO i), by omega, by omega, ?_⟩
+      rw [hlo₂ _ (by omega), hmid₁ _ (by omega) (by omega)]
+      rw [show DO i + (DO i + OO i + (s - DO i) - (DO i + OO i)) = s by omega]
+      exact hs₃' 
+    · obtain ⟨q, hq₁, hq₂, hq₃⟩ :=
+        hcmp i hi v hv' ((pts_iff_mem_outSet hin hv' hi).2 (RamAugment.mem_outSet.2 houtN))
+      refine ⟨DO i + OO i + (DO (i + 1) - DO i) + (q - OO i), by omega, by omega, ?_⟩
+      rw [hmid₂ _ (by omega) (by omega)]
+      rw [show OO i + (DO i + OO i + (DO (i + 1) - DO i) + (q - OO i)
+        - (DO i + OO i + (DO (i + 1) - DO i))) = q by omega]
+      exact hq₃
+  · intro a ha
+    rw [hfa₂ a ha, hfa₁ a ha, hσ₀, arrs_setVar]
+  · intro y h₁ h₂ h₃ h₄
+    rw [hfv₂ y h₁ h₂ h₃ h₄, hfv₁ y h₁ h₂ h₃ h₄, hσ₀, vars_setVar, if_neg h₄]
+
+/-- **The cost of the symmetrization**: the counting sort, one flat pass
+over the offsets, and one pass over the arcs — every one of them linear,
+at the campaign's generous constants. -/
+def symCost (n m : ℕ) : ℕ := 200 * n + 100 * m + 200
+
+set_option maxHeartbeats 2000000 in
+/-- **The symmetrization, walked.** From the in-lists of an orientation
+in `doff`/`dtg` the pass leaves in `off`/`tgt` a block structure of
+`D.toGraph` at `m + m` slots, in the `RamElim.CsrSimple` form the
+elimination engine reads. -/
+theorem symPass_run {B W nt m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} {σ : Env}
+    (hnB : n + 1 < B) (hmmB : m + m < B) (hmW : m ≤ W) (hfit : m + m ≤ nt)
+    (hn : σ.vars "n" = n) (hin : InCsr D m DO DT)
+    (hdoff : σ.arrs "doff" = arrOf (n + 1) DO) (hdtg : σ.arrs "dtg" = arrOf W DT)
+    (hooff : ∃ g, σ.arrs "ooff" = arrOf (n + 1) g ∧ ∀ k ≤ n, g k = 0)
+    (hofl : ∃ g, σ.arrs "ofl" = arrOf n g) (hotg : ∃ g, σ.arrs "otg" = arrOf W g)
+    (hoffE : ∃ g, σ.arrs "off" = arrOf (n + 1) g)
+    (htgtE : ∃ g, σ.arrs "tgt" = arrOf nt g) :
+    ∃ σ' K O T, Run B RamDriver.symCom σ σ' K ∧ K ≤ symCost n m ∧
+      σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf nt T ∧
+      CsrSimple D.toGraph (m + m) O T ∧
+      (∀ a, a ≠ "off" → a ≠ "tgt" → a ≠ "ooff" → a ≠ "ofl" → a ≠ "otg" →
+        σ'.arrs a = σ.arrs a) ∧
+      (∀ y, y ≠ "i" → y ≠ "j" → y ≠ "jend" → y ≠ "u" → y ≠ "sy" → σ'.vars y = σ.vars y) := by
+  classical
+  have hB1 : 1 < B := by omega
+  have hmB : m < B := by omega
+  have hbd : Blocks "doff" "dtg" n W m DO DT σ := Blocks.of_inCsr hin hdoff hdtg hmW
+  -- (1) the out-lists
+  obtain ⟨σ₁, K₁, r₁, hK₁, hI₁, hfa₁, hfv₁⟩ :=
+    outPass_run (B := B) (n := n) (W := W) (m := m) hnB hmB hmW hn hbd hooff hofl hotg
+  obtain ⟨OT, hbo₁, hsnd, hcmp⟩ := hI₁.blocks
+  set OO : ℕ → ℕ := outOff DT m with hOO
+  set O : ℕ → ℕ := fun k => DO k + OO k with hO
+  have hOOlast : OO n = m := outOff_last (fun s hs => hbd.target_lt s hs)
+  have hOOle : ∀ k ≤ n, OO k ≤ m := off_le_last (fun i _ => outOff_mono DT m (by omega)) hOOlast
+  have hDOle : ∀ k ≤ n, DO k ≤ m := off_le_last hin.mono hin.last
+  have hn₁ : σ₁.vars "n" = n := by
+    rw [hfv₁ "n" (by decide) (by decide) (by decide) (by decide)]; exact hn
+  have hdoff₁ : σ₁.arrs "doff" = arrOf (n + 1) DO := by
+    rw [hfa₁ "doff" (by decide) (by decide) (by decide)]; exact hdoff
+  have hooff₁ : σ₁.arrs "ooff" = arrOf (n + 1) OO := hbo₁.offArr
+  -- (2) the offsets of the union
+  obtain ⟨σ₂, r₂, ⟨Og, hOg, hOgv⟩, hi₂, hQ₂⟩ :=
+    (RamDriverOrder.fillUpto_spec (B := B) (n + 1) "off" (.add (.var "n") (.lit 1))
+      (.add (.get "doff" (.var "i")) (.get "ooff" (.var "i"))) O
+      (fun τ => τ.vars "n" = n ∧ τ.arrs "doff" = arrOf (n + 1) DO ∧
+        τ.arrs "ooff" = arrOf (n + 1) OO)
+      (by omega) (by omega)
+      (fun _ _ hQ hv ha => ⟨(hv "n" (by decide)).trans hQ.1,
+        by rw [ha "doff" (by decide)]; exact hQ.2.1,
+        by rw [ha "ooff" (by decide)]; exact hQ.2.2⟩)
+      (fun τ hQ => by
+        have h := evalB_bin (B := B) (σ := τ) (op := .add) (e := .var "n") (f := .lit 1)
+          (evalB_var (by rw [hQ.1]; omega)) (evalB_lit (by omega))
+          (by simp only [Bop.apply_add, hQ.1]; omega)
+        simpa [Bop.apply, hQ.1] using h)
+      (fun τ hQ _ hlt => by
+        have hdo : (Expr.get "doff" (.var "i")).evalB B τ = some (DO (τ.vars "i")) :=
+          evalB_get (evalB_var (by omega)) (by rw [hQ.2.1, getElem?_arrOf DO hlt])
+            (by have := hDOle (τ.vars "i") (by omega); omega)
+        have hoo : (Expr.get "ooff" (.var "i")).evalB B τ = some (OO (τ.vars "i")) :=
+          evalB_get (evalB_var (by omega)) (by rw [hQ.2.2, getElem?_arrOf OO hlt])
+            (by have := hOOle (τ.vars "i") (by omega); omega)
+        have h := evalB_bin (B := B) (σ := τ) (op := .add)
+          (e := .get "doff" (.var "i")) (f := .get "ooff" (.var "i")) hdo hoo
+          (by
+            have h₁ := hDOle (τ.vars "i") (by omega)
+            have h₂ := hOOle (τ.vars "i") (by omega)
+            simp only [Bop.apply_add]; omega)
+        simpa [Bop.apply] using h)).run
+      ⟨(by rw [hfa₁ "off" (by decide) (by decide) (by decide)]; exact hoffE), hn₁, hdoff₁,
+        hooff₁⟩
+  have hoff₂ : σ₂.arrs "off" = arrOf (n + 1) O :=
+    hOg.trans (RamDriverOrder.arrOf_congr hOgv)
+  have hfa₂ : ∀ a, a ≠ "off" → σ₂.arrs a = σ₁.arrs a := fun a ha =>
+    r₂.frame_arr a (by simp [RamDriver.fillUpto, Fill.put, Com.warrs, ha])
+  have hfv₂ : ∀ y, y ≠ "i" → σ₂.vars y = σ₁.vars y := fun y hy =>
+    r₂.frame_var y (by simp [RamDriver.fillUpto, Fill.put, Com.wvars, hy])
+  -- (3) the rows, one vertex at a time
+  have hbo₂ : Blocks "ooff" "otg" n W m OO OT σ₂ :=
+    hbo₁.of_eq (hfa₂ "ooff" (by decide)) (hfa₂ "otg" (by decide))
+  have hn₂ : σ₂.vars "n" = n := by rw [hfv₂ "n" (by decide)]; exact hn₁
+  have hdoff₂ : σ₂.arrs "doff" = arrOf (n + 1) DO := by
+    rw [hfa₂ "doff" (by decide)]; exact hdoff₁
+  have hdtg₂ : σ₂.arrs "dtg" = arrOf W DT := by
+    rw [hfa₂ "dtg" (by decide), hfa₁ "dtg" (by decide) (by decide) (by decide)]; exact hdtg
+  have hbd₂ : Blocks "doff" "dtg" n W m DO DT σ₂ := Blocks.of_inCsr hin hdoff₂ hdtg₂ hmW
+  have htgt₂ : ∃ g, σ₂.arrs "tgt" = arrOf nt g := by
+    rw [hfa₂ "tgt" (by decide), hfa₁ "tgt" (by decide) (by decide) (by decide)]; exact htgtE
+  have hOmono : ∀ a b, a ≤ b → b ≤ n → O a ≤ O b := by
+    intro a b hab hb
+    have h₁ : DO a ≤ DO b := (Blocks.mono' hbd₂ hab hb)
+    have h₂ : OO a ≤ OO b := (Blocks.mono' hbo₂ hab hb)
+    simp only [hO]; omega
+  set I : ℕ → Env → Prop := fun i τ =>
+    i ≤ n ∧ τ.vars "i" = i ∧
+      (∃ T, τ.arrs "tgt" = arrOf nt T ∧ RowsDone D O T i) ∧
+      (∀ a, a ≠ "tgt" → τ.arrs a = σ₂.arrs a) ∧
+      (∀ y, y ≠ "i" → y ≠ "j" → y ≠ "jend" → y ≠ "u" → y ≠ "sy" → τ.vars y = σ₂.vars y)
+    with hIdef
+  have hI0 : I 0 (σ₂.setVar "i" 0) := by
+    obtain ⟨g, hg⟩ := htgt₂
+    exact ⟨Nat.zero_le _, by simp, ⟨g, by simpa using hg, fun z hz => absurd hz (by omega)⟩,
+      fun a _ => by simp, fun y hy _ _ _ _ => by simp [hy]⟩
+  obtain ⟨σ₃, K₃, r₃, hK₃, hI₃⟩ :=
+    forVerts_run (B := B) (body := RamDriver.symRow) (n := n)
+      (costs := fun i => 19 * (DO (i + 1) - DO i) + 19 * (OO (i + 1) - OO i) + 30)
+      (I := I) (σ := σ₂) hnB
+      (fun i τ hτ => by
+        rw [hτ.2.2.2.2 "n" (by decide) (by decide) (by decide) (by decide) (by decide)]
+        exact hn₂)
+      (fun i τ hτ => hτ.2.1) (fun i τ hτ => hτ.1)
+      (fun i hi τ hτ => by
+        obtain ⟨hin', hiv, ⟨T, htgtτ, hrows⟩, hfa, hfv⟩ := hτ
+        have hbdτ : Blocks "doff" "dtg" n W m DO DT τ :=
+          hbd₂.of_eq (hfa "doff" (by decide)) (hfa "dtg" (by decide))
+        have hboτ : Blocks "ooff" "otg" n W m OO OT τ :=
+          hbo₂.of_eq (hfa "ooff" (by decide)) (hfa "otg" (by decide))
+        obtain ⟨σ', K', T', r', hK', htgt', hlo', hhi', hsnd', hcmp', hfa', hfv'⟩ :=
+          symRow_run (B := B) (W := W) (nt := nt) (m := m) (i := i) (D := D) (DO := DO)
+            (DT := DT) (OO := OO) (OT := OT) (T := T) (σ := τ) hnB hmmB hi hfit hin hbdτ hboτ
+            hsnd hcmp (by rw [hfa "off" (by decide)]; exact hoff₂) hiv htgtτ
+        refine ⟨σ', K', r', hK', ?_, ?_⟩
+        · rw [hfv' "i" (by decide) (by decide) (by decide) (by decide)]; exact hiv
+        refine ⟨by omega, by simp, ⟨T', by simpa using htgt', fun z hz => ?_⟩,
+          fun a ha => by rw [arrs_setVar, hfa' a ha]; exact hfa a ha,
+          fun y h₁ h₂ h₃ h₄ h₅ => by
+            rw [vars_setVar, if_neg h₁, hfv' y h₂ h₃ h₄ h₅]; exact hfv y h₁ h₂ h₃ h₄ h₅⟩
+        rcases Nat.lt_or_ge z i with hzi | hzi
+        · have hzn : z + 1 ≤ i := by omega
+          have hbound : O (z + 1) ≤ DO i + OO i := hOmono _ _ hzn (by omega)
+          refine ⟨fun p h₁ h₂ => ?_, fun v hv => ?_⟩
+          · rw [hlo' p (by omega)]
+            exact (hrows z hzi).1 p h₁ h₂
+          · obtain ⟨p, hp₁, hp₂, hp₃⟩ := (hrows z hzi).2 v hv
+            exact ⟨p, hp₁, hp₂, by rw [hlo' p (by omega)]; exact hp₃⟩
+        · have hzi' : z = i := by omega
+          subst hzi'
+          exact ⟨fun p h₁ h₂ => hsnd' p (by simpa [hO] using h₁) (by simpa [hO] using h₂),
+            fun v hv => by
+              obtain ⟨p, hp₁, hp₂, hp₃⟩ := hcmp' v hv
+              exact ⟨p, by simpa [hO] using hp₁, by simpa [hO] using hp₂, hp₃⟩⟩)
+      hI0
+  obtain ⟨-, -, ⟨T, htgt₃, hrows₃⟩, hfa₃, hfv₃⟩ := hI₃
+  -- the block structure the elimination reads
+  have hOzero : O 0 = 0 := by simp only [hO, hOO, hin.zero, outOff_zero]
+  have hOlast : O n = m + m := by simp only [hO, hin.last, hOOlast]
+  have hOmono' : ∀ i < n, O i ≤ O (i + 1) := fun i hi => hOmono i (i + 1) (by omega) (by omega)
+  have hOcard : ∀ z < n, O (z + 1) - O z = (symNbrs D z).card := by
+    intro z hz
+    have e₁ : DO (z + 1) - DO z = (D.inN ⟨z, hz⟩).card := hin.len ⟨z, hz⟩
+    have e₂ : OO (z + 1) - OO z = slotCnt DT m z := by
+      simp only [hOO, outOff_succ]; omega
+    have e₃ : slotCnt DT m z = (RamAugment.outSet D ⟨z, hz⟩).card :=
+      slotCnt_eq_card_outSet hin hz
+    have e₄ : DO z ≤ DO (z + 1) := hbd₂.mono z hz
+    have e₅ : OO z ≤ OO (z + 1) := hbo₂.mono z hz
+    rw [card_symNbrs hz]
+    simp only [hO]; omega
+  have hcsr : CsrSimple D.toGraph (m + m) O T :=
+    csrSimple_of_rowsDone hOzero hOlast hOmono' hOcard hrows₃
+  -- the sum of the row lengths
+  have hsum : ∑ i ∈ Finset.range n,
+      ((19 * (DO (i + 1) - DO i) + 19 * (OO (i + 1) - OO i) + 30) + 8)
+      = 19 * m + 19 * m + 38 * n := by
+    have e1 : ∑ i ∈ Finset.range n, (DO (i + 1) - DO i) = m := hbd₂.sum_rowLen
+    have e2 : ∑ i ∈ Finset.range n, (OO (i + 1) - OO i) = m := hbo₂.sum_rowLen
+    rw [show (fun i => (19 * (DO (i + 1) - DO i) + 19 * (OO (i + 1) - OO i) + 30) + 8)
+        = (fun i => 19 * (DO (i + 1) - DO i) + (19 * (OO (i + 1) - OO i) + 38)) from
+      funext fun i => by ring]
+    rw [Finset.sum_add_distrib, Finset.sum_add_distrib, ← Finset.mul_sum, ← Finset.mul_sum, e1, e2]
+    simp only [Finset.sum_const, Finset.card_range, smul_eq_mul]
+    omega
+  rw [hsum] at hK₃
+  refine ⟨σ₃, _, O, T, r₁.seq (r₂.seq r₃), ?_, ?_, htgt₃, hcsr, ?_, ?_⟩
+  · rw [symCost]
+    simp only [size_add, size_get, size_var, size_lit]
+    omega
+  · rw [hfa₃ "off" (by decide)]; exact hoff₂
+  · intro a h₁ h₂ h₃ h₄ h₅
+    rw [hfa₃ a h₂, hfa₂ a h₁, hfa₁ a h₃ h₄ h₅]
+  · intro y h₁ h₂ h₃ h₄ h₅
+    rw [hfv₃ y h₁ h₂ h₃ h₄ h₅, hfv₂ y h₁, hfv₁ y h₁ h₂ h₃ h₄]
+
+/-! ### What the symmetrized graph occupies
+
+At `R = 0` the orientation symmetrized is an orientation of the level's
+*own* arena, so the union it writes fits the array the level already
+has; at `R > 0` it does not, and that is the width the `R*` phase is
+blocked on. -/
+
+/-- **The out-degrees add up to the in-degrees**: both count the arcs,
+once each. -/
+theorem sum_card_outSet (D : Orientation n) :
+    ∑ v : Fin n, (RamAugment.outSet D v).card = ∑ w : Fin n, (D.inN w).card := by
+  classical
+  simp only [RamAugment.outSet, Finset.card_filter]
+  rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun w _ => ?_
+  rw [← Finset.card_filter]
+  congr 1
+  ext v
+  simp
+
+/-- **A row of a simple block structure is at least as long as any set
+of the vertex's neighbours it names.** The row's slots map *onto* the
+neighbourhood — `adj_iff` — so the image of the row is above the set and
+the row is at least as long as its image. -/
+theorem card_le_rowLen_of_subset {G : SimpleGraph (Fin n)} {ns : ℕ} {O T : ℕ → ℕ}
+    (h : CsrSimple G ns O T) {v : ℕ} (hv : v < n) {S : Finset ℕ}
+    (hS : ∀ u ∈ S, ∃ hu : u < n, G.Adj ⟨v, hv⟩ ⟨u, hu⟩) : S.card ≤ O (v + 1) - O v := by
+  classical
+  have hsub : S ⊆ (Finset.Ico (O v) (O (v + 1))).image T := by
+    intro u hu
+    obtain ⟨hu', hadj⟩ := hS u hu
+    obtain ⟨j, h₁, h₂, h₃⟩ := (h.csr.adj_iff ⟨v, hv⟩ ⟨u, hu'⟩).1 hadj
+    exact Finset.mem_image.2 ⟨j, Finset.mem_Ico.2 ⟨h₁, h₂⟩, h₃⟩
+  calc S.card ≤ ((Finset.Ico (O v) (O (v + 1))).image T).card := Finset.card_le_card hsub
+    _ ≤ (Finset.Ico (O v) (O (v + 1))).card := Finset.card_image_le
+    _ = O (v + 1) - O v := Nat.card_Ico _ _
+
+/-- **The symmetrized graph fits the level's own target array.** An
+orientation whose graph is a subgraph of `G` has at most half as many
+arcs as `G` has slots, so the symmetrization of the chain's *round zero*
+runs in the array the level already allocated. Only the later rounds,
+which add arcs, need the width — which is what `TgtCoupling`'s `K₁,₄`
+measures, and what the machine half of it in `TgtWidenProbe` shows
+sticking. -/
+theorem two_mul_arcs_le {G : SimpleGraph (Fin n)} {ns : ℕ} {O T : ℕ → ℕ}
+    {D : Orientation n} {m : ℕ} {DO DT : ℕ → ℕ}
+    (hcsr : CsrSimple G ns O T) (hin : InCsr D m DO DT)
+    (hsub : ∀ u v : Fin n, D.toGraph.Adj u v → G.Adj u v) : m + m ≤ ns := by
+  classical
+  have hrow : ∀ v ∈ Finset.range n, (symNbrs D v).card ≤ O (v + 1) - O v := by
+    intro v hvm
+    have hv : v < n := Finset.mem_range.1 hvm
+    refine card_le_rowLen_of_subset hcsr hv fun u hu => ?_
+    have hun : u < n := symNbrs_lt hu
+    exact ⟨hun, (hsub ⟨u, hun⟩ ⟨v, hv⟩ ((mem_symNbrs hv hun).1 hu)).symm⟩
+  have hsum : ∑ v ∈ Finset.range n, (symNbrs D v).card = m + m := by
+    calc ∑ v ∈ Finset.range n, (symNbrs D v).card
+        = ∑ v : Fin n, (symNbrs D (v : ℕ)).card :=
+          (Fin.sum_univ_eq_sum_range (fun v => (symNbrs D v).card) n).symm
+      _ = ∑ v : Fin n, ((D.inN v).card + (RamAugment.outSet D v).card) :=
+          Finset.sum_congr rfl fun v _ => by simpa using card_symNbrs (D := D) v.isLt
+      _ = (∑ v : Fin n, (D.inN v).card) + ∑ v : Fin n, (RamAugment.outSet D v).card :=
+          Finset.sum_add_distrib
+      _ = m + m := by rw [sum_card_outSet D, sum_card_inN hin]
+  have htel : ∑ v ∈ Finset.range n, (O (v + 1) - O v) = ns := by
+    have key : ∀ k ≤ n, ∑ v ∈ Finset.range k, (O (v + 1) - O v) = O k := by
+      intro k
+      induction k with
+      | zero => intro _; simp [hcsr.csr.zero]
+      | succ k ih =>
+          intro hk
+          rw [Finset.sum_range_succ, ih (by omega)]
+          have h₁ := hcsr.csr.mono k (by omega)
+          have h₂ := hcsr.csr.mono' (Nat.zero_le k) (by omega : k ≤ n)
+          have h₃ := hcsr.csr.zero
+          omega
+    rw [key n le_rfl, hcsr.csr.last]
+  calc m + m = ∑ v ∈ Finset.range n, (symNbrs D v).card := hsum.symm
+    _ ≤ ∑ v ∈ Finset.range n, (O (v + 1) - O v) := Finset.sum_le_sum hrow
+    _ = ns := htel
+
+end Symmetrize
+
 /-! ### The frontier — **COMPLETE**
 
 `RamAugment.Implements` is discharged in full by `implements` above;
 nothing of the round is left open. What follows is the map of what the
 file is built out of.
+
+**Done — the symmetrization** (rebase F-c). `RamDriver.symCom`,
+walked end to end (`symPass_run`): the counting sort's out-lists, the
+offsets of the union, and the two block copies per vertex, leaving
+`RamElim.CsrSimple D.toGraph (m + m)` in `off`/`tgt`. Its capital is
+`symCopy_run` (a block appended to the target array at a running
+pointer), `csrSimple_of_rowsDone` (soundness + completeness + row
+length ⇒ the engine's input surface), `slotCnt_eq_card_outSet` and
+`card_symNbrs` (the two halves of a row, and that they are disjoint),
+and `two_mul_arcs_le` (the `R = 0` fit in the level's own array). The
+machine-side gate is `TgtWidenProbe`'s symmetrization block.
 
 **Done — the passes.** The combinators every pass is built from
 (`blockScan_run` and `forVerts_run`, and `rowScanC_run` /

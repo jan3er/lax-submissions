@@ -1,4 +1,5 @@
 import Lax3Proofs.RamAugment
+import Lax3Proofs.RamDriver
 import Lax3Proofs.TgtCoupling
 
 /-!
@@ -293,5 +294,122 @@ def star4Narrow : PRes :=
 #guard star4Narrow.isOk
 #guard star4Narrow.scalar "mf" = 6
 #guard star4Narrow.scalar "mn" = 6
+
+
+/-! ### The symmetrization gate (rebase F-c)
+
+The same `K₁,₄` instance, one pass further on. After the round the
+augmented orientation `D₁` is in `noff`/`ntg`; the ordering phase relinks
+it into `doff`/`dtg` and — in the **new** text — symmetrizes it into
+`off`/`tgt` before the final elimination. What is measured here is
+*why* the symmetrization is there, and it is measured as a
+**differential**: the two texts' final eliminations report different
+bounds, so the old one cannot be producing the augmented graph's data.
+
+The instance is the sharpest small one. `D₁` has ten arcs on five
+vertices, so `(D₁).toGraph` is `K₅` — degeneracy `4` — while the level's
+own graph is the star `K₁,₄`, degeneracy `1`. -/
+
+/-- The augmented orientation the round left, read off `star5Wide`: the
+centre keeps its four arcs and the six fraternal edges of `K₄` are
+oriented among the leaves. -/
+def aug5doff : List ℕ := [0, 4, 4, 5, 7, 10]
+
+/-- Its targets. -/
+def aug5dtg : List ℕ := [1, 2, 3, 4, 1, 1, 2, 1, 2, 3]
+
+-- the round really did leave these two, so the probe below is the
+-- *next* pass of the same run and not a fresh hand computation
+#guard (List.range 6).map (star5Wide.cell "noff") = aug5doff
+#guard (List.range 10).map (star5Wide.cell "ntg") = aug5dtg
+
+/-- The ordering phase's state at the symmetrization: the chain's last
+orientation in `doff`/`dtg`, the counting sort's arrays zeroed, and
+`"tgt"` at the `2 · 10 = 20` slots the union occupies. -/
+def sym5St : PSt := augSt 5 64 20 aug5doff aug5dtg
+
+/-- The symmetrization, run. -/
+def sym5Run : PRes := exec pB pF RamDriver.symCom sym5St
+
+#guard sym5Run.isOk
+
+-- the offsets are the sums of the in- and out-offsets, so every row is
+-- four long: the union is `K₅`
+#guard (List.range 6).map (sym5Run.cell "off") = [0, 4, 8, 12, 16, 20]
+
+-- and every row names the other four vertices — its in-block first,
+-- then its out-block: this is `RamElim.CsrSimple ((D₁).toGraph) 20` seen
+#guard (List.range 20).map (sym5Run.cell "tgt")
+  = [1, 2, 3, 4,  0, 2, 3, 4,  1, 0, 3, 4,  1, 2, 0, 4,  1, 2, 3, 0]
+
+-- no row names a vertex twice, and no row names its own vertex
+#guard ((List.range 5).map (fun v =>
+  ((List.range 4).map (fun k => sym5Run.cell "tgt" (4 * v + k))).eraseDups.length)) =
+    [4, 4, 4, 4, 4]
+#guard ((List.range 5).map (fun v =>
+  ((List.range 4).map (fun k => sym5Run.cell "tgt" (4 * v + k))).contains v)) =
+    [false, false, false, false, false]
+
+/-- **The new text's final elimination**: symmetrize, revive every
+vertex, eliminate. -/
+def sym5Final : PRes :=
+  exec pB pF (.seq RamDriver.symCom
+    (.seq (RamDriver.fillCom "alv" (.lit 1)) RamElim.elimCom)) sym5St
+
+#guard sym5Final.isOk
+
+-- the greedy bound of `K₅` — which is the number
+-- `CoverDegree.exists_wreach_degree` reads as `BackDegLE (D R).toGraph π k`
+#guard sym5Final.scalar "kmax" = 4
+
+/-- The level's own block structure — the star `K₁,₄` at its eight
+slots — which is what `restoreCsr` puts back and what the **old** text's
+final elimination therefore ran on. -/
+def level5St : PSt :=
+  { augSt 5 64 8 star5doff star5dtg with
+    arrs := ("off", [0, 4, 5, 6, 7, 8]) :: ("tgt", [1, 2, 3, 4, 0, 0, 0, 0]) ::
+      (augSt 5 64 8 star5doff star5dtg).arrs }
+
+/-- **The old text's final elimination**: the same two passes on the
+level's own graph. -/
+def old5Final : PRes :=
+  exec pB pF (.seq (RamDriver.fillCom "alv" (.lit 1)) RamElim.elimCom) level5St
+
+#guard old5Final.isOk
+
+-- the greedy bound of the star
+#guard old5Final.scalar "kmax" = 1
+
+-- **the refutation.** The old text's final elimination cannot be
+-- producing `BackDegLE (D₁).toGraph π k` with `k` least: the two runs
+-- report different bounds on the same instance, and `4` is the one the
+-- augmented graph has. So a phase that restores the level's structure
+-- before eliminating has no route to the degree data
+-- `CoverDegree.exists_wreach_degree` consumes — which is the whole
+-- reason `RamDriver.symCom` exists.
+#guard old5Final.scalar "kmax" ≠ sym5Final.scalar "kmax"
+#guard ¬ (old5Final.scalar "kmax" = 4)
+
+/-! ### The symmetrization's own width
+
+The union of the two blocks is twice the arc count, and at `R > 0` that
+is above the level's slot count: the same coupling the round's
+fraternity fill has, one pass later. The star's level has `8` slots and
+the symmetrized augmented graph needs `20`, so the pass is **stuck** in
+the level's own array — the machine half of "`LevelPre`'s `tgt` clause
+has to widen before the `R*` phase is statable". -/
+
+def sym5Narrow : PRes := exec pB pF RamDriver.symCom (augSt 5 64 8 aug5doff aug5dtg)
+
+#guard sym5Narrow.isStuck
+
+-- the control: at `R = 0` the graph symmetrized is the level's own, so
+-- the same pass in the same `8`-cell array completes. The orientation
+-- is the star's own elimination orientation — four arcs, eight slots.
+def sym5Zero : PRes := exec pB pF RamDriver.symCom (augSt 5 64 8 star5doff star5dtg)
+
+#guard sym5Zero.isOk
+#guard (List.range 6).map (sym5Zero.cell "off") = [0, 4, 5, 6, 7, 8]
+#guard (List.range 8).map (sym5Zero.cell "tgt") = [1, 2, 3, 4, 0, 0, 0, 0]
 
 end Lax3Proofs.TgtWidenProbe

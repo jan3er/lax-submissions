@@ -1165,6 +1165,7 @@ clause is data of the input encoding. -/
 theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s : ℕ}
     {φ : Lax3.FirstOrder.FO 0}
     {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
+    {P : Equiv.Perm (Fin n) → (ℕ → ℕ) → Prop}
     {Ko Kc Kd Ks Kl : ℕ → ℕ → ℕ} {Kmass : ℕ}
     (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B)
     (hcsr : RamElim.CsrSimple G ns O T)
@@ -1176,7 +1177,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
     (hbase : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ), masked G M = ⊥ →
       LevelImplements B q_top cap mb R ℓ W ns ℓ φ G O T M Gm C (Kl ℓ (arenaSize n M)))
     (horder : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
-      OrderImplements B n R W cap mb ns j G O T M Gm C (Ko j (arenaSize n M)))
+      OrderImplements B n R W cap mb ns j G O T M Gm C P (Ko j (arenaSize n M)))
     (hcover : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ)
         (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ),
       CoverImplements B cap mb ns W j G O T M Gm C π ord (Kc j (arenaSize n M)))
@@ -1237,7 +1238,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
       refine Spec.of_exists fun σ hσ => ?_
       rw [driverAt_succ q_top cap mb R ℓ W φ hjl]
       -- the ordering pass
-      obtain ⟨σ₁, hr₁, hlev₁, hout₁, hctr₁, hgam₁, π, ord, hord₁, hordby⟩ :=
+      obtain ⟨σ₁, hr₁, hlev₁, hout₁, hctr₁, hgam₁, π, ord, hord₁, hordby, -⟩ :=
         (horder j hjl M Gm C hB hcsr hWB helim haug).run hσ.1
       have htsz₁ : TablesSized q_top cap mb φ n σ₁ := hσ.2.1.run hr₁
       have hbarr₁ : BaseArrs B q_top cap mb ℓ φ σ₁ := hσ.2.2.1.run hr₁
