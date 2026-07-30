@@ -1251,9 +1251,23 @@ abstract bound but they are a wave of their own.
    `q[0 … max tl 1)` and `out[0 … max tl 1)`, which is what `use`
    stands for in `turnsQ` and which the bridge must pay for itself.
 4. If the whole-turn `Com` is wanted, `turnQ`'s harvest-and-clean state
-   is currently applied to a literal tuple `(st.1, O, 0)`; the loop
+   is currently applied to a *literal tuple* `(st.1, O, 0)`; the loop
    itself is fine (§9), and the composition is `BfsQSynth`'s own
-   `pack4`/`pack3` idiom, a cost-only change of two `ir.skip`. -/
+   `pack4`/`pack3` idiom, a cost-only change of two `ir.skip`.
+
+**B4b/D-e — the whole-turn synthesis was attempted and it stalls; the
+measurement, not a workaround.** One `sepref_synth` on `turnQ` with the
+23-cell precondition `bfsQSynth` uses plus `"out"`, at
+`maxHeartbeats 4000000`: **21 min 33 s to a deterministic `isDefEq`
+timeout**, no `Com`. That is the shape of P7/D-bg — a frame match with
+an open relator — not a heartbeat shortage, and item 4 above is the
+suspect: `hcF` applied to a literal tuple gives the operator phase three
+destinations to solve at once where `pack3` would fix them. The
+harvest-and-clean loop *alone* synthesizes in **≈8 s** (§9), and
+`bfsQSynth` itself takes ≈49 s, so the stall is in the composition and
+not in either half. Recorded here rather than papered over, per the
+design note's honesty rule; the bridge wave should try the `pack3` first
+and re-measure. -/
 
 end BfsQTrail
 
