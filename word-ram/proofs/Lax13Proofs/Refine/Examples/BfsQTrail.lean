@@ -1114,7 +1114,51 @@ did not evaluate to `true`
 #guard_msgs in
 #guard (readPrefix (demoTurn 3 0 0)).length = 5
 
-/-! ## 9. Axioms -/
+/-! ## 9. The new loop, synthesized
+
+The search half of a turn is `BfsQSynth.bfsQSynth_impl` verbatim minus
+its fill — landed capital, not re-derived here. The one *new* program is
+the harvest-and-clean pass, and it goes through `sepref_synth`
+mechanically: one command, no bespoke tactic work, no hand-written frame
+clause, and the two-array loop state that P7/D-ba fixed. -/
+
+set_option maxHeartbeats 1000000 in
+sepref_synth hcSynth (n sent tl : ℕ) (Q : List ℕ) (s₀ : HSt) :
+  hnRefine (hnCtxt (arrayAssn ×ₐ arrayAssn ×ₐ natAssn) s₀ ("dist", "out", "j") ∗
+      hnCtxt arrayAssn Q "q" ∗ hnCtxt natAssn tl "tl" ∗ hnCtxt natAssn sent "sent" ∗
+      hnCtxt natAssn 1 "one" ∗ junkCell "v" ∗ junkCell "w")
+    _ _ ("dist", "out", "j") (arrayAssn ×ₐ arrayAssn ×ₐ natAssn)
+    (hcLoop n sent tl Q s₀)
+
+-- The synthesized program, pinned. Read the vertex, read its distance,
+-- write the answer, restore the sentinel, advance.
+#guard hcSynth_impl =
+  Com.while (Cond.lt (Operand.cell "j") (Operand.cell "tl"))
+    ((Com.aget "v" "q" "j").seq
+      ((Com.aget "w" "dist" "v").seq
+        ((Com.aset "out" "j" "w").seq
+          ((Com.aset "dist" "v" "sent").seq
+            ((Com.binop Imp.Bop.add "j" "j" "one").seq (Com.skip.seq Com.skip))))))
+
+/-- The pass's synthesis at its own value and price: `hcLoop_value`
+composed with the `Com` above. What the machine program leaves is
+`hcRun`'s answer array and its restored distance array, for
+`hcLoopCost` — a function of the prefix alone. -/
+theorem hcSynth' (n sent tl : ℕ) (Q : List ℕ) (s : HSt) (hQ : Q.length = n) (htn : tl ≤ n)
+    (hqlt : ∀ k, k < tl → Q[k]! < n) (hd : s.1.length = n) (hOu : s.2.1.length = n)
+    (hfuel : tl - s.2.2 ≤ n) :
+    ∃ Γ' : Assn,
+      hnRefine (hnCtxt (arrayAssn ×ₐ arrayAssn ×ₐ natAssn) s ("dist", "out", "j") ∗
+          hnCtxt arrayAssn Q "q" ∗ hnCtxt natAssn tl "tl" ∗ hnCtxt natAssn sent "sent" ∗
+          hnCtxt natAssn 1 "one" ∗ junkCell "v" ∗ junkCell "w")
+        hcSynth_impl Γ' ("dist", "out", "j") (arrayAssn ×ₐ arrayAssn ×ₐ natAssn)
+        (NRest.consume (NRest.returnT (hcRun sent Q (tl - s.2.2) s))
+          (liftACost (hcLoopCost (tl - s.2.2)))) := by
+  have h := hcSynth n sent tl Q s
+  rw [hcLoop_value n sent tl Q hQ htn hqlt n s hd hOu hfuel] at h
+  exact ⟨_, h⟩
+
+/-! ## 10. Axioms -/
 
 /-- info: 'Lax13Proofs.Refine.BfsQTrail.drainLoop_touched' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
@@ -1143,6 +1187,73 @@ did not evaluate to `true`
 /-- info: 'Lax13Proofs.Refine.BfsQTrail.cash_turnCost' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms cash_turnCost
+
+/-! ## 11. Telemetry, and the cut
+
+**What was reused, and what was re-derived.** Reused verbatim, not
+restated: `BfsQ`'s whole graph-theoretic core — `Fr` with its fourteen
+clauses, `relax`, `complete`, `dist_le_iff`, `pop`, `popSkip`, `seed`,
+`qReached`, `tl_eq_zero_of_dead`, the scan invariant `SInv` and its
+tiling, `popF_le`, `Csr`/`Shape`, `QPost`, `QReached`, the cost accounts
+`popC`/`scanC`/`iter`/`rowSum`; and `BfsQSynth`'s `mopSucc` with its
+rule. Re-derived, and only because the trail substitution forces it:
+the drain's *cost* induction (`drainLoop_touched`, ≈90 lines — the same
+induction as `drainLoop_le'` with a difference cost and two extra
+postcondition clauses) and the seed's assembly (`searchQ_touched`,
+≈45 lines, `bfsQS_reached`'s `htail` against the new drain). New
+mathematics: the harvest-and-clean pass (`hcRun_spec`, ≈50 lines) and
+the cost algebra (≈40).
+
+**Cost constants.** `turnCost T S = T • iter popC + S • iter scanC +
+(max T 1) • iter hcC + turnK`, cashing to `44·T + 40·S + 22·max(T,1) +
+24` IMP+ time units (`cash_turnCost`, `decide +kernel`). The engine of
+record's `bfsQK n ns = 56·n + 40·ns + 33`. On §8's two runs of the
+*same* four-vertex search: this turn 528 at both carriers, the engine
+553 at `n = 5` and 336 273 at `n = 6000`.
+
+**Hand-written frame clauses: 0.** The two `ac_rfl`s (in `hcF_eq` and
+in the drain's `hcost`) are on cost sums (`ECost`, an `AddCommMonoid`),
+under a `congr 1`, never on `∗`. §9's synthesis is one `sepref_synth`
+command with no frame clause and no bespoke tactic.
+
+**Tower additions: 3 lemmas**, all in this file rather than in
+`Sepref/IrLoop.lean` because they have one consumer so far —
+`bindT_spec_le'` (the continuation's cost may depend on its result),
+`bindT_spec_le_fn` (composing with a deterministic continuation) and
+`returnT_le_spec`. Each is four to six lines and program-independent.
+
+**The cut, stated precisely.** The abstract layer is complete: program,
+correctness in `bfsQ_spec`'s own postcondition vocabulary
+(`QPost` + `QReached`, both landed), carrier-free cost, and the
+re-entrant Σ-form. At the *machine* layer, §9 synthesizes the one new
+loop and pins its `Com`; the search half is `bfsQSynth_impl` minus its
+leading `while`, which exists. What is **not** in this wave is the
+whole-turn `sepref_synth` and the `Reasoning.Spec` export that
+`BfsQSynth` §12–§13 build for `bfsQ_spec` — the bounds pass
+(`BigStep.bigStepB_of_inv` annotation, 560 lines for the engine of
+record) and the cashing chain. Those are mechanical against this file's
+abstract bound but they are a wave of their own.
+
+**What the ND-MC bridge wave needs.**
+1. `turnQ_bounded` is the consumable form: supply `TouchBound n d src G
+   alv off hsrc T S` from the cluster's own combinatorics — `T` bounds
+   the reached count, `S` the adjacency slots those reached vertices
+   own — and one turn costs `turnCost T S`.
+2. `turnsQ_touched` is the driver form: one `StoreClean` established by
+   a single `Iicf.tinitProg`-style fill before the loop, then `Σ_k
+   turnCost (T src_k) (S src_k)`; the fold invariant `Inv` is where the
+   cover's emission accumulates.
+3. Two small pieces are left for the bridge because they belong to the
+   consumer's vocabulary, not to this file's: (a) `T` and `S` in terms
+   of `Bfs.WD` — `max tl 1` is *exactly* the number of vertices within
+   the cap (`TurnPost`'s `QReached` plus `QPost` give the bijection, the
+   counting argument is ≈30 lines); (b) the emission pass over
+   `q[0 … max tl 1)` and `out[0 … max tl 1)`, which is what `use`
+   stands for in `turnsQ` and which the bridge must pay for itself.
+4. If the whole-turn `Com` is wanted, `turnQ`'s harvest-and-clean state
+   is currently applied to a literal tuple `(st.1, O, 0)`; the loop
+   itself is fine (§9), and the composition is `BfsQSynth`'s own
+   `pack4`/`pack3` idiom, a cost-only change of two `ir.skip`. -/
 
 end BfsQTrail
 
