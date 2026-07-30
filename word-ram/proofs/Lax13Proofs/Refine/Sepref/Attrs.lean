@@ -124,6 +124,19 @@ and let `sepref_fr_rules` carry the bool-valued rules, as the source
 does. -/
 register_label_attr sepref_cond_rules
 
+/-- **Ours (T2/D-d, ND-MC rebase tool wave T2).** The source has no
+counterpart because the source has no bounds pass: creation-site `< B`
+obligations do not exist for its fixed-width words. Our `BRefine`
+judgment (`Sepref/Bounds.lean`) is the second component every synthesis
+needs before `Codegen/Cash.lean` can cash it, and its per-operation
+rules — one per `Ir.Com` constructor with a residual — live in this
+database so that the `brefine` driver can find them and emit the
+`BRefine.perm … ∘ BRefine.frame` glue the engine waves were authoring by
+hand (~150 lines per engine, measured thrice: AugmentSynth §10 gap 1,
+ScatterSynth §8 gap 1, 2A gap 1). Populated by `Sepref/Bounds.lean`;
+the driver is that file's `brefine` tactic. -/
+register_label_attr sepref_brefine_rules
+
 /-- `Sepref_Tool.thy`'s `named_theorems sepref_preproc`
 ("Sepref: Preprocessor simplifications"). -/
 register_simp_attr sepref_preproc
