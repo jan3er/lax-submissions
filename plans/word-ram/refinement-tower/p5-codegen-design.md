@@ -110,6 +110,22 @@ correspondence).
 
 ### 5. The cashing theorem (`Refine/Codegen/Cash.lean`)
 
+Two export shapes, both needed:
+
+**(a) Spec-shaped (what P7 consumes).** The P7 gate target `bfs_spec`
+(nowhere-dense-model-checking `Lax3Proofs/RamBfs.lean:1064`) is a
+cells-based `Spec B P c Q K` — no tapes. So the primary cashing theorem
+is `spec_of_hnRefine`: from a synthesized `hnRefine` + an abstract SPEC
+bound + the bounds witness, conclude
+`Spec B (cells hold the input per Γ) (embed c) (cells hold the abstract
+result per Γ' ∗ R) K` directly — simulation only, no harness. This is
+the shape RamCover-style consumers take.
+
+**(b) Solves-shaped (the full endorsed story).** Wrap (a)'s program
+with the §4 harness to reach `Transfer.Solves` → `computesInTime`; this
+is the P5 acceptance route (ledger N3: the tower is tape-free, one
+kit-proved boundary wrapper).
+
 The end-to-end assembly, per marshal shape:
 
 ```
