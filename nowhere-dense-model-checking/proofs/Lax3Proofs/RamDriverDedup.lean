@@ -1683,15 +1683,23 @@ theorem padTarget_ge {x : List ℕ} {ns j : ℕ} (h : ns ≤ j) :
 /-- **The engines' scratch survives the pass.** Its `Sized` clause and
 its two word clauses survive *any* run; its eight zeroing clauses survive
 this one because the pass writes only `off`, `tgt` and its own marks. The
-slot count may be replaced by any smaller one, since it occurs in the
-clause only as `ns ≤ W`. -/
+slot count may be replaced by any **smaller** one — `ns' ≤ ns`, which is
+what the dedup produces (`dedupNs x ≤ ns`).
+
+(Rebase G2/E2b: the hypothesis used to be `ns' ≤ W`, and with
+`RamDriver.OrderMem`'s live-width pin `lw = W` that sufficed. Under the
+bounds pair `ns ≤ lw ≤ W` the old statement is **refutable** — at
+`lw = ns < ns' ≤ W` the exit state's `ns' ≤ lw` clause is false — so the
+hypothesis is the one the pass actually warrants: dedup only shrinks. -/
 theorem orderMem_dedup {B ns ns' W : ℕ} {σ σ' : Env} {K : ℕ}
-    (h : RamDriver.OrderMem B n ns W σ) (hr : Run B dedupCom σ σ' K) (hns' : ns' ≤ W) :
+    (h : RamDriver.OrderMem B n ns W σ) (hr : Run B dedupCom σ σ' K) (hns' : ns' ≤ ns) :
     RamDriver.OrderMem B n ns' W σ' := by
-  obtain ⟨-, hlwv, hsz, h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, hw₁, hw₂⟩ := h
-  refine ⟨hns',
-    by rw [frame_var_dedupCom hr "lw" (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hlwv,
+  obtain ⟨hle, hlwv, hsz, h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, hw₁, hw₂⟩ := h
+  refine ⟨by omega,
+    by
+      rw [frame_var_dedupCom hr "lw" (by decide) (by decide) (by decide) (by decide)
+        (by decide) (by decide) (by decide) (by decide) (by decide)]
+      omega,
     hsz.run hr, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     RamDriver.run_mem_arrs_lt hr "itg" hw₁, RamDriver.run_mem_arrs_lt hr "ntg" hw₂⟩
   · rw [frame_arr_dedupCom hr "elm" (by decide) (by decide) (by decide)]; exact h₁
@@ -1734,7 +1742,7 @@ theorem decodeImplementsD {B ns W K : ℕ} {T : ℕ → ℕ} {x : List ℕ}
     hpass σ₁ ⟨hn₁, hm₁, hoff₁, htgt₁, hdmem₁⟩
   refine ⟨σ₂, _, r₁.seq r₂, hK, ?_, csrGraph_dedup hx, csrSimple_dedup hx, hnsle,
     fun z hz _ => dedupTarget_eq_zero hz, hn₂, hoff₂, htgt₂, hm₂,
-    orderMem_dedup hord₁ r₂ (le_trans hnsle hnsW), hdmem₂, ?_, ?_⟩
+    orderMem_dedup hord₁ r₂ hnsle, hdmem₂, ?_, ?_⟩
   · rw [r₂.out_eq noWrite_dedupCom, ho₁]
   · obtain ⟨M, hMa, hMv⟩ := hM
     exact ⟨M, by rw [frame_arr_dedupCom r₂ (RamDriver.alvName 0)

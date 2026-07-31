@@ -844,6 +844,100 @@ array. -/
 theorem arrOf_congr {N : ℕ} {f g : ℕ → ℕ} (h : ∀ k < N, f k = g k) : arrOf N f = arrOf N g :=
   List.map_congr_left fun k hk => h k (List.mem_range.1 hk)
 
+/-- **A flat pass over a prefix of a longer array, the tail kept**
+(rebase G2/E2b, the live-prefix kit). `RamDriverCompose.fillPrefix_spec`
+runs to a bound below the destination's length and deliberately claims
+nothing about the tail; the live-prefix copies need the claim — every
+store of the pass is at the counter, which stays below the bound, so
+the cells at or above it come out as they went in. That clause is about
+the *entry* state, so the postcondition is relational. -/
+theorem fillKeep_spec {B : ℕ} (N Nd : ℕ) (a : String) (bnd e : Expr) (F : ℕ → ℕ)
+    (Q : Env → Prop) (hB : 0 < B) (hNB : N < B) (hNd : N ≤ Nd)
+    (hQfr : ∀ σ σ', Q σ → (∀ y, y ≠ "i" → σ'.vars y = σ.vars y) →
+      (∀ b, b ≠ a → σ'.arrs b = σ.arrs b) → Q σ')
+    (hbnd : ∀ σ, Q σ → bnd.evalB B σ = some N)
+    (he : ∀ σ, Q σ → σ.vars "i" < N → e.evalB B σ = some (F (σ.vars "i"))) :
+    Spec B (fun σ => (∃ g, σ.arrs a = arrOf Nd g) ∧ Q σ)
+      (RamDriver.fillUpto a bnd e)
+      (fun σ σ' => (∃ h, σ'.arrs a = arrOf Nd h ∧ (∀ k < N, h k = F k) ∧
+          (∀ k, N ≤ k → k < Nd → h k = (σ.arrs a).getD k 0)) ∧
+        σ'.vars "i" = N ∧ Q σ')
+      ((e.size + bnd.size + 9) * N + bnd.size + 5) := by
+  refine Spec.of_exists fun σ₀ hσ₀ => ?_
+  obtain ⟨⟨g₀, hg₀⟩, hQ₀⟩ := hσ₀
+  have hbody : Spec B
+      (fun σ => ((∃ h, σ.arrs a = arrOf Nd h ∧ (∀ k < σ.vars "i", h k = F k) ∧
+          (∀ k, N ≤ k → k < Nd → h k = g₀ k)) ∧ σ.vars "i" ≤ N ∧ Q σ) ∧ σ.vars "i" < N)
+      (Fill.put a "i" e)
+      (fun σ σ' => ((∃ h, σ'.arrs a = arrOf Nd h ∧ (∀ k < σ'.vars "i", h k = F k) ∧
+          (∀ k, N ≤ k → k < Nd → h k = g₀ k)) ∧ σ'.vars "i" ≤ N ∧ Q σ') ∧
+        σ'.vars "i" = σ.vars "i" + 1) (6 + e.size) := by
+    refine Spec.of_exists fun σ hσ => ?_
+    obtain ⟨⟨⟨g, harr, hcell, htail⟩, hle, hQ⟩, hlt⟩ := hσ
+    have hval := he σ hQ hlt
+    have h1 : Run B (.store a (.var "i") e) σ
+        (σ.setArr a (σ.vars "i") (F (σ.vars "i"))) (1 + 1 + e.size) := by
+      have h := Run.store (B := B) (σ := σ) (a := a) (i := .var "i") (e := e)
+        (evalB_var (by omega)) hval (by rw [harr, length_arrOf]; omega)
+      simpa using h
+    have h2 : Run B (.assign "i" (.add (.var "i") (.lit 1)))
+        (σ.setArr a (σ.vars "i") (F (σ.vars "i")))
+        ((σ.setArr a (σ.vars "i") (F (σ.vars "i"))).setVar "i" (σ.vars "i" + 1)) (1 + 3) := by
+      have h := Run.assign (B := B) (σ := σ.setArr a (σ.vars "i") (F (σ.vars "i")))
+        (x := "i") (e := .add (.var "i") (.lit 1))
+        (evalB_bin (evalB_var (by rw [vars_setArr]; omega)) (evalB_lit (by omega))
+          (by simp only [Bop.apply_add, vars_setArr]; omega))
+      rw [Bop.apply_add, vars_setArr] at h
+      simpa using h
+    refine ⟨_, _, h1.seq h2, by omega,
+      ⟨⟨upd g (σ.vars "i") (F (σ.vars "i")), ?_, ?_, ?_⟩,
+        by rw [vars_setVar, if_pos rfl]; omega, ?_⟩, by simp⟩
+    · rw [arrs_setVar, arrs_setArr, if_pos rfl, harr, set_arrOf_eq_upd]
+    · intro k hk
+      rw [vars_setVar, if_pos rfl] at hk
+      rcases Nat.lt_or_ge k (σ.vars "i") with hklt | hkge
+      · rw [upd_of_ne _ (by omega)]; exact hcell k hklt
+      · have : k = σ.vars "i" := by omega
+        rw [this, upd_self]
+    · intro k hkN hkNd
+      rw [upd_of_ne _ (by omega)]
+      exact htail k hkN hkNd
+    · exact hQfr σ _ hQ (fun y hy => by rw [vars_setVar, if_neg hy, vars_setArr])
+        (fun b hb => by rw [arrs_setVar, arrs_setArr, if_neg hb])
+  obtain ⟨σ', hr, ⟨⟨h, harr', hcell', htail'⟩, -, hQ'⟩, hiN⟩ :=
+    (forRangeZero' "i" bnd
+      (fun σ => (∃ h, σ.arrs a = arrOf Nd h ∧ (∀ k < σ.vars "i", h k = F k) ∧
+          (∀ k, N ≤ k → k < Nd → h k = g₀ k)) ∧ σ.vars "i" ≤ N ∧ Q σ) N (6 + e.size) hB
+      (fun _ hσ => lt_of_le_of_lt hσ.2.1 hNB) (fun _ hσ => hbnd _ hσ.2.2)
+      (fun _ hσ => hσ.2.1) hbody).run (σ := σ₀)
+      ⟨⟨g₀, by rw [arrs_setVar]; exact hg₀,
+          fun k hk => by rw [vars_setVar, if_pos rfl] at hk; omega,
+          fun k _ _ => rfl⟩,
+        by simp, hQfr σ₀ _ hQ₀ (fun y hy => by rw [vars_setVar, if_neg hy])
+          (fun _ _ => by rw [arrs_setVar])⟩
+  exact ⟨σ', _, hr, le_of_eq (by ring),
+    ⟨h, harr', fun k hk => hcell' k (by omega),
+      fun k hkN hkNd => by rw [htail' k hkN hkNd, hg₀, getD_arrOf g₀ hkNd]⟩,
+    hiN, hQ'⟩
+
+/-- **A copy into a prefix of a longer array, the tail kept.** -/
+theorem copyKeep_spec {B : ℕ} (N Nd Ns : ℕ) (src dst : String) (bnd : Expr) (g : ℕ → ℕ)
+    (Q : Env → Prop) (hB : 0 < B) (hNB : N < B) (hNd : N ≤ Nd) (hNs : N ≤ Ns)
+    (hQfr : ∀ σ σ', Q σ → (∀ y, y ≠ "i" → σ'.vars y = σ.vars y) →
+      (∀ b, b ≠ dst → σ'.arrs b = σ.arrs b) → Q σ')
+    (hbnd : ∀ σ, Q σ → bnd.evalB B σ = some N)
+    (hsrc : ∀ σ, Q σ → σ.arrs src = arrOf Ns g) (hgB : ∀ k < N, g k < B) :
+    Spec B (fun σ => (∃ h, σ.arrs dst = arrOf Nd h) ∧ Q σ)
+      (RamDriver.copyUpto src dst bnd)
+      (fun σ σ' => (∃ h, σ'.arrs dst = arrOf Nd h ∧ (∀ k < N, h k = g k) ∧
+          (∀ k, N ≤ k → k < Nd → h k = (σ.arrs dst).getD k 0)) ∧
+        σ'.vars "i" = N ∧ Q σ')
+      ((bnd.size + 11) * N + bnd.size + 5) :=
+  (fillKeep_spec N Nd dst bnd (.get src (.var "i")) g Q hB hNB hNd hQfr hbnd
+    (fun σ hQ hlt => evalB_get (evalB_var (by omega))
+      (by rw [hsrc σ hQ, getElem?_arrOf g (by omega)]) (hgB _ hlt))).mono
+    (le_of_eq (by simp only [size_get, size_var]; ring))
+
 /-! ### The rank inversion
 
 The last mathematical step of the ordering phase. The elimination
@@ -947,18 +1041,18 @@ theorem ordCom_spec {B n : ℕ} {R : ℕ → ℕ} (dst : String) (hdr : dst ≠ 
 `RamDriver.saveCsr` and `RamDriver.restoreCsr` are the same two copies
 in the two directions, so one lemma serves both.
 
-**The second copy's bound is the live-width scalar** (rebase G2/E1). It
-used to be the runtime number `m + m` — the block structure's own slot
-count — then, with rebase F-c-4, the *literal* allocation width `W`;
-it is now the scalar `"lw"`, whose value `RamDriver.LevelPre` pins at
-`W`. The value copied is therefore exactly what F-c-4's flip copied —
-`RamDriver.LevelPre`'s `tgt` clause is `arrOf W T`, so the array to be
-put out of the way is `W` cells, and copying only `2·m` of them would
-leave `gtg`'s padding holding whatever the last round wrote and the
-restore would put that back — but the *text* no longer names `W`, which
-is what `Lax3.ModelChecking`'s one-program-for-all-inputs quantifier
-needs (`Refine.G2CostProbe`, uniformity section). Both bounds are
-one-node expressions, so every cost in this file is unchanged.
+**The second copy's bound is the live-width scalar** (rebase G2/E1),
+and since rebase G2/E2b the scalar's runtime value `lw` is **not** the
+allocation width: `RamDriver.OrderMem` pins only `ns ≤ lw ≤ W`, the
+copy walks the `lw`-cell *live prefix* of the `W`-cell array, and the
+cost reads `14·lw`, not `14·W` — which is the point of the shrink. What
+the copy no longer moves it must account for: the postcondition says
+the destination's prefix is the source's and its tail is **the
+destination's own entry tail**, verbatim. A save is then sound because
+the restore needs only the prefix (the phase's writes stay below `lw` —
+`chainWidthE ≤ lw` is the R\*-obligation's guard for exactly this), and
+a restore re-assembles the full `arrOf W T` from the copied prefix plus
+a tail the phase provably never touched (`restoreCsr_spec`'s `hTs`).
 
 The context still carries `σ.vars "m" + σ.vars "m" = ns`, which nothing
 here reads any more; it is what carries the scalar across the two
@@ -966,95 +1060,119 @@ copies, which is the postcondition's `σ'.vars "m" = σ.vars "m"`. The
 `"lw"` clause is carried the same way, and re-established in the
 postcondition because the phase hands it on to the next copy. -/
 
-/-- **A block structure copied wholesale.** -/
-theorem csrCopy_spec {B n ns W : ℕ} {O T : ℕ → ℕ} (s₁ s₂ d₁ d₂ : String)
+/-- **A block structure's live prefix copied** (rebase G2/E2b): the
+first copy at the carrier's own length, the second at the runtime live
+width `lw ≤ W`, with the destination's tail above `lw` kept verbatim. -/
+theorem csrCopy_spec {B n ns W lw : ℕ} {O T : ℕ → ℕ} (s₁ s₂ d₁ d₂ : String)
     (e₁ : s₁ ≠ d₁) (e₂ : s₂ ≠ d₁) (e₃ : s₂ ≠ d₂) (e₄ : s₁ ≠ d₂) (e₅ : d₁ ≠ d₂)
-    (hnB : n + 1 < B) (hWB : W < B)
-    (hOB : ∀ k < n + 1, O k < B) (hTB : ∀ k < W, T k < B) :
-    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧ σ.vars "lw" = W ∧
+    (hnB : n + 1 < B) (hWB : W < B) (hlwW : lw ≤ W)
+    (hOB : ∀ k < n + 1, O k < B) (hTB : ∀ k < lw, T k < B) :
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧ σ.vars "lw" = lw ∧
         σ.arrs s₁ = arrOf (n + 1) O ∧ σ.arrs s₂ = arrOf W T ∧
         (∃ g, σ.arrs d₁ = arrOf (n + 1) g) ∧ (∃ g, σ.arrs d₂ = arrOf W g))
       (.seq (RamDriver.copyUpto s₁ d₁ (.add (.var "n") (.lit 1)))
         (RamDriver.copyUpto s₂ d₂ (.var "lw")))
-      (fun σ σ' => σ'.vars "n" = n ∧ σ'.vars "m" = σ.vars "m" ∧ σ'.vars "lw" = W ∧
+      (fun σ σ' => σ'.vars "n" = n ∧ σ'.vars "m" = σ.vars "m" ∧ σ'.vars "lw" = lw ∧
         σ'.arrs s₁ = arrOf (n + 1) O ∧ σ'.arrs s₂ = arrOf W T ∧
-        σ'.arrs d₁ = arrOf (n + 1) O ∧ σ'.arrs d₂ = arrOf W T)
-      (14 * (n + 1) + 14 * W + 16) := by
+        σ'.arrs d₁ = arrOf (n + 1) O ∧
+        (∃ h, σ'.arrs d₂ = arrOf W h ∧ (∀ k < lw, h k = T k) ∧
+          (∀ k, lw ≤ k → k < W → h k = (σ.arrs d₂).getD k 0)))
+      (14 * (n + 1) + 14 * lw + 16) := by
   have hB : 0 < B := by omega
-  -- the two contexts: what each copy reads and does not write
-  have spec1 := copyUpto_spec (B := B) (n + 1) (n + 1) s₁ d₁ (.add (.var "n") (.lit 1)) O
-    (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧ σ.vars "lw" = W ∧
-      σ.arrs s₁ = arrOf (n + 1) O ∧ σ.arrs s₂ = arrOf W T ∧ (∃ g, σ.arrs d₂ = arrOf W g))
-    hB hnB le_rfl
-    (fun σ σ' hQ hv ha => ⟨by rw [hv "n" (by decide)]; exact hQ.1,
-      by rw [hv "m" (by decide)]; exact hQ.2.1,
-      by rw [hv "lw" (by decide)]; exact hQ.2.2.1, by rw [ha s₁ e₁]; exact hQ.2.2.2.1,
-      by rw [ha s₂ e₂]; exact hQ.2.2.2.2.1,
-      by rw [ha d₂ (Ne.symm e₅)]; exact hQ.2.2.2.2.2⟩)
-    (fun σ hQ => by
-      have h := evalB_bin (B := B) (σ := σ) (op := .add) (e := .var "n") (f := .lit 1)
-        (evalB_var (show σ.vars "n" < B by rw [hQ.1]; omega))
-        (evalB_lit (show 1 < B by omega))
-        (show Bop.apply .add (σ.vars "n") 1 < B by simp only [Bop.apply_add, hQ.1]; omega)
-      rw [Bop.apply_add, hQ.1] at h
-      exact h)
-    (fun σ hQ => hQ.2.2.2.1) hOB
-  have spec2 := copyUpto_spec (B := B) W W s₂ d₂ (.var "lw") T
-    (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧ σ.vars "lw" = W ∧
-      σ.arrs s₁ = arrOf (n + 1) O ∧ σ.arrs s₂ = arrOf W T ∧ σ.arrs d₁ = arrOf (n + 1) O)
-    hB hWB le_rfl
-    (fun σ σ' hQ hv ha => ⟨by rw [hv "n" (by decide)]; exact hQ.1,
-      by rw [hv "m" (by decide)]; exact hQ.2.1,
-      by rw [hv "lw" (by decide)]; exact hQ.2.2.1, by rw [ha s₁ e₄]; exact hQ.2.2.2.1,
-      by rw [ha s₂ e₃]; exact hQ.2.2.2.2.1, by rw [ha d₁ e₅]; exact hQ.2.2.2.2.2⟩)
-    (fun σ hQ => by
-      have h := evalB_var (B := B) (σ := σ) (x := "lw")
-        (show σ.vars "lw" < B by rw [hQ.2.2.1]; omega)
-      rw [hQ.2.2.1] at h
-      exact h)
-    (fun σ hQ => hQ.2.2.2.2.1) hTB
-  refine (Spec.seq (spec1.pre (fun σ hσ =>
-      ⟨hσ.2.2.2.2.2.1, hσ.1, hσ.2.1, hσ.2.2.1, hσ.2.2.2.1, hσ.2.2.2.2.1,
-        hσ.2.2.2.2.2.2⟩)) spec2
-    ?hmid ?hpost).mono ?hcost
-  case hmid =>
-    rintro σ σ' - ⟨⟨h, hd₁, hagr⟩, -, hn', hm', hlw', hs₁', hs₂', hd₂'⟩
-    exact ⟨hd₂', hn', hm', hlw', hs₁', hs₂', by rw [hd₁, arrOf_congr hagr]⟩
-  case hpost =>
-    rintro σ σ' σ'' ⟨-, hm, -, -, -, -, -⟩ -
-      ⟨⟨h', hd₂, hagr'⟩, -, hn'', hm'', hlw'', hs₁'', hs₂'', hd₁''⟩
-    exact ⟨hn'', by omega, hlw'', hs₁'', hs₂'', hd₁'', by rw [hd₂, arrOf_congr hagr']⟩
-  case hcost =>
-    simp only [size_add, size_var, size_lit]
-    omega
+  have hlwB : lw < B := by omega
+  refine Spec.of_exists fun σ₀ hσ₀ => ?_
+  obtain ⟨hn₀, hm₀, hlw₀, hs₁₀, hs₂₀, hd₁₀, ⟨g₀, hd₂₀⟩⟩ := hσ₀
+  -- (1) the first copy, at the carrier's own length; its context pins
+  -- the destination of the *second* copy, cell for cell
+  obtain ⟨σ₁, r₁, ⟨dg, hdg, hdgv⟩, -, hn₁, hm₁, hlw₁, hs₁A, hs₂A, hd₂A⟩ :=
+    (copyUpto_spec (B := B) (n + 1) (n + 1) s₁ d₁ (.add (.var "n") (.lit 1)) O
+      (fun σ => σ.vars "n" = n ∧ σ.vars "m" = σ₀.vars "m" ∧ σ.vars "lw" = lw ∧
+        σ.arrs s₁ = arrOf (n + 1) O ∧ σ.arrs s₂ = arrOf W T ∧ σ.arrs d₂ = arrOf W g₀)
+      hB hnB le_rfl
+      (fun σ σ' hQ hv ha => ⟨(hv "n" (by decide)).trans hQ.1,
+        (hv "m" (by decide)).trans hQ.2.1, (hv "lw" (by decide)).trans hQ.2.2.1,
+        (ha s₁ e₁).trans hQ.2.2.2.1, (ha s₂ e₂).trans hQ.2.2.2.2.1,
+        (ha d₂ (Ne.symm e₅)).trans hQ.2.2.2.2.2⟩)
+      (fun σ hQ => by
+        have h := evalB_bin (B := B) (σ := σ) (op := .add) (e := .var "n") (f := .lit 1)
+          (evalB_var (show σ.vars "n" < B by rw [hQ.1]; omega))
+          (evalB_lit (show (1 : ℕ) < B by omega))
+          (show Bop.apply .add (σ.vars "n") 1 < B by simp only [Bop.apply_add, hQ.1]; omega)
+        rw [Bop.apply_add, hQ.1] at h
+        exact h)
+      (fun σ hQ => hQ.2.2.2.1) hOB).run
+      ⟨hd₁₀, hn₀, rfl, hlw₀, hs₁₀, hs₂₀, hd₂₀⟩
+  have hd₁A : σ₁.arrs d₁ = arrOf (n + 1) O := hdg.trans (arrOf_congr hdgv)
+  -- (2) the second copy, walking only the live prefix
+  obtain ⟨σ₂, r₂, ⟨h₂, hd₂', hpre₂, htl₂⟩, -, hn₂, hm₂, hlw₂, hs₁B, hs₂B, hd₁B⟩ :=
+    (copyKeep_spec (B := B) lw W W s₂ d₂ (.var "lw") T
+      (fun σ => σ.vars "n" = n ∧ σ.vars "m" = σ₀.vars "m" ∧ σ.vars "lw" = lw ∧
+        σ.arrs s₁ = arrOf (n + 1) O ∧ σ.arrs s₂ = arrOf W T ∧ σ.arrs d₁ = arrOf (n + 1) O)
+      hB hlwB hlwW hlwW
+      (fun σ σ' hQ hv ha => ⟨(hv "n" (by decide)).trans hQ.1,
+        (hv "m" (by decide)).trans hQ.2.1, (hv "lw" (by decide)).trans hQ.2.2.1,
+        (ha s₁ e₄).trans hQ.2.2.2.1, (ha s₂ e₃).trans hQ.2.2.2.2.1,
+        (ha d₁ e₅).trans hQ.2.2.2.2.2⟩)
+      (fun σ hQ => by
+        have h := evalB_var (B := B) (σ := σ) (x := "lw")
+          (show σ.vars "lw" < B by rw [hQ.2.2.1]; omega)
+        rw [hQ.2.2.1] at h
+        exact h)
+      (fun σ hQ => hQ.2.2.2.2.1) hTB).run
+      ⟨⟨g₀, hd₂A⟩, hn₁, hm₁, hlw₁, hs₁A, hs₂A, hd₁A⟩
+  refine ⟨σ₂, _, r₁.seq r₂, ?_, hn₂, hm₂, hlw₂, hs₁B, hs₂B, hd₁B,
+    ⟨h₂, hd₂', hpre₂, fun k hk₁ hk₂ => by rw [htl₂ k hk₁ hk₂, hd₂A, hd₂₀]⟩⟩
+  simp only [size_add, size_var, size_lit]
+  omega
 
-/-- `RamDriver.saveCsr`, walked. -/
-theorem saveCsr_spec {B n ns W : ℕ} {O T : ℕ → ℕ} (hnB : n + 1 < B) (hWB : W < B)
-    (hOB : ∀ k < n + 1, O k < B) (hTB : ∀ k < W, T k < B) :
-    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧ σ.vars "lw" = W ∧
+/-- `RamDriver.saveCsr`, walked: the live prefix of `tgt` into `gtg`;
+the padding `gtg` keeps above `lw` is dead weight the restore never
+reads. -/
+theorem saveCsr_spec {B n ns W lw : ℕ} {O T : ℕ → ℕ} (hnB : n + 1 < B) (hWB : W < B)
+    (hlwW : lw ≤ W) (hOB : ∀ k < n + 1, O k < B) (hTB : ∀ k < lw, T k < B) :
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧ σ.vars "lw" = lw ∧
         σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf W T ∧
         (∃ g, σ.arrs "gof" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "gtg" = arrOf W g))
       RamDriver.saveCsr
-      (fun σ σ' => σ'.vars "n" = n ∧ σ'.vars "m" = σ.vars "m" ∧ σ'.vars "lw" = W ∧
+      (fun σ σ' => σ'.vars "n" = n ∧ σ'.vars "m" = σ.vars "m" ∧ σ'.vars "lw" = lw ∧
         σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf W T ∧
-        σ'.arrs "gof" = arrOf (n + 1) O ∧ σ'.arrs "gtg" = arrOf W T)
-      (14 * (n + 1) + 14 * W + 16) :=
-  csrCopy_spec (ns := ns) "off" "tgt" "gof" "gtg" (by decide) (by decide) (by decide) (by decide)
-    (by decide) hnB hWB hOB hTB
+        σ'.arrs "gof" = arrOf (n + 1) O ∧
+        (∃ h, σ'.arrs "gtg" = arrOf W h ∧ ∀ k < lw, h k = T k))
+      (14 * (n + 1) + 14 * lw + 16) :=
+  (csrCopy_spec (ns := ns) "off" "tgt" "gof" "gtg" (by decide) (by decide) (by decide)
+    (by decide) (by decide) hnB hWB hlwW hOB hTB).post
+    (fun σ σ' _ hq => by
+      obtain ⟨h1, h2, h3, h4, h5, h6, ⟨h, hh, hpre, -⟩⟩ := hq
+      exact ⟨h1, h2, h3, h4, h5, h6, h, hh, hpre⟩)
 
-/-- `RamDriver.restoreCsr`, walked. -/
-theorem restoreCsr_spec {B n ns W : ℕ} {O T : ℕ → ℕ} (hnB : n + 1 < B) (hWB : W < B)
-    (hOB : ∀ k < n + 1, O k < B) (hTB : ∀ k < W, T k < B) :
-    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧ σ.vars "lw" = W ∧
-        σ.arrs "gof" = arrOf (n + 1) O ∧ σ.arrs "gtg" = arrOf W T ∧
-        (∃ g, σ.arrs "off" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "tgt" = arrOf W g))
+/-- `RamDriver.restoreCsr`, walked: the saved prefix back into `tgt`,
+whose tail above `lw` — untouched by the phase, which is the `hTs`
+hypothesis — already holds the level's own padding, so the whole
+`arrOf W T` is re-assembled from a copy of `lw` cells. -/
+theorem restoreCsr_spec {B n ns W lw : ℕ} {O T Tg Ts : ℕ → ℕ} (hnB : n + 1 < B)
+    (hWB : W < B) (hlwW : lw ≤ W) (hOB : ∀ k < n + 1, O k < B)
+    (hTgB : ∀ k < lw, Tg k < B) (hTg : ∀ j < lw, Tg j = T j)
+    (hTs : ∀ j, lw ≤ j → j < W → Ts j = T j) :
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧ σ.vars "lw" = lw ∧
+        σ.arrs "gof" = arrOf (n + 1) O ∧ σ.arrs "gtg" = arrOf W Tg ∧
+        (∃ g, σ.arrs "off" = arrOf (n + 1) g) ∧ σ.arrs "tgt" = arrOf W Ts)
       RamDriver.restoreCsr
-      (fun σ σ' => σ'.vars "n" = n ∧ σ'.vars "m" = σ.vars "m" ∧ σ'.vars "lw" = W ∧
-        σ'.arrs "gof" = arrOf (n + 1) O ∧ σ'.arrs "gtg" = arrOf W T ∧
+      (fun σ σ' => σ'.vars "n" = n ∧ σ'.vars "m" = σ.vars "m" ∧ σ'.vars "lw" = lw ∧
+        σ'.arrs "gof" = arrOf (n + 1) O ∧ σ'.arrs "gtg" = arrOf W Tg ∧
         σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf W T)
-      (14 * (n + 1) + 14 * W + 16) :=
-  csrCopy_spec (ns := ns) "gof" "gtg" "off" "tgt" (by decide) (by decide) (by decide) (by decide)
-    (by decide) hnB hWB hOB hTB
+      (14 * (n + 1) + 14 * lw + 16) :=
+  ((csrCopy_spec (ns := ns) (T := Tg) "gof" "gtg" "off" "tgt" (by decide) (by decide)
+    (by decide) (by decide) (by decide) hnB hWB hlwW hOB hTgB).pre
+    (fun σ hσ => ⟨hσ.1, hσ.2.1, hσ.2.2.1, hσ.2.2.2.1, hσ.2.2.2.2.1, hσ.2.2.2.2.2.1,
+      ⟨Ts, hσ.2.2.2.2.2.2⟩⟩)).post
+    (fun σ σ' hσ hq => by
+      obtain ⟨h1, h2, h3, h4, h5, h6, ⟨h, hh, hpre, htl⟩⟩ := hq
+      refine ⟨h1, h2, h3, h4, h5, h6, ?_⟩
+      rw [hh]
+      refine arrOf_congr fun k hk => ?_
+      rcases Nat.lt_or_ge k lw with hklt | hkge
+      · rw [hpre k hklt, hTg k hklt]
+      · rw [htl k hkge hk, hσ.2.2.2.2.2.2, getD_arrOf Ts hk, hTs k hkge hk])
 
 /-! ### What is left of the two large walks
 

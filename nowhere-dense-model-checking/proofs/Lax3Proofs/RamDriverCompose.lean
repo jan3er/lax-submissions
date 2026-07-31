@@ -1603,7 +1603,11 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hvn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCbit, hmem, hdep, hmv,
     hordmem, hpad0, hTBW⟩ := id hσ
-  obtain ⟨hnsW, hlw, hosz, hzelm, hzbh, hzooff, -, -, -, -, -, hwitg, hwntg⟩ := id hordmem
+  obtain ⟨hnsW, hlwp, hosz, hzelm, hzbh, hzooff, -, -, -, -, -, hwitg, hwntg⟩ := id hordmem
+  -- the runtime live width: the copies walk its prefix and nothing else
+  obtain ⟨lw, hlw⟩ : ∃ lw, σ.vars "lw" = lw := ⟨_, rfl⟩
+  rw [hlw] at hlwp
+  obtain ⟨hlwns, hlwW⟩ := hlwp
   have hnB : n < B := hB.n_lt
   have hn1B : n + 1 < B := hB.succ_lt
   have hnsB : ns < B := hB.ns_lt
@@ -1614,10 +1618,11 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
   have hOB : ∀ k < n + 1, O k < B := fun k hk =>
     lt_of_le_of_lt (hcsr.csr.le_ns (by omega)) hnsB
   have hTB : ∀ k < ns, T k < B := fun k hk => lt_trans (hcsr.csr.target_lt k hk) hnB
-  -- (1) the block structure out of the way — all `W` slots of it, since
-  -- that is the array the level owns
-  obtain ⟨σ₁, r₁, hvn₁, hmv₁, hlw₁, hoff₁, htgt₁, hgof₁, hgtg₁⟩ :=
-    (RamDriverOrder.saveCsr_spec (ns := ns) hn1B hWltB hOB hTBW).run
+  -- (1) the block structure out of the way — the `lw`-cell live prefix
+  -- of it, which contains the whole `ns`-slot structure since `ns ≤ lw`
+  obtain ⟨σ₁, r₁, hvn₁, hmv₁, hlw₁, hoff₁, htgt₁, hgof₁, ⟨Tg, hgtg₁, hTgpre⟩⟩ :=
+    (RamDriverOrder.saveCsr_spec (ns := ns) (lw := lw) hn1B hWltB hlwW hOB
+      (fun k hk => hTBW k (by omega))).run
       ⟨hvn, hmv, hlw, hoff, htgt, hosz.get (p := ("gof", n + 1)) (by simp),
         hosz.get (p := ("gtg", W)) (by simp)⟩
   have hsz₁ := hosz.run r₁
@@ -1680,30 +1685,40 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     RamDriverOrder.lt_of_mem_words
       (run_mem_arrs_lt r₄ "itg" (run_mem_arrs_lt r₃ "itg"
         (run_mem_arrs_lt r₂ "itg" (run_mem_arrs_lt r₁ "itg" hwitg)))) hitg₄ hk
-  have hlw₄ : σ₄.vars "lw" = W := by
+  have hlw₄ : σ₄.vars "lw" = lw := by
     rw [r₄.frame_var "lw" (by rw [wvars_copyUpto]; decide), r₃.frame_var "lw" (by decide),
       r₂.frame_var "lw" (by rw [wvars_copyCom]; decide)]
     exact hlw₁
+  -- the arcs of the arena's orientation fit the live prefix
+  have hsub : ∀ u v : Fin n, Ea.toGraph.Adj u v → G.Adj u v := by
+    intro u v h
+    rw [htoG₃] at h
+    exact (RamBfs.masked_adj.1 h).1
+  have hfit : ma + ma ≤ ns := RamDriverAugment.two_mul_arcs_le hcsr hincsr₃ hsub
   obtain ⟨σ₅, r₅, ⟨dt₅, hdt₅, hdtv₅⟩, -, -⟩ :=
-    (RamDriverOrder.copyUpto_spec (B := B) W W "itg" "dtg" (.var "lw") ITa
-        (fun τ => τ.arrs "itg" = arrOf W ITa ∧ τ.vars "lw" = W) (by omega) hWltB le_rfl
+    (copyPrefix_spec (B := B) lw W W "itg" "dtg" (.var "lw") ITa
+        (fun τ => τ.arrs "itg" = arrOf W ITa ∧ τ.vars "lw" = lw) (by omega) (by omega)
+        hlwW hlwW
         (fun _ _ hQ hv ha => ⟨(ha "itg" (by decide)).trans hQ.1,
           (hv "lw" (by decide)).trans hQ.2⟩)
         (fun τ hQ => by
           have h := evalB_var (B := B) (σ := τ) (x := "lw")
             (show τ.vars "lw" < B by rw [hQ.2]; omega)
           rw [hQ.2] at h; exact h)
-        (fun _ hQ => hQ.1) hITB).run
+        (fun _ hQ => hQ.1) (fun k hk => hITB k (by omega))).run
       ⟨hsz₄.get (p := ("dtg", W)) (by simp), hitg₄, hlw₄⟩
   have hsz₅ := hsz₄.run r₅
   have f₅ : ∀ a : String, a ∉ (copyUpto "itg" "dtg" (.var "lw")).warrs →
       σ₅.arrs a = σ₄.arrs a := fun a ha => r₅.frame_arr a ha
   have hvn₅ : σ₅.vars "n" = n := by
     rw [r₅.frame_var "n" (by rw [wvars_copyUpto]; decide)]; exact hvn₄
-  have hlw₅ : σ₅.vars "lw" = W := by
+  have hlw₅ : σ₅.vars "lw" = lw := by
     rw [r₅.frame_var "lw" (by rw [wvars_copyUpto]; decide)]; exact hlw₄
-  have hdtg₅ : σ₅.arrs "dtg" = arrOf W ITa :=
-    hdt₅.trans (RamDriverOrder.arrOf_congr hdtv₅)
+  have hdtg₅ : σ₅.arrs "dtg" = arrOf W dt₅ := hdt₅
+  -- the in-lists survive the prefix copy: the structure reads its
+  -- target function only below the arc count, which is inside `lw`
+  have hincsr₅ : RamElim.InCsr Ea ma IOa dt₅ :=
+    RamDriverAugment.inCsr_congr_prefix hincsr₃ (fun j hj => hdtv₅ j (by omega))
   have hdoff₅ : σ₅.arrs "doff" = arrOf (n + 1) IOa := by
     rw [f₅ _ (by rw [warrs_copyUpto]; decide)]; exact hdoff₄
   -- (6) no augmentation round: the fold is empty
@@ -1714,7 +1729,7 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
       f₄ _ (by rw [warrs_copyUpto]; decide), f₃ _ (by decide),
       f₂ _ (lit_notMem_copyCom_alv j "gof")]
     exact hgof₁
-  have hgtg₅ : σ₅.arrs "gtg" = arrOf W T := by
+  have hgtg₅ : σ₅.arrs "gtg" = arrOf W Tg := by
     rw [f₅ _ (by rw [warrs_copyUpto]; decide),
       f₄ _ (by rw [warrs_copyUpto]; decide), f₃ _ (by decide),
       f₂ _ (lit_notMem_copyCom_alv j "gtg")]
@@ -1726,11 +1741,6 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
       r₃.frame_var "m" (by decide),
       r₂.frame_var "m" (by rw [wvars_copyCom]; decide), hmv₁]
     exact hmv
-  have hsub : ∀ u v : Fin n, Ea.toGraph.Adj u v → G.Adj u v := by
-    intro u v h
-    rw [htoG₃] at h
-    exact (RamBfs.masked_adj.1 h).1
-  have hfit : ma + ma ≤ ns := RamDriverAugment.two_mul_arcs_le hcsr hincsr₃ hsub
   have hzooff₅ : ∀ v ∈ σ₅.arrs "ooff", v = 0 := by
     rw [f₅ _ (by rw [warrs_copyUpto]; decide), f₄ _ (by rw [warrs_copyUpto]; decide),
       f₃ _ (by decide), f₂ _ (lit_notMem_copyCom_alv j "ooff"),
@@ -1740,9 +1750,9 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     rw [f₅ _ (by rw [warrs_copyUpto]; decide), f₄ _ (by rw [warrs_copyUpto]; decide),
       f₃ _ (by decide), f₂ _ (lit_notMem_copyCom_alv j "tgt")]
     exact htgt₁
-  obtain ⟨σ₇, K₇, Os, Ts, r₇, hK₇, hoffS, htgtS, hcsrS, -, hfaS, hfvS⟩ :=
+  obtain ⟨σ₇, K₇, Os, Ts, r₇, hK₇, hoffS, htgtS, hcsrS, htailS, hfaS, hfvS⟩ :=
     RamDriverAugment.symPass_run (B := B) (W := W) (nt := W) (m := ma) (D := Ea)
-      (DO := IOa) (DT := ITa) (σ := σ₅) hn1B (by omega) (by omega) (by omega) hvn₅ hincsr₃
+      (DO := IOa) (DT := dt₅) (σ := σ₅) hn1B (by omega) (by omega) (by omega) hvn₅ hincsr₅
       hdoff₅ hdtg₅
       (by
         obtain ⟨g, hg, hgz⟩ :=
@@ -1756,11 +1766,11 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     rw [hfvS "n" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hvn₅
   have hmv₇ : σ₇.vars "m" + σ₇.vars "m" = ns := by
     rw [hfvS "m" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hmv₅
-  have hlw₇ : σ₇.vars "lw" = W := by
+  have hlw₇ : σ₇.vars "lw" = lw := by
     rw [hfvS "lw" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hlw₅
   have hgof₇ : σ₇.arrs "gof" = arrOf (n + 1) O := by
     rw [hfaS "gof" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hgof₅
-  have hgtg₇ : σ₇.arrs "gtg" = arrOf W T := by
+  have hgtg₇ : σ₇.arrs "gtg" = arrOf W Tg := by
     rw [hfaS "gtg" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hgtg₅
   -- (8) everything alive again
   obtain ⟨σ₈, r₈, ⟨A, hA₈, hA₈v⟩, -, hvn₈⟩ :=
@@ -1799,17 +1809,22 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     rw [r₁₀.frame_var "m" (by decide), r₉.frame_var "m" (by decide),
       r₈.frame_var "m" (by decide)]
     exact hmv₇
-  have hlw₁₀ : σ₁₀.vars "lw" = W := by
+  have hlw₁₀ : σ₁₀.vars "lw" = lw := by
     rw [r₁₀.frame_var "lw" (by decide), r₉.frame_var "lw" (by decide),
       r₈.frame_var "lw" (by decide)]
     exact hlw₇
+  have htgt₁₀ : σ₁₀.arrs "tgt" = arrOf W Ts := by
+    rw [f₁₀ _ (by decide), f₉ _ (by decide), f₈ _ (by decide)]
+    exact htgtS
   obtain ⟨σ₁₁, r₁₁, hvn₁₁, -, -, -, -, hoff₁₁, htgt₁₁⟩ :=
-    (RamDriverOrder.restoreCsr_spec (ns := ns) hn1B hWltB hOB hTBW).run
+    (RamDriverOrder.restoreCsr_spec (ns := ns) (lw := lw) (T := T) hn1B hWltB hlwW hOB
+      (fun k hk => by rw [hTgpre k hk]; exact hTBW k (by omega)) hTgpre
+      (fun z hz hzW => htailS z (by omega) hzW)).run
       ⟨hvn₁₀, hmv₁₀, hlw₁₀,
         by rw [f₁₀ _ (by decide), f₉ _ (by decide), f₈ _ (by decide)]; exact hgof₇,
         by rw [f₁₀ _ (by decide), f₉ _ (by decide), f₈ _ (by decide)]; exact hgtg₇,
         sizedRun r₁₀ (sizedRun r₉ (sizedRun r₈ ⟨Os, hoffS⟩)),
-        sizedRun r₁₀ (sizedRun r₉ (sizedRun r₈ ⟨Ts, htgtS⟩))⟩
+        htgt₁₀⟩
   have hsz₁₁ := hsz₁₀.run r₁₁
   have f₁₁ : ∀ a : String, a ∉ (restoreCsr).warrs → σ₁₁.arrs a = σ₁₀.arrs a :=
     fun a ha => r₁₁.frame_arr a ha
@@ -1847,7 +1862,7 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
       (r₁₀.seq (r₁₁.seq (r₁₂.seq r₁₃)))))))))))
   refine ⟨ρ, _, hrT, ?_, ⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCbit, levelMem_run hrT hmem,
       hdep.run hrT, ?_,
-      ⟨hnsW, by rw [hrT.frame_var "lw" (lw_notMem_orderCom₀ j)]; exact hlw,
+      ⟨hnsW, by rw [hrT.frame_var "lw" (lw_notMem_orderCom₀ j), hlw]; exact ⟨hlwns, hlwW⟩,
         hosz.run hrT, z₁, z₂, z₃, z₄, z₅, z₆, z₇, z₈,
         run_mem_arrs_lt hrT "itg" hwitg, run_mem_arrs_lt hrT "ntg" hwntg⟩, hpad0, hTBW⟩,
     hrT.out_eq (noWrite_orderCom₀ j),
@@ -2097,6 +2112,35 @@ def OrderImplementsR (B n R W cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T 
     (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) : Prop :=
   OrderImplements B n R W cap mb ns j G O T M Gm C (OrderP R G M) (orderPhaseCostR n ns W R)
 
+/-- **The `R*` obligation at the live width** (rebase G2/E2b) —
+`OrderImplementsR`'s Spec with the one pre-clause the live-prefix
+copies need: the chain's degree-aware width budget fits the *runtime*
+live width `σ.vars "lw"`, not merely the allocation width. `d`/`D₁` —
+the degeneracy bound and the density constant the budget reads — are
+parameters here because the clause has nowhere else to name them.
+
+The clause is load-bearing, not slack: `RamDriver.OrderMem` now pins
+only `ns ≤ lw ≤ W`, and at `lw = ns` the `R = 1` phase's chain
+overruns the prefix the copies preserve — `TgtWidenProbe`'s
+`ordLive8Run` boundary gate is that refutation, compiled. Without the
+clause this obligation is **refutable**, which is why the live width
+did not simply replace `W` in `OrderImplementsR`. -/
+def OrderImplementsRL (B n R W cap mb ns j d D₁ : ℕ) (G : SimpleGraph (Fin n))
+    (O T : ℕ → ℕ) (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) : Prop :=
+  WordBound B n ns cap mb → RamElim.CsrSimple G ns O T → n + W + 1 < B →
+  ElimAvail B n → AugAvail B n →
+    Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧
+        TgtCoupling.chainWidthE n ns d D₁ R ≤ σ.vars "lw")
+      (orderCom R j)
+      (fun σ σ' => LevelPre B n cap mb ns W O T j M Gm C σ' ∧
+        σ'.out = σ.out ∧
+        (∀ a : ℕ, σ'.vars (ctrName a) = σ.vars (ctrName a)) ∧
+        (∀ a : ℕ, σ'.arrs (gamName a) = σ.arrs (gamName a)) ∧
+        ∃ (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ),
+          σ'.arrs (ordName j) = arrOf n ord ∧ RamCover.OrdersBy n π ord ∧
+          OrderP R G M π ord)
+      (orderPhaseCostR n ns W R)
+
 /-! ### The fold, syntactically
 
 `RamDriver.foldRange` at a constant body is the body sequenced `m`
@@ -2340,18 +2384,27 @@ theorem augPrep_spec {B n : ℕ} (hnB : n < B) (hn1B : n + 1 < B) :
   omega
 
 /-- **The relink, walked**: the round's output block structure into the
-next round's input, and the seven accumulators and stamps zeroed. -/
-theorem augRelink_spec {B n W : ℕ} {NO NT : ℕ → ℕ} (hnB : n < B) (hn1B : n + 1 < B)
-    (hWB : W < B) (hNOB : ∀ k < n + 1, NO k < B) :
-    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "lw" = W ∧ σ.arrs "noff" = arrOf (n + 1) NO ∧
+next round's input, and the seven accumulators and stamps zeroed.
+
+**The target copy walks the live prefix** (rebase G2/E2b): the bound is
+the scalar `"lw"`, whose runtime value `lw` may sit strictly below the
+allocation width `W`, so the destination `dtg` comes back as the copied
+`lw`-prefix of `NT` over whatever tail it already had — the fold's
+`inCsr_congr_prefix` step is what makes that as good as the whole
+array, the chain's arcs living below `chainWidthE ≤ lw`. The cost reads
+`relinkCostSum n lw`. -/
+theorem augRelink_spec {B n W lw : ℕ} {NO NT : ℕ → ℕ} (hnB : n < B) (hn1B : n + 1 < B)
+    (hWB : W < B) (hlwW : lw ≤ W) (hNOB : ∀ k < n + 1, NO k < B) :
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "lw" = lw ∧ σ.arrs "noff" = arrOf (n + 1) NO ∧
         σ.arrs "ntg" = arrOf W NT ∧ (∀ v ∈ σ.arrs "ntg", v < B) ∧
         (∃ g, σ.arrs "doff" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "dtg" = arrOf W g) ∧
         (∃ g, σ.arrs "ooff" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "off" = arrOf (n + 1) g) ∧
         (∃ g, σ.arrs "stf" = arrOf n g) ∧ (∃ g, σ.arrs "sta" = arrOf n g) ∧
         (∃ g, σ.arrs "std" = arrOf n g) ∧ (∃ g, σ.arrs "ste" = arrOf n g))
       augRelinkCom
-      (fun _ σ' => σ'.vars "n" = n ∧ σ'.vars "lw" = W ∧
-        σ'.arrs "doff" = arrOf (n + 1) NO ∧ σ'.arrs "dtg" = arrOf W NT ∧
+      (fun _ σ' => σ'.vars "n" = n ∧ σ'.vars "lw" = lw ∧
+        σ'.arrs "doff" = arrOf (n + 1) NO ∧
+        (∃ h, σ'.arrs "dtg" = arrOf W h ∧ ∀ k < lw, h k = NT k) ∧
         (∃ g, σ'.arrs "ooff" = arrOf (n + 1) g ∧ ∀ k ≤ n, g k = 0) ∧
         (∃ g, σ'.arrs "off" = arrOf (n + 1) g ∧ ∀ k ≤ n, g k = 0) ∧
         (∃ g, σ'.arrs "noff" = arrOf (n + 1) g ∧ ∀ k ≤ n, g k = 0) ∧
@@ -2359,7 +2412,7 @@ theorem augRelink_spec {B n W : ℕ} {NO NT : ℕ → ℕ} (hnB : n < B) (hn1B :
         (∃ g, σ'.arrs "sta" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
         (∃ g, σ'.arrs "std" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
         (∃ g, σ'.arrs "ste" = arrOf n g ∧ ∀ k < n, g k = 0))
-      (relinkCostSum n W) := by
+      (relinkCostSum n lw) := by
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hn, hlw, hnoff, hntg, hntgW, hdoffE, hdtgE, hooffE, hoffE, hstfE, hstaE, hstdE,
     hsteE⟩ := hσ
@@ -2378,22 +2431,22 @@ theorem augRelink_spec {B n W : ℕ} {NO NT : ℕ → ℕ} (hnB : n < B) (hn1B :
     hd₁.trans (RamDriverOrder.arrOf_congr hd₁v)
   have f₁ : ∀ a : String, a ≠ "doff" → τ₁.arrs a = σ.arrs a := fun a ha =>
     r₁.frame_arr a (by rw [warrs_copyUpto]; simpa using ha)
-  have hlw₁ : τ₁.vars "lw" = W := by
+  have hlw₁ : τ₁.vars "lw" = lw := by
     rw [r₁.frame_var "lw" (by rw [wvars_copyUpto]; decide)]; exact hlw
-  -- (2) its targets, at the live width the level's state pins
+  -- (2) its targets, walking only the live prefix
   obtain ⟨τ₂, r₂, ⟨d₂, hd₂, hd₂v⟩, -, hntg₂, hlw₂⟩ :=
-    (RamDriverOrder.copyUpto_spec (B := B) W W "ntg" "dtg" (.var "lw") NT
-        (fun τ => τ.arrs "ntg" = arrOf W NT ∧ τ.vars "lw" = W) (by omega) hWB le_rfl
+    (copyPrefix_spec (B := B) lw W W "ntg" "dtg" (.var "lw") NT
+        (fun τ => τ.arrs "ntg" = arrOf W NT ∧ τ.vars "lw" = lw) (by omega) (by omega)
+        hlwW hlwW
         (fun _ _ hQ hv ha => ⟨(ha "ntg" (by decide)).trans hQ.1,
           (hv "lw" (by decide)).trans hQ.2⟩)
         (fun τ hQ => by
           have h := evalB_var (B := B) (σ := τ) (x := "lw")
             (show τ.vars "lw" < B by rw [hQ.2]; omega)
           rw [hQ.2] at h; exact h)
-        (fun _ hQ => hQ.1) hNTB).run
+        (fun _ hQ => hQ.1) (fun k hk => hNTB k (by omega))).run
       ⟨sizedRun r₁ hdtgE, by rw [f₁ _ (by decide)]; exact hntg, hlw₁⟩
-  have hdtg₂ : τ₂.arrs "dtg" = arrOf W NT :=
-    hd₂.trans (RamDriverOrder.arrOf_congr hd₂v)
+  have hdtg₂ : τ₂.arrs "dtg" = arrOf W d₂ := hd₂
   have f₂ : ∀ a : String, a ≠ "dtg" → τ₂.arrs a = τ₁.arrs a := fun a ha =>
     r₂.frame_arr a (by rw [warrs_copyUpto]; simpa using ha)
   have hn₂ : τ₂.vars "n" = n := by
@@ -2440,7 +2493,7 @@ theorem augRelink_spec {B n W : ℕ} {NO NT : ℕ → ℕ} (hnB : n < B) (hn1B :
     r₈.frame_arr a (by rw [warrs_fillCom]; simpa using ha)
   have f₉ : ∀ a : String, a ≠ "ste" → τ₉.arrs a = τ₈.arrs a := fun a ha =>
     r₉.frame_arr a (by rw [warrs_fillCom]; simpa using ha)
-  have hlw₉ : τ₉.vars "lw" = W := by
+  have hlw₉ : τ₉.vars "lw" = lw := by
     rw [r₉.frame_var "lw" (by decide), r₈.frame_var "lw" (by decide),
       r₇.frame_var "lw" (by decide), r₆.frame_var "lw" (by decide),
       r₅.frame_var "lw" (by decide), r₄.frame_var "lw" (by decide),
@@ -2450,7 +2503,7 @@ theorem augRelink_spec {B n W : ℕ} {NO NT : ℕ → ℕ} (hnB : n < B) (hn1B :
     rw [f₉ _ (by decide), f₈ _ (by decide), f₇ _ (by decide), f₆ _ (by decide),
       f₅ _ (by decide), f₄ _ (by decide), f₃ _ (by decide), f₂ _ (by decide)]
     exact hdoff₁
-  have hdtg₉ : τ₉.arrs "dtg" = arrOf W NT := by
+  have hdtg₉ : τ₉.arrs "dtg" = arrOf W d₂ := by
     rw [f₉ _ (by decide), f₈ _ (by decide), f₇ _ (by decide), f₆ _ (by decide),
       f₅ _ (by decide), f₄ _ (by decide), f₃ _ (by decide)]
     exact hdtg₂
@@ -2473,7 +2526,7 @@ theorem augRelink_spec {B n W : ℕ} {NO NT : ℕ → ℕ} (hnB : n < B) (hn1B :
     rw [f₉ _ (by decide)]; exact hA₈
   refine ⟨τ₉, _,
     r₁.seq (r₂.seq (r₃.seq (r₄.seq (r₅.seq (r₆.seq (r₇.seq (r₈.seq r₉))))))), ?_,
-    hn₉, hlw₉, hdoff₉, hdtg₉,
+    hn₉, hlw₉, hdoff₉, ⟨d₂, hdtg₉, hd₂v⟩,
     ⟨e₃, hooff₉, fun k hk => hZ₃ k (by omega)⟩,
     ⟨e₄, hoff₉, fun k hk => hZ₄ k (by omega)⟩,
     ⟨e₅, hnoff₉, fun k hk => hZ₅ k (by omega)⟩,
@@ -2491,10 +2544,17 @@ family `D`, grown a round at a time, with the two clauses
 in-degree bound at its foot. `elm`, `bh` and `off` are *not* here: each
 round's prep re-zeroes them, which is the F-c-5 repair. -/
 
-/-- The invariant of the ordering phase's fold, after `i` rounds. -/
-def FoldInv (B n ns W d₀ : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (i : ℕ)
+/-- The invariant of the ordering phase's fold, after `i` rounds.
+
+**Live width** (rebase G2/E2b): the scalar `"lw"` holds the runtime
+value `lw` — between `ns` and `W`, no longer pinned to `W` — the `tgt`
+tail at or above it stays zero across every round (the level's own
+padding, which the restore counts on), and the chain-so-far's arc
+count sits below `lw`, which is what lets each relink's live-prefix
+copy carry the whole block structure. -/
+def FoldInv (B n ns W lw d₀ : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (i : ℕ)
     (σ : Env) : Prop :=
-  σ.vars "n" = n ∧ σ.vars "lw" = W ∧
+  σ.vars "n" = n ∧ σ.vars "lw" = lw ∧
   Sized [("doff", n + 1), ("dtg", W), ("ooff", n + 1), ("otg", W), ("ofl", n),
       ("gof", n + 1), ("gtg", W), ("ffl", n), ("deg", n), ("rnk", n), ("idg", n),
       ("bh", n + 1), ("bv", n + W + 1), ("bn", n + W + 1), ("ioff", n + 1), ("ifl", n),
@@ -2507,13 +2567,14 @@ def FoldInv (B n ns W d₀ : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (i
   (∃ g, σ.arrs "sta" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
   (∃ g, σ.arrs "std" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
   (∃ g, σ.arrs "ste" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
-  (∃ g, σ.arrs "off" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "tgt" = arrOf W g) ∧
+  (∃ g, σ.arrs "off" = arrOf (n + 1) g) ∧
+  (∃ g, σ.arrs "tgt" = arrOf W g ∧ ∀ z, lw ≤ z → z < W → g z = 0) ∧
   (∃ g, σ.arrs "alv" = arrOf n g) ∧
   ∃ (D : ℕ → Augmentation.Orientation n) (m' : ℕ) (DO DT : ℕ → ℕ),
     Augmentation.IsAugChain (masked G M) D i ∧
     (∀ l < i, Augmentation.GreedyFratRound (D l) (D (l + 1))) ∧
     (D 0).InDegLE d₀ ∧
-    RamElim.InCsr (D i) m' DO DT ∧ m' ≤ W ∧ (i = 0 → m' + m' ≤ ns) ∧
+    RamElim.InCsr (D i) m' DO DT ∧ m' ≤ lw ∧ (i = 0 → m' + m' ≤ ns) ∧
     σ.arrs "doff" = arrOf (n + 1) DO ∧ σ.arrs "dtg" = arrOf W DT
 
 /-- **One round of the fold preserves the invariant** — the
@@ -2524,19 +2585,20 @@ clause and the output block structure, and the relink makes that
 structure the next round's input. The chain grows by
 `Augmentation.isAugChain_succ`'s reading: the family is updated at
 `i + 1` and nothing below moves. -/
-theorem fold_step {B n ns W d D₁ d₀ R : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ}
-    (hB : n + W + 1 < B) (hd₀d : d₀ ≤ d)
+theorem fold_step {B n ns W lw d D₁ d₀ R : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ}
+    (hB : n + W + 1 < B) (hd₀d : d₀ ≤ d) (hlwW : lw ≤ W)
     (hdens : ∀ (D : ℕ → Augmentation.Orientation n) (i : ℕ), i ≤ R →
       Augmentation.IsAugChain (masked G M) D i →
       (∀ l < i, Augmentation.GreedyFratRound (D l) (D (l + 1))) →
       Augmentation.AugmentedDepthOneDensity D i D₁)
-    (hWc : TgtCoupling.chainWidthE n ns d D₁ R ≤ W) :
-    ∀ i σ, i < R → FoldInv B n ns W d₀ G M i σ →
+    (hWc : TgtCoupling.chainWidthE n ns d D₁ R ≤ lw) :
+    ∀ i σ, i < R → FoldInv B n ns W lw d₀ G M i σ →
       ∃ σ', Run B (augRoundCom) σ σ' (RamAugment.augCost n W + relinkCost n W) ∧
-        FoldInv B n ns W d₀ G M (i + 1) σ' := by
+        FoldInv B n ns W lw d₀ G M (i + 1) σ' := by
   intro i σ hiR hI
   obtain ⟨hn, hlw, hsz, hntgW, hooffZ, hnoffZ, hstfZ, hstaZ, hstdZ, hsteZ, hoffE, htgtE,
-    halvE, D, m', DO, DT, hchain, hgreedy, hD0, hincsr, hm'W, -, hdoff, hdtg⟩ := hI
+    halvE, D, m', DO, DT, hchain, hgreedy, hD0, hincsr, hm'lw, -, hdoff, hdtg⟩ := hI
+  obtain ⟨Tc, htgtc, htailc⟩ := htgtE
   -- the round's in-degree budget, off the chain so far
   set bi := Augmentation.budget d D₁ i with hbi_def
   have hbi : (D i).InDegLE bi :=
@@ -2567,17 +2629,25 @@ theorem fold_step {B n ns W d D₁ d₀ R : ℕ} {G : SimpleGraph (Fin n)} {M : 
     have h5 := hWc
     simp only [TgtCoupling.chainWidthE] at h5
     omega
-  have hfrat : RamAugment.fratSlots (D i) ≤ W := by
+  -- the fraternity graph fits the LIVE width, not just the allocation:
+  -- this is what keeps the round's `tgt` writes inside the prefix the
+  -- copies preserve
+  have hfratL : RamAugment.fratSlots (D i) ≤ lw := by
     have h1 : RamAugment.fratSlots (D i) ≤ n * (bi * bi) := RamAugment.fratSlots_le hbi
     have h2 : n * (bi * bi) ≤ n * (bi + 1) ^ 2 := Nat.mul_le_mul_left n (by nlinarith)
+    have h5 := hWc
+    simp only [TgtCoupling.chainWidthE] at h5
     omega
+  have hfrat : RamAugment.fratSlots (D i) ≤ W := le_trans hfratL hlwW
   -- (1) the prep: what the previous elimination dirtied, zeroed again
   obtain ⟨σb, rb, hnb, hoffZb, helmZb, hbhZb⟩ :=
     (augPrep_spec (B := B) (n := n) (by omega) (by omega)).run
       ⟨hn, hoffE, hsz.get (p := ("elm", n)) (by simp), hsz.get (p := ("bh", n + 1)) (by simp)⟩
   have fb : ∀ a : String, a ∉ augPrepCom.warrs → σb.arrs a = σ.arrs a :=
     fun a ha => rb.frame_arr a ha
-  have hlwb : σb.vars "lw" = W := by rw [rb.frame_var "lw" (by decide)]; exact hlw
+  have hlwb : σb.vars "lw" = lw := by rw [rb.frame_var "lw" (by decide)]; exact hlw
+  have htgtcb : σb.arrs "tgt" = arrOf W Tc := by
+    rw [fb "tgt" (by rw [warrs_augPrepCom]; decide)]; exact htgtc
   have hszb := hsz.run rb
   -- (2) the round
   obtain ⟨g₃, hg₃, hz₃⟩ := hooffZ
@@ -2586,16 +2656,16 @@ theorem fold_step {B n ns W d D₁ d₀ R : ℕ} {G : SimpleGraph (Fin n)} {M : 
   obtain ⟨g₇, hg₇, hz₇⟩ := hstaZ
   obtain ⟨g₈, hg₈, hz₈⟩ := hstdZ
   obtain ⟨g₉, hg₉, hz₉⟩ := hsteZ
-  obtain ⟨σc, rc, hpost⟩ :=
+  obtain ⟨σc, rc, hpost, htailRound⟩ :=
     (RamDriverAugment.augment_specWE (B := B) (n := n) (d := bi) (nt := W) (W := W)
         (m := m') (D := D i) (DO := DO) (DT := DT)
-        hincsr hbi hfrat hm'W hsqW hcapW hB).run
+        hincsr hbi hfrat (by omega) hsqW hcapW hB).run
       ⟨hnb,
         by rw [fb "doff" (by rw [warrs_augPrepCom]; decide)]; exact hdoff,
         by rw [fb "dtg" (by rw [warrs_augPrepCom]; decide)]; exact hdtg,
         ⟨g₃, by rw [fb "ooff" (by rw [warrs_augPrepCom]; decide)]; exact hg₃, hz₃⟩,
         hszb.get (p := ("otg", W)) (by simp), hszb.get (p := ("ofl", n)) (by simp),
-        hoffZb, sizedRun rb htgtE, hszb.get (p := ("ffl", n)) (by simp),
+        hoffZb, ⟨Tc, htgtcb⟩, hszb.get (p := ("ffl", n)) (by simp),
         sizedRun rb halvE, hszb.get (p := ("deg", n)) (by simp), helmZb,
         hszb.get (p := ("rnk", n)) (by simp), hszb.get (p := ("idg", n)) (by simp),
         hbhZb, hszb.get (p := ("bv", n + W + 1)) (by simp),
@@ -2614,7 +2684,7 @@ theorem fold_step {B n ns W d D₁ d₀ R : ℕ} {G : SimpleGraph (Fin n)} {M : 
   have hnc : σc.vars "n" = n := by
     rw [rc.frame_var "n" n_notMem_augCom]
     exact hnb
-  have hlwc : σc.vars "lw" = W := by
+  have hlwc : σc.vars "lw" = lw := by
     rw [rc.frame_var "lw" lw_notMem_augCom]
     exact hlwb
   have hNOB : ∀ k < n + 1, NO k < B := fun k hk =>
@@ -2623,8 +2693,8 @@ theorem fold_step {B n ns W d D₁ d₀ R : ℕ} {G : SimpleGraph (Fin n)} {M : 
   -- (3) the relink: the round's output becomes the next round's input
   obtain ⟨σd, rd, hnd, hlwd, hdoffd, hdtgd, hooffd, hoffd, hnoffd, hstfd, hstad, hstdd,
       hsted⟩ :=
-    (augRelink_spec (B := B) (n := n) (W := W) (NO := NO) (NT := NT) (by omega) (by omega)
-        (by omega) hNOB).run
+    (augRelink_spec (B := B) (n := n) (W := W) (lw := lw) (NO := NO) (NT := NT) (by omega)
+        (by omega) (by omega) hlwW hNOB).run
       ⟨hnc, hlwc, hnoff', hntg', run_mem_arrs_lt rc "ntg" (run_mem_arrs_lt rb "ntg" hntgW),
         hszc.get (p := ("doff", n + 1)) (by simp), hszc.get (p := ("dtg", W)) (by simp),
         hszc.get (p := ("ooff", n + 1)) (by simp),
@@ -2634,41 +2704,82 @@ theorem fold_step {B n ns W d D₁ d₀ R : ℕ} {G : SimpleGraph (Fin n)} {M : 
         hszc.get (p := ("stf", n)) (by simp), hszc.get (p := ("sta", n)) (by simp),
         hszc.get (p := ("std", n)) (by simp), hszc.get (p := ("ste", n)) (by simp)⟩
   -- the new family: the chain, one round longer
+  obtain ⟨dg, hdtgdA, hdgv⟩ := hdtgd
+  set Dnew : ℕ → Augmentation.Orientation n := fun l => if l = i + 1 then D' else D l
+    with hDnew
+  have hchainN : Augmentation.IsAugChain (masked G M) Dnew (i + 1) := by
+    refine ⟨by simp only [hDnew, if_neg (show 0 ≠ i + 1 by omega)]; exact hchain.1,
+      fun l hl => ?_⟩
+    rcases Nat.lt_or_ge l i with h | h
+    · simp only [hDnew, if_neg (show l ≠ i + 1 by omega),
+        if_neg (show l + 1 ≠ i + 1 by omega)]
+      exact hchain.2 l h
+    · have hli : l = i := by omega
+      subst hli
+      simp only [hDnew, if_neg (show l ≠ l + 1 by omega), if_pos rfl]
+      exact hstep
+  have hgreedyN : ∀ l < i + 1, Augmentation.GreedyFratRound (Dnew l) (Dnew (l + 1)) := by
+    intro l hl
+    rcases Nat.lt_or_ge l i with h | h
+    · simp only [hDnew, if_neg (show l ≠ i + 1 by omega),
+        if_neg (show l + 1 ≠ i + 1 by omega)]
+      exact hgreedy l h
+    · have hli : l = i := by omega
+      subst hli
+      simp only [hDnew, if_neg (show l ≠ l + 1 by omega), if_pos rfl]
+      exact hgreedy'
+  have hD0N : (Dnew 0).InDegLE d₀ := by
+    simp only [hDnew, if_neg (show 0 ≠ i + 1 by omega)]
+    exact hD0
+  -- the NEW last orientation's arcs also fit the live width: the chain
+  -- one round longer is still greedy, so its budget is `budget (i + 1)`
+  have hbN : (Dnew (i + 1)).InDegLE (Augmentation.budget d D₁ (i + 1)) :=
+    Augmentation.greedy_chain_inDegLE hchainN
+      (hdens Dnew (i + 1) (by omega) hchainN hgreedyN) hgreedyN
+      (fun v => le_trans (hD0N v) hd₀d) (i + 1) le_rfl
+  have hbD' : D'.InDegLE (Augmentation.budget d D₁ (i + 1)) := by
+    simpa only [hDnew, if_pos rfl] using hbN
+  have hm₂lw : m₂ ≤ lw := by
+    have h1 : m₂ ≤ n * Augmentation.budget d D₁ (i + 1) :=
+      RamDriverAugment.arcs_le hincsr' hbD'
+    have h2 : Augmentation.budget d D₁ (i + 1) ≤ Augmentation.budget d D₁ R :=
+      TgtCoupling.budget_mono d D₁ (by omega)
+    have h3 : n * Augmentation.budget d D₁ (i + 1) ≤ n * Augmentation.budget d D₁ R :=
+      Nat.mul_le_mul_left n h2
+    have h4 : n * Augmentation.budget d D₁ R ≤
+        n * (Augmentation.budget d D₁ R + 1) ^ 2 :=
+      Nat.mul_le_mul_left n (by nlinarith)
+    have h5 := hWc
+    simp only [TgtCoupling.chainWidthE] at h5
+    omega
+  -- the copied prefix carries the whole structure
+  have hincsrN : RamElim.InCsr D' m₂ NO dg :=
+    RamDriverAugment.inCsr_congr_prefix hincsr' (fun j hj => hdgv j (by omega))
+  -- the `tgt` tail above the live width is still zero: the round wrote
+  -- only below its fraternity slots, which sit below `lw`
+  have htgtd : ∃ g, σd.arrs "tgt" = arrOf W g ∧ ∀ z, lw ≤ z → z < W → g z = 0 := by
+    obtain ⟨Tc', htgtc'⟩ :=
+      sizedRun rc (⟨Tc, htgtcb⟩ : ∃ g, σb.arrs "tgt" = arrOf W g)
+    refine ⟨Tc', by rw [rd.frame_arr "tgt" (by decide)]; exact htgtc', ?_⟩
+    intro z hz hzW
+    have h1 := htailRound z (le_trans hfratL hz) hzW
+    rw [htgtc', getD_arrOf Tc' hzW, htgtcb, getD_arrOf Tc hzW] at h1
+    rw [h1]
+    exact htailc z hz hzW
   refine ⟨σd, (rb.seq (rc.seq rd)).mono (by
-      have := prep_relink_le n W
+      have h1 := prep_relink_le n W
+      have h2 : relinkCostSum n lw ≤ relinkCostSum n W := by
+        simp only [relinkCostSum]; omega
       omega),
     hnd, hlwd, (hszc.run rd),
     run_mem_arrs_lt rd "ntg" (run_mem_arrs_lt rc "ntg" (run_mem_arrs_lt rb "ntg" hntgW)),
     hooffd, hnoffd, hstfd, hstad, hstdd, hsted,
     (by obtain ⟨g, hg, -⟩ := hoffd; exact ⟨g, hg⟩),
-    sizedRun rd (sizedRun rc (sizedRun rb htgtE)),
+    htgtd,
     sizedRun rd (sizedRun rc (sizedRun rb halvE)),
-    (fun l => if l = i + 1 then D' else D l), m₂, NO, NT, ?_, ?_, ?_, ?_, hm₂W,
-    (fun h => absurd h (by omega)), hdoffd, hdtgd⟩
-  · -- the chain
-    refine ⟨by simp only [if_neg (show 0 ≠ i + 1 by omega)]; exact hchain.1, fun l hl => ?_⟩
-    rcases Nat.lt_or_ge l i with h | h
-    · simp only [if_neg (show l ≠ i + 1 by omega), if_neg (show l + 1 ≠ i + 1 by omega)]
-      exact hchain.2 l h
-    · have hli : l = i := by omega
-      subst hli
-      simp only [if_neg (show l ≠ l + 1 by omega), if_pos rfl]
-      exact hstep
-  · -- the greedy rounds
-    intro l hl
-    rcases Nat.lt_or_ge l i with h | h
-    · simp only [if_neg (show l ≠ i + 1 by omega), if_neg (show l + 1 ≠ i + 1 by omega)]
-      exact hgreedy l h
-    · have hli : l = i := by omega
-      subst hli
-      simp only [if_neg (show l ≠ l + 1 by omega), if_pos rfl]
-      exact hgreedy'
-  · -- the foot of the chain
-    simp only [if_neg (show 0 ≠ i + 1 by omega)]
-    exact hD0
-  · -- the machine holds the new last orientation
-    simp only [if_pos rfl]
-    exact hincsr'
+    Dnew, m₂, NO, dg, hchainN, hgreedyN, hD0N,
+    (by simp only [hDnew, if_pos rfl]; exact hincsrN),
+    hm₂lw, (fun h => absurd h (by omega)), hdoffd, hdtgdA⟩
 
 /-- **The fold, run**: `m` rounds from stage `j`, by induction on the
 round count. -/
@@ -2806,15 +2917,19 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
     (hdens : ∀ (D : ℕ → Augmentation.Orientation n) (i : ℕ), i ≤ R →
       Augmentation.IsAugChain (masked G M) D i →
       (∀ l < i, Augmentation.GreedyFratRound (D l) (D (l + 1))) →
-      Augmentation.AugmentedDepthOneDensity D i D₁)
-    (hWc : TgtCoupling.chainWidthE n ns d D₁ R ≤ W) :
-    OrderImplementsR B n R W cap mb ns j G O T M Gm C := by
+      Augmentation.AugmentedDepthOneDensity D i D₁) :
+    OrderImplementsRL B n R W cap mb ns j d D₁ G O T M Gm C := by
   intro hB hcsr hWB _helim _haug
   refine Spec.of_exists fun σ hσ => ?_
+  obtain ⟨hσL, hWclw⟩ := hσ
   obtain ⟨hvn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCbit, hmem, hdep, hmv,
-    hordmem, hpad0, hTBW⟩ := id hσ
-  obtain ⟨hnsW, hlw, hosz, hzelm, hzbh, hzooff, hznoff, hzstf, hzsta, hzstd, hzste, hwitg,
+    hordmem, hpad0, hTBW⟩ := id hσL
+  obtain ⟨hnsW, hlwp, hosz, hzelm, hzbh, hzooff, hznoff, hzstf, hzsta, hzstd, hzste, hwitg,
     hwntg⟩ := id hordmem
+  -- the runtime live width, with the chain's budget inside it
+  obtain ⟨lw, hlw⟩ : ∃ lw, σ.vars "lw" = lw := ⟨_, rfl⟩
+  rw [hlw] at hlwp hWclw
+  obtain ⟨hlwns, hlwW⟩ := hlwp
   have hnB : n < B := hB.n_lt
   have hn1B : n + 1 < B := hB.succ_lt
   have hnsB : ns < B := hB.ns_lt
@@ -2824,9 +2939,10 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
     have := le_mul_self n; have := hB.cover; omega
   have hOB : ∀ k < n + 1, O k < B := fun k hk =>
     lt_of_le_of_lt (hcsr.csr.le_ns (by omega)) hnsB
-  -- (1) the block structure out of the way
-  obtain ⟨σ₁, r₁, hvn₁, hmv₁, hlw₁, hoff₁, htgt₁, hgof₁, hgtg₁⟩ :=
-    (RamDriverOrder.saveCsr_spec (ns := ns) hn1B hWltB hOB hTBW).run
+  -- (1) the block structure out of the way — its live prefix
+  obtain ⟨σ₁, r₁, hvn₁, hmv₁, hlw₁, hoff₁, htgt₁, hgof₁, ⟨Tg, hgtg₁, hTgpre⟩⟩ :=
+    (RamDriverOrder.saveCsr_spec (ns := ns) (lw := lw) hn1B hWltB hlwW hOB
+      (fun k hk => hTBW k (by omega))).run
       ⟨hvn, hmv, hlw, hoff, htgt, hosz.get (p := ("gof", n + 1)) (by simp),
         hosz.get (p := ("gtg", W)) (by simp)⟩
   have hsz₁ := hosz.run r₁
@@ -2893,30 +3009,38 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
     RamDriverOrder.lt_of_mem_words
       (run_mem_arrs_lt r₄ "itg" (run_mem_arrs_lt r₃ "itg"
         (run_mem_arrs_lt r₂ "itg" (run_mem_arrs_lt r₁ "itg" hwitg)))) hitg₄ hk
-  have hlw₄ : σ₄.vars "lw" = W := by
+  have hlw₄ : σ₄.vars "lw" = lw := by
     rw [r₄.frame_var "lw" (by rw [wvars_copyUpto]; decide), r₃.frame_var "lw" (by decide),
       r₂.frame_var "lw" (by rw [wvars_copyCom]; decide)]
     exact hlw₁
+  -- the arena's arcs fit the live prefix
+  have hsub : ∀ u v : Fin n, Ea.toGraph.Adj u v → G.Adj u v := by
+    intro u v h
+    rw [htoG₃] at h
+    exact (RamBfs.masked_adj.1 h).1
+  have hfit : ma + ma ≤ ns := RamDriverAugment.two_mul_arcs_le hcsr hincsr₃ hsub
   obtain ⟨σ₅, r₅, ⟨dt₅, hdt₅, hdtv₅⟩, -, -⟩ :=
-    (RamDriverOrder.copyUpto_spec (B := B) W W "itg" "dtg" (.var "lw") ITa
-        (fun τ => τ.arrs "itg" = arrOf W ITa ∧ τ.vars "lw" = W) (by omega) hWltB le_rfl
+    (copyPrefix_spec (B := B) lw W W "itg" "dtg" (.var "lw") ITa
+        (fun τ => τ.arrs "itg" = arrOf W ITa ∧ τ.vars "lw" = lw) (by omega) (by omega)
+        hlwW hlwW
         (fun _ _ hQ hv ha => ⟨(ha "itg" (by decide)).trans hQ.1,
           (hv "lw" (by decide)).trans hQ.2⟩)
         (fun τ hQ => by
           have h := evalB_var (B := B) (σ := τ) (x := "lw")
             (show τ.vars "lw" < B by rw [hQ.2]; omega)
           rw [hQ.2] at h; exact h)
-        (fun _ hQ => hQ.1) hITB).run
+        (fun _ hQ => hQ.1) (fun k hk => hITB k (by omega))).run
       ⟨hsz₄.get (p := ("dtg", W)) (by simp), hitg₄, hlw₄⟩
   have hsz₅ := hsz₄.run r₅
   have f₅ : ∀ a : String, a ∉ (copyUpto "itg" "dtg" (.var "lw")).warrs →
       σ₅.arrs a = σ₄.arrs a := fun a ha => r₅.frame_arr a ha
   have hvn₅ : σ₅.vars "n" = n := by
     rw [r₅.frame_var "n" (by rw [wvars_copyUpto]; decide)]; exact hvn₄
-  have hlw₅ : σ₅.vars "lw" = W := by
+  have hlw₅ : σ₅.vars "lw" = lw := by
     rw [r₅.frame_var "lw" (by rw [wvars_copyUpto]; decide)]; exact hlw₄
-  have hdtg₅ : σ₅.arrs "dtg" = arrOf W ITa :=
-    hdt₅.trans (RamDriverOrder.arrOf_congr hdtv₅)
+  have hdtg₅ : σ₅.arrs "dtg" = arrOf W dt₅ := hdt₅
+  have hincsr₅ : RamElim.InCsr Ea ma IOa dt₅ :=
+    RamDriverAugment.inCsr_congr_prefix hincsr₃ (fun j hj => hdtv₅ j (by omega))
   have hdoff₅ : σ₅.arrs "doff" = arrOf (n + 1) IOa := by
     rw [f₅ _ (by rw [warrs_copyUpto]; decide)]; exact hdoff₄
   -- the fold's entry invariant: the chain is one orientation long
@@ -2973,31 +3097,27 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
     rw [hframe₅ "tgt" (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide)]
     exact htgt
-  have hsub : ∀ u v : Fin n, Ea.toGraph.Adj u v → G.Adj u v := by
-    intro u v h
-    rw [htoG₃] at h
-    exact (RamBfs.masked_adj.1 h).1
-  have hfit : ma + ma ≤ ns := RamDriverAugment.two_mul_arcs_le hcsr hincsr₃ hsub
   have hka_d : ka ≤ d := hkmin₃ d hd
-  have hI0 : FoldInv B n ns W ka G M 0 σ₅ :=
+  have hI0 : FoldInv B n ns W lw ka G M 0 σ₅ :=
     ⟨hvn₅, hlw₅, hsz₅,
       run_mem_arrs_lt r₅ "ntg" (run_mem_arrs_lt r₄ "ntg" (run_mem_arrs_lt r₃ "ntg"
         (run_mem_arrs_lt r₂ "ntg" (run_mem_arrs_lt r₁ "ntg" hwntg)))),
       hooffZ₅, hnoffZ₅, hstfZ₅, hstaZ₅, hstdZ₅, hsteZ₅,
-      ⟨O, hoff₅⟩, ⟨T, htgt₅⟩, ⟨M, by rw [f₅ _ (by rw [warrs_copyUpto]; decide),
+      ⟨O, hoff₅⟩, ⟨T, htgt₅, fun z hz hzW => hpad0 z (by omega) hzW⟩,
+      ⟨M, by rw [f₅ _ (by rw [warrs_copyUpto]; decide),
         f₄ _ (by rw [warrs_copyUpto]; decide), f₃ _ (by decide)]; exact halv₂⟩,
-      (fun _ => Ea), ma, IOa, ITa,
+      (fun _ => Ea), ma, IOa, dt₅,
       ⟨horients₃, fun l hl => absurd hl (Nat.not_lt_zero l)⟩,
-      (fun l hl => absurd hl (Nat.not_lt_zero l)), hindeg₃, hincsr₃, by omega,
+      (fun l hl => absurd hl (Nat.not_lt_zero l)), hindeg₃, hincsr₅, by omega,
       (fun _ => hfit), hdoff₅, hdtg₅⟩
   -- (6) the fold: `R` rounds, the chain built round by round
   obtain ⟨σF, rF, hIF⟩ :=
-    fold_run_aux (fold_step hWB hka_d hdens hWc) R 0 (by omega) σ₅ hI0
-  have hIF' : FoldInv B n ns W ka G M R σF := by simpa using hIF
+    fold_run_aux (fold_step hWB hka_d hlwW hdens hWclw) R 0 (by omega) σ₅ hI0
+  have hIF' : FoldInv B n ns W lw ka G M R σF := by simpa using hIF
   obtain ⟨hvnF, hlwF, hszF, hntgWF, ⟨gOo, hgOo, hzOo⟩, hnoffZF, hstfZF, hstaZF, hstdZF,
     hsteZF,
-    hoffEF, htgtEF, halvEF, D, mR, DO, DT, hchainR, hgreedyR, hD0F, hincsrR, hmRW, hmR0,
-    hdoffF, hdtgF⟩ := hIF'
+    hoffEF, ⟨TF, hTF, hTFtail⟩, halvEF, D, mR, DO, DT, hchainR, hgreedyR, hD0F, hincsrR,
+    hmRlw, hmR0, hdoffF, hdtgF⟩ := hIF'
   have fF : ∀ a : String, a ∉ augRoundCom.warrs → σF.arrs a = σ₅.arrs a := by
     intro a ha
     refine rF.frame_arr a fun h => ha ?_
@@ -3011,7 +3131,9 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
     Augmentation.greedy_chain_inDegLE hchainR (hdens D R le_rfl hchainR hgreedyR) hgreedyR
       (fun v => le_trans (hD0F v) hka_d) R le_rfl
   have hmRn : mR ≤ n * Augmentation.budget d D₁ R := RamDriverAugment.arcs_le hincsrR hbR
-  have h2mW : mR + mR ≤ W := by
+  -- twice the chain's arcs fit the LIVE width: the tail above `lw`
+  -- survives the symmetrization
+  have h2mLw : mR + mR ≤ lw := by
     have hb2 : n * (2 * Augmentation.budget d D₁ R) ≤
         n * ((Augmentation.budget d D₁ R + 1) ^ 2) :=
       Nat.mul_le_mul_left n (by nlinarith)
@@ -3021,9 +3143,9 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
     have h1 : n * (2 * Augmentation.budget d D₁ R) = n * Augmentation.budget d D₁ R
         + n * Augmentation.budget d D₁ R := by ring
     omega
+  have h2mW : mR + mR ≤ W := le_trans h2mLw hlwW
   -- (7) the chain's last orientation, symmetrized into `off`/`tgt`
-  obtain ⟨TF, hTF⟩ := htgtEF
-  obtain ⟨σ₇, K₇, Os, Ts, r₇, hK₇, hoffS, htgtS, hcsrS, -, hfaS, hfvS⟩ :=
+  obtain ⟨σ₇, K₇, Os, Ts, r₇, hK₇, hoffS, htgtS, hcsrS, htailS, hfaS, hfvS⟩ :=
     RamDriverAugment.symPass_run (B := B) (W := W) (nt := W) (m := mR) (D := D R)
       (DO := DO) (DT := DT) (σ := σF) hn1B (by omega) (by omega) h2mW hvnF hincsrR
       hdoffF hdtgF ⟨gOo, hgOo, hzOo⟩ (hszF.get (p := ("ofl", n)) (by simp))
@@ -3031,7 +3153,7 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
   have hsz₇ := hszF.run r₇
   have hvn₇ : σ₇.vars "n" = n := by
     rw [hfvS "n" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hvnF
-  have hlw₇ : σ₇.vars "lw" = W := by
+  have hlw₇ : σ₇.vars "lw" = lw := by
     rw [hfvS "lw" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hlwF
   have hmv₅ : σ₅.vars "m" + σ₅.vars "m" = ns := by
     rw [r₅.frame_var "m" (by rw [wvars_copyUpto]; decide),
@@ -3054,7 +3176,7 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
       f₅ _ (by rw [warrs_copyUpto]; decide), f₄ _ (by rw [warrs_copyUpto]; decide),
       f₃ _ (by decide), f₂ _ (lit_notMem_copyCom_alv j "gof")]
     exact hgof₁
-  have hgtgF : σF.arrs "gtg" = arrOf W T := by
+  have hgtgF : σF.arrs "gtg" = arrOf W Tg := by
     rw [fF "gtg" (by
         intro h
         have := mem_warrs_augRoundCom _ h
@@ -3064,7 +3186,7 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
     exact hgtg₁
   have hgof₇ : σ₇.arrs "gof" = arrOf (n + 1) O := by
     rw [hfaS "gof" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hgofF
-  have hgtg₇ : σ₇.arrs "gtg" = arrOf W T := by
+  have hgtg₇ : σ₇.arrs "gtg" = arrOf W Tg := by
     rw [hfaS "gtg" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hgtgF
   -- (8) everything alive again
   obtain ⟨σ₈, r₈, ⟨A, hA₈, hA₈v⟩, -, hvn₈⟩ :=
@@ -3107,17 +3229,23 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
     rw [r₁₀.frame_var "m" (by decide), r₉.frame_var "m" (by decide),
       r₈.frame_var "m" (by decide)]
     exact hmv₇
-  have hlw₁₀ : σ₁₀.vars "lw" = W := by
+  have hlw₁₀ : σ₁₀.vars "lw" = lw := by
     rw [r₁₀.frame_var "lw" (by decide), r₉.frame_var "lw" (by decide),
       r₈.frame_var "lw" (by decide)]
     exact hlw₇
+  have htgt₁₀ : σ₁₀.arrs "tgt" = arrOf W Ts := by
+    rw [f₁₀ _ (by decide), f₉ _ (by decide), f₈ _ (by decide)]
+    exact htgtS
   obtain ⟨σ₁₁, r₁₁, hvn₁₁, -, -, -, -, hoff₁₁, htgt₁₁⟩ :=
-    (RamDriverOrder.restoreCsr_spec (ns := ns) hn1B hWltB hOB hTBW).run
+    (RamDriverOrder.restoreCsr_spec (ns := ns) (lw := lw) (T := T) hn1B hWltB hlwW hOB
+      (fun k hk => by rw [hTgpre k hk]; exact hTBW k (by omega)) hTgpre
+      (fun z hz hzW => by
+        rw [htailS z (by omega) hzW, hTFtail z hz hzW, hpad0 z (by omega) hzW])).run
       ⟨hvn₁₀, hmv₁₀, hlw₁₀,
         by rw [f₁₀ _ (by decide), f₉ _ (by decide), f₈ _ (by decide)]; exact hgof₇,
         by rw [f₁₀ _ (by decide), f₉ _ (by decide), f₈ _ (by decide)]; exact hgtg₇,
         sizedRun r₁₀ (sizedRun r₉ (sizedRun r₈ ⟨Os, hoffS⟩)),
-        sizedRun r₁₀ (sizedRun r₉ (sizedRun r₈ ⟨Ts, htgtS⟩))⟩
+        htgt₁₀⟩
   have hsz₁₁ := hsz₁₀.run r₁₁
   have f₁₁ : ∀ a : String, a ∉ (restoreCsr).warrs → σ₁₁.arrs a = σ₁₀.arrs a :=
     fun a ha => r₁₁.frame_arr a ha
@@ -3162,7 +3290,7 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
       (r₁₀.seq (r₁₁.seq (r₁₂.seq r₁₃)))))))))))
   refine ⟨ρ, _, hrT, ?_, ⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCbit, levelMem_run hrT hmem,
       hdep.run hrT, ?_,
-      ⟨hnsW, by rw [hrT.frame_var "lw" lw_notMem_orderCom]; exact hlw,
+      ⟨hnsW, by rw [hrT.frame_var "lw" lw_notMem_orderCom, hlw]; exact ⟨hlwns, hlwW⟩,
         hosz.run hrT, z₁, z₂, z₃, z₄, z₅, z₆, z₇, z₈,
         run_mem_arrs_lt hrT "itg" hwitg, run_mem_arrs_lt hrT "ntg" hwntg⟩, hpad0, hTBW⟩,
     hrT.out_eq (noWrite_orderCom R j),

@@ -438,14 +438,16 @@ theorem orderPhaseCostR_honest_at_chainWidthE (n ns d D₁ R : ℕ) :
       orderCostA (bsq d D₁ R) R (n + ns) :=
   orderPhaseCostR_le_orderCostA (one_le_bsq d D₁ R) (chainWidthE_le_linear n ns d D₁ R)
 
-/-- **The §2.1 discharge at the real surface** (rebase G2/E2). With
-`orderImplementsR`'s `hWc` now reading `TgtCoupling.chainWidthE`, the
-whole `R`-round ordering phase is discharged at the PROPOSED
-arena-charged cost `orderCostA (bsq d D₁ R) R (n + ns)` for every
-allocation width inside the arena-linear bound — the exact obligation
-shape E6 re-threads the root's `hKo` slot to. Nothing here is a new
-walk: the phase is `RamDriverCompose.orderImplementsR` and the budget
-step is `orderPhaseCostR_le_orderCostA`, both landed. -/
+/-- **The §2.1 discharge at the real surface** (rebase G2/E2; restated
+at the live width, E2b). With the live-prefix copies landed, the
+`R`-round phase obligation is `RamDriverCompose.OrderImplementsRL` —
+the same Spec plus the `chainWidthE ≤ lw` pre-clause — and this is that
+obligation's Spec discharged at the PROPOSED arena-charged cost
+`orderCostA (bsq d D₁ R) R (n + ns)` for every allocation width inside
+the arena-linear bound — the exact obligation shape E6 re-threads the
+root's `hKo` slot to. Nothing here is a new walk: the phase is
+`RamDriverCompose.orderImplementsR` and the budget step is
+`orderPhaseCostR_le_orderCostA`, both landed. -/
 theorem orderImplementsR_at_orderCostA {B cap mb ns W j R d D₁ : ℕ} {n : ℕ}
     {G : SimpleGraph (Fin n)} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ}
     (hd : Augmentation.LowDegreeVertices (RamBfs.masked G M) d)
@@ -453,15 +455,22 @@ theorem orderImplementsR_at_orderCostA {B cap mb ns W j R d D₁ : ℕ} {n : ℕ
       Augmentation.IsAugChain (RamBfs.masked G M) D i →
       (∀ l < i, Augmentation.GreedyFratRound (D l) (D (l + 1))) →
       Augmentation.AugmentedDepthOneDensity D i D₁)
-    (hWc : TgtCoupling.chainWidthE n ns d D₁ R ≤ W)
-    (hWl : W ≤ bsq d D₁ R * (n + ns + 1)) :
-    RamDriver.OrderImplements B n R W cap mb ns j G O T M Gm C
-      (RamDriverCompose.OrderP R G M) (orderCostA (bsq d D₁ R) R (n + ns)) := by
-  intro hwb hcsr hB he ha
-  have h : RamDriver.OrderImplements B n R W cap mb ns j G O T M Gm C
-      (RamDriverCompose.OrderP R G M) (RamDriverCompose.orderPhaseCostR n ns W R) :=
-    RamDriverCompose.orderImplementsR hd hdens hWc
-  exact (h hwb hcsr hB he ha).mono
+    (hWl : W ≤ bsq d D₁ R * (n + ns + 1))
+    (hwb : RamDriver.WordBound B n ns cap mb) (hcsr : RamElim.CsrSimple G ns O T)
+    (hB : n + W + 1 < B) (he : RamDriver.ElimAvail B n) (ha : RamDriver.AugAvail B n) :
+    Lax13Proofs.Reasoning.Spec B
+      (fun σ => RamDriver.LevelPre B n cap mb ns W O T j M Gm C σ ∧
+        TgtCoupling.chainWidthE n ns d D₁ R ≤ σ.vars "lw")
+      (RamDriver.orderCom R j)
+      (fun σ σ' => RamDriver.LevelPre B n cap mb ns W O T j M Gm C σ' ∧
+        σ'.out = σ.out ∧
+        (∀ a : ℕ, σ'.vars (RamDriver.ctrName a) = σ.vars (RamDriver.ctrName a)) ∧
+        (∀ a : ℕ, σ'.arrs (RamDriver.gamName a) = σ.arrs (RamDriver.gamName a)) ∧
+        ∃ (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ),
+          σ'.arrs (RamDriver.ordName j) = Lax13Proofs.Reasoning.arrOf n ord ∧
+          RamCover.OrdersBy n π ord ∧ RamDriverCompose.OrderP R G M π ord)
+      (orderCostA (bsq d D₁ R) R (n + ns)) :=
+  (RamDriverCompose.orderImplementsR hd hdens hwb hcsr hB he ha).mono
     (orderPhaseCostR_le_orderCostA (one_le_bsq d D₁ R) hWl)
 
 /-- **Cover engines honest**: the per-centre cover cost is

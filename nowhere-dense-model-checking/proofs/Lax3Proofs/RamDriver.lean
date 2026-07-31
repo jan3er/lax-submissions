@@ -2238,8 +2238,17 @@ memory holds words. Neither clause is a frame condition — a bounded run
 stores only words, so `run_mem_arrs_lt` carries both across any pass —
 which is what lets them sit in a clause a level hands back.
 
-**The live-width scalar** `σ.vars "lw" = W` is the second conjunct, and
-it is what makes the driver ONE program (rebase G2/E1).
+**The live-width scalar** is the second conjunct — since rebase G2/E2b
+the *bounds pair* `ns ≤ lw ≤ W`, no longer the pin `lw = W`: the two
+block-structure copies walk only the `lw`-cell live prefix of the
+`W`-cell arrays (`RamDriverOrder.csrCopy_spec`), so the scalar is a
+genuine runtime dial between the slot count and the allocation width,
+and the copies' cost reads `14·lw`. At `R = 0` any value in the range
+serves; at `R = R*` the R\*-obligation adds the guard
+`TgtCoupling.chainWidthE ≤ lw` (`RamDriverCompose.OrderImplementsRL`),
+without which the chain overruns the preserved prefix —
+`TgtWidenProbe`'s `lw = ns` boundary run is that refutation, compiled.
+The clause is what makes the driver ONE program (rebase G2/E1).
 `Lax3.ModelChecking`'s statement fixes the program before the input, and
 until this clause the two block-structure copies read the allocation
 width as a *literal of the text* — `Refine.G2CostProbe`'s uniformity
@@ -2255,7 +2264,7 @@ driver assigns `"lw"` (`RamDriverCompose.lw_notMem_orderCom`,
 `lw_notMem_augCom`). Its *producer* is the root prologue, which is where
 the allocation of the `W`-wide arrays this clause sizes also happens. -/
 def OrderMem (B n ns W : ℕ) (σ : Env) : Prop :=
-  ns ≤ W ∧ σ.vars "lw" = W ∧
+  ns ≤ W ∧ (ns ≤ σ.vars "lw" ∧ σ.vars "lw" ≤ W) ∧
   Sized [("doff", n + 1), ("dtg", W), ("ooff", n + 1), ("otg", W), ("ofl", n),
       ("gof", n + 1), ("gtg", W), ("ffl", n), ("deg", n), ("rnk", n), ("idg", n),
       ("bh", n + 1), ("bv", n + W + 1), ("bn", n + W + 1), ("ioff", n + 1), ("ifl", n),
@@ -2272,8 +2281,9 @@ The arrays are untouched by a scalar assignment and the one var clause
 is about `"lw"` alone. -/
 theorem OrderMem.setVar {B n ns W : ℕ} {σ : Env} (h : OrderMem B n ns W σ) (x : String)
     (hx : x ≠ "lw") (k : ℕ) : OrderMem B n ns W (σ.setVar x k) := by
-  obtain ⟨hle, hlw, hosz, hz⟩ := h
-  exact ⟨hle, by rw [vars_setVar, if_neg (Ne.symm hx)]; exact hlw,
+  obtain ⟨hle, ⟨hlw₁, hlw₂⟩, hosz, hz⟩ := h
+  exact ⟨hle, ⟨by rw [vars_setVar, if_neg (Ne.symm hx)]; exact hlw₁,
+      by rw [vars_setVar, if_neg (Ne.symm hx)]; exact hlw₂⟩,
     fun p hp => by simpa using hosz p hp, by simpa using hz⟩
 
 /-- The block structure, the two masks and the memory of a depth, as

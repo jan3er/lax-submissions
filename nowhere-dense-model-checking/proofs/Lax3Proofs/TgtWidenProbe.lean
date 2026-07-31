@@ -830,4 +830,113 @@ def ordERun : PRes := exec pB pF (RamDriver.orderCom 1 0) ordStE
   (List.range 5).map (ord1Run.cell (RamDriver.ordName 0))
 #guard (List.range 8).map (ordERun.cell "tgt") = [1, 2, 3, 4, 0, 0, 0, 0]
 
+/-! ### The clock (rebase G2/E2b)
+
+The live-prefix shrink is a COST claim — the restated copy
+specifications charge `14·lw`, not `14·W` — so the probe gets a clock:
+a cost-carrying twin of `exec`, mirroring `Lax13Proofs.BigStepB`'s cost
+algebra rule for rule (`skip` 1, assign `1 + e.size`, store
+`1 + i.size + e.size`, sequence sums, branch `1 + b.size` plus the arm,
+each loop test `1 + b.size`, read `1`, write `1 + e.size`). The gate:
+the SAME `K₁,₄` state, the same text, and only the `"lw"` dial moved —
+the run at `lw = 20` must clock STRICTLY below the run at `lw = 64`.
+If the restated specifications had still charged the allocation width,
+this differential would be zero and the wave pointless. -/
+
+/-- `exec` with `Lax13Proofs.BigStepB`'s clock carried along. -/
+def execC (B : ℕ) : ℕ → Com → PSt → PRes × ℕ
+  | 0, _, _ => (.fuel, 0)
+  | _ + 1, .skip, σ => (.ok σ, 1)
+  | _ + 1, .assign x e, σ =>
+      match evalE B e σ with
+      | some v => (.ok ⟨setV σ.vars x v, σ.arrs, σ.inp⟩, 1 + e.size)
+      | none => (.stuck, 0)
+  | _ + 1, .store a i e, σ =>
+      match evalE B i σ, evalE B e σ with
+      | some k, some v =>
+          if k < (getA σ.arrs a).length
+          then (.ok ⟨σ.vars, setA σ.arrs a k v, σ.inp⟩, 1 + i.size + e.size)
+          else (.stuck, 0)
+      | _, _ => (.stuck, 0)
+  | f + 1, .seq c d, σ =>
+      match execC B f c σ with
+      | (.ok σ', k) =>
+          match execC B f d σ' with
+          | (r, k') => (r, k + k')
+      | r => r
+  | f + 1, .ite b c d, σ =>
+      match evalC B b σ with
+      | some true =>
+          match execC B f c σ with
+          | (r, k) => (r, 1 + b.size + k)
+      | some false =>
+          match execC B f d σ with
+          | (r, k) => (r, 1 + b.size + k)
+      | none => (.stuck, 0)
+  | f + 1, .while b c, σ =>
+      match evalC B b σ with
+      | some true =>
+          match execC B f c σ with
+          | (.ok σ', k) =>
+              match execC B f (.while b c) σ' with
+              | (r, k') => (r, 1 + b.size + k + k')
+          | (r, k) => (r, 1 + b.size + k)
+      | some false => (.ok σ, 1 + b.size)
+      | none => (.stuck, 0)
+  | _ + 1, .read x, σ =>
+      match σ.inp with
+      | v :: rest =>
+          if v < B then (.ok ⟨setV σ.vars x v, σ.arrs, rest⟩, 1) else (.stuck, 0)
+      | [] => (.stuck, 0)
+  | _ + 1, .write e, σ =>
+      match evalE B e σ with
+      | some _ => (.ok σ, 1 + e.size)
+      | none => (.stuck, 0)
+
+/-- The tainted `K₁,₄` state at the full dial: `ordStLive` with only the
+scalar moved back to the allocation width — the exact same memory, so
+the clock differential isolates the dial. -/
+def ordStLiveFull : PSt :=
+  { ordStLive with vars := [("n", 5), ("m", 4), ("lw", 64)] }
+
+/-- The phase's clock at the live width `20`. -/
+def ordLiveClock : PRes × ℕ := execC pB pF (RamDriver.orderCom 1 0) ordStLive
+
+/-- The same phase's clock with only the dial at `64`. -/
+def ordFullClock : PRes × ℕ := execC pB pF (RamDriver.orderCom 1 0) ordStLiveFull
+
+-- the clocked interpreter completes where `exec` does, on both dials
+#guard ordLiveClock.1.isOk
+#guard ordFullClock.1.isOk
+
+-- **the wave's gate**: same state, same text, only the live-width dial
+-- moved — the `lw = 20` run clocks strictly below the `lw = 64` run.
+-- The copies walk the live prefix; the cost saving is real, on data.
+#guard ordLiveClock.2 < ordFullClock.2
+
+-- and against the untainted allocation-width run of the E1/E2 gates:
+-- same strict saving
+#guard ordLiveClock.2 < (execC pB pF (RamDriver.orderCom 1 0) ordSt).2
+
+/-! ### The bounds pair, satisfiable at the empty carrier (rebase G2/E2b)
+
+`RamDriver.OrderMem`'s live-width clause is now `ns ≤ lw ≤ W` — checked
+here BEFORE the restatement landed (refute-before-prove, the E1
+`n = 0` pattern): at `n = ns = W = 0` the pair forces `lw = 0`, and the
+all-empty memory with the one-cell offset arrays inhabits the whole
+clause, so the strengthening excludes no reachable state. -/
+
+/-- The empty-carrier memory: every scalar `0`, the six offset arrays
+and the two bucket arrays at their one-cell lengths, all else empty. -/
+def ordEnv0 : Env :=
+  ⟨fun _ => 0,
+   fun a => if a = "doff" ∨ a = "ooff" ∨ a = "gof" ∨ a = "bh" ∨ a = "ioff" ∨
+       a = "noff" ∨ a = "bv" ∨ a = "bn" then [0] else [],
+   [], []⟩
+
+example : RamDriver.OrderMem 2 0 0 0 ordEnv0 := by
+  refine ⟨le_rfl, ⟨le_rfl, le_rfl⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+    simp [ordEnv0, RamDriver.Sized, Lax13Proofs.Reasoning.arrOf] <;>
+    exact ⟨fun _ => 0, rfl⟩
+
 end Lax3Proofs.TgtWidenProbe

@@ -77,3 +77,7 @@ import Lax3Proofs.Refine.BlockLeaves
 import Lax3Proofs.RamDriverDedup
 import Lax3Proofs.Refine.G2CostProbe
 import Lax3Proofs.Refine.MassWeight
+import Lax3Proofs.Refine.CoverBlock
+import Lax3Proofs.Refine.BfsBlock
+import Lax3Proofs.Refine.BfsBlockCost
+import Lax3Proofs.Refine.BfsBlockDiff

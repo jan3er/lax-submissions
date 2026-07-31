@@ -3118,11 +3118,12 @@ theorem fratFill_run {nf nt : ℕ} {FT₀ : ℕ → ℕ}
     ∃ σ' K, Run B RamAugment.fratFill σ σ' K ∧
       K ≤ (43 * d + 46) * m + 38 * n + 8 ∧ NestArr n W DO DT OO OT σ' ∧
       (∃ g, σ'.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
-      (∃ FT, σ'.arrs "tgt" = arrOf nt FT ∧ ∀ u < n,
+      (∃ FT, σ'.arrs "tgt" = arrOf nt FT ∧ (∀ u < n,
         (∀ q, RamElim.psum (fratDeg D) u ≤ q → q < RamElim.psum (fratDeg D) (u + 1) →
           FT q ∈ fratSet D u) ∧
         (∀ z ∈ fratSet D u, ∃ q, RamElim.psum (fratDeg D) u ≤ q ∧
           q < RamElim.psum (fratDeg D) (u + 1) ∧ FT q = z)) ∧
+        (∀ z, nf ≤ z → z < nt → FT z = FT₀ z)) ∧
       (∀ a, a ≠ "stf" → a ≠ "tgt" → a ≠ "ffl" → σ'.arrs a = σ.arrs a) ∧
       (∀ y, y ≠ "i" → y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" → y ≠ "u" →
         σ'.vars y = σ.vars y) := by
@@ -3136,9 +3137,10 @@ theorem fratFill_run {nf nt : ℕ} {FT₀ : ℕ → ℕ}
     NestArr n W DO DT OO OT τ ∧
     (∃ g, τ.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
     (∃ f, τ.arrs "ffl" = arrOf n f ∧ ∀ k, i ≤ k → f k = FO k) ∧
-    (∃ FT, τ.arrs "tgt" = arrOf nt FT ∧ ∀ u < i,
+    (∃ FT, τ.arrs "tgt" = arrOf nt FT ∧ (∀ u < i,
       (∀ q, FO u ≤ q → q < FO (u + 1) → FT q ∈ fratSet D u) ∧
-      (∀ z ∈ fratSet D u, ∃ q, FO u ≤ q ∧ q < FO (u + 1) ∧ FT q = z)) with hI
+      (∀ z ∈ fratSet D u, ∃ q, FO u ≤ q ∧ q < FO (u + 1) ∧ FT q = z)) ∧
+      (∀ z, nf ≤ z → z < nt → FT z = FT₀ z)) with hI
   have hstep : ∀ i, i < n → ∀ τ, I i τ →
       ∃ τ' K, Run B (.seq (.store "stf" (.var "i") (.lit 1))
           (.seq (RamAugment.fratScan (fratGuard
@@ -3149,7 +3151,7 @@ theorem fratFill_run {nf nt : ℕ} {FT₀ : ℕ → ℕ}
         K ≤ (43 * d + 46) * (OO (i + 1) - OO i) + 30 ∧ τ'.vars "i" = i ∧
         I (i + 1) (τ'.setVar "i" (i + 1)) := by
     intro i hi τ hτ
-    obtain ⟨hiv, -, harrτ, ⟨gs, hgs, hgz⟩, ⟨f, hf, hfk⟩, ⟨FT, hFT, hFTI⟩⟩ := hτ
+    obtain ⟨hiv, -, harrτ, ⟨gs, hgs, hgz⟩, ⟨f, hf, hfk⟩, ⟨FT, hFT, hFTI, hFTtl⟩⟩ := hτ
     have hEs : fratSet D i = valSet (RamAugment.fratNbrs D ⟨i, hi⟩) := fratSet_eq hi
     have hEcard : FO i + (fratSet D i).card = FO (i + 1) := by
       rw [card_fratSet, hFOsucc]
@@ -3260,7 +3262,7 @@ theorem fratFill_run {nf nt : ℕ} {FT₀ : ℕ → ℕ}
         by_cases hkz : k = i
         · rw [if_pos hkz]
         · rw [if_neg hkz]; exact hg₄z k hk hkz⟩,
-      ⟨f', ?_, ?_⟩, ⟨G, ?_, ?_⟩⟩
+      ⟨f', ?_, ?_⟩, ⟨G, ?_, ?_, ?_⟩⟩
     · rw [arrs_setVar, hτ₅, arrs_setArr, if_neg (by decide), hfa₄ "ffl" (by decide)]
       exact hf'a
     · intro k hk
@@ -3284,6 +3286,11 @@ theorem fratFill_run {nf nt : ℕ} {FT₀ : ℕ → ℕ}
         refine ⟨fun q h₁ h₂ => hG₁ q h₁ (by rw [hEcard']; exact h₂), fun z hz => ?_⟩
         obtain ⟨q, hq₁, hq₂, hq₃⟩ := hG₂ z hz
         exact ⟨q, hq₁, by rw [← hEcard']; exact hq₂, hq₃⟩
+    -- the padding above the fraternity slots: every store of the row is
+    -- below `FO (i + 1) ≤ nf`, so the tail is the entry's
+    · intro z hz hznt
+      rw [hG₃ z (Or.inr (by rw [hEcard']; exact le_trans (hFOle (i + 1) (by omega)) hz))]
+      exact hFTtl z hz hznt
   obtain ⟨σ', K, hrun, hK, hIn⟩ :=
     forVerts_run (B := B) (n := n)
       (costs := fun i => (43 * d + 46) * (OO (i + 1) - OO i) + 30) (I := I) (σ := σ) hnB
@@ -3291,7 +3298,7 @@ theorem fratFill_run {nf nt : ℕ} {FT₀ : ℕ → ℕ}
       ⟨by simp, by omega, harr.setVar "i" (by decide) 0,
         ⟨gs₀, by simpa using hgs₀, hgz₀⟩,
         ⟨FO, by simpa using hffl, fun k _ => rfl⟩,
-        ⟨FT₀, by simpa using htgt, fun u hu => absurd hu (by omega)⟩⟩
+        ⟨FT₀, by simpa using htgt, fun u hu => absurd hu (by omega), fun z _ _ => rfl⟩⟩
   obtain ⟨-, -, harr', hstf', -, htgt'⟩ := hIn
   refine ⟨σ', K, hrun, le_trans hK ?_, harr', hstf', htgt',
     fun a h1 h2 h3 => hrun.frame_arr a ?_,
@@ -3364,7 +3371,8 @@ theorem fratPass_run {nf nt : ℕ}
       (∃ g, σ'.arrs "stf" = arrOf n g ∧ ∀ k < n, g k = 0) ∧
       σ'.arrs "off" = arrOf (n + 1) (RamElim.psum (fratDeg D)) ∧
       (∃ FT, σ'.arrs "tgt" = arrOf nt FT ∧
-        CsrSimple (fratGraph D) nf (RamElim.psum (fratDeg D)) FT) ∧
+        CsrSimple (fratGraph D) nf (RamElim.psum (fratDeg D)) FT ∧
+        (∀ z, nf ≤ z → z < nt → FT z = (σ.arrs "tgt").getD z 0)) ∧
       σ'.vars "mf" = nf ∧
       (∀ a, a ≠ "stf" → a ≠ "off" → a ≠ "tgt" → a ≠ "ffl" → σ'.arrs a = σ.arrs a) ∧
       (∀ y, y ≠ "i" → y ≠ "c" → y ≠ "j" → y ≠ "jend" → y ≠ "w" → y ≠ "q" → y ≠ "qe" →
@@ -3418,9 +3426,10 @@ theorem fratPass_run {nf nt : ℕ}
   · obtain ⟨g, hg, hz⟩ := hstf₃
     exact ⟨g, by rw [arrs_setVar]; exact hg, hz⟩
   · rw [arrs_setVar]; exact hoff₃
-  · obtain ⟨FT, hFTa, hFTb⟩ := htgt₃
+  · obtain ⟨FT, hFTa, hFTb, hFTtl⟩ := htgt₃
     refine ⟨FT, by rw [arrs_setVar]; exact hFTa, ⟨⟨RamElim.psum_zero _, hFOn,
-      fun i _ => RamElim.psum_mono _ (by omega), ?_, ?_⟩, ?_⟩⟩
+      fun i _ => RamElim.psum_mono _ (by omega), ?_, ?_⟩, ?_⟩,
+      fun z hz hznt => by rw [hFTtl z hz hznt, hFT₀, getD_arrOf FT₀ hznt]⟩
     · intro j hj
       obtain ⟨w, hw, ha, hb⟩ :=
         RamElim.exists_block (ID := fratDeg D) (m := n) (t := j) (by rw [hFOn]; exact hj)
@@ -5021,7 +5030,10 @@ theorem implementsCore {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ →
     (hnW : n < W) (hdmW : d * m ≤ W) (hnfWs : RamAugment.fratSlots D < W)
     (hcap : ∀ ρ : Fin n → ℕ, RamElim.psum (augDeg D ρ) n ≤ W) :
     Spec B (RamAugment.AugPreW n nt W DO DT) RamAugment.augCom
-      (RamAugment.AugMem n W D) (RamAugment.augCost n W) := by
+      (fun σ σ' => RamAugment.AugMem n W D σ σ' ∧
+        ∀ z, RamAugment.fratSlots D ≤ z → z < nt →
+          (σ'.arrs "tgt").getD z 0 = (σ.arrs "tgt").getD z 0)
+      (RamAugment.augCost n W) := by
   classical
   obtain ⟨nf, hnf⟩ : ∃ nf, RamAugment.fratSlots D = nf := ⟨_, rfl⟩
   rw [hnf] at hntW hnfWs
@@ -5042,7 +5054,7 @@ theorem implementsCore {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ →
   have harr₁ : NestArr n W DO DT (outOff DT m) OT σ₁ :=
     ⟨hScat.1, hScat.2.1.offArr, hScat.2.1.tgtArr, hbo.offArr, hbo.tgtArr⟩
   -- (2) the fraternity graph
-  obtain ⟨σ₂, K₂, hr₂, hK₂, harr₂, hstf₂, hoff₂, ⟨FT, hFT, hcsrF⟩, hmf₂, hfa₂, hfv₂⟩ :=
+  obtain ⟨σ₂, K₂, hr₂, hK₂, harr₂, hstf₂, hoff₂, ⟨FT, hFT, hcsrF, hFTtl⟩, hmf₂, hfa₂, hfv₂⟩ :=
     fratPass_run (B := B) (n := n) (d := d) (W := W) (m := m) (D := D) (DO := DO)
       (DT := DT) (OO := outOff DT m) (OT := OT) (σ := σ₁) (nf := nf) (nt := nt)
       (by omega) (by omega) (by omega) hntf hcsr hdeg hmW hbo hsnd hcmp hnf harr₁
@@ -5165,7 +5177,7 @@ theorem implementsCore {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ →
   have harr₄ : AsmArr n W DO DT (outOff DT m) OT IO IT σ₄ :=
     ⟨⟨hn₄, hdoff₄, hdtg₄, hooff₄, hotg₄⟩, hioff₄, hitg₄⟩
   -- (5) the assembly
-  obtain ⟨σ₅, K₅, hr₅, hK₅, hrnk₅, hnoff₅, ⟨NT, hntg₅, hincsr₅⟩, hmn₅, -, hfv₅⟩ :=
+  obtain ⟨σ₅, K₅, hr₅, hK₅, hrnk₅, hnoff₅, ⟨NT, hntg₅, hincsr₅⟩, hmn₅, hfa₅, hfv₅⟩ :=
     asmPass_run (B := B) (n := n) (d := d) (W := W) (m := m) (me := mm) (D := D)
       (ρ := fun v : Fin n => R (v : ℕ)) (DO := DO) (DT := DT) (OO := outOff DT m)
       (OT := OT) (IO := IO) (IT := IT) (R := R) (σ := σ₄)
@@ -5199,10 +5211,18 @@ theorem implementsCore {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ →
           (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hg⟩)
   refine ⟨σ₅, K₁ + (K₂ + (K₃ + (elimCost n nf + K₅))),
     hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq hr₅))), ?_,
-    R, RamElim.psum (augDeg D (fun v : Fin n => R (v : ℕ))),
-    NT, k, RamElim.psum (augDeg D (fun v : Fin n => R (v : ℕ))) n,
-    hrnk₅, ?_, hnoff₅, hntg₅, hmn₅,
-    hcap _, hcert, hincsr₅⟩
+    ⟨R, RamElim.psum (augDeg D (fun v : Fin n => R (v : ℕ))),
+      NT, k, RamElim.psum (augDeg D (fun v : Fin n => R (v : ℕ))) n,
+      hrnk₅, ?_, hnoff₅, hntg₅, hmn₅,
+      hcap _, hcert, hincsr₅⟩,
+    -- the target array's tail above the fraternity slots: the fill kept
+    -- it, and no other pass of the round touches `tgt`
+    fun z hz hznt => by
+      have hz' : nf ≤ z := by rw [← hnf]; exact hz
+      rw [hfa₅ "tgt" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
+        hr₄.frame_arr "tgt" (by decide), hfa₃ "tgt" (by decide), hFT,
+        getD_arrOf FT hznt, hFTtl z hz' hznt,
+        hfa₁ "tgt" (by decide) (by decide) (by decide)]⟩
   · have hcost : RamAugment.augCost n W = 8000 * (n + W + 1) := rfl
     have hec : elimCost n nf = 600 * n + 600 * nf + 100 := rfl
     have e1 : (80 * d + 92) * m = 80 * (d * m) + 92 * m := by ring
@@ -5230,8 +5250,8 @@ theorem implementsW {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → �
     omega
   have hnfW : RamAugment.fratSlots D < W :=
     lt_of_lt_of_le (RamAugment.fratSlots_lt_augWidth hdeg) hW
-  exact implementsCore hcsr hdeg hntf hmW hB hnW hdmW hnfW
-    (fun ρ => le_trans (sum_augDeg_le D ρ) (by omega))
+  exact (implementsCore hcsr hdeg hntf hmW hB hnW hdmW hnfW
+    (fun ρ => le_trans (sum_augDeg_le D ρ) (by omega))).post (fun _ _ _ h => h.1)
 
 /-- **The round's widened Hoare triple at the degree-aware width**
 (rebase G2/E2). The `augWidth n d ≤ W` hypothesis — whose `n · n` term
@@ -5263,20 +5283,40 @@ theorem implementsWE {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → �
     have h1 : RamAugment.fratSlots D ≤ n * (d * d) := RamAugment.fratSlots_le hdeg
     have h3 : n * (d * d) ≤ n * (d + 1) ^ 2 := Nat.mul_le_mul_left n (by nlinarith)
     omega
-  exact implementsCore hcsr hdeg hntf hmW hB hnW hdmW hnfW
-    (fun ρ => le_trans (sum_augDeg_le_deg ρ hdeg) hcapW)
+  exact (implementsCore hcsr hdeg hntf hmW hB hnW hdmW hnfW
+    (fun ρ => le_trans (sum_augDeg_le_deg ρ hdeg) hcapW)).post (fun _ _ _ h => h.1)
 
 /-- **One round at the degree-aware width** — `RamAugment.augment_specW`
-with the E-form width hypotheses (rebase G2/E2). -/
+with the E-form width hypotheses (rebase G2/E2), and, since rebase
+G2/E2b, **the target array's tail kept**: every `tgt` cell at or above
+the round's fraternity slots comes out as it went in, which is what
+lets the phase's fold carry the live-width tail across `R` rounds. -/
 theorem augment_specWE {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ}
     (hcsr : InCsr D m DO DT) (hd : D.InDegLE d)
     (hnt : RamAugment.fratSlots D ≤ nt) (hm : m ≤ W)
     (hsqW : n * (d + 1) ^ 2 < W) (hcapW : n * (2 * (d * d) + d) ≤ W)
     (hB : n + W + 1 < B) :
     Spec B (RamAugment.AugPreW n nt W DO DT) RamAugment.augCom
-      (RamAugment.AugPost n W D) (RamAugment.augCost n W) :=
-  (implementsWE hcsr hd hnt hm hsqW hcapW hB).post
-    fun _ _ _ hq => RamAugment.augPost_of_augMem hq
+      (fun σ σ' => RamAugment.AugPost n W D σ σ' ∧
+        ∀ z, RamAugment.fratSlots D ≤ z → z < nt →
+          (σ'.arrs "tgt").getD z 0 = (σ.arrs "tgt").getD z 0)
+      (RamAugment.augCost n W) := by
+  have hsq : (d + 1) ^ 2 = d * d + 2 * d + 1 := by ring
+  have hnW : n < W := by
+    have h1 : n * 1 ≤ n * (d + 1) ^ 2 := Nat.mul_le_mul_left n (by omega)
+    omega
+  have hdmW : d * m ≤ W := by
+    have h1 : d * m ≤ d * (n * d) := Nat.mul_le_mul_left d (arcs_le hcsr hd)
+    have h2 : d * (n * d) = n * (d * d) := by ring
+    have h3 : n * (d * d) ≤ n * (d + 1) ^ 2 := Nat.mul_le_mul_left n (by nlinarith)
+    omega
+  have hnfW : RamAugment.fratSlots D < W := by
+    have h1 : RamAugment.fratSlots D ≤ n * (d * d) := RamAugment.fratSlots_le hd
+    have h3 : n * (d * d) ≤ n * (d + 1) ^ 2 := Nat.mul_le_mul_left n (by nlinarith)
+    omega
+  exact (implementsCore hcsr hd hnt hm hB hnW hdmW hnfW
+      (fun ρ => le_trans (sum_augDeg_le_deg ρ hd) hcapW)).post
+    fun _ _ _ hq => ⟨RamAugment.augPost_of_augMem hq.1, hq.2⟩
 
 /-- **The augmentation round implements its frozen specification.** The
 walk is not repeated: `RamAugment.implements_of_implementsW` reads the
