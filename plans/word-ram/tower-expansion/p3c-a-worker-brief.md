@@ -87,7 +87,9 @@ doc comment and report the rename; do not silently omit or fuse declarations.
 Refute before prove. Before proving authored adaptations, compile negative
 controls for: the reversed strict lexicographic `polylog` comparison; stability
 at zero scaling; and eventual monotonicity of a sum with the source nonnegative
-premise removed. Positive gates must include `polylog 1 0` versus linear
+premise removed (use the concrete eventual counterexample pattern
+`f(n)=n`, `g(n)=-(n+n%2)`: both norms are monotone while the sum norm
+oscillates). Positive gates must include `polylog 1 0` versus linear
 growth, strict polylog comparison, sum/product stability, sum/product eventual
 norm-monotonicity, and both O and Ω extractors. If a proposed statement is
 refuted, record the smallest counterexample and stop on it unless the exact

@@ -30,7 +30,7 @@ audits the source table, replays all gates, and commits to `main`.
 |---|---|---|---|
 | P3.C-A | `Refine/Asymptotics/OneDimensional.lean` | 1D lines 7–384: nonnegativity, `polylog`, stability, eventual monotonicity, basic O/Ω eliminators and growth consequences | source declaration table; strict polylog comparison; sum/product stability and monotonicity; O and Ω extraction |
 | P3.C-B | `Refine/Asymptotics/OneDimensionalOperations.lean` | 1D lines 386–854: composition, division/difference, ceiling/log, Θ addition, named normalization rules | composition gates; arithmetic/log gates; source ML rules rendered as named Lean theorems |
-| P3.C-C | `Refine/Asymptotics/TwoDimensional.lean` | 2D lines 5–240 and 467–226/515/638–660 in dependency order: genuine product-filter notation, `polylog2`, stability/monotonicity, eliminators, multiplicative lifting | a theorem that genuinely uses `atTop ×ˢ atTop`, not a diagonal surrogate |
+| P3.C-C | `Refine/Asymptotics/TwoDimensional.lean` | 2D lines 5–270, 467–559, and 638–669 in dependency order: genuine product-filter notation, `polylog2`, stability/monotonicity, eliminators, multiplicative lifting | a theorem that genuinely uses `atTop ×ˢ atTop`, not a diagonal surrogate |
 | P3.C-D | `Refine/Asymptotics/TwoDimensionalComposition.lean` | 2D composition/comparison/normalization: lines 272, 342, 412, 432, 453, 563, 566, 602, 612, 624, 634, 671 plus the named rule family | two-coordinate composition and lexicographic polylog comparison gates |
 | P3.C-E | `Refine/Asymptotics/Recurrences.lean` | all public recurrence declarations at lines 7–585, including linear O/Ω/Θ families and bivariate families | source-shaped 1D and bivariate recurrence gates; reuse mathlib Akra–Bazzi rather than duplicate it |
 
@@ -51,6 +51,32 @@ module.
   remain scheduled because the source family is being ported at breadth.
 - AFP Landau/Akra–Bazzi and CFML remain semantic references only. Adjacent
   source families are not active P3.C scope.
+
+## P3.C risk register
+
+These are acceptance-review items, not permission to redesign the source:
+
+1. Isabelle Ω translates to reverse mathlib big-O (`g =O f`); every Ω theorem
+   gets a direction audit.
+2. The 2D carrier is the genuine product filter. Diagonal or iterated-limit
+   substitutes are refuted controls, not alternate implementations.
+3. Source `event_mono` is eventual monotonicity of the norm, not global Lean
+   `Monotone`; source `stablebigO` scales natural arguments by positive natural
+   constants.
+4. Natural division and subtraction preserve truncation before coercion.
+5. Nonnegative premises in monotonicity and Θ-addition rules are semantic;
+   cancellation refutes their removal.
+6. `polylog2` comparison is partial. Incomparable monomials remain a sum; a
+   normalizer must not invent a total dominance order.
+7. The ML reducers are partial, head-keyed auto2 infrastructure. P3.C ports
+   their named theorem inputs and explicit gates, not equivalent automation.
+8. Mathlib's Akra–Bazzi endpoint is reused. No duplicate recurrence object,
+   theorem family, or master-theorem method is admitted.
+9. The source's unused binder in `bivariateOmega`/`bivariateTheta` and poor
+   global example names require an explicit D1 namespace/binder-rendering note
+   if cleaned up; they may not be silently advertised as exact transcription.
+10. Recurrence lower bounds retain pointwise nonnegativity where the source
+    requires it. Weakening a premise to ease a proof changes the theorem.
 
 ## Acceptance law
 
