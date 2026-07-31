@@ -4,7 +4,7 @@ Rev 4, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0, P1, P2, P3.A, P3.B, and P3.C-A through P3.C-C complete; P3.C-D next. The source-first scope
+P0, P1, P2, P3.A, P3.B, and P3.C-A through P3.C-D complete; P3.C-E next. The source-first scope
 firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -354,6 +354,21 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — P3.C-D COMPLETE; two-dimensional composition and
+  normalization green.** `Asymptotics/TwoDimensionalComposition.lean` maps
+  all 12 live declarations in the remaining `Asymptotics_2D.thy` ranges plus
+  the `landau_util_2d.ML` substrate exclusion. O/Ω/Θ composition preserves
+  both independent inner-coordinate growth premises and natural composition
+  before casting. The `polylog2` comparison remains deliberately partial—one
+  coordinate strict, the other weak—and the named normalization family does
+  not claim a global simplifier. Six principal exports carry kernel-three
+  guards; representative checks cover Θ composition, both comparison branches,
+  and multiplication normalization. Independent semantic review found no
+  source-fidelity defect. Supervisor replay: focused module 1,989 jobs,
+  concepts 505, full proofs 3,075, and `lax build --only proofs word-ram`
+  green; zero `sorry`/`admit`/`native_decide` and no new warnings. **Next:
+  P3.C-E, the complete scheduled recurrence family.**
 
 - **2026-07-31 — P3.C-C COMPLETE; genuine product-filter two-dimensional
   foundations green.** `Asymptotics/TwoDimensional.lean` maps all 26 scheduled
