@@ -700,12 +700,11 @@ def dirtyRun : PRes := exec pB pF (.seq RamDriver.decodeCom dedupCom)
 /-! ## §3a The pass's frame, its memory clause, and the two loop
 invariants' list arithmetic
 
-The walk itself (`dedup_spec`) is **not** in this file yet; what is here
-is everything it consumes that is not an `Env` manipulation: the
-syntactic frame of the program, the memory clause the mark array needs,
-and the two list-level transition lemmas that carry the inner loop and
-the trail. Those two are where the design could have been wrong, and
-they are proved. -/
+What is here is everything the walk consumes that is not an `Env`
+manipulation: the syntactic frame of the program, the memory clause the
+mark array needs, and the two list-level transition lemmas that carry
+the inner loop and the trail. Those two are where the design could have
+been wrong, and they are proved. The walk itself is §3c–§3h. -/
 
 /-- **The memory clause of the pass**: the one array the decode does not
 allocate. It is `n` cells — one per vertex — and it starts, and is
@@ -819,6 +818,799 @@ theorem drop_len_marks (kept : List ℕ) :
     (fun w : ℕ => if w ∈ kept.drop kept.length then 1 else 0) = fun _ => 0 := by
   simp
 
+/-! ## §3b The row prefix, and the one inequality the pass rests on
+
+The inner loop's invariant is an equation about `firstDedup` of the
+*prefix* of the row read so far. These name that prefix, say what one
+more slot does to it, and bound the write pointer by the read pointer —
+which is what makes the compaction legal in the encoding's own array. -/
+
+/-- The slots of row `i` read so far: the targets of `[offset x i, j)`. -/
+def rowPfx (x : List ℕ) (i j : ℕ) : List ℕ := slotList (target x) (offset x i) j
+
+/-- Those of them the compaction kept. -/
+def rowKept (x : List ℕ) (i j : ℕ) : List ℕ := firstDedup (rowPfx x i j)
+
+@[simp] theorem rowPfx_start (x : List ℕ) (i : ℕ) : rowPfx x i (offset x i) = [] := by
+  simp [rowPfx, slotList]
+
+@[simp] theorem rowKept_start (x : List ℕ) (i : ℕ) : rowKept x i (offset x i) = [] := by
+  simp [rowKept]
+
+theorem rowPfx_succ {x : List ℕ} {i j : ℕ} (h : offset x i ≤ j) :
+    rowPfx x i (j + 1) = rowPfx x i j ++ [target x j] := slotList_concat h
+
+theorem rowKept_succ {x : List ℕ} {i j : ℕ} (h : offset x i ≤ j) :
+    rowKept x i (j + 1) =
+      if target x j ∈ rowPfx x i j then rowKept x i j else rowKept x i j ++ [target x j] := by
+  rw [rowKept, rowPfx_succ h, firstDedup_concat, rowKept]
+
+theorem rowPfx_end (x : List ℕ) (i : ℕ) : rowPfx x i (offset x (i + 1)) = rowList x i := rfl
+
+theorem rowKept_end (x : List ℕ) (i : ℕ) : rowKept x i (offset x (i + 1)) = keepList x i := rfl
+
+@[simp] theorem length_rowPfx (x : List ℕ) (i j : ℕ) :
+    (rowPfx x i j).length = j - offset x i := by simp [rowPfx]
+
+theorem length_rowKept_le (x : List ℕ) (i j : ℕ) :
+    (rowKept x i j).length ≤ j - offset x i := by
+  rw [rowKept, ← length_rowPfx x i j]; exact length_firstDedup_le _
+
+theorem nodup_rowKept (x : List ℕ) (i j : ℕ) : (rowKept x i j).Nodup :=
+  nodup_firstDedup _
+
+/-- The entries of a prefix are targets of the word, so they are
+vertices — which is what makes the mark array's index legal. -/
+theorem target_lt_of_row {x : List ℕ} (hx : EncodesGraph x n G) {i j : ℕ} (hi : i < n)
+    (_h₁ : offset x i ≤ j) (h₂ : j < offset x (i + 1)) : target x j < n := by
+  refine hx.target_lt j (lt_of_lt_of_le h₂ ?_)
+  rw [← hx.offset_last]
+  exact RamBfs.offset_mono' hx (by omega) le_rfl
+
+/-- **The write pointer never passes the read pointer.** The rows below
+`i` compacted into `dedupOffset x i ≤ offset x i` cells, and row `i`
+itself has kept no more than it has read. -/
+theorem write_le_read {x : List ℕ} (hx : EncodesGraph x n G) {i j : ℕ}
+    (hi : i ≤ n) (hj : offset x i ≤ j) :
+    dedupOffset x i + (rowKept x i j).length ≤ j := by
+  have h1 : dedupOffset x i ≤ offset x i :=
+    dedupOffset_le_offset hx.vertexCount_eq hx.offset_zero hx.offset_mono i hi
+  have h2 := length_rowKept_le x i j
+  omega
+
+/-- The compacted target array is zero above the compacted slot count —
+for free, because a cell above it is a read past the end of the
+compacted list. This is the fact that stands where `hpad0` used to be a
+hypothesis. -/
+theorem dedupTarget_eq_zero {x : List ℕ} {z : ℕ} (hz : dedupNs x ≤ z) :
+    dedupTarget x z = 0 := by
+  rw [dedupTarget, List.getD_eq_default]
+  exact hz
+
+/-- The mark array, as the memory clause holds it. -/
+theorem dedupMem_eq {n : ℕ} {σ : Env} (h : DedupMem n σ) :
+    σ.arrs "dmk" = arrOf n (fun _ => 0) := by
+  rw [← replicate_eq_arrOf]
+  exact List.eq_replicate_iff.2 ⟨h.1, h.2⟩
+
+/-- **What the compaction has written stays written.** The kept list of
+a prefix is a prefix of the kept list of a longer one — so a cell the
+inner loop has already published is a cell of the finished row, and the
+invariant can name its content by `dedupTarget` from the moment it is
+written. -/
+theorem rowKept_mono {x : List ℕ} {i j : ℕ} (h₁ : offset x i ≤ j) :
+    ∀ k, j ≤ k → ∃ t, rowKept x i k = rowKept x i j ++ t := by
+  intro k
+  induction k with
+  | zero =>
+    intro h
+    exact ⟨[], by rw [show j = 0 by omega]; simp⟩
+  | succ k ih =>
+    intro h
+    rcases Nat.lt_or_ge j (k + 1) with hk | hk
+    · obtain ⟨t, ht⟩ := ih (by omega)
+      have hik : offset x i ≤ k := by omega
+      by_cases hv : target x k ∈ rowPfx x i k
+      · exact ⟨t, by rw [rowKept_succ hik, if_pos hv, ht]⟩
+      · exact ⟨t ++ [target x k], by rw [rowKept_succ hik, if_neg hv, ht, List.append_assoc]⟩
+    · exact ⟨[], by rw [show j = k + 1 by omega]; simp⟩
+
+/-- A cell the inner loop has published is the cell of the compacted
+array it will remain. -/
+theorem dedupTarget_rowKept {x : List ℕ} (hx : EncodesGraph x n G) {i j t : ℕ} (hi : i < n)
+    (h₁ : offset x i ≤ j) (h₂ : j ≤ offset x (i + 1)) (ht : t < (rowKept x i j).length) :
+    dedupTarget x (dedupOffset x i + t) = (rowKept x i j).getD t 0 := by
+  obtain ⟨s, hs⟩ := rowKept_mono h₁ (offset x (i + 1)) h₂
+  rw [rowKept_end] at hs
+  have hlen : t < (keepList x i).length := by rw [hs]; simp; omega
+  rw [dedupTarget_eq (by rw [hx.vertexCount_eq]; exact hi) hlen, hs,
+    List.getD_append _ _ _ _ ht]
+
+/-- The entries of a compacted row are vertices. -/
+theorem mem_keepList_lt {x : List ℕ} (hx : EncodesGraph x n G) {u v : ℕ} (hu : u < n)
+    (hv : v ∈ keepList x u) : v < n := by
+  obtain ⟨j, hj₁, hj₂, hj₃⟩ := mem_keepList.1 hv
+  exact hj₃ ▸ target_lt_of_row hx hu hj₁ hj₂
+
+/-! ## §3c The three invariants
+
+One per loop, and one clause they share. `TgtSplit` is the target array
+mid-pass: the compaction below the write pointer, the encoding's own
+above the read pointer, and — deliberately — *nothing at all* about the
+cells between, which the compaction has already consumed and which no
+later read touches. That silence is what makes an in-place compaction
+statable; an invariant that named those cells would be false. -/
+
+/-- **The target array mid-pass.** -/
+def TgtSplit (x : List ℕ) (W : ℕ) (T : ℕ → ℕ) (dw rd : ℕ) (σ : Env) : Prop :=
+  ∃ F, σ.arrs "tgt" = arrOf W F ∧
+    (∀ j < dw, F j = dedupTarget x j) ∧
+    (∀ j, rd ≤ j → j < W → F j = T j)
+
+/-- The invariant of the outer loop, read at a row boundary. -/
+def DedupOuter (x : List ℕ) (n ns W : ℕ) (T : ℕ → ℕ) (σ : Env) : Prop :=
+  σ.vars "di" ≤ n ∧ σ.vars "n" = n ∧ σ.vars "dq" = ns ∧
+    σ.vars "dw" = dedupOffset x (σ.vars "di") ∧
+    σ.arrs "off" =
+      arrOf (n + 1) (fun k => if k < σ.vars "di" then dedupOffset x k else offset x k) ∧
+    σ.arrs "dmk" = arrOf n (fun _ => 0) ∧
+    TgtSplit x W T (dedupOffset x (σ.vars "di")) (offset x (σ.vars "di")) σ
+
+/-- The invariant of the slot loop of row `i`: the marks are the entries
+of the kept prefix, and the write pointer stands past them. -/
+def DedupInner (x : List ℕ) (n ns W : ℕ) (T : ℕ → ℕ) (i : ℕ) (σ : Env) : Prop :=
+  offset x i ≤ σ.vars "dj" ∧ σ.vars "dj" ≤ offset x (i + 1) ∧
+    σ.vars "di" = i ∧ σ.vars "n" = n ∧ σ.vars "dq" = ns ∧
+    σ.vars "de" = offset x (i + 1) ∧ σ.vars "ds" = dedupOffset x i ∧
+    σ.vars "dw" = dedupOffset x i + (rowKept x i (σ.vars "dj")).length ∧
+    σ.arrs "off" = arrOf (n + 1) (fun k => if k < i + 1 then dedupOffset x k else offset x k) ∧
+    σ.arrs "dmk" = arrOf n (fun v => if v ∈ rowKept x i (σ.vars "dj") then 1 else 0) ∧
+    TgtSplit x W T (dedupOffset x i + (rowKept x i (σ.vars "dj")).length) (σ.vars "dj") σ
+
+/-- The invariant of the trail walk of row `i`: the marks still standing
+are exactly the kept targets the walk has not reached. -/
+def DedupUnmk (x : List ℕ) (n ns W : ℕ) (T : ℕ → ℕ) (i : ℕ) (σ : Env) : Prop :=
+  dedupOffset x i ≤ σ.vars "dk" ∧ σ.vars "dk" ≤ dedupOffset x (i + 1) ∧
+    σ.vars "di" = i ∧ σ.vars "n" = n ∧ σ.vars "dq" = ns ∧
+    σ.vars "dw" = dedupOffset x (i + 1) ∧
+    σ.arrs "off" = arrOf (n + 1) (fun k => if k < i + 1 then dedupOffset x k else offset x k) ∧
+    σ.arrs "dmk" = arrOf n
+      (fun v => if v ∈ (keepList x i).drop (σ.vars "dk" - dedupOffset x i) then 1 else 0) ∧
+    TgtSplit x W T (dedupOffset x (i + 1)) (offset x (i + 1)) σ
+
+/-- **Weakening the split.** A pass that neither wrote to `tgt` nor
+moved a pointer outward keeps the clause; the write pointer may only
+fall back and the read pointer only advance, since both directions
+*shrink* what is claimed. -/
+theorem tgtSplit_of {x : List ℕ} {W : ℕ} {T : ℕ → ℕ} {dw rd dw' rd' : ℕ} {σ σ' : Env}
+    (h : TgtSplit x W T dw rd σ) (harr : σ'.arrs "tgt" = σ.arrs "tgt")
+    (hdw : dw' ≤ dw) (hrd : rd ≤ rd') : TgtSplit x W T dw' rd' σ' := by
+  obtain ⟨F, hF, hlo, hhi⟩ := h
+  exact ⟨F, by rw [harr, hF], fun j hj => hlo j (by omega),
+    fun j h₁ h₂ => hhi j (by omega) h₂⟩
+
+/-! ## §3d One slot -/
+
+/-- The mark the program tests, as a statement about the prefix. -/
+theorem mem_rowKept {x : List ℕ} {i j v : ℕ} : v ∈ rowKept x i j ↔ v ∈ rowPfx x i j :=
+  mem_firstDedup
+
+theorem mark_test_row (x : List ℕ) (i j : ℕ) :
+    (0 < (if target x j ∈ rowKept x i j then 1 else 0)) ↔ target x j ∈ rowPfx x i j :=
+  mark_test _ _
+
+set_option maxHeartbeats 1000000 in
+/-- **One slot.** A target the row has already named is skipped; a new
+one is marked, published at the write pointer, and the pointer moves.
+The step on the list side is `firstDedup_concat`, read on the marks by
+`mark_step` and tested by `mark_test`. -/
+theorem dedupSlot_run {B ns W i : ℕ} {T : ℕ → ℕ} {x : List ℕ}
+    (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
+    (hT : ∀ j < ns, T j = target x j)
+    (hnB : n + 1 < B) (hnsB : ns < B) (hnsW : ns ≤ W) (hi : i < n)
+    {σ : Env} (hI : DedupInner x n ns W T i σ) (hjlt : σ.vars "dj" < offset x (i + 1)) :
+    ∃ σ' K, Run B dedupSlot σ σ' K ∧ K ≤ 22 ∧
+      DedupInner x n ns W T i σ' ∧ σ'.vars "dj" = σ.vars "dj" + 1 := by
+  classical
+  obtain ⟨hj₁, hj₂, hdi, hn, hdq, hde, hds, hdw, hoff, hdmk, F, hF, hlo, hhi⟩ := hI
+  have hts : TgtSplit x W T (dedupOffset x i + (rowKept x i (σ.vars "dj")).length)
+      (σ.vars "dj") σ := ⟨F, hF, hlo, hhi⟩
+  have hend : offset x (i + 1) ≤ ns := by
+    rw [hns, ← hx.offset_last]
+    exact RamBfs.offset_mono' hx (by omega) le_rfl
+  have hjns : σ.vars "dj" < ns := by omega
+  have hvn : target x (σ.vars "dj") < n := target_lt_of_row hx hi hj₁ hjlt
+  have hwr : dedupOffset x i + (rowKept x i (σ.vars "dj")).length ≤ σ.vars "dj" :=
+    write_le_read hx (by omega) hj₁
+  have hFj : F (σ.vars "dj") = target x (σ.vars "dj") :=
+    (hhi _ le_rfl (by omega)).trans (hT _ hjns)
+  have htgtLen : σ.vars "dj" < (σ.arrs "tgt").length := by rw [hF, length_arrOf]; omega
+  have htv : (σ.arrs "tgt").getD (σ.vars "dj") 0 = target x (σ.vars "dj") := by
+    rw [hF, getD_arrOf F (by omega), hFj]
+  have htvB : (σ.arrs "tgt").getD (σ.vars "dj") 0 < B := by rw [htv]; omega
+  have hdwLen : σ.vars "dw" < (σ.arrs "tgt").length := by rw [hdw, hF, length_arrOf]; omega
+  have hdwB : σ.vars "dw" + 1 < B := by rw [hdw]; omega
+  have hjB : σ.vars "dj" + 1 < B := by omega
+  -- the mark, read in the environment the branch tests it in
+  have hvdv : (σ.setVar "dv" ((σ.arrs "tgt").getD (σ.vars "dj") 0)).vars "dv"
+      = target x (σ.vars "dj") := by rw [vars_setVar, if_pos rfl, htv]
+  have hdmkLen : ((σ.setVar "dv" ((σ.arrs "tgt").getD (σ.vars "dj") 0)).vars "dv")
+      < ((σ.setVar "dv" ((σ.arrs "tgt").getD (σ.vars "dj") 0)).arrs "dmk").length := by
+    rw [arrs_setVar, hvdv, hdmk, length_arrOf]; exact hvn
+  have hdmkGet : ((σ.setVar "dv" ((σ.arrs "tgt").getD (σ.vars "dj") 0)).arrs "dmk").getD
+      ((σ.setVar "dv" ((σ.arrs "tgt").getD (σ.vars "dj") 0)).vars "dv") 0
+      = if target x (σ.vars "dj") ∈ rowPfx x i (σ.vars "dj") then 1 else 0 := by
+    rw [arrs_setVar, hvdv, hdmk, getD_arrOf _ hvn]
+    simp only [mem_rowKept]
+  have hdmkGetB : ((σ.setVar "dv" ((σ.arrs "tgt").getD (σ.vars "dj") 0)).arrs "dmk").getD
+      ((σ.setVar "dv" ((σ.arrs "tgt").getD (σ.vars "dj") 0)).vars "dv") 0 < B := by
+    rw [hdmkGet]; split <;> omega
+  run_vcg
+  · -- the row has already named this target: the slot is passed over
+    by_cases hin : target x (σ.vars "dj") ∈ rowPfx x i (σ.vars "dj")
+    · have hkeep : rowKept x i (σ.vars "dj" + 1) = rowKept x i (σ.vars "dj") := by
+        rw [rowKept_succ hj₁, if_pos hin]
+      refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, rfl⟩
+      · show offset x i ≤ σ.vars "dj" + 1
+        omega
+      · show σ.vars "dj" + 1 ≤ offset x (i + 1)
+        omega
+      · exact hdi
+      · exact hn
+      · exact hdq
+      · exact hde
+      · exact hds
+      · show σ.vars "dw" = dedupOffset x i + (rowKept x i (σ.vars "dj" + 1)).length
+        rw [hkeep]; exact hdw
+      · exact hoff
+      · show σ.arrs "dmk"
+          = arrOf n (fun v => if v ∈ rowKept x i (σ.vars "dj" + 1) then 1 else 0)
+        rw [hkeep]; exact hdmk
+      · refine tgtSplit_of hts rfl ?_ ?_
+        · show dedupOffset x i + (rowKept x i (σ.vars "dj" + 1)).length
+              ≤ dedupOffset x i + (rowKept x i (σ.vars "dj")).length
+          rw [hkeep]
+        · show σ.vars "dj" ≤ σ.vars "dj" + 1
+          omega
+    · exfalso; rw [if_neg hin] at hdmkGet; omega
+  · -- a new target: marked, published, and the write pointer moves
+    by_cases hin : target x (σ.vars "dj") ∈ rowPfx x i (σ.vars "dj")
+    · exfalso; rw [if_pos hin] at hdmkGet; omega
+    · have hkeep : rowKept x i (σ.vars "dj" + 1)
+          = rowKept x i (σ.vars "dj") ++ [target x (σ.vars "dj")] := by
+        rw [rowKept_succ hj₁, if_neg hin]
+      have hmk : (fun w => if w ∈ rowKept x i (σ.vars "dj" + 1) then 1 else 0)
+          = upd (fun w => if w ∈ rowKept x i (σ.vars "dj") then 1 else 0)
+              (target x (σ.vars "dj")) 1 := by
+        have h := mark_step (rowPfx x i (σ.vars "dj")) (target x (σ.vars "dj"))
+        rw [if_neg hin] at h
+        rw [show rowKept x i (σ.vars "dj" + 1)
+              = firstDedup (rowPfx x i (σ.vars "dj") ++ [target x (σ.vars "dj")]) by
+            rw [rowKept, rowPfx_succ hj₁]]
+        exact h
+      have ht : (rowKept x i (σ.vars "dj")).length < (rowKept x i (σ.vars "dj" + 1)).length := by
+        rw [hkeep]; simp
+      have hcell : dedupTarget x (σ.vars "dw") = target x (σ.vars "dj") := by
+        rw [hdw, dedupTarget_rowKept hx hi (j := σ.vars "dj" + 1) (by omega) (by omega) ht,
+          hkeep]
+        simp
+      refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, rfl⟩
+      · show offset x i ≤ σ.vars "dj" + 1
+        omega
+      · show σ.vars "dj" + 1 ≤ offset x (i + 1)
+        omega
+      · exact hdi
+      · exact hn
+      · exact hdq
+      · exact hde
+      · exact hds
+      · show σ.vars "dw" + 1 = dedupOffset x i + (rowKept x i (σ.vars "dj" + 1)).length
+        rw [hkeep]
+        simp only [List.length_append, List.length_cons, List.length_nil]
+        omega
+      · exact hoff
+      · show (σ.arrs "dmk").set ((σ.arrs "tgt").getD (σ.vars "dj") 0) 1
+          = arrOf n (fun v => if v ∈ rowKept x i (σ.vars "dj" + 1) then 1 else 0)
+        rw [htv, hdmk, set_arrOf_eq_upd, hmk]
+      · refine ⟨upd F (σ.vars "dw") (target x (σ.vars "dj")), ?_, ?_, ?_⟩
+        · show (σ.arrs "tgt").set (σ.vars "dw") ((σ.arrs "tgt").getD (σ.vars "dj") 0)
+            = arrOf W (upd F (σ.vars "dw") (target x (σ.vars "dj")))
+          rw [htv, hF, set_arrOf_eq_upd]
+        · show ∀ j < dedupOffset x i + (rowKept x i (σ.vars "dj" + 1)).length,
+            upd F (σ.vars "dw") (target x (σ.vars "dj")) j = dedupTarget x j
+          rw [hkeep]
+          simp only [List.length_append, List.length_cons, List.length_nil]
+          intro j hj
+          rcases Nat.lt_or_ge j (σ.vars "dw") with h | h
+          · rw [upd_of_ne _ (by omega)]; exact hlo j (by omega)
+          · rw [show j = σ.vars "dw" by omega, upd_self, hcell]
+        · show ∀ j, σ.vars "dj" + 1 ≤ j → j < W →
+            upd F (σ.vars "dw") (target x (σ.vars "dj")) j = T j
+          intro j h₁ h₂
+          rw [upd_of_ne _ (by omega)]
+          exact hhi j (by omega) h₂
+  · rw [vars_setArr, hvdv]; omega
+
+/-! ## §3e One step of the trail -/
+
+set_option maxHeartbeats 1000000 in
+/-- **One step of the trail walk.** The mark of the `t`-th kept target is
+cleared, and — `unmark_step`, where the compaction's `Nodup` earns its
+keep — no mark that is still standing is cleared with it. -/
+theorem dedupUnmark_run {B ns W i : ℕ} {T : ℕ → ℕ} {x : List ℕ}
+    (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
+    (hnB : n + 1 < B) (hnsB : ns < B) (hnsW : ns ≤ W) (hi : i < n)
+    {σ : Env} (hI : DedupUnmk x n ns W T i σ)
+    (hklt : σ.vars "dk" < dedupOffset x (i + 1)) :
+    ∃ σ' K, Run B dedupUnmark σ σ' K ∧ K ≤ 8 ∧
+      DedupUnmk x n ns W T i σ' ∧ σ'.vars "dk" = σ.vars "dk" + 1 := by
+  classical
+  obtain ⟨hk₁, hk₂, hdi, hn, hdq, hdw, hoff, hdmk, F, hF, hlo, hhi⟩ := hI
+  have hdo : dedupOffset x (i + 1) = dedupOffset x i + (keepList x i).length :=
+    dedupOffset_succ x i
+  have hnsle : dedupNs x ≤ ns := by
+    rw [hns]
+    exact dedupNs_le hx.vertexCount_eq hx.offset_zero hx.offset_last hx.offset_mono
+  have hle : dedupOffset x (i + 1) ≤ dedupNs x :=
+    dedupOffset_le_dedupNs x (by rw [hx.vertexCount_eq]; omega)
+  have htlen : σ.vars "dk" - dedupOffset x i < (keepList x i).length := by omega
+  have hval : F (σ.vars "dk") = (keepList x i).getD (σ.vars "dk" - dedupOffset x i) 0 := by
+    rw [hlo _ (by omega)]
+    conv_lhs => rw [show σ.vars "dk" = dedupOffset x i + (σ.vars "dk" - dedupOffset x i) by omega]
+    exact dedupTarget_eq (by rw [hx.vertexCount_eq]; exact hi) htlen
+  have hmem : (keepList x i).getD (σ.vars "dk" - dedupOffset x i) 0 ∈ keepList x i := by
+    rw [List.getD_eq_getElem _ _ htlen]; exact List.getElem_mem htlen
+  have hvn : (keepList x i).getD (σ.vars "dk" - dedupOffset x i) 0 < n :=
+    mem_keepList_lt hx hi hmem
+  have htgtLen : σ.vars "dk" < (σ.arrs "tgt").length := by rw [hF, length_arrOf]; omega
+  have htv : (σ.arrs "tgt").getD (σ.vars "dk") 0
+      = (keepList x i).getD (σ.vars "dk" - dedupOffset x i) 0 := by
+    rw [hF, getD_arrOf F (by omega), hval]
+  have htvB : (σ.arrs "tgt").getD (σ.vars "dk") 0 < B := by rw [htv]; omega
+  have hdmkLen : (σ.arrs "tgt").getD (σ.vars "dk") 0 < (σ.arrs "dmk").length := by
+    rw [htv, hdmk, length_arrOf]; exact hvn
+  have hkB : σ.vars "dk" + 1 < B := by omega
+  run_vcg
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, rfl⟩
+  · show dedupOffset x i ≤ σ.vars "dk" + 1
+    omega
+  · show σ.vars "dk" + 1 ≤ dedupOffset x (i + 1)
+    omega
+  · exact hdi
+  · exact hn
+  · exact hdq
+  · exact hdw
+  · exact hoff
+  · show (σ.arrs "dmk").set ((σ.arrs "tgt").getD (σ.vars "dk") 0) 0
+      = arrOf n (fun v =>
+          if v ∈ (keepList x i).drop (σ.vars "dk" + 1 - dedupOffset x i) then 1 else 0)
+    rw [htv, hdmk, set_arrOf_eq_upd,
+      show σ.vars "dk" + 1 - dedupOffset x i = (σ.vars "dk" - dedupOffset x i) + 1 by omega,
+      ← unmark_step (nodup_keepList x i) htlen]
+  · exact tgtSplit_of ⟨F, hF, hlo, hhi⟩ rfl le_rfl le_rfl
+
+/-! ## §3f One row -/
+
+set_option maxHeartbeats 1000000 in
+/-- **One row.** The bounds are read, the new offset published, the block
+compacted by the kit's row scan, and the marks the row set are cleared by
+walking the slots the row wrote — never the whole mark array, which is
+what keeps the pass at `O(n + ns)`. -/
+theorem dedupRow_run {B ns W i : ℕ} {T : ℕ → ℕ} {x : List ℕ}
+    (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
+    (hT : ∀ j < ns, T j = target x j)
+    (hnB : n + 1 < B) (hnsB : ns < B) (hnsW : ns ≤ W) (hi : i < n)
+    {σ : Env} (hI : DedupOuter x n ns W T σ) (hiv : σ.vars "di" = i) :
+    ∃ σ' K, Run B dedupRow σ σ' K ∧
+      K ≤ 26 * (offset x (i + 1) - offset x i)
+        + 12 * (dedupOffset x (i + 1) - dedupOffset x i) + 27 ∧
+      DedupOuter x n ns W T σ' ∧ σ'.vars "di" = i + 1 := by
+  classical
+  obtain ⟨hile, hn, hdq, hdw, hoff, hdmk, hts⟩ := hI
+  rw [hiv] at hile hdw hoff hts
+  have hend : offset x (i + 1) ≤ ns := by
+    rw [hns, ← hx.offset_last]
+    exact RamBfs.offset_mono' hx (by omega) le_rfl
+  have hmono : offset x i ≤ offset x (i + 1) := hx.offset_mono i hi
+  have hdolt : dedupOffset x i ≤ offset x i :=
+    dedupOffset_le_offset hx.vertexCount_eq hx.offset_zero hx.offset_mono i (by omega)
+  have hdosucc : dedupOffset x (i + 1) = dedupOffset x i + (keepList x i).length :=
+    dedupOffset_succ x i
+  have hnsle : dedupNs x ≤ ns := by
+    rw [hns]
+    exact dedupNs_le hx.vertexCount_eq hx.offset_zero hx.offset_last hx.offset_mono
+  have hdole : dedupOffset x (i + 1) ≤ dedupNs x :=
+    dedupOffset_le_dedupNs x (by rw [hx.vertexCount_eq]; omega)
+  -- the slot loop, and the trail loop, as the kit's row scan
+  have hscan : Spec B
+      (fun τ => DedupInner x n ns W T i τ ∧ τ.vars "dj" = offset x i)
+      (.while (.lt (.var "dj") (.var "de")) dedupSlot)
+      (fun _ τ' => DedupInner x n ns W T i τ' ∧ τ'.vars "dj" = offset x (i + 1))
+      (26 * (offset x (i + 1) - offset x i) + 4) :=
+    Csr.rowScan_spec B (26 * (offset x (i + 1) - offset x i) + 4) (offset x (i + 1)) 22
+      "dj" "de" dedupSlot (DedupInner x n ns W T i) (by omega)
+      (fun τ hτ => ⟨hτ.2.2.2.2.2.1, hτ.2.1⟩)
+      (fun τ hτ hlt => by
+        obtain ⟨τ', K', hr, hK', hI', hj'⟩ :=
+          dedupSlot_run hx hns hT hnB hnsB hnsW hi hτ hlt
+        exact ⟨τ', K', hr, hI', hj', hK'⟩)
+      (fun _ hτ => hτ.1) (fun τ hτ => le_of_eq (by rw [hτ.2]))
+  have hunmk : Spec B
+      (fun τ => DedupUnmk x n ns W T i τ ∧ τ.vars "dk" = dedupOffset x i)
+      (.while (.lt (.var "dk") (.var "dw")) dedupUnmark)
+      (fun _ τ' => DedupUnmk x n ns W T i τ' ∧ τ'.vars "dk" = dedupOffset x (i + 1))
+      (12 * (dedupOffset x (i + 1) - dedupOffset x i) + 4) :=
+    Csr.rowScan_spec B (12 * (dedupOffset x (i + 1) - dedupOffset x i) + 4)
+      (dedupOffset x (i + 1)) 8 "dk" "dw" dedupUnmark (DedupUnmk x n ns W T i) (by omega)
+      (fun τ hτ => ⟨hτ.2.2.2.2.2.1, hτ.2.1⟩)
+      (fun τ hτ hlt => by
+        obtain ⟨τ', K', hr, hK', hI', hk'⟩ :=
+          dedupUnmark_run hx hns hnB hnsB hnsW hi hτ hlt
+        exact ⟨τ', K', hr, hI', hk', hK'⟩)
+      (fun _ hτ => hτ.1) (fun τ hτ => le_of_eq (by rw [hτ.2]))
+  -- the four reads and the one store the row does itself
+  have hoffLen : (σ.arrs "off").length = n + 1 := by rw [hoff, length_arrOf]
+  have hoffi : (σ.arrs "off").getD (σ.vars "di") 0 = offset x i := by
+    rw [hiv, hoff, getD_arrOf _ (by omega)]; simp
+  have hoffi1 : (σ.arrs "off").getD (σ.vars "di" + 1) 0 = offset x (i + 1) := by
+    rw [hiv, hoff, getD_arrOf _ (by omega)]; simp
+  have hdiLen : σ.vars "di" < (σ.arrs "off").length := by rw [hoffLen, hiv]; omega
+  have hdi1Len : σ.vars "di" + 1 < (σ.arrs "off").length := by rw [hoffLen, hiv]; omega
+  have hdiB : σ.vars "di" + 1 < B := by rw [hiv]; omega
+  have hdwB : σ.vars "dw" < B := by rw [hdw]; omega
+  run_vcg [hscan, hunmk]
+  -- the row closes: the marks are clean again and the next row's offset stands
+  · obtain ⟨hIu, hku⟩ := ‹DedupUnmk x n ns W T i _ ∧ _›
+    obtain ⟨-, -, hdi', hn', hdq', hdw', hoff', hdmk', hts'⟩ := hIu
+    refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
+    · simp only [vars_setVar, reduceIte, hdi']; omega
+    · simp only [vars_setVar]; exact hn'
+    · simp only [vars_setVar]; exact hdq'
+    · simp only [vars_setVar, reduceIte, hdi']; exact hdw'
+    · simp only [arrs_setVar, vars_setVar, reduceIte, hdi']; exact hoff'
+    · simp only [arrs_setVar]
+      rw [hdmk', hku,
+        show dedupOffset x (i + 1) - dedupOffset x i = (keepList x i).length by omega]
+      exact congrArg (arrOf n) (drop_len_marks (keepList x i))
+    · simp only [vars_setVar, reduceIte, hdi']
+      exact tgtSplit_of hts' rfl le_rfl le_rfl
+    · simp only [vars_setVar, reduceIte, hdi']
+  -- the second offset read is a word
+  · show (σ.arrs "off").getD (σ.vars "di" + 1) 0 < B
+    rw [hoffi1]; omega
+  -- the slot loop starts at the top of the row, with nothing kept yet
+  · refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
+    · show offset x i ≤ (σ.arrs "off").getD (σ.vars "di") 0
+      rw [hoffi]
+    · show (σ.arrs "off").getD (σ.vars "di") 0 ≤ offset x (i + 1)
+      rw [hoffi]; omega
+    · show σ.vars "di" = i
+      exact hiv
+    · exact hn
+    · exact hdq
+    · show (σ.arrs "off").getD (σ.vars "di" + 1) 0 = offset x (i + 1)
+      exact hoffi1
+    · show σ.vars "dw" = dedupOffset x i
+      exact hdw
+    · show σ.vars "dw"
+        = dedupOffset x i + (rowKept x i ((σ.arrs "off").getD (σ.vars "di") 0)).length
+      rw [hoffi, rowKept_start]; simpa using hdw
+    · show (σ.arrs "off").set (σ.vars "di") (σ.vars "dw")
+        = arrOf (n + 1) (fun k => if k < i + 1 then dedupOffset x k else offset x k)
+      rw [hiv, hdw, hoff, set_arrOf_eq_upd]
+      refine arrOf_congr (fun k _ => ?_)
+      rcases eq_or_ne k i with rfl | hne
+      · simp [upd]
+      · rw [upd_of_ne _ hne]
+        by_cases hki : k < i
+        · simp [hki, show k < i + 1 by omega]
+        · simp [hki, show ¬ (k < i + 1) by omega]
+    · show σ.arrs "dmk"
+        = arrOf n (fun v =>
+            if v ∈ rowKept x i ((σ.arrs "off").getD (σ.vars "di") 0) then 1 else 0)
+      rw [hoffi, rowKept_start]; simpa using hdmk
+    · refine tgtSplit_of hts rfl ?_ ?_
+      · show dedupOffset x i + (rowKept x i ((σ.arrs "off").getD (σ.vars "di") 0)).length
+            ≤ dedupOffset x i
+        rw [hoffi, rowKept_start]; simp
+      · show offset x i ≤ (σ.arrs "off").getD (σ.vars "di") 0
+        rw [hoffi]
+    · show (σ.arrs "off").getD (σ.vars "di") 0 = offset x i
+      exact hoffi
+  -- the trail's start pointer is a word
+  · obtain ⟨hIs, -⟩ := ‹DedupInner x n ns W T i _ ∧ _›
+    rw [hIs.2.2.2.2.2.2.1]; omega
+  -- the trail starts at the row's own first written slot
+  · obtain ⟨hIs, hjs⟩ := ‹DedupInner x n ns W T i _ ∧ _›
+    obtain ⟨-, -, hdi', hn', hdq', -, hds', hdw', hoff', hdmk', hts'⟩ := hIs
+    rw [hjs, rowKept_end] at hdw' hdmk' hts'
+    refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
+    · simp only [vars_setVar, reduceIte, hds']; omega
+    · simp only [vars_setVar, reduceIte, hds']; omega
+    · simp only [vars_setVar]; exact hdi'
+    · simp only [vars_setVar]; exact hn'
+    · simp only [vars_setVar]; exact hdq'
+    · exact hdw'.trans hdosucc.symm
+    · simp only [arrs_setVar]; exact hoff'
+    · simp only [arrs_setVar, vars_setVar, reduceIte, hds', Nat.sub_self, List.drop_zero]
+      exact hdmk'
+    · refine tgtSplit_of hts' rfl (le_of_eq ?_) le_rfl
+      omega
+    · simp only [vars_setVar, reduceIte, hds']
+  -- the row counter is a word, before and after
+  · obtain ⟨hIu, -⟩ := ‹DedupUnmk x n ns W T i _ ∧ _›
+    rw [hIu.2.2.1]; omega
+  · obtain ⟨hIu, -⟩ := ‹DedupUnmk x n ns W T i _ ∧ _›
+    rw [hIu.2.2.1]; omega
+
+/-! ## §3g Every row
+
+The pass is amortized, not counted: a turn costs the length of the row it
+walks plus the length of the row it keeps, and the rows tile the two
+arrays, so the potential is "so much per row left, so much per slot
+left, so much per kept slot left" and the whole sweep is linear. -/
+
+set_option maxHeartbeats 1000000 in
+/-- **Every row compacted.** -/
+theorem dedupRows_spec {B ns W : ℕ} {T : ℕ → ℕ} {x : List ℕ}
+    (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
+    (hT : ∀ j < ns, T j = target x j)
+    (hnB : n + 1 < B) (hnsB : ns < B) (hnsW : ns ≤ W) :
+    Spec B (DedupOuter x n ns W T)
+      (.while (.lt (.var "di") (.var "n")) dedupRow)
+      (fun _ σ' => DedupOuter x n ns W T σ' ∧ σ'.vars "di" = n)
+      (31 * n + 26 * ns + 12 * dedupNs x + 4) := by
+  refine (Spec.while_potential (DedupOuter x n ns W T)
+    (fun σ => 31 * (n - σ.vars "di") + 26 * (ns - offset x (σ.vars "di"))
+      + 12 * (dedupNs x - dedupOffset x (σ.vars "di")))
+    (fun σ hσ => evalB_condLt_vars (by have := hσ.1; omega) (by rw [hσ.2.1]; omega))
+    (fun σ hσ hb => ?_) (fun _ h => h)
+    (fun σ _ => by simp only [size_condLt, size_var]; omega)).post (fun _ σ' _ hQ => ?_)
+  · have hlt : σ.vars "di" < n := by
+      have h := lt_of_condLt_true hb
+      rw [hσ.2.1] at h; exact h
+    obtain ⟨σ', K, hrun, hK, hI', hi'⟩ := dedupRow_run hx hns hT hnB hnsB hnsW hlt hσ rfl
+    refine ⟨σ', K, hrun, hI', ?_⟩
+    have h₁ : offset x (σ.vars "di") ≤ offset x (σ.vars "di" + 1) := hx.offset_mono _ hlt
+    have h₂ : offset x (σ.vars "di" + 1) ≤ ns := by
+      rw [hns, ← hx.offset_last]
+      exact RamBfs.offset_mono' hx (by omega) le_rfl
+    have h₃ : dedupOffset x (σ.vars "di") ≤ dedupOffset x (σ.vars "di" + 1) :=
+      dedupOffset_mono' x (Nat.le_succ _)
+    have h₄ : dedupOffset x (σ.vars "di" + 1) ≤ dedupNs x :=
+      dedupOffset_le_dedupNs x (by rw [hx.vertexCount_eq]; omega)
+    simp only [size_condLt, size_var, hi']
+    omega
+  · refine ⟨hQ.1, ?_⟩
+    have h₀ := le_of_condLt_false hQ.2
+    have h₁ := hQ.1.1
+    have h₂ := hQ.1.2.1
+    omega
+
+/-! ## §3h The tail: the freed cells, and the exported scalar -/
+
+/-- The invariant of the zeroing loop. The cells the compaction freed are
+zeroed from the compacted count up to the *old* one; above the old count
+the tail is the decode's own, and the pass never goes there. -/
+def DedupZero (x : List ℕ) (n ns W : ℕ) (T : ℕ → ℕ) (σ : Env) : Prop :=
+  dedupNs x ≤ σ.vars "dk" ∧ σ.vars "dk" ≤ ns ∧
+    σ.vars "n" = n ∧ σ.vars "dq" = ns ∧ σ.vars "dw" = dedupNs x ∧
+    σ.arrs "off" = arrOf (n + 1) (dedupOffset x) ∧
+    σ.arrs "dmk" = arrOf n (fun _ => 0) ∧
+    (∃ F, σ.arrs "tgt" = arrOf W F ∧
+      (∀ j < σ.vars "dk", F j = dedupTarget x j) ∧
+      (∀ j, ns ≤ j → j < W → F j = T j))
+
+/-- The invariant of the halving loop: the counter is twice the scalar
+the driver's calling convention wants back. -/
+def DedupHalve (x : List ℕ) (n W : ℕ) (σ : Env) : Prop :=
+  σ.vars "dk" = σ.vars "m" + σ.vars "m" ∧ σ.vars "dk" ≤ dedupNs x ∧
+    σ.vars "dw" = dedupNs x ∧ σ.vars "n" = n ∧
+    σ.arrs "off" = arrOf (n + 1) (dedupOffset x) ∧
+    σ.arrs "dmk" = arrOf n (fun _ => 0) ∧
+    σ.arrs "tgt" = arrOf W (dedupTarget x)
+
+set_option maxHeartbeats 1000000 in
+/-- One freed cell, zeroed. -/
+theorem dedupZeroStep_run {B ns W : ℕ} {T : ℕ → ℕ} {x : List ℕ}
+    (hnsB : ns < B) (hnsW : ns ≤ W)
+    {σ : Env} (hI : DedupZero x n ns W T σ) (hklt : σ.vars "dk" < ns) :
+    ∃ σ' K, Run B (.seq (.store "tgt" (.var "dk") (.lit 0))
+        (.assign "dk" (.add (.var "dk") (.lit 1)))) σ σ' K ∧ K ≤ 7 ∧
+      DedupZero x n ns W T σ' ∧ σ'.vars "dk" = σ.vars "dk" + 1 := by
+  obtain ⟨hk₁, hk₂, hn, hdq, hdw, hoff, hdmk, F, hF, hlo, hhi⟩ := hI
+  have htgtLen : σ.vars "dk" < (σ.arrs "tgt").length := by rw [hF, length_arrOf]; omega
+  have hkB : σ.vars "dk" + 1 < B := by omega
+  run_vcg
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, rfl⟩
+  · show dedupNs x ≤ σ.vars "dk" + 1
+    omega
+  · show σ.vars "dk" + 1 ≤ ns
+    omega
+  · exact hn
+  · exact hdq
+  · exact hdw
+  · exact hoff
+  · exact hdmk
+  · refine ⟨upd F (σ.vars "dk") 0, ?_, ?_, ?_⟩
+    · show (σ.arrs "tgt").set (σ.vars "dk") 0 = arrOf W (upd F (σ.vars "dk") 0)
+      rw [hF, set_arrOf_eq_upd]
+    · show ∀ j < σ.vars "dk" + 1, upd F (σ.vars "dk") 0 j = dedupTarget x j
+      intro j hj
+      rcases Nat.lt_or_ge j (σ.vars "dk") with h | h
+      · rw [upd_of_ne _ (by omega)]; exact hlo j h
+      · rw [show j = σ.vars "dk" by omega, upd_self,
+          dedupTarget_eq_zero (by omega)]
+    · show ∀ j, ns ≤ j → j < W → upd F (σ.vars "dk") 0 j = T j
+      intro j h₁ h₂
+      rw [upd_of_ne _ (by omega)]
+      exact hhi j h₁ h₂
+
+/-- The pass's own cost: one turn per row, one per slot read, one per
+slot written, one per freed cell, and one per two compacted slots. The
+constants are **the walk's**, and `dedup_spec` is what pins them: the
+sweep pays `31` a row and `26` a slot, the trail `12` a kept slot, the
+zeroing `11` a freed cell and the halving `12` per two — and since the
+kept slots and the freed cells together are the old slots, that is
+`31·n + 50·ns + 29`. The shape — linear in `n` and the *old* slot
+count, with no `n · ns` term — is what the touched-only discipline of
+the trail buys and what the C0 budget needs. -/
+def dedupCost (n ns : ℕ) : ℕ := 31 * n + 50 * ns + 29
+
+set_option maxHeartbeats 1000000 in
+/-- **The pass.** The rows are compacted, the last offset published, the
+freed cells zeroed, and the compacted count halved into the scalar the
+driver's calling convention carries. -/
+theorem dedup_spec {B ns W : ℕ} {T : ℕ → ℕ} {x : List ℕ}
+    (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
+    (hT : ∀ j < ns, T j = target x j) (hpad : ∀ z, ns ≤ z → z < W → T z = 0)
+    (hnB : n + 1 < B) (hnsB : ns < B) (hWB : W < B) (hnsW : ns ≤ W) :
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧
+        σ.arrs "off" = arrOf (n + 1) (offset x) ∧ σ.arrs "tgt" = arrOf W T ∧
+        DedupMem n σ)
+      dedupCom
+      (fun _ σ' => σ'.vars "n" = n ∧ σ'.vars "m" + σ'.vars "m" = dedupNs x ∧
+        σ'.arrs "off" = arrOf (n + 1) (dedupOffset x) ∧
+        σ'.arrs "tgt" = arrOf W (dedupTarget x) ∧ DedupMem n σ')
+      (dedupCost n ns) := by
+  classical
+  have hnsle : dedupNs x ≤ ns := by
+    rw [hns]
+    exact dedupNs_le hx.vertexCount_eq hx.offset_zero hx.offset_last hx.offset_mono
+  obtain ⟨e, he⟩ := dedupNs_even hx
+  have hdns : dedupOffset x n = dedupNs x := by rw [dedupNs, hx.vertexCount_eq]
+  have hlast : offset x n = ns := by rw [hx.offset_last, hns]
+  have hrows := dedupRows_spec hx hns hT hnB hnsB hnsW
+  have hzero : Spec B (fun τ => DedupZero x n ns W T τ ∧ τ.vars "dk" = dedupNs x)
+      (.while (.lt (.var "dk") (.var "dq"))
+        (.seq (.store "tgt" (.var "dk") (.lit 0))
+          (.assign "dk" (.add (.var "dk") (.lit 1)))))
+      (fun _ τ' => DedupZero x n ns W T τ' ∧ τ'.vars "dk" = ns)
+      (11 * (ns - dedupNs x) + 4) :=
+    Csr.rowScan_spec B (11 * (ns - dedupNs x) + 4) ns 7 "dk" "dq" _
+      (DedupZero x n ns W T) (by omega)
+      (fun τ hτ => ⟨hτ.2.2.2.1, hτ.2.1⟩)
+      (fun τ hτ hlt => by
+        obtain ⟨τ', K', hr, hK', hI', hk'⟩ := dedupZeroStep_run hnsB hnsW hτ hlt
+        exact ⟨τ', K', hr, hI', hk', hK'⟩)
+      (fun _ hτ => hτ.1) (fun τ hτ => le_of_eq (by rw [hτ.2]))
+  have hhbody : Spec B
+      (fun τ => DedupHalve x n W τ ∧
+        (Cond.lt (Expr.var "dk") (Expr.var "dw")).evalB B τ = some true)
+      (.seq (.assign "dk" (.add (.var "dk") (.lit 2)))
+        (.assign "m" (.add (.var "m") (.lit 1))))
+      (fun τ τ' => DedupHalve x n W τ' ∧
+        dedupNs x - τ'.vars "dk" < dedupNs x - τ.vars "dk") 8 := by
+    refine Spec.of_exists (fun τ hτ => ?_)
+    obtain ⟨⟨hdk, hkle, hdw, hn', hoff', hdmk', htgt'⟩, hb⟩ := hτ
+    have hlt : τ.vars "dk" < dedupNs x := by
+      have h := lt_of_condLt_true hb; rw [hdw] at h; exact h
+    have hkB : τ.vars "dk" + 2 < B := by omega
+    have hmB : τ.vars "m" + 1 < B := by omega
+    run_vcg
+    refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
+    · show τ.vars "dk" + 2 = (τ.vars "m" + 1) + (τ.vars "m" + 1)
+      omega
+    · show τ.vars "dk" + 2 ≤ dedupNs x
+      omega
+    · exact hdw
+    · exact hn'
+    · exact hoff'
+    · exact hdmk'
+    · exact htgt'
+    · show dedupNs x - (τ.vars "dk" + 2) < dedupNs x - τ.vars "dk"
+      omega
+  have hhalve : Spec B (DedupHalve x n W)
+      (.while (.lt (.var "dk") (.var "dw"))
+        (.seq (.assign "dk" (.add (.var "dk") (.lit 2)))
+          (.assign "m" (.add (.var "m") (.lit 1)))))
+      (fun _ τ' => DedupHalve x n W τ' ∧
+        (Cond.lt (Expr.var "dk") (Expr.var "dw")).evalB B τ' = some false)
+      (12 * dedupNs x + 4) :=
+    Spec.while_count (DedupHalve x n W) (fun τ => dedupNs x - τ.vars "dk") 8
+      (fun τ hτ => evalB_condLt_vars (by have := hτ.2.1; omega) (by rw [hτ.2.2.1]; omega))
+      hhbody (fun _ h => h)
+      (fun τ hτ => by simp only [size_condLt, size_var]; have := hτ.2.1; omega)
+  have hcost : dedupCost n ns = 31 * n + 50 * ns + 29 := rfl
+  run_vcg [hrows, hzero, hhalve]
+  -- the exported scalar is the compacted count, halved
+  · obtain ⟨hIh, hfalse⟩ := ‹DedupHalve x n W _ ∧ _›
+    obtain ⟨hdk, hkle, hdw, hn', hoff', hdmk', htgt'⟩ := hIh
+    have hge := le_of_condLt_false hfalse
+    exact ⟨hn', by omega, hoff', htgt', dedupMem_arrOf hdmk'⟩
+  -- the row sweep starts with an empty compaction
+  · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    · show (0 : ℕ) ≤ n
+      omega
+    · exact ‹σ.vars "n" = n›
+    · exact ‹σ.vars "m" + σ.vars "m" = ns›
+    · show (0 : ℕ) = dedupOffset x 0
+      rw [dedupOffset_zero]
+    · show σ.arrs "off"
+        = arrOf (n + 1) (fun k => if k < 0 then dedupOffset x k else offset x k)
+      rw [‹σ.arrs "off" = arrOf (n + 1) (offset x)›]
+      exact arrOf_congr (fun k _ => by simp)
+    · exact dedupMem_eq ‹DedupMem n σ›
+    · refine ⟨T, ‹σ.arrs "tgt" = arrOf W T›, ?_, fun j _ _ => rfl⟩
+      show ∀ j < dedupOffset x 0, T j = dedupTarget x j
+      rw [dedupOffset_zero]
+      exact fun j hj => absurd hj (by omega)
+  -- the three words the last store and the two tail loops read
+  · obtain ⟨hIo, hdi⟩ := ‹DedupOuter x n ns W T _ ∧ _›
+    rw [hIo.2.1]; omega
+  · obtain ⟨hIo, hdi⟩ := ‹DedupOuter x n ns W T _ ∧ _›
+    have h := hIo.2.2.2.1
+    rw [hdi, hdns] at h
+    rw [h]; omega
+  · obtain ⟨hIo, hdi⟩ := ‹DedupOuter x n ns W T _ ∧ _›
+    rw [hIo.2.2.2.2.1, length_arrOf, hIo.2.1]
+    omega
+  · obtain ⟨hIo, hdi⟩ := ‹DedupOuter x n ns W T _ ∧ _›
+    have h := hIo.2.2.2.1
+    rw [hdi, hdns] at h
+    simp only [vars_setArr]
+    rw [h]; omega
+  -- the zeroing starts at the compacted count, with the last offset published
+  · obtain ⟨hIo, hdi⟩ := ‹DedupOuter x n ns W T _ ∧ _›
+    obtain ⟨-, hn', hdq', hdw', hoff', hdmk', F, hF, hlo, hhi⟩ := hIo
+    rw [hdi] at hdw' hoff' hlo hhi
+    rw [hdns] at hdw' hlo
+    rw [hlast] at hhi
+    refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
+    · exact le_of_eq hdw'.symm
+    · exact le_trans (le_of_eq hdw') hnsle
+    · exact hn'
+    · exact hdq'
+    · exact hdw'
+    · simp only [arrs_setVar, arrs_setArr, vars_setArr]
+      rw [hn', hdw', hoff', set_arrOf_eq_upd]
+      refine arrOf_congr (fun k hk => ?_)
+      rcases eq_or_ne k n with rfl | hne
+      · rw [upd_self, hdns]
+      · rw [upd_of_ne _ hne, if_pos (by omega)]
+    · exact hdmk'
+    · exact ⟨F, hF, fun j hj => hlo j (by rw [← hdw']; exact hj), hhi⟩
+    · exact hdw'
+  -- the halving starts at zero, on the finished block structure
+  · obtain ⟨hIz, hdkz⟩ := ‹DedupZero x n ns W T _ ∧ _›
+    obtain ⟨-, -, hn', -, hdw', hoff', hdmk', F, hF, hlo, hhi⟩ := hIz
+    rw [hdkz] at hlo
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    · show (0 : ℕ) = 0 + 0
+      omega
+    · show (0 : ℕ) ≤ dedupNs x
+      omega
+    · exact hdw'
+    · exact hn'
+    · exact hoff'
+    · exact hdmk'
+    · simp only [arrs_setVar]
+      rw [hF]
+      refine arrOf_congr (fun k hk => ?_)
+      rcases Nat.lt_or_ge k ns with h | h
+      · exact hlo k h
+      · rw [hhi k h hk, hpad k h hk, dedupTarget_eq_zero (by omega)]
+
 /-! ## §4 The composed obligation
 
 `DecodeImplementsD` is what the assembly consumes in place of
@@ -833,32 +1625,23 @@ destructures the decode's, with `CsrSimple` and the compacted zero tail
 added, so the B7 re-run's `obtain` pattern changes only by those two
 conjuncts.
 
-**Status.** The Prop is stated and its data (§1) is proved: the
-compacted block structure exists, is a `CsrGraph` for the same graph, is
-`CsrSimple`, has an even slot count, and is what the program computes on
-the three differential instances of §2b. What is *not* in this file is
-the `Spec` walk that discharges it — `dedup_spec` (the state-level
-invariants of §3a's two lemmas, threaded through
-`Csr.rowScan_spec`/`Spec.forRange`) and its composition with
-`RamDriverIO.decodeImplements` through `Spec.seq`. Nothing below
-asserts it; `DecodeImplementsD` is a definition, not a theorem, exactly
-as `RamDriver.DecodeImplements` is. -/
+**Status (rebase G1b).** The Prop is stated *and discharged*:
+`decodeImplementsD` below closes it, composing
+`RamDriverIO.decodeImplements` at the padded target function with
+`dedup_spec` — the walk of §3c–§3h — as one run. `DecodeImplementsD` is
+still a definition and not a theorem, exactly as
+`RamDriver.DecodeImplements` is; the theorem that closes it is separate,
+and carries the encoding hypothesis and the slot-count equation the
+Prop's own statement cannot.
 
-/-- The compacted target array is zero above the compacted slot count —
-for free, because a cell above it is a read past the end of the
-compacted list. This is the fact that stands where `hpad0` used to be a
-hypothesis. -/
-theorem dedupTarget_eq_zero {x : List ℕ} {z : ℕ} (hz : dedupNs x ≤ z) :
-    dedupTarget x z = 0 := by
-  rw [dedupTarget, List.getD_eq_default]
-  exact hz
-
-/-- The pass's own cost: one turn per row, one per slot read, one per
-slot written, one per freed cell, and one per two compacted slots. The
-constants are the walk's to pin; the shape — linear in `n` and the
-*old* slot count, with no `n · ns` term — is what the touched-only
-discipline of the trail buys and what the C0 budget needs. -/
-def dedupCost (n ns : ℕ) : ℕ := 60 * n + 60 * ns + 40
+One ledger line on the shape. The parameter `T` is **vestigial**: it
+occurs nowhere in the precondition, the program or the postcondition,
+and only in the hypothesis `∀ z, ns ≤ z → z < W → T z = 0`, which the
+discharger therefore does not use — the decode is instantiated at the
+pass's own `padTarget`, whose pad clause holds by construction. The
+parameter is kept so that the obligation reads at the same arity as
+`RamDriver.DecodeImplements`, which B7's `obtain` pattern is written
+against; nothing is weakened by it. -/
 
 /-- **The decode with the dedup guard**, as the obligation the assembly
 consumes. Precondition: the decode's own, plus `DedupMem` for the mark
@@ -885,6 +1668,77 @@ def DecodeImplementsD (B : ℕ) (x : List ℕ) {n : ℕ} (G : SimpleGraph (Fin n
         DedupMem n σ' ∧
         (∃ M, σ'.arrs (RamDriver.alvName 0) = arrOf n M ∧ ∀ v < n, M v = 1) ∧
         (∃ Gm, σ'.arrs (RamDriver.gamName 0) = arrOf n Gm ∧ ∀ v < n, Gm v = 1)) K
+
+/-- The decode's own target function: the encoding's targets below the
+declared slot count, and the zero pad above it. This is what the decode
+leaves in `tgt`, and what the dedup pass is handed. -/
+def padTarget (x : List ℕ) (ns : ℕ) (j : ℕ) : ℕ := if j < ns then target x j else 0
+
+theorem padTarget_lt {x : List ℕ} {ns j : ℕ} (h : j < ns) :
+    padTarget x ns j = target x j := by rw [padTarget, if_pos h]
+
+theorem padTarget_ge {x : List ℕ} {ns j : ℕ} (h : ns ≤ j) :
+    padTarget x ns j = 0 := by rw [padTarget, if_neg (by omega)]
+
+/-- **The engines' scratch survives the pass.** Its `Sized` clause and
+its two word clauses survive *any* run; its eight zeroing clauses survive
+this one because the pass writes only `off`, `tgt` and its own marks. The
+slot count may be replaced by any smaller one, since it occurs in the
+clause only as `ns ≤ W`. -/
+theorem orderMem_dedup {B ns ns' W : ℕ} {σ σ' : Env} {K : ℕ}
+    (h : RamDriver.OrderMem B n ns W σ) (hr : Run B dedupCom σ σ' K) (hns' : ns' ≤ W) :
+    RamDriver.OrderMem B n ns' W σ' := by
+  obtain ⟨-, hsz, h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, hw₁, hw₂⟩ := h
+  refine ⟨hns', hsz.run hr, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+    RamDriver.run_mem_arrs_lt hr "itg" hw₁, RamDriver.run_mem_arrs_lt hr "ntg" hw₂⟩
+  · rw [frame_arr_dedupCom hr "elm" (by decide) (by decide) (by decide)]; exact h₁
+  · rw [frame_arr_dedupCom hr "bh" (by decide) (by decide) (by decide)]; exact h₂
+  · rw [frame_arr_dedupCom hr "ooff" (by decide) (by decide) (by decide)]; exact h₃
+  · rw [frame_arr_dedupCom hr "noff" (by decide) (by decide) (by decide)]; exact h₄
+  · rw [frame_arr_dedupCom hr "stf" (by decide) (by decide) (by decide)]; exact h₅
+  · rw [frame_arr_dedupCom hr "sta" (by decide) (by decide) (by decide)]; exact h₆
+  · rw [frame_arr_dedupCom hr "std" (by decide) (by decide) (by decide)]; exact h₇
+  · rw [frame_arr_dedupCom hr "ste" (by decide) (by decide) (by decide)]; exact h₈
+
+set_option maxHeartbeats 1000000 in
+/-- **The obligation, discharged.** The decode is
+`RamDriverIO.decodeImplements` at the padded target function; the guard
+is `dedup_spec`; and the two are one run. Everything the level below
+reads that the pass does not write crosses on the frame. -/
+theorem decodeImplementsD {B ns W K : ℕ} {T : ℕ → ℕ} {x : List ℕ}
+    (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
+    (hK : RamDriverIO.decodeCost n ns + dedupCost n ns ≤ K) :
+    DecodeImplementsD B x G ns W T K := by
+  classical
+  intro hxB hnB hnsB hWB hnsW _hpad0
+  have hnsle : dedupNs x ≤ ns := by
+    rw [hns]
+    exact dedupNs_le hx.vertexCount_eq hx.offset_zero hx.offset_last hx.offset_mono
+  have hTlo : ∀ j < ns, padTarget x ns j = target x j := fun _ hj => padTarget_lt hj
+  have hThi : ∀ z, ns ≤ z → z < W → padTarget x ns z = 0 := fun _ h₁ _ => padTarget_ge h₁
+  have hdec := (RamDriverIO.decodeImplements (B := B) (Ws := W) (O := offset x)
+      (T := padTarget x ns) hx hns (fun _ _ => rfl) hTlo le_rfl)
+    hxB hnB hnsB hWB hnsW hThi
+  have hpass := dedup_spec (B := B) (T := padTarget x ns) hx hns hTlo hThi hnB hnsB hWB hnsW
+  refine Spec.of_exists (fun σ hσ => ?_)
+  obtain ⟨hmem, hord, hdmem, hinp, hout⟩ := hσ
+  obtain ⟨σ₁, r₁, ho₁, hcsr₁, hn₁, hoff₁, htgt₁, hm₁, hord₁, hM, hGm⟩ :=
+    hdec σ ⟨hmem, hord, hinp, hout⟩
+  have hfr₁ : σ₁.arrs "dmk" = σ.arrs "dmk" := r₁.frame_arr "dmk" (by decide)
+  have hdmem₁ : DedupMem n σ₁ :=
+    ⟨by rw [hfr₁]; exact hdmem.1, by rw [hfr₁]; exact hdmem.2⟩
+  obtain ⟨σ₂, r₂, hn₂, hm₂, hoff₂, htgt₂, hdmem₂⟩ :=
+    hpass σ₁ ⟨hn₁, hm₁, hoff₁, htgt₁, hdmem₁⟩
+  refine ⟨σ₂, _, r₁.seq r₂, hK, ?_, csrGraph_dedup hx, csrSimple_dedup hx, hnsle,
+    fun z hz _ => dedupTarget_eq_zero hz, hn₂, hoff₂, htgt₂, hm₂,
+    orderMem_dedup hord₁ r₂ (le_trans hnsle hnsW), hdmem₂, ?_, ?_⟩
+  · rw [r₂.out_eq noWrite_dedupCom, ho₁]
+  · obtain ⟨M, hMa, hMv⟩ := hM
+    exact ⟨M, by rw [frame_arr_dedupCom r₂ (RamDriver.alvName 0)
+      (by decide) (by decide) (by decide)]; exact hMa, hMv⟩
+  · obtain ⟨Gm, hGa, hGv⟩ := hGm
+    exact ⟨Gm, by rw [frame_arr_dedupCom r₂ (RamDriver.gamName 0)
+      (by decide) (by decide) (by decide)]; exact hGa, hGv⟩
 
 /-- **The data half of `DecodeImplementsD`, proved.** Every conjunct of
 the postcondition that is a statement about the *word* rather than

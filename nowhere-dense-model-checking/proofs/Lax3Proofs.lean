@@ -74,3 +74,6 @@ import Lax3Proofs.Refine.DeadRow
 import Lax3Proofs.Refine.DeadSweep
 import Lax3Proofs.Refine.OrderBridge
 import Lax3Proofs.Refine.BlockLeaves
+import Lax3Proofs.RamDriverDedup
+import Lax3Proofs.Refine.G2CostProbe
+import Lax3Proofs.Refine.MassWeight
