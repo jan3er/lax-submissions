@@ -287,7 +287,7 @@ theorem orderImplements_mono {B n R W cap mb ns j K K' : ℕ} {G : SimpleGraph (
 
 -- the two figures at the demo's size, and the frozen budget beside them
 #guard orderTowerK 5 10 10 = 8434
-#guard RamDriverCompose.orderPhaseCost 5 10 10 = 20150
+#guard RamDriverCompose.orderPhaseCost 5 10 10 = 22350
 #guard orderTowerK 5 10 10 ≤ RamDriverCompose.orderPhaseCost 5 10 10
 
 /-! ### Negative controls (B1/B-d)
@@ -307,7 +307,9 @@ the engine **twice**. -/
 #guard ! (orderTowerK 5 10 10 = orderPhase0K 5 10 10 0 + engineK5 5 10)
 
 -- **(c) the fit is not vacuous.** The margin in `n` is 873 against
--- 1 400; on an instance with no slots at all a phase twice as dear per
+-- 1 600 (rebase F-c-2 raised the budget by the symmetrization's
+-- `200·n + 100·ns + 200`); on an instance with no slots at all a phase
+-- twice as dear per
 -- vertex does **not** fit the same budget, so the inequality has
 -- content and is not an artefact of the budget's generosity in `ns`.
 #guard ! (2 * 873 * 1000 + 259 ≤ RamDriverCompose.orderPhaseCost 1000 0 0)

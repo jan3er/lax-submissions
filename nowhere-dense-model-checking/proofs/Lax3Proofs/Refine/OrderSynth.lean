@@ -809,7 +809,16 @@ def poC (n : ℕ) : ACost String ℕ := n • iter ordC + cu Currency.«while»
 copied in, the first elimination, the two in-list copies the round would
 have read, the structure restored, the mask reopened, the elimination
 scratch re-zeroed, the second elimination, the rank inversion, and the
-eight fills of the re-zeroing tail. -/
+eight fills of the re-zeroing tail.
+
+**Ledger F-c-2 — this models the pre-F-c-2 text.** `orderCom` has since
+gained `RamDriver.symCom` where `restoreCsr` used to sit, and moved
+`restoreCsr` past the second elimination, so that the elimination the
+cost stands on takes the *augmented* graph. Nothing here is refuted —
+no theorem of this tower claims the two programs are equal, and
+`OrderBridge.orderTowerK_le_orderPhaseCost` still holds against the
+raised budget — but a wave that lowers this tower into `orderCom` must
+add the symmetrization's three passes to `orderPhase0` first. -/
 noncomputable def orderPhase0 (n ns W : ℕ)
     (E : List ℕ → List ℕ → List ℕ → NRest ElimOut ECost)
     (off tgt gof gtg alvj alv doff dtg ooff noff stf sta std ste ord : List ℕ) :

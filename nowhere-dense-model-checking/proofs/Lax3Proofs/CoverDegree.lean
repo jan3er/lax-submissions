@@ -614,6 +614,77 @@ theorem exists_wreach_degree (C : GraphClass) (hC : NowhereDense C) (rc R t : �
   rw [← wreach_fibre_eq G π (2 * rc) v]
   exact hdeg
 
+/-! ### The bundle the `R*` phase exports (rebase F-c-2)
+
+`exists_wreach_degree`'s six machine hypotheses are exactly the data an
+`R`-round ordering phase produces, and they are produced in three
+places: the fold (the chain and the per-round greedy property), the
+phase's *first* elimination (`d₀` and its minimality, off `ElimPost` at
+the level's own arena) and its *last* (`k` and its minimality, off
+`ElimPost` at the **symmetrized augmented** graph — which is what
+`RamDriver.symCom` is in the text for).
+
+`AugChainData` names that list once, so that the phase obligation's
+parametric slot `P` has a value with a name rather than a six-clause
+conjunction written out at every call site, and so that the wave which
+proves the phase and the wave which consumes it agree on the interface
+without either reading the other's file. `wreach_degree_of_data` is the
+consumption: the bundle plus the class mathematics is the predicate
+`RamCover.isNeighborhoodCover_of_out` takes.
+
+Nothing here is new mathematics — it is `exists_wreach_degree` with its
+hypotheses named — and that is the point: the `R*` phase's
+postcondition is now a *definition* this file owns. -/
+
+/-- **The degree data of an `R`-round greedy chain**: the chain, the
+per-round greedy property, and the two elimination bounds with their
+minimalities. This is `exists_wreach_degree`'s hypothesis list, verbatim
+and in order. -/
+def AugChainData {m : ℕ} (G : SimpleGraph (Fin m)) (D : ℕ → Orientation m)
+    (π : Equiv.Perm (Fin m)) (R d₀ k : ℕ) : Prop :=
+  IsAugChain G D R ∧
+  (∀ i < R, GreedyFratRound (D i) (D (i + 1))) ∧
+  (D 0).InDegLE d₀ ∧
+  (∀ k', LowDegreeVertices G k' → d₀ ≤ k') ∧
+  BackDegLE (D R).toGraph (fun v => ((π v : Fin m) : ℕ)) k ∧
+  (∀ k', LowDegreeVertices (D R).toGraph k' → k ≤ k')
+
+/-- **The bundle, consumed.** `exists_wreach_degree` with its six
+hypotheses read off `AugChainData` — the form the ordering phase's
+parametric slot `P` is instantiated at. -/
+theorem wreach_degree_of_data (C : GraphClass) (hC : NowhereDense C) (rc R t : ℕ)
+    (ht : 3 * t ≤ R) (hrt : 2 * rc ≤ 2 ^ t) (δ : ℝ) (hδ : 0 < δ) :
+    ∃ c : ℝ, ∀ (n : ℕ) (Gn : SimpleGraph (Fin n)), C n Gn →
+      ∀ (m : ℕ) (G : SimpleGraph (Fin m)), G ⊑ Gn →
+        ∀ (D : ℕ → Orientation m) (π : Equiv.Perm (Fin m)) (d₀ k : ℕ),
+          AugChainData G D π R d₀ k →
+          ∀ v : Fin m, (wreach G π (2 * rc) v).ncard ≤ ⌈c * (m : ℝ) ^ δ⌉₊ := by
+  obtain ⟨c, hc⟩ := exists_wreach_degree C hC rc R t ht hrt δ hδ
+  exact ⟨c, fun n Gn hGn m G hsub D π d₀ k ⟨h₁, h₂, h₃, h₄, h₅, h₆⟩ =>
+    hc n Gn hGn m G hsub D π d₀ k h₁ h₂ h₃ h₄ h₅ h₆⟩
+
+/-- And back: the bundle is no weaker than the list it packages, so a
+phase that exports it has exported each clause. -/
+theorem augChainData_iff {m : ℕ} {G : SimpleGraph (Fin m)} {D : ℕ → Orientation m}
+    {π : Equiv.Perm (Fin m)} {R d₀ k : ℕ} :
+    AugChainData G D π R d₀ k ↔
+      (IsAugChain G D R ∧ (∀ i < R, GreedyFratRound (D i) (D (i + 1))) ∧
+        (D 0).InDegLE d₀ ∧ (∀ k', LowDegreeVertices G k' → d₀ ≤ k') ∧
+        BackDegLE (D R).toGraph (fun v => ((π v : Fin m) : ℕ)) k ∧
+        (∀ k', LowDegreeVertices (D R).toGraph k' → k ≤ k')) := Iff.rfl
+
+/-- **The `R = 0` reading is not vacuous, and is not the phase's.** At
+`R = 0` the chain is the single orientation `D 0`, and the *last*
+elimination's graph is `(D 0).toGraph = G` — so the bundle degenerates
+to the level's own two elimination bounds and carries nothing about
+augmentation. That is exactly why `RamDriverCompose.orderImplements₀`
+instantiates `P` at `True` and the `R*` phase does not: the content of
+the slot is the fold, and the fold at `R = 0` is `Com.skip`. -/
+theorem augChainData_zero {m : ℕ} {G : SimpleGraph (Fin m)} {D : ℕ → Orientation m}
+    {π : Equiv.Perm (Fin m)} {d₀ k : ℕ} (h : AugChainData G D π 0 d₀ k) :
+    (D 0).InDegLE d₀ ∧ BackDegLE (D 0).toGraph (fun v => ((π v : Fin m) : ℕ)) k :=
+  ⟨h.2.2.1, h.2.2.2.2.1⟩
+
 /-! ### Falsification (B5)
 
 The authored content of the projection is the *variance* of the fibre

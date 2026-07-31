@@ -1661,9 +1661,23 @@ def elimRezeroCom : Com :=
   .seq (fillCom "elm" (.lit 0)) (fillUpto "bh" (.add (.var "n") (.lit 1)) (.lit 0))
 
 /-- **The ordering pass at depth `j`.** The block structure saved, one
-elimination to orient the arena, `R` augmentation rounds, the structure
-restored, the elimination scratch re-zeroed, a final elimination, the
-inversion of its rank array, and the re-zeroing tail.
+elimination to orient the arena, `R` augmentation rounds, the chain's
+last orientation symmetrized into `off`/`tgt`, the elimination scratch
+re-zeroed, a final elimination *of the symmetrized graph*, the level's
+own block structure restored, the inversion of the rank array, and the
+re-zeroing tail.
+
+**The symmetrization** (rebase F-c). `symCom` sits where `restoreCsr`
+used to, and `restoreCsr` moved past the final elimination. The reason
+is the one the paragraph below used to record as a *defect*: the final
+elimination is what the driver's cost stands on — its `ElimPost` is
+`Lax3Proofs.CoverDegree.exists_wreach_degree`'s `BackDegLE (D R).toGraph
+(π ·) k` together with its minimality — and an elimination of the
+level's *own* arena produces that datum for the wrong graph.
+`TgtWidenProbe`'s `K₁,₄` instance measures the difference: the old text
+reported `kmax = 1` where the augmented graph's is `4`. See
+`symCom`'s own docstring for what the pass leaves and why the union is
+disjoint.
 
 **Session repair (wave D4), reviewable.** `elimRezeroCom` was not there,
 and without it the pass had *no run at all* for `n ≥ 1`, so
@@ -1687,18 +1701,16 @@ of `RamElim.ElimPre` that ask for a *value* rather than a length —
 eliminations never touch, and the four stamps are the augmentation's.
 It changes no arena, no ordering and no postcondition, only the cost.
 
-The final elimination is taken on the level's *own* arena and not on the
-augmented one, and that is a consequence of the one coupling
-`Lax3Proofs.RamElim.ElimPre` still has: the input block structure is
-read through the reasoning kit's `Csr` relation, which pins the target
-array's length to the last offset, so a graph can only be eliminated in
-an array of exactly its own slot count. The augmented graph has more
-arcs than the input, so it does not fit the level's `tgt`. Nothing in
-the driver's *correctness* notices — `OrderImplements` promises only
-that `ord` orders some permutation, and `RamCover.cover_spec` produces a
-neighborhood cover from any of them — but the cover's *degree*, and
-hence the driver's cost, is what the augmentation is for, so a wave that
-computes the cost has to widen that surface first. -/
+**What the two widths are now** (rebase F-c-2). The symmetrized graph
+occupies `m + m` slots, `m` being the arc count of the chain's last
+orientation, and the final elimination reads it through
+`Lax3Proofs.RamElim.ElimPreW` — the *widened* input surface, whose slot
+count is only a lower bound of the target array's length. At `R = 0`
+the orientation is one of the level's own arena, so
+`RamDriverAugment.two_mul_arcs_le` puts `m + m` below the level's `ns`
+and the pass fits the array the level already has. At `R > 0` it does
+not (`TgtWidenProbe.sym5Narrow` is stuck), which is why `LevelPre`'s
+`tgt` clause is stated at the allocation width `W`. -/
 def orderCom (R W j : ℕ) : Com :=
   .seq saveCsr
     (.seq (copyCom (alvName j) "alv")
@@ -1706,11 +1718,12 @@ def orderCom (R W j : ℕ) : Com :=
         (.seq (copyUpto "ioff" "doff" (.add (.var "n") (.lit 1)))
           (.seq (copyUpto "itg" "dtg" (.lit W))
             (.seq (foldRange (fun _ => .seq RamAugment.augCom (augRelinkCom W)) R)
-              (.seq restoreCsr
+              (.seq symCom
                 (.seq (fillCom "alv" (.lit 1))
                   (.seq elimRezeroCom
                     (.seq RamElim.elimCom
-                      (.seq (ordCom (ordName j)) orderZeroCom))))))))))
+                      (.seq restoreCsr
+                        (.seq (ordCom (ordName j)) orderZeroCom)))))))))))
 
 /-! ### One cluster
 

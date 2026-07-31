@@ -442,9 +442,10 @@ theorem mem_warrs_foldIdx' {X : Type*} (f : ℕ → X → Com) :
 
 theorem warrs_orderCom_split (W j : ℕ) : (orderCom 0 W j).warrs =
     ["gof", "gtg", "alv", "deg", "deg", "bv", "bn", "bh", "bh", "elm", "rnk", "idg", "deg",
-      "bv", "bn", "bh", "ioff", "ifl", "ioff", "itg", "ifl", "doff", "dtg", "off", "tgt",
+      "bv", "bn", "bh", "ioff", "ifl", "ioff", "itg", "ifl", "doff", "dtg",
+      "ooff", "ooff", "ofl", "otg", "ofl", "off", "tgt", "tgt",
       "alv", "elm", "bh", "deg", "deg", "bv", "bn", "bh", "bh", "elm", "rnk", "idg", "deg",
-      "bv", "bn", "bh", "ioff", "ifl", "ioff", "itg", "ifl"] ++
+      "bv", "bn", "bh", "ioff", "ifl", "ioff", "itg", "ifl", "off", "tgt"] ++
     (ordName j :: ["elm", "bh", "ooff", "noff", "stf", "sta", "std", "ste"]) :=
   RamDriverCompose.warrs_orderCom₀ W j
 
@@ -462,7 +463,7 @@ theorem belowVar_notMem_wvars_orderCom (W d : ℕ) {y : String} (h : BelowVar d 
   rw [RamDriverCompose.wvars_orderCom₀]
   intro hm
   exact (by decide : ∀ q ∈ ["i", "c", "j", "jend", "u", "sp", "ls", "d", "mind", "cnt",
-      "kmax", "sc", "p", "w", "s", "z"], ¬ HasDigit q) _
+      "kmax", "sc", "p", "w", "s", "z", "sy"], ¬ HasDigit q) _
     (RamDriverCompose.mem_wvars_orderCom₀ y hm) (hasDigit_of_belowVar h)
 
 /-! ### The cover phase -/

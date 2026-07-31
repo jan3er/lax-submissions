@@ -390,6 +390,39 @@ def old5Final : PRes :=
 #guard old5Final.scalar "kmax" ≠ sym5Final.scalar "kmax"
 #guard ¬ (old5Final.scalar "kmax" = 4)
 
+/-! ### The new text's tail, at `R = 0` (rebase F-c-2)
+
+`RamDriver.orderCom` now reads `… fold … ; symCom ; alv := 1 ;
+elimRezeroCom ; elimCom ; restoreCsr ; …`. The differential above is
+the *reason*; what has to hold beside it is that the swap costs the
+`R = 0` phase nothing — and it does not, because at `R = 0` the
+orientation symmetrized is one of the level's **own** arena, so the
+union it writes is the level's own graph in the level's own array.
+That is `RamDriverAugment.two_mul_arcs_le` proved, and this is it run:
+the tail on the star's elimination orientation reports the star's own
+degeneracy, the same number the old text's tail reported. -/
+def sym5ZeroFinal : PRes :=
+  exec pB pF
+    (.seq RamDriver.symCom
+      (.seq (RamDriver.fillCom "alv" (.lit 1))
+        (.seq RamDriver.elimRezeroCom RamElim.elimCom)))
+    (augSt 5 64 8 star5doff star5dtg)
+
+#guard sym5ZeroFinal.isOk
+#guard sym5ZeroFinal.scalar "kmax" = 1
+#guard sym5ZeroFinal.scalar "kmax" = old5Final.scalar "kmax"
+
+-- and the graph it eliminated is the star, cell for cell: the `R = 0`
+-- fit, seen
+#guard (List.range 6).map (sym5ZeroFinal.cell "off") = [0, 4, 5, 6, 7, 8]
+#guard (List.range 8).map (sym5ZeroFinal.cell "tgt") = [1, 2, 3, 4, 0, 0, 0, 0]
+
+-- **the R = 1 fold instance.** The same tail one round on is
+-- `sym5Final` above: `kmax = 4`, the augmented graph's degeneracy —
+-- so the new order really does hand the *augmented* datum on, and the
+-- two instances of one tail separate exactly where the fold does.
+#guard sym5ZeroFinal.scalar "kmax" ≠ sym5Final.scalar "kmax"
+
 /-! ### The symmetrization's own width
 
 The union of the two blocks is twice the arc count, and at `R > 0` that

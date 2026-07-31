@@ -412,6 +412,64 @@ theorem uniform_recovers_level {n : ℕ} {Ko Kc Kd Ks Kl : ℕ → ℕ}
   simp only []
   omega
 
+/-! ### The plug, checked
+
+B8's stale-corollary discipline: `levelCost_of_sigma` is an arithmetic
+statement *about* `levelAt`'s `hKl` slot, and an arithmetic statement
+compiles whether or not it still fits the slot. So the fit is written
+down as a term — `levelAt_of_sigma` is `levelAt` with its level
+condition supplied by the solver's shape, and it type-checks only if
+the two shapes are still the same one. Re-run at rebase F-c-2, whose
+only cost move is `RamDriverCompose.orderPhaseCost`'s constants and so
+touches `hKo`, not this. -/
+
+section Plug
+
+variable {n : ℕ} {B q_top cap mb ns W ℓ s Kmass : ℕ} {N : ℕ → ℕ}
+  {φ : Lax3.FirstOrder.FO 0} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
+  {Kb : ℕ} {Ki Ksc : ℕ → ℕ} {Ko Kc Kd Ks Kt Kl : ℕ → ℕ → ℕ}
+
+open Classical in
+/-- **Every level of the driver, against the solver's own shape.**
+`levelAt` with `hKl` produced by `levelCost_of_sigma` — the plug B7
+will call, and the check that the Σ interface and the level condition
+have not drifted apart. -/
+theorem levelAt_of_sigma
+    (hcap : cap = rhoMinus 0 q_top) (hmb : mb = ℓ * (2 * cap + 1)) (hℓ : ℓ = N (2 * s + 2))
+    (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B) (hpow : 2 ^ sigL cap mb ℓ < B)
+    (hcsr : RamElim.CsrSimple G ns O T)
+    (hQ : ∀ Pt : Set (Fin n), N (2 * s + 2) ≤ Pt.ncard →
+      ∃ S Bd : Set (Fin n), S.ncard ≤ s ∧ Bd ⊆ Pt \ S ∧ 2 * s + 2 ≤ Bd.ncard ∧
+        DistIndependent (deleteVerts G S) (2 * cap) Bd)
+    (hbnd : ∀ j < ℓ, ∀ β ∈ tablesAt q_top cap mb φ j,
+      ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
+        σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n ns σs.t ≤ Kb)
+    (hcostI : ∀ j < ℓ, ∀ β ∈ tablesAt q_top cap mb φ j,
+      Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki j)
+    (hKsc : ∀ j < ℓ, Ki j * (tablesAt q_top cap mb φ j).length + 1 ≤ Ksc j)
+    (hKmono : ∀ j, Monotone (Kl j))
+    (hKs : ∀ j < ℓ, ∀ t : ℕ,
+      turnCostSize n ns cap mb q_top j φ (Ksc j) t (Kl (j + 1) t) ≤ Ks j t)
+    (hKbase : ∀ m, RamDriverBot.baseCost q_top cap mb ℓ n φ ≤ Kl ℓ m)
+    (hKo : ∀ j m, RamDriverCompose.orderPhaseCost n ns W ≤ Ko j m)
+    (hKc : ∀ j m, RamDriverCompose.coverPhaseCost n ns ≤ Kc j m)
+    (hKd : ∀ j m, Refine.DeadSweep.sweepCost q_top cap mb j n φ ≤ Kd j m)
+    (hbinj : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (mm : ℕ),
+      RamCover.CoverOut G M π ord cap mm Xoff Xmem asg → Refine.MassMath.BlockInj n Xoff Xmem)
+    (hdeg : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (v : Fin n),
+      (Lax12.ColoringNumbers.wreach (RamBfs.masked G M) π (2 * cap) v).ncard ≤ Kmass)
+    (hshift : ∀ j t, Ks j t + 3 ≤ Kt j t)
+    (hsolve : ∀ j < ℓ, ∀ m t : ℕ, t ≤ m → ∀ bs : ℕ → ℕ,
+      (∑ c ∈ Finset.range t, bs c) ≤ Kmass * (m + 1) →
+      Ko j m + ((Kc j m + Kd j m) + ((∑ c ∈ Finset.range t, (Kt j (bs c) + 8)) + 6))
+        ≤ Kl j m) :
+    ∀ j ≤ ℓ, ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
+      LevelImplements B q_top cap mb 0 ℓ W ns j φ G O T M Gm C (Kl j (arenaSize n M)) :=
+  levelAt hcap hmb hℓ hB hWB hpow hcsr hQ hbnd hcostI hKsc hKmono hKs hKbase hKo hKc hKd
+    hbinj hdeg (levelCost_of_sigma hshift hsolve)
+
+end Plug
+
 end Bridge
 
 /-! ### The theorem -/
