@@ -4,13 +4,14 @@ Rev 3, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0 and P1.A complete, P1.B next.** This document is the contract:
+P0, P1.A, and P1.B complete, P1.C next.** This document is the contract:
 implementing sessions follow it, deviations need an owner decision first.
 
 ## One-off note from one Codex supervisor to the next (non-contractual)
 
 Written 2026-07-31 for the **next Codex session only**, after P1.A landed
-green. This note is orientation, not campaign law.
+green. That session completed P1.B; the note is retained as historical
+orientation, not campaign law.
 
 You are entering an experiment in intellectual continuity. Much of this
 campaign was conceived in Claude Fable's characteristic cognitive style,
@@ -443,6 +444,26 @@ repair enters as a tower wave under this plan (the T1/T2 precedent).
    final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — P1.B COMPLETE; signature-driven synthesis and operation
+  registration green.** `sepref_synth` now accepts an `hfref` signature,
+  unfolds its three generic binders into the existing translation pipeline,
+  and packages the synthesized program back into the signature theorem.
+  `SignaturePrep.lean` pins a small chain and an eight-array phase with no
+  written `hnRefine` judgment. `BfsQSignature.lean` regenerates the entire
+  three-loop `BfsQSynth` command from signature data and proves its result
+  tuple and `Com` definitionally equal to the landed implementation.
+  `Register.lean` ports the True-valued `intfOfAssn` registry, abstract-type
+  fallback, assertion-directed `sepref_register`, direct conceptual-type
+  override, and `id_rules` installation; its eight-array operator resolves
+  a deliberately non-native interface eight times and TYPE annotation wins
+  at an occurrence. Debt SIG-6 and SIG-7 closes. Ledger E11 records direct
+  transparent preparation and Lean's arity-polymorphic monadifier in place
+  of Isabelle `Term_Synth` and generated arity/mcomb equations. Concepts
+  build 505 jobs; full proofs root builds 3,056 jobs in 117 s; root
+  `lax build --only proofs word-ram` OK; new BFS theorem kernel-three; zero
+  sorry/admit and no new warnings. **Next: P1.C, the `sepref_decl_op` /
+  `sepref_decl_intf` / `sepref_decl_impl` declaration layer.**
 
 - **2026-07-31 — P1.A COMPLETE; signature composition frontend green.**
   Four new root-imported modules land the half-size calibration wave:

@@ -21,8 +21,9 @@ fun sd_cmd ((((name,attribs_def),attribs_ref),t_raw),r_raw) lthy = let
 
 ## Judgment calls
 
-**P4/D-da — the goal is *written*, not synthesized from an `hfref`
-signature.** The source's user writes
+**P4/D-da (superseded by tower-expansion P1.B) — the original command
+accepted a written goal; it now also accepts an `hfref` signature.** The
+source's user writes
 `sepref_definition foo is bar :: nat_assn⇧k →⇩a nat_assn`: a name, an
 abstract program and an `hfref` *signature*, out of which `synth_hnrI`
 builds the `hn_refine` goal (which argument is destroyed, which
@@ -43,9 +44,12 @@ sepref_synth chain (a b c : ℕ) :
 
 — which is exactly `schematic_goal … by sepref` with `_` for `?c` and
 `?Γ'`, and is P2's `autoref_synth` shape (its delta O2, whose argument
-applies here verbatim). Fallback when `hfref` synthesis lands: the
-command grows a second form that builds the precondition from a
-signature plus a cell-name list; the pipeline does not change.
+applies here verbatim). P1.B supplies the signature form without a
+second command: `sepref_synth` unfolds an `hfref` target's generic
+concrete-name, abstract-argument, and precondition binders, runs the
+same pipeline on the exposed `hnRefine`, and packages the proof back
+into the signature. Named scratch ownership remains explicit in the
+signature's input assertion rather than hidden in metaprogram state.
 
 **P4/D-db — `sepref_thm` is the `noDef` flag.** The source has three
 commands differing only in what they *add*: `sepref_definition` (theorem
@@ -60,10 +64,10 @@ line.
 **P4/D-dc — the `Term_Synth` markers are not ported.** `SYNTH`,
 `CP_UNCURRY`, `CP_PAT`, `INTRO_KD`, `SPEC_RES_ASSN`, `hfunspec`,
 `UNSPEC` and the `synth_hnrI` rule exist to *derive* the goal from the
-signature by resolution inside Isabelle's `Term_Synth` framework. With
-the goal written out (P4/D-da) there is nothing for them to derive.
-`SYNTH` itself is ported, as the marker naming the intent, so that a
-future signature-driven form has the source's constant to hang off.
+signature by resolution inside Isabelle's `Term_Synth` framework. Lean's
+P1.B frontend performs that bounded derivation directly by unfolding the
+transparent `hfref` judgment; it does not reproduce a general term-synthesis
+engine. `SYNTH` remains the marker naming the intent.
 -/
 
 open Lean Elab Meta
@@ -87,16 +91,78 @@ namespace Definition
 
 open Tool
 
-/-- Run the pipeline on a written-out `hnRefine` goal, and return the
-statement, the proof, and the synthesized program. -/
+/-- Parse `(f, g) ∈ hfref P RS S`, retaining the concrete function `f`.
+
+This deliberately matches the public judgment before reduction. Reducing
+`hfref` loses the expression that signature mode exports as `<name>_impl`.
+-/
+def parseHfref? (e : Expr) : Option Expr :=
+  match e.consumeMData.getAppFnArgs with
+  | (``Membership.mem, #[_, _, _, coll, elem]) =>
+      match coll.consumeMData.getAppFnArgs, elem.consumeMData.getAppFnArgs with
+      | (n, #[_, _, _, _, _, _, _]), (``Prod.mk, #[_, _, f, _]) =>
+          if n == `Lax13Proofs.Refine.Sepref.hfref then some f else none
+      | _, _ => none
+  | _ => none
+
+/-- Run the pipeline on a written-out `hnRefine` goal or an `hfref`
+signature, and return the statement, proof, and synthesized concrete
+program (a `Com` in direct mode, the concrete descriptor function in
+signature mode). -/
 def synthesize (stmt : Expr) (cfg : Tool.Config) : TermElabM (Expr × Expr × Expr) := do
   for m in (stmt.collectMVars {}).result do m.setKind .natural
   let goal ← mkFreshExprSyntheticOpaqueMVar stmt
-  seprefTac cfg goal.mvarId!
+  if (Frame.parseHnRefine? stmt).isSome then
+    seprefTac cfg goal.mvarId!
+  else if (parseHfref? stmt).isSome then
+    let outer := goal.mvarId!
+    let reduced ← withTransparency .all (whnf (← outer.getType))
+    let prepared ← outer.replaceTargetDefEq reduced
+    let (xs, inner₀) ← prepared.intros
+    unless xs.size == 3 do
+      throwError "sepref: signature preparation expected the concrete name, abstract argument, \
+        and precondition binders, but introduced {xs.size} binders"
+    inner₀.withContext do
+      let (inner?, _) ← simpTarget inner₀ (← IdOp.simpOnlyContext #[])
+      let some inner := inner?
+        | throwError "sepref: signature preparation unexpectedly closed the synthesis goal"
+      let innerTy ← instantiateMVars (← inner.getType)
+      let some (α, κ, Γ, c, Γfixed, d, Rfixed, m) := Frame.parseHnRefine? innerTy
+        | throwError "sepref: signature preparation did not expose an hnRefine goal:{indentExpr innerTy}"
+      let Γs ← mkFreshExprMVar (some (mkConst ``Assn)) .natural
+      let synthTy ← mkAppOptM ``hnRefine
+        #[some α, some κ, some Γ, some c, some Γs, some d, some Rfixed, some m]
+      let synthProof ← mkFreshExprSyntheticOpaqueMVar synthTy
+      seprefTac cfg synthProof.mvarId!
+      let Γs ← instantiateMVars Γs
+      let postTy ← mkAppM ``entails #[Γs, Γfixed]
+      let postProof ← mkFreshExprSyntheticOpaqueMVar postTy
+      let postRest ← postProof.mvarId!.apply (← mkConstWithFreshMVarLevels ``entails_refl)
+      unless postRest.isEmpty do
+        throwError "sepref: synthesized postcondition does not match the signature:{indentD (← Meta.ppGoal postProof.mvarId!)}"
+      let resTy ← withLocalDeclD `x α fun x =>
+        withLocalDeclD `y κ fun y => do
+          let lhs ← mkAppM ``hnCtxt #[Rfixed, x, y]
+          let rhs ← mkAppM ``hnCtxt #[Rfixed, x, y]
+          mkForallFVars #[x, y] (← mkAppM ``entails #[lhs, rhs])
+      let resProof ← mkFreshExprSyntheticOpaqueMVar resTy
+      let (_, resGoal) ← resProof.mvarId!.intros
+      let resRest ← resGoal.apply (← mkConstWithFreshMVarLevels ``entails_refl)
+      unless resRest.isEmpty do
+        throwError "sepref: synthesized result assertion does not match the signature:{indentD (← Meta.ppGoal resGoal)}"
+      let wrapped ← mkAppM ``CONS_init
+        #[← instantiateMVars synthProof, ← instantiateMVars postProof,
+          ← instantiateMVars resProof]
+      inner.assign wrapped
+  else
+    throwError "sepref: expected an hnRefine statement or an hfref signature"
   let stmt ← instantiateMVars stmt
   let proof ← instantiateMVars goal
-  let some (_, _, _, c, _, _, _, _) := Frame.parseHnRefine? stmt
-    | throwError "sepref: the synthesized statement is not an hnRefine statement"
+  let prog ←
+    match Frame.parseHnRefine? stmt, parseHfref? stmt with
+    | some (_, _, _, c, _, _, _, _), _ => pure c
+    | _, some f => pure f
+    | _, _ => throwError "sepref: the synthesized statement changed to an unsupported shape"
   if proof.hasExprMVar then
     let mvs := (proof.collectMVars {}).result
     let mut msg := m!""
@@ -104,14 +170,15 @@ def synthesize (stmt : Expr) (cfg : Tool.Config) : TermElabM (Expr × Expr × Ex
       msg := msg ++ m!"\n  ?{m.name} : {← instantiateMVars (← m.getType)}"
     throwError "sepref: the synthesized proof still contains metavariables — some \
       side condition was never discharged:{msg}"
-  return (stmt, proof, c)
+  return (stmt, proof, prog)
 
 end Definition
 
 open Definition in
 /-- The source's `sepref_definition` / `sepref_def` / `sepref_thm`
-(P4/D-da, P4/D-db). Given a name, optional binders and an `hnRefine`
-statement with `_` for the program and the postcondition, it runs the
+(P4/D-da, P4/D-db). Given a name, optional binders and either an `hnRefine`
+statement with `_` for the program and postcondition or an `hfref`
+signature with a schematic concrete descriptor function, it runs the
 `sepref` pipeline, adds the resulting theorem under the given name, and
 — when the synthesized program is closed — a definition `<name>_impl`
 holding it.

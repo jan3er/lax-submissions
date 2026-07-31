@@ -64,6 +64,8 @@ import Lax13Proofs.Refine.Sepref.Frame
 import Lax13Proofs.Refine.Sepref.Translate
 import Lax13Proofs.Refine.Sepref.Tool
 import Lax13Proofs.Refine.Sepref.Definition
+import Lax13Proofs.Refine.Sepref.SignaturePrep
+import Lax13Proofs.Refine.Sepref.Register
 import Lax13Proofs.Refine.Sepref.Examples.Acceptance
 import Lax13Proofs.Refine.Codegen.Embed
 import Lax13Proofs.Refine.Codegen.BigStepB
@@ -83,6 +85,7 @@ import Lax13Proofs.Refine.Iicf.IicfBitmask
 import Lax13Proofs.Refine.Sepref.IrLoop
 import Lax13Proofs.Refine.Examples.BfsQ
 import Lax13Proofs.Refine.Examples.BfsQSynth
+import Lax13Proofs.Refine.Examples.BfsQSignature
 import Lax13Proofs.Refine.Examples.TrailRecursion
 import Lax13Proofs.Refine.Examples.BfsQTrail
 import Lax13Proofs.Refine.Sepref.Bounds

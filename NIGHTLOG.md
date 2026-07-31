@@ -3614,3 +3614,27 @@ finding: a redundant fresh seed hit ENOSPC before any edit; its empty
 worktree was removed and the already-seeded campaign worktree reused.
 Next: P1.B — signature-to-synthesis goal preparation, `sepref_register`, and
 interface-type discipline.
+
+## Session 25 — 2026-07-31 (tower expansion P1.B, Codex)
+
+Milestone: tower-expansion P1.B complete; signatures now drive synthesis
+instead of merely describing already-written refinement judgments. State:
+`sepref_synth` accepts `hfref`, introduces its generic concrete/abstract/
+precondition binders, sends the exposed `hnRefine` through the unchanged
+pipeline, and exports the synthesized concrete descriptor. The small chain
+and an eight-array ownership phase compile from signatures only. The decisive
+gate, `bfsQFromSignature`, regenerates the full nested-loop queue BFS from one
+argument record plus input/output assertions; its result-cell tuple and
+`Ir.Com` are definitionally equal to `bfsQSynth_impl`, with no handwritten
+`hnRefine` text. `intfOfAssn` plus `sepref_register` now infer conceptual
+interfaces from assertion relations, fall back to the abstract carrier,
+install `id_rules`, and admit explicit TYPE overrides. An eight-argument
+operator identifies at eight deliberately distinct `ArrayI` inputs. Ledger
+E11 records why Lean's arbitrary-spine monadifier replaces the source's
+generated per-arity/mcomb equations. SIG-6/SIG-7 closed. Concepts: 505 jobs;
+proofs: 3,056 jobs in 117 s; `lax build --only proofs word-ram` OK; new BFS
+gate kernel-three; zero sorry/admit and no new warnings. Work was performed
+in main under Jan's explicit authorization for this and future tasks.
+Next: P1.C — port `sepref_decl_op`, `sepref_decl_intf`, and
+`sepref_decl_impl` so P5 can declare container interfaces without bespoke
+metaprogramming.

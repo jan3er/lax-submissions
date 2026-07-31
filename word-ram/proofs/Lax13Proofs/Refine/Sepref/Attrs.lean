@@ -67,6 +67,13 @@ argument — the `Com.copy` op priced at `Currency.copy` is the program the
 rules will produce. -/
 register_label_attr sepref_copy_rules
 
+/-! ## Signature and registration databases (tower expansion P1.B) -/
+
+/-- `Sepref_Rules.thy`'s `named_theorems intf_of_assn`: maps an
+assertion relation to the conceptual interface used by operation
+identification.  `Sepref/Register.lean` is the downstream consumer. -/
+register_label_attr intf_of_assn
+
 /-! ## Wave C's databases
 
 `Sepref_Constraints.thy`, `Sepref_Frame.thy` and `Sepref_Tool.thy` each
