@@ -81,3 +81,10 @@ import Lax3Proofs.Refine.CoverBlock
 import Lax3Proofs.Refine.BfsBlock
 import Lax3Proofs.Refine.BfsBlockCost
 import Lax3Proofs.Refine.BfsBlockDiff
+import Lax3Proofs.Refine.ScatterBlockCost
+import Lax3Proofs.Refine.ScatterBlockProg
+import Lax3Proofs.Refine.ScatterBlockBfs
+import Lax3Proofs.Refine.ScatterBlockMark
+import Lax3Proofs.Refine.ScatterBlockClear
+import Lax3Proofs.Refine.ScatterBlock
+import Lax3Proofs.Refine.ScatterBlockDiff
