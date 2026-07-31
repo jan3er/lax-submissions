@@ -88,3 +88,4 @@ import Lax3Proofs.Refine.ScatterBlockMark
 import Lax3Proofs.Refine.ScatterBlockClear
 import Lax3Proofs.Refine.ScatterBlock
 import Lax3Proofs.Refine.ScatterBlockDiff
+import Lax3Proofs.Refine.OrderBlockProbe
