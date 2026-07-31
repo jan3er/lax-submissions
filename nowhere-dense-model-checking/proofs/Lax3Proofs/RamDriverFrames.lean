@@ -912,13 +912,13 @@ def TurnFrozen (j : ℕ) (a : String) : Prop :=
     (∃ c, a = colName j c) ∨ (∃ b ≤ j, a = gamName b)
 
 /-- **The frame of the nested driver, discharged from its syntax.** -/
-theorem innerFrames {ℓ : ℕ} {inner : Com} {Kin : ℕ → ℕ}
-    (hinner : RamDriverCluster.InnerAvail B q_top cap mb ns Ws ℓ j φ G O T inner Kin)
+theorem innerFrames {ℓ : ℕ} {wA : (ℕ → ℕ) → ℕ} {inner : Com} {Kin : ℕ → ℕ}
+    (hinner : RamDriverCluster.InnerAvail B q_top cap mb ns Ws ℓ j φ G O T wA inner Kin)
     (hA : ∀ a : String, TurnFrozen j a → a ∉ inner.warrs)
     (hVctr : ∀ a ≤ j, ctrName a ∉ inner.wvars) (hVxp : xpName j ∉ inner.wvars)
     (hVcur : curName j ∉ inner.wvars) :
     RamDriverCluster.InnerFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord
-      Xoff Xmem asg m X W w Alv' Gam' C' inner (Kin (arenaSize n Alv')) := by
+      Xoff Xmem asg m X W w Alv' Gam' C' inner (Kin (wA Alv')) := by
   intro σ hσ
   obtain ⟨σ', hrun, ⟨hlevin, -, -⟩, -⟩ :=
     (hinner Alv' Gam' C' hσ.1.2.2.2.2.2.2.2.2.1).run
@@ -984,7 +984,7 @@ syntactic side, and the semantic side comes from `hinner`. -/
 
 open Classical in
 /-- **What one cluster leaves alone, discharged.** -/
-theorem clusterFrames {ℓ k : ℕ} {inner : Com} {Kin : ℕ → ℕ}
+theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {inner : Com} {Kin : ℕ → ℕ}
     {Kd Ke Kc Ks Kr K : ℕ}
     (hcsr : CsrGraph G ns O T)
     (hB : WordBound B n ns cap mb)
@@ -1004,14 +1004,19 @@ theorem clusterFrames {ℓ k : ℕ} {inner : Com} {Kin : ℕ → ℕ}
         Alv' Gam' C' Kr)
     (hinnerTab : ∀ i, tabName j i ∉ inner.warrs)
     (hmono : Monotone Kin)
-    (hK : Kd + (Ke + (Kc + (Kin (Refine.MassMath.blockSize Xoff k) + (Ks + Kr)))) ≤ K) :
+    (hwAB : ∀ Alv' : ℕ → ℕ, k < n →
+      RamCover.CoverOut G M π ord cap m Xoff Xmem asg →
+      (∀ v : Fin n, Alv' (v : ℕ) ≠ 0 →
+        v ∈ Refine.MassMath.clusterAt G M π ord cap k) →
+      wA Alv' ≤ wBk)
+    (hK : Kd + (Ke + (Kc + (Kin wBk + (Ks + Kr)))) ≤ K) :
     RamDriverCluster.ClusterFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord
-      Xoff Xmem asg m k inner Kin K := by
+      Xoff Xmem asg m k wA inner Kin K := by
   classical
   intro hkn hinner
   have hfr : ∀ X W w Alv' Gam' C',
       RamDriverCluster.InnerFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord
-        Xoff Xmem asg m X W w Alv' Gam' C' inner (Kin (arenaSize n Alv')) :=
+        Xoff Xmem asg m X W w Alv' Gam' C' inner (Kin (wA Alv')) :=
     fun _ _ _ _ _ _ => innerFrames hinner hA hVctr hVxp hVcur
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hlev, htsz, hbarr, hplay, hcov, hcn⟩ := hσ
@@ -1019,10 +1024,10 @@ theorem clusterFrames {ℓ k : ℕ} {inner : Com} {Kin : ℕ → ℕ}
   have hturn : TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ :=
     ⟨hlev, hplay, hcov⟩
   obtain ⟨σ₁, hr₁, hturn₁, hout₁, hc₁, hwa₁, X, W, Alv', Gam', hball, hWne, hWcard,
-      hsize₁, hbat₁, hplay₁⟩ := (hdes hcsr hB).run ⟨hturn, hcnlt⟩
-  rw [hcn] at hsize₁
-  have hinsize : Kin (arenaSize n Alv') ≤ Kin (Refine.MassMath.blockSize Xoff k) :=
-    hmono hsize₁
+      hsub₁, hbat₁, hplay₁⟩ := (hdes hcsr hB).run ⟨hturn, hcnlt⟩
+  rw [hcn] at hsub₁
+  have hinsize : Kin (wA Alv') ≤ Kin wBk :=
+    hmono (hwAB Alv' hkn hcov.2.2.2.2.2.2.2 hsub₁)
   obtain ⟨σ₂, hr₂, hturn₂, hplay₂, hout₂, hc₂, w, hdat₂, hwa₂⟩ :=
     (henum X W Alv' Gam').run ⟨hturn₁, hbat₁, hplay₁, hWne, hWcard, hwa₁⟩
   obtain ⟨σ₃, hr₃, hturn₃, hdat₃, hplay₃, hout₃, hc₃, C', hcolarr₃, hcolbit₃, hcolread₃⟩ :=

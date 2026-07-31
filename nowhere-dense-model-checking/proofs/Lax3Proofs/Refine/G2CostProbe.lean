@@ -4,6 +4,8 @@ import Lax3Proofs.CostRecurrence
 import Lax3Proofs.Refine.BfsBridge
 import Lax3Proofs.Refine.BlockLeaves
 import Lax3Proofs.Refine.ElimSynth6
+import Lax3Proofs.Refine.CoverBlock
+import Lax3Proofs.Refine.ScatterBlockCost
 
 /-!
 **G2-design: the arena-charged phase interface, compiled in both
@@ -620,5 +622,187 @@ copies inside it are now driven by the scalar: at two different values
 of `"lw"` the SAME text is one program that copies two different prefix
 lengths. The `#guard` pair below runs it. -/
 example : (RamDriver.saveCsr : Lax13Proofs.Imp.Com) = RamDriver.saveCsr := rfl
+
+/-! ### §7 The E6 plug — what the witness family fits after the weight
+re-thread, and the compiled per-slot gaps (rebase G2/E6)
+
+E6 re-threaded the driver's Σ interface to the **arena weight**:
+
+* `RamDriverCluster.levelImplements` reads its budgets at abstract
+  arena/block measures (`wA`/`wB` — parameters, because
+  `Refine.MassWeight` sits above the cluster layer in the import
+  order), and its `hmass` slot delivers the pair at those measures;
+* `RamDriverRoot.levelAt` instantiates `wA := arenaWeight n G`,
+  `wB := blockWeight n G`, discharges `hmass` by
+  `MassWeight.mass_of_alive_compaction_weight`, and the descend clause
+  — restated as the cluster *inclusion* in
+  `RamDriverCluster.DescendStep` — by
+  `MassWeight.arenaWeight_le_blockWeight`;
+* the root theorems' cost reads `Kl 0 (n + ns)`
+  (`MassWeight.arenaWeight_root`, fed by the `CsrSimple` clause G1
+  produces at the boundary — B7 splices `decodeImplementsD` there).
+
+`g2_plug` below is the B8-discipline plug for this wave: the
+`g2_exists` witness family applied to the REAL `levelAt`, with the
+slots the witness satisfies verbatim consumed silently — `hKmono` and
+the Σ-shaped `hKl`, now READ at weights — and the slots it does NOT
+satisfy left as explicit hypotheses. **Those five hypotheses are the
+compiled gap ledger**: each is a carrier-charged domination the landed
+walks force, each is refuted for §2-form-sized budgets by the theorem
+that follows it, and each names the engine that has to land before it
+can be deleted. The wave gate ("the witness fits the real slots") is
+therefore NOT met, and this section is the honest compiled record of
+exactly how far it is from met.
+
+The per-slot verdicts (E6's package survey, 2026-07-31):
+
+| slot | landed walk | §2 form dischargeable? | missing engine |
+|---|---|---|---|
+| `hKo` | `orderImplements₀` at `orderPhaseCost n ns W` | NO (`hKo_gap`) | member-list order phase (design §3(c); `OrderBridge`'s seam) |
+| `hKc` | `coverImplements` at `coverPhaseCost n ns` | NO (`hKc_gap`) | block-driven centre body + alive-prefix copy + R1.6 member threading (`CoverBlock` F-2/F-3) |
+| `hKd` | `sweepImplements`, loop over the carrier | NO (`hKd_gap`) | member/dead-list sweep (R1.8; caveat: the sweep's WORK is the dead set) |
+| `hKbase` | `baseImplements`, `reprCom` at the carrier | NO (`hKbase_gap`) | member-list base headers (R1.8) |
+| `hKs` | `turnCostSize = turnCost` (descend `16·n²`, scatter `Θ(n·t)`) | NO (`hKs_gap`, `hbnd_gap`) | `BlockLeaves` Com-level swap into `descendCom` + `scatBlockCom` into the turn |
+-/
+
+section E6Plug
+
+open Lax3.DistFO Lax3.Locality Lax12.UniformQuasiWideness Lax3Proofs.FormulaTables
+open Lax3Proofs.RamDriver
+
+/-- **`hKo` gap, compiled.** No budget of the §2.1 shape — for ANY
+`b`, `R` — dominates the landed `orderPhaseCost` at every read point:
+the phase walk is carrier-charged and the arena can be light. The
+block-driven order phase of design §3(c) does not exist in the package
+(E6 survey; `Refine.OrderBridge` names the seam). -/
+theorem hKo_gap (b R : ℕ) :
+    ∃ n w : ℕ, ¬ (RamDriverCompose.orderPhaseCost n 0 0 ≤ orderCostA b R w) := by
+  refine ⟨(2310 + 16840 * R) * b + 1, 0, ?_⟩
+  simp only [RamDriverCompose.orderPhaseCost, orderCostA]
+  generalize (2310 + 16840 * R) * b = X
+  omega
+
+/-- **`hKc` gap, compiled.** No `kcov`-sized budget dominates the
+landed `coverPhaseCost` at every read point (its `12·n²` member copy
+and `coverCost`'s `100·n²`; `CoverBlock.carrier_le_arena_of_coverOut`
+shows the member copy reads the carrier at every level). -/
+theorem hKc_gap (kc ka D : ℕ) :
+    ∃ n w : ℕ,
+      ¬ (RamDriverCompose.coverPhaseCost n 0 ≤ CoverBlock.kcov kc ka D * (w + 1)) := by
+  refine ⟨CoverBlock.kcov kc ka D + 1, 0, fun h => ?_⟩
+  simp only [RamDriverCompose.coverPhaseCost] at h
+  nlinarith [Nat.zero_le (RamCover.coverCost (CoverBlock.kcov kc ka D + 1) 0)]
+
+/-- **`hKd` gap, compiled**, generically in the formula: the landed
+sweep walks the carrier, so `sweepCoeffA · (w + 1)` cannot pay it on a
+light arena — for every formula and depth there is a carrier size
+refuting it at `w = 0`. -/
+theorem hKd_gap (q_top cap mb jd : ℕ) (φ : Lax3.FirstOrder.FO 0) :
+    ∃ n : ℕ, ¬ (Refine.DeadSweep.sweepCost q_top cap mb jd n φ ≤
+      sweepCoeffA q_top cap mb jd φ * (0 + 1)) := by
+  refine ⟨RamDriverBot.turnCost q_top cap mb jd φ + 11, fun h => ?_⟩
+  simp only [Refine.DeadSweep.sweepCost, sweepCoeffA] at h
+  nlinarith [Nat.zero_le (RamDriverBot.turnCost q_top cap mb jd φ)]
+
+/-- **`hKbase` gap, compiled**, generically in the formula. -/
+theorem hKbase_gap (q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) :
+    ∃ n : ℕ, ¬ (RamDriverBot.baseCost q_top cap mb ℓ n φ ≤
+      baseCoeffA q_top cap mb ℓ φ * (0 + 1)) := by
+  refine ⟨RamDriverBot.reprBodyCost ℓ (sigL cap mb ℓ) +
+    RamDriverBot.turnCost q_top cap mb ℓ φ + 23, fun h => ?_⟩
+  simp only [RamDriverBot.baseCost, RamDriverBot.reprCost, baseCoeffA] at h
+  nlinarith [Nat.zero_le (RamDriverBot.reprBodyCost ℓ (sigL cap mb ℓ)),
+    Nat.zero_le (RamDriverBot.turnCost q_top cap mb ℓ φ)]
+
+/-- **`hKs` gap, compiled.** The real turn cost carries
+`descendCost`'s `16·n²` (the six carrier fills), so no
+`turnCostSizeA`-sized budget pays a turn on a light block inside a
+large carrier. `Refine.BlockLeaves` stops at the NRest/Ir layer — no
+`Com`-level block-driven descend leaves exist to swap in yet. -/
+theorem hKs_gap (ct ksc Kin cap j : ℕ) :
+    ∃ n : ℕ,
+      ¬ (RamDriverDescend.descendCost n 0 cap j ≤ turnCostSizeA ct ksc 0 Kin) := by
+  refine ⟨ct + ksc + Kin + 1, fun h => ?_⟩
+  simp only [RamDriverDescend.descendCost, turnCostSizeA] at h
+  nlinarith [Nat.zero_le (RamDriverDescend.ballCost (ct + ksc + Kin + 1) 0 cap),
+    Nat.zero_le (RamDriverDescend.batchCost (ct + ksc + Kin + 1) 0 cap j)]
+
+/-- **`hbnd`/`hKsc` gap, compiled.** The landed scatter leaf
+(`RamDriverIO.atomCom`) copies the carrier-width mask and table per
+atom, so E4b's `ScatterBlock.atomCostA` — constant in the carrier
+— cannot dominate it. The active-set engine (`ScatterBlock`) is landed
+but UNWIRED: `atomCostA` has no consumer in the driver stack. -/
+theorem hbnd_gap (mm bw nb t : ℕ) :
+    ∃ n : ℕ,
+      ¬ (RamDriverIO.atomCost n 0 t ≤ ScatterBlock.atomCostA mm bw nb t) := by
+  refine ⟨ScatterBlock.atomCostA mm bw nb t + 1, fun h => ?_⟩
+  simp only [RamDriverIO.atomCost] at h
+  omega
+
+open Classical in
+/-- **The E6 plug, honestly.** The `g2_exists` witness family, applied
+to the REAL re-threaded `RamDriverRoot.levelAt`. What the witness
+satisfies verbatim is consumed silently — its `hKmono` and its Σ-shaped
+`hKl` (which since E6 is READ at the arena weight: the conclusion below
+is `Kl j (arenaWeight n G M)`, and `Kmass := D` bounds block-WEIGHT
+sums via `hdeg`). What it does not satisfy is left as the five explicit
+implications: the four carrier phase dominations and the carrier turn
+domination, i.e. exactly the gap ledger above. When the missing engines
+land, each antecedent becomes dischargeable at the witness's own
+budgets and this theorem's implication chain collapses into the full
+plug the wave gate asked for.
+
+This typechecks only if the witness's `hKmono`/`hKl` fit `levelAt`'s
+slots verbatim — the B8 sense in which the moved part of the interface
+IS the probe's forms. -/
+theorem g2_plug {n : ℕ} {B q_top cap mb ns W ℓ s : ℕ} {N : ℕ → ℕ}
+    {φ : Lax3.FirstOrder.FO 0} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
+    {Kb : ℕ} {Ki Ksc : ℕ → ℕ}
+    (D Cb d D₁ kc kd ct kscM : ℕ)
+    (hKscM : ∀ j < ℓ, Ksc j ≤ kscM)
+    (hcap : cap = rhoMinus 0 q_top) (hmb : mb = ℓ * (2 * cap + 1))
+    (hℓ : ℓ = N (2 * s + 2))
+    (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B)
+    (hpow : 2 ^ sigL cap mb ℓ < B)
+    (hcsr : RamElim.CsrSimple G ns O T)
+    (hQ : ∀ Pt : Set (Fin n), N (2 * s + 2) ≤ Pt.ncard →
+      ∃ S Bd : Set (Fin n), S.ncard ≤ s ∧ Bd ⊆ Pt \ S ∧ 2 * s + 2 ≤ Bd.ncard ∧
+        DistIndependent (deleteVerts G S) (2 * cap) Bd)
+    (hbnd : ∀ j < ℓ, ∀ β ∈ tablesAt q_top cap mb φ j,
+      ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
+        σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n ns σs.t ≤ Kb)
+    (hcostI : ∀ j < ℓ, ∀ β ∈ tablesAt q_top cap mb φ j,
+      Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki j)
+    (hKscReal : ∀ j < ℓ, Ki j * (tablesAt q_top cap mb φ j).length + 1 ≤ Ksc j)
+    (hdeg : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (v : Fin n),
+      (Lax12.ColoringNumbers.wreach (RamBfs.masked G M) π (2 * cap) v).ncard ≤ D) :
+    ∃ Ko Kc Kd Ks Kl : ℕ → ℕ → ℕ,
+      -- the §2 forms the witness satisfies (the target interface)
+      (∀ j w, orderCostA (bsq d D₁ 0) 0 w ≤ Ko j w) ∧
+      (∀ j w, kc * (w + 1) ≤ Kc j w) ∧
+      (∀ j w, kd * (w + 1) ≤ Kd j w) ∧
+      (∀ w, Cb * (w + 1) ≤ Kl ℓ w) ∧
+      (∀ j < ℓ, ∀ t : ℕ, turnCostSizeA ct (Ksc j) t (Kl (j + 1) t) ≤ Ks j t) ∧
+      (∀ w, Kl 0 w ≤ (ℓ * g2A d D₁ 0 kc kd ct kscM D + Cb) * (D + 1) ^ ℓ * (w + 1)) ∧
+      -- THE PLUG: the five carrier dominations are EXACTLY what still
+      -- separates this family from the re-threaded root
+      ((∀ j m, RamDriverCompose.orderPhaseCost n ns W ≤ Ko j m) →
+       (∀ j m, RamDriverCompose.coverPhaseCost n ns ≤ Kc j m) →
+       (∀ j m, Refine.DeadSweep.sweepCost q_top cap mb j n φ ≤ Kd j m) →
+       (∀ m, RamDriverBot.baseCost q_top cap mb ℓ n φ ≤ Kl ℓ m) →
+       (∀ j < ℓ, ∀ t : ℕ,
+         RamDriverRoot.turnCostSize n ns cap mb q_top j φ (Ksc j) t (Kl (j + 1) t)
+           ≤ Ks j t) →
+       ∀ j ≤ ℓ, ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
+         LevelImplements B q_top cap mb 0 ℓ W ns j φ G O T M Gm C
+           (Kl j (Refine.MassWeight.arenaWeight n G M))) := by
+  obtain ⟨Ko, Kc, Kd, Ks, Kl, hKo, hKc, hKd, hbase, hmono, hKsA, hKl, hcl⟩ :=
+    g2_exists ℓ D Cb 0 d D₁ kc kd ct kscM Ksc hKscM
+  refine ⟨Ko, Kc, Kd, Ks, Kl, hKo, hKc, hKd, hbase, hKsA, hcl, ?_⟩
+  intro hKoR hKcR hKdR hKbaseR hKsR
+  exact RamDriverRoot.levelAt hcap hmb hℓ hB hWB hpow hcsr hQ hbnd hcostI hKscReal
+    hmono hKsR hKbaseR hKoR hKcR hKdR (RamDriverRoot.blockInj_slot G cap) hdeg hKl
+
+end E6Plug
 
 end Lax3Proofs.Refine.G2CostProbe

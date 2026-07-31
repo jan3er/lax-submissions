@@ -2884,13 +2884,22 @@ the **size of the arena it is handed**, applied at `arenaSize n M'`
 inside the antecedent, which is the whole point of the Σ interface. What
 turns that varying budget back into a number the turn's cost condition
 can mention is `RamDriverCluster.DescendStep`'s §5.3 clause,
-`arenaSize n Alv' ≤ blockSize Xoff k`, together with monotonicity of
-`Kin`. Nothing semantic moves: the postcondition is untouched. -/
+together with monotonicity of `Kin`. Nothing semantic moves: the
+postcondition is untouched.
+
+**Rebase G2/E6.** The nested driver's budget is read at an *abstract*
+arena measure `wA` — a parameter, because the weighted reading
+(`Refine.MassWeight.arenaWeight`) lives above this file in the import
+order. The landed size reading is the instantiation `wA := arenaSize n`;
+the G2 interface instantiates the arena weight at the level's fixed
+graph. The §5.3 clause turned into the *inclusion* the descent actually
+proves (the next arena is inside the turn's cluster), so that any
+monotone measure of it can be read off downstream. -/
 def ClusterStepImplements (q_top cap mb ns W ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ)
     (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m k : ℕ)
-    (inner : Com) (Kin : ℕ → ℕ) (K : ℕ) : Prop :=
+    (wA : (ℕ → ℕ) → ℕ) (inner : Com) (Kin : ℕ → ℕ) (K : ℕ) : Prop :=
   WordBound B n ns cap mb → CsrGraph G ns O T → k < n →
   (∀ c < sigL cap mb j, ∀ v < n, C c v ≤ 1) →
   (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ), (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
@@ -2898,7 +2907,7 @@ def ClusterStepImplements (q_top cap mb ns W ℓ j : ℕ) (φ : Lax3.FirstOrder.
           TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
           PlayRec B cap G (j + 1) M' Gm' σ) inner
         (fun σ σ' => LevelPost B q_top cap mb φ G ns W O T (j + 1) M' Gm' C' σ σ' ∧
-          σ'.out = σ.out) (Kin (arenaSize n M'))) →
+          σ'.out = σ.out) (Kin (wA M'))) →
     Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧
         TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
         PlayRec B cap G j M Gm σ ∧

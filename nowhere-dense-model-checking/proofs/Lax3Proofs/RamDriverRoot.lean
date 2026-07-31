@@ -1,6 +1,7 @@
 import Lax3Proofs.RamDriverWrites
 import Lax3Proofs.RamDriverAugment
 import Lax3Proofs.Refine.DeadSweep
+import Lax3Proofs.Refine.MassWeight
 
 /-!
 **The end of the RAM chain**: `RamDriver.driverRoot`, at `R = 0`,
@@ -82,6 +83,7 @@ open Lax3Proofs.FormulaTables
 open Lax3Proofs.RamBfs (masked CsrGraph)
 open Lax3Proofs.RamDriver
 open Lax3Proofs.Refine.MassMath (blockSize)
+open Lax3Proofs.Refine.MassWeight (arenaWeight blockWeight)
 open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
 
 /-! ### The frame of the nested call, at the driver
@@ -201,11 +203,14 @@ theorem turnCostSize_eq (n ns cap mb q_top j : ℕ) (φ : Lax3.FirstOrder.FO 0)
 open Classical in
 /-- **One turn of the centre loop, at the nested driver.**
 
-**Rebase B2.** The turn is stated at its own position `k`, and the
-nested driver's budget `Kin` is a function of the arena size, read at
-this turn's block. `hmono` is what carries it across the descent's
-§5.3 clause: the sub-arena is inside the block, so a monotone budget
-read at the block pays for it. -/
+**Rebase B2, read at the arena weight since G2/E6.** The turn is stated
+at its own position `k`, and the nested driver's budget `Kin` is a
+function of the **arena weight** (`Refine.MassWeight.arenaWeight`, at
+the level's fixed graph `G`), read at this turn's block weight. `hmono`
+carries it across the descent's §5.3 inclusion clause via
+`Refine.MassWeight.arenaWeight_le_blockWeight`: the sub-arena is inside
+the cluster, the cluster weighs at most its block, so a monotone budget
+read at the block's weight pays for it. -/
 theorem clusterStepAt
     (hcap : cap = rhoMinus 0 q_top) (hmb : mb = ℓ * (2 * cap + 1)) (hjl : j < ℓ)
     (hB : WordBound B n ns cap mb) (hcsr : CsrGraph G ns O T)
@@ -216,10 +221,10 @@ theorem clusterStepAt
       Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki)
     (hKsc : Ki * (tablesAt q_top cap mb φ j).length + 1 ≤ Ksc)
     (hmono : Monotone Kin)
-    (hK : turnCostSize n ns cap mb q_top j φ Ksc (blockSize Xoff k)
-      (Kin (blockSize Xoff k)) ≤ Ks) :
+    (hK : turnCostSize n ns cap mb q_top j φ Ksc (blockWeight n G Xoff Xmem k)
+      (Kin (blockWeight n G Xoff Xmem k)) ≤ Ks) :
     ClusterStepImplements B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg mm k
-      (driverAt q_top cap mb 0 ℓ φ (j + 1)) Kin Ks :=
+      (arenaWeight n G) (driverAt q_top cap mb 0 ℓ φ (j + 1)) Kin Ks :=
   RamDriverCluster.clusterStepImplements hcap
     (RamDriverDescend.descendStep hmb hjl le_rfl)
     (fun _ _ _ _ => RamDriverDescend.enumStep hB le_rfl)
@@ -230,7 +235,10 @@ theorem clusterStepAt
       xpName_notMem_wvars_driverAt curName_notMem_wvars_driverAt)
     (fun _ _ _ _ _ _ => RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
-    hmono hK
+    hmono
+    (fun _ hkn hout hsub =>
+      Refine.MassWeight.arenaWeight_le_blockWeight G hout hkn hsub)
+    hK
 
 open Classical in
 /-- **What one turn leaves alone, at the nested driver.** -/
@@ -244,10 +252,11 @@ theorem clusterFramesAt
       Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki)
     (hKsc : Ki * (tablesAt q_top cap mb φ j).length + 1 ≤ Ksc)
     (hmono : Monotone Kin)
-    (hK : turnCostSize n ns cap mb q_top j φ Ksc (blockSize Xoff k)
-      (Kin (blockSize Xoff k)) ≤ Ks) :
+    (hK : turnCostSize n ns cap mb q_top j φ Ksc (blockWeight n G Xoff Xmem k)
+      (Kin (blockWeight n G Xoff Xmem k)) ≤ Ks) :
     RamDriverCluster.ClusterFrames B q_top cap mb ns W ℓ j φ G O T M Gm C π ord
-      Xoff Xmem asg mm k (driverAt q_top cap mb 0 ℓ φ (j + 1)) Kin Ks :=
+      Xoff Xmem asg mm k (arenaWeight n G)
+      (driverAt q_top cap mb 0 ℓ φ (j + 1)) Kin Ks :=
   RamDriverFrames.clusterFrames hcsr hB
     (RamDriverDescend.descendStep hmb hjl le_rfl)
     (fun _ _ _ _ => RamDriverDescend.enumStep hB le_rfl)
@@ -258,7 +267,10 @@ theorem clusterFramesAt
     (fun _ _ _ _ _ _ => RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
     (fun i => tabName_notMem_warrs_driverAt i)
-    hmono hK
+    hmono
+    (fun _ hkn hout hsub =>
+      Refine.MassWeight.arenaWeight_le_blockWeight G hout hkn hsub)
+    hK
 
 end Turn
 
@@ -288,11 +300,23 @@ condition in the Σ shape, which `levelCost_of_sigma` below produces from
 sweep, with its own size-read parameter `Kd` and side condition `hKd`;
 `Refine.DeadSweep.sweepImplements` is the walk. And `hmass` is **gone**:
 the mass mathematics is no longer threaded as an opaque bundle but
-*derived*, by `Refine.ArenaBlock.mass_of_alive_compaction`, from the two
-facts it actually needs — the cover's block injectivity `hbinj` and the
-cover-degree bound `hdeg`. That is what the compaction's new `alive`
-clause buys: the Σ interface now reads the turn count against the
-**arena** rather than against the carrier. -/
+*derived* from the two facts it actually needs — the cover's block
+injectivity `hbinj` and the cover-degree bound `hdeg`.
+
+**Rebase G2/E6.** The Σ interface reads the **arena weight**: the
+conclusion is `Kl j (arenaWeight n G M)`, the induction's abstract
+measures are instantiated at `MassWeight.arenaWeight n G` /
+`MassWeight.blockWeight n G` (ONE fixed root graph through the whole
+recursion — E5's constraint), the mass pair comes from
+`MassWeight.mass_of_alive_compaction_weight` at the same `Kmass`
+coefficient, and the descend clause is consumed as
+`MassWeight.arenaWeight_le_blockWeight`. The hypothesis LIST is
+byte-identical to B8's — `∀ j m`-shaped side conditions are
+form-invariant under the re-read; what changed is the point they are
+READ at, and the four phase slots' honest forms are still the
+carrier-charged ones (the per-slot gap ledger is compiled in
+`Refine.G2CostProbe` §7 — they move only when the block-driven engines
+land). -/
 theorem levelAt
     (hcap : cap = rhoMinus 0 q_top) (hmb : mb = ℓ * (2 * cap + 1)) (hℓ : ℓ = N (2 * s + 2))
     (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B) (hpow : 2 ^ sigL cap mb ℓ < B)
@@ -322,7 +346,8 @@ theorem levelAt
       Ko j m + (Kc j m + (Kd j m + ((∑ c ∈ Finset.range t, (Ks j (bs c) + 11)) + 6)))
         ≤ Kl j m) :
     ∀ j ≤ ℓ, ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
-      LevelImplements B q_top cap mb 0 ℓ W ns j φ G O T M Gm C (Kl j (arenaSize n M)) :=
+      LevelImplements B q_top cap mb 0 ℓ W ns j φ G O T M Gm C
+        (Kl j (arenaWeight n G M)) :=
   RamDriverCluster.levelImplements hB hWB hcsr
     (fun _ _ _ _ _ _ => RamElim.implements)
     (fun _ _ _ _ _ _ _ => RamDriverAugment.implements)
@@ -334,9 +359,9 @@ theorem levelAt
         (fun _ h => ⟨h.1, h.2.1, h.2.2.1⟩)).mono (hKbase _))
     (fun j _ M _ _ h₁ h₂ h₃ h₄ h₅ =>
       (RamDriverCompose.orderImplements₀ h₁ h₂ h₃ h₄ h₅).mono
-        (hKo j (arenaSize n M)))
+        (hKo j (arenaWeight n G M)))
     (fun j _ M _ _ _ _ h₁ h₂ h₃ h₄ =>
-      (RamDriverCompose.coverImplements h₁ h₂ h₃ h₄).mono (hKc j (arenaSize n M)))
+      (RamDriverCompose.coverImplements h₁ h₂ h₃ h₄).mono (hKc j (arenaWeight n G M)))
     (fun j hj _ _ _ _ _ _ _ _ _ _ =>
       clusterStepAt hcap hmb hj hB hcsr.csr (hbnd j hj) (hcostI j hj) (hKsc j hj)
         (hKmono (j + 1)) (hKs j hj _))
@@ -345,9 +370,9 @@ theorem levelAt
         (hKmono (j + 1)) (hKs j hj _))
     (fun _ _ => loopFrames)
     (fun j _ M _ _ =>
-      (Refine.DeadSweep.sweepImplements (jd := j) hB).mono (hKd j (arenaSize n M)))
+      (Refine.DeadSweep.sweepImplements (jd := j) hB).mono (hKd j (arenaWeight n G M)))
     (fun M π ord Xoff Xmem asg cps mm cnum hordby _ hout hcomp =>
-      Refine.ArenaBlock.mass_of_alive_compaction hordby hout
+      Refine.MassWeight.mass_of_alive_compaction_weight G hordby hout
         (hbinj M π ord Xoff Xmem asg mm hout) (hdeg M π) hcomp)
     hKl
 
@@ -481,7 +506,8 @@ theorem levelAt_of_sigma
       Ko j m + ((Kc j m + Kd j m) + ((∑ c ∈ Finset.range t, (Kt j (bs c) + 8)) + 6))
         ≤ Kl j m) :
     ∀ j ≤ ℓ, ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
-      LevelImplements B q_top cap mb 0 ℓ W ns j φ G O T M Gm C (Kl j (arenaSize n M)) :=
+      LevelImplements B q_top cap mb 0 ℓ W ns j φ G O T M Gm C
+        (Kl j (arenaWeight n G M)) :=
   levelAt hcap hmb hℓ hB hWB hpow hcsr hQ hbnd hcostI hKsc hKmono hKs hKbase hKo hKc hKd
     hbinj hdeg (levelCost_of_sigma hshift hsolve)
 
@@ -623,14 +649,16 @@ the cluster step is instantiated by the walk that discharges it. What is
 left is the input word's own data, the parameter equations, the campaign
 mathematics `hQ`, and free cost parameters with their side conditions.
 
-**Rebase B2 (§5.8).** The program, the precondition and the
-postcondition are **byte-identical** to what they were; the cost is
-`Kl 0 n` because a level's budget is now a function of the size of the
-arena it runs on and the root's mask kills nothing
-(`RamDriver.arenaSize_of_all_alive`). `hKs`/`hKl` are the §5.7/§5.6
-shapes, `hKmono` is new, and — rebase B8 — the mass bundle `hmass` has
-become the two facts it is derived from (`hbinj`, `hdeg`) while the
-level gains its dead-row sweep (`hKd`). The conclusion is untouched. -/
+**Rebase B2 (§5.8), re-read at the weight (G2/E6).** The program, the
+precondition and the postcondition are **byte-identical** to what they
+were; the cost is `Kl 0 (n + ns)` because a level's budget is a
+function of the **weight** of the arena it runs on and the root's mask
+kills nothing (`Refine.MassWeight.arenaWeight_root`, which needs the
+input word's `CsrSimple` — the clause G1's dedup produces at the C0
+boundary). `hKs`/`hKl` are the §5.7/§5.6 shapes read at weights,
+`hKmono` is new, and — rebase B8 — the mass bundle `hmass` has become
+the two facts it is derived from (`hbinj`, `hdeg`) while the level
+gains its dead-row sweep (`hKd`). The conclusion is untouched. -/
 theorem driverRoot_decides_sentence
     -- the input word
     (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
@@ -677,13 +705,13 @@ theorem driverRoot_decides_sentence
         BaseArrs B q_top cap mb ℓ φ σ ∧ σ.inp = x ∧ σ.out = [])
       (driverRoot q_top cap mb 0 ℓ φ)
       (fun _ σ' => σ'.out = [if Lax3.FirstOrder.Sat G Fin.elim0 φ then 1 else 0])
-      (Kdec + (Kl 0 n + Ksent)) :=
+      (Kdec + (Kl 0 (n + ns) + Ksent)) :=
   driver_correct hrank hB hxB (by omega) hpad0
     (RamDriverIO.decodeImplements hx hns hO hT hKdec)
     (fun M Gm C hall => by
       have h := levelAt hcap hmb hℓ hB hWB hpow hcsr hQ hbnd hcostI hKsc hKmono hKs
         hKbase hKo hKc hKd hbinj hdeg hKl 0 (Nat.zero_le ℓ) M Gm C
-      rwa [arenaSize_of_all_alive hall] at h)
+      rwa [Refine.MassWeight.arenaWeight_root hcsr hall] at h)
     (fun _ _ _ => RamDriverIO.sentenceImplements hrank hcsr.csr hatoms hKsent)
 
 open Classical in
@@ -742,7 +770,7 @@ theorem driverRoot_decides_sentence_binj
         BaseArrs B q_top cap mb ℓ φ σ ∧ σ.inp = x ∧ σ.out = [])
       (driverRoot q_top cap mb 0 ℓ φ)
       (fun _ σ' => σ'.out = [if Lax3.FirstOrder.Sat G Fin.elim0 φ then 1 else 0])
-      (Kdec + (Kl 0 n + Ksent)) :=
+      (Kdec + (Kl 0 (n + ns) + Ksent)) :=
   driverRoot_decides_sentence hx hns hO hT hxB hcsr hpad0 hrank hcap hmb hℓ hB hWB hpow hQ
     hbnd hcostI hKsc hKmono hKs hKbase hKo hKc hKd (blockInj_slot G cap) hdeg hKl
     hKdec hatoms hKsent

@@ -469,7 +469,17 @@ leaves
 The cost is `bfsBlockK bw nb` for any `A` containing the ball, `bw`
 bounding its slot weight and `nb` its size. **Neither `n` nor `ns`
 occurs**, and that absence is the whole point of the engine: the level
-above may now run one of these per centre. -/
+above may now run one of these per centre.
+
+**Rebase G2/E6 (E4b's preferred fix).** Two facts this proof computes
+were dropped at the final `refine` and re-derived by a full re-walk in
+`Refine/ScatterBlockBfs.lean`; they are now IN the postcondition and
+that re-walk is a one-line delegation:
+
+* `σ'.vars "tail" ≤ nb` — the queue segment is charged to the *ball*,
+  which is what lets a consumer walk it at block cost;
+* `∀ i < σ'.vars "tail", Q i < n` — every queue entry is a vertex, which
+  is what lets a consumer index an array by one. -/
 theorem bfsBlock_specW {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) (hnB : n < B)
     (hnsB : ns < B) (hnt : ns ≤ nt) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B)
     {A : Finset ℕ} (hA : ∀ v, v < n → M v ≠ 0 → WD G M d s v → v ∈ A)
@@ -482,7 +492,8 @@ theorem bfsBlock_specW {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) (hnB : 
       (bfsBlockCom d)
       (fun _ σ' => σ'.arrs "dist" = arrOf n (fun _ => d + 1) ∧
         ∃ Q QD, σ'.arrs "q" = arrOf n Q ∧ σ'.arrs "qd" = arrOf n QD ∧
-          σ'.vars "tail" ≤ n ∧
+          σ'.vars "tail" ≤ n ∧ σ'.vars "tail" ≤ nb ∧
+          (∀ i, i < σ'.vars "tail" → Q i < n) ∧
           (∀ v, v < n →
             ((∃ i, i < σ'.vars "tail" ∧ Q i = v) ↔ (M v ≠ 0 ∧ WD G M d s v))) ∧
           (∀ i, i < σ'.vars "tail" → ∀ j, j < σ'.vars "tail" → Q i = Q j → i = j) ∧
@@ -533,7 +544,8 @@ theorem bfsBlock_specW {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) (hnB : 
   have hpot₁ : BallPot bw nb σ₁ = 44 * bw + 40 * nb := by
     simp only [BallPot, hhead₁, hsc₁]; omega
   refine ⟨σ₃, _, (hrun₁.seq (hrun₂.seq hrun₃)).mono ?_, le_rfl, hdist₃, Q, QD, hq₃, hqd₃,
-    by omega, fun v hv => ?_, fun i hi j hj => hFr₂.qinj i (by omega) j (by omega),
+    by omega, by omega, fun i hi => hqn i (by omega), fun v hv => ?_,
+    fun i hi j hj => hFr₂.qinj i (by omega) j (by omega),
     fun i hi k hk => ?_⟩
   · -- the charge
     rw [hpot₁] at hpay
@@ -567,7 +579,8 @@ theorem bfsBlock_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hs : s < n) (hnB : n
       (bfsBlockCom d)
       (fun _ σ' => σ'.arrs "dist" = arrOf n (fun _ => d + 1) ∧
         ∃ Q QD, σ'.arrs "q" = arrOf n Q ∧ σ'.arrs "qd" = arrOf n QD ∧
-          σ'.vars "tail" ≤ n ∧
+          σ'.vars "tail" ≤ n ∧ σ'.vars "tail" ≤ nb ∧
+          (∀ i, i < σ'.vars "tail" → Q i < n) ∧
           (∀ v, v < n →
             ((∃ i, i < σ'.vars "tail" ∧ Q i = v) ↔ (M v ≠ 0 ∧ WD G M d s v))) ∧
           (∀ i, i < σ'.vars "tail" → ∀ j, j < σ'.vars "tail" → Q i = Q j → i = j) ∧

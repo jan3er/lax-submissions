@@ -3867,20 +3867,22 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
     rw [hmb]
     calc 1 + j * (2 * cap + 1) ≤ (j + 1) * (2 * cap + 1) := by nlinarith
       _ ≤ ℓ * (2 * cap + 1) := Nat.mul_le_mul_right _ (by omega)
-  · -- **the size clause** (§5.3): the arena the next depth is handed is inside this
-    -- turn's cluster — its mask is the cluster indicator with two more masks multiplied
-    -- in — and a cluster is no bigger than the block that lists it
+  · -- **the descend clause** (§5.3, restated at the inclusion for G2/E6): every
+    -- vertex the next depth's arena marks lies in this turn's cluster — its mask is
+    -- the cluster indicator with two more masks multiplied in. The old cardinality
+    -- reading is `Refine.ArenaBlock.arenaSize_le_ncard` +
+    -- `ncard_clusterAt_le_blockSize` downstream; the weighted reading is
+    -- `Refine.MassWeight.arenaWeight_le_blockWeight`.
+    rw [hcc]
     have hsub : ∀ v : Fin n, Alv' (v : ℕ) ≠ 0 → v ∈ markSet n Xa := by
       intro v hv hc
       refine hv ?_
       rw [hAlvval (v : ℕ) v.isLt, hRaval (v : ℕ) v.isLt, hc]
       ring
-    rw [hcc]
-    calc arenaSize n Alv' ≤ (markSet n Xa).ncard :=
-          Refine.ArenaBlock.arenaSize_le_ncard hsub
-      _ ≤ blockSize Xoff cc := by
-          rw [hXmark]
-          exact Refine.ArenaBlock.ncard_clusterAt_le_blockSize hcout hcur
+    intro v hv
+    have hvXa := hsub v hv
+    rw [hXmark] at hvXa
+    exact hvXa
   · refine playRec_succ ⟨rounds, hrec, hle, hplayR⟩
       (fun a ha => hfv (ctrName a) (ctrName_ne (by omega))
         (ctrName_notMem_descendScalars a))
