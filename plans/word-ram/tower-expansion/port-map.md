@@ -9,6 +9,12 @@ exclusions carry the burden). Companion files in this directory:
 `ledger.md` (the campaign's deviation ledger, opened here) and
 `debt-register.md` (the fine-grained open-debt list that feeds P6).
 
+This landed map freezes active scope. Only rows assigned unconditionally
+to P1–P10 are live work. Inventory, exclusion, deferred, stretch, and
+revisit rows are P10 backlog and cannot be pulled into a live phase by a
+consumer. Inside an active row, workers port the coherent source declaration
+family rather than extracting only the current example's lemma.
+
 Method: three surveys run 2026-07-31 — (a) local inventory of
 `word-ram/proofs/Lax13Proofs/Refine/` with per-file source attributions
 and every skip/deferral recorded in the tower campaign's progress log,
@@ -55,7 +61,7 @@ Imperative_HOL_Time `master` to
 
 ## 2. P0 findings — where the plan's assumptions were wrong
 
-These four findings correct assumptions written into the accepted plan;
+These five findings correct assumptions written into the accepted plan;
 each has a consequence recorded in the ledger.
 
 - **F1 — the artifact's IICF is dead code.** Grep of every
@@ -93,17 +99,18 @@ each has a consequence recorded in the ledger.
   spine** (currency-vector-native, in the primary pin); the **Kruskal
   chain** is ported from Sepreftime as the multi-structure budget
   exemplar once P2 (foreach) and P4.B (union-find) land, with the
-  `enat`→`acost` adaptation ledgered; Edmonds–Karp is
-  deferred-opportunistic, not scheduled.
+  `enat`→`acost` adaptation ledgered. Edmonds–Karp is outside active P0–P10
+  scope and may be reconsidered only at P10 or in a later campaign.
 - **F4 — union-find with time is within reach.** The plan made P4's
   union-find conditional on finding source text.
   `Sepreftime/Examples/Kruskal/Union_Find_Time.thy` (46.6 KB, with
   `UnionFind.thy`/`UnionFind_Impl.thy`) is that text; P4.B includes it
   unconditionally. Same `enat`→`acost`/SL adaptation class as E6.
-- **F5 (minor).** mathlib may already carry an Akra–Bazzi/master-theorem
-  formalization usable as the recurrence-closure endpoint; P3 checks
-  `lean_local_search`/mathlib before porting any Eberl closure pattern,
-  consistent with E2 (mathlib `Asymptotics` is the carrier).
+- **F5 (resolved).** The pinned mathlib carries
+  `AkraBazziRecurrence.isBigO_asympBound`, its reverse-O theorem, and
+  `isTheta_asympBound`. P3.C reuses and documents those endpoints while
+  faithfully porting the scheduled IHT 1D/2D/recurrence declaration
+  families; it does not open an independent AFP Akra–Bazzi source slice.
 
 ## 3. Baseline — what is already ported (the diff's left side)
 
@@ -135,17 +142,17 @@ is *not* infrastructure and is not part of this diff.
 
 ## 4. The port map (the diff's right side)
 
-Per phase; **wave** = suggested landing wave within the phase. "Sol"
-waves go to GPT-5.6-Sol workers per the plan's working model; the first
-P1 wave is the half-size calibration wave.
+Per phase; **wave** records the historical or planned landing subdivision.
+Worker allocation follows the current governance in the campaign plan;
+old calibration labels do not prescribe a model, worker type, or task size.
 
 ### P1 — signature machinery
 
 | item | source (size) | deps | consumer | wave |
 |---|---|---|---|---|
-| `to_hnr`/`to_hfref` normalization, `comp_PRE`, the `FCOMP` attribute (composition with pure relators + precondition intersection) | `Sepref_Rules.thy` (91.6 KB; the fref/hfref/hfcomp judgments incl. dependent `hfcomp` are already ported — this is the *machinery around* them) | — | THE SEAM (`OrderBridge.lean:36`) | **P1.A (calibration, half-size)** |
+| `to_hnr`/`to_hfref` normalization, `comp_PRE`, the `FCOMP` attribute (composition with pure relators + precondition intersection) | `Sepref_Rules.thy` (91.6 KB; the fref/hfref/hfcomp judgments incl. dependent `hfcomp` are already ported — this is the *machinery around* them) | — | THE SEAM (`OrderBridge.lean:36`) | **P1.A — landed** |
 | `hrrCompDep` flattening lemma | local residue (`nd-mc-rebase-plan.md:298`; bites loop composition) | — | seam loop-composition | P1.A |
-| signature→goal derivation: `sepref_definition`/`sepref_thm` goal preparation (retires hand-holed `hnRefine` goals) | `Sepref_Definition.thy` (6.2 KB) + `Sepref_Tool.thy` glue (16.5 KB; command shell already ported) | P1.A | every synthesis; ND-MC order phase | P1.B |
+| signature→goal derivation: `sepref_definition`/`sepref_thm` goal preparation (retires hand-holed `hnRefine` goals) | `Sepref_Definition.thy` (6.2 KB) + `Sepref_Tool.thy` glue (16.5 KB; command shell already ported) | P1.A | every synthesis; large-arity phase synthesis | P1.B |
 | `sepref_register` + interface-type discipline (`intf_of_assn`, TYPE annotations) | `Sepref_Combinator_Setup.thy` (19.8 KB; only the arity-equation schema is ported) + the register half of `Sepref_Id_Op.thy` | P1.A | operator identification at 15-array scale | P1.B |
 | `sepref_decl_op`/`sepref_decl_intf`/`sepref_decl_impl` commands | `Sepref_Intf_Util.thy` (56.3 KB) | P1.B | P5 consumes for every container | P1.C — landed (`Sepref/IntfUtil.lean`, E12) |
 
@@ -156,10 +163,10 @@ Acceptance stays as the plan wrote it (BfsQSynth re-derived signature-only
 
 | item | source (size) | deps | consumer | wave |
 |---|---|---|---|---|
-| currency-vector `nfoldli` + FOREACH family + their hnr/sepref rules — **authored, E5** | shape sources: AFP `Refine_Monadic/Refine_Foreach.thy` (81.5 KB, rule organization + invariant style); AFP `NREST/Refine_Foreach.thy` (15.4 KB, `enat` cost form); Sepreftime `Refine_Foreach.thy` (17.0 KB) + `Sepref_Foreach.thy` (34.0 KB — size-identical to the AFP no-cost copy); existing `Combinators.lean` FOREACH (ℕ∞). Landed: `NREST/Foreach.lean`, `Sepref/Foreach.lean`. | P1 (rules in signature form) | R1.6 member lists; arena walks | P2.A — landed |
+| currency-vector `nfoldli` + FOREACH family + their hnr/sepref rules — **authored, E5** | shape sources: AFP `Refine_Monadic/Refine_Foreach.thy` (81.5 KB, rule organization + invariant style); AFP `NREST/Refine_Foreach.thy` (15.4 KB, `enat` cost form); Sepreftime `Refine_Foreach.thy` (17.0 KB) + `Sepref_Foreach.thy` (34.0 KB — size-identical to the AFP no-cost copy); existing `Combinators.lean` FOREACH (ℕ∞). Landed: `NREST/Foreach.lean`, `Sepref/Foreach.lean`. | P1 (rules in signature form) | generic member-list walks | P2.A — landed |
 | iteration-list refinement: `list_set_rel`, `it_to_sorted_list` discipline | `Refine_Foreach.thy` §sorted-list + Collections `Iterator/` core: `Proper_Iterator` (9.4 KB), `It_to_It` (4.7 KB), `Idx_Iterator` (4.3 KB); `SetIterator`(+`Operations`) (39.1+38.3 KB) as reference, not text. Landed: `Autoref/Foreach.lean`, `NREST/Foreach.lean` result discipline. | P2.A | "iterate over exactly this set" as abstract op | P2.B — landed |
 | Autoref rule set for iteration | `Refine_Foreach.thy` autoref setup + `Lib/Foldi.thy` (4.9 KB). Landed: `autoref_nfoldli`, `LIST_FOREACHPrimeE_param`, sorted-list gates in `Autoref/Foreach.lean`. | P2.A | autoref'd abstract programs | P2.B — landed |
-| `Recursion_Combinators` (for-loops over RECT, nesting discipline) | Sepreftime `FloydWarshall/Recursion_Combinators.thy` (4.4 KB). Landed: `NREST/For.lean`; ledger E13. | P1 | nested per-arena passes (order phase) | P2.B — landed |
+| `Recursion_Combinators` (for-loops over RECT, nesting discipline) | Sepreftime `FloydWarshall/Recursion_Combinators.thy` (4.4 KB). Landed: `NREST/For.lean`; ledger E13. | P1 | generic nested bounded passes | P2.B — landed |
 
 Acceptance as planned (arena-walk exemplar with compiled
 carrier-blindness probe).
@@ -168,43 +175,42 @@ carrier-blindness probe).
 
 | item | source (size) | deps | consumer | wave |
 |---|---|---|---|---|
-| `sc_solve` (+`'`/`_debug`/`_upperbound`), the `norm_cost` lemma bundle, `norm_pp` | `NREST_Automation.thy` (11.1 KB — note `norm_cost` is a lemma bundle, not a method) | — | every cost side condition; `g2_plug` gaps | P3.A — landed (`NREST/Automation{Attrs,}.lean`) |
+| `sc_solve` (+`'`/`_debug`/`_upperbound`), the `norm_cost` lemma bundle, `norm_pp` | `NREST_Automation.thy` (11.1 KB — note `norm_cost` is a lemma bundle, not a method) | — | generic cost side conditions | P3.A — landed (`NREST/Automation{Attrs,}.lean`) |
 | shallow VCG program-head case splitter | Sepreftime `moreCurr/MoreCurrAutomation.thy:73–131` at exact pin `c1c987b45ec886d289ba215768182ac87b82f20d` | P3.A automation | `gwp`/`progress` goals headed by `Option`/`Sum` matches | P3.A — landed (`NREST/VcgCaseSplit.lean`) |
-| currency flattening / collapse-once-at-cash | Sepreftime `moreCurr/Flatten_Currencies.thy` (12.4 KB) at exact pin `c1c987b45ec886d289ba215768182ac87b82f20d`; `AbstractSepreftime.thy` (131 KB) surveyed for dropped laws | P3.A | the cash boundary; ND-MC arena-form budgets | P3.A — landed (`NREST/FlattenCurrencies.lean`) |
-| currency house-style conventions | `Sorting_Setup.thy` (63.3 KB — extract the conventions: named per-op currencies, spec forms), | P3.A | all downstream phases | P3.B |
-| multi-phase budget exemplar: the introsort budget spine (**E6 retarget**) | `Sorting_Quicksort_Scheme.thy` (25.0 KB) + `Sorting_Introsort.thy` (32.8 KB) abstract halves, + `Sorting_Partially_Sorted.thy` (5.6 KB) | P2, P3.A | house pattern for multi-phase budgets | P3.B |
-| asymptotic face: O()-corollaries at the cashing boundary, recurrence closures for `CostRecurrence` | mathlib `Asymptotics` carrier (E2); patterns from IHT `Asymptotics_1D` (40.7 KB) / `Asymptotics_Recurrences` (28.2 KB), `Landau_Symbols` simproc patterns, `Akra_Bazzi`/`Master_Theorem` — check mathlib first (F5) | P3.A | "closes to almost-linear" detached from coefficients | P3.C |
+| currency flattening / collapse-once-at-cash | Sepreftime `moreCurr/Flatten_Currencies.thy` (12.4 KB) at exact pin `c1c987b45ec886d289ba215768182ac87b82f20d`; `AbstractSepreftime.thy` (131 KB) surveyed for dropped laws | P3.A | generic cash boundary | P3.A — landed (`NREST/FlattenCurrencies.lean`) |
+| currency house-style conventions | `Sorting_Setup.thy` (63.3 KB — named per-op currencies and cost-carrying spec forms). Landed: list-built named phase accounts, finite exchange rows, vector-before-cash gates. | P3.A | all downstream phases | P3.B — landed (`Examples/IntrosortBudget.lean`) |
+| multi-phase budget exemplar: the introsort budget spine (**E6 retarget**) | `Sorting_Quicksort_Scheme.thy` (25.0 KB) + `Sorting_Introsort.thy` (32.8 KB) abstract halves + `Sorting_Partially_Sorted.thy` (5.6 KB), with the imported phase accounts audited in `Sorting_Quicksort_Partition.thy` and `Sorting_Final_insertion_Sort.thy`. Landed: exact `introsort3_cost` top-level account, exact `introsort_aux_cost` recursive account, a TId-style theorem replacing `slice_part_sorted` without double-counting it, coherent NREST consumption, exact `introsort_cost3` upper-bound vector, and exact `project_all` scalar. Ledger E15 records which later upper-rate chain remains collapsed. | P2, P3.A | house pattern for multi-phase budgets | P3.B — landed (`Examples/IntrosortBudget.lean`) |
+| faithful asymptotic machinery: 1D/2D polylog carriers, stability/eventual monotonicity, O/Ω/Θ intro/elimination/composition/comparison/normalization rules, and recurrence theorem families | IHT `Asymptotics_1D.thy` (864 lines), `Asymptotics_2D.thy` (676), `Asymptotics_Recurrences.thy` (589), plus the directly supporting `landau_util{,_2d}.ML` registry/normalizer architecture at pin `09f9bc7a7cf177d3adf1e9ce6adae09a85ebe5ec`; mathlib `Asymptotics` is the carrier and its Akra–Bazzi endpoint is reused (F5) | P3.A/B | generic asymptotic API; post-port BfsQ/introsort demonstrations | P3.C |
 
-Acceptance as planned (BfsQ as currency vector reproducing
-`K = 56n + 40ns + 33`; `sc_solve` discharge; mechanical O(n + ns)).
+Acceptance: complete declaration map for the three IHT theories and
+source-shaped 1D/2D/recurrence gates, followed by BfsQ O(n + ns) on the
+genuine product filter and introsort O(n log n) from their exact cash
+upper bounds. No ND-MC import or API is permitted.
 
 ### P4 — credits and amortization
 
 | item | source (size) | deps | consumer | wave |
 |---|---|---|---|---|
-| time-credit assertion discipline: credits stored in DS assertions, pay-on-entry / spend-on-touch | `SLTC.thy` (32.8 KB) + `SLTC_More.thy` (21.8 KB); `SLTC_Automation.thy` (41.3 KB) architecture only — auto2 is not our carrier, `fri`/`refine_vcg` stay (X7) | P3 | touched-only as frame reasoning | P4.A |
+| time-credit assertion discipline: credits stored in DS assertions, pay-on-entry / spend-on-touch | `SLTC.thy` (32.8 KB) + `SLTC_More.thy` (21.8 KB); `SLTC_Automation.thy` (41.3 KB) architecture only — auto2 is not our carrier, `fri`/`refine_vcg` stay (X7) | P3 | generic potential-carrying assertions | P4.A |
 | dynamic array, amortized O(1) push | **primary: artifact `examples/dynarray/Dynamic_Array.thy` (49.3 KB — currency-native: `TR_dynarray` exchange rates, `augment_amor_assn` potential-carrying assertions)**; secondary: `IHT_Dynamic_Array(_More)` (7.6+8.1 KB), `Amortized_Examples.thy` §dyn-table + `Dynamic_Tables/Tables_nat.thy` (22.9 KB) for the potential math | P4.A | resizable arrays (P5); credit exemplar #1 | P4.A |
 | union-find with credits (**F4: unconditional**) | Sepreftime `Union_Find_Time.thy` (46.6 KB) + `UnionFind.thy`/`UnionFind_Impl.thy` (2.2+2.9 KB); `enat`→`acost` + SLTC→our-SL adaptation (E6-class) | P4.A | Kruskal exemplar; credit exemplar #2 | P4.B |
-| skew heap (credit exemplar #3, stretch) | `Skew_Heap_Analysis.thy` (7.5 KB) + `IHT_Skew_Heap.thy` (10.8 KB) | P4.A | breadth default | P4.B stretch |
-| the arena bundle (ledger E3, ours): composite assertion owning data + member list + c··members· credits | no source | P2 (member lists), P4.A | ND-MC touched-only; P9 | P4.C |
-| `treset_cost_touched_only` re-derived as a credit argument; child-engine budget from bundle credits | local | P4.C | acceptance | P4.C |
-| Kruskal chain (multi-structure budget exemplar, **E6**) | Sepreftime `Kruskal/`: `MinWeightBasis` (18.1), `Kruskal` (9.1), `Kruskal_Refine` (16.9), `Kruskal_Time` (5.3), `Kruskal_Impl` (19.7), `MaxNode_Impl` (11.8), `UGraph_Impl` (10.1) ≈ 91 KB; `enat`→`acost` | P2, P4.B, parts of P5 | the house cross-structure derivation | P4.C / P5 seam |
+| Kruskal chain (source-native post-freeze validation, **E6**) | Sepreftime `Kruskal/`: `MinWeightBasis` (18.1), `Kruskal` (9.1), `Kruskal_Refine` (16.9), `Kruskal_Time` (5.3), `Kruskal_Impl` (19.7), `MaxNode_Impl` (11.8), `UGraph_Impl` (10.1) ≈ 91 KB; `enat`→`acost` | P2, P4.B, required P5 families | validates frozen generic APIs; does not design them | P5 post-freeze gate |
 
-### P5 — IICF breadth (default-include; all cost-adaptations per E7)
+### P5 — exact P0-fixed IICF table (all cost-adaptations per E7)
 
 | item | source (size) | deps | consumer | wave |
 |---|---|---|---|---|
 | the 8 interfaces: Set, Map, List, List_List, Matrix, Multiset, Prio_Bag, Prio_Map | artifact `Intf/` (3.4 / 6.9 / 7.4 / 3.7 / 19.9 / 8.6 / 5.7 / 6.5 KB) — interface text is monad-level, portable despite F1 | P1.C (`sepref_decl_*`) | everything below | P5.A |
-| array lists / resizable arrays: `Array_List`, `DArray_List` (dynamic-array-backed), `MS_Array_List`, `Indexed_Array_List`, `Array_of_Array_List` | Sepreftime cost copies (8.8 / 3.1 / 8.5 / 16.9 KB) + artifact `Array_of_Array_List` (9.1, + `ds/` twin 14.5 shape); no-cost twins for shape | P4.A (dyn array), P5.A | ND-MC member lists; general | P5.B |
+| array lists / resizable arrays: `Array_List`, `DArray_List` (dynamic-array-backed), `MS_Array_List`, `Indexed_Array_List`, `Array_of_Array_List` | Sepreftime cost copies (8.8 / 3.1 / 8.5 / 16.9 KB) + artifact `Array_of_Array_List` (9.1, + `ds/` twin 14.5 shape); no-cost twins for shape | P4.A (dyn array), P5.A | bounded sequences; general | P5.B |
 | array maps: `Array_Map`, `Array_Map_Total`, `ArrayMap_Map` | artifact (7.7 / 4.2 KB, dead — shape) + Sepreftime `IICF_ArrayMap_Map` (6.5 KB, cost) | P5.A | bounded-key maps (the honest hash-map replacement, X5) | P5.B |
 | matrices: `Matrix` intf + array matrix | AFP `IICF_Array_Matrix` (23.5 KB) + Sepreftime (10.4 KB, cost) | P5.A | Floyd–Warshall-class; PCP constraint graphs | P5.C |
 | heaps / prio maps: `Abs_Heap`, `Impl_Heap`, `Abs_Heapmap`, `Impl_Heapmap` | Sepreftime cost copies (33.6 / 6.5 / 50.5 / 32.7 KB); artifact copies dead (F1); `isabelle_llvm` 2023 shapes | P5.A/B | Dijkstra/Prim-class; PCP expanders | P5.C |
 | multisets & list sets: `List_Mset`, `List_MsetO`, `List_SetO`, `List_Set` | AFP/Sepreftime (5.4 / 4.3 / 5.3 / 4.4 KB) | P5.A | sorting-class specs | P5.D |
-| RBT map/set (ordered maps for unbounded keys — the worst-case-honest replacement for hash maps, X5) | Sepreftime `IICF_RbtMap_Map` (4.5 KB) + `IICF_Rbt_Set` (15.2 KB) | P5.A | breadth default | P5.D stretch |
 | ICF iterator discipline as library convention | consumed from P2.B | P2 | all containers | P5.D |
 
-Acceptance as planned (translator consumes every structure's rules on an
-exercise with zero bespoke tactics + one cross-structure exercise each).
+Acceptance: uniform source-shaped rule-consumption gates per implementation
+family with zero bespoke tactics, then the one source-native Kruskal
+post-freeze validation. Invented exercises do not shape APIs.
 
 ### P6 — debt closure
 
@@ -217,24 +223,31 @@ citations). New-source items within it: the `inres` section of
 `Sepref_Copy.thy` exists in any source**; the plan's
 "`sepref_copy_rules`" item resolves to these sites); artifact
 `Refine_Heuristics.thy` (7.1 KB); `Lib/Indep_Vars.thy` (1.6 KB, INDEP —
-prerequisite of `autoref_higher_order_rule`, delta O7). Everything else
-in the register is local repair, no fetch.
+prerequisite of `autoref_higher_order_rule`, delta O7).
+
+| item | source (size) | deps | consumer | wave |
+|---|---|---|---|---|
+| generic `RECT`/gfp order-isomorphism transport and `flatCurrs_whileT` | Sepreftime `moreCurr/Flatten_Currencies.thy` (12.4 KB), especially the omitted while law; local `NREST/Rec.lean` supplies `RECT` and receives the substrate-generic transport theorem | P3.A flattening API | closes fixed source debt E14; terminating nondeterministic-loop gate | **P6 — unconditional** |
+
+Everything else in the register is local repair, no fetch.
 
 ### P7 — frame-layer performance
 
 No new sources (the attack list stays: entailment-rule indexing, residue
 caching, round-loop early exit; `Termtab`-style pre-match already
-served). The P0-probe suite to re-measure is pinned in
-`nd-mc-rebase-plan.md:330–340` (DiscrTree established as the wrong
-target).
+served). The frozen source-neutral `FrameScale3to5` fixture is primary;
+the historical ND-MC probe is secondary, read-only, and non-gating.
 
 ### P8 — executable gates
 
-Ours (ledger E4); no sources. Unchanged from the plan.
+Ours (ledger E4); no sources. Generic missing-producer and cost-floor
+fixtures are primary; archived B7 evidence is secondary and read-only.
 
 ### P9 — consumer gate
 
-No port items; consumes P1–P4 exports. Unchanged from the plan.
+No port items. It owns the local arena bundle and touched-only reset
+instantiation and consumes the frozen P1–P5 exports. Consumer gaps cannot
+widen earlier phases unless they prove a scheduled source-fidelity defect.
 
 ## 5. Exclusions (rule 4 — each argued)
 
@@ -244,17 +257,18 @@ No port items; consumes P1–P4 exports. Unchanged from the plan.
 | X2 | `others/deep`, `others/simple`, `prototypes/` | excluded from the source's own build; dead experiments | never |
 | X3 | GenCF (`Collections/GenCF/`: `Gen_Set`/`Gen_Map`/… + `Impl_*`) | Autoref-side generic-algorithm layer whose role our Sepref path covers; no consumer in any pipeline; the plan already presumed exclusion | an Autoref-only (non-Sepref) consumer appears |
 | X4 | the ICF locale framework proper (`ICF/spec`, `gen_algo`, `impl`, `tools/Locale_Code`) | superseded by IICF within the source line itself; `Locale_Code` is an Isabelle-specific code-gen trick; iterator discipline is extracted separately (P2.B) | never |
-| X5 | hash-map implementations (`Impl_Array_Hash_Map` 70.5 KB, `HashMap`, hash parts of `IICF_Sepl_Binding`) — **a deviation from resolved JAN-FLAG 3's list, argued**: | no cost-honest story on a deterministic word-RAM (worst-case per-op O(1) fails adversarially; expected-time needs randomized machinery our cost calculus does not carry); every current consumer has bounded key spaces served exactly by array maps (P5.B); ordered/unbounded keys served worst-case-honestly by RBT (P5.D) | a consumer with sparse unbounded keys where log factors matter; or randomized-cost infrastructure lands |
+| X5 | hash-map implementations (`Impl_Array_Hash_Map` 70.5 KB, `HashMap`, hash parts of `IICF_Sepl_Binding`) — **a deviation from resolved JAN-FLAG 3's list, argued**: | no cost-honest story on a deterministic word-RAM (worst-case per-op O(1) fails adversarially; expected-time needs randomized machinery our cost calculus does not carry); current bounded key spaces are served exactly by array maps (P5.B); an ordered-map/RBT option for sparse unbounded keys is deferred with X16 | P10 review if a consumer needs sparse unbounded keys where log factors matter, or randomized-cost infrastructure lands |
 | X6 | `Refine_Det`, `Refine_Transfer`, `Refine_Pfun`, `Refine_Automation`, `Autoref_Monadic`, `Code_Target_ICF` | the Isabelle code-generator road (nres → executable SML); our executable face is `Codegen/` (D3) + D4 computable twins | never |
 | X7 | auto2 automation (`SLTC_Automation` ML, `sep_time_steps.ML`, auto2 itself) | automation substrate, not calculus; architecture read at P4.A, carrier stays `fri`/`refine_vcg` (D-class precedent: the tower already made this call for Isabelle's ML tactics) | never |
 | X8 | `Automatic_Refinement/Lib` substrate: `Misc.thy` (167 KB), `Refine_Util`, antiquotation/ML tooling (`Mpat_Antiquot`, `Mk_Term_Antiquot`, `Attr_Comb`, `Select_Solve`, `Anti_Unification`, `Named_Sorted_Thms`) | substrate role played by mathlib + Lean 4 metaprogramming; `Named_Sorted_Thms`' ordering guarantee already documented in `Sepref/IdOp.lean` | `Anti_Unification`: if Autoref heuristic quality (delta F6 work) demands it |
-| X9 | Collections `Lib` oddments: `Robdd` (121.7 KB), tries, finger trees (`FT*`), `Dlist_add`, binomial/pairing-heap breadth | no plausible consumer in ND-MC / PCP / any named pipeline; heap needs covered by array heaps (P5.C) + skew heap (P4.B stretch) | a consumer names one |
+| X9 | Collections `Lib` oddments: `Robdd` (121.7 KB), tries, finger trees (`FT*`), `Dlist_add`, binomial/pairing-heap breadth | outside the source slices unconditionally assigned by P0; active heap coverage is the scheduled array-heap/prio-map family | P10 review only |
 | X10 | splay trees & pairing heaps (`Splay_Tree_Analysis*`, `Pairing_Heap_*`, `IHT_Splay_Tree`) | amortized-analysis breadth beyond the three chosen exemplars; splay potentials are real-valued/log-shaped — poor fit for the ℕ-valued credit SL without new machinery; no consumer | a consumer needs self-adjusting structures |
-| X11 | Edmonds–Karp / `Augmenting_Path_BFS` chain (Sepreftime, ≈146 KB) | exemplar role filled by introsort spine (P3.B) + Kruskal chain (P4.C); max-flow has no consumer in any pipeline. **Deferred-opportunistic, not excluded** — it is the natural stress test if P9 needs a second large consumer | P9 wants a second consumer-scale exercise; or an idle-margin session |
-| X12 | `Landau_Real_Products` decision procedure (73.9 KB + simproc ML), `Akra_Bazzi_Real`/`Approximation` numerics | pattern-level port only (E2); mathlib `Asymptotics` + (per F5) possibly mathlib's own Akra–Bazzi are the carriers | P3.C finds mathlib's closure layer insufficient |
+| X11 | Edmonds–Karp / `Augmenting_Path_BFS` chain (Sepreftime, ≈146 KB) | exemplar role is already filled by the scheduled introsort and Kruskal sources; max-flow is not part of active P0–P10 | P10 review or a later consumer campaign only |
+| X12 | independent AFP `Landau_Real_Products` decision procedure (73.9 KB + simproc ML), `Akra_Bazzi_Real`/`Approximation` numerics | P3.C ports only dependencies required by the selected IHT declarations; mathlib already supplies the Akra–Bazzi endpoint. Missing convenience automation becomes recorded debt, not a new source excursion | P10 review only |
 | X13 | Sepreftime root layer (`HNR.thy`, `SepLog_Automatic`, `Set_Impl`, …) and IHT machine layer (`Heap_Time_Monad`, `Array_Time`, `Ref_Time`, `Transpile`) | superseded by the ESOP artifact's sepref (our primary source) and by our own machine layer; only the case studies, foreach, `moreCurr`, SLTC discipline, and asymptotics feed ports | never |
 | X14 | Userguides (`Sepref_Guide_*`, ICF/Refine_Monadic userguides) | manuals, not port targets — they stay the workers' documentation, per the fidelity charter | — |
 | X15 | surface syntax (`do`-macro front end); GenCF-style code export; concept surfaces; machine model; `lake update` | carried from the plan's "Not in scope" verbatim | per plan |
+| X16 | skew-heap and RBT stretch rows formerly attached to P4.B/P5.D | useful breadth, but not unconditionally assigned by P0; “stretch” is not executable scope under the firewall | P10 review only |
 
 ## 6. Deviation ledger
 
@@ -270,15 +284,14 @@ exclusion, a deviation from the resolved flag-3 list).
 
 ## 7. Size and sequencing summary
 
-Rough new-source volume per phase (KB of source text to be read/ported;
-authored items counted by their shape sources): P1 ≈ 165; P2 ≈ 150
-(mostly shape sources for an authored layer); P3 ≈ 200 (about half
-extract-only); P4 ≈ 210; P5 ≈ 260; P6 ≈ 30 + local. The plan's
-dependency shape is unchanged: P1 first, P2–P5 satellite-parallelizable
-after it, P6–P8 fitted in margins, P9 last. The plan's budgets stand;
-nothing found in P0 moves them, though P5's E7 finding shifts its
-character from transcription toward derivation, which historically runs
-*slower* per KB — watch at the first P5 wave.
+The original P0 source-volume estimates predate the Rev 4 scope firewall
+and are superseded; they are not authority to pull adjacent source families
+into a live phase. The tables above define the exact assignments, and the
+Rev 4 campaign-plan budgets govern. Dependency shape is P1 → P2 → P3,
+then P4, with P5 waves following their declared P1/P2/P4 dependencies;
+P6–P8 follow the APIs they audit, P9 alone integrates the consumer, and P10
+reviews backlog. P5's E7 finding makes its assigned rows derivations rather
+than text transcription but does not widen that table.
 
 Worker note for the P1 calibration wave: every brief must carry the
 relevant extract (fetched fresh at the pin) — the extract files of the

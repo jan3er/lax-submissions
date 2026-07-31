@@ -14,6 +14,12 @@ Status vocabulary:
   that the export and its consumers have not regressed;
 - **closed** — no further campaign work is attached to the entry.
 
+**Scope firewall.** A revisit trigger is a P10/backlog note, not authority to
+start work during P1–P9. The only exception is a defect that prevents the
+current scheduled phase from satisfying a source-fidelity acceptance gate.
+Consumer demand cannot add a source slice, local adaptation, or
+cross-submission repair to a live phase.
+
 ## 1. Inherited charter entries
 
 | id | status | source design / expectation | position in this repository | consequence here |
@@ -22,7 +28,7 @@ Status vocabulary:
 | D2 | binding | LLVM shallow semantics below Sepref | The concrete layer is the endorsed first-order word-RAM IR. | P1–P6 may extend synthesis infrastructure and rules, but not the machine model. |
 | D3 | binding | trusted Isabelle/LLVM export route | Verified `Ir` to IMP+ code generation and cashing. | New operations need verified codegen coverage before becoming executable capital. |
 | D4 | binding | source examples are largely proof-script gates | Every executable layer gets computable twins, positive checks, and negative/refutation controls when it lands. | P8 turns the same discipline into reusable commands; phase acceptance cannot rest on prose or a worker's build report. |
-| D5 | binding | ordinary arrays are the default mutable container | Trail-backed touched-only arrays are the repo default when sparse reset is semantically available. | P4's arena bundle and P9's order phase must charge touched members, not carrier cells. |
+| D5 | binding | ordinary arrays are the default mutable container | Trail-backed touched-only arrays are the repo default when sparse reset is semantically available. | P4 exports generic credit machinery; P9 alone instantiates the arena bundle and touched-only consumer argument. |
 | D6 | binding | general recursion exists in the source | Executable programs remain loop-form at the tower/hand boundary. | P2 may port recursion combinators, but P9's name-generating recursion remains hand-written capital. |
 | N1 | binding | separation logic is an implementation proof layer | The SL is consumed by synthesis, not written as per-program frame clauses. | Zero hand frame clauses remains an acceptance condition for synthesized consumers. |
 | N2 | binding | source automation is Isabelle-specific | The repository keeps its small credit-carrying SL and `fri`/`refine_vcg`; it does not import Iris or auto2. | P4 reads `SLTC_Automation` for architecture only; P7 optimizes the existing solver. |
@@ -36,9 +42,9 @@ The full rationale and the earlier campaign's review are in
 | id | status | source design | campaign position | acceptance consequence |
 |---|---|---|---|---|
 | E1 | accepted | Source collections follow AFP/IICF package layouts. | Ports live under the existing `Lax13Proofs/Refine/` layout and naming conventions. | Judgment shapes and rule grouping stay source-faithful even where file splits differ. |
-| E2 | accepted | Guéneau–Charguéraud–Pottier use a CFML calculus for asymptotic specifications. | Port the idea only: attach mathlib `Asymptotics` corollaries at the cash boundary while keeping concrete currency vectors primary. | P3 must derive its O-face mechanically; no CFML text or calculus is claimed as ported. |
-| E3 | accepted | No direct source analogue. | Add the arena bundle: data, member list, and `c · |members|` credits in one assertion. | P4 acceptance includes a child engine paid wholly from the bundle, with no carrier term. |
-| E4 | accepted | No direct source analogue. | Add executable `#slot_sweep`, `#cost_probe`, and brief-gate emission. | P8 must rediscover the two known B7 escapes before the commands are trusted. |
+| E2 | accepted | IHT provides `Asymptotics_1D`, `_2D`, and `_Recurrences`; AFP/CFML supply semantic background. | Port the IHT declaration families faithfully over mathlib `Asymptotics`, then attach cash-boundary examples while keeping concrete currency vectors primary. | P3.C carries a complete source map and source-shaped gates before BfsQ/introsort demonstrations; no CFML, ND-MC, or duplicate Akra–Bazzi API. |
+| E3 | accepted | No direct source analogue. | Add the arena bundle only as a P9 consumer instantiation of the frozen P4 credit API. | It cannot shape P4 judgments or automation; P9's child engine is paid from bundle credits with no carrier term. |
+| E4 | accepted | No direct source analogue. | Add executable `#slot_sweep`, `#cost_probe`, and brief-gate emission. | P8 trusts generic frozen missing-producer and cost-floor fixtures; archived B7 is secondary read-only evidence. |
 
 ## 3. P0 findings and new entries
 
@@ -73,11 +79,12 @@ single-currency `enat`.
 
 - P3's currency-native house exemplar is the primary artifact's introsort
   budget spine.
-- Kruskal plus union-find is an unconditional P4/P5 cross-structure
-  exemplar, adapted from Sepreftime from `enat` to `ACost` and from its SL
-  carrier to ours.
-- Edmonds–Karp is deferred-opportunistic. It is neither part of acceptance
-  nor falsely labelled absent from the source universe.
+- Timed union-find is an unconditional P4 source development. Kruskal is a
+  source-native post-freeze validation after the required P4/P5 APIs land;
+  it does not design those APIs.
+- Edmonds–Karp is outside active P0–P10 scope. It is neither part of
+  acceptance nor an idle-margin task; reconsider it only at P10 or in a
+  later campaign.
 
 Every adapted theorem must separate source-derived content from currency
 lifting glue in its module header.
@@ -90,7 +97,7 @@ entirely lacks cost vocabulary. The usable cost-carrying container sources
 are the artifact's array fragments and dynamic array plus Sepreftime's
 single-currency IICF; mature no-cost twins supply shape.
 
-P5 still ports the default-include interface breadth, but each
+P5 ports the exact P0-fixed interface table, but each
 implementation's vector cost statement is a derivation, following the
 existing `CombRules.lean` precedent. Source file size is planning evidence,
 not a claim that dead or no-cost text was mechanically translated.
@@ -114,11 +121,12 @@ skeleton, is the public index.
 **Status: accepted.** The plan's resolved breadth list named hash maps.
 P0 excludes their implementations because this deterministic word-RAM cost
 calculus has no honest worst-case O(1) hashing theorem and no randomized
-expected-cost layer. Bounded key spaces use array maps; sparse unbounded key
-spaces use ordered maps/RBTs.
+expected-cost layer. Bounded key spaces use array maps. An ordered-map/RBT
+option for sparse unbounded keys is deferred to X16/P10; it is not active P5
+scope.
 
 This is a real deviation from the accepted list, not a wording cleanup.
-Revisit it only if a consumer needs sparse unbounded keys where the log
+Revisit it at P10 if a consumer needs sparse unbounded keys where the log
 factor matters, or after randomized-cost infrastructure lands.
 
 ### E10 — signature conversion and FCOMP use transparent Lean frontends
@@ -217,21 +225,56 @@ order, and the one/two/three nested-fold results are unchanged. Revisit if a
 consumer needs to unfold an intermediate public `for_rec2`/`for_rec3`
 recursive equation rather than use the full square/cube theorem.
 
-### E14 — conditional omission: while flattening
+### E14 — scheduled debt: while flattening
 
-**Status: accepted.** Sepreftime's `flatCurrs_whileT` is intentionally not
+**Status: accepted; assigned to P6.** Sepreftime's `flatCurrs_whileT` was not
 ported in P3.A. In this repository `whileT` is defined through the guarded
 greatest fixed point `RECT`; unlike the structural and bind laws, transporting
 it requires a generic `RECT`/`gfp` conjugacy theorem across a complete-lattice
 order isomorphism, which `Rec.lean` does not currently expose. The delivered
 `flatCurrs_iSup` and exact `flatCurrs_bindT` cover the current cash-boundary
-consumers, so adding an ad hoc loop proof would create parallel fixed-point
-infrastructure.
+consumers, so P3.A correctly avoided an ad hoc loop proof. P6 must add the
+generic theorem in `Rec.lean` that `RECT` commutes with an order
+isomorphism/conjugate body, then port `flatCurrs_whileT` and add a terminating
+nondeterministic-loop gate. This is fixed source debt, not consumer-triggered
+scope.
 
-Revisit at the earlier of (a) the first consumer goal of shape
-`flatCurrs (whileT b c x) = whileT b c' x`, or (b) landing a generic theorem
-in `Rec.lean` that `RECT` commutes with an order isomorphism/conjugate body;
-then port the source theorem and add a terminating nondeterministic-loop gate.
+### E15 — introsort keeps exact named stages but collapses later synthesized rates
+
+**Status: accepted.** In `Sorting_Introsort.thy`, `ub_introsort5` proves
+`timerefineA (introsort5_TR l h) (cost ''slice_sort'' 1) ≤ ?x`;
+`introsort5_acost`, `introsort5_cost`, and `introsort_cost3` then name and
+simplify that synthesized upper bound. The displayed operation vector is not
+an equality exposing the internal `introsort5_TR` row. The source also later
+applies `project_all`, assigning unit price to every currency in the displayed
+vector, and proves the resulting scalar formula exactly.
+
+P3.B retains both statement strengths. `operationBudget` is exactly the
+source's `introsort_cost3` upper-bound formula, with the locale-parametric
+comparison name still explicit. `operationUpperRate` is a finite collapsed
+rate from the outer `slice_sort` token to that named upper bound; it is not
+presented as the omitted chain of partition, insertion, heap, compare/swap,
+and LLVM exchange matrices. `abstractPhaseRate` similarly packages exact
+`introsort3_cost` in one outer row. The immediately following source stage is
+not collapsed: `recursiveAccount` is exact `introsort_aux_cost`, and
+`recursiveUpdateRate` is the source-shaped TId update that replaces
+`slice_part_sorted` with that recursive account. The compiled
+`topLevel_to_expanded` theorem rules out the tempting but incorrect hybrid
+that retains the token while also adding recursive work. Theorems connect the
+outer token, exact top-level stage, expanded stage, and final operation upper
+bound; `introsortSpine_consumes` checks the coherent top-level stage in NREST.
+
+The local verified IR cannot serve as the final price map: its sixteen
+currencies omit source operations such as `load`, `store`, `ofs_ptr`, and
+`icmp_*`. The compiled `localIRCash_drops_source_load_gate` shows that its
+code-generation cash exchange prices a real source `load` charge at zero.
+P3.B therefore uses the source's own finite unit projection and P3.A's
+Unit-currency flattening, reproducing `4693 + 5 log n + 231 n + 455 n log n`
+exactly. This is a local-machine-boundary adaptation, not a changed source
+bound. Revisit if a consumer needs a later individual synthesized rate or if
+the local IR grows a justified lowering for every source operation; then port the
+relevant source matrices and prove their `pp` composition refines the
+collapsed upper rate.
 
 ## 4. Corrections that are not deviations
 

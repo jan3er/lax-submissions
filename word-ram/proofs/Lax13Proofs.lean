@@ -97,6 +97,7 @@ import Lax13Proofs.Refine.Examples.BfsQSynth
 import Lax13Proofs.Refine.Examples.BfsQSignature
 import Lax13Proofs.Refine.Examples.TrailRecursion
 import Lax13Proofs.Refine.Examples.BfsQTrail
+import Lax13Proofs.Refine.Examples.IntrosortBudget
 import Lax13Proofs.Refine.Sepref.Bounds
 import Lax13Proofs.Refine.Sepref.Examples.WordAssnSpike
 import Lax13Proofs.Refine.Examples.BfsQBounded

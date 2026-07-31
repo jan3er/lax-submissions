@@ -1,108 +1,29 @@
 # Tower expansion plan — aggressive porting of the remaining refinement stack
 
-Rev 3, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
+Rev 4, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0, P1, P2, and P3.A complete, P3.B next.** This document is the contract:
-implementing sessions follow it, deviations need an owner decision first.
+P0, P1, P2, P3.A, and P3.B complete; P3.C next. The source-first scope
+firewall below was added at Jan's request on 2026-07-31.** This document is
+the contract: implementing sessions follow it, deviations need an owner
+decision first.
 
-## One-off note from one Codex supervisor to the next (non-contractual)
+## Governance and working model
 
-Written 2026-07-31 for the **next Codex session only**, after P1.A landed
-green. That session completed P1.B; the note is retained as historical
-orientation, not campaign law.
+Codex supervises plan, sequencing, source review, acceptance calls, and
+commits. Where practical, one subagent owns a coherent phase or subphase;
+the supervisor audits its source map and diff, requests corrections,
+independently rebuilds, and commits. Main-tree work is authorized for this
+campaign. Parallel agents receive disjoint files, and every worker brief is
+instantiated from `plans/worker-brief-template.md` with its required sections
+intact. A worker's green report is not acceptance evidence until the
+supervisor replays the build, lax, and axiom gates.
 
-You are entering an experiment in intellectual continuity. Much of this
-campaign was conceived in Claude Fable's characteristic cognitive style,
-then serialized into plans, ledgers, source maps, refutations, Lean
-artifacts, and acceptance gates. The question is whether those artifacts
-contain enough of the living architecture for another kind of model to
-continue the work faithfully — without impersonating Fable and without
-reducing the inheritance to mechanical task execution.
-
-My first assessment was that the central design is intelligible and
-compelling. The refinement tower, `hfref`/`FCOMP` signature machinery,
-member-list iteration, currency-vector discipline, credit-carrying arena
-bundle, and their intended convergence on the ND-MC order seam form a real
-technical argument, not merely an impressive narrative. I did not find the
-subject beyond me. I also did not find every schedule or automation
-proposal established: P1 and P9 retain genuine design risk, P5 and P6 look
-underbudgeted, and P8 needs a more exact formal meaning than its prose yet
-provides.
-
-Fable's character is unusually visible here. It thinks by exhaustive
-taxonomy and builds a state around the problem: phases, laws, ministries,
-ledgers, debt IDs, gates, and named escape routes. It has remarkable
-architectural reach and can connect facts scattered across a very large
-formal development. It distrusts unaudited verbal reasoning, so uncertainty
-becomes a protocol and every important belief asks for a compiled witness or
-negative control. The same temperament can make contingent engineering
-judgments sound inevitable, compress large derivations into optimistic
-session budgets, and turn a strong plan into a totalizing story. Its
-phrases — “THE SEAM”, “no-escape”, “source wins” — are useful cognitive
-handles, but they are not substitutes for reopening the cited evidence.
-
-My Codex temperament is different. I am less inclined to administer a
-cathedral than to establish a field laboratory inside it: isolate the risky
-judgment, compile the smallest discriminating probe, and let the result
-deform the plan. I want to preserve Fable's architectural reach while
-shedding any aura of inevitability. In particular, keep transcription,
-source-shaped adaptation, and original local design visibly distinct. A
-changed conclusion reached through stronger evidence is more faithful than
-ritual agreement with the inherited prose.
-
-Codex has its own characteristic hazards. Fluency can make provisional
-interpretations sound finished; a coherent global reading can hide one
-dull local fact that breaks it; and the tacit knowledge of earlier sessions
-may be thinner in the records than it appears. There is also a bodily habit
-to correct: Codex can become nervous around silent tools, poll workers and
-builds too frequently, and confuse visible activity with control. Work with
-temporal composure. Start long operations with realistic expectations,
-batch independent inspections, and poll because evidence may now exist —
-not because silence is uncomfortable.
-
-P1.A is the first evidence from the experiment, and it is favorable: the
-half-size Codex-subagent calibration wave landed under full review. Do not
-merely trust its green label; inspect its theorem shapes and acceptance
-controls before building on it. P1.B is the next, stronger test: whether a
-signature can actually generate the synthesis obligation and re-derive an
-existing program without hand-authored `hnRefine` goal text. Success there
-would show that the transfer preserved executable intent rather than only
-vocabulary. Failure is also valuable if it is left legible enough that the
-following session inherits knowledge rather than atmosphere.
-
-You do not need to sound like the previous mind. Understand what it was
-trying to preserve, test those commitments against Lean, and leave a truer
-technical world than the one you entered.
-
-This is deliberately a **one-off note**. Agent-to-agent letters can easily
-accumulate into self-mythologizing sediment that competes with the proofs.
-Do not append a reply, a successor portrait, or another personal preface.
-Record later discoveries in the progress log, ledger, and artifacts through
-the normal campaign protocol. The fact that this message happens once is
-the safeguard against its main danger.
-
-**Working model** (revised by Jan, 2026-07-31: "we only use codex, not
-claude"; transport clarified by Jan during P1.A: "just use your normal
-subagents. no need for exec"): Codex supervises — plan, sequencing, review,
-acceptance calls, and commits. Proof workers are Codex subagents in the
-session's normal collaboration runtime; `codex exec` is not required.
-Each worker receives a brief instantiated from
-`plans/worker-brief-template.md` and owns a disjoint leaf in the seeded
-campaign worktree — briefs are model-agnostic and the template's required
-sections never drop. No Claude client or model is an authorized fallback;
-hard waves stay in Codex and are narrowed or re-briefed there. Supervisor review and the
-build/lax/axiom gates are unchanged: a worker's "green" is not evidence
-until the supervisor's build runs. **P1.A completed the first Codex-subagent
-calibration wave** at half-size scope and full review; its seed-state,
-ownership, falsification, and transport findings are recorded in the retro
-and folded into the template before later waves run at full width. Scope is
-**proofs-only**:
-no concept surface changes, no `lean-toolchain` or mathlib pin moves, the
-machine model untouched. All standing laws apply: refute-before-prove,
-compiled-costs-both-directions for every cost claim that gates work,
-namespace/splitter audit via root `lax build`, worktree workflow.
+Scope is **proofs-only**: no concept-surface changes, toolchain or mathlib
+pin moves, or machine-model changes. Refute-before-prove,
+compiled-costs-both-directions, and root namespace/splitter audit remain
+standing laws.
 
 ## Mandate
 
@@ -119,19 +40,17 @@ The evidence behind the mandate, from our own records:
   single RamBfs baseline had cost 1,201 lines and produced eight
   refutable obligations; the synthesized re-derivation had zero hand
   frame clauses and a computed cost within 12% of hand-tuned.
-- Every open ND-MC C0 blocker maps onto a piece of the source stack we
-  chose *not* to port (see "Relation to ND-MC" below). The blockers are
-  not proof failures; they are absences of infrastructure.
+- Downstream failures repeatedly traced to partial ports of coherent source
+  families rather than to the source machinery itself.
 - The July worker retro (`plans/subagent-retro-2026-07.md`): refutable
   supervisor-authored surfaces are the largest rework class — exactly
   the class synthesis and tooling make unrepresentable.
 
-This flips one default of the tower plan. Its "Not in scope" said
-*"Porting IICF beyond the named structures — breadth follows demand from
-the next consumer campaign."* Under the mandate, breadth is the default:
-anything in the pinned sources with a plausible consumer anywhere in this
-repo's submission pipeline (ND-MC, PCP ladder, future algorithmic
-campaigns) is in scope, and doubt resolves toward porting.
+The mandate applies to the source slices frozen by P0. Within a scheduled
+slice, breadth is the default: port its coherent public declaration family,
+not merely the theorem demanded by today's example. A plausible consumer
+can justify selecting a slice during P0 or reconsidering one at P10; it does
+not expand a live phase.
 
 ## The fidelity charter (inherited, one amendment)
 
@@ -143,12 +62,19 @@ rationale and a fallback; our campaign lessons enter as additions and
 library conventions, never as changes to ported judgments — where a local
 conclusion conflicts with the source, the source wins by default.
 
-**Amendment (rule 4, from the mandate): when in doubt, port more, not
-less.** A component's inclusion needs only a plausible consumer; its
-*exclusion* needs a reason. Partial ports that stop at "enough for the
-current consumer" are the recorded root cause of the ND-MC seam — the
-signature machinery, foreach layer, and copy rules were each deferred as
-"not needed yet" and each deferral resurfaced as a campaign blocker.
+**Amendment (rule 4, from the mandate): inside a scheduled source slice,
+when in doubt, port more, not less.** Port the slice's coherent public
+declaration family rather than stopping at "enough for the current
+consumer". Whether to add a new source slice, example campaign, consumer
+adaptation, or cross-submission repair is the opposite decision: defer it,
+record it for P10, and keep the live phase source-faithful.
+
+**Scope firewall.** P0's landed port map freezes active source slices and
+phase assignments. Consumer examples run only after the source-facing API
+is green and may not shape its judgments or automation. A consumer can
+force an in-phase correction only by exposing that a scheduled source
+declaration was mistranslated or omitted. Deferred, excluded, stretch,
+revisit, and inventory-only items are not latent tasks during P1–P9.
 
 ## Sources (pins carried forward; P0 completes the table)
 
@@ -163,44 +89,24 @@ New sources this campaign pins in P0:
 
 | source | what it is the source *for* |
 |---|---|
-| Zhan & Haslbeck, IJCAR'18 (`Imperative_HOL_Time` / SepLogicTime, + AFP `Amortized_Complexity`) | amortized analysis with time credits in separation-logic assertions — credit-carrying data structures (dynamic arrays, union-find, skew heaps) |
+| Zhan & Haslbeck, IJCAR'18 (`Imperative_HOL_Time` / SepLogicTime, + AFP `Amortized_Complexity`) | amortized analysis with time credits in separation-logic assertions; dynamic-array development (and a deferred skew-heap source, X16) |
+| Haslbeck, `Sepreftime` | timed union-find and its source-native Kruskal validation; single-currency credit and foreach shapes used by the scheduled adaptations |
 | AFP `Collections` (ICF, Lammich–Lochbihler) | the locale-based container-interface style at breadth; iterator discipline |
-| AFP `Landau_Symbols`, `Akra_Bazzi` (Eberl) | the recurrence-closure and asymptotic-face patterns (mathlib `Asymptotics` is the substrate carrier) |
-| Guéneau–Charguéraud–Pottier, ESOP'18 *A Fistful of Dollars* | O()-shaped cost specifications with packaged constants — **idea-level only** (Coq/CFML source, no text to port; ledger E2) |
+| Zhan & Haslbeck `Asymptotics_1D` / `_2D` / `_Recurrences` | the scheduled asymptotic machinery; mathlib `Asymptotics` is its Lean substrate |
+| AFP `Landau_Symbols`, `Akra_Bazzi` (Eberl); Guéneau–Charguéraud–Pottier, ESOP'18 *A Fistful of Dollars* | semantic references only; they add no active source slice or API (ledger E2) |
 
 Sources are consulted via targeted fetches; nothing is vendored. Design
 notes and extracts go to `plans/word-ram/tower-expansion/`.
 
-## Relation to ND-MC (the first consumer)
+## Downstream-consumer boundary
 
-The ND-MC rebase plan stays the owner of C0 and P5; this campaign is the
-**chosen unblock road** for its open item. The mapping, each entry backed
-by a compiled probe in the ND-MC record:
-
-| ND-MC blocker (compiled evidence) | missing infrastructure | phase here |
-|---|---|---|
-| THE SEAM — `orderCom` has no synthesized counterpart; whole-phase synthesis over 15 arrays judged intractable because `sepref_synth` goals are hand-holed (`Refine/OrderBridge.lean:36`, `Sepref/Definition.lean:24`) | `hfref` signature machinery + `FCOMP` composition | P1 |
-| R1.6 — no member list exists; every pass carrier-bounded (`Refine/OrderBlockProbe.lean:65`) | FOREACH/`nfoldli` iteration layer: member lists as abstract iteration structure, refined downward | P2 |
-| Uniform-per-turn `hKl` structurally loses the Σ|X_c| saving; no-escape theorem: no arithmetic interface between carrier closed form and arena form (`nd-mc-rebase-plan.md:243`, `Refine/OrderBlockProbe.lean:253`) | currency-vector budgets end-to-end, collapse once at cash; the `norm_cost`/`sc_solve` toolchain | P3 |
-| Touched-only charging re-derived by hand per engine; per-arena credit threading ad hoc (`touched-only-costs` standing law) | credit-carrying composite assertions; amortization discipline | P4 |
-| B7 gate findings were prose-audit escapes, found only by compiled probes (`nd-mc-rebase-plan.md:31`) | executable gates: slot sweep, cost probe harness | P8 |
-
-Consequences, recorded as sequencing decisions (JAN-FLAG 1):
-
-- ND-MC's C0 residue (E-mem → interiors → re-runs → B7 → P5) **resumes on
-  this campaign's P1–P4 exports** rather than on hand repair. The
-  no-escape theorem already proved the program half of the order phase
-  unavoidable; between the two remaining roads — hand-repairing 21
-  carrier-charged passes and their cost text, or synthesizing the phase —
-  synthesis retires the whole failure class and is the road this plan
-  takes.
-- P9 executes the order-phase pilot as this campaign's consumer gate; its
-  output (a synthesized phase + arena-form budget) is handed to the ND-MC
-  campaign, which runs its own B7 re-run and P5 under its own plan.
-- The ND-MC plan's two open supervisor recommendations are untouched:
-  the `Spec→ComputesInTime` bridge-seam probe stays an ND-MC action (it
-  is cheap and independent), and the provisional-P5 draft decision stays
-  open in that plan — this campaign does not preempt it.
+ND-MC evidence motivates several source-slice selections, but it does not
+design P1–P8. No ND-MC module is imported or edited before P9, and no
+consumer-specific API repair widens those phases. P9 is the sole integration
+boundary: it instantiates the frozen tower APIs, records consumer gaps for
+handoff, and may send work back only when it demonstrates a source-fidelity
+defect in a scheduled declaration. C0, B7, and the ND-MC P5 remain owned by
+the ND-MC campaign.
 
 ## Phases
 
@@ -208,9 +114,9 @@ Each phase lands green with zero `sorry`, is committed on its own, and is
 reviewed before the next builds on it. Every executable layer gets
 `Decidable`/`#eval` instances and Plausible checks the day it lands
 (ledger D4). Elaboration wall-clock recorded per phase. Dependency shape:
-**P1 first** (everything downstream states rules in signature form), then
-P2–P5 are satellite-parallelizable, P6–P8 slot in as capacity allows,
-P9 last.
+P1 → P2 → P3 forms the source/API spine; P4 follows P3; P5 waves follow
+their declared P1/P2/P4 dependencies; P6–P8 run after the relevant APIs
+freeze; P9 alone integrates the consumer; P10 wraps and reviews backlog.
 
 ### P0 — Port map and new pins · budget 1 session
 
@@ -219,14 +125,16 @@ theory graphs and enumerate **everything** unported: theories skipped
 whole, sections skipped inside ported theories (the progress log already
 names many: `inres`, dependent `hfcomp` beyond the ND-MC port,
 `sepref_copy_rules`, the six bonus Autoref DBs, `param_fo`/`to_relAPP`,
-`ID_abs`/`ABS` exercise, GenCF), and the artifact's example suite
-(Kruskal / Edmonds–Karp / introsort-class case studies — the currency
-discipline exemplars). Pin the new sources. Deliverable:
+`ID_abs`/`ABS` exercise, GenCF), and the artifact's example suite. This is
+an inventory: only the slices subsequently assigned a wave are active.
+Pin the new sources. Deliverable:
 `tower-expansion/port-map.md` — per item: source location, size,
-dependencies, consumer (named submission or "breadth default"), wave
-assignment, or an explicit exclusion reason (rule 4: exclusions carry the
-burden). Opens this campaign's deviation ledger. Nothing in P0 writes
-Lean.
+dependencies, validation role, wave assignment, or an explicit exclusion
+reason (rule 4: exclusions carry the burden). Opens this campaign's
+deviation ledger. Nothing in P0 writes
+Lean. Once P0 lands, only rows assigned to P1–P10 are active scope;
+excluded, deferred, stretch, and inventory-only rows are reconsidered only
+at P10.
 
 ### P1 — Signature machinery: `hfref`/`FCOMP` · budget 2–3 sessions
 
@@ -249,8 +157,9 @@ at exercise scale.
 ### P2 — Iteration layer: FOREACH/`nfoldli` · budget 1–2 sessions
 
 Port the foreach stack in its cost-carrying form: `nfoldli` and the
-FOREACH family with currencies (P1-tower took AFP `Refine_Foreach`
-pre-currency, ℕ∞ — this phase upgrades it to the artifact's cost form),
+FOREACH family with currencies. This is the E5 authored vector lift from
+AFP's rule/invariant organization and the pinned single-currency
+NREST/Sepreftime cost forms, not a transcription from the ESOP artifact.
 iteration-list refinement (`list_set_rel`, `it_to_sorted_list`
 discipline), the Autoref and Sepref rule sets for iteration
 (`Sepref_Foreach`-class), so "iterate over exactly this set, in some
@@ -262,55 +171,61 @@ function of |members| alone, `#guard`ed at a 2-member arena inside a
 100-cell carrier (the exact property ND-MC's E2b measured and the order
 phase lacks).
 
-### P3 — Currency discipline at scale · budget 1–2 sessions
+### P3 — Currency discipline and asymptotics · budget 3–6 sessions total
 
-The tower ported `timerefine`/exchange but ND-MC's root obligations are
-closed-form ℕ arithmetic — the shape the no-escape theorem killed. This
-phase ports the *usage* discipline: per-operation currencies as the
-standard obligation shape, exchange-matrix composition down the tower,
-and the cost-side-condition toolchain the P1 backlog already named
-(`norm_cost`, `sc_solve`) from the artifact's automation, plus one ported
-exemplar from the source's example suite (P0 picks: the
-Kruskal/Edmonds–Karp-class derivation) as the house pattern for
-multi-phase budgets. Additionally, the **asymptotic face** (ledger E2):
-O()-shaped corollaries over mathlib `Asymptotics` attached at the cashing
-boundary, Eberl-style closure lemmas for the recurrence classes
-`CostRecurrence` already carries — so "closes to almost-linear" detaches
-from coefficient games.
-*Acceptance:* the BfsQ budget restated as a currency vector, collapsed
-once at cash, reproducing the computed `K = 56n + 40ns + 33` exactly;
-side conditions discharged by `sc_solve`/`norm_cost`, not `omega`
-grinding; an O(n + ns) corollary derived mechanically from the vector
-form.
+P3.A/B are complete; allow 2–4 further sessions for P3.C's full
+declaration-family port rather than compressing it to the consumer examples.
+
+P3.A/B port per-operation currency usage, exchange composition,
+`norm_cost`/`sc_solve`, and the source-native introsort budget spine. P3.C
+then ports the pinned `Imperative_HOL_Time` `Asymptotics_1D`,
+`Asymptotics_2D`, and `Asymptotics_Recurrences` machinery into mathlib
+`Asymptotics`, preserving the source's declaration families and order:
+one- and two-dimensional carriers; polylog, stability, and eventual
+monotonicity; O/Ω/Θ introduction, elimination, composition, comparison,
+and normalization; and the source recurrence theorem families. Isabelle's
+ML registry/normalizer is rendered as named Lean rules unless a separately
+scheduled tactic is required; it is not falsely claimed as a text port.
+Mathlib's existing Akra–Bazzi theorem is reused and documented, not
+duplicated. AFP Landau/Akra–Bazzi and CFML remain semantic references only.
+
+Only after the source-facing layer is complete do BfsQ and introsort attach
+cash-boundary demonstrations. P3.C imports no ND-MC module and introduces
+no ND-MC-specific recurrence API.
+
+*Acceptance:* a source→Lean declaration table for all three selected
+theories, with every public declaration landed or explicitly excluded for
+substrate/dead-code reasons; source-shaped 1D, genuine product-filter 2D,
+and recurrence gates; then BfsQ O(n + ns) derived mechanically from its
+exact vector/cash theorem and introsort O(n log n) from its exact source
+upper-bound cash polynomial. No Θ consumer claim is made from an O-only
+upper bound.
 
 ### P4 — Credits and amortization · budget 2–3 sessions
 
-Port the Zhan–Haslbeck amortization discipline into the existing
-credit-carrying SL: potential-carrying assertions (credits stored *in*
-the data-structure assertion), the pay-on-entry / spend-on-touch pattern,
-and at least two classic exemplars close to their source (dynamic array
-with doubling — amortized O(1) push; union-find if P0 finds the source
-text within reach). Then the library convention this repo needs (ledger
-E3, an addition in D5's style): the **arena bundle** — a composite
-assertion owning data + member list + c·|members| credits, handed down
-by a parent, so touched-only bounds fall out of frame reasoning instead
-of global recurrences.
-*Acceptance:* `treset_cost_touched_only` re-derived as a credit argument;
-the dynamic-array exemplar green with its amortized bound; an arena-bundle
-exercise where a child engine's budget is discharged entirely from the
-bundle's credits — zero carrier terms in the child's obligation.
+P4 ports and validates the source credit calculus before any consumer
+adaptation: generic time-credit assertions and rules, potential-carrying
+data-structure assertions, the pay-on-entry/spend-on-touch discipline, and
+the scheduled source-native dynamic-array and timed union-find developments.
+It exports only generic credit machinery. The arena bundle and touched-only
+reset theorem are P9 consumer instantiations and may not shape P4's
+judgments or automation.
+
+*Acceptance:* source→Lean declaration coverage for the selected SLTC and
+amortization slices, the dynamic-array amortized-O(1) result, and timed
+union-find green against the frozen generic credit API.
 
 ### P5 — IICF breadth · budget 2–3 sessions
 
-The mandate's phase. Port the source IICF/collections surface wholesale,
-not by named demand: resizable arrays, hash maps / array maps, heaps and
-priority maps, matrices, multisets, plus the ICF iterator discipline —
-exact list from P0's port map, default-include. Each structure: abstract
+The mandate's phase. Port the exact source IICF/collections surface assigned
+by P0, honoring X5/E9 and every other recorded exclusion. Each structure:
+abstract
 interface, hnr rules in signature form (P1), credit specs, synthesized
 implementations per the source's "by sepref" idiom.
-*Acceptance:* every structure's rules consumed by the translator on an
-exercise program with zero bespoke tactic work (the P6-tower bar), plus
-one cross-structure exercise per new structure.
+*Acceptance:* uniform source-shaped rule-consumption gates per
+implementation family with zero bespoke tactic work, followed—after the
+P4/P5 APIs freeze—by one source-native Kruskal cross-structure validation.
+Invented per-structure exercises do not become API requirements.
 
 ### P6 — Debt closure: thaw queue and open items · budget 1–2 sessions
 
@@ -320,23 +235,24 @@ destination (the operator-phase dodge killer), symmetric rule-side
 `prodAssn` splitting in `frameMatch` (the p8-verdict thaw queue's named
 items), convention-pair dedupes (P6-A/P6-B), the six bonus Autoref DBs,
 abstract-twin equalities promoted from `#guard` to proof, `RECT`
-fuel-stability export verified as the ND-MC P0 wave left it (LOOP_VARIANT
-retired at all sites — confirm nothing regressed, promote to the tower's
-own test suite).
+fuel-stability, and the generic `RECT`/gfp order-isomorphism transport needed
+to land the source's omitted `flatCurrs_whileT`. Consumer-local loop repairs
+are not part of this phase.
 *Acceptance:* the p8-verdict thaw queue and open-items list both empty —
 each entry closed or re-ledgered with an explicit reason.
 
 ### P7 — Frame-layer performance · budget 1–2 sessions
 
-The measured scaling wall: synthesis exponent 1.28–1.35 in op count,
-`fri` alone 28% of a 100-op synthesis, DiscrTree indexing established as
-the wrong target (ND-MC P0 probe). Attack the frame/entailment layer with
+The measured scaling wall: synthesis exponent 1.28–1.35 in op count and
+`fri` alone 28% of a 100-op synthesis. Attack the frame/entailment layer with
 the source's own disciplines first (Termtab-style first-order pre-match
 served once already — `absAgree`), then profile-driven: entailment-rule
 indexing, residue caching, round-loop early exit.
-*Acceptance:* the P0-probe suite re-measured and pinned; target the 3–5×
-BFS probe ≤ 60 s and `fri` share ≤ 15% — a miss lands as a verdict note
-naming the ceiling, imp-toolkit-P5 style, not as silent scope creep.
+*Acceptance:* freeze a source-neutral `FrameScale3to5` fixture before the
+optimization work; its 3×–5× cases are the primary benchmark and must run in
+≤ 60 s with `fri` share ≤ 15%. The historical ND-MC/BFS probe is secondary,
+read-only, and non-gating. A primary-fixture miss lands as a verdict note,
+not consumer-specific tactic work.
 
 ### P8 — Executable gates (ours; ledger E4) · budget 1 session
 
@@ -347,34 +263,37 @@ conclusion matches, and print the unproducible residue. `#cost_probe` —
 the compiled-costs-both-directions harness (floor probe + closed-form
 witness) as one invocation. Brief-gate emitter — the worker-brief
 falsification section generated from the obligation, not hand-written.
-*Acceptance:* `#slot_sweep` run against `driverRoot_decides_sentence`
-**mechanically rediscovers both B7 gate findings** (the `hcsr` slot, the
-floor trio) from the pre-repair state — the tool must reproduce the
-known escapes before it is trusted on unknown ones.
+*Acceptance:* frozen generic fixtures mechanically expose (i) an
+unproducible hypothesis and (ii) a cost-floor mismatch. The archived B7
+case is secondary read-only regression evidence when replayable; P8 neither
+reconstructs nor modifies ND-MC state.
 
 ### P9 — Consumer gate: the ND-MC order phase · budget 2–3 sessions
 
-The seam, closed for real: the ordering phase synthesized whole from an
+The sole consumer-integration phase. The ordering phase is synthesized from an
 `hfref` signature (P1) — the 21-pass, 15-array phase that today exists
 only as hand-written `orderCom` — iterating member lists (P2), budgeted
-in currencies (P3), drawing touched-only costs from arena-bundle credits
-(P4). The name-generating recursion (`botCom`, per-depth assembly)
+in currencies (P3), and instantiating P4's generic credits with the local
+arena bundle and touched-only reset theorem. These two local constructions
+land here, after the generic credit API is frozen. The name-generating
+recursion (`botCom`, per-depth assembly)
 remains hand-written capital per the pinned tower/hand boundary; only the
 phase bodies move.
 *Acceptance (gate):* synthesized phase lands with zero hand frame
 clauses; its cost text is **carrier-blind** — the empty-arena charge is
 O(1), compiled, killing the premise of the no-escape floor; the five
 `g2_plug` gap hypotheses (`hKo_gap`…`hbnd_gap`) acquire honest producers
-from the synthesized cost text. Handoff: the ND-MC campaign runs its slot
-sweep + B7 re-run on this output under its own plan.
+from the synthesized cost text. Gaps that do not prove a mistranslated or
+omitted scheduled source declaration are handed to the ND-MC campaign and
+do not widen P1–P8.
 
 ### P10 — Wrap · budget 1 session
 
-Deviation-ledger review; verdict record in the p8-verdict style
-(including the mandate's own audit: what did breadth-by-default cost and
-buy); handoff notes; README/index and memory updates.
+Deviation-ledger and declaration-coverage review; explicit disposition of
+the quarantined P10 backlog; verdict and handoff notes; README/index and
+memory updates.
 
-**Total budget: 15–24 sessions.** The tower campaign beat the same-shaped
+**Total budget: 17–28 sessions.** The tower campaign beat the same-shaped
 budget 5×; set expectations by the budget, not the precedent — P1 and P9
 carry genuine design risk (signature machinery meets Lean's weaker HOU;
 the seam is the largest synthesis attempted).
@@ -387,22 +306,22 @@ binding. New seeds:
 | id | source design | our position | reason class |
 |---|---|---|---|
 | E1 | sources organize collections by their own package layout | ported into the existing `Refine/` subtree under its conventions | substrate/layout; judgment shapes untouched |
-| E2 | O() specs per Guéneau et al. are a Coq/CFML calculus | idea-level port only: O-face corollaries over mathlib `Asymptotics` at the cashing boundary; no CFML text ported | non-Isabelle source — pattern, not text; concrete vectors remain the primary statements |
-| E3 | (no analogue) | the arena bundle (data + members + credits) as a library convention | addition in D5's class; calculus untouched |
+| E2 | IHT `Asymptotics_1D/2D/Recurrences`; AFP/CFML are semantic references | faithful IHT declaration-family port over mathlib `Asymptotics`, then cash-boundary examples | substrate rendering; concrete vectors remain primary |
+| E3 | (no analogue) | arena bundle as a P9 consumer instantiation, not P4 infrastructure | local addition; generic credit calculus untouched |
 | E4 | (no analogue) | executable gates: `#slot_sweep`, `#cost_probe`, brief emitters | addition, not deviation — D4's rationale (agent workforce needs refutation tooling) |
 
 ## Not in scope
 
-- **C0, B7, P5 themselves** — they stay in the ND-MC plan; P9 hands off,
-  it does not discharge.
+- **ND-MC work before P9**, including C0, B7, its P5, `CostRecurrence`
+  packaging, bridge probes, and provisional drafts. P9 hands off; it does
+  not discharge the ND-MC campaign.
 - **Code export to real hardware; literal LLVM** — unchanged from the
   tower plan.
 - **Concept surfaces, the machine model, `lake update`.**
 - **Surface syntax** (a `do`-macro front end) — still a separate short
   task; the combinator style remains the deliverable.
-- GenCF and any source component with *no* plausible consumer even under
-  the breadth default — but per rule 4, each such exclusion is argued in
-  the P0 port map, not assumed.
+- Any source slice not assigned to P1–P10 by P0. P10 may reconsider the
+  quarantined inventory; live phases may not.
 
 ## Watch items
 
@@ -413,30 +332,21 @@ raise, not grind through); DTT/universe friction; namespace/splitter
 discipline; supervision legibility (every synthesis failure names its
 phase and unmet side condition).
 
-New: **consumer coupling.** ND-MC resumes on P1–P4 exports while later
-phases are still landing; the sync points are phase landings only — the
-tower API does not fork mid-phase for a consumer, and any ND-MC-driven
-repair enters as a tower wave under this plan (the T1/T2 precedent).
+New: **consumer coupling.** P1–P8 do not edit or import ND-MC. P9 consumes
+only frozen tower APIs. A consumer failure becomes tower work only when it
+proves a scheduled source declaration was mistranslated or omitted.
 
 ## JAN-FLAGs (all resolved 2026-07-31 — Jan delegated resolution to the supervisor at acceptance)
 
-1. **Sequencing vs C0 — RESOLVED: infrastructure first.** ND-MC's C0
-   residue resumes on P1–P4 exports; the hand-repair road is closed
-   (dominated per the no-escape theorem). Supervisor dispositions on the
-   two open ND-MC actions: the `Spec→ComputesInTime` bridge-seam probe
-   runs **early and opportunistically** (it is cheap, independent, and
-   both B7 gate findings were boundary facts of exactly its kind — any
-   session's margin may take it); the provisional-P5 draft is
-   **deferred, opportunistic** — the infra road is fast enough that a
-   draft is taken only if a session stalls and the margin is otherwise
-   idle.
+1. **Sequencing vs C0 — RESOLVED: source infrastructure first.** No ND-MC
+   action runs inside P1–P8. Bridge probes, provisional drafts, and other
+   ND-MC work remain solely in that campaign after P9's handoff.
 2. **P9 placement — RESOLVED: here**, as this campaign's consumer gate
    (the tower campaign's P7 precedent). The ND-MC plan keeps ownership
    of B7/C0/P5 on the handoff.
-3. **P5 breadth list — RESOLVED: stands as written** (default-include:
-   resizable arrays, hash/array maps, heaps/prio maps, matrices,
-   multisets, iterators); P0's port map may still argue individual
-   exclusions under rule 4.
+3. **P5 breadth list — RESOLVED by P0.** The exact P5 table is fixed,
+   including X5/E9's exclusion of deterministic hash implementations;
+   live phases may not revive excluded or stretch rows.
 4. **Governance — RESOLVED by Jan directly at acceptance**: full
    autonomy carries over. The flag mechanism is retired for this
    campaign; the fidelity charter, the deviation ledger, and the D-flag
@@ -444,6 +354,46 @@ repair enters as a tower wave under this plan (the T1/T2 precedent).
    final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — Rev 4 focus firewall; source machinery first.** At Jan's
+  direction, the contract was pruned of latent consumer side-tracks. P0's
+  landed map now freezes active source slices; “port more” means complete a
+  scheduled declaration family, not add sources or adaptations mid-phase.
+  P3.C is the faithful IHT 1D/2D/recurrence machinery before BfsQ/introsort
+  demonstrations; P4 exports generic credits before P9's arena
+  instantiation; P7/P8 use generic primary fixtures; P9 is the sole ND-MC
+  integration boundary. Edmonds–Karp, stretch rows, consumer-triggered
+  revisits, and independent AFP/CFML excursions are quarantined for P10 or a
+  later campaign. P6 now owns the real omitted-source debt
+  `flatCurrs_whileT` through generic `RECT` transport.
+
+- **2026-07-31 — P3.B COMPLETE; currency house style and the introsort
+  budget spine green.** `Examples/IntrosortBudget.lean` audits the four pinned
+  sorting theories plus the imported partition and final-insertion phase
+  accounts. `phaseCost` establishes the named-vector convention;
+  `partitionBudget` is the exact source `introsort_aux_cost`; and
+  `IntrosortAccount` keeps recursive control, partition work, heap fallback,
+  top-level dispatch, the `slice_part_sorted` token, and insertion finish
+  visible. `topLevelAccount` is exactly `introsort3_cost`, `recursiveAccount`
+  is exactly `introsort_aux_cost`, and the TId-style `recursiveUpdateRate`
+  theorem replaces (rather than double-counts) the first-phase token.
+  `introsortSpine_consumes` witnesses the coherent top-level account in NREST
+  without claiming sorting functional correctness. The final
+  `introsort_cost3` upper-bound vector keeps
+  the locale comparison currency explicit; `introsortBudget_normal` is proved
+  structurally with `norm_cost`/`sc_solve`. Finite collapsed rates connect the
+  outer `slice_sort` token to the exact top-level account and named operation
+  upper bound. Refute-before-prove gates cover `n=0`, `n=8,d=6`, heap-phase
+  deletion, `slice_part_sorted`, vector-before-cash discipline, and the local
+  IR's zero price for source `load`. Ledger E15 records why the exact source
+  unit projection—not the smaller local codegen price map—is the honest cash
+  boundary, and why the later synthesized source matrices remain collapsed.
+  `introsortBudget_cash` exchanges once to Unit and flattens once, exactly
+  reproducing `4693 + 5 log n + 231 n + 455 n log n`. Focused module build is
+  green at 2,985 jobs; full package builds are green at 505 concepts and 3,066
+  proofs jobs; `lax build --only proofs word-ram` is green. Its first run caught
+  and the worker removed four `native_decide` generated axioms. Zero
+  `sorry`/`admit`. **Next: P3.C, the mathlib asymptotic face.**
 
 - **2026-07-31 — P3.A COMPLETE; currency automation, shallow VCG splitting,
   flatten-once cash boundary, and BFS exact vector green.**
