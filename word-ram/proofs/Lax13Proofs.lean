@@ -47,6 +47,10 @@ import Lax13Proofs.Refine.Ir.Attrs
 import Lax13Proofs.Refine.Ir.SepSolver
 import Lax13Proofs.Refine.Sepref.Basic
 import Lax13Proofs.Refine.Sepref.Rules
+import Lax13Proofs.Refine.Sepref.Signature
+import Lax13Proofs.Refine.Sepref.SignatureFlatten
+import Lax13Proofs.Refine.Sepref.SignatureNorm
+import Lax13Proofs.Refine.Sepref.SignatureTool
 import Lax13Proofs.Refine.Sepref.Attrs
 import Lax13Proofs.Refine.Sepref.IrOps
 import Lax13Proofs.Refine.Sepref.CombRules

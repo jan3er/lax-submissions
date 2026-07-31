@@ -20,7 +20,10 @@ The retro measured a median 35% of every worker's messages spent
 re-deriving context the supervisor already had. This section is where that
 goes instead. Include *inline*, not as pointers:
 
-- Worktree path, package dir, namespace, green commit + job count.
+- Worktree path, package dir, namespace, green commit + job count, and
+  **seed state** (the exact `lake-manifest.json` checked by the supervisor).
+  The supervisor owns seeding; a worker whose manifest is missing waits and
+  reports it rather than launching a second seed or an unseeded build.
 - The load-bearing definitions and lemma statements the task composes
   against, quoted, with `file:line` anchors.
 - What is FROZEN (files, surfaces, imports) vs what the worker owns.

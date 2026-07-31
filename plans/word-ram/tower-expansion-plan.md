@@ -3,25 +3,26 @@
 Rev 3, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
-Jan 2026-07-31; P0 complete, P1 next.** This document is the contract:
+Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
+P0 and P1.A complete, P1.B next.** This document is the contract:
 implementing sessions follow it, deviations need an owner decision first.
 
 **Working model** (revised by Jan, 2026-07-31: "we only use codex, not
-claude"): Codex supervises — plan, sequencing, review, acceptance calls,
-and commits. Proof workers are **OpenAI GPT-5.6-Sol**, dispatched
-non-interactively via `codex exec` (codex-cli 0.145.0, installed and
-authenticated on this machine; `~/.codex/config.toml` defaults to
-`gpt-5.6-sol` at high reasoning effort), each in its own seeded worktree
-with a brief instantiated from `plans/worker-brief-template.md` — briefs
-are model-agnostic and the template's required sections never drop.
-No Claude client or model is an authorized fallback; hard waves stay in
-Codex and are narrowed or re-briefed there. Supervisor review and the
+claude"; transport clarified by Jan during P1.A: "just use your normal
+subagents. no need for exec"): Codex supervises — plan, sequencing, review,
+acceptance calls, and commits. Proof workers are Codex subagents in the
+session's normal collaboration runtime; `codex exec` is not required.
+Each worker receives a brief instantiated from
+`plans/worker-brief-template.md` and owns a disjoint leaf in the seeded
+campaign worktree — briefs are model-agnostic and the template's required
+sections never drop. No Claude client or model is an authorized fallback;
+hard waves stay in Codex and are narrowed or re-briefed there. Supervisor review and the
 build/lax/axiom gates are unchanged: a worker's "green" is not evidence
-until the supervisor's build runs. **The first Sol wave of P1 is a
-calibration wave** — half-size scope, full review; Sol-specific brief needs (tool
-habits, permission/sandbox flags for `codex exec` in a worktree, failure
-legibility) are recorded in the retro file and folded into the template
-before Sol waves run at full width. Scope is **proofs-only**:
+until the supervisor's build runs. **P1.A completed the first Codex-subagent
+calibration wave** at half-size scope and full review; its seed-state,
+ownership, falsification, and transport findings are recorded in the retro
+and folded into the template before later waves run at full width. Scope is
+**proofs-only**:
 no concept surface changes, no `lean-toolchain` or mathlib pin moves, the
 machine model untouched. All standing laws apply: refute-before-prove,
 compiled-costs-both-directions for every cost claim that gates work,
@@ -367,6 +368,29 @@ repair enters as a tower wave under this plan (the T1/T2 precedent).
    final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — P1.A COMPLETE; signature composition frontend green.**
+  Four new root-imported modules land the half-size calibration wave:
+  `Signature.lean` (exact `compPRE`, safe `to_hnr`/`to_hfref`, pure and
+  heap `FCOMP`, dependent result branch), `SignatureTool.lean`
+  (`sepref_fcomp` dispatch from either `hfref` or a generalized
+  `hnRefine` family, pure `fref ∘ fref`, visible `attainsSup` residue,
+  bounded checked normalization), `SignatureFlatten.lean` (correlated
+  dependent-composition residue and two-layer eliminator), and
+  `SignatureNorm.lean` (the source `hr_comp` laws plus `one_time` and
+  attained-supremum helpers). Two tempting surfaces are now compiled
+  negative controls: a fixed `hnRefine` instance is not a signature, and
+  independently composing dependent input/output relations is unsound
+  because it loses their shared witness. Debt SIG-2–SIG-5 closes; ledger
+  E10 records transparent Lean theorem/tactic frontends in place of
+  Isabelle theorem attributes. Concepts build 505 jobs; full proofs root
+  build 3,053 jobs in 135 s, root `lax build` OK, kernel-three axiom
+  probes, zero new warnings and zero sorry/admit.
+  Calibration feedback is folded into the worker template/retro. A
+  redundant fresh-worktree seed hit ENOSPC before edits; the empty failed
+  worktree was removed and the wave continued in the already-seeded
+  campaign worktree. **Next: P1.B, signature→goal preparation and
+  `sepref_register`/interface-type discipline.**
 
 - **2026-07-31 — Rev 3 / P0 COMPLETE; CODEX-ONLY.** Jan: "we only use
   codex, not claude." The active working model and README are amended:

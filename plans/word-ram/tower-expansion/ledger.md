@@ -114,6 +114,26 @@ This is a real deviation from the accepted list, not a wording cleanup.
 Revisit it only if a consumer needs sparse unbounded keys where the log
 factor matters, or after randomized-cost infrastructure lands.
 
+### E10 — signature conversion and FCOMP use transparent Lean frontends
+
+**Status: accepted.** The source implements `to_hnr`, `to_hfref`, and
+`FCOMP` as Isabelle theorem attributes which destruct and rebuild theorem
+objects. In Lean, the landed `hfref` judgment is definitionally the whole
+quantified `hnRefine` family, so P1.A exposes the conversions as transparent
+theorems and `FCOMP` as the goal-directed `sepref_fcomp` tactic. The tactic
+dispatches both `hfref` and generalized `hnRefine` families, the dependent
+and non-dependent result shapes, and pure `fref ∘ fref`; it leaves
+`attainsSup` visible as an ordinary proof obligation. A separate checked
+mode applies the supported source normalization laws and rejects surviving
+composition artifacts.
+
+This is a D1 substrate rendering, not a change to the source judgments:
+`compPRE`, the no-fail guard, witness-dependent result assertion, and
+attained-supremum premise are unchanged. Revisit only if a later command
+needs theorem-value transformation independent of a goal; P1.B's
+signature-to-synthesis preparation is a separate missing layer and is not
+claimed by this entry.
+
 ## 4. Corrections that are not deviations
 
 These P0 discoveries change citations or scheduling without changing a

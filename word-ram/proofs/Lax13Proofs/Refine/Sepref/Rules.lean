@@ -57,11 +57,14 @@ source's `non_dep2` test is a convenience (a tidier postcondition when
 `S` happens to be constant), not a soundness side condition — splitting
 the constant loses nothing.
 
-**P4/D-o — `FCOMP` is lemma content only.** The source exposes composition
-as an Isabelle `attribute_setup` (`Sepref_Rules.fcomp_attrib`) that
-rewrites a theorem in place. That is wave C metaprogramming; this file
-ports `hfcomp`, the lemma the attribute applies, and nothing of the
-attribute itself.
+**P4/D-o — `FCOMP` was lemma content only in this module.** The source
+exposes composition as an Isabelle `attribute_setup`
+(`Sepref_Rules.fcomp_attrib`) that rewrites a theorem in place. This file
+ports the underlying `hfcomp` calculus. Tower-expansion P1.A subsequently
+adds the source precondition/conversion layer in `Signature.lean`, the
+goal-directed `sepref_fcomp` frontend in `SignatureTool.lean`, and its
+normalization laws in `SignatureNorm.lean`; keeping that machinery in
+satellite modules avoids a cycle through this calculus module.
 
 **P4/D-p — `attains_sup`'s `r ∈ dom M` is `M r ≠ ⊥`.** P1's cost
 functions are `α → WithBot ECost` rather than partial maps, so the
@@ -79,18 +82,17 @@ not a reusable object here. `const_dep_bind` is its consumer test.
 
 ## Deliberate absences
 
-* `hr_comp_precise`, `hr_comp_the_pure`, `hr_comp_assoc`,
-  `hr_comp_prod_conv`: not needed by `hfcomp` and not by wave B; they are
-  one-line `hrComp` unfoldings when a consumer appears.
-* **No flattening lemma for iterated dependent composition.** Composing
-  twice gives `hrrCompDep T₂ (hrrCompDep T₁ S U₁) U₂` — it typechecks (the
-  shapes line up exactly), but the postcondition grows one
-  `∃ᵃ b, ⌜…⌝ ∗ …` layer per step and there is nothing here (and nothing
-  in the source, whose `hr_comp_assoc` is about `hr_comp` only) that
-  flattens them. Fine for a two- or three-stage tower; a consumer that
-  composes in a *loop* will need the flattening lemma first.
-* `one_time_attains_sup` and the `attains_sup_mop_*` family: they rest on
-  the source's `one_time` predicate, which P1 did not port.
+* The source-supported `hr_comp_the_pure`, `hr_comp_assoc`, and
+  `hr_comp_prod_conv` laws live in tower-expansion P1.A's
+  `SignatureNorm.lean`; the source's `hr_comp_precise` text is commented
+  out and therefore intentionally has no exported theorem here.
+* Iterated dependent composition is normalized by the correlated-residue
+  law `hrrCompDep_flatten` in `SignatureFlatten.lean`. The residue is
+  essential: independently composing the input and output relations is
+  refutable because it forgets that both layers share the same witness.
+* The source's `one_time`, `one_time_attains_sup`, and
+  `attains_sup_mop_{return,spec}` family is now ported in
+  tower-expansion P1.A's `SignatureNorm.lean`.
 -/
 
 namespace Lax13Proofs.Refine.Sepref

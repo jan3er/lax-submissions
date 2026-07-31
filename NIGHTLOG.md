@@ -3589,3 +3589,28 @@ the plan's non-Codex fallback: Codex supervises and GPT-5.6-Sol via
 or build changes.
 Next: P1.A half-size Sol calibration — `to_hnr`/`to_hfref`, `comp_PRE`,
 FCOMP, and dependent-composition flattening.
+
+## Session 24 — 2026-07-31 (tower expansion P1.A, Codex)
+
+Milestone: tower-expansion P1.A complete; signature composition frontend
+root-green. Commit: this session's P1.A commit on
+`worktree-tower-expansion-p0`. State: four new `Lax13Proofs/Refine/Sepref`
+modules provide the exact `compPRE` surface, transparent safe
+`to_hnr`/`to_hfref`, dependent and non-dependent heap FCOMP, pure
+`fref ∘ fref`, a goal-directed general/checked frontend with explicit
+`attainsSup` residues, correlated flattening for nested `hrrCompDep`, the
+active source `hr_comp` normal forms, and the `oneTime`/attained-supremum
+family. Two review findings became permanent compiled negative controls:
+one fixed `hnRefine` instance does not make a universally name-parametric
+signature, and separately composing the input/result relations of dependent
+layers is unsound because it permits different intermediate witnesses.
+SIG-2–SIG-5 are closed; ledger E10 records the Lean theorem/tactic rendering
+of Isabelle attributes. Root imports all four modules. Concepts: 505 jobs;
+proofs: 3,053 jobs in 135 s; root `lax build` OK; key exports kernel-three;
+zero sorry/admit and no new warnings. The first
+Codex-subagent calibration is folded into the retro/template; Jan authorized
+normal collaboration subagents instead of nested `codex exec`. Operational
+finding: a redundant fresh seed hit ENOSPC before any edit; its empty
+worktree was removed and the already-seeded campaign worktree reused.
+Next: P1.B — signature-to-synthesis goal preparation, `sepref_register`, and
+interface-type discipline.

@@ -58,8 +58,11 @@ check and `Constraints.ensureSlot`, which the source does in the same
 breath (`K Sepref_Constraints.ensure_slot_tac THEN' …`). The
 `sepref_preproc` simp set is declared and applied to the abstract
 program, so a consumer's preprocessing lemma has somewhere to go.
-Fallback when `hfref` synthesis is wanted: `Sepref/Rules.lean` has
-`hfref`; the missing piece is `prepare_hfref_synth_tac`, half a page.
+Tower-expansion P1.A adds theorem conversion and composition from an
+`hfref` signature (`Signature.lean` / `SignatureTool.lean`). The remaining
+piece here is narrower: P1.B must connect a schematic signature *goal* to
+this synthesis pipeline, the role of `prepare_hfref_synth_tac`; it is not
+silently supplied by the conversion frontend.
 
 **P4/D-cy — `cons_init` and `opt_init` are shape phases with nothing to
 do, and the two `cons_solve` passes collapse to one check.** The source's
@@ -96,8 +99,10 @@ tactics — its call, its files); `sepref_dbg_side_unfold` (the source's
 `Id_Op.unprotect_conv` plus `bind_ref_tag_def` unfolding, which P4/D-dd's
 tag stripping does once for the whole pipeline);
 `sepref_dbg_side_bounds` (P4/D-cs: no bounds obligations exist);
-`sepref_to_hnr` / `sepref_to_hoare` (both start from an `hfref` goal,
-P4/D-cx).
+`sepref_to_hoare` (starts from an `hfref` goal, P4/D-cx). The source's
+rule-conversion role of `sepref_to_hnr` is now provided by P1.A's
+`to_hnr` and exercised through `sepref_fcomp`; goal preparation remains
+P1.B as stated above.
 
 **P4/D-cz — `opt` is a no-op pass, deliberately.** The source's
 `opt_tac` simplifies the synthesized program with `sepref_opt_simps`

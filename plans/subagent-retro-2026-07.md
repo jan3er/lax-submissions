@@ -151,3 +151,32 @@ admitted failure checked out as genuinely reported.
   (rebase plan already mandates falsification-first; the template gives it
   a place to live).
 - Budget check before launching the long waves.
+
+## Tower-expansion P1.A calibration addendum — 2026-07-31
+
+The first Codex-worker calibration wave used three normal collaboration
+subagents on disjoint satellite files plus a read-only reviewer. The
+template's ownership and report clauses held: no worker touched a sibling
+file, staged, or committed, even though all untracked leaves were visible in
+one shared worktree. The inline source pins and exact owned declarations
+kept orientation bounded; no successor chain was needed.
+
+The falsification/review split paid twice before supervisor acceptance:
+
+- a fixed-name `hnRefine` instance cannot be promoted to the universally
+  name-parametric `hfref` signature (now a compiled negative theorem);
+- independently flattening the input and result relations of nested
+  dependent composition loses their shared witness (now a compiled
+  counterexample and a correlated-residue replacement).
+
+One operational correction entered the template. Seed state must be an
+explicit supervisor-provided fact, including the manifest path. A redundant
+seed attempt in a fresh worktree hit `ENOSPC` after partially populating the
+warm package farm; the edit-free failed worktree was removed and the wave
+continued in the already-seeded campaign worktree. Workers therefore never
+launch or retry seeding themselves when a manifest is missing.
+
+Jan clarified worker transport during the wave: normal Codex collaboration
+subagents are the default; a nested `codex exec` process is unnecessary.
+This changes transport only. The same brief, ownership, falsification,
+module-build, supervisor-review, and root-build gates remain binding.
