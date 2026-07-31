@@ -11,6 +11,32 @@ entries, (3) `wordAssn` thaw pre-authorized on a green spike. This
 document is the contract: implementing sessions follow it,
 deviations need an owner decision first.
 
+Rev 3, 2026-07-31 (continuation session; Jan: "continue the work on
+ndmc, full authority to rework the plan"). The wrap's next-session
+entry points are reworked into the **G-road** section below, with
+three deltas from the supervisor's critical review of the campaign
+record: (1) **G1 is re-scoped to stop before the root restatement** —
+the dedup guard lands as proof-side dedup functions + `dedupCom` +
+the composed decode Prop (`DecodeImplementsD`), and the
+`driverRootD` restatement folds into the B7 re-run, which restates
+the root anyway (general `R`, G2 cost forms); landing it twice is
+the certain-rework B7 already declined. (2) **Standing rule,
+compiled costs both directions**: a cost claim that gates work needs
+a compiled witness not only as refutation (floors) but as
+*satisfiability* — the closed-form `Kl` witness must be shown to
+satisfy the proposed side conditions at the target shape before any
+re-thread wave launches. §2.4's prose "yes" died for lack of exactly
+this existence probe. (3) **B7 re-run opens with a compiled 30-slot
+derivability sweep** from `EncodesGraph` + parameter equations alone
+— the two gate findings were both slots earlier ruled fine in prose
+(D4's "root input data"; §2.4's verdict), so the remaining "27 had
+honest producers" claim is not trusted either until compiled.
+Budget honesty: the rebase's 6–10-session envelope is spent (Session
+21 alone ran ~35 waves); remaining road is realistically 3–6
+sessions (G1 one wave, G2-design one, G2 execution two–three, B7
+re-run + P5 one–two). The original campaign forecast (30–48) still
+holds; the local envelope did not.
+
 Rev 2 delta (from a parallel supervisor instance's pre-rebase
 review, folded in): P0 gains item 5, a **synthesis-scaling probe**
 — the only tower cost that compounds over the campaign; BFS
@@ -227,6 +253,59 @@ of `levelImplements`/`driver_correct`/`driverRoot_decides_sentence`
 (the C0 concept statement is untouched; P3's CostRecurrence solver
 is parametric and absorbs either shape). Scheduled into the
 integration wave; ledger entry required there.
+
+## G-road (rev 3 — the P4 repair legs, contract for the remaining sessions)
+
+Sequencing: **G1 ∥ G2-design** (disjoint files, same worktree; lake
+lock contention is the template's wait-and-retry) → **G2 execution**
+→ **B7 re-run** → **P5**. The fallback clause stands: a structural
+blocker in G2 goes to Jan with a write-up, noting the frozen
+old-style wave is *dominated* (inherits both floors), so the honest
+fallback there is a weaker headline (cost bound at a worse exponent)
+or the R1+R2 citable-core draft, not the old wave.
+
+- **G1 — dedup guard (one Opus wave).** Proof-side dedup of the
+  encoding (`dedupOffset`/`dedupTarget`/`dedupNs` on words, with
+  `CsrGraph` preserved, `CsrSimple` by construction, `ns' ≤ ns`,
+  zero tail above `ns'`); `dedupCom` (mark/collect/unmark per row —
+  mark array + trail discipline, cost `O(n + ns)`);
+  `DecodeImplementsD` = the composed `.seq decodeCom dedupCom` Spec
+  with `DecodeImplements`'s postcondition template at the dedup'd
+  data. Differential gates: `C0Probe.dupWord` end-to-end (row
+  compacts, tail zeroed, `CsrSimple` holds); refute "dedup preserves
+  `ns`". STOPS before any root restatement (rev 3 delta 1). New slots
+  `hcsr`/`hpad0`/`hO`/`hT`/`hns` die at the B7 re-run, discharged
+  from the dedup lemmas.
+- **G2-design (one Fable wave, compiled).** The arena-charged phase
+  interface: `hKo`/`hKc`/`hKd`/`hKbase` re-threaded to size-read
+  forms (R1.6/R1.8 finally in the *cost surface*), live-width
+  save/restore, degree-aware `chainWidth` (the `n·n` term dies
+  against `arcs_le`/`AugmentedDepthOneDensity`; `W` re-enters at
+  `O(n·budget²)`). Deliverables: a design doc (§5-style old→new
+  table + wave decomposition) and a probe file with (a) the
+  **existence probe** — a closed-form `Kl` shown to satisfy every
+  proposed side condition, recurrence closing to the `(D+1)^ℓ`
+  shape with the root `W`-term (decode + one save/restore at live
+  width + dedup) inside `n^{1+ε}`; (b) floor-death checks — the
+  `C0Probe` floor derivations demonstrably fail against the new
+  forms; (c) negative controls in the CostShapeProbe style. No
+  frozen-surface edits; design only.
+- **G2 execution (two–three waves, per G2-design's decomposition).**
+  Expected shape: engine-side block-driven order/cover/base variants
+  (tower re-derivations), the interface re-thread through
+  `levelImplements`/`levelAt`/`levelCost_of_sigma`, the
+  `orderImplementsR` re-discharge at the new cost form, `chainWidth`
+  revision threaded through `TgtCoupling`/`hWc`. Single owner per
+  induction; satellites for leaves; refutation gates per the
+  template.
+- **B7 re-run (one wave).** Opens with the compiled 30-slot (now
+  ~26-slot) derivability sweep (rev 3 delta 3); then `levelAtR` /
+  the general-`R` root restatement on the composed decode
+  (`driverRootD`), `Spec`→`ComputesInTime` bridge (incl. the
+  precondition-memory prologue story), **C0 discharged**,
+  kernel-three, `lean_verify`, root lax audit. Gate G4 as before.
+- **P5 — polish + draft submission** as specced, incl. FLAG-1
+  disposal.
 
 ## JAN-FLAGs
 
