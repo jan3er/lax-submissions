@@ -375,6 +375,47 @@ on main; every commit green, kernel-three, lax-audit-clean):
   re-run (its brief + the F-c-5 hdeg composition + the 30-slot
   table are in the log below), then P5.
 
+## Session wrap 2026-07-31 evening (Jan: "cancel the current wave and
+wrap up here")
+
+State at wrap (branch `worktree-ndmc-rebase-p0` @ 10e6dc4, landed on
+main; every commit green, kernel-three, lax-audit-clean; 13 waves this
+session, per-wave ledgers in the commit messages e5e0f91..10e6dc4):
+
+- **DONE this session**: plan rev 3 + model allocation; **G1 complete**
+  (dedup guard end-to-end, `decodeImplementsD`, `CsrSimple` at the C0
+  boundary, cost `31n+50ns+29`); **G2-design** (arena-weight interface
+  compiled both directions, E1–E6 decomposition, slot audit); **E5**
+  (MassWeight), **E1** (W-free uniform text — C0's ∃p-before-∀n closed
+  by signature; `widthCom` producer unspliced, B7 seam), **E2/E2b**
+  (`chainWidthE`, live-prefix copies with the compiled clock
+  differential, `OrderImplementsRL`), **E3a/E4a/E4b** (block-driven
+  cover leaves, touched-only BFS "queue is the trail", active-set
+  scatter + `atomCostA` bridges), **E6** (arena-weight re-thread spine,
+  root cost `Kl 0 (n+ns)`, `g2_plug` + six gap theorems = the compiled
+  residue), **E-order** (no-escape theorem: any empty-arena carrier
+  charge breaks the closed form; NO member list exists in driver state
+  — R1.6 unbuilt).
+- **OPEN — the compiled residue** (all enumerated in
+  `Refine/G2CostProbe.lean` §7 + `Refine/OrderBlockProbe.lean` header):
+  E-mem (member-list threading; wave was launched and cancelled at
+  Jan's wrap order BEFORE any edit — re-issue its brief, recorded in
+  the session transcript, verbatim) → member-driven engine interiors
+  per family → E-order re-run (`g2_plug` shrinks) → E3b (cover
+  composition + compactCom-before-coverSave reorder) → E4c (descendCom
+  swap, `qd` layout, alive-mask hoist per cluster) → R1.8 (dead-sweep
+  discipline: charge a vertex's death-row write to the turn that
+  killed it — its block contains it) → B7 re-run (slot sweep first) →
+  P5. Honest estimate 1–2 sessions if nothing new surprises.
+- **Two supervisor recommendations left OPEN for Jan** (from the
+  step-back review): (1) probe the `Spec→ComputesInTime` bridge/
+  prologue seam EARLY next session — the last never-probed seam, and
+  both B7 gate findings were boundary facts of exactly this kind;
+  (2) optional provisional P5: draft-submit the citable core (locality
+  + splitter + covers + checkpoint all discharged) with C0 carried as
+  the open obligation, replaceable when C0 lands — decouples shipped
+  value from the remaining cost grind. Neither executed.
+
 ## Progress log
 
 - 2026-07-31 — **G-road session (continuation; Jan: full plan-rework

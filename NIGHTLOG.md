@@ -3534,3 +3534,34 @@ two refuted design assumptions; the worker-brief template held; two
 structural floors were found only by compiled probes after prose
 verdicts passed — compiled accounting is now the standing requirement
 for any "the recurrence closes" claim.
+
+## Session 22 — 2026-07-31 (G-road: G1 + G2 engines through the compiled residue)
+Milestone: ND-MC rebase G-road — G1 complete, G2 engine layer complete,
+residue compiled; wrapped at Jan's order with E-mem cancelled pre-edit.
+Commits: e5e0f91 → 10e6dc4 on worktree-ndmc-rebase-p0, landed on main
+(13 waves: plan rev 3, G1a/G1b Opus, G2-design Fable, E5/E1 Opus,
+E2/E2b Fable, E3a/E4a/E4b Opus, E6/E-order Fable; model allocation per
+Jan mid-session: Fable on the integration/assembly waves).
+State: dedup guard end-to-end (CsrSimple derivable at the C0 boundary,
+cost 31n+50ns+29); arena-weight cost interface designed compiled-both-
+directions and its spine landed (root cost Kl 0 (n+ns)); W-free uniform
+program text (C0's ∃p-before-∀n closed by signature); chainWidthE
+degree-aware width (n·n term dead, floor route compiled dead);
+live-prefix copies with the saving proven on a cost-carrying
+interpreter (execC); block-driven cover leaves, touched-only BFS
+(queue-is-the-trail, measured carrier-free), active-set scatter.
+Verdicts that end the guessing: E6's g2_plug consumes the Σ/weight
+slots verbatim but compiles six per-slot gaps (phase compositions
+missing); E-order's no-escape theorem — ANY empty-arena carrier
+charge, even 1·n, breaks the closed form (decide +kernel at n=10¹¹) —
+and the root finding that NO member list exists in the driver state
+(R1.6 unbuilt). Residue enumerated in G2CostProbe §7 +
+OrderBlockProbe: E-mem → member-driven interiors per family → E-order
+re-run → E3b → E4c → R1.8 → B7 re-run (slot sweep first) → P5;
+estimate 1–2 sessions. Three design-doc errors caught by compilation
+mid-session (capacity prose, capital-table BFS row, §3(a) coupling);
+zero sorry, kernel-three, lax OK at every commit.
+Next: Jan decisions — bridge/prologue seam probe first (last unprobed
+seam), optional provisional P5 draft (citable core discharged, C0 as
+open obligation); then resume at E-mem (brief re-issue from wrap
+section pointers).
