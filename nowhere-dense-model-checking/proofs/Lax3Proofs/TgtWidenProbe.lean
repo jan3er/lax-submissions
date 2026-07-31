@@ -736,4 +736,98 @@ it is satisfiable where the range form was not: at `n = 0`, `ns = 0`,
 `σ.vars "lw" = 0`, which the empty state meets. -/
 example : ((⟨fun _ => 0, fun _ => [], [], []⟩ : Env).vars "lw") = 0 := rfl
 
+/-! ### The live-width gate (rebase G2/E2)
+
+The differential the live-width shrink is gated on, run BEFORE any
+spec is restated (refute-before-prove). The same `orderCom 1 0` text,
+on the same `K₁,₄` level state allocated at `W = 64`, with the scalar
+`"lw"` set to `20` — strictly below the allocation width — and the
+`tgt` cells at and above `lw` tainted with the sentinel `7`.
+
+What the run must show, and shows:
+
+* **the phase completes at the shrunk width** — every structure the
+  phase materializes (the double star's `2·m' = 14` symmetrized slots,
+  the fraternity graph, the in-list copies) fits below `20`;
+* **the ordering phase writes no `tgt` cell at index ≥ lw** — the
+  sentinel tail comes out exactly as it went in. This is the new
+  obligation of the shrink, on data; its proof-side discharge is
+  `RamDriverAugment.symPass_run`'s arc bound (`2·m ≤ lw`) plus the
+  fraternity build's `fratSlots < lw`;
+* **the answers are the full-width run's** — the elimination bound,
+  the exported order and the restored live prefix agree with
+  `ord1Run` cell for cell. The copies walked `20` cells instead of
+  `64`: the cost shrinks, nothing else moves. -/
+
+/-- The `K₁,₄` level state at allocation width `64`, live width `20`,
+and a sentinel-tainted tail above the live width. -/
+def ordStLive : PSt :=
+  { ordStAt 64 with
+    vars := [("n", 5), ("m", 4), ("lw", 20)]
+    arrs :=
+      ("off", [0, 4, 5, 6, 7, 8]) ::
+      ("tgt", [1, 2, 3, 4] ++ List.replicate 16 0 ++ List.replicate 44 7) ::
+      ("gof", List.replicate 6 0) :: ("gtg", List.replicate 64 0) ::
+      (RamDriver.alvName 0, List.replicate 5 1) ::
+      (RamDriver.gamName 0, List.replicate 5 1) ::
+      (RamDriver.ordName 0, List.replicate 5 0) ::
+      (augSt 5 64 64 [0, 0, 0, 0, 0, 0] []).arrs }
+
+/-- The phase at the shrunk live width, tainted tail. -/
+def ordLiveRun : PRes := exec pB pF (RamDriver.orderCom 1 0) ordStLive
+
+-- **the phase completes below the allocation width**
+#guard ordLiveRun.isOk
+
+-- **the taint survives**: no `tgt` cell at or above `lw = 20` was
+-- written by the phase — the sentinel tail is byte-identical
+#guard (List.range 44).map (fun k => ordLiveRun.cell "tgt" (20 + k)) = List.replicate 44 7
+
+-- **the answers are the full-width run's**: bound, order, live prefix
+#guard ordLiveRun.scalar "kmax" = ord1Run.scalar "kmax"
+#guard (List.range 5).map (ordLiveRun.cell (RamDriver.ordName 0)) =
+  (List.range 5).map (ord1Run.cell (RamDriver.ordName 0))
+#guard (List.range 6).map (ordLiveRun.cell "off") = [0, 4, 5, 6, 7, 8]
+#guard (List.range 8).map (ordLiveRun.cell "tgt") = [1, 2, 3, 4, 0, 0, 0, 0]
+#guard (List.range 12).map (fun k => ordLiveRun.cell "tgt" (8 + k)) = List.replicate 12 0
+
+-- the scalar comes out as it went in
+#guard ordLiveRun.scalar "lw" = 20
+
+-- **the boundary below**: the shrink is not free — at `lw = 8` (the
+-- level's own `ns`, the R = 0 live width) the R = 1 phase's chain no
+-- longer fits the prefix the copies preserve, and the run does NOT
+-- restore the entry state: the obligation's `chainWidthE ≤ lw` guard is
+-- load-bearing, not slack. The run still terminates (copies just walk a
+-- shorter prefix), so the defect shows in the exit state, not in a
+-- stuck configuration: the double star's 14 symmetrized slots overrun
+-- the 8-cell prefix `restoreCsr` puts back.
+def ordStLive8 : PSt :=
+  { ordStLive with vars := [("n", 5), ("m", 4), ("lw", 8)] }
+
+def ordLive8Run : PRes := exec pB pF (RamDriver.orderCom 1 0) ordStLive8
+
+#guard ¬ ((List.range 20).map (ordLive8Run.cell "tgt") =
+  (List.range 20).map (ordLiveRun.cell "tgt"))
+
+/-! And the completion run at the exact repaired width: `chainWidthE`
+at the instance's own parameters (`n = 5`, `ns = 8`, `d = D₁ = 1`,
+`R = 1`: `budget = 4`, width `5·25 + 8 + 1 = 134`) — an allocation the
+old `chainWidth`'s `n·n` term would have put at `151`. The phase runs
+and answers identically: the `ns`-term width is operational, not just
+arithmetic (`TgtCoupling` carries the `ns ≪ n²` #guard at `n = 10⁶`
+where the two widths differ by six orders of magnitude). -/
+
+def ordStE : PSt := ordStAt (TgtCoupling.chainWidthE 5 8 1 1 1)
+
+def ordERun : PRes := exec pB pF (RamDriver.orderCom 1 0) ordStE
+
+#guard TgtCoupling.chainWidthE 5 8 1 1 1 = 134
+#guard TgtCoupling.chainWidth 5 1 1 1 = 151
+#guard ordERun.isOk
+#guard ordERun.scalar "kmax" = ord1Run.scalar "kmax"
+#guard (List.range 5).map (ordERun.cell (RamDriver.ordName 0)) =
+  (List.range 5).map (ord1Run.cell (RamDriver.ordName 0))
+#guard (List.range 8).map (ordERun.cell "tgt") = [1, 2, 3, 4, 0, 0, 0, 0]
+
 end Lax3Proofs.TgtWidenProbe

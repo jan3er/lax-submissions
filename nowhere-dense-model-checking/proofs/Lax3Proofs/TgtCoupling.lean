@@ -301,6 +301,82 @@ theorem chainWidth_dominates {G : SimpleGraph (Fin n)} {D : ℕ → Orientation 
   exact csrSlots_fratGraph_lt_chainWidth
     (fun v => le_trans (hdi v) (budget_mono d D₁ hi))
 
+/-! ### The repaired width (rebase G2/E2)
+
+`chainWidth`'s `n · n` term exists to hold the level's own graph at the
+generic `csrSlots_le_sq`; the level's graph occupies exactly `ns` slots
+and every masked sub-arena's at most that, so the degree-aware width
+reads `ns` and the `n · n` dies — `C0Probe.level_interface_floor_cubic`'s
+`n · n ≤ W` step has no route through this width
+(`Refine.G2CostProbe.width_step_dead` is the compiled instance). The
+forms were designed and compiled in `Refine.G2CostProbe`; these are the
+real declarations, wired verbatim. `chainWidth` itself stays: `C0Probe`'s
+floor record is *about* it. -/
+
+/-- **The width of a chain, degree-aware** (rebase G2/E2): room for the
+fraternity graph of every round — `n · (b+1)²` slots, `b` the last
+round's in-degree budget — and for the level's own graph at its actual
+slot count `ns`, not at the generic `n · n`. -/
+def chainWidthE (n ns d D₁ r : ℕ) : ℕ := n * (budget d D₁ r + 1) ^ 2 + ns + 1
+
+/-- The new width never exceeds the old one on real inputs (`ns ≤ n·n`
+holds of every slot count on the carrier), so every allocation the old
+width served is served. -/
+theorem chainWidthE_le_chainWidth {n ns d D₁ r : ℕ} (h : ns ≤ n * n) :
+    chainWidthE n ns d D₁ r ≤ chainWidth n d D₁ r := by
+  simp only [chainWidthE, chainWidth]
+  omega
+
+/-- **Fits, half 1**: the level's own graph fits the new width — at the
+hypothesis its consumer actually has (`csrSlots F ≤ ns`; at the level
+itself `csrSlots G = ns` exactly, and every masked sub-arena is a
+subgraph). Replaces `csrSlots_lt_chainWidth`, whose proof was the
+generic `csrSlots_le_sq`. -/
+theorem csrSlots_lt_chainWidthE {n ns : ℕ} (F : SimpleGraph (Fin n))
+    [DecidableRel F.Adj] (d D₁ r : ℕ) (h : csrSlots F ≤ ns) :
+    csrSlots F < chainWidthE n ns d D₁ r := by
+  simp only [chainWidthE]
+  omega
+
+/-- **Fits, half 2**: a round's fraternity graph fits the new width,
+unchanged — its bound `n · b²` lives entirely in the `n · (b+1)²` term.
+Replaces `csrSlots_fratGraph_lt_chainWidth` verbatim. -/
+theorem csrSlots_fratGraph_lt_chainWidthE {n ns : ℕ} {D : Orientation n} {d D₁ r : ℕ}
+    (hd : D.InDegLE (budget d D₁ r)) :
+    csrSlots (fratGraph D) < chainWidthE n ns d D₁ r := by
+  have h₁ := csrSlots_fratGraph_le hd
+  have h₂ : n * (budget d D₁ r * budget d D₁ r) ≤ n * (budget d D₁ r + 1) ^ 2 :=
+    Nat.mul_le_mul_left n (by nlinarith)
+  simp only [chainWidthE]
+  omega
+
+/-- **Coupling (b) at the repaired width.** `chainWidth_dominates` with
+the level's-graph half read at the slot count: one width dominates every
+round's fraternity graph and every carrier graph inside `ns` slots. -/
+theorem chainWidthE_dominates {G : SimpleGraph (Fin n)} {D : ℕ → Orientation n}
+    {ns r d D₁ : ℕ} (hchain : IsAugChain G D r) (hdens : AugmentedDepthOneDensity D r D₁)
+    (hgreedy : ∀ i < r, GreedyFratRound (D i) (D (i + 1))) (hd0 : (D 0).InDegLE d) :
+    (∀ (F : SimpleGraph (Fin n)) (_ : DecidableRel F.Adj), csrSlots F ≤ ns →
+        csrSlots F < chainWidthE n ns d D₁ r) ∧
+      ∀ i ≤ r, csrSlots (fratGraph (D i)) < chainWidthE n ns d D₁ r := by
+  refine ⟨fun F _ hF => csrSlots_lt_chainWidthE F d D₁ r hF, fun i hi => ?_⟩
+  have hdi : (D i).InDegLE (budget d D₁ i) :=
+    greedy_chain_inDegLE hchain hdens hgreedy hd0 i hi
+  exact csrSlots_fratGraph_lt_chainWidthE
+    (fun v => le_trans (hdi v) (budget_mono d D₁ hi))
+
+/-- **The capacity step of a round** (rebase G2/E2): the next budget
+holds `2·b² + b`, which is the room the round's raw assembly needs —
+`RamDriverAugment.sum_augDeg_le_arcs` bounds the written arcs by
+`(2·b + 1) · m ≤ n · b · (2·b + 1) = n · (2·b² + b)`. This is what
+replaces the `n · n` room of `RamAugment.augWidth` in the fold's
+capacity discharge. -/
+theorem two_sq_add_le_budget_succ (d D₁ i : ℕ) :
+    2 * (budget d D₁ i * budget d D₁ i) + budget d D₁ i ≤ budget d D₁ (i + 1) := by
+  rw [show budget d D₁ (i + 1) = budget d D₁ i + budget d D₁ i * budget d D₁ i +
+    (budget d D₁ i * budget d D₁ i + budget d D₁ i * D₁) from rfl]
+  omega
+
 /-! ### Falsification
 
 The K₁,₄ computation is the falsification of coupling (a)'s optimistic
@@ -346,6 +422,25 @@ def star3Or : Orientation 4 where
 #guard budget 1 1 1 ≤ budget 1 1 2
 #guard csrSlots starOr.toGraph < chainWidth 5 1 1 2
 #guard csrSlots (fratGraph starOr) < chainWidth 5 1 1 2
+
+-- the repaired width on the same data: the star's `ns = 8` replaces the
+-- `n² = 25` term, both graphs still fit, and the new width sits strictly
+-- below the old one
+#guard csrSlots starOr.toGraph < chainWidthE 5 8 1 1 2
+#guard csrSlots (fratGraph starOr) < chainWidthE 5 8 1 1 2
+#guard chainWidthE 5 8 1 1 2 < chainWidth 5 1 1 2
+
+-- **the floor route is dead at the real surface**: at a sparse instance
+-- (`n = 10⁶`, `ns = 2·10⁶`) the repaired width itself is an admissible
+-- `W` for the new `hWc`, and `n · n ≤ W` fails at it — the
+-- `level_interface_floor_cubic` step has no route through `chainWidthE`
+#guard ¬ (10 ^ 6 * 10 ^ 6 ≤ chainWidthE (10 ^ 6) (2 * 10 ^ 6) 2 2 1)
+
+-- the capacity arithmetic of the round, on the two-round chain's data:
+-- the raw assembly bound `n · (2b² + b)` at round `i` sits inside
+-- `n · budget (i+1)`, which the width holds
+#guard 5 * (2 * budget 1 1 1 * budget 1 1 1 + budget 1 1 1) ≤ 5 * budget 1 1 2
+#guard 5 * budget 1 1 2 < chainWidthE 5 8 1 1 2
 
 end Falsification
 

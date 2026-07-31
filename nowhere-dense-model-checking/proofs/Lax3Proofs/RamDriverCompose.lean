@@ -1736,7 +1736,11 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
       f₃ _ (by decide), f₂ _ (lit_notMem_copyCom_alv j "ooff"),
       f₁ _ (by rw [warrs_saveCsr]; decide)]
     exact hzooff
-  obtain ⟨σ₇, K₇, Os, Ts, r₇, hK₇, hoffS, htgtS, hcsrS, hfaS, hfvS⟩ :=
+  have htgtV₅ : σ₅.arrs "tgt" = arrOf W T := by
+    rw [f₅ _ (by rw [warrs_copyUpto]; decide), f₄ _ (by rw [warrs_copyUpto]; decide),
+      f₃ _ (by decide), f₂ _ (lit_notMem_copyCom_alv j "tgt")]
+    exact htgt₁
+  obtain ⟨σ₇, K₇, Os, Ts, r₇, hK₇, hoffS, htgtS, hcsrS, -, hfaS, hfvS⟩ :=
     RamDriverAugment.symPass_run (B := B) (W := W) (nt := W) (m := ma) (D := Ea)
       (DO := IOa) (DT := ITa) (σ := σ₅) hn1B (by omega) (by omega) (by omega) hvn₅ hincsr₃
       hdoff₅ hdtg₅
@@ -1746,7 +1750,7 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
         exact ⟨g, hg, fun k hk => hgz k (by omega)⟩)
       (hsz₅.get (p := ("ofl", n)) (by simp)) (hsz₅.get (p := ("otg", W)) (by simp))
       (sizedRun r₅ (sizedRun r₄ (sizedRun r₃ (sizedRun r₂ ⟨O, hoff₁⟩))))
-      (sizedRun r₅ (sizedRun r₄ (sizedRun r₃ (sizedRun r₂ ⟨T, htgt₁⟩))))
+      htgtV₅
   have hsz₇ := hsz₅.run r₇
   have hvn₇ : σ₇.vars "n" = n := by
     rw [hfvS "n" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hvn₅
@@ -2282,10 +2286,14 @@ theorem noWrite_orderCom (R j : ℕ) : (orderCom R j).NoWrite := by
 
 /-! ### The width thread
 
-One width serves every round: `TgtCoupling.chainWidth` is
-`RamAugment.augWidth` at the last round's budget, `Augmentation.budget`
-is monotone in the round (`TgtCoupling.budget_mono`), and `augWidth` is
-monotone in the in-degree. -/
+One width serves every round. Historically `TgtCoupling.chainWidth` was
+`RamAugment.augWidth` at the last round's budget (`chainWidth_eq_augWidth`
+below, kept as the record); since rebase G2/E2 the fold runs at the
+degree-aware `TgtCoupling.chainWidthE`, which carries no `n · n` room, so
+`fold_step` derives the round's two capacities directly — the fraternity
+term from `budget_mono` and the raw assembly arcs from
+`TgtCoupling.two_sq_add_le_budget_succ` — and enters the round through
+`RamDriverAugment.augment_specWE`. -/
 
 theorem augWidth_mono (n : ℕ) {b b' : ℕ} (h : b ≤ b') :
     RamAugment.augWidth n b ≤ RamAugment.augWidth n b' := by
@@ -2522,7 +2530,7 @@ theorem fold_step {B n ns W d D₁ d₀ R : ℕ} {G : SimpleGraph (Fin n)} {M : 
       Augmentation.IsAugChain (masked G M) D i →
       (∀ l < i, Augmentation.GreedyFratRound (D l) (D (l + 1))) →
       Augmentation.AugmentedDepthOneDensity D i D₁)
-    (hWc : TgtCoupling.chainWidth n d D₁ R ≤ W) :
+    (hWc : TgtCoupling.chainWidthE n ns d D₁ R ≤ W) :
     ∀ i σ, i < R → FoldInv B n ns W d₀ G M i σ →
       ∃ σ', Run B (augRoundCom) σ σ' (RamAugment.augCost n W + relinkCost n W) ∧
         FoldInv B n ns W d₀ G M (i + 1) σ' := by
@@ -2535,14 +2543,34 @@ theorem fold_step {B n ns W d D₁ d₀ R : ℕ} {G : SimpleGraph (Fin n)} {M : 
     Augmentation.greedy_chain_inDegLE hchain
       (hdens D i (by omega) hchain hgreedy) hgreedy
       (fun v => le_trans (hD0 v) hd₀d) i le_rfl
-  have haw : RamAugment.augWidth n bi ≤ W := by
-    have h1 : RamAugment.augWidth n bi ≤
-        RamAugment.augWidth n (Augmentation.budget d D₁ R) :=
-      augWidth_mono n (TgtCoupling.budget_mono d D₁ (le_of_lt hiR))
-    rw [← chainWidth_eq_augWidth] at h1
-    exact le_trans h1 hWc
-  have hfrat : RamAugment.fratSlots (D i) ≤ W :=
-    le_of_lt (lt_of_lt_of_le (RamAugment.fratSlots_lt_augWidth hbi) haw)
+  -- the two E-width capacities, from the repaired width (rebase G2/E2):
+  -- the round's fraternity term sits under the last budget's, and the
+  -- raw assembly arcs under the *next* budget — no `n · n` room used
+  have hbR : bi ≤ Augmentation.budget d D₁ R :=
+    TgtCoupling.budget_mono d D₁ (le_of_lt hiR)
+  have hsqR : n * (bi + 1) ^ 2 ≤ n * (Augmentation.budget d D₁ R + 1) ^ 2 :=
+    Nat.mul_le_mul_left n (Nat.pow_le_pow_left (by omega) 2)
+  have hsqW : n * (bi + 1) ^ 2 < W := by
+    have h2 := hWc
+    simp only [TgtCoupling.chainWidthE] at h2
+    omega
+  have hcapW : n * (2 * (bi * bi) + bi) ≤ W := by
+    have h1 : 2 * (bi * bi) + bi ≤ Augmentation.budget d D₁ (i + 1) :=
+      TgtCoupling.two_sq_add_le_budget_succ d D₁ i
+    have h2 : Augmentation.budget d D₁ (i + 1) ≤ Augmentation.budget d D₁ R :=
+      TgtCoupling.budget_mono d D₁ (by omega)
+    have h3 : n * (2 * (bi * bi) + bi) ≤ n * Augmentation.budget d D₁ R :=
+      Nat.mul_le_mul_left n (by omega)
+    have h4 : n * Augmentation.budget d D₁ R ≤
+        n * (Augmentation.budget d D₁ R + 1) ^ 2 :=
+      Nat.mul_le_mul_left n (by nlinarith)
+    have h5 := hWc
+    simp only [TgtCoupling.chainWidthE] at h5
+    omega
+  have hfrat : RamAugment.fratSlots (D i) ≤ W := by
+    have h1 : RamAugment.fratSlots (D i) ≤ n * (bi * bi) := RamAugment.fratSlots_le hbi
+    have h2 : n * (bi * bi) ≤ n * (bi + 1) ^ 2 := Nat.mul_le_mul_left n (by nlinarith)
+    omega
   -- (1) the prep: what the previous elimination dirtied, zeroed again
   obtain ⟨σb, rb, hnb, hoffZb, helmZb, hbhZb⟩ :=
     (augPrep_spec (B := B) (n := n) (by omega) (by omega)).run
@@ -2559,9 +2587,9 @@ theorem fold_step {B n ns W d D₁ d₀ R : ℕ} {G : SimpleGraph (Fin n)} {M : 
   obtain ⟨g₈, hg₈, hz₈⟩ := hstdZ
   obtain ⟨g₉, hg₉, hz₉⟩ := hsteZ
   obtain ⟨σc, rc, hpost⟩ :=
-    (RamAugment.augment_specW (B := B) (n := n) (d := bi) (nt := W) (W := W) (m := m')
-        (D := D i) (DO := DO) (DT := DT) RamDriverAugment.implementsW
-        hincsr hbi hfrat hm'W haw hB).run
+    (RamDriverAugment.augment_specWE (B := B) (n := n) (d := bi) (nt := W) (W := W)
+        (m := m') (D := D i) (DO := DO) (DT := DT)
+        hincsr hbi hfrat hm'W hsqW hcapW hB).run
       ⟨hnb,
         by rw [fb "doff" (by rw [warrs_augPrepCom]; decide)]; exact hdoff,
         by rw [fb "dtg" (by rw [warrs_augPrepCom]; decide)]; exact hdtg,
@@ -2764,8 +2792,10 @@ width budget), `hdens` is `Augmentation.AugmentedDepthOneDensity` for
 every chain the fold could build — the one unproved statement of
 `Augmentation`, inherited here as that file's header says it must be —
 and `hWc` says the level's allocation width covers
-`TgtCoupling.chainWidth`, the one width that serves every round
-(coupling (b) of F-c-3's design). At `R = 0` the obligation reduces to
+`TgtCoupling.chainWidthE` — the degree-aware width (rebase G2/E2),
+whose `ns` term replaces the old `chainWidth`'s fatal `n · n` — the one
+width that serves every round (coupling (b) of F-c-3's design, repaired
+per `g2-cost-design.md` §3(a)). At `R = 0` the obligation reduces to
 the landed `orderImplements₀`'s: the fold is `Com.skip`, the cost is
 `orderPhaseCost` on the nose (`orderPhaseCostR_zero`), and the slot
 degenerates to the two elimination bounds
@@ -2777,7 +2807,7 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
       Augmentation.IsAugChain (masked G M) D i →
       (∀ l < i, Augmentation.GreedyFratRound (D l) (D (l + 1))) →
       Augmentation.AugmentedDepthOneDensity D i D₁)
-    (hWc : TgtCoupling.chainWidth n d D₁ R ≤ W) :
+    (hWc : TgtCoupling.chainWidthE n ns d D₁ R ≤ W) :
     OrderImplementsR B n R W cap mb ns j G O T M Gm C := by
   intro hB hcsr hWB _helim _haug
   refine Spec.of_exists fun σ hσ => ?_
@@ -2986,17 +3016,18 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
         n * ((Augmentation.budget d D₁ R + 1) ^ 2) :=
       Nat.mul_le_mul_left n (by nlinarith)
     have h3 : n * ((Augmentation.budget d D₁ R + 1) ^ 2) ≤
-        TgtCoupling.chainWidth n d D₁ R := by
-      simp only [TgtCoupling.chainWidth]; omega
+        TgtCoupling.chainWidthE n ns d D₁ R := by
+      simp only [TgtCoupling.chainWidthE]; omega
     have h1 : n * (2 * Augmentation.budget d D₁ R) = n * Augmentation.budget d D₁ R
         + n * Augmentation.budget d D₁ R := by ring
     omega
   -- (7) the chain's last orientation, symmetrized into `off`/`tgt`
-  obtain ⟨σ₇, K₇, Os, Ts, r₇, hK₇, hoffS, htgtS, hcsrS, hfaS, hfvS⟩ :=
+  obtain ⟨TF, hTF⟩ := htgtEF
+  obtain ⟨σ₇, K₇, Os, Ts, r₇, hK₇, hoffS, htgtS, hcsrS, -, hfaS, hfvS⟩ :=
     RamDriverAugment.symPass_run (B := B) (W := W) (nt := W) (m := mR) (D := D R)
       (DO := DO) (DT := DT) (σ := σF) hn1B (by omega) (by omega) h2mW hvnF hincsrR
       hdoffF hdtgF ⟨gOo, hgOo, hzOo⟩ (hszF.get (p := ("ofl", n)) (by simp))
-      (hszF.get (p := ("otg", W)) (by simp)) hoffEF htgtEF
+      (hszF.get (p := ("otg", W)) (by simp)) hoffEF hTF
   have hsz₇ := hszF.run r₇
   have hvn₇ : σ₇.vars "n" = n := by
     rw [hfvS "n" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hvnF

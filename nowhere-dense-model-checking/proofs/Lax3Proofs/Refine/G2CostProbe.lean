@@ -70,19 +70,24 @@ def bsq (d D₁ R : ℕ) : ℕ := (Augmentation.budget d D₁ R + 1) ^ 2
 theorem one_le_bsq (d D₁ R : ℕ) : 1 ≤ bsq d D₁ R :=
   Nat.one_le_pow _ _ (by omega)
 
-/-- **PROPOSED** degree-aware replacement for `TgtCoupling.chainWidth`:
-room for every round's fraternity graph (`n·(b+1)²`, unchanged) and for
-the level's own graph at its actual slot count `ns` — not at the
-generic `n·n`. -/
-def chainWidthE (n ns d D₁ r : ℕ) : ℕ :=
-  n * (Augmentation.budget d D₁ r + 1) ^ 2 + ns + 1
+/-- Degree-aware replacement for `TgtCoupling.chainWidth`: room for
+every round's fraternity graph (`n·(b+1)²`, unchanged) and for the
+level's own graph at its actual slot count `ns` — not at the generic
+`n·n`.
+
+**GRADUATED (rebase G2/E2)**: the real declaration is
+`TgtCoupling.chainWidthE`, with the fits lemmas and the
+`chainWidthE_dominates` reading beside it, and
+`RamDriverCompose.orderImplementsR`'s `hWc` reads it. The local name
+delegates so this file's compiled record reads unchanged. -/
+def chainWidthE (n ns d D₁ r : ℕ) : ℕ := TgtCoupling.chainWidthE n ns d D₁ r
 
 /-- The new width never exceeds the old one on real inputs
 (`ns ≤ n·n` always holds of a slot count), so every allocation the old
 width served is served. -/
 theorem chainWidthE_le_chainWidth {n ns d D₁ r : ℕ} (h : ns ≤ n * n) :
     chainWidthE n ns d D₁ r ≤ TgtCoupling.chainWidth n d D₁ r := by
-  simp only [chainWidthE, TgtCoupling.chainWidth]
+  simp only [chainWidthE, TgtCoupling.chainWidthE, TgtCoupling.chainWidth]
   omega
 
 /-- **The width is arena-linear at coefficient `bsq`** — the load-bearing
@@ -93,7 +98,7 @@ arena's own weight. -/
 theorem chainWidthE_le_linear (n ns d D₁ r : ℕ) :
     chainWidthE n ns d D₁ r ≤ bsq d D₁ r * (n + ns + 1) := by
   have hb := one_le_bsq d D₁ r
-  simp only [chainWidthE, bsq] at *
+  simp only [chainWidthE, TgtCoupling.chainWidthE, bsq] at *
   nlinarith
 
 /-- The live prefix of the chain arrays on an arena of `m` alive
@@ -115,7 +120,7 @@ was the generic `csrSlots_le_sq`. -/
 theorem csrSlots_lt_chainWidthE {n ns : ℕ} (F : SimpleGraph (Fin n))
     [DecidableRel F.Adj] (d D₁ r : ℕ) (h : TgtCoupling.csrSlots F ≤ ns) :
     TgtCoupling.csrSlots F < chainWidthE n ns d D₁ r := by
-  simp only [chainWidthE]
+  simp only [chainWidthE, TgtCoupling.chainWidthE]
   omega
 
 /-- **Fits, half 2**: a round's fraternity graph fits the new width,
@@ -126,7 +131,7 @@ theorem csrSlots_fratGraph_lt_chainWidthE {n ns : ℕ}
     (hd : D.InDegLE (Augmentation.budget d D₁ r)) :
     TgtCoupling.csrSlots (Augmentation.fratGraph D) < chainWidthE n ns d D₁ r := by
   have h₁ := TgtCoupling.csrSlots_fratGraph_le hd
-  simp only [chainWidthE]
+  simp only [chainWidthE, TgtCoupling.chainWidthE]
   nlinarith [h₁]
 
 /-- **Floor-death, width half**: the `n·n ≤ W` step of
@@ -432,6 +437,32 @@ theorem orderPhaseCostR_honest_at_chainWidthE (n ns d D₁ R : ℕ) :
     RamDriverCompose.orderPhaseCostR n ns (chainWidthE n ns d D₁ R) R ≤
       orderCostA (bsq d D₁ R) R (n + ns) :=
   orderPhaseCostR_le_orderCostA (one_le_bsq d D₁ R) (chainWidthE_le_linear n ns d D₁ R)
+
+/-- **The §2.1 discharge at the real surface** (rebase G2/E2). With
+`orderImplementsR`'s `hWc` now reading `TgtCoupling.chainWidthE`, the
+whole `R`-round ordering phase is discharged at the PROPOSED
+arena-charged cost `orderCostA (bsq d D₁ R) R (n + ns)` for every
+allocation width inside the arena-linear bound — the exact obligation
+shape E6 re-threads the root's `hKo` slot to. Nothing here is a new
+walk: the phase is `RamDriverCompose.orderImplementsR` and the budget
+step is `orderPhaseCostR_le_orderCostA`, both landed. -/
+theorem orderImplementsR_at_orderCostA {B cap mb ns W j R d D₁ : ℕ} {n : ℕ}
+    {G : SimpleGraph (Fin n)} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ}
+    (hd : Augmentation.LowDegreeVertices (RamBfs.masked G M) d)
+    (hdens : ∀ (D : ℕ → Augmentation.Orientation n) (i : ℕ), i ≤ R →
+      Augmentation.IsAugChain (RamBfs.masked G M) D i →
+      (∀ l < i, Augmentation.GreedyFratRound (D l) (D (l + 1))) →
+      Augmentation.AugmentedDepthOneDensity D i D₁)
+    (hWc : TgtCoupling.chainWidthE n ns d D₁ R ≤ W)
+    (hWl : W ≤ bsq d D₁ R * (n + ns + 1)) :
+    RamDriver.OrderImplements B n R W cap mb ns j G O T M Gm C
+      (RamDriverCompose.OrderP R G M) (orderCostA (bsq d D₁ R) R (n + ns)) := by
+  intro hwb hcsr hB he ha
+  have h : RamDriver.OrderImplements B n R W cap mb ns j G O T M Gm C
+      (RamDriverCompose.OrderP R G M) (RamDriverCompose.orderPhaseCostR n ns W R) :=
+    RamDriverCompose.orderImplementsR hd hdens hWc
+  exact (h hwb hcsr hB he ha).mono
+    (orderPhaseCostR_le_orderCostA (one_le_bsq d D₁ R) hWl)
 
 /-- **Cover engines honest**: the per-centre cover cost is
 weight-linear (the pass's per-centre BFS/emit reads the centre's ball;

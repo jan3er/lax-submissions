@@ -4439,6 +4439,69 @@ theorem sum_augDeg_le {n : ℕ} (D : Orientation n) (ρ : Fin n → ℕ) :
         Finset.sum_le_sum fun u _ => augDeg_le D ρ u
     _ = n * n := by rw [Finset.sum_const, Finset.card_range, smul_eq_mul]
 
+/-! **The degree-aware capacity** (rebase G2/E2). The `n · n` room dies
+with `RamAugment.augWidth`, so the assembly's write capacity needs a
+bound through the in-degree instead: per vertex, the new block is the
+old in-list (`≤ d`), the transitive candidates — in-neighbours of
+in-neighbours, `≤ d²` — and the fraternal candidates, which sum to
+`fratSlots D ≤ n · d²` (`RamAugment.fratSlots_le`). The total
+`n · (2·d² + d)` sits inside `n · budget (i+1)` by
+`TgtCoupling.two_sq_add_le_budget_succ`, which is how the fold's
+`chainWidthE`-width discharges it. -/
+
+/-- A vertex's transitive candidates are in-neighbours of its
+in-neighbours. -/
+theorem transCand_subset_biUnion {n : ℕ} (D : Orientation n) (ρ : Fin n → ℕ) (v : Fin n) :
+    RamAugment.transCand D ρ v ⊆ (D.inN v).biUnion (fun w => D.inN w) := by
+  intro u hu
+  obtain ⟨⟨w, huw, hwv⟩, -⟩ := RamAugment.mem_transCand.1 hu
+  exact Finset.mem_biUnion.2 ⟨w, hwv, huw⟩
+
+/-- A vertex's fraternal candidates are among its fraternal partners. -/
+theorem fratCand_subset_fratNbrs {n : ℕ} (D : Orientation n) (ρ : Fin n → ℕ) (v : Fin n) :
+    RamAugment.fratCand D ρ v ⊆ RamAugment.fratNbrs D v := fun u hu =>
+  RamAugment.mem_fratNbrs.2 (RamAugment.mem_fratCand.1 hu).1.1
+
+/-- **The new arcs are at most `n · (2·d² + d)`** — the degree-aware
+replacement for `sum_augDeg_le` (rebase G2/E2). -/
+theorem sum_augDeg_le_deg {n d : ℕ} {D : Orientation n} (ρ : Fin n → ℕ)
+    (hd : D.InDegLE d) :
+    RamElim.psum (augDeg D ρ) n ≤ n * (2 * (d * d) + d) := by
+  classical
+  have hstep : ∀ v : Fin n, augDeg D ρ (v : ℕ) ≤
+      d + d * d + (RamAugment.fratNbrs D v).card := by
+    intro v
+    rw [augDeg_eq v.isLt]
+    have he : (⟨(v : ℕ), v.isLt⟩ : Fin n) = v := Fin.ext rfl
+    rw [he, RamAugment.card_inN_augOr]
+    have h₁ : (D.inN v).card ≤ d := hd v
+    have h₂ : (RamAugment.transCand D ρ v).card ≤ d * d := by
+      refine le_trans (Finset.card_le_card (transCand_subset_biUnion D ρ v)) ?_
+      refine le_trans Finset.card_biUnion_le ?_
+      calc ∑ w ∈ D.inN v, (D.inN w).card ≤ ∑ _w ∈ D.inN v, d :=
+            Finset.sum_le_sum fun w _ => hd w
+        _ = (D.inN v).card * d := by rw [Finset.sum_const, smul_eq_mul]
+        _ ≤ d * d := Nat.mul_le_mul_right d (hd v)
+    have h₃ : (RamAugment.transCand D ρ v ∪ RamAugment.fratCand D ρ v).card ≤
+        d * d + (RamAugment.fratNbrs D v).card := by
+      refine le_trans (Finset.card_union_le _ _) ?_
+      exact Nat.add_le_add h₂ (Finset.card_le_card (fratCand_subset_fratNbrs D ρ v))
+    omega
+  have hsum : ∑ u ∈ Finset.range n, augDeg D ρ u ≤
+      n * (d + d * d) + RamAugment.fratSlots D := by
+    calc ∑ u ∈ Finset.range n, augDeg D ρ u
+        = ∑ v : Fin n, augDeg D ρ (v : ℕ) :=
+          (Fin.sum_univ_eq_sum_range (fun u => augDeg D ρ u) n).symm
+      _ ≤ ∑ v : Fin n, (d + d * d + (RamAugment.fratNbrs D v).card) :=
+          Finset.sum_le_sum fun v _ => hstep v
+      _ = n * (d + d * d) + RamAugment.fratSlots D := by
+          rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ,
+            Fintype.card_fin, smul_eq_mul, RamAugment.fratSlots]
+  have hfs : RamAugment.fratSlots D ≤ n * (d * d) := RamAugment.fratSlots_le hd
+  show ∑ u ∈ Finset.range n, augDeg D ρ u ≤ n * (2 * (d * d) + d)
+  calc ∑ u ∈ Finset.range n, augDeg D ρ u ≤ n * (d + d * d) + n * (d * d) := by omega
+    _ = n * (2 * (d * d) + d) := by ring
+
 /-- **The assembly's cost, summed.** Three of the four per-row charges
 are row lengths and tile their arrays; the fourth is the out-block of
 every vertex an out-slot names, and that is where the exchange is
@@ -4952,33 +5015,23 @@ addresses in `tgt` is still below `nf` — the blocks tile the prefix —
 so neither the postcondition nor the cost moves; what changes is that
 a caller who allocated the array once, at a width of its own choosing,
 can run the round in it, which an IMP+ run has no other way to do. -/
-theorem implementsW {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} :
-    RamAugment.ImplementsW B n d nt W m D DO DT := by
+theorem implementsCore {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ}
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d)
+    (hntW : RamAugment.fratSlots D ≤ nt) (hmW : m ≤ W) (hB : n + W + 1 < B)
+    (hnW : n < W) (hdmW : d * m ≤ W) (hnfWs : RamAugment.fratSlots D < W)
+    (hcap : ∀ ρ : Fin n → ℕ, RamElim.psum (augDeg D ρ) n ≤ W) :
+    Spec B (RamAugment.AugPreW n nt W DO DT) RamAugment.augCom
+      (RamAugment.AugMem n W D) (RamAugment.augCost n W) := by
   classical
-  intro _he hcsr hdeg hntf hmW hW hB
   obtain ⟨nf, hnf⟩ : ∃ nf, RamAugment.fratSlots D = nf := ⟨_, rfl⟩
-  rw [hnf] at hntf
+  rw [hnf] at hntW hnfWs
+  have hntf := hntW
+  have hnfW := hnfWs
   refine Spec.of_exists ?_
   intro σ hσ
   obtain ⟨hn, hdoff, hdtg, hooffA, hotgA, hoflA, hoffA, htgtA, hfflA, halvA, hdegA, helmA,
     hrnkA, hidgA, hbhA, hbvA, hbnA, hioffA, hiflA, hitgA, hnoffA, hnflA, hntgA, hstfA,
     hstaA, hstdA, hsteA⟩ := hσ
-  -- the width's arithmetic: `n`, `m`, `d · m`, `nf` and `n²` all fit under `W`
-  have hAW : n * (d + 1) ^ 2 + n * n + 1 ≤ W := hW
-  have hsq : (d + 1) ^ 2 = d * d + 2 * d + 1 := by ring
-  have hnW : n < W := by
-    have h1 : n * 1 ≤ n * (d + 1) ^ 2 := Nat.mul_le_mul_left n (by omega)
-    omega
-  have hnnW : n * n < W := by omega
-  have hdmW : d * m ≤ W := by
-    have h1 : d * m ≤ d * (n * d) := Nat.mul_le_mul_left d (arcs_le hcsr hdeg)
-    have h2 : d * (n * d) = n * (d * d) := by ring
-    have h3 : n * (d * d) ≤ n * (d + 1) ^ 2 := Nat.mul_le_mul_left n (by omega)
-    omega
-  have hnfW : nf < W := by
-    have h := RamAugment.fratSlots_lt_augWidth (D := D) hdeg
-    rw [hnf] at h
-    omega
   -- (1) the out-lists
   obtain ⟨σ₁, K₁, hr₁, hK₁, hScat, hfa₁, hfv₁⟩ :=
     outPass_run (B := B) (n := n) (W := W) (m := m) (DO := DO) (DT := DT) (σ := σ)
@@ -5118,7 +5171,7 @@ theorem implementsW {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → �
       (OT := OT) (IO := IO) (IT := IT) (R := R) (σ := σ₄)
       (by omega) (by omega) hcsr hdeg hmW harcs (by omega) (fun _ => rfl) hRn
       (harr₄.blocks hbo) hsnd hcmp hxch
-      (le_trans (sum_augDeg_le D (fun v : Fin n => R (v : ℕ))) (by omega))
+      (hcap _)
       harr₄ hrnk₄
       (by
         obtain ⟨g, hg, hz⟩ := hstaA
@@ -5149,7 +5202,7 @@ theorem implementsW {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → �
     R, RamElim.psum (augDeg D (fun v : Fin n => R (v : ℕ))),
     NT, k, RamElim.psum (augDeg D (fun v : Fin n => R (v : ℕ))) n,
     hrnk₅, ?_, hnoff₅, hntg₅, hmn₅,
-    le_trans (sum_augDeg_le D (fun v : Fin n => R (v : ℕ))) (by omega), hcert, hincsr₅⟩
+    hcap _, hcert, hincsr₅⟩
   · have hcost : RamAugment.augCost n W = 8000 * (n + W + 1) := rfl
     have hec : elimCost n nf = 600 * n + 600 * nf + 100 := rfl
     have e1 : (80 * d + 92) * m = 80 * (d * m) + 92 * m := by ring
@@ -5157,6 +5210,73 @@ theorem implementsW {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → �
   · rw [hfv₅ "kmax" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide)]
     exact hkmax₄
+
+/-- **The pinned widened interface, from the core** (rebase G2/E2: the
+walk is `implementsCore`, written once; this reading derives the four
+capacity facts from `augWidth n d ≤ W` exactly as the pre-E2 walk did —
+the `n · n` room pays the assembly's capacity via `sum_augDeg_le`). -/
+theorem implementsW {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} :
+    RamAugment.ImplementsW B n d nt W m D DO DT := by
+  intro _he hcsr hdeg hntf hmW hW hB
+  have hAW : n * (d + 1) ^ 2 + n * n + 1 ≤ W := hW
+  have hsq : (d + 1) ^ 2 = d * d + 2 * d + 1 := by ring
+  have hnW : n < W := by
+    have h1 : n * 1 ≤ n * (d + 1) ^ 2 := Nat.mul_le_mul_left n (by omega)
+    omega
+  have hdmW : d * m ≤ W := by
+    have h1 : d * m ≤ d * (n * d) := Nat.mul_le_mul_left d (arcs_le hcsr hdeg)
+    have h2 : d * (n * d) = n * (d * d) := by ring
+    have h3 : n * (d * d) ≤ n * (d + 1) ^ 2 := Nat.mul_le_mul_left n (by nlinarith)
+    omega
+  have hnfW : RamAugment.fratSlots D < W :=
+    lt_of_lt_of_le (RamAugment.fratSlots_lt_augWidth hdeg) hW
+  exact implementsCore hcsr hdeg hntf hmW hB hnW hdmW hnfW
+    (fun ρ => le_trans (sum_augDeg_le D ρ) (by omega))
+
+/-- **The round's widened Hoare triple at the degree-aware width**
+(rebase G2/E2). The `augWidth n d ≤ W` hypothesis — whose `n · n` term
+`TgtCoupling.chainWidthE` deliberately does not carry — is replaced by
+the two capacities the walk actually spends: the fraternity-graph term
+`n · (d+1)² < W` and the assembly's raw-arc room `n · (2·d² + d) ≤ W`,
+both of which the fold discharges from `chainWidthE ≤ W` via
+`TgtCoupling.two_sq_add_le_budget_succ` and `budget_mono`. -/
+def ImplementsWE (B n d nt W m : ℕ) (D : Orientation n) (DO DT : ℕ → ℕ) : Prop :=
+  InCsr D m DO DT → D.InDegLE d → RamAugment.fratSlots D ≤ nt → m ≤ W →
+  n * (d + 1) ^ 2 < W → n * (2 * (d * d) + d) ≤ W → n + W + 1 < B →
+  Spec B (RamAugment.AugPreW n nt W DO DT) RamAugment.augCom
+    (RamAugment.AugMem n W D) (RamAugment.augCost n W)
+
+/-- The degree-aware interface, inhabited from the core. -/
+theorem implementsWE {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} :
+    ImplementsWE B n d nt W m D DO DT := by
+  intro hcsr hdeg hntf hmW hsqW hcapW hB
+  have hsq : (d + 1) ^ 2 = d * d + 2 * d + 1 := by ring
+  have hnW : n < W := by
+    have h1 : n * 1 ≤ n * (d + 1) ^ 2 := Nat.mul_le_mul_left n (by omega)
+    omega
+  have hdmW : d * m ≤ W := by
+    have h1 : d * m ≤ d * (n * d) := Nat.mul_le_mul_left d (arcs_le hcsr hdeg)
+    have h2 : d * (n * d) = n * (d * d) := by ring
+    have h3 : n * (d * d) ≤ n * (d + 1) ^ 2 := Nat.mul_le_mul_left n (by nlinarith)
+    omega
+  have hnfW : RamAugment.fratSlots D < W := by
+    have h1 : RamAugment.fratSlots D ≤ n * (d * d) := RamAugment.fratSlots_le hdeg
+    have h3 : n * (d * d) ≤ n * (d + 1) ^ 2 := Nat.mul_le_mul_left n (by nlinarith)
+    omega
+  exact implementsCore hcsr hdeg hntf hmW hB hnW hdmW hnfW
+    (fun ρ => le_trans (sum_augDeg_le_deg ρ hdeg) hcapW)
+
+/-- **One round at the degree-aware width** — `RamAugment.augment_specW`
+with the E-form width hypotheses (rebase G2/E2). -/
+theorem augment_specWE {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ}
+    (hcsr : InCsr D m DO DT) (hd : D.InDegLE d)
+    (hnt : RamAugment.fratSlots D ≤ nt) (hm : m ≤ W)
+    (hsqW : n * (d + 1) ^ 2 < W) (hcapW : n * (2 * (d * d) + d) ≤ W)
+    (hB : n + W + 1 < B) :
+    Spec B (RamAugment.AugPreW n nt W DO DT) RamAugment.augCom
+      (RamAugment.AugPost n W D) (RamAugment.augCost n W) :=
+  (implementsWE hcsr hd hnt hm hsqW hcapW hB).post
+    fun _ _ _ hq => RamAugment.augPost_of_augMem hq
 
 /-- **The augmentation round implements its frozen specification.** The
 walk is not repeated: `RamAugment.implements_of_implementsW` reads the
@@ -5253,6 +5373,27 @@ theorem off_le_last {O : ℕ → ℕ} {nv s : ℕ} (hmono : ∀ i < nv, O i ≤ 
     | zero => intro k hk; rw [show k = nv by omega]
     | succ d ih => intro k hk; exact le_trans (hmono k (by omega)) (ih (k + 1) (by omega))
   intro k hk; rw [← hlast]; exact key (nv - k) k (by omega)
+
+
+/-- **A block structure survives a target-array change above its slot
+count** (rebase G2/E2, live-width toolkit): `RamElim.InCsr` constrains
+the target function only below `m`, so a copy that restores the `m`-slot
+prefix restores the structure — the fact the live-prefix relink copies
+stand on. -/
+theorem inCsr_congr_prefix {n m : ℕ} {D : Orientation n} {IO IT IT' : ℕ → ℕ}
+    (h : InCsr D m IO IT) (hagr : ∀ j < m, IT' j = IT j) : InCsr D m IO IT' := by
+  have hoffle : ∀ w : Fin n, IO ((w : ℕ) + 1) ≤ m := by
+    intro w
+    have := off_le_last h.mono h.last
+    exact this ((w : ℕ) + 1) (by omega)
+  refine ⟨h.zero, h.last, h.mono, fun j hj => by rw [hagr j hj]; exact h.target_lt j hj,
+    fun w u => ?_, h.len⟩
+  rw [h.mem_iff w u]
+  constructor
+  · rintro ⟨j, h₁, h₂, h₃⟩
+    exact ⟨j, h₁, h₂, by rw [hagr j (lt_of_lt_of_le h₂ (hoffle w))]; exact h₃⟩
+  · rintro ⟨j, h₁, h₂, h₃⟩
+    exact ⟨j, h₁, h₂, by rw [← hagr j (lt_of_lt_of_le h₂ (hoffle w))]; exact h₃⟩
 
 /-- **The blocks tile the array**: every slot below the last offset lies
 in exactly one block. -/
@@ -5634,21 +5775,23 @@ set_option maxHeartbeats 2000000 in
 in `doff`/`dtg` the pass leaves in `off`/`tgt` a block structure of
 `D.toGraph` at `m + m` slots, in the `RamElim.CsrSimple` form the
 elimination engine reads. -/
-theorem symPass_run {B W nt m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} {σ : Env}
+theorem symPass_run {B W nt m : ℕ} {D : Orientation n} {DO DT T₀ : ℕ → ℕ} {σ : Env}
     (hnB : n + 1 < B) (hmmB : m + m < B) (hmW : m ≤ W) (hfit : m + m ≤ nt)
     (hn : σ.vars "n" = n) (hin : InCsr D m DO DT)
     (hdoff : σ.arrs "doff" = arrOf (n + 1) DO) (hdtg : σ.arrs "dtg" = arrOf W DT)
     (hooff : ∃ g, σ.arrs "ooff" = arrOf (n + 1) g ∧ ∀ k ≤ n, g k = 0)
     (hofl : ∃ g, σ.arrs "ofl" = arrOf n g) (hotg : ∃ g, σ.arrs "otg" = arrOf W g)
     (hoffE : ∃ g, σ.arrs "off" = arrOf (n + 1) g)
-    (htgtE : ∃ g, σ.arrs "tgt" = arrOf nt g) :
+    (htgtA : σ.arrs "tgt" = arrOf nt T₀) :
     ∃ σ' K O T, Run B RamDriver.symCom σ σ' K ∧ K ≤ symCost n m ∧
       σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf nt T ∧
       CsrSimple D.toGraph (m + m) O T ∧
+      (∀ z, m + m ≤ z → z < nt → T z = T₀ z) ∧
       (∀ a, a ≠ "off" → a ≠ "tgt" → a ≠ "ooff" → a ≠ "ofl" → a ≠ "otg" →
         σ'.arrs a = σ.arrs a) ∧
       (∀ y, y ≠ "i" → y ≠ "j" → y ≠ "jend" → y ≠ "u" → y ≠ "sy" → σ'.vars y = σ.vars y) := by
   classical
+  have htgtE : ∃ g, σ.arrs "tgt" = arrOf nt g := ⟨T₀, htgtA⟩
   have hB1 : 1 < B := by omega
   have hmB : m < B := by omega
   have hbd : Blocks "doff" "dtg" n W m DO DT σ := Blocks.of_inCsr hin hdoff hdtg hmW
@@ -5712,8 +5855,8 @@ theorem symPass_run {B W nt m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} {
   have hdtg₂ : σ₂.arrs "dtg" = arrOf W DT := by
     rw [hfa₂ "dtg" (by decide), hfa₁ "dtg" (by decide) (by decide) (by decide)]; exact hdtg
   have hbd₂ : Blocks "doff" "dtg" n W m DO DT σ₂ := Blocks.of_inCsr hin hdoff₂ hdtg₂ hmW
-  have htgt₂ : ∃ g, σ₂.arrs "tgt" = arrOf nt g := by
-    rw [hfa₂ "tgt" (by decide), hfa₁ "tgt" (by decide) (by decide) (by decide)]; exact htgtE
+  have htgt₂ : σ₂.arrs "tgt" = arrOf nt T₀ := by
+    rw [hfa₂ "tgt" (by decide), hfa₁ "tgt" (by decide) (by decide) (by decide)]; exact htgtA
   have hOmono : ∀ a b, a ≤ b → b ≤ n → O a ≤ O b := by
     intro a b hab hb
     have h₁ : DO a ≤ DO b := (Blocks.mono' hbd₂ hab hb)
@@ -5721,13 +5864,14 @@ theorem symPass_run {B W nt m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} {
     simp only [hO]; omega
   set I : ℕ → Env → Prop := fun i τ =>
     i ≤ n ∧ τ.vars "i" = i ∧
-      (∃ T, τ.arrs "tgt" = arrOf nt T ∧ RowsDone D O T i) ∧
+      (∃ T, τ.arrs "tgt" = arrOf nt T ∧ RowsDone D O T i ∧
+        (∀ z, O n ≤ z → z < nt → T z = T₀ z)) ∧
       (∀ a, a ≠ "tgt" → τ.arrs a = σ₂.arrs a) ∧
       (∀ y, y ≠ "i" → y ≠ "j" → y ≠ "jend" → y ≠ "u" → y ≠ "sy" → τ.vars y = σ₂.vars y)
     with hIdef
   have hI0 : I 0 (σ₂.setVar "i" 0) := by
-    obtain ⟨g, hg⟩ := htgt₂
-    exact ⟨Nat.zero_le _, by simp, ⟨g, by simpa using hg, fun z hz => absurd hz (by omega)⟩,
+    exact ⟨Nat.zero_le _, by simp, ⟨T₀, by simpa using htgt₂,
+        fun z hz => absurd hz (by omega), fun z _ _ => rfl⟩,
       fun a _ => by simp, fun y hy _ _ _ _ => by simp [hy]⟩
   obtain ⟨σ₃, K₃, r₃, hK₃, hI₃⟩ :=
     forVerts_run (B := B) (body := RamDriver.symRow) (n := n)
@@ -5738,7 +5882,7 @@ theorem symPass_run {B W nt m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} {
         exact hn₂)
       (fun i τ hτ => hτ.2.1) (fun i τ hτ => hτ.1)
       (fun i hi τ hτ => by
-        obtain ⟨hin', hiv, ⟨T, htgtτ, hrows⟩, hfa, hfv⟩ := hτ
+        obtain ⟨hin', hiv, ⟨T, htgtτ, hrows, htail⟩, hfa, hfv⟩ := hτ
         have hbdτ : Blocks "doff" "dtg" n W m DO DT τ :=
           hbd₂.of_eq (hfa "doff" (by decide)) (hfa "dtg" (by decide))
         have hboτ : Blocks "ooff" "otg" n W m OO OT τ :=
@@ -5749,7 +5893,10 @@ theorem symPass_run {B W nt m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} {
             hsnd hcmp (by rw [hfa "off" (by decide)]; exact hoff₂) hiv htgtτ
         refine ⟨σ', K', r', hK', ?_, ?_⟩
         · rw [hfv' "i" (by decide) (by decide) (by decide) (by decide)]; exact hiv
-        refine ⟨by omega, by simp, ⟨T', by simpa using htgt', fun z hz => ?_⟩,
+        refine ⟨by omega, by simp, ⟨T', by simpa using htgt', fun z hz => ?_,
+            fun z hz hznt => by
+              rw [hhi' z (le_trans (hOmono (i + 1) n (by omega) le_rfl) hz)]
+              exact htail z hz hznt⟩,
           fun a ha => by rw [arrs_setVar, hfa' a ha]; exact hfa a ha,
           fun y h₁ h₂ h₃ h₄ h₅ => by
             rw [vars_setVar, if_neg h₁, hfv' y h₂ h₃ h₄ h₅]; exact hfv y h₁ h₂ h₃ h₄ h₅⟩
@@ -5768,7 +5915,7 @@ theorem symPass_run {B W nt m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} {
               obtain ⟨p, hp₁, hp₂, hp₃⟩ := hcmp' v hv
               exact ⟨p, by simpa [hO] using hp₁, by simpa [hO] using hp₂, hp₃⟩⟩)
       hI0
-  obtain ⟨-, -, ⟨T, htgt₃, hrows₃⟩, hfa₃, hfv₃⟩ := hI₃
+  obtain ⟨-, -, ⟨T, htgt₃, hrows₃, htail₃⟩, hfa₃, hfv₃⟩ := hI₃
   -- the block structure the elimination reads
   have hOzero : O 0 = 0 := by simp only [hO, hOO, hin.zero, outOff_zero]
   have hOlast : O n = m + m := by simp only [hO, hin.last, hOOlast]
@@ -5799,7 +5946,8 @@ theorem symPass_run {B W nt m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ} {
     simp only [Finset.sum_const, Finset.card_range, smul_eq_mul]
     omega
   rw [hsum] at hK₃
-  refine ⟨σ₃, _, O, T, r₁.seq (r₂.seq r₃), ?_, ?_, htgt₃, hcsr, ?_, ?_⟩
+  refine ⟨σ₃, _, O, T, r₁.seq (r₂.seq r₃), ?_, ?_, htgt₃, hcsr,
+    fun z hz hznt => htail₃ z (by rw [hOlast]; exact hz) hznt, ?_, ?_⟩
   · rw [symCost]
     simp only [size_add, size_get, size_var, size_lit]
     omega
