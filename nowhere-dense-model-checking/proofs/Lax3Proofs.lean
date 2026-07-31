@@ -47,6 +47,7 @@ import Lax3Proofs.CostRecurrence
 import Lax3Proofs.UqwInstantiation
 import Lax3Proofs.TgtCoupling
 import Lax3Proofs.TgtWidenProbe
+import Lax3Proofs.C0Probe
 import Lax3Proofs.CsrWide
 import Lax3Proofs.Refine.AugmentSynth
 import Lax3Proofs.Refine.AugmentSynth2

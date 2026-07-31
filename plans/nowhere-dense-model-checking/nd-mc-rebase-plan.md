@@ -652,3 +652,67 @@ supersession pointer.
   via `RamDriverRoot.wreachDeg_of_orderP` — the conditional (per-`π`)
   form `levelImplements`'s repaired `hmass` consumes. Slot #26 now has
   a landed producer; all 30 slots do.
+
+- 2026-07-31 — **B7 STOPPED AT THE GATE: C0 is not dischargeable from
+  the landed capital — two compiled findings, no forced assembly**
+  (this session; worktree `ndmc-rebase-p0` on `f70d993`). New file
+  `Lax3Proofs/C0Probe.lean` + root import; full `lake build` green
+  (3524 jobs), `lax build --only proofs` OK, all three headline
+  theorems kernel-three; nothing frozen touched, zero consumer
+  breakage; no C0.lean.
+
+  **(G1, the brief's designated suspect, confirmed) `EncodesGraph` ⇏
+  `CsrSimple` — slot #6 is underivable at the C0 boundary.**
+  `Lax11.GraphEncoding.EncodesGraph` deliberately permits a row to
+  name a neighbour twice (its own notes; `adj_iff` is an existential),
+  and `driverRoot_decides_sentence`'s `hcsr` forbids it. Compiled:
+  `C0Probe.dupWord = [2,2,0,2,4,1,1,0,0]` is a genuine `EncodesGraph`
+  word for `K₂` whose row 0 is `[1,1]`; `encodesGraph_not_csrSimple`
+  exhibits it at the root theorem's own instantiation (`offset x` /
+  `target x` / `2·edgeCount x`). D4's "root input DATA" ruling is
+  thereby wrong at the C0 boundary, where the input predicate is
+  `EncodesGraph` alone. Repair: a dedup guard between decode and the
+  first level — `driverRoot = decodeCom ; driverAt 0 ; sentenceCom`
+  and `driver_correct`'s decode slot is already a hypothesis, so the
+  splice is a new root text + a composed `DecodeImplements` (mark/
+  collect/unmark per row, trail-pattern cost `O(n + ns)`, the P0.4
+  acceptance covers the shape) + a `CsrSimple`-of-dedup lemma; one
+  satellite wave.
+
+  **(G2, found on the way, outranks G1) the landed cost interface has
+  a compiled `Ω(n·W)` floor, and the C0 path pins `W ≥ n² + 1`.**
+  `C0Probe.level_interface_floor`: from `driverRoot_decides_sentence`'s
+  `hKs` (#20), `hKo` (#22), `hKl` (#27) **verbatim**, every admissible
+  `Kl` at `ℓ ≥ 2` pays `n·(60·W + 1600·n) ≤ Kl 0 n` — `hKo` charges
+  `orderPhaseCost n ns W` at every arena including the empty one (the
+  R1.6 touched-only debt, named open in `levelCost_of_sigma`'s own
+  docstring), `turnCost` carries `Kin` additively, and `hKl` runs up
+  to `n` turns. So even at `W = ns` the floor is `1600·n²` — already
+  over C0's budget for every `ε < 1` on sparse members. And the C0
+  path cannot run at `W = ns`: the mass bound needs `R = R* > 0`
+  (integration-design §2.3, compiled), `orderImplementsR`'s `hWc` pins
+  `chainWidth n d D₁ R ≤ W`, and `chainWidth` carries an `n·n` term
+  for the level's own graph ⇒ `60·n³ ≤ Kl 0 n`
+  (`level_interface_floor_cubic`). Teeth: two `#guard`s beat the
+  `ε = 1` and `ε = 1/2` budgets at generous constants on sparse
+  instances; the quantifier order (c before n) finishes. The floor is
+  also a *program* floor (paper half, F1's precedent): `orderCom R W j`
+  opens with `saveCsr` copying `.lit W` cells at every level entry,
+  up to `n` entries per depth. §2.4's "yes" verdict assumed R1.6's
+  block-driven nested phases, which never landed in the cost surface.
+  Repairs (owner decisions, in order of the money): (i) R1.6/R1.8
+  honestly — nested order/cover/base phases charged at the arena
+  (tower re-derivations + interface re-thread of `hKo`/`hKc`/`hKd`/
+  `hKbase` to size-read forms); (ii) live-width save/restore + a
+  degree-aware `chainWidth` (drop the `n·n` term against the chain's
+  budget; the symmetrized round is degree-bounded by `arcs_le`) so `W`
+  enters at `O(n·budget²)` and is copied only at its live prefix;
+  (iii) fallback checkpoint per the plan's hard clause — noting the
+  frozen old-style wave inherits the same floors.
+
+  **Not done, deliberately**: `levelAtR`/`driverRoot_decides_sentenceR`
+  (the general-`R` restatement) and the `Solves`/`computesInTime_of_solves`
+  bridge scaffolding — both reshape under (i)/(ii), so landing them now
+  is certain rework; the F-c-5 `hdeg` composition note stands unchanged
+  for whoever re-runs B7 after the repair waves. C0's concept axiom
+  stays an axiom; P5 is blocked behind the two repairs + a re-run B7.
