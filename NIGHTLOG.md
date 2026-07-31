@@ -3565,3 +3565,27 @@ Next: Jan decisions — bridge/prologue seam probe first (last unprobed
 seam), optional provisional P5 draft (citable core discharged, C0 as
 open obligation); then resume at E-mem (brief re-issue from wrap
 section pointers).
+
+## Session 23 — 2026-07-31 (tower expansion P0, Codex)
+
+Milestone: tower-expansion P0 complete; Codex-only governance recorded.
+Commit: this session's P0 record commit on `worktree-tower-expansion-p0`.
+State: the existing 69-file / 47,054-line `Lax13Proofs/Refine/` tree was
+diffed against the pinned source graphs and every unported component was
+assigned to P1–P8 or given an explicit rule-4 exclusion. Deliverables:
+`plans/word-ram/tower-expansion/{port-map,ledger,debt-register}.md`.
+Pins for the two LLVM artifacts, Sepreftime, and Imperative_HOL_Time
+were reverified upstream. P0 corrected four planning assumptions: there
+is no source currency-vector FOREACH (P2 is an authored, source-shaped
+adaptation); the primary artifact's IICF is dead/no-cost (P5 is cost
+adaptation); introsort is the primary currency exemplar while timed
+Kruskal/union-find live in Sepreftime; hash maps are excluded until the
+cost calculus has an honest randomized story. The 52-row debt register
+distinguishes actual opens from ND-MC readiness work already landed
+(dependent hfcomp, unfueled loops, recursive trail acceptance, scaling
+telemetry). Jan's instruction "we only use codex, not claude" supersedes
+the plan's non-Codex fallback: Codex supervises and GPT-5.6-Sol via
+`codex exec` is the only worker path. Documentation-only phase; no Lean
+or build changes.
+Next: P1.A half-size Sol calibration — `to_hnr`/`to_hfref`, `comp_PRE`,
+FCOMP, and dependent-composition flattening.

@@ -1,25 +1,24 @@
 # Tower expansion plan — aggressive porting of the remaining refinement stack
 
-Rev 2, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
+Rev 3, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
-by the supervisor under that grant. P0 starts next session and does not
-pause for review.** This document is the contract: implementing sessions
-follow it, deviations need an owner decision first.
+by the supervisor under that grant. Codex-only governance confirmed by
+Jan 2026-07-31; P0 complete, P1 next.** This document is the contract:
+implementing sessions follow it, deviations need an owner decision first.
 
-**Working model** (revised at acceptance — Jan, 2026-07-31: "instead of
-opus workers, i would like to try openai sol. fable as alternative still
-stays"): Fable supervises — plan, sequencing, review, acceptance calls,
-commits. Proof workers are **OpenAI GPT-5.6-Sol**, dispatched
+**Working model** (revised by Jan, 2026-07-31: "we only use codex, not
+claude"): Codex supervises — plan, sequencing, review, acceptance calls,
+and commits. Proof workers are **OpenAI GPT-5.6-Sol**, dispatched
 non-interactively via `codex exec` (codex-cli 0.145.0, installed and
 authenticated on this machine; `~/.codex/config.toml` defaults to
 `gpt-5.6-sol` at high reasoning effort), each in its own seeded worktree
 with a brief instantiated from `plans/worker-brief-template.md` — briefs
 are model-agnostic and the template's required sections never drop.
-**Fable remains the alternative for the hardest waves** (fresh agents
-with a brief, never forks). Supervisor review and the build/lax/axiom
-gates are unchanged: a worker's "green" is not evidence until the
-supervisor's build runs. **The first Sol wave of P1 is a calibration
-wave** — half-size scope, full review; Sol-specific brief needs (tool
+No Claude client or model is an authorized fallback; hard waves stay in
+Codex and are narrowed or re-briefed there. Supervisor review and the
+build/lax/axiom gates are unchanged: a worker's "green" is not evidence
+until the supervisor's build runs. **The first Sol wave of P1 is a
+calibration wave** — half-size scope, full review; Sol-specific brief needs (tool
 habits, permission/sandbox flags for `codex exec` in a worktree, failure
 legibility) are recorded in the retro file and folded into the template
 before Sol waves run at full width. Scope is **proofs-only**:
@@ -369,14 +368,34 @@ repair enters as a tower wave under this plan (the T1/T2 precedent).
 
 ## Progress log
 
+- **2026-07-31 — Rev 3 / P0 COMPLETE; CODEX-ONLY.** Jan: "we only use
+  codex, not claude." The active working model and README are amended:
+  Codex supervises and GPT-5.6-Sol via `codex exec` is the only worker
+  path; the earlier non-Codex hard-wave fallback is withdrawn. P0 lands
+  `tower-expansion/{port-map,ledger,debt-register}.md`: the 69-file /
+  47,054-line baseline reconciled against the pinned theory graphs; pins
+  for `isabelle_llvm_time`, `isabelle_llvm`, Sepreftime, and
+  Imperative_HOL_Time verified upstream; every unported component assigned
+  to a wave or an argued exclusion. Findings that bind later phases:
+  no source has currency-vector FOREACH (E5, authored adaptation); the
+  primary artifact's IICF is dead/no-cost (E7, P5 is cost adaptation);
+  introsort is P3's native exemplar and Sepreftime supplies timed
+  Kruskal/union-find (E6); deterministic hash maps are excluded on cost
+  honesty grounds (E9). The debt register carries 52 individually owned
+  rows, including closed/verify dispositions for dependent `hfcomp`, the
+  unfueled loop rule, recursive trail acceptance, and the scaling probe.
+  No Lean changed and no build was required. **Next: P1.A, the half-size
+  GPT-5.6-Sol calibration wave (`to_hnr`/`to_hfref`, `comp_PRE`, FCOMP,
+  dependent-composition flattening).**
+
 - **2026-07-31 — Rev 2: ACCEPTED.** Jan: full autonomy carries over,
   flags resolved by supervisor taste (dispositions recorded above), and
   the worker model changes — proof workers are **GPT-5.6-Sol via
   `codex exec`** (verified installed and authenticated, codex-cli
-  0.145.0, default model `gpt-5.6-sol`), with Fable staying the
-  alternative for the hardest waves; Opus workers are retired for this
-  campaign. First Sol wave in P1 is a half-size calibration wave. P0 is
-  unblocked and starts next session.
+  0.145.0, default model `gpt-5.6-sol`). Rev 2 retained a non-Codex
+  alternative for the hardest waves; Rev 3 withdraws it. First Sol wave
+  in P1 is a half-size calibration wave. P0 is unblocked and starts next
+  session.
 
 - **2026-07-31 — Rev 1 authored** (this session), from: the ND-MC C0
   blocker analysis (compiled floors, THE SEAM, R1.6), the tower
