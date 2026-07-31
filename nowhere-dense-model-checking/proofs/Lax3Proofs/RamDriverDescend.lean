@@ -257,7 +257,8 @@ theorem levelPre_congr (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (hr : Run
     h.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.1,
     levelMem_run hr h.2.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2.2.1.run hr,
     by rw [hm]; exact h.2.2.2.2.2.2.2.2.2.2.2.1,
-    orderMem_congr h.2.2.2.2.2.2.2.2.2.2.2.2 hr hz⟩
+    orderMem_congr h.2.2.2.2.2.2.2.2.2.2.2.2.1 hr hz,
+    h.2.2.2.2.2.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2.2.2.2.2.2⟩
 
 variable {G : SimpleGraph (Fin n)} {π : Equiv.Perm (Fin n)} {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ}
 
@@ -732,7 +733,7 @@ the join. -/
 
 section Expand
 
-variable {ns : ℕ} {G : SimpleGraph (Fin n)} {O T Msk Src : ℕ → ℕ} {msk src dst : String}
+variable {ns nt : ℕ} {G : SimpleGraph (Fin n)} {O T Msk Src : ℕ → ℕ} {msk src dst : String}
 
 /-- **A dead vertex is not expanded into.** The step's conditional is
 skipped there and the source's own cell stands, which is what
@@ -746,28 +747,29 @@ theorem expandVal_of_dead {z : ℕ} (h : Msk z = 0) : expandVal G Msk Src z = Sr
 
 /-- The block structure of a depth, as the reasoning kit's relation. -/
 theorem csr_of_expandInv {σ : Env} (hcsr : CsrGraph G ns O T)
-    (h : ExpandInv n ns G O T Msk Src msk src dst σ) :
-    Csr "off" "tgt" n ns n O T σ :=
-  ⟨h.2.2.1, h.2.2.2.1, fun i hi => hcsr.mono i hi, hcsr.last,
+    (h : ExpandInv n ns nt G O T Msk Src msk src dst σ) :
+    CsrWide.CsrW "off" "tgt" n ns nt n O T σ :=
+  ⟨h.2.2.1, h.2.2.2.1, fun i hi => hcsr.mono i hi, hcsr.last, h.2.2.2.2.1,
     fun p hp => hcsr.target_lt p hp⟩
 
 /-- The pass's state does not see the three scalars the scan moves. -/
-theorem expandInv_congr {σ σ' : Env} (h : ExpandInv n ns G O T Msk Src msk src dst σ)
+theorem expandInv_congr {σ σ' : Env} (h : ExpandInv n ns nt G O T Msk Src msk src dst σ)
     (hz : σ'.vars "z" = σ.vars "z") (hn : σ'.vars "n" = σ.vars "n")
     (ha : ∀ a : String, σ'.arrs a = σ.arrs a) :
-    ExpandInv n ns G O T Msk Src msk src dst σ' :=
+    ExpandInv n ns nt G O T Msk Src msk src dst σ' :=
   ⟨h.1.of_eq (ha dst) hz, by rw [hn]; exact h.2.1, by rw [ha]; exact h.2.2.1,
-    by rw [ha]; exact h.2.2.2.1, by rw [ha]; exact h.2.2.2.2.1, by rw [ha]; exact h.2.2.2.2.2⟩
+    by rw [ha]; exact h.2.2.2.1, h.2.2.2.2.1, by rw [ha]; exact h.2.2.2.2.2.1,
+    by rw [ha]; exact h.2.2.2.2.2.2⟩
 
 /-- **One slot of the block.** The hit flag rises exactly when the slot
 names a live marked vertex, which is the one turn `Csr.rowScan_spec`
 asks for. -/
 theorem expandSlot_step {B z : ℕ} (hcsr : CsrGraph G ns O T) (hB : 1 < B) (hnB : n < B)
     (hnsB : ns < B) (hMB : ∀ k, k < n → Msk k < B) (hSB : ∀ k, k < n → Src k < B)
-    (hzn : z < n) (σ : Env) (hI : ScanHit n ns G O T Msk Src msk src dst z σ)
+    (hzn : z < n) (σ : Env) (hI : ScanHit n ns nt G O T Msk Src msk src dst z σ)
     (hj : σ.vars "j" < O (z + 1)) :
     ∃ σ' K', Run B (expandSlot msk src) σ σ' K' ∧
-      ScanHit n ns G O T Msk Src msk src dst z σ' ∧ σ'.vars "j" = σ.vars "j" + 1 ∧ K' ≤ 20 := by
+      ScanHit n ns nt G O T Msk Src msk src dst z σ' ∧ σ'.vars "j" = σ.vars "j" + 1 ∧ K' ≤ 20 := by
   classical
   obtain ⟨hinv, hzv, hjend, hjlo, -, hhit⟩ := hI
   have hcsrRel := csr_of_expandInv hcsr hinv
@@ -775,7 +777,8 @@ theorem expandSlot_step {B z : ℕ} (hcsr : CsrGraph G ns O T) (hB : 1 < B) (hnB
   have hjB : σ.vars "j" < B := by omega
   have hTn : T (σ.vars "j") < n := hcsr.target_lt _ hjns
   have hslot : (Expr.get "tgt" (.var "j")).evalB B σ = some (T (σ.vars "j")) :=
-    evalB_get (evalB_var hjB) (by rw [hinv.2.2.2.1, getElem?_arrOf T hjns]) (by omega)
+    evalB_get (evalB_var hjB)
+      (by rw [hinv.2.2.2.1, getElem?_arrOf T (lt_of_lt_of_le hjns hinv.2.2.2.2.1)]) (by omega)
   set τ := σ.setVar "w" (T (σ.vars "j")) with hτ
   have hrw : Run B (.assign "w" (.get "tgt" (.var "j"))) σ τ 3 :=
     (Run.assign hslot).mono (by simp)
@@ -784,12 +787,12 @@ theorem expandSlot_step {B z : ℕ} (hcsr : CsrGraph G ns O T) (hB : 1 < B) (hnB
       some (decide (0 < Msk (T (σ.vars "j")))) :=
     evalB_condLt (evalB_lit (by omega))
       (evalB_get (evalB_var (by rw [hwv]; omega))
-        (by rw [hτ, arrs_setVar, hinv.2.2.2.2.1, hwv, getElem?_arrOf Msk hTn]) (hMB _ hTn))
+        (by rw [hτ, arrs_setVar, hinv.2.2.2.2.2.1, hwv, getElem?_arrOf Msk hTn]) (hMB _ hTn))
   have hcsrc : (Cond.lt (.lit 0) (.get src (.var "w"))).evalB B τ =
       some (decide (0 < Src (T (σ.vars "j")))) :=
     evalB_condLt (evalB_lit (by omega))
       (evalB_get (evalB_var (by rw [hwv]; omega))
-        (by rw [hτ, arrs_setVar, hinv.2.2.2.2.2, hwv, getElem?_arrOf Src hTn]) (hSB _ hTn))
+        (by rw [hτ, arrs_setVar, hinv.2.2.2.2.2.2, hwv, getElem?_arrOf Src hTn]) (hSB _ hTn))
   -- the hit flag after the two tests, in either shape
   have hstepGen : ∀ (ρ : Env) (Kb : ℕ), Run B
         (.ite (.lt (.lit 0) (.get msk (.var "w")))
@@ -854,9 +857,9 @@ one when a live neighbour is marked: the block scan decides which, and
 theorem expandStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hB : 1 < B) (hnB : n < B)
     (hnsB : ns < B) (hMB : ∀ k, k < n → Msk k < B) (hSB : ∀ k, k < n → Src k < B)
     (hdm : dst ≠ msk) (hds : dst ≠ src) (hdo : dst ≠ "off") (hdt : dst ≠ "tgt") :
-    Spec B (fun σ => ExpandInv n ns G O T Msk Src msk src dst σ ∧ σ.vars "z" < n)
+    Spec B (fun σ => ExpandInv n ns nt G O T Msk Src msk src dst σ ∧ σ.vars "z" < n)
       (expandStep msk src dst)
-      (fun σ σ' => ExpandInv n ns G O T Msk Src msk src dst σ' ∧ σ'.vars "z" = σ.vars "z" + 1)
+      (fun σ σ' => ExpandInv n ns nt G O T Msk Src msk src dst σ' ∧ σ'.vars "z" = σ.vars "z" + 1)
       (24 * ns + 40) := by
   classical
   refine Spec.of_exists (fun σ hσ => ?_)
@@ -867,34 +870,35 @@ theorem expandStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hB : 1 < B) (hnB :
   have hr₁ : Run B (.assign "hit" (.get src (.var "z"))) σ
       (σ.setVar "hit" (Src (σ.vars "z"))) 3 :=
     (Run.assign (evalB_get (evalB_var hzB)
-      (by rw [hinv.2.2.2.2.2, getElem?_arrOf Src hz]) hSz)).mono (by simp)
+      (by rw [hinv.2.2.2.2.2.2, getElem?_arrOf Src hz]) hSz)).mono (by simp)
   set σ₁ := σ.setVar "hit" (Src (σ.vars "z")) with hσ₁
   have hz₁ : σ₁.vars "z" = σ.vars "z" := by rw [hσ₁]; simp
   have hhit₁ : σ₁.vars "hit" = Src (σ.vars "z") := by rw [hσ₁]; simp
-  have hinv₁ : ExpandInv n ns G O T Msk Src msk src dst σ₁ :=
+  have hinv₁ : ExpandInv n ns nt G O T Msk Src msk src dst σ₁ :=
     expandInv_congr hinv hz₁ (by rw [hσ₁]; simp) (fun a => by rw [hσ₁]; simp)
   have hcond : (Cond.lt (.lit 0) (.get msk (.var "z"))).evalB B σ₁ =
       some (decide (0 < Msk (σ.vars "z"))) :=
     evalB_condLt (evalB_lit (by omega))
       (evalB_get (evalB_var (by rw [hz₁]; omega))
-        (by rw [hinv₁.2.2.2.2.1, hz₁, getElem?_arrOf Msk hz]) (hMB _ hz))
+        (by rw [hinv₁.2.2.2.2.2.1, hz₁, getElem?_arrOf Msk hz]) (hMB _ hz))
   -- the conditional: a live vertex scans its block, a dead one does not
   have key : ∃ σ₂ K₂, Run B (.ite (.lt (.lit 0) (.get msk (.var "z")))
         (.seq (Csr.loadRow "off" "z" "j" "jend") (Csr.scan "j" "jend" (expandSlot msk src)))
         .skip) σ₁ σ₂ K₂ ∧ K₂ ≤ 24 * ns + 17 ∧
-      ExpandInv n ns G O T Msk Src msk src dst σ₂ ∧ σ₂.vars "z" = σ.vars "z" ∧
+      ExpandInv n ns nt G O T Msk Src msk src dst σ₂ ∧ σ₂.vars "z" = σ.vars "z" ∧
       σ₂.vars "hit" = expandVal G Msk Src (σ.vars "z") := by
     by_cases hm : Msk (σ.vars "z") = 0
     · exact ⟨σ₁, 6, Run.ite_false (by rw [hcond, hm]; simp) Run.skip, by omega, hinv₁, hz₁,
         by rw [hhit₁, expandVal_of_dead hm]⟩
     · obtain ⟨σ₂, hr₂, hcsr₂, hj₂, hjend₂, hst₂⟩ :=
-        (Csr.loadRow_spec B n ns n "off" "tgt" "z" "j" "jend" O T (by decide) (by decide)).run
+        (CsrWide.loadRow_spec B n ns nt n "off" "tgt" "z" "j" "jend" O T
+            (by decide) (by decide)).run
           (σ := σ₁) ⟨⟨csr_of_expandInv hcsr hinv₁, by omega, hnsB⟩,
             by rw [hz₁]; exact hz, by rw [hz₁]; omega⟩
       rw [hz₁] at hj₂ hjend₂
       have hzz : σ₂.vars "z" = σ.vars "z" := by rw [hst₂]; simp [hz₁]
       have hhit₂ : σ₂.vars "hit" = Src (σ.vars "z") := by rw [hst₂]; simp [hhit₁]
-      have hinv₂ : ExpandInv n ns G O T Msk Src msk src dst σ₂ :=
+      have hinv₂ : ExpandInv n ns nt G O T Msk Src msk src dst σ₂ :=
         expandInv_congr hinv₁ (by rw [hst₂]; simp) (by rw [hst₂]; simp)
           (fun a => by rw [hst₂]; simp)
       have hrow : O (σ.vars "z" + 1) ≤ ns := (csr_of_expandInv hcsr hinv).row_le hz
@@ -906,12 +910,12 @@ theorem expandStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hB : 1 < B) (hnB :
         rintro ⟨p, h₁, h₂, -⟩
         rw [hj₂] at h₂
         omega
-      have hI₂ : ScanHit n ns G O T Msk Src msk src dst (σ.vars "z") σ₂ :=
+      have hI₂ : ScanHit n ns nt G O T Msk Src msk src dst (σ.vars "z") σ₂ :=
         ⟨hinv₂, hzz, hjend₂, by omega, by omega, hclause⟩
       obtain ⟨σ₃, hr₃, hI₃, hj₃⟩ :=
         (Csr.rowScan_spec B (24 * ns + 4) (O (σ.vars "z" + 1)) 20 "j" "jend"
-          (expandSlot msk src) (P := ScanHit n ns G O T Msk Src msk src dst (σ.vars "z"))
-          (ScanHit n ns G O T Msk Src msk src dst (σ.vars "z")) (by omega)
+          (expandSlot msk src) (P := ScanHit n ns nt G O T Msk Src msk src dst (σ.vars "z"))
+          (ScanHit n ns nt G O T Msk Src msk src dst (σ.vars "z")) (by omega)
           (fun ρ hρ => ⟨hρ.2.2.1, hρ.2.2.2.2.1⟩)
           (fun ρ hρ hjlt => expandSlot_step hcsr hB hnB hnsB hMB hSB hz ρ hρ hjlt)
           (fun _ hρ => hρ)
@@ -935,42 +939,44 @@ theorem expandStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hB : 1 < B) (hnB :
     3 + (K₂ + (3 + 4)), (hr₁.seq (hr₂.seq
       ((Run.store (evalB_var (by rw [hzz]; omega)) (evalB_var (by rw [hhit₂]; exact hval)) hdlen).seq
         (Run.assign (evalB_bin (evalB_var (by simp [hzz]; omega)) (evalB_lit (by omega))
-          (by simp [hzz]; omega)))))), by omega, ⟨?_, ?_, ?_, ?_, ?_, ?_⟩, by simp [hzz]⟩
+          (by simp [hzz]; omega)))))), by omega, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, by simp [hzz]⟩
   · exact hinv₂.1.step (by rw [hzz]; exact hz) (by rw [hhit₂, hzz])
   · simp only [vars_setVar, if_neg (by decide : ¬ ("n" = "z")), vars_setArr]
     exact hinv₂.2.1
   · rw [arrs_setVar, arrs_setArr, if_neg (Ne.symm hdo)]; exact hinv₂.2.2.1
   · rw [arrs_setVar, arrs_setArr, if_neg (Ne.symm hdt)]; exact hinv₂.2.2.2.1
-  · rw [arrs_setVar, arrs_setArr, if_neg (Ne.symm hdm)]; exact hinv₂.2.2.2.2.1
-  · rw [arrs_setVar, arrs_setArr, if_neg (Ne.symm hds)]; exact hinv₂.2.2.2.2.2
+  · exact hinv₂.2.2.2.2.1
+  · rw [arrs_setVar, arrs_setArr, if_neg (Ne.symm hdm)]; exact hinv₂.2.2.2.2.2.1
+  · rw [arrs_setVar, arrs_setArr, if_neg (Ne.symm hds)]; exact hinv₂.2.2.2.2.2.2
 
 /-- **One expansion pass, discharged.** The destination holds
 `RamDriverCluster.expandVal` at every vertex of the carrier — so, by
 `markSet_expandVal`, it marks one neighbourhood step of what the source
 marks — and everything the pass reads comes back. -/
 theorem expandCom_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hB : 1 < B) (hnB : n < B)
-    (hnsB : ns < B) (hMB : ∀ k, k < n → Msk k < B) (hSB : ∀ k, k < n → Src k < B)
+    (hnsB : ns < B) (hnt : ns ≤ nt) (hMB : ∀ k, k < n → Msk k < B)
+    (hSB : ∀ k, k < n → Src k < B)
     (hdm : dst ≠ msk) (hds : dst ≠ src) (hdo : dst ≠ "off") (hdt : dst ≠ "tgt") :
     Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧
-        σ.arrs "tgt" = arrOf ns T ∧ σ.arrs msk = arrOf n Msk ∧ σ.arrs src = arrOf n Src ∧
+        σ.arrs "tgt" = arrOf nt T ∧ σ.arrs msk = arrOf n Msk ∧ σ.arrs src = arrOf n Src ∧
         (∃ g, σ.arrs dst = arrOf n g))
       (expandCom msk src dst)
       (fun _ σ' => (∃ g, σ'.arrs dst = arrOf n g ∧
           ∀ k, k < n → g k = expandVal G Msk Src k) ∧
         σ'.vars "z" = n ∧ σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧
-        σ'.arrs "tgt" = arrOf ns T ∧ σ'.arrs msk = arrOf n Msk ∧ σ'.arrs src = arrOf n Src)
+        σ'.arrs "tgt" = arrOf nt T ∧ σ'.arrs msk = arrOf n Msk ∧ σ'.arrs src = arrOf n Src)
       ((24 * ns + 44) * n + 6) := by
-  refine ((Spec.forRangeZero (B := B) "z" "n" (ExpandInv n ns G O T Msk Src msk src dst) n
+  refine ((Spec.forRangeZero (B := B) "z" "n" (ExpandInv n ns nt G O T Msk Src msk src dst) n
     (24 * ns + 40) hnB (fun τ hτ => hτ.1.le) (fun τ hτ => hτ.2.1)
     (expandStep_spec hcsr hB hnB hnsB hMB hSB hdm hds hdo hdt)).pre ?_).post ?_ |>.mono
       (by ring_nf; omega)
   · rintro σ ⟨hn, hoff, htgt, hmsk, hsrc, g, hdst⟩
     exact ⟨Fill.below_zero (by rw [arrs_setVar]; exact hdst) (by simp),
-      by simpa using hn, by simpa using hoff, by simpa using htgt, by simpa using hmsk,
+      by simpa using hn, by simpa using hoff, by simpa using htgt, hnt, by simpa using hmsk,
       by simpa using hsrc⟩
   · rintro σ σ' - ⟨hinv, hz⟩
-    exact ⟨hinv.1.done hz, hz, hinv.2.1, hinv.2.2.1, hinv.2.2.2.1, hinv.2.2.2.2.1,
-      hinv.2.2.2.2.2⟩
+    exact ⟨hinv.1.done hz, hz, hinv.2.1, hinv.2.2.1, hinv.2.2.2.1, hinv.2.2.2.2.2.1,
+      hinv.2.2.2.2.2.2⟩
 
 /-! ### The chain
 
@@ -1026,16 +1032,16 @@ products need of the ball: `RamDriver.descendCom`'s
 mask by the ball, and a ball whose cells were merely words would put that
 product above the word bound and leave the pass with no run at all. -/
 theorem chainCom_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hB : 1 < B) (hnB : n < B)
-    (hnsB : ns < B) (hMB : ∀ k, k < n → Msk k < B) :
+    (hnsB : ns < B) (hnt : ns ≤ nt) (hMB : ∀ k, k < n → Msk k < B) :
     ∀ (r : ℕ) (nm : ℕ → String) (Sr : ℕ → ℕ), (∀ a, nm a ≠ nm (a + 1)) → (∀ a, nm a ≠ msk) →
       (∀ a, nm a ≠ "off") → (∀ a, nm a ≠ "tgt") → (∀ k, k < n → Sr k ≤ 1) →
       Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧
-          σ.arrs "tgt" = arrOf ns T ∧ σ.arrs msk = arrOf n Msk ∧
+          σ.arrs "tgt" = arrOf nt T ∧ σ.arrs msk = arrOf n Msk ∧
           σ.arrs (nm 0) = arrOf n Sr ∧ (∀ a, 0 < a → a ≤ r → ∃ g, σ.arrs (nm a) = arrOf n g))
         (chainCom msk nm r)
         (fun _ σ' => (∃ g, σ'.arrs (nm r) = arrOf n g ∧ (∀ k, k < n → g k ≤ 1) ∧
             markSet n g = ballOf (masked G Msk) r (markSet n Sr)) ∧
-          σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf ns T ∧
+          σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf nt T ∧
           σ'.arrs msk = arrOf n Msk)
         (((24 * ns + 44) * n + 6) * r + 1) := by
   intro r
@@ -1053,7 +1059,7 @@ theorem chainCom_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hB : 1 < B) (hnB : n
     obtain ⟨g₁, hg₁⟩ := hmem 1 (by omega) (by omega)
     have hSB' : ∀ k, k < n → Sr k < B := fun k hk => lt_of_le_of_lt (hSB k hk) hB
     obtain ⟨σ₁, hr₁, ⟨g, hgarr, hgval⟩, -, hn₁, hoff₁, htgt₁, hmsk₁, hsrc₁⟩ :=
-      (expandCom_spec (dst := nm 1) (src := nm 0) hcsr hB hnB hnsB hMB hSB' (hmk 1)
+      (expandCom_spec (dst := nm 1) (src := nm 0) hcsr hB hnB hnsB hnt hMB hSB' (hmk 1)
         (Ne.symm (hne 0)) (hof 1) (htg 1)).run ⟨hn, hoff, htgt, hmskA, hsrc, g₁, hg₁⟩
     have hgB : ∀ k, k < n → g k ≤ 1 := by
       intro k hk
@@ -1262,7 +1268,7 @@ there when the chain ends, and that they are bits. -/
 
 section Stages
 
-variable {ns : ℕ} {G : SimpleGraph (Fin n)} {O T Msk : ℕ → ℕ} {msk : String}
+variable {ns nt : ℕ} {G : SimpleGraph (Fin n)} {O T Msk : ℕ → ℕ} {msk : String}
 
 /-- **The chain of expansions, every stage at once.** With the names of
 the family pairwise distinct, `nm a` marks the `a`-neighbourhood of what
@@ -1270,18 +1276,18 @@ the family pairwise distinct, `nm a` marks the `a`-neighbourhood of what
 bit array stays one, since one expansion writes either `1` or the
 source's own cell. -/
 theorem chainCom_stages {B : ℕ} (hcsr : CsrGraph G ns O T) (hB : 1 < B) (hnB : n < B)
-    (hnsB : ns < B) (hMB : ∀ k, k < n → Msk k < B) :
+    (hnsB : ns < B) (hnt : ns ≤ nt) (hMB : ∀ k, k < n → Msk k < B) :
     ∀ (r : ℕ) (nm : ℕ → String) (Sr : ℕ → ℕ),
       (∀ a b, a ≤ r → b ≤ r → a ≠ b → nm a ≠ nm b) → (∀ a, a ≤ r → nm a ≠ msk) →
       (∀ a, a ≤ r → nm a ≠ "off") → (∀ a, a ≤ r → nm a ≠ "tgt") →
       (∀ k, k < n → Sr k ≤ 1) →
       Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧
-          σ.arrs "tgt" = arrOf ns T ∧ σ.arrs msk = arrOf n Msk ∧
+          σ.arrs "tgt" = arrOf nt T ∧ σ.arrs msk = arrOf n Msk ∧
           σ.arrs (nm 0) = arrOf n Sr ∧ (∀ a, 0 < a → a ≤ r → ∃ g, σ.arrs (nm a) = arrOf n g))
         (chainCom msk nm r)
         (fun _ σ' => (∀ a, a ≤ r → ∃ g, σ'.arrs (nm a) = arrOf n g ∧ (∀ k, k < n → g k ≤ 1) ∧
             markSet n g = ballOf (masked G Msk) a (markSet n Sr)) ∧
-          σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf ns T ∧
+          σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf nt T ∧
           σ'.arrs msk = arrOf n Msk)
         (((24 * ns + 44) * n + 6) * r + 1) := by
   intro r
@@ -1302,7 +1308,7 @@ theorem chainCom_stages {B : ℕ} (hcsr : CsrGraph G ns O T) (hB : 1 < B) (hnB :
     have hSB' : ∀ k, k < n → Sr k < B := fun k hk => lt_of_le_of_lt (hSB k hk) hB
     obtain ⟨g₁, hg₁⟩ := hmem 1 (by omega) (by omega)
     obtain ⟨σ₁, hr₁, ⟨⟨g, hgarr, hgval⟩, -, hn₁, hoff₁, htgt₁, hmsk₁, hsrc₁⟩, -, -, -, -⟩ :=
-      ((expandCom_spec (dst := nm 1) (src := nm 0) hcsr hB hnB hnsB hMB hSB'
+      ((expandCom_spec (dst := nm 1) (src := nm 0) hcsr hB hnB hnsB hnt hMB hSB'
         (hmk 1 (by omega)) (Ne.symm (hne 0 1 (by omega) (by omega) (by omega)))
         (hof 1 (by omega)) (htg 1 (by omega))).frame).run ⟨hn, hoff, htgt, hmskA, hsrc, g₁, hg₁⟩
     have hgbit : ∀ k, k < n → g k ≤ 1 := by
@@ -1394,7 +1400,7 @@ by a store followed by `chainCom_stages`, and `copyCom_spec` followed by
 
 section Colour
 
-variable {B cap mb ns j : ℕ} {G : SimpleGraph (Fin n)} {O T C' : ℕ → ℕ} {C : ℕ → ℕ → ℕ}
+variable {B cap mb ns nt j : ℕ} {G : SimpleGraph (Fin n)} {O T C' : ℕ → ℕ} {C : ℕ → ℕ → ℕ}
   {Xa Ra Wf : ℕ → ℕ}
 
 /-- The arrays the three families write, off their syntax. -/
@@ -1434,9 +1440,9 @@ palette, the cluster indicator the old slots are cut by and the
 cluster-restricted mask the two chains run in, the padded enumeration
 the batch profiles are centred at, and the memory of the palette being
 written. -/
-def ColPre (n cap mb ns j : ℕ) (O T : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (Xa Ra Wf : ℕ → ℕ)
+def ColPre (n cap mb nt j : ℕ) (O T : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (Xa Ra Wf : ℕ → ℕ)
     (σ : Env) : Prop :=
-  σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+  σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf nt T ∧
     σ.arrs (cluName j) = arrOf n Xa ∧ σ.arrs (resName j) = arrOf n Ra ∧
     (∀ c, c < sigL cap mb j → σ.arrs (colName j c) = arrOf n (C c)) ∧
     σ.arrs "wa" = arrOf mb Wf ∧
@@ -1446,9 +1452,9 @@ def ColPre (n cap mb ns j : ℕ) (O T : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (
 colours of the next depth alone and none of the arrays it names is
 one. -/
 theorem colPre_run {K : ℕ} {c : Com} {σ σ' : Env}
-    (h : ColPre n cap mb ns j O T C Xa Ra Wf σ) (hr : Run B c σ σ' K)
+    (h : ColPre n cap mb nt j O T C Xa Ra Wf σ) (hr : Run B c σ σ' K)
     (hw : ∀ a ∈ c.warrs, ∃ s, a = colName (j + 1) s) (hn : σ'.vars "n" = σ.vars "n") :
-    ColPre n cap mb ns j O T C Xa Ra Wf σ' := by
+    ColPre n cap mb nt j O T C Xa Ra Wf σ' := by
   have key : ∀ a : String, (∀ s, a ≠ colName (j + 1) s) → σ'.arrs a = σ.arrs a := by
     intro a ha
     refine hr.frame_arr a (fun hc => ?_)
@@ -1475,9 +1481,9 @@ theorem markSet_mul {f g : ℕ → ℕ} : markSet n (fun k => f k * g k) = markS
 theorem oldBody_spec (hB : WordBound B n ns cap mb)
     (hCbit : ∀ c, c < sigL cap mb j → ∀ v, v < n → C c v ≤ 1)
     (hXbit : ∀ v, v < n → Xa v ≤ 1) {c : ℕ} (hc : c < sigL cap mb j) :
-    Spec B (ColPre n cap mb ns j O T C Xa Ra Wf)
+    Spec B (ColPre n cap mb nt j O T C Xa Ra Wf)
       (andCom (colName j c) (cluName j) (colName (j + 1) (oldIdx cap mb j c)))
-      (fun _ σ' => ColPre n cap mb ns j O T C Xa Ra Wf σ' ∧
+      (fun _ σ' => ColPre n cap mb nt j O T C Xa Ra Wf σ' ∧
         ∃ g, σ'.arrs (colName (j + 1) (oldIdx cap mb j c)) = arrOf n g ∧
           (∀ v, v < n → g v ≤ 1) ∧ markSet n g = markSet n (C c) ∩ markSet n Xa)
       (15 * n + 6) := by
@@ -1516,9 +1522,9 @@ theorem oldBody_spec (hB : WordBound B n ns cap mb)
 
 /-- **The marker slot.** The cluster itself. -/
 theorem oldLast_spec (hB : WordBound B n ns cap mb) (hXbit : ∀ v, v < n → Xa v ≤ 1) :
-    Spec B (ColPre n cap mb ns j O T C Xa Ra Wf)
+    Spec B (ColPre n cap mb nt j O T C Xa Ra Wf)
       (copyCom (cluName j) (colName (j + 1) (oldIdx cap mb j (sigL cap mb j))))
-      (fun _ σ' => ColPre n cap mb ns j O T C Xa Ra Wf σ' ∧
+      (fun _ σ' => ColPre n cap mb nt j O T C Xa Ra Wf σ' ∧
         ∃ g, σ'.arrs (colName (j + 1) (oldIdx cap mb j (sigL cap mb j))) = arrOf n g ∧
           (∀ v, v < n → g v ≤ 1) ∧ markSet n g = markSet n Xa)
       (12 * n + 6) := by
@@ -1543,8 +1549,8 @@ arrays the old family wrote. -/
 theorem oldCom_spec (hB : WordBound B n ns cap mb)
     (hCbit : ∀ c, c < sigL cap mb j → ∀ v, v < n → C c v ≤ 1)
     (hXbit : ∀ v, v < n → Xa v ≤ 1) :
-    Spec B (ColPre n cap mb ns j O T C Xa Ra Wf) (oldCom cap mb j)
-      (fun _ σ' => ColPre n cap mb ns j O T C Xa Ra Wf σ' ∧
+    Spec B (ColPre n cap mb nt j O T C Xa Ra Wf) (oldCom cap mb j)
+      (fun _ σ' => ColPre n cap mb nt j O T C Xa Ra Wf σ' ∧
         ∀ c : Fin (sigL cap mb j + 1), ∃ g,
           σ'.arrs (colName (j + 1) (oldIdx cap mb j (c : ℕ))) = arrOf n g ∧
           (∀ v, v < n → g v ≤ 1) ∧
@@ -1554,7 +1560,7 @@ theorem oldCom_spec (hB : WordBound B n ns cap mb)
   obtain ⟨σ₁, hr₁, ⟨hI₁, hR₁⟩, -, -, -, -⟩ :=
     ((foldr_family_spec
       (body := fun c => andCom (colName j c) (cluName j) (colName (j + 1) (oldIdx cap mb j c)))
-      (I := ColPre n cap mb ns j O T C Xa Ra Wf)
+      (I := ColPre n cap mb nt j O T C Xa Ra Wf)
       (R := fun c σ => ∃ g, σ.arrs (colName (j + 1) (oldIdx cap mb j c)) = arrOf n g ∧
         (∀ v, v < n → g v ≤ 1) ∧ markSet n g = markSet n (C c) ∩ markSet n Xa)
       (Wr := fun c a => a = colName (j + 1) (oldIdx cap mb j c)) (Kb := 15 * n + 6)
@@ -1594,14 +1600,14 @@ def slotCost (n ns cap : ℕ) : ℕ := ((24 * ns + 44) * n + 6) * cap + 15 * n +
 `cap` times in the cluster-restricted arena: every stage is the ball of
 that radius around the entry. -/
 theorem pdBody_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
-    (hRaB : ∀ k, k < n → Ra k < B) {w : Fin mb → Fin n}
+    (hnt : ns ≤ nt) (hRaB : ∀ k, k < n → Ra k < B) {w : Fin mb → Fin n}
     (hWf : ∀ i : Fin mb, Wf (i : ℕ) = (w i : ℕ)) (i : Fin mb) :
-    Spec B (ColPre n cap mb ns j O T C Xa Ra Wf)
+    Spec B (ColPre n cap mb nt j O T C Xa Ra Wf)
       (.seq (fillCom (colName (j + 1) (pdIdx cap mb j i 0)) (.lit 0))
         (.seq (.store (colName (j + 1) (pdIdx cap mb j i 0)) (.get "wa" (.lit (i : ℕ)))
             (.lit 1))
           (chainCom (resName j) (fun a => colName (j + 1) (pdIdx cap mb j i a)) cap)))
-      (fun _ σ' => ColPre n cap mb ns j O T C Xa Ra Wf σ' ∧
+      (fun _ σ' => ColPre n cap mb nt j O T C Xa Ra Wf σ' ∧
         ∀ a, a ≤ cap → ∃ g, σ'.arrs (colName (j + 1) (pdIdx cap mb j i a)) = arrOf n g ∧
           (∀ v, v < n → g v ≤ 1) ∧ markSet n g = ballOf (masked G Ra) a {w i})
       (slotCost n ns cap) := by
@@ -1613,7 +1619,7 @@ theorem pdBody_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
   obtain ⟨σ₁, hr₁, ⟨⟨g₁, hg₁arr, hg₁val⟩, -, hn₁⟩, -, -, -, -⟩ :=
     ((fillCom_spec B n (colName (j + 1) (pdIdx cap mb j i 0)) 0 hnB (by omega)).frame).run
       ⟨⟨g₀, hg₀⟩, hσ.1⟩
-  have hI₁ : ColPre n cap mb ns j O T C Xa Ra Wf σ₁ :=
+  have hI₁ : ColPre n cap mb nt j O T C Xa Ra Wf σ₁ :=
     colPre_run hσ hr₁ (fun a ha => ⟨pdIdx cap mb j i 0, by
       rw [RamDriverIO.warrs_fillCom] at ha; exact List.eq_of_mem_singleton ha⟩)
       (by rw [hn₁, hσ.1])
@@ -1631,7 +1637,7 @@ theorem pdBody_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
   have hg₂ : σ₂.arrs (colName (j + 1) (pdIdx cap mb j i 0)) =
       arrOf n (upd g₁ (Wf (i : ℕ)) 1) := by
     rw [hσ₂]; simp [hg₁arr, set_arrOf_eq_upd]
-  have hI₂ : ColPre n cap mb ns j O T C Xa Ra Wf σ₂ :=
+  have hI₂ : ColPre n cap mb nt j O T C Xa Ra Wf σ₂ :=
     colPre_run hI₁ hr₂ (fun a ha => ⟨pdIdx cap mb j i 0, by
       simp only [Com.warrs, List.mem_singleton] at ha; exact ha⟩)
       (by rw [hσ₂]; simp)
@@ -1655,7 +1661,7 @@ theorem pdBody_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
       omega
   -- the chain of expansions
   obtain ⟨σ₃, hr₃, ⟨hstage, hn₃, -, -, -⟩, -, -, -, -⟩ :=
-    ((chainCom_stages (msk := resName j) hcsr h1B hnB hB.ns_lt hRaB cap
+    ((chainCom_stages (msk := resName j) (nt := nt) hcsr h1B hnB hB.ns_lt hnt hRaB cap
       (fun a => colName (j + 1) (pdIdx cap mb j i a)) (upd g₁ (Wf (i : ℕ)) 1)
       (fun a b ha hb hab hc => hab (pdIdx_inj ha hb (colName_inj hc).2).2)
       (fun a _ => colName_ne_resName _ _ _) (fun a _ => colName_ne_lit (by decide))
@@ -1673,11 +1679,11 @@ theorem pdBody_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
     exact ⟨g, hgarr, hgbit, by rw [hgmark, hSmark]⟩
 
 /-- **The batch profiles, discharged.** -/
-theorem pdCom_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
+theorem pdCom_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb) (hnt : ns ≤ nt)
     (hRaB : ∀ k, k < n → Ra k < B) {w : Fin mb → Fin n}
     (hWf : ∀ i : Fin mb, Wf (i : ℕ) = (w i : ℕ)) :
-    Spec B (ColPre n cap mb ns j O T C Xa Ra Wf) (pdCom cap mb j)
-      (fun _ σ' => ColPre n cap mb ns j O T C Xa Ra Wf σ' ∧
+    Spec B (ColPre n cap mb nt j O T C Xa Ra Wf) (pdCom cap mb j)
+      (fun _ σ' => ColPre n cap mb nt j O T C Xa Ra Wf σ' ∧
         ∀ (i : Fin mb) (a : ℕ), a ≤ cap → ∃ g,
           σ'.arrs (colName (j + 1) (pdIdx cap mb j i a)) = arrOf n g ∧
           (∀ v, v < n → g v ≤ 1) ∧ markSet n g = ballOf (masked G Ra) a {w i})
@@ -1688,7 +1694,7 @@ theorem pdCom_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
         (Com.seq (.store (colName (j + 1) (pdIdx cap mb j i 0)) (.get "wa" (.lit (i : ℕ)))
             (.lit 1))
           (chainCom (resName j) (fun a => colName (j + 1) (pdIdx cap mb j i a)) cap)))
-    (I := ColPre n cap mb ns j O T C Xa Ra Wf)
+    (I := ColPre n cap mb nt j O T C Xa Ra Wf)
     (R := fun i σ => ∀ a, a ≤ cap → ∃ g,
       σ.arrs (colName (j + 1) (pdIdx cap mb j i a)) = arrOf n g ∧
       (∀ v, v < n → g v ≤ 1) ∧ markSet n g = ballOf (masked G Ra) a {w i})
@@ -1706,7 +1712,7 @@ theorem pdCom_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
       obtain ⟨g, h1, h2, h3⟩ := hR a ha
       exact ⟨g, by rw [hfr _ ⟨a, ha, rfl⟩]; exact h1, h2, h3⟩)
     (List.finRange mb) (List.nodup_finRange mb)
-    (fun i _ => pdBody_spec hcsr hB hRaB hWf i)
+    (fun i _ => pdBody_spec hcsr hB hnt hRaB hWf i)
     (fun x _ y _ hxy a hax hay => by
       obtain ⟨b, hb, hbe⟩ := hax
       obtain ⟨b', hb', hbe'⟩ := hay
@@ -1739,13 +1745,13 @@ theorem oldHeld_run {K : ℕ} {c : Com} {σ σ' : Env} {Vo : ℕ → Set (Fin n)
 
 /-- **One colour profile.** The relativized colour class, expanded `cap`
 times in the cluster-restricted arena. -/
-theorem puBody_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
+theorem puBody_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb) (hnt : ns ≤ nt)
     (hRaB : ∀ k, k < n → Ra k < B) {Vo : ℕ → Set (Fin n)} {c : ℕ}
     (hc : c < sigL cap mb j + 1) :
-    Spec B (fun σ => ColPre n cap mb ns j O T C Xa Ra Wf σ ∧ OldHeld n cap mb j Vo σ)
+    Spec B (fun σ => ColPre n cap mb nt j O T C Xa Ra Wf σ ∧ OldHeld n cap mb j Vo σ)
       (.seq (copyCom (colName (j + 1) (oldIdx cap mb j c)) (colName (j + 1) (puIdx cap mb j c 0)))
         (chainCom (resName j) (fun b => colName (j + 1) (puIdx cap mb j c b)) cap))
-      (fun _ σ' => (ColPre n cap mb ns j O T C Xa Ra Wf σ' ∧ OldHeld n cap mb j Vo σ') ∧
+      (fun _ σ' => (ColPre n cap mb nt j O T C Xa Ra Wf σ' ∧ OldHeld n cap mb j Vo σ') ∧
         ∀ b, b ≤ cap → ∃ g, σ'.arrs (colName (j + 1) (puIdx cap mb j c b)) = arrOf n g ∧
           (∀ v, v < n → g v ≤ 1) ∧ markSet n g = ballOf (masked G Ra) b (Vo c))
       (slotCost n ns cap) := by
@@ -1767,14 +1773,14 @@ theorem puBody_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
     intro a ha
     rw [RamDriverIO.copyCom_eq, RamDriverIO.warrs_fillCom] at ha
     exact ⟨c, 0, List.eq_of_mem_singleton ha⟩
-  have hI₁ : ColPre n cap mb ns j O T C Xa Ra Wf σ₁ :=
+  have hI₁ : ColPre n cap mb nt j O T C Xa Ra Wf σ₁ :=
     colPre_run hpre hr₁ (fun a ha => by
       obtain ⟨s, b, hs⟩ := hcopyw a ha
       exact ⟨puIdx cap mb j s b, hs⟩) (by rw [hn₁, hpre.1])
   have hold₁ : OldHeld n cap mb j Vo σ₁ := oldHeld_run hold hr₁ hcopyw
   have hgbit : ∀ k, k < n → g k ≤ 1 := fun k hk => by rw [hgval k hk]; exact hg₀bit k hk
   obtain ⟨σ₂, hr₂, ⟨hstage, hn₂, -, -, -⟩, -, -, -, -⟩ :=
-    ((chainCom_stages (msk := resName j) hcsr h1B hnB hB.ns_lt hRaB cap
+    ((chainCom_stages (msk := resName j) (nt := nt) hcsr h1B hnB hB.ns_lt hnt hRaB cap
       (fun b => colName (j + 1) (puIdx cap mb j c b)) g
       (fun a b ha hb hab hce => hab (puIdx_inj (by omega) (by omega) ha hb
         (colName_inj hce).2).2)
@@ -1798,11 +1804,11 @@ theorem puBody_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
   exact ⟨g', hg'arr, hg'bit, by rw [hg'mark, markSet_congr hgval, hg₀mark]⟩
 
 /-- **The colour profiles, discharged.** -/
-theorem puCom_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
+theorem puCom_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb) (hnt : ns ≤ nt)
     (hRaB : ∀ k, k < n → Ra k < B) {Vo : ℕ → Set (Fin n)} :
-    Spec B (fun σ => ColPre n cap mb ns j O T C Xa Ra Wf σ ∧ OldHeld n cap mb j Vo σ)
+    Spec B (fun σ => ColPre n cap mb nt j O T C Xa Ra Wf σ ∧ OldHeld n cap mb j Vo σ)
       (puCom cap mb j)
-      (fun _ σ' => (ColPre n cap mb ns j O T C Xa Ra Wf σ' ∧ OldHeld n cap mb j Vo σ') ∧
+      (fun _ σ' => (ColPre n cap mb nt j O T C Xa Ra Wf σ' ∧ OldHeld n cap mb j Vo σ') ∧
         ∀ c, c < sigL cap mb j + 1 → ∀ b, b ≤ cap → ∃ g,
           σ'.arrs (colName (j + 1) (puIdx cap mb j c b)) = arrOf n g ∧
           (∀ v, v < n → g v ≤ 1) ∧ markSet n g = ballOf (masked G Ra) b (Vo c))
@@ -1812,7 +1818,7 @@ theorem puCom_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
       Com.seq (copyCom (colName (j + 1) (oldIdx cap mb j c))
           (colName (j + 1) (puIdx cap mb j c 0)))
         (chainCom (resName j) (fun b => colName (j + 1) (puIdx cap mb j c b)) cap))
-    (I := fun σ => ColPre n cap mb ns j O T C Xa Ra Wf σ ∧ OldHeld n cap mb j Vo σ)
+    (I := fun σ => ColPre n cap mb nt j O T C Xa Ra Wf σ ∧ OldHeld n cap mb j Vo σ)
     (R := fun c σ => ∀ b, b ≤ cap → ∃ g,
       σ.arrs (colName (j + 1) (puIdx cap mb j c b)) = arrOf n g ∧
       (∀ v, v < n → g v ≤ 1) ∧ markSet n g = ballOf (masked G Ra) b (Vo c))
@@ -1829,7 +1835,7 @@ theorem puCom_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
       obtain ⟨g, h1, h2, h3⟩ := hR b hb
       exact ⟨g, by rw [hfr _ ⟨b, hb, rfl⟩]; exact h1, h2, h3⟩)
     (List.range (sigL cap mb j + 1)) (List.nodup_range)
-    (fun c hc => puBody_spec hcsr hB hRaB (List.mem_range.mp hc))
+    (fun c hc => puBody_spec hcsr hB hnt hRaB (List.mem_range.mp hc))
     (fun x hx y hy hxy a hax hay => by
       obtain ⟨b, hb, hbe⟩ := hax
       obtain ⟨b', hb', hbe'⟩ := hay
@@ -1911,12 +1917,12 @@ depth-`(j+1)` palette hold `Evaluator.isoColoring` of the
 cluster-restricted arena at the relativized colouring and the padded
 enumeration — which is `RamDriver.stepColoringP`. -/
 theorem colourCom_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
-    (hRaB : ∀ k, k < n → Ra k < B)
+    (hnt : ns ≤ nt) (hRaB : ∀ k, k < n → Ra k < B)
     (hCbit : ∀ c, c < sigL cap mb j → ∀ v, v < n → C c v ≤ 1)
     (hXbit : ∀ v, v < n → Xa v ≤ 1)
     {w : Fin mb → Fin n} (hWf : ∀ i : Fin mb, Wf (i : ℕ) = (w i : ℕ)) :
-    Spec B (ColPre n cap mb ns j O T C Xa Ra Wf) (colourCom cap mb j)
-      (fun _ σ' => ColPre n cap mb ns j O T C Xa Ra Wf σ' ∧
+    Spec B (ColPre n cap mb nt j O T C Xa Ra Wf) (colourCom cap mb j)
+      (fun _ σ' => ColPre n cap mb nt j O T C Xa Ra Wf σ' ∧
         (∀ s, s < sigL cap mb (j + 1) → ∀ v, v < n →
           cellsOf σ' (colName (j + 1) s) v ≤ 1) ∧
         colRead n (fun s => cellsOf σ' (colName (j + 1) s)) (sigL cap mb (j + 1)) =
@@ -1932,7 +1938,7 @@ theorem colourCom_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
     exact ⟨g, h1, h2, by rw [h3, relSlot_val ⟨c, hc⟩]⟩
   -- the batch profiles
   obtain ⟨σ₂, hr₂, ⟨hI₂, hpd₂⟩, -, hfa₂, -, -⟩ :=
-    ((pdCom_spec hcsr hB hRaB hWf).frame).run hI₁
+    ((pdCom_spec hcsr hB hnt hRaB hWf).frame).run hI₁
   have hOld₂ : OldHeld n cap mb j (relSlot n cap mb j C (markSet n Xa)) σ₂ := by
     intro c hc
     obtain ⟨g, h1, h2, h3⟩ := hOld₁ c hc
@@ -1943,7 +1949,7 @@ theorem colourCom_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
       exact oldIdx_ne_pdIdx c i b (colName_inj hib).2
   -- the colour profiles
   obtain ⟨σ₃, hr₃, ⟨⟨hI₃, hOld₃⟩, hpu₃⟩, -, hfa₃, -, -⟩ :=
-    ((puCom_spec hcsr hB hRaB).frame).run ⟨hI₂, hOld₂⟩
+    ((puCom_spec hcsr hB hnt hRaB).frame).run ⟨hI₂, hOld₂⟩
   have hpd₃ : ∀ (i : Fin mb) (a : ℕ), a ≤ cap → ∃ g,
       σ₃.arrs (colName (j + 1) (pdIdx cap mb j i a)) = arrOf n g ∧
       (∀ v, v < n → g v ≤ 1) ∧ markSet n g = ballOf (masked G Ra) a {w i} := by
@@ -2133,12 +2139,13 @@ theorem colourStep {K : ℕ}
       (fun k => if h : k < mb then ((w ⟨k, h⟩ : Fin n) : ℕ) else 0) (i : ℕ) = (w i : ℕ) := by
     intro i
     simp only [dif_pos i.isLt, Fin.eta]
-  have hpre : ColPre n cap mb ns j O T C Xa Ra
+  have hpre : ColPre n cap mb Ws j O T C Xa Ra
       (fun k => if h : k < mb then ((w ⟨k, h⟩ : Fin n) : ℕ) else 0) σ :=
     ⟨hlev.1, hlev.2.1, hlev.2.2.1, hXaarr, hRaarr, hlev.2.2.2.2.2.1, hwa,
       fun s hs => hdep.col hs⟩
   obtain ⟨σ', hr, ⟨hpre', hbit', heq'⟩, hfv, hfa, -, hout⟩ :=
-    ((colourCom_spec hcsr hB hRaB hCbit hXbit hWf).frame).run hpre
+    ((colourCom_spec (nt := Ws) hcsr hB hlev.2.2.2.2.2.2.2.2.2.2.2.2.1.1 hRaB
+      hCbit hXbit hWf).frame).run hpre
   -- the frames of the phase
   have hav : ∀ a : String, (∀ s, a ≠ colName (j + 1) s) → σ'.arrs a = σ.arrs a := by
     intro a ha
@@ -2195,7 +2202,7 @@ literal, an indicator whose cells are *bits*, which is the clause
 
 section Cluster
 
-variable {B cap mb ns j : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ} {π : Equiv.Perm (Fin n)}
+variable {B cap mb ns nt j : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ} {π : Equiv.Perm (Fin n)}
   {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ}
 
 /-- **The cluster arena ends where the pass says it ends.** The stepwise
@@ -2368,9 +2375,10 @@ def ballCost (n ns cap : ℕ) : ℕ := ((24 * ns + 44) * n + 6) * (2 * cap) + 11
 
 /-- **The ball of the round, discharged.** -/
 theorem ballCom_spec {Gm : ℕ → ℕ} {O T : ℕ → ℕ} (hcsr : CsrGraph G ns O T)
-    (hB : WordBound B n ns cap mb) (hGmB : ∀ k, k < n → Gm k < B) {v : Fin n} :
+    (hB : WordBound B n ns cap mb) (hnt : ns ≤ nt) (hGmB : ∀ k, k < n → Gm k < B)
+    {v : Fin n} :
     Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧
-        σ.arrs "tgt" = arrOf ns T ∧ σ.arrs (gamName j) = arrOf n Gm ∧
+        σ.arrs "tgt" = arrOf nt T ∧ σ.arrs (gamName j) = arrOf n Gm ∧
         (∃ g, σ.arrs (balName j) = arrOf n g) ∧ (∃ g, σ.arrs (balAltName j) = arrOf n g) ∧
         σ.vars (ctrName j) = (v : ℕ))
       (.seq (fillCom (balName j) (.lit 0))
@@ -2378,7 +2386,7 @@ theorem ballCom_spec {Gm : ℕ → ℕ} {O T : ℕ → ℕ} (hcsr : CsrGraph G n
           (chainCom (gamName j) (ballStage j) (2 * cap))))
       (fun _ σ' => (∃ g, σ'.arrs (balName j) = arrOf n g ∧ (∀ k, k < n → g k ≤ 1) ∧
           markSet n g = ball (masked G Gm) (2 * cap) v) ∧
-        σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf ns T ∧
+        σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf nt T ∧
         σ'.arrs (gamName j) = arrOf n Gm)
       (ballCost n ns cap) := by
   refine Spec.of_exists (fun σ hσ => ?_)
@@ -2427,7 +2435,7 @@ theorem ballCom_spec {Gm : ℕ → ℕ} {O T : ℕ → ℕ} (hcsr : CsrGraph G n
     rw [hσ₂, arrs_setArr, if_neg (by simp [balName, String.ext_iff]),
       hav₁ "off" (by simp [balName, String.ext_iff])]
     exact hoff
-  have htgt₂ : σ₂.arrs "tgt" = arrOf ns T := by
+  have htgt₂ : σ₂.arrs "tgt" = arrOf nt T := by
     rw [hσ₂, arrs_setArr, if_neg (by simp [balName, String.ext_iff]),
       hav₁ "tgt" (by simp [balName, String.ext_iff])]
     exact htgt
@@ -2448,7 +2456,8 @@ theorem ballCom_spec {Gm : ℕ → ℕ} {O T : ℕ → ℕ} (hcsr : CsrGraph G n
     · exact ⟨upd g₁ (v : ℕ) 1, hg₂⟩
     · exact halt₂
   obtain ⟨σ₃, hr₃, ⟨g, hgarr, hgB, hgmark⟩, hn₃, hoff₃, htgt₃, hgam₃⟩ :=
-    (chainCom_spec (msk := gamName j) (Msk := Gm) hcsr h1B hnB hB.ns_lt hGmB (2 * cap)
+    (chainCom_spec (msk := gamName j) (Msk := Gm) (nt := nt) hcsr h1B hnB hB.ns_lt hnt
+      hGmB (2 * cap)
       (ballStage j) (upd g₁ (v : ℕ) 1) (fun a => ballStage_ne j a)
       (fun a => by rw [ballStage]; split <;> simp [balName, balAltName, gamName, String.ext_iff])
       (fun a => by rw [ballStage]; split <;> simp [balName, balAltName, String.ext_iff])
@@ -2874,7 +2883,7 @@ guarded by. -/
 
 section Ancestor
 
-variable {ns : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
+variable {ns nt : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
 
 /-! The three write sets the pass is built from, off the syntax. The two
 searches' sets do not depend on the radius, which is a construction-time
@@ -2899,10 +2908,10 @@ a set of at most `2·cap + 1` vertices, and — whenever the round's own
 arena puts its connector within `2·cap` of the depth's — that set holds
 the support of a walk between the two in that arena. -/
 theorem ancestorStep_spec {B cap mb j a : ℕ} (hcsr : CsrGraph G ns O T)
-    (hB : WordBound B n ns cap mb) {u v : Fin n} {Ga Wa : ℕ → ℕ}
+    (hB : WordBound B n ns cap mb) (hnt : ns ≤ nt) {u v : Fin n} {Ga Wa : ℕ → ℕ}
     (hGaB : ∀ z, z < n → Ga z < B) (hbit : ∀ k, k < n → Wa k ≤ 1) :
     Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧
-        σ.arrs "tgt" = arrOf ns T ∧
+        σ.arrs "tgt" = arrOf nt T ∧
         σ.vars (ctrName a) = (u : ℕ) ∧ σ.vars (ctrName j) = (v : ℕ) ∧
         σ.arrs (gamName a) = arrOf n Ga ∧ σ.arrs (batName j) = arrOf n Wa ∧
         (∃ g, σ.arrs "alv" = arrOf n g) ∧ (∃ g, σ.arrs "dist" = arrOf n g) ∧
@@ -2959,7 +2968,8 @@ theorem ancestorStep_spec {B cap mb j a : ℕ} (hcsr : CsrGraph G ns O T)
   have halvGa : σ₃.arrs "alv" = arrOf n Ga := by rw [halv₃]; exact arrOf_congr hval₃
   -- the search, in that arena
   obtain ⟨σ₄, hr₄, ⟨D, P, hdist₄, hpar₄, hdisteq, hT⟩, hfv₄, hfa₄, -, -⟩ :=
-    ((RamBfsPaths.bfsPar_spec (M := Ga) (d := 2 * cap) hcsr u.isLt hnB hnsB hdB hGaB).frame).run
+    ((RamBfsPaths.bfsPar_specW (M := Ga) (d := 2 * cap) (nt := nt) hcsr u.isLt hnB hnsB hnt
+      hdB hGaB).frame).run
       (σ := σ₃) ⟨hn₃, by rw [hvv₃ "src" (by decide)]; exact hsrc₂,
         by rw [hav₃ "off" (by decide), harrs₂]; exact hoff,
         by rw [hav₃ "tgt" (by decide), harrs₂]; exact htgt, halvGa,
@@ -3047,7 +3057,7 @@ and not clauses of the obligation). -/
 
 section Batch
 
-variable {ns : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
+variable {ns nt : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
 
 theorem warrs_ancestorStep (cap j a : ℕ) :
     (ancestorStep cap j a).warrs =
@@ -3056,9 +3066,9 @@ theorem warrs_ancestorStep (cap j a : ℕ) :
 /-- The memory and the scalars every turn of the fold reads: the block
 structure, the search's six arrays, the depth's own connector, and the
 connector and the game mask of every earlier round. -/
-def BatchEnv (cap ns j : ℕ) (O T : ℕ → ℕ) (U : ℕ → Fin n) (Gam : ℕ → ℕ → ℕ)
+def BatchEnv (cap nt j : ℕ) (O T : ℕ → ℕ) (U : ℕ → Fin n) (Gam : ℕ → ℕ → ℕ)
     (v : Fin n) (σ : Env) : Prop :=
-  σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+  σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf nt T ∧
     (∃ g, σ.arrs "alv" = arrOf n g) ∧ (∃ g, σ.arrs "dist" = arrOf n g) ∧
     (∃ g, σ.arrs "q" = arrOf n g) ∧ (∃ g, σ.arrs "par" = arrOf n g) ∧
     (∃ g, σ.arrs "path" = arrOf (2 * cap + 1) g) ∧
@@ -3071,11 +3081,11 @@ either the batch indicator or one of the search's scratch arrays, whose
 *length* is all the clause asks; every scalar it assigns is a counter. -/
 theorem batchEnv_run {B K cap j : ℕ} {c : Com} {σ σ' : Env}
     {U : ℕ → Fin n} {Gam : ℕ → ℕ → ℕ} {v : Fin n}
-    (h : BatchEnv cap ns j O T U Gam v σ) (hr : Run B c σ σ' K)
+    (h : BatchEnv cap nt j O T U Gam v σ) (hr : Run B c σ σ' K)
     (hv : ∀ y : String, y ∈ c.wvars → y ∈ descendScalars)
     (ha : ∀ b : String, b ∈ c.warrs →
       b = batName j ∨ b ∈ (["alv", "dist", "q", "par", "path"] : List String)) :
-    BatchEnv cap ns j O T U Gam v σ' := by
+    BatchEnv cap nt j O T U Gam v σ' := by
   obtain ⟨hn, hoff, htgt, halv, hdist, hq, hpar, hpath, hctrj, hctr, hgam⟩ := h
   have hlit : ∀ b : String, b ≠ batName j →
       b ∉ (["alv", "dist", "q", "par", "path"] : List String) → σ'.arrs b = σ.arrs b := by
@@ -3113,13 +3123,13 @@ def BatchMark (cap j : ℕ) (G : SimpleGraph (Fin n)) (U : ℕ → Fin n) (Gam :
         {z : Fin n | z ∈ p.support} ⊆ markSet n Wa
 
 /-- **The fold over the earlier rounds, discharged.** -/
-theorem batchFold_spec {B cap mb j : ℕ} (hcsr : CsrGraph G ns O T)
+theorem batchFold_spec {B cap mb j : ℕ} (hcsr : CsrGraph G ns O T) (hnt : ns ≤ nt)
     (hB : WordBound B n ns cap mb) {U : ℕ → Fin n} {Gam : ℕ → ℕ → ℕ} {v : Fin n}
     (hGamB : ∀ a, a < j → ∀ z, z < n → Gam a z < B) :
     ∀ (r s : ℕ), s + r ≤ j →
-      Spec B (fun σ => BatchEnv cap ns j O T U Gam v σ ∧ BatchMark cap j G U Gam v s σ)
+      Spec B (fun σ => BatchEnv cap nt j O T U Gam v σ ∧ BatchMark cap j G U Gam v s σ)
         (foldRange (fun b => ancestorStep cap j (s + b)) r)
-        (fun _ σ' => BatchEnv cap ns j O T U Gam v σ' ∧
+        (fun _ σ' => BatchEnv cap nt j O T U Gam v σ' ∧
           BatchMark cap j G U Gam v (s + r) σ')
         (ancestorCost n ns cap * r + 1) := by
   intro r
@@ -3134,10 +3144,10 @@ theorem batchFold_spec {B cap mb j : ℕ} (hcsr : CsrGraph G ns O T)
     obtain ⟨henv, Wa, hbat, hbit, hvW, hcard, hwalk⟩ := hσ
     obtain ⟨hn, hoff, htgt, halv, hdist, hq, hpar, hpath, hctrj, hctr, hgam⟩ := henv
     obtain ⟨σ₁, hr₁, ⟨Wa', S, hbat₁, hbit₁, hmark₁, hcard₁, hwalk₁⟩, -, -, -, -⟩ :=
-      ((ancestorStep_spec (a := s + 0) (j := j) (u := U s) (Ga := Gam s) hcsr hB
+      ((ancestorStep_spec (a := s + 0) (j := j) (u := U s) (Ga := Gam s) hcsr hB hnt
         (hGamB s hsj) hbit).frame).run (σ := σ)
         ⟨hn, hoff, htgt, hctr s hsj, hctrj, hgam s hsj, hbat, halv, hdist, hq, hpar, hpath⟩
-    have henv₁ : BatchEnv cap ns j O T U Gam v σ₁ :=
+    have henv₁ : BatchEnv cap nt j O T U Gam v σ₁ :=
       batchEnv_run ⟨hn, hoff, htgt, halv, hdist, hq, hpar, hpath, hctrj, hctr, hgam⟩ hr₁
         (fun _ hy => mem_wvars_ancestorStep hy)
         (fun b hb => by
@@ -3181,14 +3191,14 @@ def batchCost (n ns cap j : ℕ) : ℕ := ancestorCost n ns cap * j + 26 * n + 1
 /-- **The batch of the round, discharged.** What the indicator ends
 marking is the connector together with one short walk per earlier round
 the round's own arena reaches, everything cut down to the ball. -/
-theorem batchCom_spec {B cap mb j : ℕ} (hcsr : CsrGraph G ns O T)
+theorem batchCom_spec {B cap mb j : ℕ} (hcsr : CsrGraph G ns O T) (hnt : ns ≤ nt)
     (hB : WordBound B n ns cap mb) {U : ℕ → Fin n} {Gam : ℕ → ℕ → ℕ} {v : Fin n}
     {Bal : ℕ → ℕ} (hGamB : ∀ a, a < j → ∀ z, z < n → Gam a z < B)
     (hBalB : ∀ k, k < n → Bal k < B) (hvBal : Bal (v : ℕ) ≠ 0) :
-    Spec B (fun σ => BatchEnv cap ns j O T U Gam v σ ∧
+    Spec B (fun σ => BatchEnv cap nt j O T U Gam v σ ∧
         (∃ g, σ.arrs (batName j) = arrOf n g) ∧ σ.arrs (balName j) = arrOf n Bal)
       (batchCom cap j)
-      (fun _ σ' => BatchEnv cap ns j O T U Gam v σ' ∧
+      (fun _ σ' => BatchEnv cap nt j O T U Gam v σ' ∧
         σ'.arrs (balName j) = arrOf n Bal ∧
         ∃ Wa : ℕ → ℕ, σ'.arrs (batName j) = arrOf n Wa ∧ (∀ k, k < n → Wa k < B) ∧
           markSet n Wa ⊆ markSet n Bal ∧ v ∈ markSet n Wa ∧
@@ -3206,7 +3216,7 @@ theorem batchCom_spec {B cap mb j : ℕ} (hcsr : CsrGraph G ns O T)
   -- the indicator, opened
   obtain ⟨σ₁, hr₁, ⟨g₁, harr₁, hval₁⟩, -, -⟩ :=
     (fillCom_spec B n (batName j) 0 hnB (by omega)).run ⟨hbat₀, henv.1⟩
-  have henv₁ : BatchEnv cap ns j O T U Gam v σ₁ :=
+  have henv₁ : BatchEnv cap nt j O T U Gam v σ₁ :=
     batchEnv_run henv hr₁ (fun y hy => by
         rw [RamDriverIO.wvars_fillCom] at hy
         simp only [List.mem_cons, List.not_mem_nil, or_false] at hy
@@ -3230,7 +3240,7 @@ theorem batchCom_spec {B cap mb j : ℕ} (hcsr : CsrGraph G ns O T)
     exact hval₁ _ z.isLt
   have hmark₂ : markSet n (upd g₁ (v : ℕ) 1) = {v} := by
     rw [markSet_upd_one g₁ hvn, hzero, Set.empty_union]
-  have henv₂ : BatchEnv cap ns j O T U Gam v σ₂ :=
+  have henv₂ : BatchEnv cap nt j O T U Gam v σ₂ :=
     batchEnv_run henv₁ hr₂ (fun y hy => by simp only [Com.wvars] at hy; exact absurd hy (by simp))
       (fun b hb => Or.inl (by simp only [Com.warrs] at hb; exact List.eq_of_mem_singleton hb))
   have hmk₂ : BatchMark cap j G U Gam v 0 σ₂ := by
@@ -3249,7 +3259,7 @@ theorem batchCom_spec {B cap mb j : ℕ} (hcsr : CsrGraph G ns O T)
     congr 1
     omega
   obtain ⟨σ₃, hr₃, henv₃, Wf, hbat₃, hbit₃, hvf, hcard₃, hwalk₃⟩ :=
-    (batchFold_spec hcsr hB hGamB j 0 (by omega)).run (σ := σ₂) ⟨henv₂, hmk₂⟩
+    (batchFold_spec hcsr hnt hB hGamB j 0 (by omega)).run (σ := σ₂) ⟨henv₂, hmk₂⟩
   rw [hfold] at hr₃
   rw [Nat.zero_add] at hcard₃ hwalk₃
   have hbal₃ : σ₃.arrs (balName j) = arrOf n Bal := by
@@ -3272,7 +3282,7 @@ theorem batchCom_spec {B cap mb j : ℕ} (hcsr : CsrGraph G ns O T)
         calc Wf k * Bal k ≤ 1 * Bal k := Nat.mul_le_mul_right _ h1
           _ = Bal k := by ring
           _ < B := h2)).run (σ := σ₃) ⟨hbat₃, henv₃.1, hbal₃⟩
-  have henv₄ : BatchEnv cap ns j O T U Gam v σ₄ :=
+  have henv₄ : BatchEnv cap nt j O T U Gam v σ₄ :=
     batchEnv_run henv₃ hr₄ (fun y hy => by
         rw [wvars_andCom] at hy
         simp only [List.mem_cons, List.not_mem_nil, or_false] at hy
@@ -3579,7 +3589,8 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
   -- P4: the ball of the round, in the game arena
   obtain ⟨σ₄, hr₄, ⟨⟨Bal, hbal₄, hBalbit, hBalmark⟩, hn₄, hoff₄, htgt₄, hgam₄⟩,
       hfv₄, hfa₄, -, -⟩ :=
-    ((ballCom_spec (j := j) (v := vc) (Gm := Gm) hcsr hB hGmB).frame).run (σ := σ₃)
+    ((ballCom_spec (j := j) (v := vc) (Gm := Gm) (nt := Ws) hcsr hB hom.1.1
+      hGmB).frame).run (σ := σ₃)
       ⟨by rw [hvv₃ "n" (by decide), hvv₂ "n" (by decide),
           hvars₁ "n" (by simp [ctrName, String.ext_iff])]; exact hn,
         by rw [hav₃ "off" (by simp [resName, String.ext_iff]),
@@ -3624,7 +3635,7 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
       · exact mem_wvars_chainCom h
   have hBalB : ∀ k, k < n → Bal k < B := fun k hk => by have := hBalbit k hk; omega
   -- P5: the batch
-  have henv₄ : BatchEnv cap ns j O T U Gam vc σ₄ := by
+  have henv₄ : BatchEnv cap Ws j O T U Gam vc σ₄ := by
     refine ⟨hn₄, hoff₄, htgt₄, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · exact exists_arrOf_run (hr₁.seq (hr₂.seq (hr₃.seq hr₄))) halvS₀
     · exact exists_arrOf_run (hr₁.seq (hr₂.seq (hr₃.seq hr₄))) hdistS₀
@@ -3651,7 +3662,7 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
     have : vc ∈ markSet n Bal := by rw [hBalmark]; exact mem_ball_self _ _ _
     exact this
   obtain ⟨σ₅, hr₅, henv₅, hbal₅, Wa, hbat₅, hWaB, hWsub, hvW, hWcard, hWwalk⟩ :=
-    (batchCom_spec hcsr hB (U := U) (Gam := Gam) (v := vc) (Bal := Bal)
+    (batchCom_spec (nt := Ws) hcsr hom.1.1 hB (U := U) (Gam := Gam) (v := vc) (Bal := Bal)
       (fun a ha => (hUG a ha).2.2) hBalB hvBal).run (σ := σ₄)
       ⟨henv₄, by
         rw [hav₄ _ (by simp [batName, balName, String.ext_iff])

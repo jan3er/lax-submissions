@@ -287,7 +287,7 @@ theorem orderImplements_mono {B n R W cap mb ns j K K' : ℕ} {G : SimpleGraph (
 
 -- the two figures at the demo's size, and the frozen budget beside them
 #guard orderTowerK 5 10 10 = 8434
-#guard RamDriverCompose.orderPhaseCost 5 10 10 = 22350
+#guard RamDriverCompose.orderPhaseCost 5 10 10 = 22750
 #guard orderTowerK 5 10 10 ≤ RamDriverCompose.orderPhaseCost 5 10 10
 
 /-! ### Negative controls (B1/B-d)

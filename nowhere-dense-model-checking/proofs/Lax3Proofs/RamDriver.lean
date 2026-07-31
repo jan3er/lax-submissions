@@ -1139,9 +1139,22 @@ end PlayRecord
 
 /-- **The memory clause of the decode**: the four arrays it writes, at
 the lengths it writes them at. The decode runs before any level, so it
-is the one phase whose memory clause is not a level's. -/
-def DecodeMem (n ns : ℕ) (σ : Env) : Prop :=
-  (σ.arrs "off").length = n + 1 ∧ (σ.arrs "tgt").length = ns ∧
+is the one phase whose memory clause is not a level's.
+
+**The target array is the allocation width** (rebase F-c-4, the `tgt`
+flip). `LevelPre`'s `tgt` clause is now `arrOf W T` with a zero-padded
+tail, and the decode is what has to produce it, so `tgt` is `W` cells
+here and the `W - ns` above the encoding's own slots are zero. The
+decode writes only the first `ns` of them — `TgtWidenProbe.decodeTail`
+is that run on a sentinel tail — so the clause it is handed is the
+clause it hands back.
+
+Zero and not "a vertex" for the reason `LevelPre` gives: at `n = 0`,
+which `WordBound` permits and the empty input word reaches, no cell can
+be below `n`, and the clause would be unsatisfiable. -/
+def DecodeMem (n ns W : ℕ) (σ : Env) : Prop :=
+  (σ.arrs "off").length = n + 1 ∧ (σ.arrs "tgt").length = W ∧
+    (∀ j, ns ≤ j → j < W → (σ.arrs "tgt").getD j 0 = 0) ∧
     (σ.arrs (alvName 0)).length = n ∧ (σ.arrs (gamName 0)).length = n
 
 /-! ### Plumbing
@@ -1558,20 +1571,27 @@ own block structure lives, and which every other pass of the level
 reads. So the phase opens by copying it into the reserved pair
 `gof`/`gtg` and closes by copying it back.
 
-The bound of the target copy is a *runtime* number: the block structure
-has `2·m` slots, where `m` is the edge count the decode left in the
-scalar `"m"`, and no sub-program of the driver assigns that scalar. That
-is why `LevelPre` carries `σ.vars "m" + σ.vars "m" = ns` — the copy
-cannot be written without it, and nothing else in the level needs to
-know how many slots the structure has. -/
-def saveCsr : Com :=
+The bound of the target copy used to be the *runtime* number `2·m`, `m`
+being the edge count the decode left in the scalar `"m"` — the block
+structure's own slot count. **It is now the allocation width `W`**
+(rebase F-c-4): `LevelPre`'s `tgt` clause is `arrOf W T`, so the array
+the phase has to put out of the way and put back is `W` cells, and
+copying only `2·m` of them would leave the padding of `gtg` holding
+whatever the last round wrote and the restore would not restore. The
+literal is the phase's own parameter and needs no scalar, which is why
+these two are the one place the flip *simplified* the walk.
+
+`LevelPre` still carries `σ.vars "m" + σ.vars "m" = ns`: nothing here
+reads it any more, but the level hands the slot count on and the scalar
+is the only place it lives. -/
+def saveCsr (W : ℕ) : Com :=
   .seq (copyUpto "off" "gof" (.add (.var "n") (.lit 1)))
-    (copyUpto "tgt" "gtg" (.add (.var "m") (.var "m")))
+    (copyUpto "tgt" "gtg" (.lit W))
 
 /-- And back. -/
-def restoreCsr : Com :=
+def restoreCsr (W : ℕ) : Com :=
   .seq (copyUpto "gof" "off" (.add (.var "n") (.lit 1)))
-    (copyUpto "gtg" "tgt" (.add (.var "m") (.var "m")))
+    (copyUpto "gtg" "tgt" (.lit W))
 
 /-! ### The symmetrization
 
@@ -1712,7 +1732,7 @@ and the pass fits the array the level already has. At `R > 0` it does
 not (`TgtWidenProbe.sym5Narrow` is stuck), which is why `LevelPre`'s
 `tgt` clause is stated at the allocation width `W`. -/
 def orderCom (R W j : ℕ) : Com :=
-  .seq saveCsr
+  .seq (saveCsr W)
     (.seq (copyCom (alvName j) "alv")
       (.seq RamElim.elimCom
         (.seq (copyUpto "ioff" "doff" (.add (.var "n") (.lit 1)))
@@ -1722,7 +1742,7 @@ def orderCom (R W j : ℕ) : Com :=
                 (.seq (fillCom "alv" (.lit 1))
                   (.seq elimRezeroCom
                     (.seq RamElim.elimCom
-                      (.seq restoreCsr
+                      (.seq (restoreCsr W)
                         (.seq (ordCom (ordName j)) orderZeroCom)))))))))))
 
 /-! ### One cluster
@@ -2188,7 +2208,7 @@ which is what lets them sit in a clause a level hands back. -/
 def OrderMem (B n ns W : ℕ) (σ : Env) : Prop :=
   ns ≤ W ∧
   Sized [("doff", n + 1), ("dtg", W), ("ooff", n + 1), ("otg", W), ("ofl", n),
-      ("gof", n + 1), ("gtg", ns), ("ffl", n), ("deg", n), ("rnk", n), ("idg", n),
+      ("gof", n + 1), ("gtg", W), ("ffl", n), ("deg", n), ("rnk", n), ("idg", n),
       ("bh", n + 1), ("bv", n + W + 1), ("bn", n + W + 1), ("ioff", n + 1), ("ifl", n),
       ("itg", W), ("noff", n + 1), ("nfl", n), ("ntg", W), ("elm", n),
       ("stf", n), ("sta", n), ("std", n), ("ste", n)] σ ∧
@@ -2215,51 +2235,61 @@ zeroed; `orderCom`'s re-zeroing tail is what puts the second half back,
 and `Lax3Proofs.RamElim.ElimPre`'s scratch width is what makes the
 first half statable at one `W` for calls of several slot counts.
 
-**The `tgt` clause is still pinned at `ns`, and here is what it costs to
-move it** (rebase F-c-3 finding; the widened chain below it is landed —
+**The `tgt` clause is at the allocation width** (rebase F-c-4, the
+flip; the widened chain below it landed with F-c-3 —
 `RamCover.CoverPreW`/`CoverStateW`/`ImplementsW`/`cover_specW`,
 `RamDriverOrder.centreStep_specW`/`coverPass_specW`,
 `Refine.BfsBridge.bfsQCom_specW`, on top of `RamElim.ElimPreW` and
-`RamAugment.AugPreW`). The flip is `arrOf ns T → arrOf W T` here, plus
-`("gtg", ns) → ("gtg", W)` in `OrderMem` and a `W` parameter on
-`saveCsr`/`restoreCsr`. It is **blocked on data, not on walking**, and
-the blocker is one hypothesis:
+`RamAugment.AugPreW`). The level's target array is `W` cells, not the
+block structure's own `ns`, because at `R > 0` the ordering phase writes
+above `ns` — `TgtWidenProbe.sym5Narrow` is the symmetrization stuck in
+an `ns`-cell array — and a phase cannot widen an array a level owns.
 
-*The tower's `BfsQ.Shape` keeps its range clause over the whole physical
-target array* — `∀ j < tgt.length, tgt[j]! < n` — because
-`Ir.StateBound` is state-global and four ND-MC passes read the same
-clause at full width. F-a's ledger records this as the deliberate
-residual of the decoupling, and `Csr.widen` is stated at exactly it. So
-a level whose `tgt` is `W` wide owes `T j < n` at the padding slots —
-`RamCover.ImplementsW`'s `hpad`, which the cover pass is the only
-consumer of.
+**The tail is zero, and that is forced.** The tower's `BfsQ.Shape`
+keeps its range clause over the whole physical target array — `∀ j <
+tgt.length, tgt[j]! < n` — because `Ir.StateBound` is state-global and
+four ND-MC passes read the same clause at full width. F-a's ledger
+records this as the deliberate residual of the decoupling, and
+`Csr.widen` is stated at exactly it. So a level whose `tgt` is `W` wide
+owes something about the padding slots, and the obvious clause — `T j <
+n` there, which is `RamCover.ImplementsW`'s `hpad` — **cannot** be
+carried: at `n = 0`, which `WordBound` permits and the empty input word
+reaches, no cell is below `n`, so `LevelPre` would be unsatisfiable and
+`RamDriverIO.decodeImplements` could not establish it
+(`TgtWidenProbe`'s first flip-gate `example` is that refutation).
 
-That clause cannot simply be added here. At `n = 0` — which
-`WordBound` permits, and which the empty input word reaches — every
-`W > 0` makes `∀ j < W, T j < n` false, so `LevelPre` would become
-unsatisfiable and `RamDriverIO.decodeImplements` could not establish
-it. The satisfiable form is *zero* padding — `∀ j, ns ≤ j → j < W →
-T j = 0` — which yields `hpad` wherever the cover pass runs, since a
-centre turn carries `c < n`. Its price is a second reshape: `DecodeMem`
-becomes `(σ.arrs "tgt").length = W` with the tail zeroed, and the
-decode's walk must show its `ns` stores leave the tail alone. The tail
-then survives the level, because `saveCsr`/`restoreCsr` copy the whole
-`W` slots and every intermediate write to `tgt` is undone by the
-restore.
+Zero padding is the satisfiable form, and it *yields* `hpad` wherever
+the cover pass runs, since a centre turn carries `c < n` and so `0 < n`.
+The tail survives the level because `saveCsr`/`restoreCsr` copy the
+whole `W` slots and every intermediate write to `tgt` is undone by the
+restore, and it is *produced* by the decode, whose `ns` stores leave it
+alone (`TgtWidenProbe.decodeTail`).
 
-So the flip is: this clause, `OrderMem`'s `gtg`, the two copy programs,
-the ~20 walks that destructure the clause, **and** the `DecodeMem`
-reshape with its walk. The last item is the one the F-c-2 map did not
-have, and it is why the flip did not land with the chain. -/
+**The word clause** is the last conjunct and is the same rule as
+`OrderMem`'s two: `saveCsr` now copies all `W` cells of `tgt`, and a
+cell at or above the word bound has no bounded evaluation, so without it
+the phase has no run. Below `ns` it is data of the input word; above it
+is the zero tail, so the two clauses overlap and neither is redundant —
+the tail says *which* value, the word clause covers the head. -/
 def LevelPre (B n : ℕ) (cap mb : ℕ) (ns W : ℕ) (O T : ℕ → ℕ) (j : ℕ) (M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (σ : Env) : Prop :=
-  σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+  σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf W T ∧
     σ.arrs (alvName j) = arrOf n M ∧ σ.arrs (gamName j) = arrOf n Gm ∧
     (∀ c < sigL cap mb j, σ.arrs (colName j c) = arrOf n (C c)) ∧
     (∀ z < n, M z < B) ∧ (∀ z < n, Gm z < B) ∧
     (∀ c < sigL cap mb j, ∀ z < n, C c z ≤ 1) ∧
     LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
-    σ.vars "m" + σ.vars "m" = ns ∧ OrderMem B n ns W σ
+    σ.vars "m" + σ.vars "m" = ns ∧ OrderMem B n ns W σ ∧
+    (∀ z, ns ≤ z → z < W → T z = 0) ∧ (∀ z < W, T z < B)
+
+/-- **The padding slots hold vertices wherever a turn runs.** The zero
+tail of `LevelPre`, read as `RamCover.cover_specW`'s `hpad`. The
+hypothesis is the centre's own `c < n`, which every call of the cover
+pass has and which is the only thing that makes `n` positive. -/
+theorem pad_lt_of_zero {ns W n : ℕ} {T : ℕ → ℕ}
+    (hpad0 : ∀ z, ns ≤ z → z < W → T z = 0) (hn : 0 < n) :
+    ∀ z, ns ≤ z → z < W → T z < n :=
+  fun z h₁ h₂ => by rw [hpad0 z h₁ h₂]; omega
 
 /-- What a level leaves: its tables, and everything it was handed,
 untouched. The second half is what makes the levels compose — a level
@@ -2470,19 +2500,30 @@ the state whose arrays are all empty. The value bounds are the same
 rule at the expressions: at `B = 0` nothing evaluates.
 
 Two clauses are handed straight back. `σ'.vars "m"` is the edge count
-the second read left, and it is exposed here because the ordering
-phase's block-structure copies are bounded by it and by nothing else in
-reach — `saveCsr`'s target bound is `2·m` — so `LevelPre` carries it and
-somebody has to produce it. `OrderMem` is a frame condition and not a
-walk: the phase writes `off`, `tgt` and the two masks of depth zero, and
-the engines' scratch is none of them. -/
+the second read left, and it is exposed here because it is the slot
+count as the machine holds it, which `LevelPre` carries and somebody has
+to produce. `OrderMem` is a frame condition and not a walk: the phase
+writes `off`, `tgt` and the two masks of depth zero, and the engines'
+scratch is none of them.
+
+**The target array is the allocation width** (rebase F-c-4). `DecodeMem`
+hands in a `W`-cell `tgt` with the `W - ns` slots above the encoding
+zeroed, and the postcondition hands back `arrOf W T` with that tail
+intact — which is `LevelPre`'s `tgt` clause, and which the level below
+has no other producer for. The decode writes only the encoding's own
+`ns` cells, so the tail it gives back is the tail it was given; the
+walk's obligation is exactly that, and `TgtWidenProbe.decodeTail` is it
+run on a sentinel tail. `hpad0` is a hypothesis and not a conclusion
+because `T` is the caller's function and only the caller can say what it
+is above `ns`. -/
 def DecodeImplements (x : List ℕ) (G : SimpleGraph (Fin n)) (ns W : ℕ)
     (O T : ℕ → ℕ) (K : ℕ) : Prop :=
-  (∀ v ∈ x, v < B) → n + 1 < B → ns < B →
-    Spec B (fun σ => DecodeMem n ns σ ∧ OrderMem B n ns W σ ∧ σ.inp = x ∧ σ.out = [])
+  (∀ v ∈ x, v < B) → n + 1 < B → ns < B → W < B → ns ≤ W →
+    (∀ z, ns ≤ z → z < W → T z = 0) →
+    Spec B (fun σ => DecodeMem n ns W σ ∧ OrderMem B n ns W σ ∧ σ.inp = x ∧ σ.out = [])
       decodeCom
       (fun _ σ' => σ'.out = [] ∧ CsrGraph G ns O T ∧
-        σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf ns T ∧
+        σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf W T ∧
         σ'.vars "m" + σ'.vars "m" = ns ∧ OrderMem B n ns W σ' ∧
         (∃ M, σ'.arrs (alvName 0) = arrOf n M ∧ ∀ v < n, M v = 1) ∧
         (∃ Gm, σ'.arrs (gamName 0) = arrOf n Gm ∧ ∀ v < n, Gm v = 1)) K
@@ -2962,13 +3003,14 @@ scatter values its scatter atoms are, is the sentence's truth value.
 That is `sat_iff_eval_sentence`, and it is the only step of this proof
 that is not composition. -/
 theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
-    (hB : WordBound B n ns cap mb) (hxB : ∀ v ∈ x, v < B)
+    (hB : WordBound B n ns cap mb) (hxB : ∀ v ∈ x, v < B) (hWB : W < B)
+    (hpad0 : ∀ z, ns ≤ z → z < W → T z = 0)
     (hdec : DecodeImplements B x G ns W O T Kd)
     (hlev : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ), (∀ v < n, M v ≠ 0) →
       LevelImplements B q_top cap mb R ℓ W ns 0 φ G O T M Gm C Kl)
     (hsent : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
       SentenceImplements B q_top cap mb ns W φ G O T M Gm C Ks) :
-    Spec B (fun σ => DecodeMem n ns σ ∧ LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
+    Spec B (fun σ => DecodeMem n ns W σ ∧ LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
         OrderMem B n ns W σ ∧ TablesSized q_top cap mb φ n σ ∧
         BaseArrs B q_top cap mb ℓ φ σ ∧ σ.inp = x ∧ σ.out = [])
       (driverRoot q_top cap mb R ℓ W φ)
@@ -2980,7 +3022,13 @@ theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
   -- the decode
   obtain ⟨σ₁, hrun₁, hout₁, hcsr, hn₁, hoff₁, htgt₁, hm₁, hordmem₁,
       ⟨M, hM₁, hMone⟩, ⟨Gm, hGm₁, hGmone⟩⟩ :=
-    (hdec hxB hB.succ_lt hB.ns_lt).run ⟨hdm, hordmem, hinp, hout⟩
+    (hdec hxB hB.succ_lt hB.ns_lt hWB hordmem.1 hpad0).run ⟨hdm, hordmem, hinp, hout⟩
+  -- the level's word clause on the targets: a vertex below `ns`, the zero
+  -- pad above it
+  have hTB : ∀ z < W, T z < B := fun z hz => by
+    rcases lt_or_ge z ns with h | h
+    · exact lt_trans (hcsr.target_lt z h) hB.n_lt
+    · rw [hpad0 z h hz]; have := hB.one_lt; omega
   -- the memory the decode was handed is the memory the level is handed
   have hmem₁ : LevelMem B n cap mb σ₁ := levelMem_run hrun₁ hmem
   have hdep₁ : DepthMem n cap mb σ₁ := hdep.run hrun₁
@@ -3005,7 +3053,7 @@ theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
   obtain ⟨σ₂, hrun₂, ⟨hpre₂, -, htab₂⟩, hout₂⟩ :=
     (hlev M Gm (fun _ _ => 0) hMpos hcolbit).run
       (σ := σ₁) ⟨⟨hn₁, hoff₁, htgt₁, hM₁, hGm₁, hcolempty, hMB, hGmB, hcolbit, hmem₁, hdep₁, hm₁,
-        hordmem₁⟩, htsz₁, hbarr₁, hplay₀⟩
+        hordmem₁, hpad0, hTB⟩, htsz₁, hbarr₁, hplay₀⟩
   -- the sentence readback
   obtain ⟨σ₃, hrun₃, hcond, hout₃⟩ :=
     (hsent M Gm (fun _ _ => 0) hB hMpos).run (σ := σ₂) ⟨hpre₂, htab₂, by rw [hout₂, hout₁]⟩

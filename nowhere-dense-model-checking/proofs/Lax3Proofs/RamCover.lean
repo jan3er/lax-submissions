@@ -1057,11 +1057,19 @@ state-global (`Refine.BfsBridge.csr_of_csrGraphW` carries the note).
 The pass reads the target array only through the search, so this is the
 only place the padding is seen.
 
-`Implements` is the case `nt = ns`, where `hpad` is vacuous. -/
+`Implements` is the case `nt = ns`, where `hpad` is vacuous.
+
+**The padding clause is guarded by `0 < n`** (rebase F-c-4). A level's
+target array is `W` cells with a *zero* tail, not a tail of vertices,
+because the range form is unsatisfiable at `n = 0` — `RamDriver.LevelPre`
+records the refutation. Zero yields `T j < n` exactly when `n` is
+positive, and a turn always has `σ.vars "c" < n` and so does; the guard
+is where that reading is taken. Nothing else moves: the clause is
+consumed at one place, the search inside the turn. -/
 def ImplementsW (B n ns nt : ℕ) (G : SimpleGraph (Fin n)) (A₀ O T ord : ℕ → ℕ)
     (π : Equiv.Perm (Fin n)) (r : ℕ) : Prop :=
   RamBfs.CsrGraph G ns O T → OrdersBy n π ord → n * n + ns + 2 * r + 2 < B →
-    (∀ z < n, A₀ z < B) → ns ≤ nt → (∀ j, ns ≤ j → j < nt → T j < n) →
+    (∀ z < n, A₀ z < B) → ns ≤ nt → (0 < n → ∀ j, ns ≤ j → j < nt → T j < n) →
     Spec B (fun σ => CoverStateW B G A₀ π ns nt O T ord r σ ∧ σ.vars "c" < n) (centreStep r)
       (fun σ σ' => CoverStateW B G A₀ π ns nt O T ord r σ' ∧ σ'.vars "c" = σ.vars "c" + 1)
       (centreCost n ns)
@@ -1070,7 +1078,7 @@ def ImplementsW (B n ns nt : ℕ) (G : SimpleGraph (Fin n)) (A₀ O T ord : ℕ 
 written once, at `ImplementsW`, and read off here. -/
 theorem implements_of_implementsW {B : ℕ} (h : ImplementsW B n ns ns G A₀ O T ord π r) :
     Implements B n ns G A₀ O T ord π r :=
-  fun hcsr hord hB hA => h hcsr hord hB hA le_rfl (fun _ h₁ h₂ => absurd h₁ (by omega))
+  fun hcsr hord hB hA => h hcsr hord hB hA le_rfl (fun _ _ h₁ h₂ => absurd h₁ (by omega))
 
 /-- **The cover pass of Grohe–Kreutzer–Siebertz §6.** Handed a block
 structure for `G`, an ambient mask, and the order array of an ordering
@@ -1099,7 +1107,7 @@ state and nowhere else. `cover_spec` is this at `nt = ns`. -/
 theorem cover_specW {B nt : ℕ} (h : ImplementsW B n ns nt G A₀ O T ord π r)
     (hcsr : RamBfs.CsrGraph G ns O T) (hord : OrdersBy n π ord)
     (hB : n * n + ns + 2 * r + 2 < B) (hA : ∀ z < n, A₀ z < B) (hnt : ns ≤ nt)
-    (hpad : ∀ j, ns ≤ j → j < nt → T j < n) :
+    (hpad : 0 < n → ∀ j, ns ≤ j → j < nt → T j < n) :
     Spec B (fun σ => CoverPreW n ns nt O T A₀ ord σ ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
         (∀ v ∈ σ.arrs "q", v < B))
       (coverCom r) (CoverPost G A₀ π ord r)
@@ -1197,7 +1205,7 @@ theorem cover_spec {B : ℕ} (h : Implements B n ns G A₀ O T ord π r)
       (coverCom r) (CoverPost G A₀ π ord r)
       (coverCost n ns) :=
   cover_specW (nt := ns) (fun hc ho hb ha _ _ => h hc ho hb ha) hcsr hord hB hA le_rfl
-    (fun _ h₁ h₂ => absurd h₁ (by omega))
+    (fun _ _ h₁ h₂ => absurd h₁ (by omega))
 
 /-! ### The worked example
 

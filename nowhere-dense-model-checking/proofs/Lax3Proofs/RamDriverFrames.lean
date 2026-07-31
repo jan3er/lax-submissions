@@ -188,14 +188,15 @@ theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
   have hfv : ∀ y : String, y ∉ c.wvars → σ'.vars y = σ.vars y :=
     fun y hy => hrun.frame_var y hy
   obtain ⟨⟨⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCB, hlmem, hdep, hmvar,
-    hnsW, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste, hitg, hntg⟩, hplayrec,
+    ⟨hnsW, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste, hitg, hntg⟩,
+    hpad0, hTB⟩, hplayrec,
     hord, hxoff, hxmem, hasg, hxp, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, halv', hAlvB, hmask,
       hgam', hGamB⟩, hwrange⟩, hcol', hcolbit', hcolread', htab'⟩ := h
   refine ⟨⟨⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCB, levelMem_run hrun hlmem,
       hdep.run hrun, ?_,
-      hnsW, hosz.run hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-      run_mem_arrs_lt hrun "itg" hitg, run_mem_arrs_lt hrun "ntg" hntg⟩,
+      ⟨hnsW, hosz.run hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+        run_mem_arrs_lt hrun "itg" hitg, run_mem_arrs_lt hrun "ntg" hntg⟩, hpad0, hTB⟩,
     hplayrec.congr (fun a _ => hfv (ctrName a) (hVctr a))
       (fun a _ => hfa (gamName a) (gamName_notMem_scratchArrs a)),
     ?_, ?_, ?_, ?_, ?_, hmn, hordlt, hcout⟩,
@@ -338,11 +339,19 @@ theorem ScatPre.off
 
 theorem ScatPre.tgt
     (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
-      Alv' Gam' C' σ) : σ.arrs "tgt" = arrOf ns T := h.1.1.2.2.1
+      Alv' Gam' C' σ) : σ.arrs "tgt" = arrOf Ws T := h.1.1.2.2.1
 
 theorem ScatPre.mem
     (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' σ) : LevelMem B n cap mb σ := h.1.1.2.2.2.2.2.2.2.2.2.1
+
+/-- **The block structure sits in a prefix of the level's target array**
+(rebase F-c-4): `RamDriver.OrderMem`'s first conjunct, read off the
+level's surface. It is what lets the scatter pass enter through
+`RamScatter.scatter_specW` at the allocation width. -/
+theorem ScatPre.nsW
+    (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+      Alv' Gam' C' σ) : ns ≤ Ws := h.1.1.2.2.2.2.2.2.2.2.2.2.2.2.1.1
 
 theorem ScatPre.alvA
     (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
@@ -412,10 +421,10 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1B 
   have hlmem₂ : LevelMem B n cap mb σ₂ := levelMem_run r₂ hlmem₁
   -- the pass
   obtain ⟨σ₃, r₃, hflag₃, hle₃⟩ :=
-    (RamScatter.scatter_spec (G := G) (M := Alv') (Tab := Tb) (O := O) (T := T)
-      (ns := ns) (r := σs.r) (t := σs.t)
+    (RamScatter.scatter_specW (G := G) (M := Alv') (Tab := Tb) (O := O) (T := T)
+      (ns := ns) (nt := Ws) (r := σs.r) (t := σs.t)
       (X := {a | Sat (masked G Alv') (colRead n C' (sigL cap mb (j + 1))) (fun _ => a) σs.β})
-      hcsr hnB hnsB hrB htB (fun z hz => hpre.alvB z hz) hTbB
+      hcsr hnB hnsB hpre.nsW hrB htB (fun z hz => hpre.alvB z hz) hTbB
       (fun v => by rw [hTbS v, hpβ]; exact Iff.rfl)).run (σ := σ₂)
       ⟨hn₂,
         by rw [r₂.frame_arr _ (notMem_warrs_copy (by decide)),
@@ -918,15 +927,14 @@ theorem innerFrames {ℓ : ℕ} {inner : Com} {Kin : ℕ → ℕ}
   have hfv : ∀ y : String, y ∉ inner.wvars → σ'.vars y = σ.vars y :=
     fun y hy => hrun.frame_var y hy
   obtain ⟨hn', hoff', htgt', halv'', hgam'', hcol'', hAlvB', hGamB', hCB', hlmem', hdep',
-    hmvar', hordmem'⟩ := hlevin
+    hmvar', hordmem', hpad0', hTB'⟩ := hlevin
   obtain ⟨-,
-    ⟨⟨-, -, -, halvj, hgamj, hcolj, hMB, hGmB, hCB, -, -, -, -, -, -, -, -, -, -, -, -, -,
-      -, -⟩, hplayrec,
+    ⟨⟨-, -, -, halvj, hgamj, hcolj, hMB, hGmB, hCB, -, -, -, -, -, -⟩, hplayrec,
       hord, hxoff, hxmem, hasg, hxp, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, -, hAlvB, hmask,
       -, hGamB⟩, hwrange⟩, -, -⟩ := hσ
   refine ⟨σ', hrun, ⟨⟨hn', hoff', htgt', ?_, ?_, ?_, hMB, hGmB, hCB, hlmem', hdep', hmvar',
-      hordmem'⟩,
+      hordmem', hpad0', hTB'⟩,
     hplayrec.congr (fun a ha => hfv (ctrName a) (hVctr a (by omega)))
       (fun a ha => hfa (gamName a) (_root_.Or.inr (_root_.Or.inr ⟨a, by omega, rfl⟩))),
     ?_, ?_, ?_, ?_, ?_, hmn, hordlt, hcout⟩,

@@ -636,6 +636,7 @@ theorem driverRoot_decides_sentence
     (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
     (hO : ∀ i ≤ n, O i = offset x i) (hT : ∀ i < ns, T i = target x i)
     (hxB : ∀ v ∈ x, v < B) (hcsr : RamElim.CsrSimple G ns O T)
+    (hpad0 : ∀ z, ns ≤ z → z < W → T z = 0)
     -- the parameters
     (hrank : Lax3.FirstOrder.rank φ ≤ q_top) (hcap : cap = rhoMinus 0 q_top)
     (hmb : mb = ℓ * (2 * cap + 1)) (hℓ : ℓ = N (2 * s + 2))
@@ -671,13 +672,13 @@ theorem driverRoot_decides_sentence
       s.r + 1 < B ∧ s.t < B ∧ RamDriverIO.atomCost n ns s.t ≤ Kb₀)
     (hKsent : Kb₀ * (bcAtomsOf₀ q_top (Reduction.toDistFO (L := sigL cap mb 0) φ)).2.length + 1 +
       (1 + (RamDriverIO.sentenceExpr q_top cap mb φ).size) ≤ Ksent) :
-    Spec B (fun σ => DecodeMem n ns σ ∧ LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
+    Spec B (fun σ => DecodeMem n ns W σ ∧ LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
         OrderMem B n ns W σ ∧ TablesSized q_top cap mb φ n σ ∧
         BaseArrs B q_top cap mb ℓ φ σ ∧ σ.inp = x ∧ σ.out = [])
       (driverRoot q_top cap mb 0 ℓ W φ)
       (fun _ σ' => σ'.out = [if Lax3.FirstOrder.Sat G Fin.elim0 φ then 1 else 0])
       (Kdec + (Kl 0 n + Ksent)) :=
-  driver_correct hrank hB hxB
+  driver_correct hrank hB hxB (by omega) hpad0
     (RamDriverIO.decodeImplements hx hns hO hT hKdec)
     (fun M Gm C hall => by
       have h := levelAt hcap hmb hℓ hB hWB hpow hcsr hQ hbnd hcostI hKsc hKmono hKs
@@ -702,6 +703,7 @@ theorem driverRoot_decides_sentence_binj
     (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
     (hO : ∀ i ≤ n, O i = offset x i) (hT : ∀ i < ns, T i = target x i)
     (hxB : ∀ v ∈ x, v < B) (hcsr : RamElim.CsrSimple G ns O T)
+    (hpad0 : ∀ z, ns ≤ z → z < W → T z = 0)
     -- the parameters
     (hrank : Lax3.FirstOrder.rank φ ≤ q_top) (hcap : cap = rhoMinus 0 q_top)
     (hmb : mb = ℓ * (2 * cap + 1)) (hℓ : ℓ = N (2 * s + 2))
@@ -735,13 +737,13 @@ theorem driverRoot_decides_sentence_binj
       s.r + 1 < B ∧ s.t < B ∧ RamDriverIO.atomCost n ns s.t ≤ Kb₀)
     (hKsent : Kb₀ * (bcAtomsOf₀ q_top (Reduction.toDistFO (L := sigL cap mb 0) φ)).2.length + 1 +
       (1 + (RamDriverIO.sentenceExpr q_top cap mb φ).size) ≤ Ksent) :
-    Spec B (fun σ => DecodeMem n ns σ ∧ LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
+    Spec B (fun σ => DecodeMem n ns W σ ∧ LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
         OrderMem B n ns W σ ∧ TablesSized q_top cap mb φ n σ ∧
         BaseArrs B q_top cap mb ℓ φ σ ∧ σ.inp = x ∧ σ.out = [])
       (driverRoot q_top cap mb 0 ℓ W φ)
       (fun _ σ' => σ'.out = [if Lax3.FirstOrder.Sat G Fin.elim0 φ then 1 else 0])
       (Kdec + (Kl 0 n + Ksent)) :=
-  driverRoot_decides_sentence hx hns hO hT hxB hcsr hrank hcap hmb hℓ hB hWB hpow hQ
+  driverRoot_decides_sentence hx hns hO hT hxB hcsr hpad0 hrank hcap hmb hℓ hB hWB hpow hQ
     hbnd hcostI hKsc hKmono hKs hKbase hKo hKc hKd (blockInj_slot G cap) hdeg hKl
     hKdec hatoms hKsent
 

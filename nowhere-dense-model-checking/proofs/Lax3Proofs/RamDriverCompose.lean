@@ -295,7 +295,7 @@ theorem levelPre_run {B n cap mb ns W j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ
     (hcol : ∀ q : ℕ, colName j q ∉ c.warrs)
     (hz : ∀ a ∈ zeroArrs, a ∉ c.warrs) :
     LevelPre B n cap mb ns W O T j M Gm C σ' := by
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13⟩ := h
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15⟩ := h
   exact ⟨by rw [hr.frame_var "n" hn]; exact h1,
     by rw [hr.frame_arr "off" hoff]; exact h2,
     by rw [hr.frame_arr "tgt" htgt]; exact h3,
@@ -304,7 +304,7 @@ theorem levelPre_run {B n cap mb ns W j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ
     fun q hq => by rw [hr.frame_arr _ (hcol q)]; exact h6 q hq,
     h7, h8, h9, levelMem_run hr h10, h11.run hr,
     by rw [hr.frame_var "m" hm]; exact h12,
-    orderMem_run h13 hr hz⟩
+    orderMem_run h13 hr hz, h14, h15⟩
 
 /-! ### The cover phase's own frames -/
 
@@ -813,7 +813,7 @@ theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin 
   have hn1B : n + 1 < B := hB.succ_lt
   have hcovB := hB.cover
   have hnnB : n * n < B := by omega
-  obtain ⟨hvn, hoff, htgt, halvj, -, -, hMB, -, -, hmem, hdep, -, -⟩ := id hlev
+  obtain ⟨hvn, hoff, htgt, halvj, -, -, hMB, -, -, hmem, hdep, -, hordmem, hpad0, -⟩ := id hlev
   -- (1) the depth's ordering into the name the pass reads
   obtain ⟨σ₁, hr₁, ⟨u₁, hu₁, hagr₁⟩, -, hvn₁, -⟩ :=
     (RamDriverCluster.copyCom_spec B n n (ordName j) "ord" ord
@@ -839,13 +839,16 @@ theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin 
     rw [hr₂.frame_arr _ (by rw [warrs_copyCom]; decide),
       hr₁.frame_arr _ (by rw [warrs_copyCom]; decide)]
     exact hoff
-  have htgt₂ : σ₂.arrs "tgt" = arrOf ns T := by
+  have htgt₂ : σ₂.arrs "tgt" = arrOf W T := by
     rw [hr₂.frame_arr _ (by rw [warrs_copyCom]; decide),
       hr₁.frame_arr _ (by rw [warrs_copyCom]; decide)]
     exact htgt
-  -- (3) the pass
+  -- (3) the pass, at the level's allocation width: the block structure
+  -- occupies the first `ns` slots and the padding above it is zero, which
+  -- is `RamCover.cover_specW`'s `hpad` wherever a centre turn runs
   obtain ⟨σ₃, hr₃, Xoff, Xmem, asg, m, hxoff₃, hxmem₃, hasg₃, hxp₃, hmle, hout⟩ :=
-    (RamDriverOrder.coverPass_spec (r := cap) (A₀ := M) hcsr hord hcovB hMB).run
+    (RamDriverOrder.coverPass_specW (r := cap) (A₀ := M) (nt := W) hcsr hord hcovB hMB
+        hordmem.1 (RamDriver.pad_lt_of_zero hpad0)).run
       ⟨⟨hvn₂, hoff₂, htgt₂, halvA₂, hordA₂, hmem₂.1.get (p := ("dist", n)) (by simp),
         hmem₂.1.get (p := ("q", n)) (by simp), hmem₂.1.get (p := ("asg", n)) (by simp),
         hmem₂.1.get (p := ("xoff", n + 1)) (by simp),
@@ -1490,13 +1493,13 @@ theorem warrs_orderZeroCom :
 theorem warrs_ordCom (dst : String) : (ordCom dst).warrs = [dst] := rfl
 
 /-- The save writes the reserved pair. -/
-theorem warrs_saveCsr : saveCsr.warrs = ["gof", "gtg"] := rfl
+theorem warrs_saveCsr (W : ℕ) : (saveCsr W).warrs = ["gof", "gtg"] := rfl
 
 /-- And the restore writes the level's own. -/
-theorem warrs_restoreCsr : restoreCsr.warrs = ["off", "tgt"] := rfl
+theorem warrs_restoreCsr (W : ℕ) : (restoreCsr W).warrs = ["off", "tgt"] := rfl
 
 /-- A depth's mask is neither of the reserved pair. -/
-theorem alvName_notMem_saveCsr (j : ℕ) : alvName j ∉ saveCsr.warrs := by
+theorem alvName_notMem_saveCsr (W j : ℕ) : alvName j ∉ (saveCsr W).warrs := by
   rw [warrs_saveCsr]; simp [alvName, String.ext_iff]
 
 /-- The mask copy writes `alv` and nothing else. -/
@@ -1543,13 +1546,17 @@ symmetrization, the mask fill and the ten zeroing fills. The constants
 are generous, as everywhere in this campaign: the sharp charging is the
 cost wave's business.
 
+**Rebase F-c-4.** The two block-structure copies are bounded by the
+allocation width `W` rather than by the slot count `ns`, since that is
+the array the level owns, so the `W` coefficient absorbs their `28·W`.
+
 **Rebase F-c-2.** The symmetrization adds `RamDriverAugment.symCost n m
 = 200·n + 100·m + 200` with `m` the chain's arc count, and
 `m + m ≤ ns` at `R = 0` (`RamDriverAugment.two_mul_arcs_le`), so the
 addend is read here at `200·n + 100·ns + 200`. The second elimination
 got *cheaper* — it runs at the slot count `m + m ≤ ns` rather than at
 `ns` — so nothing else moves. -/
-def orderPhaseCost (n ns W : ℕ) : ℕ := 1600 * n + 1350 * ns + 20 * W + 650
+def orderPhaseCost (n ns W : ℕ) : ℕ := 1600 * n + 1350 * ns + 60 * W + 650
 
 set_option maxHeartbeats 1000000 in
 /-- **The ordering phase of a level, discharged at `R = 0`.**
@@ -1578,7 +1585,7 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
   intro hB hcsr hWB _helim _haug
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hvn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCbit, hmem, hdep, hmv,
-    hordmem⟩ := id hσ
+    hordmem, hpad0, hTBW⟩ := id hσ
   obtain ⟨hnsW, hosz, hzelm, hzbh, hzooff, -, -, -, -, -, hwitg, hwntg⟩ := id hordmem
   have hnB : n < B := hB.n_lt
   have hn1B : n + 1 < B := hB.succ_lt
@@ -1590,32 +1597,33 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
   have hOB : ∀ k < n + 1, O k < B := fun k hk =>
     lt_of_le_of_lt (hcsr.csr.le_ns (by omega)) hnsB
   have hTB : ∀ k < ns, T k < B := fun k hk => lt_trans (hcsr.csr.target_lt k hk) hnB
-  -- (1) the block structure out of the way
+  -- (1) the block structure out of the way — all `W` slots of it, since
+  -- that is the array the level owns
   obtain ⟨σ₁, r₁, hvn₁, hmv₁, hoff₁, htgt₁, hgof₁, hgtg₁⟩ :=
-    (RamDriverOrder.saveCsr_spec hn1B hnsB hOB hTB).run
+    (RamDriverOrder.saveCsr_spec (ns := ns) hn1B hWltB hOB hTBW).run
       ⟨hvn, hmv, hoff, htgt, hosz.get (p := ("gof", n + 1)) (by simp),
-        hosz.get (p := ("gtg", ns)) (by simp)⟩
+        hosz.get (p := ("gtg", W)) (by simp)⟩
   have hsz₁ := hosz.run r₁
   have hmem₁ := levelMem_run r₁ hmem
-  have f₁ : ∀ a : String, a ∉ saveCsr.warrs → σ₁.arrs a = σ.arrs a := fun a ha => r₁.frame_arr a ha
+  have f₁ : ∀ a : String, a ∉ (saveCsr W).warrs → σ₁.arrs a = σ.arrs a := fun a ha => r₁.frame_arr a ha
   -- (2) the depth's mask into the name the engine reads
   obtain ⟨σ₂, r₂, ⟨u₂, hu₂, hag₂⟩, -, hvn₂, -⟩ :=
     (RamDriverCluster.copyCom_spec B n n (alvName j) "alv" M (alvName_ne_alv j) hnB le_rfl
       hMB).run
       ⟨hmem₁.1.get (p := ("alv", n)) (by simp), hvn₁,
-        by rw [f₁ _ (alvName_notMem_saveCsr j)]; exact halvj⟩
+        by rw [f₁ _ (alvName_notMem_saveCsr W j)]; exact halvj⟩
   have halv₂ : σ₂.arrs "alv" = arrOf n M := hu₂.trans (RamDriverOrder.arrOf_congr hag₂)
   have hsz₂ := hsz₁.run r₂
   have f₂ : ∀ a : String, a ∉ (copyCom (alvName j) "alv").warrs → σ₂.arrs a = σ₁.arrs a :=
     fun a ha => r₂.frame_arr a ha
   have helmσ₂ : ∀ v ∈ σ₂.arrs "elm", v = 0 := by
-    rw [f₂ _ (lit_notMem_copyCom_alv j "elm"), f₁ _ (by decide)]; exact hzelm
+    rw [f₂ _ (lit_notMem_copyCom_alv j "elm"), f₁ _ (by rw [warrs_saveCsr]; decide)]; exact hzelm
   have hbhσ₂ : ∀ v ∈ σ₂.arrs "bh", v = 0 := by
-    rw [f₂ _ (lit_notMem_copyCom_alv j "bh"), f₁ _ (by decide)]; exact hzbh
+    rw [f₂ _ (lit_notMem_copyCom_alv j "bh"), f₁ _ (by rw [warrs_saveCsr]; decide)]; exact hzbh
   -- (3) the first elimination
   obtain ⟨σ₃, r₃, ⟨Ra, IOa, ITa, ka, ma, Ea, -, -, hioff₃, hitg₃, hma, -, -, -, -, htoG₃, -, -,
       -, -, hincsr₃⟩, -⟩ :=
-    (elimRank_spec hcsr hnnsB hMB hnsW).run
+    (elimRank_specW (nt := W) hcsr hnnsB hMB hnsW hnsW).run
       ⟨hvn₂, by rw [f₂ _ (lit_notMem_copyCom_alv j "off")]; exact hoff₁,
         by rw [f₂ _ (lit_notMem_copyCom_alv j "tgt")]; exact htgt₁,
         halv₂, hsz₂.get (p := ("deg", n)) (by simp),
@@ -1678,7 +1686,7 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
       f₄ _ (by rw [warrs_copyUpto]; decide), f₃ _ (by decide),
       f₂ _ (lit_notMem_copyCom_alv j "gof")]
     exact hgof₁
-  have hgtg₅ : σ₅.arrs "gtg" = arrOf ns T := by
+  have hgtg₅ : σ₅.arrs "gtg" = arrOf W T := by
     rw [f₅ _ (by rw [warrs_copyUpto]; decide),
       f₄ _ (by rw [warrs_copyUpto]; decide), f₃ _ (by decide),
       f₂ _ (lit_notMem_copyCom_alv j "gtg")]
@@ -1697,11 +1705,12 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
   have hfit : ma + ma ≤ ns := RamDriverAugment.two_mul_arcs_le hcsr hincsr₃ hsub
   have hzooff₅ : ∀ v ∈ σ₅.arrs "ooff", v = 0 := by
     rw [f₅ _ (by rw [warrs_copyUpto]; decide), f₄ _ (by rw [warrs_copyUpto]; decide),
-      f₃ _ (by decide), f₂ _ (lit_notMem_copyCom_alv j "ooff"), f₁ _ (by decide)]
+      f₃ _ (by decide), f₂ _ (lit_notMem_copyCom_alv j "ooff"),
+      f₁ _ (by rw [warrs_saveCsr]; decide)]
     exact hzooff
   obtain ⟨σ₇, K₇, Os, Ts, r₇, hK₇, hoffS, htgtS, hcsrS, hfaS, hfvS⟩ :=
-    RamDriverAugment.symPass_run (B := B) (W := W) (nt := ns) (m := ma) (D := Ea)
-      (DO := IOa) (DT := ITa) (σ := σ₅) hn1B (by omega) (by omega) hfit hvn₅ hincsr₃
+    RamDriverAugment.symPass_run (B := B) (W := W) (nt := W) (m := ma) (D := Ea)
+      (DO := IOa) (DT := ITa) (σ := σ₅) hn1B (by omega) (by omega) (by omega) hvn₅ hincsr₃
       hdoff₅ hdtg₅
       (by
         obtain ⟨g, hg, hgz⟩ :=
@@ -1717,7 +1726,7 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     rw [hfvS "m" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hmv₅
   have hgof₇ : σ₇.arrs "gof" = arrOf (n + 1) O := by
     rw [hfaS "gof" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hgof₅
-  have hgtg₇ : σ₇.arrs "gtg" = arrOf ns T := by
+  have hgtg₇ : σ₇.arrs "gtg" = arrOf W T := by
     rw [hfaS "gtg" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hgtg₅
   -- (8) everything alive again
   obtain ⟨σ₈, r₈, ⟨A, hA₈, hA₈v⟩, -, hvn₈⟩ :=
@@ -1736,7 +1745,7 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     fun a ha => r₉.frame_arr a ha
   -- (10) the second elimination, on the symmetrized graph
   obtain ⟨σ₁₀, r₁₀, -, R, hrnk₁₀, hRlt, hRinj⟩ :=
-    (elimRank_specW hcsrS (by omega) hAB (by omega) hfit).run
+    (elimRank_specW (nt := W) hcsrS (by omega) hAB (by omega) (by omega)).run
       ⟨hvn₉,
         by rw [f₉ _ (by decide), f₈ _ (by decide)]; exact hoffS,
         by rw [f₉ _ (by decide), f₈ _ (by decide)]; exact htgtS,
@@ -1757,14 +1766,14 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
       r₈.frame_var "m" (by decide)]
     exact hmv₇
   obtain ⟨σ₁₁, r₁₁, hvn₁₁, -, -, -, hoff₁₁, htgt₁₁⟩ :=
-    (RamDriverOrder.restoreCsr_spec hn1B hnsB hOB hTB).run
+    (RamDriverOrder.restoreCsr_spec (ns := ns) hn1B hWltB hOB hTBW).run
       ⟨hvn₁₀, hmv₁₀,
         by rw [f₁₀ _ (by decide), f₉ _ (by decide), f₈ _ (by decide)]; exact hgof₇,
         by rw [f₁₀ _ (by decide), f₉ _ (by decide), f₈ _ (by decide)]; exact hgtg₇,
         sizedRun r₁₀ (sizedRun r₉ (sizedRun r₈ ⟨Os, hoffS⟩)),
         sizedRun r₁₀ (sizedRun r₉ (sizedRun r₈ ⟨Ts, htgtS⟩))⟩
   have hsz₁₁ := hsz₁₀.run r₁₁
-  have f₁₁ : ∀ a : String, a ∉ restoreCsr.warrs → σ₁₁.arrs a = σ₁₀.arrs a :=
+  have f₁₁ : ∀ a : String, a ∉ (restoreCsr W).warrs → σ₁₁.arrs a = σ₁₀.arrs a :=
     fun a ha => r₁₁.frame_arr a ha
   -- (12) the rank array inverted into the order array
   obtain ⟨σ₁₂, r₁₂, hvn₁₂, -, π, ordv, hord₁₂, hordby⟩ :=
@@ -1790,7 +1799,7 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     rw [f₁₃ _ (by rw [warrs_orderZeroCom]; decide),
       f₁₂ _ (by simp [ordName, String.ext_iff])]
     exact hoff₁₁
-  have htgtρ : ρ.arrs "tgt" = arrOf ns T := by
+  have htgtρ : ρ.arrs "tgt" = arrOf W T := by
     rw [f₁₃ _ (by rw [warrs_orderZeroCom]; decide),
       f₁₂ _ (by simp [ordName, String.ext_iff])]
     exact htgt₁₁
@@ -1799,8 +1808,8 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     r₁.seq (r₂.seq (r₃.seq (r₄.seq (r₅.seq (r₆.seq (r₇.seq (r₈.seq (r₉.seq
       (r₁₀.seq (r₁₁.seq (r₁₂.seq r₁₃)))))))))))
   refine ⟨ρ, _, hrT, ?_, ⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCbit, levelMem_run hrT hmem,
-      hdep.run hrT, ?_, hnsW, hosz.run hrT, z₁, z₂, z₃, z₄, z₅, z₆, z₇, z₈,
-      run_mem_arrs_lt hrT "itg" hwitg, run_mem_arrs_lt hrT "ntg" hwntg⟩,
+      hdep.run hrT, ?_, ⟨hnsW, hosz.run hrT, z₁, z₂, z₃, z₄, z₅, z₆, z₇, z₈,
+        run_mem_arrs_lt hrT "itg" hwitg, run_mem_arrs_lt hrT "ntg" hwntg⟩, hpad0, hTBW⟩,
     hrT.out_eq (noWrite_orderCom₀ W j),
     fun a => hrT.frame_var _ (ctrName_notMem_orderCom₀ W j a),
     fun a => hrT.frame_arr _ (gamName_notMem_orderCom₀ W j a),
@@ -1863,10 +1872,25 @@ thirteen steps are written:
    `R = 0`; at general `R` the write sets are `foldRange`'s, so each
    needs an induction on `R`. Mechanical, and none of it is
    mathematics.
+
+   *Rebase F-c-4* removed one thing from this item and added none: the
+   `tgt` flip landed, so every surface the fold has to thread — the
+   level's own `RamDriver.LevelPre` and the whole descend/cover/scatter
+   chain under it — is already stated at the allocation width `W`, and
+   the fold no longer has to widen anything on its way.
 5. **`AugmentedDepthOneDensity`**, which `greedy_chain_inDegLE` takes as
    a hypothesis and `Augmentation`'s own header records as the one
    statement of that file that is not proved. It enters the phase as a
-   hypothesis and leaves through `P` — it is not this walk's debt. -/
+   hypothesis and leaves through `P` — it is not this walk's debt.
+
+6. **The cost.** `relinkCost` is now *walked* (rebase F-c-4;
+   `relinkCostSum` and `relinkCostSum_le` below) and was found **wrong**
+   as landed: the nine passes come to `97·n + 12·W + 115`, and F-c-3's
+   `100·n + 20·W + 100` is refuted below five vertices
+   (`relinkCost_old_refuted`). The constant is repaired here, so
+   `orderPhaseCostR` is a budget the fold can actually be proved at.
+   `RamAugment.augCost` — the round's own share — is walked in
+   `RamAugment` already. -/
 
 section Rstar
 
@@ -1896,10 +1920,52 @@ theorem orderP_zero {R : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ}
       CoverDegree.AugChainData (masked G M) D π R d₀ k := h
 
 /-- **The bookkeeping between two rounds, charged.** `augRelinkCom` is
-two copies and seven flat fills; the constant is generous in the
-campaign's usual way and is **not yet walked** — the fold that consumes
-it is item 1 of the residual above. -/
-def relinkCost (n W : ℕ) : ℕ := 100 * n + 20 * W + 100
+two copies and seven flat fills, and this is the sum of their nine kit
+costs — not a guess.
+
+**Rebase F-c-4: the constant was wrong.** F-c-3 landed this as `100·n +
+20·W + 100`, marked "generous, not yet walked". Walking it
+(`relinkCostSum` below, and `relinkCostSum_le` for the comparison) gives
+`97·n + 12·W + 115`, whose *constant* is above `100`: the old bound is
+refuted at every carrier below five vertices —
+`relinkCost_old_refuted` is that falsification at `n = W = 0`. The `n` and `W` coefficients were indeed
+generous; the constant was not, and a phase obligation stated at the old
+number could not have been discharged. -/
+def relinkCost (n W : ℕ) : ℕ := 100 * n + 20 * W + 120
+
+/-- **The nine passes of `RamDriver.augRelinkCom`, charged one by one**,
+at the kit costs their walks come out at:
+`RamDriverOrder.copyUpto_spec` is `(bnd.size + 11)·N + bnd.size + 5` and
+`RamDriverOrder.fillUpto_spec` is `(e.size + bnd.size + 9)·N + bnd.size
++ 5`, with `Spec.seq` adding and nothing else. The two copies are at
+`n + 1` (bound `n + 1`, size `3`) and at `W` (bound the literal `W`,
+size `1`); the three offset fills are at `n + 1`; the four stamp fills
+are `RamDriver.fillCom`, whose bound is `.var "n"` of size `1`, at `n`.
+-/
+def relinkCostSum (n W : ℕ) : ℕ :=
+  (14 * (n + 1) + 8) + (12 * W + 6) + 3 * (13 * (n + 1) + 8) + 4 * (11 * n + 6)
+
+/-- The sum, in closed form: `97·n + 12·W + 115`. -/
+theorem relinkCostSum_eq (n W : ℕ) : relinkCostSum n W = 97 * n + 12 * W + 115 := by
+  simp only [relinkCostSum]; ring
+
+/-- **And it fits the budget** — the check the phase obligation needs,
+at the repaired constant. -/
+theorem relinkCostSum_le (n W : ℕ) : relinkCostSum n W ≤ relinkCost n W := by
+  rw [relinkCostSum_eq, relinkCost]; omega
+
+/-- **Refuted: the old constant.** `100·n + 20·W + 100` does not bound
+the nine passes — at the empty carrier and the empty width the
+bookkeeping still costs `115`, being nine loop entries and exits. This
+is why the walk had to be done and not estimated. -/
+theorem relinkCost_old_refuted : ¬ relinkCostSum 0 0 ≤ 100 * 0 + 20 * 0 + 100 := by
+  rw [relinkCostSum_eq]; omega
+
+-- the old bound fails on every carrier below five vertices, and holds
+-- from five on: the defect is exactly the constant
+#guard decide (relinkCostSum 0 0 = 115)
+#guard ¬ decide (relinkCostSum 4 0 ≤ 100 * 4 + 20 * 0 + 100)
+#guard decide (relinkCostSum 5 0 ≤ 100 * 5 + 20 * 0 + 100)
 
 /-- **The cost of the ordering phase at `R` rounds**: the `R = 0`
 phase, plus `R` times a round and its relink. The shape is what P3's

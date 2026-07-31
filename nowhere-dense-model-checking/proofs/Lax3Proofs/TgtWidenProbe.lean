@@ -81,10 +81,19 @@ def setA : List (String × List ℕ) → String → ℕ → ℕ → List (String
   | [], a, i, v => [(a, [].set i v)]
   | (b, l) :: t, a, i, v => if b == a then (a, l.set i v) :: t else (b, l) :: setA t a i v
 
-/-- The probe state: scalars and arrays. -/
+/-- The probe state: scalars, arrays, and the input tape.
+
+**The tape** (rebase F-c-4). The interpreter's `read` used to be stuck,
+because `RamAugment.augCom` has no tape rule and a conservative verdict
+was all the round's probes needed. The decode does, and the flip's
+second gate is a *decode* differential, so the field is here and
+`BigStepB.read`'s rule is mirrored with it: a `read` pops the head of
+the tape into a scalar, and an empty tape is stuck. `write` still
+evaluates and drops — no probe below reads the output. -/
 structure PSt where
   vars : List (String × ℕ)
   arrs : List (String × List ℕ)
+  inp : List ℕ := []
 
 /-! ### Bounded evaluation, mirrored from `Lax13Proofs.Bounds` -/
 
@@ -122,12 +131,12 @@ def exec (B : ℕ) : ℕ → Com → PSt → PRes
   | _ + 1, .skip, σ => .ok σ
   | _ + 1, .assign x e, σ =>
       match evalE B e σ with
-      | some v => .ok ⟨setV σ.vars x v, σ.arrs⟩
+      | some v => .ok ⟨setV σ.vars x v, σ.arrs, σ.inp⟩
       | none => .stuck
   | _ + 1, .store a i e, σ =>
       match evalE B i σ, evalE B e σ with
       | some k, some v =>
-          if k < (getA σ.arrs a).length then .ok ⟨σ.vars, setA σ.arrs a k v⟩ else .stuck
+          if k < (getA σ.arrs a).length then .ok ⟨σ.vars, setA σ.arrs a k v, σ.inp⟩ else .stuck
       | _, _ => .stuck
   | f + 1, .seq c d, σ =>
       match exec B f c σ with
@@ -146,7 +155,10 @@ def exec (B : ℕ) : ℕ → Com → PSt → PRes
           | r => r
       | some false => .ok σ
       | none => .stuck
-  | _ + 1, .read _, _ => .stuck
+  | _ + 1, .read x, σ =>
+      match σ.inp with
+      | v :: rest => if v < B then .ok ⟨setV σ.vars x v, σ.arrs, rest⟩ else .stuck
+      | [] => .stuck
   | _ + 1, .write e, σ =>
       match evalE B e σ with
       | some _ => .ok σ
@@ -444,5 +456,112 @@ def sym5Zero : PRes := exec pB pF RamDriver.symCom (augSt 5 64 8 star5doff star5
 #guard sym5Zero.isOk
 #guard (List.range 6).map (sym5Zero.cell "off") = [0, 4, 5, 6, 7, 8]
 #guard (List.range 8).map (sym5Zero.cell "tgt") = [1, 2, 3, 4, 0, 0, 0, 0]
+
+/-! ### The flip's falsification gate (rebase F-c-4)
+
+`RamDriver.LevelPre`'s `tgt` clause is now `arrOf W T` with a
+**zero-padded** tail, and `RamDriver.DecodeMem` is length-`W` with the
+tail zeroed. Both halves of that shape are refutable, and this section
+is the two refutations run before the walks were touched.
+
+**The first is the shape of the tail clause itself.** The tower's
+`BfsQ.Shape` keeps its range clause over the whole physical array, so
+the obvious padding clause to carry is `∀ j, ns ≤ j → j < W → T j < n`
+— and that clause is *unsatisfiable at `n = 0`*, which
+`RamDriver.WordBound` permits and the empty input word reaches. The
+three `example`s below are the failure, the repair, and the reason the
+repair is enough: zero padding is satisfiable at every `n`, and it
+*yields* the range clause wherever the cover pass runs, because a centre
+turn carries `c < n` and so `0 < n`.
+
+**The second is the decode.** `DecodeMem` now hands in a `W`-cell `tgt`
+with the tail zeroed, and the decode's postcondition hands it back — but
+the decode's read loop stores `ns` cells, and nothing in its statement
+said the other `W - ns` were left alone. `decodeTail` is that claim run
+on the demo tape, with a *sentinel* tail rather than a zeroed one so
+that a stray store would show. -/
+
+section FlipGate
+
+/-- **The failure L-8 names.** The range form of the padding clause has
+no witness at `n = 0`: it is `∀ j, ns ≤ j → j < W → T j < 0`, and the
+padding slots are nonempty as soon as `ns < W`. So `LevelPre` carrying
+it would be unsatisfiable on the empty input word, and
+`RamDriverIO.decodeImplements` could not establish it. -/
+example : ¬ ∃ T : ℕ → ℕ, ∀ j, 8 ≤ j → j < 20 → T j < 0 := by
+  rintro ⟨T, h⟩
+  exact absurd (h 8 le_rfl (by omega)) (by omega)
+
+/-- **The repair.** Zero padding is satisfiable at every `n`, `ns` and
+`W` — the clause is about `T` alone and the constant-zero tail is a
+witness — so `LevelPre` stays satisfiable where the range form was not.
+-/
+example (ns W : ℕ) : ∃ T : ℕ → ℕ, ∀ j, ns ≤ j → j < W → T j = 0 :=
+  ⟨fun _ => 0, fun _ _ _ => rfl⟩
+
+/-- **And the repair is enough.** Wherever the cover pass runs it is at a
+centre turn, which carries `c < n`; so `n` is positive there, and the
+zero tail *is* `RamCover.cover_specW`'s `hpad`. This is the one line the
+flip trades the range clause for. -/
+example {ns W n c : ℕ} {T : ℕ → ℕ} (hpad0 : ∀ j, ns ≤ j → j < W → T j = 0) (hc : c < n) :
+    ∀ j, ns ≤ j → j < W → T j < n :=
+  fun j h₁ h₂ => by rw [hpad0 j h₁ h₂]; omega
+
+/-! The demo tape: `K₁,₄` in `Lax11.GraphEncoding`'s format — the vertex
+count, the edge count, the `n + 1` offsets, the `2·m` targets. It is the
+same block structure `level5St` carries, so the decode's answer can be
+read against a landed probe. -/
+
+/-- The encoding of the star on four leaves. -/
+def starTape : List ℕ := [5, 4, 0, 4, 5, 6, 7, 8, 1, 2, 3, 4, 0, 0, 0, 0]
+
+/-- A fresh machine for the decode: the four arrays `RamDriver.DecodeMem`
+sizes, with `tgt` at the star's own eight slots followed by a chosen
+padding tail. -/
+def decSt (tail : List ℕ) : PSt where
+  vars := []
+  arrs :=
+    [("off", List.replicate 6 0), ("tgt", List.replicate 8 0 ++ tail),
+     (RamDriver.alvName 0, List.replicate 5 0),
+     (RamDriver.gamName 0, List.replicate 5 0)]
+  inp := starTape
+
+/-- **The decode, into a `tgt` twelve cells wider than the encoding**,
+with a sentinel tail: every padding slot holds `7` going in. -/
+def decodeTail : PRes := exec pB pF RamDriver.decodeCom (decSt (List.replicate 12 7))
+
+#guard decodeTail.isOk
+
+-- the block structure the encoding names, in the first `ns = 8` slots
+#guard (List.range 6).map (decodeTail.cell "off") = [0, 4, 5, 6, 7, 8]
+#guard (List.range 8).map (decodeTail.cell "tgt") = [1, 2, 3, 4, 0, 0, 0, 0]
+
+-- **the claim.** The twelve padding slots are untouched: the decode's
+-- `ns` stores leave the tail alone, which is what the walk of
+-- `RamDriverIO.decodeImplements` now has to show.
+#guard (List.range 12).map (fun k => decodeTail.cell "tgt" (8 + k)) = List.replicate 12 7
+
+-- and the same run with the tail *zeroed* hands the zeroed tail back,
+-- which is `DecodeMem`'s clause surviving the phase
+#guard (exec pB pF RamDriver.decodeCom (decSt (List.replicate 12 0))).isOk
+#guard (List.range 20).map ((exec pB pF RamDriver.decodeCom
+  (decSt (List.replicate 12 0))).cell "tgt") =
+    [1, 2, 3, 4, 0, 0, 0, 0] ++ List.replicate 12 0
+
+-- the two controls. At the exact width the decode is the landed one …
+#guard (exec pB pF RamDriver.decodeCom (decSt [])).isOk
+#guard (List.range 8).map ((exec pB pF RamDriver.decodeCom (decSt [])).cell "tgt") =
+    [1, 2, 3, 4, 0, 0, 0, 0]
+
+-- … and below it the read loop's eighth store has no in-range
+-- derivation, so the phase is stuck: the length clause of `DecodeMem` is
+-- load-bearing at `W` exactly as it was at `ns`.
+def decodeNarrow : PRes :=
+  exec pB pF RamDriver.decodeCom
+    { decSt [] with arrs := ("tgt", List.replicate 7 0) :: (decSt []).arrs }
+
+#guard decodeNarrow.isStuck
+
+end FlipGate
 
 end Lax3Proofs.TgtWidenProbe

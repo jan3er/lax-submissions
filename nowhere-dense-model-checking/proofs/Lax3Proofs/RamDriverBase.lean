@@ -386,9 +386,9 @@ theorem orderMem_setArr_tab {B n ns Ws : ℕ} {σ : Env} (h : OrderMem B n ns Ws
 theorem levelPre_setArr_tab {B cap mb ns Ws j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {σ : Env}
     (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (i idx v : ℕ) :
     LevelPre B n cap mb ns Ws O T j M Gm C (σ.setArr (tabName j i) idx v) := by
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, ⟨hsz, hd, hq⟩, hdep, hm, hord⟩ := h
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, ⟨hsz, hd, hq⟩, hdep, hm, hord, hpad0, hTB⟩ := h
   refine ⟨h1, ?_, ?_, ?_, ?_, ?_, h7, h8, h9, ⟨hsz.setArr _ idx v, ?_, ?_⟩,
-    hdep.setArr _ idx v, hm, orderMem_setArr_tab hord j i idx v⟩
+    hdep.setArr _ idx v, hm, orderMem_setArr_tab hord j i idx v, hpad0, hTB⟩
   · rw [arrs_setArr, if_neg (by simp [tabName, String.ext_iff])]; exact h2
   · rw [arrs_setArr, if_neg (by simp [tabName, String.ext_iff])]; exact h3
   · rw [arrs_setArr, if_neg (by simp [tabName, alvName, String.ext_iff])]; exact h4
@@ -403,12 +403,13 @@ theorem levelPre_setArr_tab {B cap mb ns Ws j : ℕ} {O T M Gm : ℕ → ℕ} {C
 theorem levelPre_setVar_z {B cap mb ns Ws j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {σ : Env}
     (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (k : ℕ) :
     LevelPre B n cap mb ns Ws O T j M Gm C (σ.setVar "z" k) := by
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, ⟨hsz, hd, hq⟩, hdep, hm, hle, hosz, hz⟩ := h
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, ⟨hsz, hd, hq⟩, hdep, hm,
+    ⟨hle, hosz, hz⟩, hpad0, hTB⟩ := h
   exact ⟨by rw [vars_setVar, if_neg (by decide)]; exact h1, h2, h3, h4, h5, h6, h7, h8, h9,
     ⟨fun p hp => by simpa using hsz p hp, by simpa using hd, by simpa using hq⟩,
     hdep.setVar _ k,
     by rw [vars_setVar, if_neg (by decide)]; exact hm,
-    hle, fun p hp => by simpa using hosz p hp, by simpa using hz⟩
+    ⟨hle, fun p hp => by simpa using hosz p hp, by simpa using hz⟩, hpad0, hTB⟩
 
 /-- Writing a depth-`j` table leaves the atoms of the depth-`j`
 combinations alone: they are read out of the depth-`(j+1)` tables and

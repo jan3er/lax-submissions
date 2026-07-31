@@ -934,15 +934,17 @@ theorem cash_orderPhase0C (n ns W : ℕ) (EC : ACost String ℕ) :
 
 /-! ### The comparison with the hand-walked phase
 
-`RamDriverCompose.orderPhaseCost n ns W = 1400·n + 1250·ns + 20·W + 450`
+`RamDriverCompose.orderPhaseCost n ns W = 1600·n + 1350·ns + 60·W + 650`
 is the budget `orderImplements₀` is proved at, and it **contains the two
 eliminations**: `RamElim.elimCost n ns = 600·n + 600·ns + 100` each. The
 phase's own share of that budget is therefore
 
-    1400n + 1250ns + 20W + 450 − 2·(600n + 600ns + 100)
-      = 200n + 50ns + 20W + 250,
+    1600n + 1350ns + 60W + 650 − 2·(600n + 600ns + 100)
+      = 400n + 150ns + 60W + 450,
 
-against this file's `207n + 30ns + 15W + 169`. The two are not the same
+against this file's `207n + 30ns + 15W + 169`. (The `W` coefficient rose
+from `20` to `60` with rebase F-c-4: `saveCsr`/`restoreCsr` now copy the
+whole allocation width rather than the block structure's `2·m`.) The two are not the same
 kind of number — the baseline's is a *budget*, deliberately generous
 (`orderPhaseCost`'s own docstring says so), and this one is the exact
 sum of twenty-one proved per-pass bounds — but per cell the comparison

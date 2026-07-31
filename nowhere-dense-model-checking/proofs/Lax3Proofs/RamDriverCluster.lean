@@ -423,20 +423,26 @@ whether a live marked neighbour has been seen among the slots passed so
 far. -/
 
 /-- The state one pass of the expansion carries: the destination filled
-up to the counter, and everything it reads. -/
-def ExpandInv (n ns : ℕ) (G : SimpleGraph (Fin n)) (O T Msk Src : ℕ → ℕ)
+up to the counter, and everything it reads.
+
+**The target array is the level's allocation width** (rebase F-c-4):
+`nt` is the physical width, `ns` the block structure's own slot count,
+and `ns ≤ nt` the clause that makes every row's read in range. The scan
+below runs against `CsrWide.CsrW`, which is where the two numbers were
+separated. -/
+def ExpandInv (n ns nt : ℕ) (G : SimpleGraph (Fin n)) (O T Msk Src : ℕ → ℕ)
     (msk src dst : String) (σ : Env) : Prop :=
   Fill.Below dst "z" n (expandVal G Msk Src) σ ∧ σ.vars "n" = n ∧
-    σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+    σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf nt T ∧ ns ≤ nt ∧
     σ.arrs msk = arrOf n Msk ∧ σ.arrs src = arrOf n Src
 
 open Classical in
 /-- The state the scan of one block carries: the pass's own, the two row
 bounds, and the hit flag, which is one exactly when a slot already
 passed named a live marked vertex. -/
-def ScanHit (n ns : ℕ) (G : SimpleGraph (Fin n)) (O T Msk Src : ℕ → ℕ)
+def ScanHit (n ns nt : ℕ) (G : SimpleGraph (Fin n)) (O T Msk Src : ℕ → ℕ)
     (msk src dst : String) (z : ℕ) (σ : Env) : Prop :=
-  ExpandInv n ns G O T Msk Src msk src dst σ ∧ σ.vars "z" = z ∧
+  ExpandInv n ns nt G O T Msk Src msk src dst σ ∧ σ.vars "z" = z ∧
     σ.vars "jend" = O (z + 1) ∧ O z ≤ σ.vars "j" ∧ σ.vars "j" ≤ O (z + 1) ∧
     σ.vars "hit" =
       (if ∃ p, O z ≤ p ∧ p < σ.vars "j" ∧ Msk (T p) ≠ 0 ∧ Src (T p) ≠ 0 then 1 else Src z)

@@ -466,3 +466,97 @@ supersession pointer.
   producers; `hbinj` (#24) now has one; `hdeg` (#25) has a *named*
   producer waiting on `OrderImplementsR` and nothing else. Probe family
   (`TgtWidenProbe`, K₁,₄ / `sym5*`) re-run green.
+
+- 2026-07-31 — **rebase F-c-4: the `tgt` flip landed; `relinkCost`
+  walked and found wrong.** Worktree `ndmc-rebase-p0`, on `c41f3f7`.
+  Full `lake build` green (3523 jobs), `lax build --only proofs
+  nowhere-dense-model-checking` OK, no `sorry`, kernel-three.
+
+  **(A) The flip.** `RamDriver.LevelPre`'s `tgt` clause is now `arrOf W
+  T` — the allocation width, not the block structure's `ns` — with two
+  conjuncts appended: the **zero-padded tail** `∀ z, ns ≤ z → z < W → T
+  z = 0` and the word clause `∀ z < W, T z < B`. Appending rather than
+  inserting is what kept the ~20 destructuring walks to two extra
+  binders apiece. `OrderMem`'s `("gtg", ns)` became `("gtg", W)`;
+  `RamDriver.saveCsr`/`restoreCsr` took a `W` parameter and copy `.lit
+  W` (program text), with `RamDriverOrder.csrCopy_spec`/`saveCsr_spec`/
+  `restoreCsr_spec` and `RamDriverCompose.warrs_saveCsr`/
+  `warrs_restoreCsr`/`alvName_notMem_saveCsr` following.
+
+  **Why zero and not "a vertex".** L-8's blocker was real and the
+  refutation is now in `TgtWidenProbe`'s flip gate: the range form `∀
+  j, ns ≤ j → j < W → T j < n` is unsatisfiable at `n = 0`, which
+  `WordBound` permits and the empty input word reaches, so `LevelPre`
+  carrying it could never be established. Zero padding is satisfiable
+  at every `n` and *yields* the range form wherever a turn runs
+  (`RamDriver.pad_lt_of_zero`, from `c < n`). Consequence for the
+  landed F-c-3 chain: `RamCover.ImplementsW`/`cover_specW` and
+  `RamDriverOrder.centreStep_specW`/`coverPass_specW` now take `hpad`
+  **guarded by `0 < n`**. That is the one reshape inside F-c-3's
+  widened chain; it is consumed at exactly one place (the search inside
+  the turn), where `σ.vars "c" < n` is in scope.
+
+  **The decode.** `RamDriver.DecodeMem` gained `W`: `tgt` is `W` cells
+  with the tail above `ns` zeroed. `RamDriverIO.readLoop_specW` is the
+  new widened read loop — the invariant carries `Fill.Below` at the
+  *physical* width plus `i ≤ k` and the tail clause, and the body shows
+  the store index stays below `k`; `readLoop_spec` is now its `W = k`
+  instance and is not re-walked. `decodeImplements` threads it and
+  gains `hpad0` as a hypothesis, `T` being the caller's function.
+  `TgtWidenProbe.decodeTail` is the differential: the decode run on the
+  demo `K₁,₄` tape into a `20`-cell `tgt` with a sentinel tail leaves
+  all twelve padding slots holding `7`.
+
+  **Reach.** F-c-3's map said "the widened chain is fully landed"; that
+  was true of `RamElim`/`RamAugment`/`RamCover`/`RamScatter`/
+  `BfsBridge`/`RamBfsPaths`, and *not* of `RamDriverDescend`'s own
+  passes, which were all pinned at `ns` through the reasoning kit's
+  `Csr`. Those are now stated at a width parameter over
+  `CsrWide.CsrW`/`CsrWide.loadRow_spec` — `RamDriverCluster.ExpandInv`/
+  `ScanHit`, `expandStep_spec`, `expandCom_spec`, `chainCom_spec`,
+  `chainCom_stages`, `ColPre`, `pdBody`/`pdCom`/`puBody`/`puCom`/
+  `colourCom_spec`, `ballCom_spec`, `ancestorStep_spec`, `BatchEnv`,
+  `batchFold_spec`, `batchCom_spec`, and the parent search through
+  `RamBfsPaths.bfsPar_specW`. Fifteen surfaces, no new mathematics.
+  Likewise `RamDriverIO`'s `RootPre` is read at `Ws` and the root
+  scatter enters through `RamScatter.scatter_specW`, and
+  `RamDriverFrames`'s cluster scatter through the same, with
+  `ScatPre.nsW` the new accessor.
+
+  **Cost.** `orderPhaseCost`'s `W` coefficient rose `20 → 60`: the two
+  block-structure copies are charged at `W` now, not at `ns`
+  (`28·W` of it). `Refine.OrderBridge`'s `#guard` moved `22350 →
+  22750`; `OrderSynth`'s comparison prose was stale from F-c-2 and is
+  corrected to the current def.
+
+  **Hypothesis reshapes (ledgered).** `driverRoot_decides_sentence` and
+  `driverRoot_decides_sentence_binj`: precondition `DecodeMem n ns σ →
+  DecodeMem n ns W σ`, one new hypothesis `hpad0` (#7 of now **30**
+  slots — F-c-3's count of 29 plus this one; `hbinj` is #25 and `hdeg`
+  #26). `driver_correct` gained `hWB : W < B` and `hpad0`.
+  `DecodeImplements` gained `W < B`, `ns ≤ W` and `hpad0`.
+  **The conclusions are byte-identical**: the program `driverRoot q_top
+  cap mb 0 ℓ W φ`, the postcondition `σ'.out = [if Sat G Fin.elim0 φ
+  then 1 else 0]` and the cost `Kdec + (Kl 0 n + Ksent)` are unmoved,
+  and `RamDriverCluster.levelImplements` is untouched. Plug discipline
+  re-run: `levelAt_of_sigma` and `driverRoot_decides_sentence_binj`
+  both still type-check.
+
+  **(B) `OrderImplementsR` — not landed; one item of it is.**
+  `relinkCost` was F-c-3's "generous, not yet walked" constant and the
+  walk **refutes it**: the nine passes of `augRelinkCom W` come to
+  `97·n + 12·W + 115` (`RamDriverCompose.relinkCostSum`,
+  `relinkCostSum_eq`), and `100·n + 20·W + 100` is below that on every
+  carrier under five vertices — `relinkCost_old_refuted` at `n = W = 0`
+  (`115 > 100`), with `#guard`s at `n = 4` (fails) and `n = 5` (holds).
+  The constant is repaired to `120`, so `orderPhaseCostR` is now a
+  budget the fold can actually be proved at. The `n` and `W`
+  coefficients were indeed generous; the constant was not.
+
+  The fold walk itself is **open**, and the flip removed work from it
+  rather than adding any: every surface the fold has to thread is now
+  stated at `W`, so items 1–3 and 5 of the `Rstar` residual stand as
+  written, item 4 (the syntax section at general `R`) is unchanged, and
+  item 6 (the cost) is closed. Probe family re-run green:
+  `TgtWidenProbe` (K₁,₄ / `sym5*` / the new flip gate), `RamCover.Demo`,
+  `RamAugment.Demo`, the padded-run differentials.

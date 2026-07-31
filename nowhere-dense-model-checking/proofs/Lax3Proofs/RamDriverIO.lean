@@ -216,25 +216,43 @@ own bookkeeping — how much of the block is still to come — as the extra
 clause of the invariant. -/
 
 /-- The invariant of a read loop: `i` numbers have been moved from the
-tape into the array, and what is left of the tape starts at `i`. -/
-def ReadInv (a lim : String) (k : ℕ) (ys rest : List ℕ) (τ : Env) : Prop :=
-  τ.vars lim = k ∧ τ.inp = ys.drop (τ.vars "i") ++ rest ∧
-    Fill.Below a "i" k (fun i => ys.getD i 0) τ
+tape into the array, and what is left of the tape starts at `i`.
 
-/-- **Reading a block of the tape into an array.** The array must have
-the block's length already; what comes back is that every cell of it
-holds the number the tape had at that position, and what is left of the
-tape. -/
-theorem readLoop_spec {B : ℕ} {a lim : String} (hi : lim ≠ "i") (ht : lim ≠ "t")
-    {k : ℕ} {ys rest : List ℕ} (hys : ys.length = k) (hkB : k < B) (hyB : ∀ v ∈ ys, v < B) :
-    Spec B (fun σ => (σ.arrs a).length = k ∧ σ.vars lim = k ∧ σ.inp = ys ++ rest)
+**The array is the allocation width, the block is a prefix of it**
+(rebase F-c-4). The loop reads `k` numbers into an array of `W ≥ k`
+cells, so the fill's physical length is `W` while the counter stops at
+`k`; the last two conjuncts are the difference. `τ.vars "i" ≤ k` is
+what `Fill.Below.le` used to give for free and no longer does, since
+`Below` now bounds the counter by `W`. The tail clause is the one the
+flip is for: the `W - k` cells above the block hold zero, and the loop's
+`k` stores — every one of them at an index below the counter, hence
+below `k` — leave them alone. -/
+def ReadInv (a lim : String) (k W : ℕ) (ys rest : List ℕ) (τ : Env) : Prop :=
+  τ.vars lim = k ∧ τ.inp = ys.drop (τ.vars "i") ++ rest ∧
+    Fill.Below a "i" W (fun i => ys.getD i 0) τ ∧ τ.vars "i" ≤ k ∧
+    ∀ j, k ≤ j → j < W → (τ.arrs a).getD j 0 = 0
+
+/-- **Reading a block of the tape into a wider array.** The array has
+`W` cells with the `W - k` above the block zeroed; what comes back is
+that every cell of the block holds the number the tape had at that
+position, that the zeroed tail is still zeroed, and what is left of the
+tape.
+
+`readLoop_spec` is the case `W = k`, where the tail is empty and both
+extra clauses are vacuous. -/
+theorem readLoop_specW {B : ℕ} {a lim : String} (hi : lim ≠ "i") (ht : lim ≠ "t")
+    {k W : ℕ} {ys rest : List ℕ} (hys : ys.length = k) (hkB : k < B) (hkW : k ≤ W)
+    (hyB : ∀ v ∈ ys, v < B) :
+    Spec B (fun σ => (σ.arrs a).length = W ∧ (∀ j, k ≤ j → j < W → (σ.arrs a).getD j 0 = 0) ∧
+        σ.vars lim = k ∧ σ.inp = ys ++ rest)
       (RamDriver.readLoop a lim)
-      (fun _ σ' => (∃ g, σ'.arrs a = arrOf k g ∧ ∀ i < k, g i = ys.getD i 0) ∧ σ'.inp = rest)
+      (fun _ σ' => (∃ g, σ'.arrs a = arrOf W g ∧ (∀ i < k, g i = ys.getD i 0) ∧
+          ∀ j, k ≤ j → j < W → g j = 0) ∧ σ'.inp = rest)
       (12 * k + 6) := by
-  have hbody : Spec B (fun τ => ReadInv a lim k ys rest τ ∧ τ.vars "i" < k)
+  have hbody : Spec B (fun τ => ReadInv a lim k W ys rest τ ∧ τ.vars "i" < k)
       (.seq (.read "t") (Fill.put a "i" (.var "t")))
-      (fun τ τ' => ReadInv a lim k ys rest τ' ∧ τ'.vars "i" = τ.vars "i" + 1) 8 := by
-    rintro τ ⟨⟨hl, hinp, hbel⟩, hlt⟩
+      (fun τ τ' => ReadInv a lim k W ys rest τ' ∧ τ'.vars "i" = τ.vars "i" + 1) 8 := by
+    rintro τ ⟨⟨hl, hinp, hbel, -, htail⟩, hlt⟩
     have hylen : τ.vars "i" < ys.length := by omega
     have hhead : τ.inp = ys.getD (τ.vars "i") 0 :: (ys.drop (τ.vars "i" + 1) ++ rest) := by
       rw [hinp, List.drop_eq_getElem_cons hylen, List.getD_eq_getElem?_getD,
@@ -249,9 +267,10 @@ theorem readLoop_spec {B : ℕ} {a lim : String} (hi : lim ≠ "i") (ht : lim �
     have hv₁ : τ₁.vars "i" = τ.vars "i" := by rw [hτ₁]; simp
     have ha₁ : τ₁.arrs = τ.arrs := by rw [hτ₁]; simp
     have ht₁ : τ₁.vars "t" = ys.getD (τ.vars "i") 0 := by rw [hτ₁]; simp
-    have hbel₁ : Fill.Below a "i" k (fun i => ys.getD i 0) τ₁ := hbel.of_eq (by rw [ha₁]) hv₁
+    have hbel₁ : Fill.Below a "i" W (fun i => ys.getD i 0) τ₁ := hbel.of_eq (by rw [ha₁]) hv₁
     -- the store and the bump
-    have hlen₁ : τ₁.vars "i" < (τ₁.arrs a).length := by rw [hbel₁.length, hv₁]; exact hlt
+    have hlen₁ : τ₁.vars "i" < (τ₁.arrs a).length := by
+      rw [hbel₁.length, hv₁]; omega
     obtain ⟨τ₂, hτ₂⟩ : ∃ τ' : Env, τ' = τ₁.setArr a (τ₁.vars "i") (τ₁.vars "t") := ⟨_, rfl⟩
     have r₂ : Run B (.store a (.var "i") (.var "t")) τ₁ τ₂ 3 :=
       hτ₂ ▸ (Run.store (evalB_var (by rw [hv₁]; omega)) (evalB_var (by rw [ht₁]; exact hvB))
@@ -267,7 +286,7 @@ theorem readLoop_spec {B : ℕ} {a lim : String} (hi : lim ≠ "i") (ht : lim �
           simp only [Bop.apply_add]
           rw [hvi, hv₁])).mono (by simp)
     refine ⟨τ₂.setVar "i" (τ₁.vars "i" + 1), (r₁.seq (r₂.seq r₃)).mono (by norm_num),
-      ⟨?_, ?_, ?_⟩, by rw [hτ₂]; simp [hv₁]⟩
+      ⟨?_, ?_, ?_, ?_, ?_⟩, by rw [hτ₂]; simp [hv₁]⟩
     · rw [hτ₂, hτ₁]; simp [hi, ht, hl]
     · rw [show (τ₂.setVar "i" (τ₁.vars "i" + 1)).vars "i" = τ₁.vars "i" + 1 by simp]
       rw [hv₁]
@@ -276,18 +295,43 @@ theorem readLoop_spec {B : ℕ} {a lim : String} (hi : lim ≠ "i") (ht : lim �
       simp only [inp_setArr]
       rw [hτ₁]
     · rw [hτ₂]
-      exact Fill.Below.step (v := τ₁.vars "t") hbel₁ (by rw [hv₁]; exact hlt)
+      exact Fill.Below.step (v := τ₁.vars "t") hbel₁ (by rw [hv₁]; omega)
         (by rw [ht₁, hv₁])
+    · rw [show (τ₂.setVar "i" (τ₁.vars "i" + 1)).vars "i" = τ₁.vars "i" + 1 by simp, hv₁]
+      omega
+    -- the tail: the store is at the counter, which is below `k`, so no
+    -- padding slot is the cell it writes
+    · intro j hjk hjW
+      rw [arrs_setVar, hτ₂, arrs_setArr, if_pos rfl, ha₁,
+        List.getD_eq_getElem?_getD, List.getElem?_set_ne (by rw [hv₁]; omega),
+        ← List.getD_eq_getElem?_getD]
+      exact htail j hjk hjW
   refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨harr, hlim, hinp⟩ := hσ
+  obtain ⟨harr, htail, hlim, hinp⟩ := hσ
   obtain ⟨g, hg⟩ := exists_arrOf harr
-  obtain ⟨σ', hrun, ⟨-, hinp', hbel⟩, hik⟩ :=
-    (Spec.forRangeZero "i" lim (ReadInv a lim k ys rest) k 8 hkB
-      (fun _ h => h.2.2.le) (fun _ h => h.1) hbody).run (σ := σ)
-      ⟨by simp [hi, hlim], by simp [hinp], Fill.below_zero (g := g) (by simp [hg]) (by simp)⟩
-  obtain ⟨g', harr', hg'⟩ := hbel.done hik
-  exact ⟨σ', _, hrun, by omega, ⟨g', harr', hg'⟩, by
+  obtain ⟨σ', hrun, ⟨-, hinp', hbel, -, htail'⟩, hik⟩ :=
+    (Spec.forRangeZero "i" lim (ReadInv a lim k W ys rest) k 8 hkB
+      (fun _ h => h.2.2.2.1) (fun _ h => h.1) hbody).run (σ := σ)
+      ⟨by simp [hi, hlim], by simp [hinp],
+        Fill.below_zero (g := g) (by simp [hg]) (by simp), by simp, by simpa using htail⟩
+  obtain ⟨g', hfill⟩ := hbel
+  refine ⟨σ', _, hrun, by omega, ⟨g', hfill.arr, fun i hi' => hfill.cell (by omega), ?_⟩, by
     rw [hik] at hinp'; rw [hinp', List.drop_eq_nil_of_le (by omega)]; rfl⟩
+  intro j hjk hjW
+  rw [← hfill.getD hjW]
+  exact htail' j hjk hjW
+
+/-- **Reading a block of the tape into an array of its own length.** The
+case `W = k` of `readLoop_specW`, where the padding is empty. -/
+theorem readLoop_spec {B : ℕ} {a lim : String} (hi : lim ≠ "i") (ht : lim ≠ "t")
+    {k : ℕ} {ys rest : List ℕ} (hys : ys.length = k) (hkB : k < B) (hyB : ∀ v ∈ ys, v < B) :
+    Spec B (fun σ => (σ.arrs a).length = k ∧ σ.vars lim = k ∧ σ.inp = ys ++ rest)
+      (RamDriver.readLoop a lim)
+      (fun _ σ' => (∃ g, σ'.arrs a = arrOf k g ∧ ∀ i < k, g i = ys.getD i 0) ∧ σ'.inp = rest)
+      (12 * k + 6) :=
+  ((readLoop_specW (W := k) hi ht hys hkB le_rfl hyB).pre
+      (fun _ hσ => ⟨hσ.1, fun _ h₁ h₂ => absurd h₁ (by omega), hσ.2.1, hσ.2.2⟩)).post
+    (fun _ _ _ hq => ⟨⟨hq.1.choose, hq.1.choose_spec.1, hq.1.choose_spec.2.1⟩, hq.2⟩)
 
 /-! ### The two flat passes the driver writes itself
 
@@ -388,17 +432,25 @@ of the obligation itself, so the theorem closes it as it stands.
 
 The block structure the two loops leave is the encoding's own, by
 `RamBfs.csrGraph_of_encodesGraph`, and the arena the two fills open has
-every vertex alive. -/
+every vertex alive.
+
+**The target array is wider than the encoding** (rebase F-c-4). The
+level below reads `tgt` at the allocation width `Ws`, so the decode is
+handed `Ws` cells with the `Ws - ns` above the encoding zeroed and has
+to hand them back that way: `readLoop_specW` is the read loop at a
+prefix of a wider array, and its tail clause is the whole of the extra
+obligation. `hpad0` says what `T` is up there, which only the caller can
+say — the walk's contribution is that the loop does not write there. -/
 theorem decodeImplements {B n ns Ws K : ℕ} {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
     {x : List ℕ}
     (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
     (hO : ∀ i ≤ n, O i = offset x i) (hT : ∀ j < ns, T j = target x j)
     (hK : decodeCost n ns ≤ K) :
     RamDriver.DecodeImplements B x G ns Ws O T K := by
-  intro hxB hnB hnsB
+  intro hxB hnB hnsB hWsB hnsW hpad0
   subst hns
   refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨⟨hoffL, htgtL, halvL, hgamL⟩,
+  obtain ⟨⟨hoffL, htgtL, htgtZ, halvL, hgamL⟩,
     ⟨hOle, hOsz, hz₁, hz₂, hz₃, hz₄, hz₅, hz₆, hz₇, hz₈, hw₁, hw₂⟩,
     hinp, hout⟩ := hσ
   -- the word: the two header entries, the offsets, the targets
@@ -472,10 +524,16 @@ theorem decodeImplements {B n ns Ws K : ℕ} {G : SimpleGraph (Fin n)} {O T : �
         (by simp only [Bop.apply_add]; rw [hm₄]; omega)]
       simp only [Bop.apply_add]
       rw [hm₄, show edgeCount x + edgeCount x = 2 * edgeCount x by omega])).mono (by norm_num)
-  obtain ⟨σ₆, r₆, ⟨T', htgt₆, hT₆⟩, -⟩ :=
-    (readLoop_spec (a := "tgt") (lim := "len") (ys := zs) (rest := []) (by decide) (by decide)
-      hzs hnsB hzsB).run (σ := σ₅)
+  obtain ⟨σ₆, r₆, ⟨T', htgt₆, hT₆, hT₆pad⟩, -⟩ :=
+    (readLoop_specW (a := "tgt") (lim := "len") (ys := zs) (rest := []) (by decide) (by decide)
+      hzs hnsB hnsW hzsB).run (σ := σ₅)
       ⟨by simpa [hσ₅, hfa₄ "tgt" (by decide), hσ₃, ha₂] using htgtL,
+        by
+          intro j hj₁ hj₂
+          rw [show σ₅.arrs "tgt" = σ.arrs "tgt" by
+            rw [hσ₅]; simp only [arrs_setVar]; rw [hfa₄ "tgt" (by decide), hσ₃]
+            simp only [arrs_setVar]; rw [ha₂]]
+          exact htgtZ j hj₁ hj₂,
         by simp [hσ₅], by simpa [hσ₅] using hinp₄⟩
   have hfv₆ : ∀ y, y ≠ "i" → y ≠ "t" → σ₆.vars y = σ₅.vars y := fun y h1 h2 =>
     r₆.frame_var y (by rw [wvars_readLoop]; simp [h1, h2])
@@ -529,7 +587,10 @@ theorem decodeImplements {B n ns Ws K : ℕ} {G : SimpleGraph (Fin n)} {O T : �
     rw [hoff₄]
     exact arrOf_congr fun i hi => by rw [hO₄ i hi, hyd i hi, hO i (by omega)]
   · rw [hfa₈ _ (by decide), hfa₇ _ (by decide), htgt₆]
-    exact arrOf_congr fun j hj => by rw [hT₆ j hj, hzd j hj, hT j hj]
+    refine arrOf_congr fun j hj => ?_
+    rcases lt_or_ge j (2 * edgeCount x) with hjs | hjs
+    · rw [hT₆ j hjs, hzd j hjs, hT j hjs]
+    · rw [hT₆pad j hjs hj, hpad0 j hjs hj]
   · rw [hm₈]; omega
   · exact ⟨hOle, hOsz.run rall,
       by rw [hall₈ "elm" (by decide) (by decide) (by decide) (by decide)]; exact hz₁,
@@ -680,6 +741,13 @@ def RootPre (q_top cap mb ns B : ℕ) (φ : Lax3.FirstOrder.FO 0) {n : ℕ}
     σ.arrs (RamDriver.alvName 0) = arrOf n M ∧
     RamDriver.TableInv q_top cap mb φ G 0 M C σ ∧ RootMem q_top cap mb B n φ σ
 
+/-! **The readback reads `tgt` at the allocation width** (rebase F-c-4).
+`RootPre`'s slot-count parameter is instantiated at `W` and not at `ns`
+by every caller below, because that is what `RamDriver.LevelPre` now
+holds; the scatter pass enters through `RamScatter.scatter_specW`, whose
+`nt` is a caller's choice above the block structure's own `ns`, so
+nothing here is re-walked and `RootPre` itself does not move. -/
+
 open Classical in
 /-- One atom of the top sentence: the two copies the calling convention
 asks for, the scatter pass, and the flag. -/
@@ -708,12 +776,12 @@ own depth-zero table row are copied into the names the scatter pass
 addresses, the pass runs, and its answer is kept in the atom's flag.
 Everything the readback reads is given back, and every other flag is
 where it was. -/
-theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
+theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (hnt : ns ≤ Ws)
     (hMB : ∀ z < n, M z < B) (h1B : 1 < B) (k : ℕ) {s : ScatterSentence (sigL cap mb 0)}
     (hs : s.β ∈ tablesAt q_top cap mb φ 0) (hrB : s.r + 1 < B) (htB : s.t < B) {Kb : ℕ}
     (hKb : atomCost n ns s.t ≤ Kb) :
-    Spec B (RootPre q_top cap mb ns B φ G O T M C) (atomCom q_top cap mb φ k s)
-      (fun σ σ' => RootPre q_top cap mb ns B φ G O T M C σ' ∧ σ'.out = σ.out ∧
+    Spec B (RootPre q_top cap mb Ws B φ G O T M C) (atomCom q_top cap mb φ k s)
+      (fun σ σ' => RootPre q_top cap mb Ws B φ G O T M C σ' ∧ σ'.out = σ.out ∧
         (∀ j, j ≠ k → σ'.vars (RamDriver.rootFlgName j) = σ.vars (RamDriver.rootFlgName j)) ∧
         σ'.vars (RamDriver.rootFlgName k) ≤ 1 ∧
         (σ'.vars (RamDriver.rootFlgName k) = 1 ↔ AtomValue G M (sigL cap mb 0) C s)) Kb := by
@@ -759,10 +827,10 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
     exact ⟨Tc, by rw [ha₂ _ (tabName_zero_ne i "tab" (by decide))]; exact hc, hc1, hcs⟩
   -- the pass
   obtain ⟨σ₃, r₃, hflag₃, hflagle₃⟩ :=
-    (RamScatter.scatter_spec (G := G) (M := M) (Tab := Tb) (O := O) (T := T) (r := s.r)
+    (RamScatter.scatter_specW (G := G) (M := M) (Tab := Tb) (O := O) (T := T) (r := s.r)
       (t := s.t)
       (X := {a | Sat (masked G M) (RamDriver.colRead n C (sigL cap mb 0)) (fun _ => a) s.β})
-      hcsr hnB hnsB hrB htB hMB hTbB
+      hcsr hnB hnsB hnt hrB htB hMB hTbB
       (fun v => by rw [hTbSat v, hpβ]; exact Iff.rfl)).run (σ := σ₂)
       ⟨hn₂, by rw [ha₂ _ (by decide), ha₁ _ (by decide)]; exact hoff,
         by rw [ha₂ _ (by decide), ha₁ _ (by decide)]; exact htgt,
@@ -815,13 +883,13 @@ open Classical in
 index: each atom's flag holds the atom's value, and every flag the list
 does not name is where it was. The induction is the list's. -/
 theorem rootScatter_aux (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
-    (hMB : ∀ z < n, M z < B) (h1B : 1 < B) {Kb : ℕ} :
+    (hnt : ns ≤ Ws) (hMB : ∀ z < n, M z < B) (h1B : 1 < B) {Kb : ℕ} :
     ∀ (l : List (ScatterSentence (sigL cap mb 0))) (i₀ : ℕ),
       (∀ s ∈ l, s.β ∈ tablesAt q_top cap mb φ 0 ∧ s.r + 1 < B ∧ s.t < B ∧
         atomCost n ns s.t ≤ Kb) →
-      Spec B (RootPre q_top cap mb ns B φ G O T M C)
+      Spec B (RootPre q_top cap mb Ws B φ G O T M C)
         (RamDriver.foldIdx (fun k s => atomCom q_top cap mb φ k s) i₀ l)
-        (fun σ σ' => RootPre q_top cap mb ns B φ G O T M C σ' ∧ σ'.out = σ.out ∧
+        (fun σ σ' => RootPre q_top cap mb Ws B φ G O T M C σ' ∧ σ'.out = σ.out ∧
           (∀ j, (∀ p < l.length, j ≠ i₀ + p) →
             σ'.vars (RamDriver.rootFlgName j) = σ.vars (RamDriver.rootFlgName j)) ∧
           ∀ p, ∀ hp : p < l.length,
@@ -833,14 +901,14 @@ theorem rootScatter_aux (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B)
   induction l with
   | nil =>
       intro i₀ _
-      refine (Spec.skip (B := B) (P := RootPre q_top cap mb ns B φ G O T M C)).post ?_
+      refine (Spec.skip (B := B) (P := RootPre q_top cap mb Ws B φ G O T M C)).post ?_
         |>.mono (by simp)
       rintro σ σ' hσ rfl
       exact ⟨hσ, rfl, fun j _ => rfl, fun p hp => absurd hp (by simp)⟩
   | cons x xs ih =>
       intro i₀ hall
       obtain ⟨hxβ, hxr, hxt, hxK⟩ := hall x (by simp)
-      refine ((atom_spec hcsr hnB hnsB hMB h1B i₀ hxβ hxr hxt hxK).seq
+      refine ((atom_spec hcsr hnB hnsB hnt hMB h1B i₀ hxβ hxr hxt hxK).seq
         (ih (i₀ + 1) (fun s hs => hall s (by simp [hs]))) (fun _ _ _ hq => hq.1) ?_).mono
         (by simp [Nat.mul_succ]; omega)
       rintro σ σ' σ'' _ ⟨-, hout', hflg', hle', hval'⟩ ⟨hpre'', hout'', hflg'', hval''⟩
@@ -905,10 +973,12 @@ theorem sentenceImplements {Kb K : ℕ} {Gm : ℕ → ℕ}
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hlev, htabInv, hout⟩ := hσ
   have hmem : RootMem q_top cap mb B n φ σ := rootMem_of_levelPre h1B hlev htabInv
-  obtain ⟨hn, hoff, htgt, halv0, -, -, hMB, -, -, -, -⟩ := hlev
+  obtain ⟨hn, hoff, htgt, halv0, -, -, hMB, -, -, -, -, -, hordmem, -⟩ := hlev
+  -- the block structure sits in the first `ns` of the level's `Ws` slots
+  have hnt : ns ≤ Ws := hordmem.1
   -- the scatter atoms
   obtain ⟨σ₁, r₁, -, hout₁, -, hval₁⟩ :=
-    (rootScatter_aux (Kb := Kb) hcsr hnB hnsB hMB h1B
+    (rootScatter_aux (Kb := Kb) hcsr hnB hnsB hnt hMB h1B
       (bcAtomsOf₀ q_top (Reduction.toDistFO (L := sigL cap mb 0) φ)).2 0
       (fun s hs => ⟨by
         rw [tablesAt_zero]; exact List.mem_map.mpr ⟨s, hs, rfl⟩,
