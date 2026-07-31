@@ -1,13 +1,28 @@
 # Tower expansion plan — aggressive porting of the remaining refinement stack
 
-Rev 1, 2026-07-31. **Status: PROPOSAL — awaiting Jan's acceptance.**
-Once accepted this document is the contract: implementing sessions follow
-it, deviations need an owner decision first.
+Rev 2, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
+autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
+by the supervisor under that grant. P0 starts next session and does not
+pause for review.** This document is the contract: implementing sessions
+follow it, deviations need an owner decision first.
 
-**Working model** (unchanged): Fable supervises — plan, sequencing,
-review, acceptance calls, commits — and Opus subagents write the Lean
-(Fable itself on the hardest waves, always fresh agents with a brief from
-`plans/worker-brief-template.md`, never forks). Scope is **proofs-only**:
+**Working model** (revised at acceptance — Jan, 2026-07-31: "instead of
+opus workers, i would like to try openai sol. fable as alternative still
+stays"): Fable supervises — plan, sequencing, review, acceptance calls,
+commits. Proof workers are **OpenAI GPT-5.6-Sol**, dispatched
+non-interactively via `codex exec` (codex-cli 0.145.0, installed and
+authenticated on this machine; `~/.codex/config.toml` defaults to
+`gpt-5.6-sol` at high reasoning effort), each in its own seeded worktree
+with a brief instantiated from `plans/worker-brief-template.md` — briefs
+are model-agnostic and the template's required sections never drop.
+**Fable remains the alternative for the hardest waves** (fresh agents
+with a brief, never forks). Supervisor review and the build/lax/axiom
+gates are unchanged: a worker's "green" is not evidence until the
+supervisor's build runs. **The first Sol wave of P1 is a calibration
+wave** — half-size scope, full review; Sol-specific brief needs (tool
+habits, permission/sandbox flags for `codex exec` in a worktree, failure
+legibility) are recorded in the retro file and folded into the template
+before Sol waves run at full width. Scope is **proofs-only**:
 no concept surface changes, no `lean-toolchain` or mathlib pin moves, the
 machine model untouched. All standing laws apply: refute-before-prove,
 compiled-costs-both-directions for every cost claim that gates work,
@@ -327,29 +342,41 @@ phases are still landing; the sync points are phase landings only — the
 tower API does not fork mid-phase for a consumer, and any ND-MC-driven
 repair enters as a tower wave under this plan (the T1/T2 precedent).
 
-## JAN-FLAGs
+## JAN-FLAGs (all resolved 2026-07-31 — Jan delegated resolution to the supervisor at acceptance)
 
-1. **Sequencing vs C0** — recommendation: infrastructure first. ND-MC's
-   C0 residue resumes on P1–P4 exports; the hand-repair road is closed
-   (dominated per the no-escape theorem). The bridge-seam probe and the
-   provisional-P5 draft decision stay open in the ND-MC plan and can run
-   any time — the draft in particular is cheap insurance if Jan wants a
-   citable artifact before this campaign lands.
-2. **P9 placement** — recommendation: here, as this campaign's consumer
-   gate (the tower campaign's P7 precedent: the gate is a consumer
-   re-derivation). Alternative: move it to the ND-MC plan as a wave
-   consuming P1–P4; the work is identical, only the ledger changes.
-3. **P5 breadth list** — the default-include list (resizable arrays,
-   hash/array maps, heaps/prio maps, matrices, multisets, iterators) is
-   cheap to trim at P0 review if any entry looks consumer-free even
-   under the mandate.
-4. **Governance** — the 2026-07-29 full-authority grant was given inside
-   the tower campaign. Recommendation: carry it over (flags retired
-   after this plan's acceptance; charter + ledger + D-flags remain the
-   evaluable record). If Jan prefers, the flag mechanism stays live
-   instead.
+1. **Sequencing vs C0 — RESOLVED: infrastructure first.** ND-MC's C0
+   residue resumes on P1–P4 exports; the hand-repair road is closed
+   (dominated per the no-escape theorem). Supervisor dispositions on the
+   two open ND-MC actions: the `Spec→ComputesInTime` bridge-seam probe
+   runs **early and opportunistically** (it is cheap, independent, and
+   both B7 gate findings were boundary facts of exactly its kind — any
+   session's margin may take it); the provisional-P5 draft is
+   **deferred, opportunistic** — the infra road is fast enough that a
+   draft is taken only if a session stalls and the margin is otherwise
+   idle.
+2. **P9 placement — RESOLVED: here**, as this campaign's consumer gate
+   (the tower campaign's P7 precedent). The ND-MC plan keeps ownership
+   of B7/C0/P5 on the handoff.
+3. **P5 breadth list — RESOLVED: stands as written** (default-include:
+   resizable arrays, hash/array maps, heaps/prio maps, matrices,
+   multisets, iterators); P0's port map may still argue individual
+   exclusions under rule 4.
+4. **Governance — RESOLVED by Jan directly at acceptance**: full
+   autonomy carries over. The flag mechanism is retired for this
+   campaign; the fidelity charter, the deviation ledger, and the D-flag
+   discipline remain unchanged as the evaluable record serving Jan's
+   final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — Rev 2: ACCEPTED.** Jan: full autonomy carries over,
+  flags resolved by supervisor taste (dispositions recorded above), and
+  the worker model changes — proof workers are **GPT-5.6-Sol via
+  `codex exec`** (verified installed and authenticated, codex-cli
+  0.145.0, default model `gpt-5.6-sol`), with Fable staying the
+  alternative for the hardest waves; Opus workers are retired for this
+  campaign. First Sol wave in P1 is a half-size calibration wave. P0 is
+  unblocked and starts next session.
 
 - **2026-07-31 — Rev 1 authored** (this session), from: the ND-MC C0
   blocker analysis (compiled floors, THE SEAM, R1.6), the tower
