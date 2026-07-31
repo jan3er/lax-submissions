@@ -217,6 +217,22 @@ order, and the one/two/three nested-fold results are unchanged. Revisit if a
 consumer needs to unfold an intermediate public `for_rec2`/`for_rec3`
 recursive equation rather than use the full square/cube theorem.
 
+### E14 — conditional omission: while flattening
+
+**Status: accepted.** Sepreftime's `flatCurrs_whileT` is intentionally not
+ported in P3.A. In this repository `whileT` is defined through the guarded
+greatest fixed point `RECT`; unlike the structural and bind laws, transporting
+it requires a generic `RECT`/`gfp` conjugacy theorem across a complete-lattice
+order isomorphism, which `Rec.lean` does not currently expose. The delivered
+`flatCurrs_iSup` and exact `flatCurrs_bindT` cover the current cash-boundary
+consumers, so adding an ad hoc loop proof would create parallel fixed-point
+infrastructure.
+
+Revisit at the earlier of (a) the first consumer goal of shape
+`flatCurrs (whileT b c x) = whileT b c' x`, or (b) landing a generic theorem
+in `Rec.lean` that `RECT` commutes with an order isomorphism/conjugate body;
+then port the source theorem and add a terminating nondeterministic-loop gate.
+
 ## 4. Corrections that are not deviations
 
 These P0 discoveries change citations or scheduling without changing a

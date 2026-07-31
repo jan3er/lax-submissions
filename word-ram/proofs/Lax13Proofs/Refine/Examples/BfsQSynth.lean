@@ -1,5 +1,6 @@
 import Lax13Proofs.Refine.Codegen.Cash
 import Lax13Proofs.Refine.Examples.BfsQ
+import Lax13Proofs.Refine.NREST.FlattenCurrencies
 
 /-!
 # P7 wave B — the queue BFS at the synthesis layer
@@ -1340,16 +1341,69 @@ theorem cash_nsmul (k : ℕ) (κ : Ir.Cost) : Codegen.cash (k • κ) = k * Code
   | zero => simp
   | succ k ih => rw [succ_nsmul, cash_add, ih]; ring
 
-/-- The budget, priced: each loop's per-iteration account is a numeral,
-the assembly is linear algebra. -/
-theorem cash_bfsBudget (n ns : ℕ) : Codegen.cash (bfsBudget n ns) = 56 * n + 40 * ns + 32 := by
-  rw [show bfsBudget n ns = n • iter fillC + n • iter popC + ns • iter scanC + bfsK from rfl,
-    cash_add, cash_add, cash_add, cash_nsmul, cash_nsmul, cash_nsmul,
-    show Codegen.cash (iter fillC) = 12 from by decide +kernel,
-    show Codegen.cash (iter popC) = 44 from by decide +kernel,
-    show Codegen.cash (iter scanC) = 40 from by decide +kernel,
-    show Codegen.cash bfsK = 32 from by decide +kernel]
+theorem cash_cost_units (c : String) (k : ℕ) :
+    Codegen.cash (ACost.cost c k) = k * Codegen.cash (ACost.cost c 1) := by
+  have hcost : k • (ACost.cost c (1 : ℕ) : Ir.Cost) = ACost.cost c k := by
+    ext d
+    simp [ACost.toFun_nsmul, ACost.toFun_cost]
+  rw [← hcost, cash_nsmul]
+
+/-- The complete BFS account, priced from its proved coordinates rather than
+by kernel evaluation of four opaque subaccounts. -/
+theorem cash_bfsQTotal (n ns : ℕ) :
+    Codegen.cash (bfsQTotal n ns) = 56 * n + 40 * ns + 33 := by
+  rw [bfsQTotal_normal]
+  simp only [cash_add]
+  rw [cash_cost_units Currency.skip (9 * n + 5 * ns + 4),
+    cash_cost_units Currency.const 2,
+    cash_cost_units Currency.aget (4 * n + 3 * ns + 1),
+    cash_cost_units Currency.aset (n + 2 * ns + 2),
+    cash_cost_units Currency.ite (n + 2 * ns + 1),
+    cash_cost_units Currency.«while» (3 * n + ns + 2),
+    cash_cost_units Currency.add (4 * n + 2 * ns + 1)]
+  simp only [Codegen.cash_cost_skip,
+    Codegen.cash_cost_const, Codegen.cash_cost_aget, Codegen.cash_cost_aset,
+    Codegen.cash_cost_ite, Codegen.cash_cost_while,
+    show Codegen.cash (ACost.cost Currency.add 1) = 4 from Codegen.cash_cost_binop .add]
   ring
+
+/-- At the synthesis layer, the BFS account crosses the code-generation
+boundary exactly once: exchange every IR currency to the sole cash currency,
+then erase the `Unit` index. The scalar is `56n + 40ns + 33`. -/
+theorem flatCost_cash_bfsQTotal (n ns : ℕ) :
+    NRest.flatCost
+        (timerefineA NRest.cashExchangeRate (liftACost (bfsQTotal n ns))) =
+      ((56 * n + 40 * ns + 33 : ℕ) : ℕ∞) := by
+  rw [NRest.flatCost_timerefineA_cashExchangeRate, bfsQTotal_normal]
+  simp only [liftACost_add, liftACost_cost, Codegen.ecash_add]
+  rw [Codegen.ecash_cost (n := Currency.skip) (by simp [Currency.all]),
+    Codegen.ecash_cost (n := Currency.const) (by simp [Currency.all]),
+    Codegen.ecash_cost (n := Currency.aget) (by simp [Currency.all]),
+    Codegen.ecash_cost (n := Currency.aset) (by simp [Currency.all]),
+    Codegen.ecash_cost (n := Currency.ite) (by simp [Currency.all]),
+    Codegen.ecash_cost (n := Currency.«while») (by simp [Currency.all]),
+    Codegen.ecash_cost (n := Currency.add) (by simp [Currency.all])]
+  simp only [Codegen.weight_skip, Codegen.weight_const, Codegen.weight_aget,
+    Codegen.weight_aset, Codegen.weight_ite, Codegen.weight_while,
+    show Codegen.weight Currency.add = 4 from Codegen.weight_binopCurrency .add]
+  push_cast
+  ring
+
+/-- info: 'Lax13Proofs.Refine.BfsQSynth.flatCost_cash_bfsQTotal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms flatCost_cash_bfsQTotal
+
+/-- The historical budget name remains available; it is now a corollary of
+the total-vector theorem, not a second calculation. -/
+theorem cash_bfsBudget (n ns : ℕ) : Codegen.cash (bfsBudget n ns) = 56 * n + 40 * ns + 32 := by
+  have h := cash_bfsQTotal n ns
+  rw [bfsQTotal, cash_add] at h
+  have hskip : Codegen.cash (cu Currency.skip) = 1 := by
+    simp [Codegen.cash, Currency.all, Codegen.weight, cu, Currency.skip,
+      Currency.const, Currency.copy, Currency.aget, Currency.aset, Currency.ite,
+      Currency.«while», Currency.add, Currency.sub, Currency.mul, Currency.div,
+      Currency.and, Currency.or, Currency.xor, Currency.shiftl, Currency.shiftr]
+  omega
 
 /-- **The exported cost**: `56·n + 40·ns + 33` IMP+ time units (the
 baseline's hand-tuned figure is `51·n + 44·ns + 30`; this one is
@@ -1358,9 +1412,8 @@ def bfsQK (n ns : ℕ) : ℕ := 56 * n + 40 * ns + 33
 
 theorem ecash_bfsQTotal (n ns : ℕ) :
     ecash (irUnit Currency.skip + liftACost (bfsBudget n ns)) = (bfsQK n ns : ℕ∞) := by
-  rw [ecash_add, ecash_irUnit_skip, ecash_liftACost, cash_bfsBudget, bfsQK]
-  push_cast
-  ring
+  rw [← liftACost_cu Currency.skip, ← liftACost_add, ← bfsQTotal,
+    ecash_liftACost, cash_bfsQTotal, bfsQK]
 
 /-- The cashing chain at one initial store. -/
 theorem bfsQ_spec_at {n ns d B : ℕ} {G : SimpleGraph (Fin n)} {off tgt alv : List ℕ}

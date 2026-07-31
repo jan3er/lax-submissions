@@ -24,16 +24,16 @@ Carried unchanged from `refinement-tower/design.md` §1:
 
 | source | pin | canonical for |
 |---|---|---|
-| `isabelle_llvm_time` (Haslbeck–Lammich, ESOP'21) | github.com/lammich/isabelle_llvm_time @ **42dd7f5** (full: 42dd7f59998d76047bb4b6bce76d8f67b53a08b6) | everything cost-carrying: `acost`, NREST-with-currencies, `timerefine`, cost `hn_refine`, Sepref-with-cost, the sorting suite, the amortized dynamic array |
-| `isabelle_llvm` branch 2023 | github.com/lammich/isabelle_llvm @ **b44b639** | mature no-cost concrete-layer and IICF shapes |
+| `isabelle_llvm_time` (Haslbeck–Lammich, ESOP'21) | github.com/lammich/isabelle_llvm_time @ **42dd7f59998d76047bb4b6bce76d8f67b53a08b6** | everything cost-carrying: `acost`, NREST-with-currencies, `timerefine`, cost `hn_refine`, Sepref-with-cost, the sorting suite, the amortized dynamic array |
+| `isabelle_llvm` branch 2023 | github.com/lammich/isabelle_llvm @ **b44b6391ac00d8268e04dba4627a22d599e24dd6** | mature no-cost concrete-layer and IICF shapes |
 | AFP `Refine_Monadic`, `Automatic_Refinement`, `Refine_Imperative_HOL`, `NREST` | AFP for Isabelle2025-2 (release 2026-02-06) | maintained no-cost originals; rule organization; the Sepref guides as manuals |
 
 New pins (this campaign; the plan's P0 mandate):
 
 | source | pin | canonical for |
 |---|---|---|
-| **`maxhaslbeck/Sepreftime`** (ITP'19 "Refinement with Time" artifact) — *discovered in P0, see F3* | github.com/maxhaslbeck/Sepreftime @ **c1c987b** (branch `main`) | the case-study suite the ESOP artifact lacks: Kruskal (+`MinWeightBasis`), Edmonds–Karp + `Augmenting_Path_BFS`, **`Union_Find_Time`**, Floyd–Warshall + `Recursion_Combinators`; a *cost-carrying* IICF over SepLogicTime; `moreCurr/` (`Flatten_Currencies`, `MoreCurrAutomation`). Costs there are single-currency `enat` — adaptations to `acost` are ledgered (E6) |
-| **`bzhan/Imperative_HOL_Time`** (Zhan–Haslbeck, IJCAR'18 SepLogicTime) | github.com/bzhan/Imperative_HOL_Time @ **09f9bc7** (branch `master`) | time credits in SL assertions (`SLTC`), the amortized exemplars (`IHT_Dynamic_Array_More`, `IHT_Skew_Heap`), the `Asymptotics_1D/2D/Recurrences` closure layer. Note: **no union-find case study here** — that lives in Sepreftime |
+| **`maxhaslbeck/Sepreftime`** (ITP'19 "Refinement with Time" artifact) — *discovered in P0, see F3* | github.com/maxhaslbeck/Sepreftime @ **c1c987b45ec886d289ba215768182ac87b82f20d** (branch `main`) | the case-study suite the ESOP artifact lacks: Kruskal (+`MinWeightBasis`), Edmonds–Karp + `Augmenting_Path_BFS`, **`Union_Find_Time`**, Floyd–Warshall + `Recursion_Combinators`; a *cost-carrying* IICF over SepLogicTime; `moreCurr/` (`Flatten_Currencies`, `MoreCurrAutomation`). Costs there are single-currency `enat` — adaptations to `acost` are ledgered (E6) |
+| **`bzhan/Imperative_HOL_Time`** (Zhan–Haslbeck, IJCAR'18 SepLogicTime) | github.com/bzhan/Imperative_HOL_Time @ **09f9bc7a7cf177d3adf1e9ce6adae09a85ebe5ec** (branch `master`) | time credits in SL assertions (`SLTC`), the amortized exemplars (`IHT_Dynamic_Array_More`, `IHT_Skew_Heap`), the `Asymptotics_1D/2D/Recurrences` closure layer. Note: **no union-find case study here** — that lives in Sepreftime |
 | AFP `Collections` (ICF, Lammich–Lochbihler) | AFP Isabelle2025-2 | iterator discipline (`Iterator/`), interface breadth as reference; the locale framework itself is excluded (X4) |
 | AFP `Amortized_Complexity` (Nipkow et al.) + AFP `Dynamic_Tables` | AFP Isabelle2025-2 | potential-function math for the P4 exemplars (the full dynamic-table analysis is in `Dynamic_Tables`, not `Amortized_Complexity` — P0 correction) |
 | AFP `Landau_Symbols`, `Akra_Bazzi` (Eberl) | AFP Isabelle2025-2 | asymptotic-face and recurrence-closure *patterns*; mathlib `Asymptotics` remains the carrier (ledger E2) |
@@ -168,8 +168,9 @@ carrier-blindness probe).
 
 | item | source (size) | deps | consumer | wave |
 |---|---|---|---|---|
-| `sc_solve` (+`'`/`_debug`/`_upperbound`), the `norm_cost` lemma bundle, `norm_pp`, the VCG case splitter | `NREST_Automation.thy` (11.1 KB — read at P1-tower, never ported; note `norm_cost` is a lemma bundle, not a method) | — | every cost side condition; `g2_plug` gaps | P3.A |
-| currency flattening / collapse-once-at-cash | Sepreftime `moreCurr/Flatten_Currencies.thy` (12.4 KB) + `MoreCurrAutomation.thy` (24.7 KB); survey `AbstractSepreftime.thy` (131 KB) at fetch for anything the artifact dropped | P3.A | the cash boundary; ND-MC arena-form budgets | P3.A |
+| `sc_solve` (+`'`/`_debug`/`_upperbound`), the `norm_cost` lemma bundle, `norm_pp` | `NREST_Automation.thy` (11.1 KB — note `norm_cost` is a lemma bundle, not a method) | — | every cost side condition; `g2_plug` gaps | P3.A — landed (`NREST/Automation{Attrs,}.lean`) |
+| shallow VCG program-head case splitter | Sepreftime `moreCurr/MoreCurrAutomation.thy:73–131` at exact pin `c1c987b45ec886d289ba215768182ac87b82f20d` | P3.A automation | `gwp`/`progress` goals headed by `Option`/`Sum` matches | P3.A — landed (`NREST/VcgCaseSplit.lean`) |
+| currency flattening / collapse-once-at-cash | Sepreftime `moreCurr/Flatten_Currencies.thy` (12.4 KB) at exact pin `c1c987b45ec886d289ba215768182ac87b82f20d`; `AbstractSepreftime.thy` (131 KB) surveyed for dropped laws | P3.A | the cash boundary; ND-MC arena-form budgets | P3.A — landed (`NREST/FlattenCurrencies.lean`) |
 | currency house-style conventions | `Sorting_Setup.thy` (63.3 KB — extract the conventions: named per-op currencies, spec forms), | P3.A | all downstream phases | P3.B |
 | multi-phase budget exemplar: the introsort budget spine (**E6 retarget**) | `Sorting_Quicksort_Scheme.thy` (25.0 KB) + `Sorting_Introsort.thy` (32.8 KB) abstract halves, + `Sorting_Partially_Sorted.thy` (5.6 KB) | P2, P3.A | house pattern for multi-phase budgets | P3.B |
 | asymptotic face: O()-corollaries at the cashing boundary, recurrence closures for `CostRecurrence` | mathlib `Asymptotics` carrier (E2); patterns from IHT `Asymptotics_1D` (40.7 KB) / `Asymptotics_Recurrences` (28.2 KB), `Landau_Symbols` simproc patterns, `Akra_Bazzi`/`Master_Theorem` — check mathlib first (F5) | P3.A | "closes to almost-linear" detached from coefficients | P3.C |

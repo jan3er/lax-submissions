@@ -1,4 +1,5 @@
 import Lax13Proofs.Refine.Examples.Bfs
+import Lax13Proofs.Refine.NREST.Automation
 import Lax13Proofs.Refine.Sepref.IrLoop
 import Lax13Proofs.Refine.Sepref.Definition
 
@@ -1348,6 +1349,99 @@ the number of adjacency slots, at the IR's own currencies. -/
 def bfsBudget (n ns : ℕ) : ACost String ℕ :=
   n • iter fillC + n • iter popC + ns • iter scanC + bfsK
 
+/-- The complete account paid by the synthesized BFS export: its extra
+leading `skip`, followed by the abstract BFS budget. -/
+def bfsQTotal (n ns : ℕ) : ACost String ℕ :=
+  cu Currency.skip + bfsBudget n ns
+
+/-- The canonical vector form of the complete BFS account.  Both inequalities
+are organized by the P3.A source-shaped cost solver; only the resulting scalar
+natural-number obligations are handed to arithmetic normalization. -/
+theorem bfsQTotal_normal (n ns : ℕ) :
+    bfsQTotal n ns =
+      ACost.cost Currency.skip (9 * n + 5 * ns + 4) +
+      ACost.cost Currency.const 2 +
+      ACost.cost Currency.aget (4 * n + 3 * ns + 1) +
+      ACost.cost Currency.aset (n + 2 * ns + 2) +
+      ACost.cost Currency.ite (n + 2 * ns + 1) +
+      ACost.cost Currency.«while» (3 * n + ns + 2) +
+      ACost.cost Currency.add (4 * n + 2 * ns + 1) := by
+  apply le_antisymm
+  · rw [← liftACost_le_iff]
+    simp only [bfsQTotal, bfsBudget, bfsK, iter, fillC, popC, scanC, scanC0, cu,
+      norm_cost]
+    sc_solve
+    simp only [true_and, zero_add, nsmul_eq_mul]
+    repeat' apply And.intro
+    all_goals first | trivial | (apply le_of_eq; push_cast; ring)
+  · rw [← liftACost_le_iff]
+    simp only [bfsQTotal, bfsBudget, bfsK, iter, fillC, popC, scanC, scanC0, cu,
+      norm_cost]
+    sc_solve
+    simp only [true_and, zero_add, nsmul_eq_mul]
+    repeat' apply And.intro
+    all_goals first | trivial | (apply le_of_eq; push_cast; ring)
+
+/-! The source-shaped account is inspected structurally, before any exchange
+rate is applied.  These seven coordinates are the complete support. -/
+
+@[simp] theorem bfsQTotal_skip (n ns : ℕ) :
+    (bfsQTotal n ns).toFun Currency.skip = 9 * n + 5 * ns + 4 := by
+  simp [bfsQTotal, bfsBudget, bfsK, iter, fillC, popC, scanC, scanC0, cu,
+    Currency.skip, Currency.const, Currency.aget, Currency.aset, Currency.ite,
+    Currency.«while», Currency.add]
+  ring
+
+@[simp] theorem bfsQTotal_const (n ns : ℕ) :
+    (bfsQTotal n ns).toFun Currency.const = 2 := by
+  simp [bfsQTotal, bfsBudget, bfsK, iter, fillC, popC, scanC, scanC0, cu,
+    Currency.skip, Currency.const, Currency.aget, Currency.aset, Currency.ite,
+    Currency.«while», Currency.add]
+
+@[simp] theorem bfsQTotal_aget (n ns : ℕ) :
+    (bfsQTotal n ns).toFun Currency.aget = 4 * n + 3 * ns + 1 := by
+  simp [bfsQTotal, bfsBudget, bfsK, iter, fillC, popC, scanC, scanC0, cu,
+    Currency.skip, Currency.const, Currency.aget, Currency.aset, Currency.ite,
+    Currency.«while», Currency.add]
+  ring
+
+@[simp] theorem bfsQTotal_aset (n ns : ℕ) :
+    (bfsQTotal n ns).toFun Currency.aset = n + 2 * ns + 2 := by
+  simp [bfsQTotal, bfsBudget, bfsK, iter, fillC, popC, scanC, scanC0, cu,
+    Currency.skip, Currency.const, Currency.aget, Currency.aset, Currency.ite,
+    Currency.«while», Currency.add]
+  ring
+
+@[simp] theorem bfsQTotal_ite (n ns : ℕ) :
+    (bfsQTotal n ns).toFun Currency.ite = n + 2 * ns + 1 := by
+  simp [bfsQTotal, bfsBudget, bfsK, iter, fillC, popC, scanC, scanC0, cu,
+    Currency.skip, Currency.const, Currency.aget, Currency.aset, Currency.ite,
+    Currency.«while», Currency.add]
+  ring
+
+@[simp] theorem bfsQTotal_while (n ns : ℕ) :
+    (bfsQTotal n ns).toFun Currency.«while» = 3 * n + ns + 2 := by
+  simp [bfsQTotal, bfsBudget, bfsK, iter, fillC, popC, scanC, scanC0, cu,
+    Currency.skip, Currency.const, Currency.aget, Currency.aset, Currency.ite,
+    Currency.«while», Currency.add]
+  ring
+
+@[simp] theorem bfsQTotal_add (n ns : ℕ) :
+    (bfsQTotal n ns).toFun Currency.add = 4 * n + 2 * ns + 1 := by
+  simp [bfsQTotal, bfsBudget, bfsK, iter, fillC, popC, scanC, scanC0, cu,
+    Currency.skip, Currency.const, Currency.aget, Currency.aset, Currency.ite,
+    Currency.«while», Currency.add]
+  ring
+
+theorem bfsQTotal_other (n ns : ℕ) {c : String}
+    (hskip : c ≠ Currency.skip) (hconst : c ≠ Currency.const)
+    (haget : c ≠ Currency.aget) (haset : c ≠ Currency.aset)
+    (hite : c ≠ Currency.ite) (hwhile : c ≠ Currency.«while»)
+    (hadd : c ≠ Currency.add) :
+    (bfsQTotal n ns).toFun c = 0 := by
+  simp [bfsQTotal, bfsBudget, bfsK, iter, fillC, popC, scanC, scanC0, cu,
+    ACost.toFun_cost_ne, hskip, hconst, haget, haset, hite, hwhile, hadd]
+
 /-- **P7's export.** The queue-based masked depth-capped search delivers
 an array deciding every masked-distance threshold up to the cap, for
 `n` fill iterations, `n` pops, `ns` scanned slots and a constant. -/
@@ -1749,6 +1843,10 @@ theorem drainLoop_le' (hc : Csr n ns G off tgt alv) (q0 : ℕ) :
 end Reached
 
 /-! ## 9. Axioms -/
+
+/-- info: 'Lax13Proofs.Refine.BfsQ.bfsQTotal_normal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms bfsQTotal_normal
 
 /-- info: 'Lax13Proofs.Refine.BfsQ.bfsQ_correct' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

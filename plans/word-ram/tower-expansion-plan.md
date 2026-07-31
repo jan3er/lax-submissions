@@ -4,7 +4,7 @@ Rev 3, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0, P1, and P2 complete, P3.A next.** This document is the contract:
+P0, P1, P2, and P3.A complete, P3.B next.** This document is the contract:
 implementing sessions follow it, deviations need an owner decision first.
 
 ## One-off note from one Codex supervisor to the next (non-contractual)
@@ -444,6 +444,32 @@ repair enters as a tower wave under this plan (the T1/T2 precedent).
    final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — P3.A COMPLETE; currency automation, shallow VCG splitting,
+  flatten-once cash boundary, and BFS exact vector green.**
+  `NREST/Automation{Attrs,}.lean` ports `norm_cost`, `norm_pp`, the structural
+  `leqSidecon` transition family, public `sc_solve`/debug variants, and
+  canonical upper-bound synthesis; `costmult` is recorded as having no Lean
+  analogue beyond additive scalar action. `NREST/VcgCaseSplit.lean` ports the
+  corrected Sepreftime `MoreCurrAutomation.thy:73–131` splitter at exact pin
+  `c1c987b45ec886d289ba215768182ac87b82f20d`, deliberately restricted to
+  `gwp`/`progress` program heads that are `Option`/`Sum` matches, with a
+  negative non-match control. `NREST/FlattenCurrencies.lean` gives the Unit
+  order isomorphism, structural laws through genuine nondeterministic bind,
+  codegen exchange, and one cash collapse; ledger E14 records why conditional
+  while transport waits for generic `RECT` conjugacy. `BfsQ.bfsQTotal_normal`
+  pins the complete seven-coordinate abstract account via `norm_cost`/`sc_solve`
+  without importing flattening or code generation. Downstream,
+  `BfsQSynth.flatCost_cash_bfsQTotal` crosses exchange→Unit→flatten to exactly
+  `56n + 40ns + 33`; `BfsQSynth` consumes the coordinate theorem and no longer
+  uses its four `decide +kernel` subaccount oracles. Principal exports have pinned
+  kernel-three axiom guards. Focused Automation, FlattenCurrencies,
+  VcgCaseSplit, BfsQ, and BfsQSynth builds are green. Supervisor replay:
+  concepts build 505 jobs; the full proofs root builds 3,065 jobs; and
+  `lax build --only proofs word-ram` is green, with zero new `sorry`/`admit`
+  and only the previously recorded warnings. **Next: P3.B, currency house
+  style and the introsort budget spine; P3.C remains the later asymptotic
+  face.**
 
 - **2026-07-31 — P2.B COMPLETE; iteration-list/Autoref discipline and
   nested for combinators green.** `Autoref/Foreach.lean` ports

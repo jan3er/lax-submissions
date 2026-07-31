@@ -42,6 +42,9 @@ import Lax13Proofs.Refine.Autoref.BindingsHOL
 import Lax13Proofs.Refine.NREST.DataRefinement
 import Lax13Proofs.Refine.NREST.TimeRefinement
 import Lax13Proofs.Refine.NREST.BackwardsReasoning
+import Lax13Proofs.Refine.NREST.AutomationAttrs
+import Lax13Proofs.Refine.NREST.Automation
+import Lax13Proofs.Refine.NREST.VcgCaseSplit
 import Lax13Proofs.Refine.Ir.Syntax
 import Lax13Proofs.Refine.Ir.Semantics
 import Lax13Proofs.Refine.Ir.Assn
@@ -78,6 +81,7 @@ import Lax13Proofs.Refine.Codegen.Sim
 import Lax13Proofs.Refine.Codegen.Harness
 import Lax13Proofs.Refine.Codegen.BoundVcg
 import Lax13Proofs.Refine.Codegen.Cash
+import Lax13Proofs.Refine.NREST.FlattenCurrencies
 import Lax13Proofs.Refine.Codegen.Examples.EndToEnd
 import Lax13Proofs.Refine.Iicf.Basic
 import Lax13Proofs.Refine.Iicf.IicfArray
