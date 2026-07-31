@@ -1,6 +1,6 @@
 # P3.C design — mathlib asymptotic face
 
-Status: ACTIVE, 2026-07-31. P3.C-A through P3.C-D are complete; P3.C-E is next. This note freezes the source-facing decomposition
+Status: ACTIVE, 2026-07-31. P3.C-A through P3.C-E are complete; P3.C-F consumer gates and final source audit are next. This note freezes the source-facing decomposition
 for P3.C. It is subordinate to `tower-expansion-plan.md` and its source-first
 firewall.
 
@@ -32,7 +32,7 @@ audits the source table, replays all gates, and commits to `main`.
 | P3.C-B — complete | `Refine/Asymptotics/OneDimensionalOperations.lean` | 1D lines 386–854: composition, division/difference, ceiling/log, Θ addition, named normalization rules | 32 live declarations and four exclusions classified; composition, arithmetic/log, and named-rule gates green; supervisor gates green |
 | P3.C-C — complete | `Refine/Asymptotics/TwoDimensional.lean` | 2D lines 5–270, 467–559, and 638–669 in dependency order: genuine product-filter notation, `polylog2`, stability/monotonicity, eliminators, multiplicative lifting | all 26 declarations mapped; genuine `atTop ×ˢ atTop`, independent-threshold/lifting gates, and supervisor builds green |
 | P3.C-D — complete | `Refine/Asymptotics/TwoDimensionalComposition.lean` | 2D composition/comparison/normalization: lines 272, 342, 412, 432, 453, 563, 566, 602, 612, 624, 634, 671 plus the named rule family | 12 live declarations plus ML exclusion mapped; two-coordinate composition, partial comparison, and normalization gates green |
-| P3.C-E | `Refine/Asymptotics/Recurrences.lean` | all public recurrence declarations at lines 7–585, including linear O/Ω/Θ families and bivariate families | source-shaped 1D and bivariate recurrence gates; reuse mathlib Akra–Bazzi rather than duplicate it |
+| P3.C-E — complete | `Refine/Asymptotics/Recurrences.lean` | all public recurrence declarations at lines 7–585, including linear O/Ω/Θ families and bivariate families | all 18 rows mapped; source examples green; fixed-shrink Akra–Bazzi documented but correctly not applied to successor recurrences; supervisor gates green |
 
 After A–E are accepted, P3.C-F may add the plan's BfsQ O(n + ns) and
 introsort O(n log n) demonstrations in a consumer/example leaf. It may not

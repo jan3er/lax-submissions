@@ -4,7 +4,7 @@ Rev 4, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0, P1, P2, P3.A, P3.B, and P3.C-A through P3.C-D complete; P3.C-E next. The source-first scope
+P0, P1, P2, P3.A, P3.B, and P3.C-A through P3.C-E complete; P3.C-F consumer gates next. The source-first scope
 firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -354,6 +354,23 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — P3.C-E COMPLETE; recurrence families and source-facing P3.C
+  green.** `Asymptotics/Recurrences.lean` maps all 18 scheduled rows from
+  `Asymptotics_Recurrences.thy`: 12 generic declarations and six source
+  validation-example rows. The four O/Ω successor-recurrence theorems, three Θ
+  wrappers, logarithmic helper, and three genuine-product-filter bivariate
+  exports retain source premise strength and Landau direction. The two source
+  examples remain validation definitions/private gates. Mathlib's fixed-shrink
+  Akra–Bazzi endpoints are documented but not misapplied to `n-1` recurrences
+  or duplicated. Independent review found the semantics faithful and caught
+  three missing principal-export guards; the worker added those guards without
+  changing any theorem or proof. Final coverage is ten kernel-three guards.
+  Supervisor replay: focused module 2,248 jobs, concepts 505, full proofs
+  3,243, and `lax build --only proofs word-ram` green; zero
+  `sorry`/`admit`/`native_decide` and no new warnings. **Next: P3.C-F,
+  bounded BfsQ/introsort consumer demonstrations and the complete A–E source
+  table audit.**
 
 - **2026-07-31 — P3.C-D COMPLETE; two-dimensional composition and
   normalization green.** `Asymptotics/TwoDimensionalComposition.lean` maps
