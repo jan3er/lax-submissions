@@ -4,7 +4,7 @@ Rev 4, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0, P1, P2, P3.A, P3.B, and P3.C-A through P3.C-E complete; P3.C-F consumer gates next. The source-first scope
+P0, P1, P2, P3.A, P3.B, and P3.C complete; P4 credits and amortization next. The source-first scope
 firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -21,9 +21,11 @@ intact. A worker's green report is not acceptance evidence until the
 supervisor replays the build, lax, and axiom gates.
 
 Scope is **proofs-only**: no concept-surface changes, toolchain or mathlib
-pin moves, or machine-model changes. Refute-before-prove,
-compiled-costs-both-directions, and root namespace/splitter audit remain
-standing laws.
+pin moves, or machine-model changes. Negative testing is risk-proportionate:
+routine source-shaped ports rely on source review, typechecking, kernel guards,
+and builds; compiled falsification remains required for genuinely new, deep,
+or subtle claims. Compiled-costs-both-directions and root namespace/splitter
+audit remain standing laws.
 
 ## Mandate
 
@@ -354,6 +356,20 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — P3.C COMPLETE; asymptotic source families and consumer
+  gates green.** `Examples/AsymptoticConsumers.lean` closes the phase with
+  exactly two O-only consumers. The seven-coordinate BfsQ account projects
+  exactly to `22*n + 15*ns + 13` and is O(n + ns) over the genuine product
+  filter. The exact introsort upper-bound cash polynomial is O(n log n); no
+  unsupported Theta or lower-bound claim and no ND-MC dependency was added.
+  The final A–E source audit covers 131 rows: 126 live declarations and five
+  documented exclusions, with no omissions, duplicates, or
+  misclassifications. The consumer leaf carries two kernel-three guards.
+  Supervisor replay: focused consumer module 3,190 jobs, concepts 505, full
+  proofs 3,244, and `lax build --only proofs word-ram` green; zero
+  `sorry`/`admit`/`native_decide` and no new warnings. **Next: P4, generic
+  credits and amortization.**
 
 - **2026-07-31 — P3.C-E COMPLETE; recurrence families and source-facing P3.C
   green.** `Asymptotics/Recurrences.lean` maps all 18 scheduled rows from

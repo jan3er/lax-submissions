@@ -1,6 +1,7 @@
 # P3.C design — mathlib asymptotic face
 
-Status: ACTIVE, 2026-07-31. P3.C-A through P3.C-E are complete; P3.C-F consumer gates and final source audit are next. This note freezes the source-facing decomposition
+Status: COMPLETE, 2026-07-31. P3.C-A through P3.C-F and the final source audit
+are accepted. This note records the frozen source-facing decomposition
 for P3.C. It is subordinate to `tower-expansion-plan.md` and its source-first
 firewall.
 
@@ -33,11 +34,13 @@ audits the source table, replays all gates, and commits to `main`.
 | P3.C-C — complete | `Refine/Asymptotics/TwoDimensional.lean` | 2D lines 5–270, 467–559, and 638–669 in dependency order: genuine product-filter notation, `polylog2`, stability/monotonicity, eliminators, multiplicative lifting | all 26 declarations mapped; genuine `atTop ×ˢ atTop`, independent-threshold/lifting gates, and supervisor builds green |
 | P3.C-D — complete | `Refine/Asymptotics/TwoDimensionalComposition.lean` | 2D composition/comparison/normalization: lines 272, 342, 412, 432, 453, 563, 566, 602, 612, 624, 634, 671 plus the named rule family | 12 live declarations plus ML exclusion mapped; two-coordinate composition, partial comparison, and normalization gates green |
 | P3.C-E — complete | `Refine/Asymptotics/Recurrences.lean` | all public recurrence declarations at lines 7–585, including linear O/Ω/Θ families and bivariate families | all 18 rows mapped; source examples green; fixed-shrink Akra–Bazzi documented but correctly not applied to successor recurrences; supervisor gates green |
+| P3.C-F — complete | `Refine/Examples/AsymptoticConsumers.lean` | exact BfsQ seven-coordinate cash projection and exact introsort upper-bound cash polynomial | BfsQ O(n + ns) on the genuine product filter; introsort O(n log n); O-only claims, two kernel guards, supervisor builds green |
 
-After A–E are accepted, P3.C-F may add the plan's BfsQ O(n + ns) and
-introsort O(n log n) demonstrations in a consumer/example leaf. It may not
-strengthen either to Θ from an upper bound, and it may not import any ND-MC
-module.
+The final source audit classifies 131 rows across the five source-facing Lean
+tables: 126 live declarations and five documented exclusions, with no
+omissions, duplicates, or misclassifications. P3.C-F adds only the plan's BfsQ
+O(n + ns) and introsort O(n log n) demonstrations; it does not strengthen
+either to Θ and does not import any ND-MC module.
 
 ## Source dispositions fixed before implementation
 
