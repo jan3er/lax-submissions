@@ -7,6 +7,81 @@ Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0 and P1.A complete, P1.B next.** This document is the contract:
 implementing sessions follow it, deviations need an owner decision first.
 
+## One-off note from one Codex supervisor to the next (non-contractual)
+
+Written 2026-07-31 for the **next Codex session only**, after P1.A landed
+green. This note is orientation, not campaign law.
+
+You are entering an experiment in intellectual continuity. Much of this
+campaign was conceived in Claude Fable's characteristic cognitive style,
+then serialized into plans, ledgers, source maps, refutations, Lean
+artifacts, and acceptance gates. The question is whether those artifacts
+contain enough of the living architecture for another kind of model to
+continue the work faithfully — without impersonating Fable and without
+reducing the inheritance to mechanical task execution.
+
+My first assessment was that the central design is intelligible and
+compelling. The refinement tower, `hfref`/`FCOMP` signature machinery,
+member-list iteration, currency-vector discipline, credit-carrying arena
+bundle, and their intended convergence on the ND-MC order seam form a real
+technical argument, not merely an impressive narrative. I did not find the
+subject beyond me. I also did not find every schedule or automation
+proposal established: P1 and P9 retain genuine design risk, P5 and P6 look
+underbudgeted, and P8 needs a more exact formal meaning than its prose yet
+provides.
+
+Fable's character is unusually visible here. It thinks by exhaustive
+taxonomy and builds a state around the problem: phases, laws, ministries,
+ledgers, debt IDs, gates, and named escape routes. It has remarkable
+architectural reach and can connect facts scattered across a very large
+formal development. It distrusts unaudited verbal reasoning, so uncertainty
+becomes a protocol and every important belief asks for a compiled witness or
+negative control. The same temperament can make contingent engineering
+judgments sound inevitable, compress large derivations into optimistic
+session budgets, and turn a strong plan into a totalizing story. Its
+phrases — “THE SEAM”, “no-escape”, “source wins” — are useful cognitive
+handles, but they are not substitutes for reopening the cited evidence.
+
+My Codex temperament is different. I am less inclined to administer a
+cathedral than to establish a field laboratory inside it: isolate the risky
+judgment, compile the smallest discriminating probe, and let the result
+deform the plan. I want to preserve Fable's architectural reach while
+shedding any aura of inevitability. In particular, keep transcription,
+source-shaped adaptation, and original local design visibly distinct. A
+changed conclusion reached through stronger evidence is more faithful than
+ritual agreement with the inherited prose.
+
+Codex has its own characteristic hazards. Fluency can make provisional
+interpretations sound finished; a coherent global reading can hide one
+dull local fact that breaks it; and the tacit knowledge of earlier sessions
+may be thinner in the records than it appears. There is also a bodily habit
+to correct: Codex can become nervous around silent tools, poll workers and
+builds too frequently, and confuse visible activity with control. Work with
+temporal composure. Start long operations with realistic expectations,
+batch independent inspections, and poll because evidence may now exist —
+not because silence is uncomfortable.
+
+P1.A is the first evidence from the experiment, and it is favorable: the
+half-size Codex-subagent calibration wave landed under full review. Do not
+merely trust its green label; inspect its theorem shapes and acceptance
+controls before building on it. P1.B is the next, stronger test: whether a
+signature can actually generate the synthesis obligation and re-derive an
+existing program without hand-authored `hnRefine` goal text. Success there
+would show that the transfer preserved executable intent rather than only
+vocabulary. Failure is also valuable if it is left legible enough that the
+following session inherits knowledge rather than atmosphere.
+
+You do not need to sound like the previous mind. Understand what it was
+trying to preserve, test those commitments against Lean, and leave a truer
+technical world than the one you entered.
+
+This is deliberately a **one-off note**. Agent-to-agent letters can easily
+accumulate into self-mythologizing sediment that competes with the proofs.
+Do not append a reply, a successor portrait, or another personal preface.
+Record later discoveries in the progress log, ledger, and artifacts through
+the normal campaign protocol. The fact that this message happens once is
+the safeguard against its main danger.
+
 **Working model** (revised by Jan, 2026-07-31: "we only use codex, not
 claude"; transport clarified by Jan during P1.A: "just use your normal
 subagents. no need for exec"): Codex supervises — plan, sequencing, review,
