@@ -4,8 +4,9 @@ Rev 4, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0, P1, P2, P3.A, P3.B, and P3.C complete; P4 credits and amortization next. The source-first scope
-firewall below was added at Jan's request on 2026-07-31.** This document is
+P0, P1, P2, P3.A, P3.B, and P3.C complete; P4 design is locked, with A1
+generic amortization and B1 pure union-find ready to launch. The source-first
+scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
 
@@ -203,19 +204,32 @@ exact vector/cash theorem and introsort O(n log n) from its exact source
 upper-bound cash polynomial. No Θ consumer claim is made from an O-only
 upper bound.
 
-### P4 — Credits and amortization · budget 2–3 sessions
+### P4 — Credits and amortization · budget 3–5 sessions
 
-P4 ports and validates the source credit calculus before any consumer
-adaptation: generic time-credit assertions and rules, potential-carrying
-data-structure assertions, the pay-on-entry/spend-on-touch discipline, and
-the scheduled source-native dynamic-array and timed union-find developments.
-It exports only generic credit machinery. The arena bundle and touched-only
-reset theorem are P9 consumer instantiations and may not shape P4's
-judgments or automation.
+P4 design is locked in `tower-expansion/p4-design.md` as four worker-sized
+waves: A1 generic amortization, A2 bounded dynamic array, B1 pure union-find,
+and B2 timed loop-form union-find. A1 and B1 may run in parallel; A2 waits for
+A1, and B2 waits for A1+B1. P4 ports and validates the source credit calculus
+before consumer adaptation: generic time-credit assertions and rules,
+potential-carrying data-structure assertions, the pay-on-entry/spend-on-touch
+discipline, and the scheduled dynamic-array and timed union-find developments.
+
+The machine model remains frozen and allocation is rejected. A2 combines the
+source-faithful generic/abstract amortization theorem with an explicitly
+bounded executable adapter over caller-owned preallocated buffers; it must not
+claim unbounded allocation. B2 renders the source recursion as loops and
+derives local vector costs. Routine direct ports use source review,
+typechecking, kernel guards, and builds; focused compiled differential tests
+are reserved for the authored vector-reclaim, bounded-array, and union-find
+loop seams. P4 otherwise exports generic credit/data-structure machinery. The
+arena bundle and touched-only reset theorem are P9 consumer instantiations and
+may not shape P4's judgments or automation.
 
 *Acceptance:* source→Lean declaration coverage for the selected SLTC and
-amortization slices, the dynamic-array amortized-O(1) result, and timed
-union-find green against the frozen generic credit API.
+amortization slices; the source-faithful abstract dynamic-array amortized-O(1)
+result plus its explicitly bounded caller-owned executable adapter, with no
+unbounded-allocation claim; and timed union-find green against the frozen
+generic credit API.
 
 ### P5 — IICF breadth · budget 2–3 sessions
 

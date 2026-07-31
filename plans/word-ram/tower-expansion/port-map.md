@@ -189,12 +189,18 @@ upper bounds. No ND-MC import or API is permitted.
 
 ### P4 — credits and amortization
 
+Design status: **LOCKED 2026-07-31** in `p4-design.md`. Worker graph is
+A1 → A2 and A1+B1 → B2. Allocation is rejected; A2's executable face is a
+bounded caller-owned preallocated adapter and may not claim unbounded growth.
+The generic/abstract amortization theorem remains source-faithful.
+
 | item | source (size) | deps | consumer | wave |
 |---|---|---|---|---|
-| time-credit assertion discipline: credits stored in DS assertions, pay-on-entry / spend-on-touch | `SLTC.thy` (32.8 KB) + `SLTC_More.thy` (21.8 KB); `SLTC_Automation.thy` (41.3 KB) architecture only — auto2 is not our carrier, `fri`/`refine_vcg` stay (X7) | P3 | generic potential-carrying assertions | P4.A |
-| dynamic array, amortized O(1) push | **primary: artifact `examples/dynarray/Dynamic_Array.thy` (49.3 KB — currency-native: `TR_dynarray` exchange rates, `augment_amor_assn` potential-carrying assertions)**; secondary: `IHT_Dynamic_Array(_More)` (7.6+8.1 KB), `Amortized_Examples.thy` §dyn-table + `Dynamic_Tables/Tables_nat.thy` (22.9 KB) for the potential math | P4.A | resizable arrays (P5); credit exemplar #1 | P4.A |
-| union-find with credits (**F4: unconditional**) | Sepreftime `Union_Find_Time.thy` (46.6 KB) + `UnionFind.thy`/`UnionFind_Impl.thy` (2.2+2.9 KB); `enat`→`acost` + SLTC→our-SL adaptation (E6-class) | P4.A | Kruskal exemplar; credit exemplar #2 | P4.B |
-| Kruskal chain (source-native post-freeze validation, **E6**) | Sepreftime `Kruskal/`: `MinWeightBasis` (18.1), `Kruskal` (9.1), `Kruskal_Refine` (16.9), `Kruskal_Time` (5.3), `Kruskal_Impl` (19.7), `MaxNode_Impl` (11.8), `UGraph_Impl` (10.1) ≈ 91 KB; `enat`→`acost` | P2, P4.B, required P5 families | validates frozen generic APIs; does not design them | P5 post-freeze gate |
+| time-credit assertion discipline: credits stored in DS assertions, pay-on-entry / spend-on-touch | `SLTC.thy` (32.8 KB) + `SLTC_More.thy` (21.8 KB); `SLTC_Automation.thy` (41.3 KB) architecture only — auto2 is not our carrier, `fri`/`refine_vcg` stay (X7); exact ranges/pins/blobs in `p4-design.md` | P3 | generic potential-carrying assertions | **P4.A1 — brief ready** |
+| dynamic array, amortized O(1) push | **primary: artifact `examples/dynarray/Dynamic_Array.thy` (49.3 KB — currency-native: `TR_dynarray` exchange rates, `augment_amor_assn` potential-carrying assertions)**; secondary: `IHT_Dynamic_Array(_More)` (7.6+8.1 KB), `Amortized_Examples.thy` §dyn-table + `Dynamic_Tables/Tables_nat.thy` (22.9 KB) for the potential math. Source concrete implementation is undefined/unfinished at primary lines 1097–1107; executable Lean adapter is bounded and caller-owned per P4-DYN-1. | P4.A1 | bounded arrays (P5); credit exemplar #1 | **P4.A2 — brief after A1 API freeze** |
+| pure union-find representation, correctness, and logarithmic height theory | Sepreftime `UnionFind.thy` + pure `Union_Find_Time.thy:20–649,813–828`, with AFP `Partial_Equivalence_Relation.thy:11–75`; exact pins/blobs in `p4-design.md` | P3 | timed union-find proof base | **P4.B1 — brief ready; parallel with A1** |
+| union-find with credits (**F4: unconditional**) | Sepreftime `UnionFind_Impl.thy` + executable `Union_Find_Time.thy:651–811,832–1204`; `enat`→`acost`, SLTC→our-SL, caller-owned arrays, recursion→loop adaptation (E6/P4-UF-1) | P4.A1, P4.B1 | Kruskal exemplar; credit exemplar #2 | **P4.B2 — brief after A1+B1 freeze** |
+| Kruskal chain (source-native post-freeze validation, **E6**) | Sepreftime `Kruskal/`: `MinWeightBasis` (18.1), `Kruskal` (9.1), `Kruskal_Refine` (16.9), `Kruskal_Time` (5.3), `Kruskal_Impl` (19.7), `MaxNode_Impl` (11.8), `UGraph_Impl` (10.1) ≈ 91 KB; `enat`→`acost` | P2, P4.B2, required P5 families | validates frozen generic APIs; does not design them | P5 post-freeze gate |
 
 ### P5 — exact P0-fixed IICF table (all cost-adaptations per E7)
 
