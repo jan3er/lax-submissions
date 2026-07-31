@@ -97,7 +97,7 @@ section Frames
 variable {q_top cap mb ℓ W j : ℕ} {φ : Lax3.FirstOrder.FO 0}
 
 theorem turnFrozen_notMem_warrs_driverAt {a : String} (h : RamDriverFrames.TurnFrozen j a) :
-    a ∉ (driverAt q_top cap mb 0 ℓ W φ (j + 1)).warrs := by
+    a ∉ (driverAt q_top cap mb 0 ℓ φ (j + 1)).warrs := by
   refine RamDriverWrites.belowArr_notMem_warrs_driverAt ?_
   rcases h with hm | ⟨c, rfl⟩ | ⟨b, hb, rfl⟩
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
@@ -107,19 +107,19 @@ theorem turnFrozen_notMem_warrs_driverAt {a : String} (h : RamDriverFrames.TurnF
   · exact ⟨b, by omega, by tauto⟩
 
 theorem ctrName_notMem_wvars_driverAt {a : ℕ} (h : a ≤ j) :
-    ctrName a ∉ (driverAt q_top cap mb 0 ℓ W φ (j + 1)).wvars :=
+    ctrName a ∉ (driverAt q_top cap mb 0 ℓ φ (j + 1)).wvars :=
   RamDriverWrites.belowVar_notMem_wvars_driverAt ⟨a, by omega, Or.inl rfl⟩
 
 theorem xpName_notMem_wvars_driverAt :
-    xpName j ∉ (driverAt q_top cap mb 0 ℓ W φ (j + 1)).wvars :=
+    xpName j ∉ (driverAt q_top cap mb 0 ℓ φ (j + 1)).wvars :=
   RamDriverWrites.belowVar_notMem_wvars_driverAt ⟨j, Nat.lt_succ_self j, by tauto⟩
 
 theorem curName_notMem_wvars_driverAt :
-    curName j ∉ (driverAt q_top cap mb 0 ℓ W φ (j + 1)).wvars :=
+    curName j ∉ (driverAt q_top cap mb 0 ℓ φ (j + 1)).wvars :=
   RamDriverWrites.belowVar_notMem_wvars_driverAt ⟨j, Nat.lt_succ_self j, by tauto⟩
 
 theorem tabName_notMem_warrs_driverAt (i : ℕ) :
-    tabName j i ∉ (driverAt q_top cap mb 0 ℓ W φ (j + 1)).warrs :=
+    tabName j i ∉ (driverAt q_top cap mb 0 ℓ φ (j + 1)).warrs :=
   RamDriverWrites.belowArr_notMem_warrs_driverAt
     ⟨j, Nat.lt_succ_self j, by tauto⟩
 
@@ -129,26 +129,26 @@ are frames of the whole turn: the nested level is a level at depth
 depth's connector, its cluster arrays and its tables. -/
 
 theorem cpsName_notMem_warrs_driverAt :
-    cpsName j ∉ (driverAt q_top cap mb 0 ℓ W φ (j + 1)).warrs :=
+    cpsName j ∉ (driverAt q_top cap mb 0 ℓ φ (j + 1)).warrs :=
   RamDriverWrites.belowArr_notMem_warrs_driverAt ⟨j, Nat.lt_succ_self j, by tauto⟩
 
 theorem cnumName_notMem_wvars_driverAt :
-    cnumName j ∉ (driverAt q_top cap mb 0 ℓ W φ (j + 1)).wvars :=
+    cnumName j ∉ (driverAt q_top cap mb 0 ℓ φ (j + 1)).wvars :=
   RamDriverWrites.belowVar_notMem_wvars_driverAt ⟨j, Nat.lt_succ_self j, by tauto⟩
 
 theorem cixName_notMem_wvars_driverAt :
-    cixName j ∉ (driverAt q_top cap mb 0 ℓ W φ (j + 1)).wvars :=
+    cixName j ∉ (driverAt q_top cap mb 0 ℓ φ (j + 1)).wvars :=
   RamDriverWrites.belowVar_notMem_wvars_driverAt ⟨j, Nat.lt_succ_self j, by tauto⟩
 
 open Classical in
 /-- **The loop header's three names survive one turn.** -/
 theorem loopFrames :
     cpsName j ∉ (clusterCom q_top cap mb φ j
-        (driverAt q_top cap mb 0 ℓ W φ (j + 1))).warrs ∧
+        (driverAt q_top cap mb 0 ℓ φ (j + 1))).warrs ∧
       cnumName j ∉ (clusterCom q_top cap mb φ j
-        (driverAt q_top cap mb 0 ℓ W φ (j + 1))).wvars ∧
+        (driverAt q_top cap mb 0 ℓ φ (j + 1))).wvars ∧
       cixName j ∉ (clusterCom q_top cap mb φ j
-        (driverAt q_top cap mb 0 ℓ W φ (j + 1))).wvars :=
+        (driverAt q_top cap mb 0 ℓ φ (j + 1))).wvars :=
   ⟨RamDriverWrites.cpsName_notMem_warrs_clusterCom q_top cap mb j φ
       cpsName_notMem_warrs_driverAt,
     RamDriverWrites.cnumName_notMem_wvars_clusterCom q_top cap mb j φ
@@ -219,7 +219,7 @@ theorem clusterStepAt
     (hK : turnCostSize n ns cap mb q_top j φ Ksc (blockSize Xoff k)
       (Kin (blockSize Xoff k)) ≤ Ks) :
     ClusterStepImplements B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg mm k
-      (driverAt q_top cap mb 0 ℓ W φ (j + 1)) Kin Ks :=
+      (driverAt q_top cap mb 0 ℓ φ (j + 1)) Kin Ks :=
   RamDriverCluster.clusterStepImplements hcap
     (RamDriverDescend.descendStep hmb hjl le_rfl)
     (fun _ _ _ _ => RamDriverDescend.enumStep hB le_rfl)
@@ -247,7 +247,7 @@ theorem clusterFramesAt
     (hK : turnCostSize n ns cap mb q_top j φ Ksc (blockSize Xoff k)
       (Kin (blockSize Xoff k)) ≤ Ks) :
     RamDriverCluster.ClusterFrames B q_top cap mb ns W ℓ j φ G O T M Gm C π ord
-      Xoff Xmem asg mm k (driverAt q_top cap mb 0 ℓ W φ (j + 1)) Kin Ks :=
+      Xoff Xmem asg mm k (driverAt q_top cap mb 0 ℓ φ (j + 1)) Kin Ks :=
   RamDriverFrames.clusterFrames hcsr hB
     (RamDriverDescend.descendStep hmb hjl le_rfl)
     (fun _ _ _ _ => RamDriverDescend.enumStep hB le_rfl)
@@ -675,7 +675,7 @@ theorem driverRoot_decides_sentence
     Spec B (fun σ => DecodeMem n ns W σ ∧ LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
         OrderMem B n ns W σ ∧ TablesSized q_top cap mb φ n σ ∧
         BaseArrs B q_top cap mb ℓ φ σ ∧ σ.inp = x ∧ σ.out = [])
-      (driverRoot q_top cap mb 0 ℓ W φ)
+      (driverRoot q_top cap mb 0 ℓ φ)
       (fun _ σ' => σ'.out = [if Lax3.FirstOrder.Sat G Fin.elim0 φ then 1 else 0])
       (Kdec + (Kl 0 n + Ksent)) :=
   driver_correct hrank hB hxB (by omega) hpad0
@@ -740,7 +740,7 @@ theorem driverRoot_decides_sentence_binj
     Spec B (fun σ => DecodeMem n ns W σ ∧ LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
         OrderMem B n ns W σ ∧ TablesSized q_top cap mb φ n σ ∧
         BaseArrs B q_top cap mb ℓ φ σ ∧ σ.inp = x ∧ σ.out = [])
-      (driverRoot q_top cap mb 0 ℓ W φ)
+      (driverRoot q_top cap mb 0 ℓ φ)
       (fun _ σ' => σ'.out = [if Lax3.FirstOrder.Sat G Fin.elim0 φ then 1 else 0])
       (Kdec + (Kl 0 n + Ksent)) :=
   driverRoot_decides_sentence hx hns hO hT hxB hcsr hpad0 hrank hcap hmb hℓ hB hWB hpow hQ

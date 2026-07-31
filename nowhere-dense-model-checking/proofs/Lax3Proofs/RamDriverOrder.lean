@@ -947,42 +947,50 @@ theorem ordCom_spec {B n : ℕ} {R : ℕ → ℕ} (dst : String) (hdr : dst ≠ 
 `RamDriver.saveCsr` and `RamDriver.restoreCsr` are the same two copies
 in the two directions, so one lemma serves both.
 
-**The second copy's bound is the allocation width** (rebase F-c-4). It
+**The second copy's bound is the live-width scalar** (rebase G2/E1). It
 used to be the runtime number `m + m` — the block structure's own slot
-count — and that is why `forRangeZero'` takes its bound as an
-expression. `RamDriver.LevelPre`'s `tgt` clause is now `arrOf W T`, so
-the array to be put out of the way is `W` cells and the bound is the
-literal `W`: copying only `2·m` of them would leave `gtg`'s padding
-holding whatever the last round wrote, and the restore would put that
-back into `tgt` instead of the level's own tail.
+count — then, with rebase F-c-4, the *literal* allocation width `W`;
+it is now the scalar `"lw"`, whose value `RamDriver.LevelPre` pins at
+`W`. The value copied is therefore exactly what F-c-4's flip copied —
+`RamDriver.LevelPre`'s `tgt` clause is `arrOf W T`, so the array to be
+put out of the way is `W` cells, and copying only `2·m` of them would
+leave `gtg`'s padding holding whatever the last round wrote and the
+restore would put that back — but the *text* no longer names `W`, which
+is what `Lax3.ModelChecking`'s one-program-for-all-inputs quantifier
+needs (`Refine.G2CostProbe`, uniformity section). Both bounds are
+one-node expressions, so every cost in this file is unchanged.
 
 The context still carries `σ.vars "m" + σ.vars "m" = ns`, which nothing
 here reads any more; it is what carries the scalar across the two
-copies, which is the postcondition's `σ'.vars "m" = σ.vars "m"`. -/
+copies, which is the postcondition's `σ'.vars "m" = σ.vars "m"`. The
+`"lw"` clause is carried the same way, and re-established in the
+postcondition because the phase hands it on to the next copy. -/
 
 /-- **A block structure copied wholesale.** -/
 theorem csrCopy_spec {B n ns W : ℕ} {O T : ℕ → ℕ} (s₁ s₂ d₁ d₂ : String)
     (e₁ : s₁ ≠ d₁) (e₂ : s₂ ≠ d₁) (e₃ : s₂ ≠ d₂) (e₄ : s₁ ≠ d₂) (e₅ : d₁ ≠ d₂)
     (hnB : n + 1 < B) (hWB : W < B)
     (hOB : ∀ k < n + 1, O k < B) (hTB : ∀ k < W, T k < B) :
-    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧ σ.vars "lw" = W ∧
         σ.arrs s₁ = arrOf (n + 1) O ∧ σ.arrs s₂ = arrOf W T ∧
         (∃ g, σ.arrs d₁ = arrOf (n + 1) g) ∧ (∃ g, σ.arrs d₂ = arrOf W g))
       (.seq (RamDriver.copyUpto s₁ d₁ (.add (.var "n") (.lit 1)))
-        (RamDriver.copyUpto s₂ d₂ (.lit W)))
-      (fun σ σ' => σ'.vars "n" = n ∧ σ'.vars "m" = σ.vars "m" ∧
+        (RamDriver.copyUpto s₂ d₂ (.var "lw")))
+      (fun σ σ' => σ'.vars "n" = n ∧ σ'.vars "m" = σ.vars "m" ∧ σ'.vars "lw" = W ∧
         σ'.arrs s₁ = arrOf (n + 1) O ∧ σ'.arrs s₂ = arrOf W T ∧
         σ'.arrs d₁ = arrOf (n + 1) O ∧ σ'.arrs d₂ = arrOf W T)
       (14 * (n + 1) + 14 * W + 16) := by
   have hB : 0 < B := by omega
   -- the two contexts: what each copy reads and does not write
   have spec1 := copyUpto_spec (B := B) (n + 1) (n + 1) s₁ d₁ (.add (.var "n") (.lit 1)) O
-    (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧
+    (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧ σ.vars "lw" = W ∧
       σ.arrs s₁ = arrOf (n + 1) O ∧ σ.arrs s₂ = arrOf W T ∧ (∃ g, σ.arrs d₂ = arrOf W g))
     hB hnB le_rfl
     (fun σ σ' hQ hv ha => ⟨by rw [hv "n" (by decide)]; exact hQ.1,
-      by rw [hv "m" (by decide)]; exact hQ.2.1, by rw [ha s₁ e₁]; exact hQ.2.2.1,
-      by rw [ha s₂ e₂]; exact hQ.2.2.2.1, by rw [ha d₂ (Ne.symm e₅)]; exact hQ.2.2.2.2⟩)
+      by rw [hv "m" (by decide)]; exact hQ.2.1,
+      by rw [hv "lw" (by decide)]; exact hQ.2.2.1, by rw [ha s₁ e₁]; exact hQ.2.2.2.1,
+      by rw [ha s₂ e₂]; exact hQ.2.2.2.2.1,
+      by rw [ha d₂ (Ne.symm e₅)]; exact hQ.2.2.2.2.2⟩)
     (fun σ hQ => by
       have h := evalB_bin (B := B) (σ := σ) (op := .add) (e := .var "n") (f := .lit 1)
         (evalB_var (show σ.vars "n" < B by rw [hQ.1]; omega))
@@ -990,25 +998,32 @@ theorem csrCopy_spec {B n ns W : ℕ} {O T : ℕ → ℕ} (s₁ s₂ d₁ d₂ :
         (show Bop.apply .add (σ.vars "n") 1 < B by simp only [Bop.apply_add, hQ.1]; omega)
       rw [Bop.apply_add, hQ.1] at h
       exact h)
-    (fun σ hQ => hQ.2.2.1) hOB
-  have spec2 := copyUpto_spec (B := B) W W s₂ d₂ (.lit W) T
-    (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧
+    (fun σ hQ => hQ.2.2.2.1) hOB
+  have spec2 := copyUpto_spec (B := B) W W s₂ d₂ (.var "lw") T
+    (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧ σ.vars "lw" = W ∧
       σ.arrs s₁ = arrOf (n + 1) O ∧ σ.arrs s₂ = arrOf W T ∧ σ.arrs d₁ = arrOf (n + 1) O)
     hB hWB le_rfl
     (fun σ σ' hQ hv ha => ⟨by rw [hv "n" (by decide)]; exact hQ.1,
-      by rw [hv "m" (by decide)]; exact hQ.2.1, by rw [ha s₁ e₄]; exact hQ.2.2.1,
-      by rw [ha s₂ e₃]; exact hQ.2.2.2.1, by rw [ha d₁ e₅]; exact hQ.2.2.2.2⟩)
-    (fun _ _ => evalB_lit hWB)
-    (fun σ hQ => hQ.2.2.2.1) hTB
+      by rw [hv "m" (by decide)]; exact hQ.2.1,
+      by rw [hv "lw" (by decide)]; exact hQ.2.2.1, by rw [ha s₁ e₄]; exact hQ.2.2.2.1,
+      by rw [ha s₂ e₃]; exact hQ.2.2.2.2.1, by rw [ha d₁ e₅]; exact hQ.2.2.2.2.2⟩)
+    (fun σ hQ => by
+      have h := evalB_var (B := B) (σ := σ) (x := "lw")
+        (show σ.vars "lw" < B by rw [hQ.2.2.1]; omega)
+      rw [hQ.2.2.1] at h
+      exact h)
+    (fun σ hQ => hQ.2.2.2.2.1) hTB
   refine (Spec.seq (spec1.pre (fun σ hσ =>
-      ⟨hσ.2.2.2.2.1, hσ.1, hσ.2.1, hσ.2.2.1, hσ.2.2.2.1, hσ.2.2.2.2.2⟩)) spec2
+      ⟨hσ.2.2.2.2.2.1, hσ.1, hσ.2.1, hσ.2.2.1, hσ.2.2.2.1, hσ.2.2.2.2.1,
+        hσ.2.2.2.2.2.2⟩)) spec2
     ?hmid ?hpost).mono ?hcost
   case hmid =>
-    rintro σ σ' - ⟨⟨h, hd₁, hagr⟩, -, hn', hm', hs₁', hs₂', hd₂'⟩
-    exact ⟨hd₂', hn', hm', hs₁', hs₂', by rw [hd₁, arrOf_congr hagr]⟩
+    rintro σ σ' - ⟨⟨h, hd₁, hagr⟩, -, hn', hm', hlw', hs₁', hs₂', hd₂'⟩
+    exact ⟨hd₂', hn', hm', hlw', hs₁', hs₂', by rw [hd₁, arrOf_congr hagr]⟩
   case hpost =>
-    rintro σ σ' σ'' ⟨-, hm, -, -, -, -⟩ - ⟨⟨h', hd₂, hagr'⟩, -, hn'', hm'', hs₁'', hs₂'', hd₁''⟩
-    exact ⟨hn'', by omega, hs₁'', hs₂'', hd₁'', by rw [hd₂, arrOf_congr hagr']⟩
+    rintro σ σ' σ'' ⟨-, hm, -, -, -, -, -⟩ -
+      ⟨⟨h', hd₂, hagr'⟩, -, hn'', hm'', hlw'', hs₁'', hs₂'', hd₁''⟩
+    exact ⟨hn'', by omega, hlw'', hs₁'', hs₂'', hd₁'', by rw [hd₂, arrOf_congr hagr']⟩
   case hcost =>
     simp only [size_add, size_var, size_lit]
     omega
@@ -1016,11 +1031,11 @@ theorem csrCopy_spec {B n ns W : ℕ} {O T : ℕ → ℕ} (s₁ s₂ d₁ d₂ :
 /-- `RamDriver.saveCsr`, walked. -/
 theorem saveCsr_spec {B n ns W : ℕ} {O T : ℕ → ℕ} (hnB : n + 1 < B) (hWB : W < B)
     (hOB : ∀ k < n + 1, O k < B) (hTB : ∀ k < W, T k < B) :
-    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧ σ.vars "lw" = W ∧
         σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf W T ∧
         (∃ g, σ.arrs "gof" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "gtg" = arrOf W g))
-      (RamDriver.saveCsr W)
-      (fun σ σ' => σ'.vars "n" = n ∧ σ'.vars "m" = σ.vars "m" ∧
+      RamDriver.saveCsr
+      (fun σ σ' => σ'.vars "n" = n ∧ σ'.vars "m" = σ.vars "m" ∧ σ'.vars "lw" = W ∧
         σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf W T ∧
         σ'.arrs "gof" = arrOf (n + 1) O ∧ σ'.arrs "gtg" = arrOf W T)
       (14 * (n + 1) + 14 * W + 16) :=
@@ -1030,11 +1045,11 @@ theorem saveCsr_spec {B n ns W : ℕ} {O T : ℕ → ℕ} (hnB : n + 1 < B) (hWB
 /-- `RamDriver.restoreCsr`, walked. -/
 theorem restoreCsr_spec {B n ns W : ℕ} {O T : ℕ → ℕ} (hnB : n + 1 < B) (hWB : W < B)
     (hOB : ∀ k < n + 1, O k < B) (hTB : ∀ k < W, T k < B) :
-    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "m" + σ.vars "m" = ns ∧ σ.vars "lw" = W ∧
         σ.arrs "gof" = arrOf (n + 1) O ∧ σ.arrs "gtg" = arrOf W T ∧
         (∃ g, σ.arrs "off" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "tgt" = arrOf W g))
-      (RamDriver.restoreCsr W)
-      (fun σ σ' => σ'.vars "n" = n ∧ σ'.vars "m" = σ.vars "m" ∧
+      RamDriver.restoreCsr
+      (fun σ σ' => σ'.vars "n" = n ∧ σ'.vars "m" = σ.vars "m" ∧ σ'.vars "lw" = W ∧
         σ'.arrs "gof" = arrOf (n + 1) O ∧ σ'.arrs "gtg" = arrOf W T ∧
         σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf W T)
       (14 * (n + 1) + 14 * W + 16) :=

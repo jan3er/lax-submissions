@@ -44,7 +44,7 @@ and the one seam that is **not** a transport, named and measured.
 ## B1/F-a — THE SEAM: there is no `Com` to bridge to
 
 `OrderImplements B n R W … K` is a `Spec` **at the command
-`RamDriver.orderCom R W j`**. `BfsBridge`'s P1 template closes such a
+`RamDriver.orderCom R j`**. `BfsBridge`'s P1 template closes such a
 gap because the tower's search has a *program*: `BfsQSynth.bfsQ_spec` is
 a `Reasoning.Spec` at `Codegen.embed bfsQSynth_impl`, so the bridge is
 `bfsSetup` plus a change of vocabulary. The ordering phase has no
@@ -67,7 +67,7 @@ Consequently a `Spec`-level discharge of `OrderImplements` is **not** a
 thin transport in either shape available:
 
 * *as a re-proof at the frozen program* — impossible in principle: a
-  synthesized program is a different command from `orderCom R W j`, and
+  synthesized program is a different command from `orderCom R j`, and
   no lemma relates two commands' `Spec`s except by proving one of them;
 * *as a swap* — possible, and it is the honest route, but it needs the
   two assemblies above (a whole-phase synthesis over fifteen array
@@ -87,7 +87,7 @@ proved and refuted (B-a, B-b). The remainder is stated exactly:
 > OrderPost n (σ'.arrs (ordName j))) (orderTowerK n ns W)`
 >
 > with `c` the lowering of `orderPhase0` at
-> `ElimSynth6.elimProgram` — and then `orderCom R W j := c`.
+> `ElimSynth6.elimProgram` — and then `orderCom R j := c`.
 
 `orderImplements_of_spec` is that statement's consumer, at the frozen
 command; `orderSpec_of_towerPost` is the same reasoning at an arbitrary
@@ -362,7 +362,7 @@ theorem orderImplements_of_spec {R : ℕ} {G : SimpleGraph (Fin n)}
     (h : RamDriver.WordBound B n ns cap mb → RamElim.CsrSimple G ns O T → n + W + 1 < B →
       RamDriver.ElimAvail B n → RamDriver.AugAvail B n →
       Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ)
-        (RamDriver.orderCom R W j)
+        (RamDriver.orderCom R j)
         (fun σ σ' => LevelPre B n cap mb ns W O T j M Gm C σ' ∧ σ'.out = σ.out ∧
           (∀ a : ℕ, σ'.vars (ctrName a) = σ.vars (ctrName a)) ∧
           (∀ a : ℕ, σ'.arrs (gamName a) = σ.arrs (gamName a)) ∧
@@ -393,7 +393,7 @@ theorem orderImplements₀_towerPost {B cap mb ns W j : ℕ} {G : SimpleGraph (F
     RamDriver.WordBound B n ns cap mb → RamElim.CsrSimple G ns O T → n + W + 1 < B →
     RamDriver.ElimAvail B n → RamDriver.AugAvail B n →
     Spec B (fun σ => RamDriver.LevelPre B n cap mb ns W O T j M Gm C σ)
-      (RamDriver.orderCom 0 W j)
+      (RamDriver.orderCom 0 j)
       (fun σ σ' => RamDriver.LevelPre B n cap mb ns W O T j M Gm C σ' ∧ σ'.out = σ.out ∧
         (∀ a : ℕ, σ'.vars (RamDriver.ctrName a) = σ.vars (RamDriver.ctrName a)) ∧
         (∀ a : ℕ, σ'.arrs (RamDriver.gamName a) = σ.arrs (RamDriver.gamName a)) ∧

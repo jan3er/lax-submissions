@@ -980,25 +980,26 @@ variable {B cap mb ns Ws j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → 
 /-- The depth's state does not see the cursor: no clause of it is about
 a scalar other than the carrier's size and the edge count. -/
 theorem levelPre_setVar (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (x : String)
-    (hxn : x ≠ "n") (hxm : x ≠ "m") (k : ℕ) :
+    (hxn : x ≠ "n") (hxm : x ≠ "m") (hxlw : x ≠ "lw") (k : ℕ) :
     LevelPre B n cap mb ns Ws O T j M Gm C (σ.setVar x k) := by
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, ⟨hsz, hd, hq⟩, hdep, hm, hle, hosz, hz⟩ := h
+  have _ := hxlw
   refine ⟨?_, by simpa using h2, by simpa using h3, by simpa using h4,
     by simpa using h5, by simpa using h6, h7, h8, h9,
     ⟨fun p hp => by simpa using hsz p hp, by simpa using hd, by simpa using hq⟩,
     fun a => ⟨fun p hp => by simpa using (hdep a).1 p hp,
       fun c hc => by simpa using (hdep a).2 c hc⟩,
-    ?_, hle, fun p hp => by simpa using hosz p hp, by simpa using hz⟩
+    ?_, hle.setVar x hxlw k, fun p hp => by simpa using hosz p hp, by simpa using hz⟩
   · rw [vars_setVar, if_neg (Ne.symm hxn)]; exact h1
   · rw [vars_setVar, if_neg (Ne.symm hxm)]; exact hm
 
 theorem levelPre_setVar_c (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (k : ℕ) :
     LevelPre B n cap mb ns Ws O T j M Gm C (σ.setVar (curName j) k) :=
-  levelPre_setVar h _ (curName_ne_n j) (curName_ne_m j) k
+  levelPre_setVar h _ (curName_ne_n j) (curName_ne_m j) (curName_ne_lw j) k
 
 theorem levelPre_setVar_ci (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (k : ℕ) :
     LevelPre B n cap mb ns Ws O T j M Gm C (σ.setVar (cixName j) k) :=
-  levelPre_setVar h _ (cixName_ne_n j) (cixName_ne_m j) k
+  levelPre_setVar h _ (cixName_ne_n j) (cixName_ne_m j) (cixName_ne_lw j) k
 
 /-- Nor does the table clause. -/
 theorem tablesSized_setVar_c {q_top : ℕ} {φ : Lax3.FirstOrder.FO 0}
@@ -1200,18 +1201,18 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
     (hstep : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ)
         (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (mm k : ℕ),
       ClusterStepImplements B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg mm k
-        (driverAt q_top cap mb R ℓ W φ (j + 1)) (Kl (j + 1)) (Ks j (blockSize Xoff k)))
+        (driverAt q_top cap mb R ℓ φ (j + 1)) (Kl (j + 1)) (Ks j (blockSize Xoff k)))
     (hframe : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ)
         (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (mm k : ℕ),
       ClusterFrames B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg mm k
-        (driverAt q_top cap mb R ℓ W φ (j + 1)) (Kl (j + 1)) (Ks j (blockSize Xoff k)))
+        (driverAt q_top cap mb R ℓ φ (j + 1)) (Kl (j + 1)) (Ks j (blockSize Xoff k)))
     (hloopfr : ∀ (j : ℕ), j < ℓ →
       cpsName j ∉ (clusterCom q_top cap mb φ j
-          (driverAt q_top cap mb R ℓ W φ (j + 1))).warrs ∧
+          (driverAt q_top cap mb R ℓ φ (j + 1))).warrs ∧
         cnumName j ∉ (clusterCom q_top cap mb φ j
-          (driverAt q_top cap mb R ℓ W φ (j + 1))).wvars ∧
+          (driverAt q_top cap mb R ℓ φ (j + 1))).wvars ∧
         cixName j ∉ (clusterCom q_top cap mb φ j
-          (driverAt q_top cap mb R ℓ W φ (j + 1))).wvars)
+          (driverAt q_top cap mb R ℓ φ (j + 1))).wvars)
     (hsweep : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
       SweepImplements B q_top cap mb ns W ℓ j φ G O T M Gm C (Kd j (arenaSize n M)))
     (hmass : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg cps : ℕ → ℕ)
@@ -1247,12 +1248,12 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
           Spec B (fun σ => LevelPre B n cap mb ns W O T (j + 1) M' Gm' C' σ ∧
               TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
               PlayRec B cap G (j + 1) M' Gm' σ)
-            (driverAt q_top cap mb R ℓ W φ (j + 1))
+            (driverAt q_top cap mb R ℓ φ (j + 1))
             (fun σ σ' => LevelPost B q_top cap mb φ G ns W O T (j + 1) M' Gm' C' σ σ' ∧
               σ'.out = σ.out) (Kl (j + 1) (arenaSize n M')) :=
         fun M' Gm' C' hb' => ih (j + 1) (by omega) (by omega) M' Gm' C' hb'
       refine Spec.of_exists fun σ hσ => ?_
-      rw [driverAt_succ q_top cap mb R ℓ W φ hjl]
+      rw [driverAt_succ q_top cap mb R ℓ φ hjl]
       -- the ordering pass
       obtain ⟨σ₁, hr₁, hlev₁, hout₁, hctr₁, hgam₁, π, ord, hord₁, hordby, hordP⟩ :=
         (horder j hjl M Gm C hB hcsr hWB helim haug).run hσ.1
@@ -1314,7 +1315,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
             LevelInv B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg cps mm cnum
               σ₃.out τ ∧ τ.vars (cixName j) = kk)
           (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
-            (.seq (clusterCom q_top cap mb φ j (driverAt q_top cap mb R ℓ W φ (j + 1)))
+            (.seq (clusterCom q_top cap mb φ j (driverAt q_top cap mb R ℓ φ (j + 1)))
               (.assign (cixName j) (.add (.var (cixName j)) (.lit 1)))))
           (fun _ τ' =>
             LevelInv B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg cps mm cnum
@@ -1326,7 +1327,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
               TablesSized q_top cap mb φ n τ ∧ BaseArrs B q_top cap mb ℓ φ τ ∧
               PlayRec B cap G j M Gm τ ∧
               CoverHeld n j G M π ord cap Xoff Xmem asg mm τ ∧ τ.vars (curName j) = cps kk)
-            (clusterCom q_top cap mb φ j (driverAt q_top cap mb R ℓ W φ (j + 1))) _
+            (clusterCom q_top cap mb φ j (driverAt q_top cap mb R ℓ φ (j + 1))) _
             (Ks j (blockSize Xoff (cps kk))) :=
           spec_conj
             (hstep j hjl M Gm C π ord Xoff Xmem asg mm (cps kk) hB hcsr.csr hpos hbit hinner)

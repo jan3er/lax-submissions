@@ -440,17 +440,17 @@ theorem mem_warrs_foldIdx' {X : Type*} (f : ℕ → X → Com) :
 
 /-! ### The ordering phase -/
 
-theorem warrs_orderCom_split (W j : ℕ) : (orderCom 0 W j).warrs =
+theorem warrs_orderCom_split (j : ℕ) : (orderCom 0 j).warrs =
     ["gof", "gtg", "alv", "deg", "deg", "bv", "bn", "bh", "bh", "elm", "rnk", "idg", "deg",
       "bv", "bn", "bh", "ioff", "ifl", "ioff", "itg", "ifl", "doff", "dtg",
       "ooff", "ooff", "ofl", "otg", "ofl", "off", "tgt", "tgt",
       "alv", "elm", "bh", "deg", "deg", "bv", "bn", "bh", "bh", "elm", "rnk", "idg", "deg",
       "bv", "bn", "bh", "ioff", "ifl", "ioff", "itg", "ifl", "off", "tgt"] ++
     (ordName j :: ["elm", "bh", "ooff", "noff", "stf", "sta", "std", "ste"]) :=
-  RamDriverCompose.warrs_orderCom₀ W j
+  RamDriverCompose.warrs_orderCom₀ j
 
-theorem belowArr_notMem_warrs_orderCom (W d : ℕ) {a : String} (h : BelowArr d a) :
-    a ∉ (orderCom 0 W d).warrs := by
+theorem belowArr_notMem_warrs_orderCom (d : ℕ) {a : String} (h : BelowArr d a) :
+    a ∉ (orderCom 0 d).warrs := by
   rw [warrs_orderCom_split, List.mem_append]
   rintro (hm | hm)
   · exact notHasDigit_mem (by decide) hm (hasDigit_of_belowArr h)
@@ -458,8 +458,8 @@ theorem belowArr_notMem_warrs_orderCom (W d : ℕ) {a : String} (h : BelowArr d 
     · exact belowArr_ne h (le_refl d) (by tauto) hq
     · exact notHasDigit_mem (by decide) hm' (hasDigit_of_belowArr h)
 
-theorem belowVar_notMem_wvars_orderCom (W d : ℕ) {y : String} (h : BelowVar d y) :
-    y ∉ (orderCom 0 W d).wvars := by
+theorem belowVar_notMem_wvars_orderCom (d : ℕ) {y : String} (h : BelowVar d y) :
+    y ∉ (orderCom 0 d).wvars := by
   rw [RamDriverCompose.wvars_orderCom₀]
   intro hm
   exact (by decide : ∀ q ∈ ["i", "c", "j", "jend", "u", "sp", "ls", "d", "mind", "cnt",
@@ -869,9 +869,9 @@ one depth weaker and `BelowArr.mono` bridges the two. -/
 
 open Classical in
 /-- **A level writes no array of a depth below its own.** -/
-theorem belowArr_notMem_warrs_driverAux (q_top cap mb ℓ W : ℕ) (φ : Lax3.FirstOrder.FO 0) :
+theorem belowArr_notMem_warrs_driverAux (q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) :
     ∀ (f d : ℕ) {a : String}, BelowArr d a →
-      a ∉ (driverAux q_top cap mb 0 ℓ W φ f d).warrs := by
+      a ∉ (driverAux q_top cap mb 0 ℓ φ f d).warrs := by
   intro f
   induction f with
   | zero =>
@@ -882,7 +882,7 @@ theorem belowArr_notMem_warrs_driverAux (q_top cap mb ℓ W : ℕ) (φ : Lax3.Fi
       intro d a h hm
       rw [driverAux] at hm
       rcases mem_warrs_seq hm with hq | hq
-      · exact belowArr_notMem_warrs_orderCom W d h hq
+      · exact belowArr_notMem_warrs_orderCom d h hq
       rcases mem_warrs_seq hq with hq | hq
       · exact belowArr_notMem_warrs_coverPhase cap d h hq
       rcases mem_warrs_seq hq with hq | hq
@@ -913,9 +913,9 @@ theorem belowArr_notMem_warrs_driverAux (q_top cap mb ℓ W : ℕ) (φ : Lax3.Fi
 
 open Classical in
 /-- **A level assigns no scalar of a depth below its own.** -/
-theorem belowVar_notMem_wvars_driverAux (q_top cap mb ℓ W : ℕ) (φ : Lax3.FirstOrder.FO 0) :
+theorem belowVar_notMem_wvars_driverAux (q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) :
     ∀ (f d : ℕ) {y : String}, BelowVar d y →
-      y ∉ (driverAux q_top cap mb 0 ℓ W φ f d).wvars := by
+      y ∉ (driverAux q_top cap mb 0 ℓ φ f d).wvars := by
   intro f
   induction f with
   | zero =>
@@ -926,7 +926,7 @@ theorem belowVar_notMem_wvars_driverAux (q_top cap mb ℓ W : ℕ) (φ : Lax3.Fi
       intro d y h hm
       rw [driverAux] at hm
       rcases mem_wvars_seq hm with hq | hq
-      · exact belowVar_notMem_wvars_orderCom W d h hq
+      · exact belowVar_notMem_wvars_orderCom d h hq
       rcases mem_wvars_seq hq with hq | hq
       · exact belowVar_notMem_wvars_coverPhase cap d h hq
       rcases mem_wvars_seq hq with hq | hq
@@ -959,16 +959,16 @@ theorem belowVar_notMem_wvars_driverAux (q_top cap mb ℓ W : ℕ) (φ : Lax3.Fi
         exact belowVar_ne h (le_refl d) (by tauto) (List.eq_of_mem_singleton hq)
 
 /-- **The driver at a depth writes no array of a depth below it.** -/
-theorem belowArr_notMem_warrs_driverAt {q_top cap mb ℓ W d : ℕ} {φ : Lax3.FirstOrder.FO 0}
-    {a : String} (h : BelowArr d a) : a ∉ (driverAt q_top cap mb 0 ℓ W φ d).warrs := by
+theorem belowArr_notMem_warrs_driverAt {q_top cap mb ℓ d : ℕ} {φ : Lax3.FirstOrder.FO 0}
+    {a : String} (h : BelowArr d a) : a ∉ (driverAt q_top cap mb 0 ℓ φ d).warrs := by
   rw [driverAt]
-  exact belowArr_notMem_warrs_driverAux q_top cap mb ℓ W φ (ℓ - d) d h
+  exact belowArr_notMem_warrs_driverAux q_top cap mb ℓ φ (ℓ - d) d h
 
 /-- **Nor does it assign a scalar of one.** -/
-theorem belowVar_notMem_wvars_driverAt {q_top cap mb ℓ W d : ℕ} {φ : Lax3.FirstOrder.FO 0}
-    {y : String} (h : BelowVar d y) : y ∉ (driverAt q_top cap mb 0 ℓ W φ d).wvars := by
+theorem belowVar_notMem_wvars_driverAt {q_top cap mb ℓ d : ℕ} {φ : Lax3.FirstOrder.FO 0}
+    {y : String} (h : BelowVar d y) : y ∉ (driverAt q_top cap mb 0 ℓ φ d).wvars := by
   rw [driverAt]
-  exact belowVar_notMem_wvars_driverAux q_top cap mb ℓ W φ (ℓ - d) d h
+  exact belowVar_notMem_wvars_driverAux q_top cap mb ℓ φ (ℓ - d) d h
 
 /-! ### The three names the compacted loop header owns
 
@@ -1075,8 +1075,8 @@ theorem mem_warrs_while_body {b : Cond} {c : Com} {a : String} (h : a ∈ c.warr
 open Classical in
 /-- **A level writes the padding buffer.** -/
 theorem wa_mem_warrs_driverAt {q_top cap mb ℓ W d : ℕ} {φ : Lax3.FirstOrder.FO 0}
-    (h : d < ℓ) : "wa" ∈ (driverAt q_top cap mb 0 ℓ W φ d).warrs := by
-  rw [driverAt_succ q_top cap mb 0 ℓ W φ h]
+    (h : d < ℓ) : "wa" ∈ (driverAt q_top cap mb 0 ℓ φ d).warrs := by
+  rw [driverAt_succ q_top cap mb 0 ℓ φ h]
   refine mem_warrs_seq_right (mem_warrs_seq_right (mem_warrs_seq_right (mem_warrs_seq_right
     (mem_warrs_while_body (mem_warrs_seq_right (mem_warrs_seq_left ?_))))))
   rw [clusterCom]
@@ -1086,9 +1086,9 @@ theorem wa_mem_warrs_driverAt {q_top cap mb ℓ W d : ℕ} {φ : Lax3.FirstOrder
 
 open Classical in
 /-- **And the elimination's accumulator.** -/
-theorem elm_mem_warrs_driverAt {q_top cap mb ℓ W d : ℕ} {φ : Lax3.FirstOrder.FO 0}
-    (h : d < ℓ) : "elm" ∈ (driverAt q_top cap mb 0 ℓ W φ d).warrs := by
-  rw [driverAt_succ q_top cap mb 0 ℓ W φ h]
+theorem elm_mem_warrs_driverAt {q_top cap mb ℓ d : ℕ} {φ : Lax3.FirstOrder.FO 0}
+    (h : d < ℓ) : "elm" ∈ (driverAt q_top cap mb 0 ℓ φ d).warrs := by
+  rw [driverAt_succ q_top cap mb 0 ℓ φ h]
   refine mem_warrs_seq_left ?_
   rw [warrs_orderCom_split]
   exact List.mem_append_left _ (by decide)

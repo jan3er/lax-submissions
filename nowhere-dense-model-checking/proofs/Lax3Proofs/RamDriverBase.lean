@@ -367,8 +367,8 @@ theorem sized_setArr {l : List (String × ℕ)} {σ : Env} {a : String} {idx v :
 reason and at every one of its twenty-five arrays. -/
 theorem orderMem_setArr_tab {B n ns Ws : ℕ} {σ : Env} (h : OrderMem B n ns Ws σ)
     (j i idx v : ℕ) : OrderMem B n ns Ws (σ.setArr (tabName j i) idx v) := by
-  obtain ⟨hle, hsz, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := h
-  refine ⟨hle, sized_setArr hsz, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  obtain ⟨hle, hlw, hsz, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := h
+  refine ⟨hle, by simpa using hlw, sized_setArr hsz, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals
     first
     | (rw [arrs_setArr, if_neg (lit_ne_tabName (q := "elm") (by decide) j i)]; exact h1)
@@ -404,12 +404,13 @@ theorem levelPre_setVar_z {B cap mb ns Ws j : ℕ} {O T M Gm : ℕ → ℕ} {C :
     (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (k : ℕ) :
     LevelPre B n cap mb ns Ws O T j M Gm C (σ.setVar "z" k) := by
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, ⟨hsz, hd, hq⟩, hdep, hm,
-    ⟨hle, hosz, hz⟩, hpad0, hTB⟩ := h
+    ⟨hle, hlw, hosz, hz⟩, hpad0, hTB⟩ := h
   exact ⟨by rw [vars_setVar, if_neg (by decide)]; exact h1, h2, h3, h4, h5, h6, h7, h8, h9,
     ⟨fun p hp => by simpa using hsz p hp, by simpa using hd, by simpa using hq⟩,
     hdep.setVar _ k,
     by rw [vars_setVar, if_neg (by decide)]; exact hm,
-    ⟨hle, fun p hp => by simpa using hosz p hp, by simpa using hz⟩, hpad0, hTB⟩
+    ⟨hle, by rw [vars_setVar, if_neg (by decide)]; exact hlw,
+      fun p hp => by simpa using hosz p hp, by simpa using hz⟩, hpad0, hTB⟩
 
 /-- Writing a depth-`j` table leaves the atoms of the depth-`j`
 combinations alone: they are read out of the depth-`(j+1)` tables and

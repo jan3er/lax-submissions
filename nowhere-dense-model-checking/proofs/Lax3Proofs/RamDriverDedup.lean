@@ -1688,8 +1688,11 @@ clause only as `ns ≤ W`. -/
 theorem orderMem_dedup {B ns ns' W : ℕ} {σ σ' : Env} {K : ℕ}
     (h : RamDriver.OrderMem B n ns W σ) (hr : Run B dedupCom σ σ' K) (hns' : ns' ≤ W) :
     RamDriver.OrderMem B n ns' W σ' := by
-  obtain ⟨-, hsz, h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, hw₁, hw₂⟩ := h
-  refine ⟨hns', hsz.run hr, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+  obtain ⟨-, hlwv, hsz, h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, hw₁, hw₂⟩ := h
+  refine ⟨hns',
+    by rw [frame_var_dedupCom hr "lw" (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hlwv,
+    hsz.run hr, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     RamDriver.run_mem_arrs_lt hr "itg" hw₁, RamDriver.run_mem_arrs_lt hr "ntg" hw₂⟩
   · rw [frame_arr_dedupCom hr "elm" (by decide) (by decide) (by decide)]; exact h₁
   · rw [frame_arr_dedupCom hr "bh" (by decide) (by decide) (by decide)]; exact h₂

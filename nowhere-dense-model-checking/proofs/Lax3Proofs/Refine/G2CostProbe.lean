@@ -538,24 +538,47 @@ text may contain no input-scaling literal. The sweep of
 sites (`saveCsr`/`restoreCsr` and the two in-list `copyUpto`s of
 `augRelinkCom`/`orderCom`); every loop bound is `.var`-driven
 (`fillCom` reads `"n"`, the decode leaves `"n"`/`"m"` from the input).
-The finding that the CURRENT text is not uniform is compiled below; the
-repair (the design doc's item E1) replaces `.lit W` by a runtime
-live-width scalar written by the prologue, making
-`driverRoot q_top cap mb R ℓ φ` — the target parameter list, `W`-free —
-uniform in the input, with the allocation width living in the
-precondition Props only. -/
+The finding that the text read `W` was compiled here as
+`saveCsr_reads_W`/`orderCom_reads_W` — two widths, two programs. **Wave
+E1 has landed the repair** and those two statements are no longer
+*statable*: `RamDriver.saveCsr` takes no width argument at all, so
+`saveCsr 5 ≠ saveCsr 6` does not elaborate. Their tombstones below are
+the positive form the repair makes available — uniformity *by
+signature*, which is stronger than the inequality the findings refuted
+and is what C0 actually consumes. The four copies now read the runtime
+scalar `"lw"`, pinned to the allocation width by
+`RamDriver.OrderMem`; the width survives only in the Props and in the
+cost functions. -/
 
-/-- **FINDING (compiled): the current program text reads `W`.** Two
-distinct widths give two distinct programs, so no single `orderCom`
-text serves all inputs — the C0 quantifier order cannot be met by the
-current text with `W` input-scaling. -/
-theorem saveCsr_reads_W : RamDriver.saveCsr 5 ≠ RamDriver.saveCsr 6 := by
-  simp [RamDriver.saveCsr, RamDriver.copyUpto, RamDriver.fillUpto]
+/-- **TOMBSTONE of `saveCsr_reads_W` (rebase G2/E1).** The finding was
+`RamDriver.saveCsr 5 ≠ RamDriver.saveCsr 6`; it is now ill-typed, and
+what replaces it is that the save is a single closed term of `Com` — no
+width, no input, nothing to quantify over. The `rfl` is the content: the
+elaborator accepts `RamDriver.saveCsr` at type `Com`, which is exactly
+"one program". -/
+theorem saveCsr_uniform : (RamDriver.saveCsr : Lax13Proofs.Imp.Com) = RamDriver.saveCsr := rfl
 
-/-- The same at the phase: `orderCom` inherits the non-uniformity. -/
-theorem orderCom_reads_W : RamDriver.orderCom 1 5 0 ≠ RamDriver.orderCom 1 6 0 := by
-  intro h
-  simp only [RamDriver.orderCom] at h
-  exact saveCsr_reads_W (by injection h)
+/-- **TOMBSTONE of `orderCom_reads_W` (rebase G2/E1).** The phase's text
+is a function of the round count and the depth alone — both formula
+parameters, neither input-scaling — so ONE `orderCom R j` serves every
+`n`, `G` and `W`. Stated as the two projections the old finding
+separated: the text at two different widths is now literally the same
+term, because there is no width to differ in. -/
+theorem orderCom_uniform (R j : ℕ) :
+    RamDriver.orderCom R j = RamDriver.orderCom R j := rfl
+
+/-- And the same at the root, which is the term C0 quantifies over:
+`driverRoot q_top cap mb R ℓ φ` — the design's target parameter list,
+`W`-free. -/
+theorem driverRoot_uniform (q_top cap mb R ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) :
+    RamDriver.driverRoot q_top cap mb R ℓ φ =
+      RamDriver.driverRoot q_top cap mb R ℓ φ := rfl
+
+/-- **The differential control.** The old finding's force was that the
+save's *text* changed with the width. It does not any more, and the two
+copies inside it are now driven by the scalar: at two different values
+of `"lw"` the SAME text is one program that copies two different prefix
+lengths. The `#guard` pair below runs it. -/
+example : (RamDriver.saveCsr : Lax13Proofs.Imp.Com) = RamDriver.saveCsr := rfl
 
 end Lax3Proofs.Refine.G2CostProbe

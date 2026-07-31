@@ -228,22 +228,24 @@ variable {B n cap mb ns Ws j K : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ 
 accumulators have to be named: the lengths cross by themselves, and so
 do the two word clauses, since a bounded run stores only words. -/
 theorem orderMem_congr (h : OrderMem B n ns Ws σ) (hr : Run B c σ σ' K)
+    (hlw : σ'.vars "lw" = σ.vars "lw")
     (hz : ∀ a ∈ (["elm", "bh", "ooff", "noff", "stf", "sta", "std", "ste"] : List String),
       σ'.arrs a = σ.arrs a) : OrderMem B n ns Ws σ' :=
-  ⟨h.1, h.2.1.run hr, by rw [hz "elm" (by simp)]; exact h.2.2.1,
-    by rw [hz "bh" (by simp)]; exact h.2.2.2.1,
-    by rw [hz "ooff" (by simp)]; exact h.2.2.2.2.1,
-    by rw [hz "noff" (by simp)]; exact h.2.2.2.2.2.1,
-    by rw [hz "stf" (by simp)]; exact h.2.2.2.2.2.2.1,
-    by rw [hz "sta" (by simp)]; exact h.2.2.2.2.2.2.2.1,
-    by rw [hz "std" (by simp)]; exact h.2.2.2.2.2.2.2.2.1,
-    by rw [hz "ste" (by simp)]; exact h.2.2.2.2.2.2.2.2.2.1,
-    run_mem_arrs_lt hr "itg" h.2.2.2.2.2.2.2.2.2.2.1,
-    run_mem_arrs_lt hr "ntg" h.2.2.2.2.2.2.2.2.2.2.2⟩
+  ⟨h.1, by rw [hlw]; exact h.2.1, h.2.2.1.run hr, by rw [hz "elm" (by simp)]; exact h.2.2.2.1,
+    by rw [hz "bh" (by simp)]; exact h.2.2.2.2.1,
+    by rw [hz "ooff" (by simp)]; exact h.2.2.2.2.2.1,
+    by rw [hz "noff" (by simp)]; exact h.2.2.2.2.2.2.1,
+    by rw [hz "stf" (by simp)]; exact h.2.2.2.2.2.2.2.1,
+    by rw [hz "sta" (by simp)]; exact h.2.2.2.2.2.2.2.2.1,
+    by rw [hz "std" (by simp)]; exact h.2.2.2.2.2.2.2.2.2.1,
+    by rw [hz "ste" (by simp)]; exact h.2.2.2.2.2.2.2.2.2.2.1,
+    run_mem_arrs_lt hr "itg" h.2.2.2.2.2.2.2.2.2.2.2.1,
+    run_mem_arrs_lt hr "ntg" h.2.2.2.2.2.2.2.2.2.2.2.2⟩
 
 /-- **The depth's state, across a pass.** -/
 theorem levelPre_congr (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (hr : Run B c σ σ' K)
     (hn : σ'.vars "n" = σ.vars "n") (hm : σ'.vars "m" = σ.vars "m")
+    (hlw : σ'.vars "lw" = σ.vars "lw")
     (hoff : σ'.arrs "off" = σ.arrs "off") (htgt : σ'.arrs "tgt" = σ.arrs "tgt")
     (halv : σ'.arrs (alvName j) = σ.arrs (alvName j))
     (hgam : σ'.arrs (gamName j) = σ.arrs (gamName j))
@@ -257,7 +259,7 @@ theorem levelPre_congr (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (hr : Run
     h.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.1,
     levelMem_run hr h.2.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2.2.1.run hr,
     by rw [hm]; exact h.2.2.2.2.2.2.2.2.2.2.2.1,
-    orderMem_congr h.2.2.2.2.2.2.2.2.2.2.2.2.1 hr hz,
+    orderMem_congr h.2.2.2.2.2.2.2.2.2.2.2.2.1 hr hlw hz,
     h.2.2.2.2.2.2.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2.2.2.2.2.2⟩
 
 variable {G : SimpleGraph (Fin n)} {π : Equiv.Perm (Fin n)} {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ}
@@ -661,7 +663,8 @@ theorem enumStepW {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)}
     fun y h1 h2 h3 => hfv y (not_mem_wvars_enumBatch h1 h2 h3)
   -- the enumeration the buffer holds
   refine ⟨σ', hr.mono (by omega), ⟨levelPre_congr hlev hr (hvv "n" (by decide) (by decide)
-      (by decide)) (hvv "m" (by decide) (by decide) (by decide)) (hav "off" (by decide))
+      (by decide)) (hvv "m" (by decide) (by decide) (by decide))
+      (hvv "lw" (by decide) (by decide) (by decide)) (hav "off" (by decide))
       (hav "tgt" (by decide)) (hav _ (by simp [alvName, String.ext_iff]))
       (hav _ (by simp [gamName, String.ext_iff]))
       (fun c' _ => hav _ (by simp [colName, String.ext_iff]))
@@ -2160,6 +2163,7 @@ theorem colourStep {K : ℕ}
     hav _ (fun s => Ne.symm (colName_ne_gamName _ _ _))
   have hturn' : TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' := by
     refine ⟨levelPre_congr hlev hr (hvv "n" (by decide)) (hvv "m" (by decide))
+        (hvv "lw" (by decide))
         (hav "off" (fun s => Ne.symm (colName_ne_lit (by decide))))
         (hav "tgt" (fun s => Ne.symm (colName_ne_lit (by decide))))
         (hav _ (fun s => Ne.symm (colName_ne_alvName _ _ _))) (hgama j)
@@ -3825,6 +3829,7 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
     refine ⟨levelPre_congr ⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCbit, hmem, hdep,
         hmvar, hom⟩ hrun (hfv "n" (by simp [ctrName, String.ext_iff]) (by decide))
         (hfv "m" (by simp [ctrName, String.ext_iff]) (by decide))
+        (hfv "lw" (by simp [ctrName, String.ext_iff]) (by decide))
         (hfa "off" (by simp [descendArrs, cluName, resName, balName, balAltName, batName,
           alvName, gamName, String.ext_iff]))
         (hfa "tgt" (by simp [descendArrs, cluName, resName, balName, balAltName, batName,

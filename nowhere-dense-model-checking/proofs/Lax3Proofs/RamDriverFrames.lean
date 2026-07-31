@@ -179,7 +179,7 @@ theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
     (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' σ)
     (hrun : Run B c σ σ' K) (hA : ∀ a ∈ c.warrs, a ∈ scratchArrs)
-    (hV : ∀ y ∈ ["n", "m"], y ∉ c.wvars)
+    (hV : ∀ y ∈ ["n", "m", "lw"], y ∉ c.wvars)
     (hVctr : ∀ a : ℕ, ctrName a ∉ c.wvars) (hVxp : xpName j ∉ c.wvars) :
     ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' σ' := by
@@ -188,14 +188,15 @@ theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
   have hfv : ∀ y : String, y ∉ c.wvars → σ'.vars y = σ.vars y :=
     fun y hy => hrun.frame_var y hy
   obtain ⟨⟨⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCB, hlmem, hdep, hmvar,
-    ⟨hnsW, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste, hitg, hntg⟩,
+    ⟨hnsW, hlwv, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste, hitg, hntg⟩,
     hpad0, hTB⟩, hplayrec,
     hord, hxoff, hxmem, hasg, hxp, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, halv', hAlvB, hmask,
       hgam', hGamB⟩, hwrange⟩, hcol', hcolbit', hcolread', htab'⟩ := h
   refine ⟨⟨⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCB, levelMem_run hrun hlmem,
       hdep.run hrun, ?_,
-      ⟨hnsW, hosz.run hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+      ⟨hnsW, by rw [hrun.frame_var "lw" (hV "lw" (by simp))]; exact hlwv,
+        hosz.run hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
         run_mem_arrs_lt hrun "itg" hitg, run_mem_arrs_lt hrun "ntg" hntg⟩, hpad0, hTB⟩,
     hplayrec.congr (fun a _ => hfv (ctrName a) (hVctr a))
       (fun a _ => hfa (gamName a) (gamName_notMem_scratchArrs a)),
@@ -447,7 +448,7 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1B 
     hpre.run rall (warrs_atomCom_sub q_top cap mb φ j i k σs) ?_ ?_ ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro y hy
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hy
-    rcases hy with rfl | rfl <;>
+    rcases hy with rfl | rfl | rfl <;>
       exact notMem_wvars_atomCom (by decide) (by decide) (by decide)
   · intro a
     exact notMem_wvars_atomCom (by rw [ctrName]; exact underscore_notMem_prefixed (by decide) a)

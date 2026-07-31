@@ -766,6 +766,8 @@ theorem curName_ne_n (j : ℕ) : curName j ≠ "n" := by simp [curName, String.e
 
 theorem curName_ne_m (j : ℕ) : curName j ≠ "m" := by simp [curName, String.ext_iff]
 
+theorem curName_ne_lw (j : ℕ) : curName j ≠ "lw" := by simp [curName, String.ext_iff]
+
 theorem curName_ne_ctrName (j a : ℕ) : curName j ≠ ctrName a := by
   simp [curName, ctrName, String.ext_iff]
 
@@ -816,6 +818,8 @@ def cixName (j : ℕ) : String := "ci" ++ toString j
 theorem cixName_ne_n (j : ℕ) : cixName j ≠ "n" := by simp [cixName, String.ext_iff]
 
 theorem cixName_ne_m (j : ℕ) : cixName j ≠ "m" := by simp [cixName, String.ext_iff]
+
+theorem cixName_ne_lw (j : ℕ) : cixName j ≠ "lw" := by simp [cixName, String.ext_iff]
 
 theorem cixName_ne_ctrName (j a : ℕ) : cixName j ≠ ctrName a := by
   simp [cixName, ctrName, String.ext_iff]
@@ -1554,9 +1558,9 @@ def ordCom (dst : String) : Com :=
 the round wrote becomes the one the next round reads, and the
 accumulators and stamps are zeroed again. This is the composition
 surface of `Lax3Proofs.RamAugment`, written out. -/
-def augRelinkCom (W : ℕ) : Com :=
+def augRelinkCom : Com :=
   .seq (copyUpto "noff" "doff" (.add (.var "n") (.lit 1)))
-    (.seq (copyUpto "ntg" "dtg" (.lit W))
+    (.seq (copyUpto "ntg" "dtg" (.var "lw"))
       (.seq (fillUpto "ooff" (.add (.var "n") (.lit 1)) (.lit 0))
         (.seq (fillUpto "off" (.add (.var "n") (.lit 1)) (.lit 0))
           (.seq (fillUpto "noff" (.add (.var "n") (.lit 1)) (.lit 0))
@@ -1584,14 +1588,14 @@ these two are the one place the flip *simplified* the walk.
 `LevelPre` still carries `σ.vars "m" + σ.vars "m" = ns`: nothing here
 reads it any more, but the level hands the slot count on and the scalar
 is the only place it lives. -/
-def saveCsr (W : ℕ) : Com :=
+def saveCsr : Com :=
   .seq (copyUpto "off" "gof" (.add (.var "n") (.lit 1)))
-    (copyUpto "tgt" "gtg" (.lit W))
+    (copyUpto "tgt" "gtg" (.var "lw"))
 
 /-- And back. -/
-def restoreCsr (W : ℕ) : Com :=
+def restoreCsr : Com :=
   .seq (copyUpto "gof" "off" (.add (.var "n") (.lit 1)))
-    (copyUpto "gtg" "tgt" (.lit W))
+    (copyUpto "gtg" "tgt" (.var "lw"))
 
 /-! ### The symmetrization
 
@@ -1697,7 +1701,7 @@ compiled record: the old body sticks on the K₁,₄ level state and the
 prepped one completes.
 
 The insertion is the minimal one, and it sits *inside* the fold body so
-that `foldRange (fun _ => augRoundCom W) 0 = .skip` — the `R = 0` text,
+that `foldRange (fun _ => augRoundCom) 0 = .skip` — the `R = 0` text,
 its walk `RamDriverCompose.orderImplements₀` and every consumer above
 are byte-identical. -/
 def augPrepCom : Com :=
@@ -1705,8 +1709,8 @@ def augPrepCom : Com :=
 
 /-- **One round of the fold**: the scratch re-zeroed, the round, the
 bookkeeping into the next round's input. -/
-def augRoundCom (W : ℕ) : Com :=
-  .seq augPrepCom (.seq RamAugment.augCom (augRelinkCom W))
+def augRoundCom : Com :=
+  .seq augPrepCom (.seq RamAugment.augCom augRelinkCom)
 
 /-- **The ordering pass at depth `j`.** The block structure saved, one
 elimination to orient the arena, `R` augmentation rounds, the chain's
@@ -1759,18 +1763,18 @@ the orientation is one of the level's own arena, so
 and the pass fits the array the level already has. At `R > 0` it does
 not (`TgtWidenProbe.sym5Narrow` is stuck), which is why `LevelPre`'s
 `tgt` clause is stated at the allocation width `W`. -/
-def orderCom (R W j : ℕ) : Com :=
-  .seq (saveCsr W)
+def orderCom (R j : ℕ) : Com :=
+  .seq saveCsr
     (.seq (copyCom (alvName j) "alv")
       (.seq RamElim.elimCom
         (.seq (copyUpto "ioff" "doff" (.add (.var "n") (.lit 1)))
-          (.seq (copyUpto "itg" "dtg" (.lit W))
-            (.seq (foldRange (fun _ => augRoundCom W) R)
+          (.seq (copyUpto "itg" "dtg" (.var "lw"))
+            (.seq (foldRange (fun _ => augRoundCom) R)
               (.seq symCom
                 (.seq (fillCom "alv" (.lit 1))
                   (.seq elimRezeroCom
                     (.seq RamElim.elimCom
-                      (.seq (restoreCsr W)
+                      (.seq restoreCsr
                         (.seq (ordCom (ordName j)) orderZeroCom)))))))))))
 
 /-! ### One cluster
@@ -1985,44 +1989,44 @@ def coverPhase (cap j : ℕ) : Com :=
 open Classical in
 /-- The driver at depth `j`, by downward recursion on the remaining
 budget. -/
-noncomputable def driverAux (q_top cap mb R ℓ W : ℕ) (φ : Lax3.FirstOrder.FO 0) :
+noncomputable def driverAux (q_top cap mb R ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) :
     ℕ → ℕ → Com
   | 0, j => baseCom q_top cap mb j φ
   | f + 1, j =>
-      .seq (orderCom R W j)
+      .seq (orderCom R j)
         (.seq (coverPhase cap j)
           (.seq (sweepCom q_top cap mb j φ)
             (.seq (.assign (cixName j) (.lit 0))
               (.while (.lt (.var (cixName j)) (.var (cnumName j)))
                 (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
                   (.seq (clusterCom q_top cap mb φ j
-                      (driverAux q_top cap mb R ℓ W φ f (j + 1)))
+                      (driverAux q_top cap mb R ℓ φ f (j + 1)))
                     (.assign (cixName j) (.add (.var (cixName j)) (.lit 1)))))))))
 
 open Classical in
 /-- **The driver at depth `j`.** The fuel is the budget still to spend;
 `driverAt ℓ` is the base case. -/
-noncomputable def driverAt (q_top cap mb R ℓ W : ℕ) (φ : Lax3.FirstOrder.FO 0) (j : ℕ) :
+noncomputable def driverAt (q_top cap mb R ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) (j : ℕ) :
     Com :=
-  driverAux q_top cap mb R ℓ W φ (ℓ - j) j
+  driverAux q_top cap mb R ℓ φ (ℓ - j) j
 
 /-- The base case is what the driver runs at the bottom. -/
-theorem driverAt_bot (q_top cap mb R ℓ W : ℕ) (φ : Lax3.FirstOrder.FO 0) :
-    driverAt q_top cap mb R ℓ W φ ℓ = baseCom q_top cap mb ℓ φ := by
+theorem driverAt_bot (q_top cap mb R ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) :
+    driverAt q_top cap mb R ℓ φ ℓ = baseCom q_top cap mb ℓ φ := by
   rw [driverAt, Nat.sub_self, driverAux]
 
 /-- Above the bottom the driver is a level. -/
-theorem driverAt_succ (q_top cap mb R ℓ W : ℕ) (φ : Lax3.FirstOrder.FO 0) {j : ℕ}
+theorem driverAt_succ (q_top cap mb R ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) {j : ℕ}
     (hj : j < ℓ) :
-    driverAt q_top cap mb R ℓ W φ j =
-      .seq (orderCom R W j)
+    driverAt q_top cap mb R ℓ φ j =
+      .seq (orderCom R j)
         (.seq (coverPhase cap j)
           (.seq (sweepCom q_top cap mb j φ)
             (.seq (.assign (cixName j) (.lit 0))
               (.while (.lt (.var (cixName j)) (.var (cnumName j)))
                 (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
                   (.seq (clusterCom q_top cap mb φ j
-                      (driverAt q_top cap mb R ℓ W φ (j + 1)))
+                      (driverAt q_top cap mb R ℓ φ (j + 1)))
                     (.assign (cixName j) (.add (.var (cixName j)) (.lit 1))))))))) := by
   obtain ⟨f, hf⟩ : ∃ f, ℓ - j = f + 1 := ⟨ℓ - j - 1, by omega⟩
   rw [driverAt, hf, driverAux, driverAt, show ℓ - (j + 1) = f by omega]
@@ -2092,9 +2096,9 @@ noncomputable def sentenceCom (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) :
 
 open Classical in
 /-- **The whole program**: decode, drive, decide. -/
-noncomputable def driverRoot (q_top cap mb R ℓ W : ℕ) (φ : Lax3.FirstOrder.FO 0) : Com :=
+noncomputable def driverRoot (q_top cap mb R ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) : Com :=
   .seq decodeCom
-    (.seq (driverAt q_top cap mb R ℓ W φ 0) (sentenceCom q_top cap mb φ))
+    (.seq (driverAt q_top cap mb R ℓ φ 0) (sentenceCom q_top cap mb φ))
 
 /-! ### The invariant of a level
 
@@ -2232,9 +2236,26 @@ has no run and the obligation is refuted. It is the same kind of clause
 as the eight zeroing ones and true for the same reason: a machine's
 memory holds words. Neither clause is a frame condition — a bounded run
 stores only words, so `run_mem_arrs_lt` carries both across any pass —
-which is what lets them sit in a clause a level hands back. -/
+which is what lets them sit in a clause a level hands back.
+
+**The live-width scalar** `σ.vars "lw" = W` is the second conjunct, and
+it is what makes the driver ONE program (rebase G2/E1).
+`Lax3.ModelChecking`'s statement fixes the program before the input, and
+until this clause the two block-structure copies read the allocation
+width as a *literal of the text* — `Refine.G2CostProbe`'s uniformity
+section compiled the consequence: two widths, two programs. The width
+now lives here, proof-side, exactly as `n` and `ns` already do, and the
+text reads the scalar (`RamDriver.saveCsr`, `restoreCsr`,
+`augRelinkCom` and `orderCom`'s in-list copy, all at `.var "lw"`). It
+sits in this clause rather than in `LevelPre` for the reason the width
+itself does: it is the ordering phase's memory, and it has to survive
+the level. Nothing derives it — a level hands it on — and it survives
+every pass for the same reason `σ.vars "n" = n` does: no pass of the
+driver assigns `"lw"` (`RamDriverCompose.lw_notMem_orderCom`,
+`lw_notMem_augCom`). Its *producer* is the root prologue, which is where
+the allocation of the `W`-wide arrays this clause sizes also happens. -/
 def OrderMem (B n ns W : ℕ) (σ : Env) : Prop :=
-  ns ≤ W ∧
+  ns ≤ W ∧ σ.vars "lw" = W ∧
   Sized [("doff", n + 1), ("dtg", W), ("ooff", n + 1), ("otg", W), ("ofl", n),
       ("gof", n + 1), ("gtg", W), ("ffl", n), ("deg", n), ("rnk", n), ("idg", n),
       ("bh", n + 1), ("bv", n + W + 1), ("bn", n + W + 1), ("ioff", n + 1), ("ifl", n),
@@ -2245,6 +2266,15 @@ def OrderMem (B n ns W : ℕ) (σ : Env) : Prop :=
     (∀ v ∈ σ.arrs "stf", v = 0) ∧ (∀ v ∈ σ.arrs "sta", v = 0) ∧
     (∀ v ∈ σ.arrs "std", v = 0) ∧ (∀ v ∈ σ.arrs "ste", v = 0) ∧
     (∀ v ∈ σ.arrs "itg", v < B) ∧ (∀ v ∈ σ.arrs "ntg", v < B)
+
+/-- **A scalar other than the live width does not touch the clause.**
+The arrays are untouched by a scalar assignment and the one var clause
+is about `"lw"` alone. -/
+theorem OrderMem.setVar {B n ns W : ℕ} {σ : Env} (h : OrderMem B n ns W σ) (x : String)
+    (hx : x ≠ "lw") (k : ℕ) : OrderMem B n ns W (σ.setVar x k) := by
+  obtain ⟨hle, hlw, hosz, hz⟩ := h
+  exact ⟨hle, by rw [vars_setVar, if_neg (Ne.symm hx)]; exact hlw,
+    fun p hp => by simpa using hosz p hp, by simpa using hz⟩
 
 /-- The block structure, the two masks and the memory of a depth, as
 the machine holds them. Everything a level reads and nothing it writes,
@@ -2298,7 +2328,8 @@ alone (`TgtWidenProbe.decodeTail`).
 cell at or above the word bound has no bounded evaluation, so without it
 the phase has no run. Below `ns` it is data of the input word; above it
 is the zero tail, so the two clauses overlap and neither is redundant —
-the tail says *which* value, the word clause covers the head. -/
+the tail says *which* value, the word clause covers the head.
+ -/
 def LevelPre (B n : ℕ) (cap mb : ℕ) (ns W : ℕ) (O T : ℕ → ℕ) (j : ℕ) (M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (σ : Env) : Prop :=
   σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf W T ∧
@@ -2556,7 +2587,7 @@ def DecodeImplements (x : List ℕ) (G : SimpleGraph (Fin n)) (ns W : ℕ)
         (∃ M, σ'.arrs (alvName 0) = arrOf n M ∧ ∀ v < n, M v = 1) ∧
         (∃ Gm, σ'.arrs (gamName 0) = arrOf n Gm ∧ ∀ v < n, Gm v = 1)) K
 
-/-- **The ordering pass.** That `orderCom R W j` leaves in `ord` the
+/-- **The ordering pass.** That `orderCom R j` leaves in `ord` the
 order array of an ordering of the depth's arena along which the cover
 has the degree `Lax3Proofs.CoverDegree.exists_cover_degree` bounds.
 
@@ -2672,7 +2703,7 @@ def OrderImplements (n R W cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T : �
   WordBound B n ns cap mb → RamElim.CsrSimple G ns O T → n + W + 1 < B →
   ElimAvail B n → AugAvail B n →
     Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ)
-      (orderCom R W j)
+      (orderCom R j)
       (fun σ σ' => LevelPre B n cap mb ns W O T j M Gm C σ' ∧
         σ'.out = σ.out ∧
         (∀ a : ℕ, σ'.vars (ctrName a) = σ.vars (ctrName a)) ∧
@@ -2972,7 +3003,7 @@ def LevelImplements (q_top cap mb R ℓ W ns j : ℕ) (φ : Lax3.FirstOrder.FO 0
   (∀ c < sigL cap mb j, ∀ v < n, C c v ≤ 1) →
   Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧ TablesSized q_top cap mb φ n σ ∧
       BaseArrs B q_top cap mb ℓ φ σ ∧ PlayRec B cap G j M Gm σ)
-    (driverAt q_top cap mb R ℓ W φ j)
+    (driverAt q_top cap mb R ℓ φ j)
     (fun σ σ' => LevelPost B q_top cap mb φ G ns W O T j M Gm C σ σ' ∧ σ'.out = σ.out) K
 
 end Obligations
@@ -3041,7 +3072,7 @@ theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
     Spec B (fun σ => DecodeMem n ns W σ ∧ LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
         OrderMem B n ns W σ ∧ TablesSized q_top cap mb φ n σ ∧
         BaseArrs B q_top cap mb ℓ φ σ ∧ σ.inp = x ∧ σ.out = [])
-      (driverRoot q_top cap mb R ℓ W φ)
+      (driverRoot q_top cap mb R ℓ φ)
       (fun _ σ' => σ'.out = [if Lax3.FirstOrder.Sat G Fin.elim0 φ then 1 else 0])
       (Kd + (Kl + Ks)) := by
   classical

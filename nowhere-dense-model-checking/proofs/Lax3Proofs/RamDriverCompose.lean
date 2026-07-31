@@ -272,10 +272,12 @@ The eight zeroed arrays are the only frame: the lengths cross by
 themselves, and the two word clauses cross because a bounded run stores
 only words, whether or not it writes the array. -/
 theorem orderMem_run {B n ns W : ℕ} {c : Com} {σ σ' : Env} {K : ℕ}
-    (h : OrderMem B n ns W σ) (hr : Run B c σ σ' K) (hz : ∀ a ∈ zeroArrs, a ∉ c.warrs) :
+    (h : OrderMem B n ns W σ) (hr : Run B c σ σ' K) (hlw : "lw" ∉ c.wvars)
+    (hz : ∀ a ∈ zeroArrs, a ∉ c.warrs) :
     OrderMem B n ns W σ' := by
-  obtain ⟨hle, hsz, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := h
-  refine ⟨hle, hsz.run hr, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+  obtain ⟨hle, hlwv, hsz, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := h
+  refine ⟨hle, by rw [hr.frame_var "lw" hlw]; exact hlwv, hsz.run hr,
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     run_mem_arrs_lt hr "itg" h9, run_mem_arrs_lt hr "ntg" h10⟩
   · rw [hr.frame_arr "elm" (hz "elm" (by simp [zeroArrs]))]; exact h1
   · rw [hr.frame_arr "bh" (hz "bh" (by simp [zeroArrs]))]; exact h2
@@ -293,7 +295,7 @@ bound and survives any run. -/
 theorem levelPre_run {B n cap mb ns W j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ}
     {c : Com} {σ σ' : Env} {K : ℕ}
     (h : LevelPre B n cap mb ns W O T j M Gm C σ) (hr : Run B c σ σ' K)
-    (hn : "n" ∉ c.wvars) (hm : "m" ∉ c.wvars)
+    (hn : "n" ∉ c.wvars) (hm : "m" ∉ c.wvars) (hlw : "lw" ∉ c.wvars)
     (hoff : "off" ∉ c.warrs) (htgt : "tgt" ∉ c.warrs)
     (halv : alvName j ∉ c.warrs) (hgam : gamName j ∉ c.warrs)
     (hcol : ∀ q : ℕ, colName j q ∉ c.warrs)
@@ -308,7 +310,7 @@ theorem levelPre_run {B n cap mb ns W j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ
     fun q hq => by rw [hr.frame_arr _ (hcol q)]; exact h6 q hq,
     h7, h8, h9, levelMem_run hr h10, h11.run hr,
     by rw [hr.frame_var "m" hm]; exact h12,
-    orderMem_run h13 hr hz, h14, h15⟩
+    orderMem_run h13 hr hlw hz, h14, h15⟩
 
 /-! ### The cover phase's own frames -/
 
@@ -345,6 +347,10 @@ theorem ctrName_notMem_coverPhase (cap j a : ℕ) : ctrName a ∉ (coverPhase ca
   simp [ctrName, xpName, cnumName, String.ext_iff]
 
 theorem n_notMem_coverPhase (cap j : ℕ) : "n" ∉ (coverPhase cap j).wvars := by
+  rw [wvars_coverPhase]
+  simp [xpName, cnumName, String.ext_iff]
+
+theorem lw_notMem_coverPhase (cap j : ℕ) : "lw" ∉ (coverPhase cap j).wvars := by
   rw [wvars_coverPhase]
   simp [xpName, cnumName, String.ext_iff]
 
@@ -971,7 +977,7 @@ theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin 
   have hrT : Run B (coverPhase cap j) σ σ₈ _ :=
     hr₁.seq (hr₂.seq (hr₃.seq (hrS.seq hr₈)))
   refine ⟨levelPre_run hlev hrT (n_notMem_coverPhase cap j) (m_notMem_coverPhase cap j)
-      (off_notMem_coverPhase cap j) (tgt_notMem_coverPhase cap j)
+      (lw_notMem_coverPhase cap j) (off_notMem_coverPhase cap j) (tgt_notMem_coverPhase cap j)
       (alvName_notMem_coverPhase cap j j) (gamName_notMem_coverPhase cap j j)
       (fun q => colName_notMem_coverPhase cap j j q) (zero_notMem_coverPhase cap j),
     hrT.out_eq (noWrite_coverPhase cap j),
@@ -1048,6 +1054,8 @@ theorem baseImplements {n : ℕ} {B q_top cap mb ns W ℓ : ℕ} {φ : Lax3.Firs
         fun i hi => hts.get ℓ hi⟩
   refine ⟨σ', _, hrun, le_rfl,
     ⟨levelPre_run hlev hrun
+      (notMem_wvars_baseCom hlocal (by decide) (fun i => RamDriverBot.lit_ne_envName
+        ⟨_, rfl⟩ (by decide) i) (RamDriverBot.not_ext_of_not_prefix (by decide)))
       (notMem_wvars_baseCom hlocal (by decide) (fun i => RamDriverBot.lit_ne_envName
         ⟨_, rfl⟩ (by decide) i) (RamDriverBot.not_ext_of_not_prefix (by decide)))
       (notMem_wvars_baseCom hlocal (by decide) (fun i => RamDriverBot.lit_ne_envName
@@ -1451,11 +1459,11 @@ theorem orderZero_spec {B n : ℕ} (hnB : n < B) (hn1B : n + 1 < B) :
 
 section Syntax
 
-variable (W j : ℕ)
+variable (j : ℕ)
 
 /-! ### What the ordering phase writes
 
-`RamDriver.orderCom 0 W j` assigns no scalar the level's state names and
+`RamDriver.orderCom 0 j` assigns no scalar the level's state names and
 writes no array of it except `off` and `tgt` — which `restoreCsr` puts
 back — and the eight of `OrderMem`'s zeroing half, which the tail puts
 back. Its scalar write set does not mention `W` or `j` at all, so it is
@@ -1463,13 +1471,13 @@ the write set at `0 0`; its array write set mentions `j` once, at the
 depth's own order array. -/
 
 /-- The scalars the phase assigns do not depend on its parameters. -/
-theorem wvars_orderCom₀ (W j : ℕ) : (orderCom 0 W j).wvars = (orderCom 0 0 0).wvars := rfl
+theorem wvars_orderCom₀ (j : ℕ) : (orderCom 0 j).wvars = (orderCom 0 0).wvars := rfl
 
 /-- The arrays it writes, in order. Rebase F-c-2: the symmetrization's
 five — the counting sort's `ooff`/`ofl`/`otg` and the union's
 `off`/`tgt` — sit where `restoreCsr`'s two used to, and `restoreCsr`'s
 `off`/`tgt` moved past the second elimination. -/
-theorem warrs_orderCom₀ (W j : ℕ) : (orderCom 0 W j).warrs =
+theorem warrs_orderCom₀ (j : ℕ) : (orderCom 0 j).warrs =
     ["gof", "gtg", "alv", "deg", "deg", "bv", "bn", "bh", "bh", "elm", "rnk", "idg", "deg",
       "bv", "bn", "bh", "ioff", "ifl", "ioff", "itg", "ifl", "doff", "dtg",
       "ooff", "ooff", "ofl", "otg", "ofl", "off", "tgt", "tgt",
@@ -1479,13 +1487,13 @@ theorem warrs_orderCom₀ (W j : ℕ) : (orderCom 0 W j).warrs =
       "noff", "stf", "sta", "std", "ste"] := rfl
 
 /-- It never writes to the output tape. -/
-theorem noWrite_orderCom₀ (W j : ℕ) : (orderCom 0 W j).NoWrite :=
-  show (orderCom 0 0 0).NoWrite by decide
+theorem noWrite_orderCom₀ (j : ℕ) : (orderCom 0 j).NoWrite :=
+  show (orderCom 0 0).NoWrite by decide
 
 set_option maxRecDepth 8000 in
 /-- Every scalar it assigns is one of seventeen short literals — the
 symmetrization's write pointer `"sy"` being the seventeenth. -/
-theorem mem_wvars_orderCom₀ : ∀ y ∈ (orderCom 0 0 0).wvars,
+theorem mem_wvars_orderCom₀ : ∀ y ∈ (orderCom 0 0).wvars,
     y ∈ ["i", "c", "j", "jend", "u", "sp", "ls", "d", "mind", "cnt", "kmax", "sc", "p", "w",
       "s", "z", "sy"] := by decide
 
@@ -1497,13 +1505,13 @@ theorem warrs_orderZeroCom :
 theorem warrs_ordCom (dst : String) : (ordCom dst).warrs = [dst] := rfl
 
 /-- The save writes the reserved pair. -/
-theorem warrs_saveCsr (W : ℕ) : (saveCsr W).warrs = ["gof", "gtg"] := rfl
+theorem warrs_saveCsr : saveCsr.warrs = ["gof", "gtg"] := rfl
 
 /-- And the restore writes the level's own. -/
-theorem warrs_restoreCsr (W : ℕ) : (restoreCsr W).warrs = ["off", "tgt"] := rfl
+theorem warrs_restoreCsr : restoreCsr.warrs = ["off", "tgt"] := rfl
 
 /-- A depth's mask is neither of the reserved pair. -/
-theorem alvName_notMem_saveCsr (W j : ℕ) : alvName j ∉ (saveCsr W).warrs := by
+theorem alvName_notMem_saveCsr (j : ℕ) : alvName j ∉ saveCsr.warrs := by
   rw [warrs_saveCsr]; simp [alvName, String.ext_iff]
 
 /-- The mask copy writes `alv` and nothing else. -/
@@ -1512,30 +1520,35 @@ theorem lit_notMem_copyCom_alv (j : ℕ) (a : String) (h : a ≠ "alv" := by dec
   rw [warrs_copyCom]; simpa using h
 
 /-- The carrier's size is not assigned. -/
-theorem n_notMem_orderCom₀ : "n" ∉ (orderCom 0 W j).wvars := by
+theorem n_notMem_orderCom₀ : "n" ∉ (orderCom 0 j).wvars := by
   rw [wvars_orderCom₀]; decide
 
 /-- Nor is the slot count. -/
-theorem m_notMem_orderCom₀ : "m" ∉ (orderCom 0 W j).wvars := by
+theorem m_notMem_orderCom₀ : "m" ∉ (orderCom 0 j).wvars := by
+  rw [wvars_orderCom₀]; decide
+
+/-- Nor the live width, which the two block-structure copies read and
+no pass of the phase assigns (rebase G2/E1). -/
+theorem lw_notMem_orderCom₀ : "lw" ∉ (orderCom 0 j).wvars := by
   rw [wvars_orderCom₀]; decide
 
 /-- Nor is any depth's connector. -/
-theorem ctrName_notMem_orderCom₀ (a : ℕ) : ctrName a ∉ (orderCom 0 W j).wvars := by
+theorem ctrName_notMem_orderCom₀ (a : ℕ) : ctrName a ∉ (orderCom 0 j).wvars := by
   rw [wvars_orderCom₀]
   intro h
   have h' := mem_wvars_orderCom₀ _ h
   simp [ctrName, String.ext_iff] at h'
 
 /-- No depth's game mask is written. -/
-theorem gamName_notMem_orderCom₀ (a : ℕ) : gamName a ∉ (orderCom 0 W j).warrs := by
+theorem gamName_notMem_orderCom₀ (a : ℕ) : gamName a ∉ (orderCom 0 j).warrs := by
   rw [warrs_orderCom₀]; simp [gamName, ordName, String.ext_iff]
 
 /-- Nor the depth's own work mask. -/
-theorem alvName_notMem_orderCom₀ : alvName j ∉ (orderCom 0 W j).warrs := by
+theorem alvName_notMem_orderCom₀ : alvName j ∉ (orderCom 0 j).warrs := by
   rw [warrs_orderCom₀]; simp [alvName, ordName, String.ext_iff]
 
 /-- Nor any of its colours. -/
-theorem colName_notMem_orderCom₀ (c : ℕ) : colName j c ∉ (orderCom 0 W j).warrs := by
+theorem colName_notMem_orderCom₀ (c : ℕ) : colName j c ∉ (orderCom 0 j).warrs := by
   rw [warrs_orderCom₀]; simp [colName, ordName, String.ext_iff]
 
 /-- The tail leaves the order array the inversion just wrote. -/
@@ -1590,7 +1603,7 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hvn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCbit, hmem, hdep, hmv,
     hordmem, hpad0, hTBW⟩ := id hσ
-  obtain ⟨hnsW, hosz, hzelm, hzbh, hzooff, -, -, -, -, -, hwitg, hwntg⟩ := id hordmem
+  obtain ⟨hnsW, hlw, hosz, hzelm, hzbh, hzooff, -, -, -, -, -, hwitg, hwntg⟩ := id hordmem
   have hnB : n < B := hB.n_lt
   have hn1B : n + 1 < B := hB.succ_lt
   have hnsB : ns < B := hB.ns_lt
@@ -1603,19 +1616,19 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
   have hTB : ∀ k < ns, T k < B := fun k hk => lt_trans (hcsr.csr.target_lt k hk) hnB
   -- (1) the block structure out of the way — all `W` slots of it, since
   -- that is the array the level owns
-  obtain ⟨σ₁, r₁, hvn₁, hmv₁, hoff₁, htgt₁, hgof₁, hgtg₁⟩ :=
+  obtain ⟨σ₁, r₁, hvn₁, hmv₁, hlw₁, hoff₁, htgt₁, hgof₁, hgtg₁⟩ :=
     (RamDriverOrder.saveCsr_spec (ns := ns) hn1B hWltB hOB hTBW).run
-      ⟨hvn, hmv, hoff, htgt, hosz.get (p := ("gof", n + 1)) (by simp),
+      ⟨hvn, hmv, hlw, hoff, htgt, hosz.get (p := ("gof", n + 1)) (by simp),
         hosz.get (p := ("gtg", W)) (by simp)⟩
   have hsz₁ := hosz.run r₁
   have hmem₁ := levelMem_run r₁ hmem
-  have f₁ : ∀ a : String, a ∉ (saveCsr W).warrs → σ₁.arrs a = σ.arrs a := fun a ha => r₁.frame_arr a ha
+  have f₁ : ∀ a : String, a ∉ (saveCsr).warrs → σ₁.arrs a = σ.arrs a := fun a ha => r₁.frame_arr a ha
   -- (2) the depth's mask into the name the engine reads
   obtain ⟨σ₂, r₂, ⟨u₂, hu₂, hag₂⟩, -, hvn₂, -⟩ :=
     (RamDriverCluster.copyCom_spec B n n (alvName j) "alv" M (alvName_ne_alv j) hnB le_rfl
       hMB).run
       ⟨hmem₁.1.get (p := ("alv", n)) (by simp), hvn₁,
-        by rw [f₁ _ (alvName_notMem_saveCsr W j)]; exact halvj⟩
+        by rw [f₁ _ (alvName_notMem_saveCsr j)]; exact halvj⟩
   have halv₂ : σ₂.arrs "alv" = arrOf n M := hu₂.trans (RamDriverOrder.arrOf_congr hag₂)
   have hsz₂ := hsz₁.run r₂
   have f₂ : ∀ a : String, a ∉ (copyCom (alvName j) "alv").warrs → σ₂.arrs a = σ₁.arrs a :=
@@ -1667,23 +1680,34 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     RamDriverOrder.lt_of_mem_words
       (run_mem_arrs_lt r₄ "itg" (run_mem_arrs_lt r₃ "itg"
         (run_mem_arrs_lt r₂ "itg" (run_mem_arrs_lt r₁ "itg" hwitg)))) hitg₄ hk
+  have hlw₄ : σ₄.vars "lw" = W := by
+    rw [r₄.frame_var "lw" (by rw [wvars_copyUpto]; decide), r₃.frame_var "lw" (by decide),
+      r₂.frame_var "lw" (by rw [wvars_copyCom]; decide)]
+    exact hlw₁
   obtain ⟨σ₅, r₅, ⟨dt₅, hdt₅, hdtv₅⟩, -, -⟩ :=
-    (RamDriverOrder.copyUpto_spec (B := B) W W "itg" "dtg" (.lit W) ITa
-        (fun τ => τ.arrs "itg" = arrOf W ITa) (by omega) hWltB le_rfl
-        (fun _ _ hQ _ ha => (ha "itg" (by decide)).trans hQ)
-        (fun _ _ => evalB_lit hWltB) (fun _ hQ => hQ) hITB).run
-      ⟨hsz₄.get (p := ("dtg", W)) (by simp), hitg₄⟩
+    (RamDriverOrder.copyUpto_spec (B := B) W W "itg" "dtg" (.var "lw") ITa
+        (fun τ => τ.arrs "itg" = arrOf W ITa ∧ τ.vars "lw" = W) (by omega) hWltB le_rfl
+        (fun _ _ hQ hv ha => ⟨(ha "itg" (by decide)).trans hQ.1,
+          (hv "lw" (by decide)).trans hQ.2⟩)
+        (fun τ hQ => by
+          have h := evalB_var (B := B) (σ := τ) (x := "lw")
+            (show τ.vars "lw" < B by rw [hQ.2]; omega)
+          rw [hQ.2] at h; exact h)
+        (fun _ hQ => hQ.1) hITB).run
+      ⟨hsz₄.get (p := ("dtg", W)) (by simp), hitg₄, hlw₄⟩
   have hsz₅ := hsz₄.run r₅
-  have f₅ : ∀ a : String, a ∉ (copyUpto "itg" "dtg" (.lit W)).warrs → σ₅.arrs a = σ₄.arrs a :=
-    fun a ha => r₅.frame_arr a ha
+  have f₅ : ∀ a : String, a ∉ (copyUpto "itg" "dtg" (.var "lw")).warrs →
+      σ₅.arrs a = σ₄.arrs a := fun a ha => r₅.frame_arr a ha
   have hvn₅ : σ₅.vars "n" = n := by
     rw [r₅.frame_var "n" (by rw [wvars_copyUpto]; decide)]; exact hvn₄
+  have hlw₅ : σ₅.vars "lw" = W := by
+    rw [r₅.frame_var "lw" (by rw [wvars_copyUpto]; decide)]; exact hlw₄
   have hdtg₅ : σ₅.arrs "dtg" = arrOf W ITa :=
     hdt₅.trans (RamDriverOrder.arrOf_congr hdtv₅)
   have hdoff₅ : σ₅.arrs "doff" = arrOf (n + 1) IOa := by
     rw [f₅ _ (by rw [warrs_copyUpto]; decide)]; exact hdoff₄
   -- (6) no augmentation round: the fold is empty
-  have r₆ : Run B (foldRange (fun _ => augRoundCom W) 0) σ₅ σ₅ 1 :=
+  have r₆ : Run B (foldRange (fun _ => augRoundCom) 0) σ₅ σ₅ 1 :=
     Run.skip
   have hgof₅ : σ₅.arrs "gof" = arrOf (n + 1) O := by
     rw [f₅ _ (by rw [warrs_copyUpto]; decide),
@@ -1728,6 +1752,8 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     rw [hfvS "n" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hvn₅
   have hmv₇ : σ₇.vars "m" + σ₇.vars "m" = ns := by
     rw [hfvS "m" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hmv₅
+  have hlw₇ : σ₇.vars "lw" = W := by
+    rw [hfvS "lw" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hlw₅
   have hgof₇ : σ₇.arrs "gof" = arrOf (n + 1) O := by
     rw [hfaS "gof" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hgof₅
   have hgtg₇ : σ₇.arrs "gtg" = arrOf W T := by
@@ -1769,15 +1795,19 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     rw [r₁₀.frame_var "m" (by decide), r₉.frame_var "m" (by decide),
       r₈.frame_var "m" (by decide)]
     exact hmv₇
-  obtain ⟨σ₁₁, r₁₁, hvn₁₁, -, -, -, hoff₁₁, htgt₁₁⟩ :=
+  have hlw₁₀ : σ₁₀.vars "lw" = W := by
+    rw [r₁₀.frame_var "lw" (by decide), r₉.frame_var "lw" (by decide),
+      r₈.frame_var "lw" (by decide)]
+    exact hlw₇
+  obtain ⟨σ₁₁, r₁₁, hvn₁₁, -, -, -, -, hoff₁₁, htgt₁₁⟩ :=
     (RamDriverOrder.restoreCsr_spec (ns := ns) hn1B hWltB hOB hTBW).run
-      ⟨hvn₁₀, hmv₁₀,
+      ⟨hvn₁₀, hmv₁₀, hlw₁₀,
         by rw [f₁₀ _ (by decide), f₉ _ (by decide), f₈ _ (by decide)]; exact hgof₇,
         by rw [f₁₀ _ (by decide), f₉ _ (by decide), f₈ _ (by decide)]; exact hgtg₇,
         sizedRun r₁₀ (sizedRun r₉ (sizedRun r₈ ⟨Os, hoffS⟩)),
         sizedRun r₁₀ (sizedRun r₉ (sizedRun r₈ ⟨Ts, htgtS⟩))⟩
   have hsz₁₁ := hsz₁₀.run r₁₁
-  have f₁₁ : ∀ a : String, a ∉ (restoreCsr W).warrs → σ₁₁.arrs a = σ₁₀.arrs a :=
+  have f₁₁ : ∀ a : String, a ∉ (restoreCsr).warrs → σ₁₁.arrs a = σ₁₀.arrs a :=
     fun a ha => r₁₁.frame_arr a ha
   -- (12) the rank array inverted into the order array
   obtain ⟨σ₁₂, r₁₂, hvn₁₂, -, π, ordv, hord₁₂, hordby⟩ :=
@@ -1808,15 +1838,17 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
       f₁₂ _ (by simp [ordName, String.ext_iff])]
     exact htgt₁₁
   -- the phase, assembled
-  have hrT : Run B (orderCom 0 W j) σ ρ _ :=
+  have hrT : Run B (orderCom 0 j) σ ρ _ :=
     r₁.seq (r₂.seq (r₃.seq (r₄.seq (r₅.seq (r₆.seq (r₇.seq (r₈.seq (r₉.seq
       (r₁₀.seq (r₁₁.seq (r₁₂.seq r₁₃)))))))))))
   refine ⟨ρ, _, hrT, ?_, ⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCbit, levelMem_run hrT hmem,
-      hdep.run hrT, ?_, ⟨hnsW, hosz.run hrT, z₁, z₂, z₃, z₄, z₅, z₆, z₇, z₈,
+      hdep.run hrT, ?_,
+      ⟨hnsW, by rw [hrT.frame_var "lw" (lw_notMem_orderCom₀ j)]; exact hlw,
+        hosz.run hrT, z₁, z₂, z₃, z₄, z₅, z₆, z₇, z₈,
         run_mem_arrs_lt hrT "itg" hwitg, run_mem_arrs_lt hrT "ntg" hwntg⟩, hpad0, hTBW⟩,
-    hrT.out_eq (noWrite_orderCom₀ W j),
-    fun a => hrT.frame_var _ (ctrName_notMem_orderCom₀ W j a),
-    fun a => hrT.frame_arr _ (gamName_notMem_orderCom₀ W j a),
+    hrT.out_eq (noWrite_orderCom₀ j),
+    fun a => hrT.frame_var _ (ctrName_notMem_orderCom₀ j a),
+    fun a => hrT.frame_arr _ (gamName_notMem_orderCom₀ j a),
     π, ordv, ?_, hordby, trivial⟩
   · rw [orderPhaseCost]
     rw [RamDriverAugment.symCost] at hK₇
@@ -1825,11 +1857,11 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
   · exact hvn₁₃
   · exact hoffρ
   · exact htgtρ
-  · rw [hrT.frame_arr _ (alvName_notMem_orderCom₀ W j)]; exact halvj
-  · rw [hrT.frame_arr _ (gamName_notMem_orderCom₀ W j j)]; exact hgamj
+  · rw [hrT.frame_arr _ (alvName_notMem_orderCom₀ j)]; exact halvj
+  · rw [hrT.frame_arr _ (gamName_notMem_orderCom₀ j j)]; exact hgamj
   · intro c hc
-    rw [hrT.frame_arr _ (colName_notMem_orderCom₀ W j c)]; exact hcolj c hc
-  · rw [hrT.frame_var "m" (m_notMem_orderCom₀ W j)]; exact hmv
+    rw [hrT.frame_arr _ (colName_notMem_orderCom₀ j c)]; exact hcolj c hc
+  · rw [hrT.frame_var "m" (m_notMem_orderCom₀ j)]; exact hmv
   · rw [f₁₃ _ (ordName_notMem_orderZeroCom j)]; exact hord₁₂
 
 /-! ### The `R*` phase (rebase F-c-3, statement; F-c-5, walk)
@@ -2100,11 +2132,6 @@ theorem noWrite_foldRange_const {c : Com} (hc : c.NoWrite) :
       rw [foldRange_const_succ]
       exact ⟨hc, noWrite_foldRange_const hc m⟩
 
-/-- The write sets of a round do not mention the width. -/
-theorem wvars_augRoundCom (W : ℕ) : (augRoundCom W).wvars = (augRoundCom 0).wvars := rfl
-
-theorem warrs_augRoundCom (W : ℕ) : (augRoundCom W).warrs = (augRoundCom 0).warrs := rfl
-
 theorem warrs_augPrepCom : augPrepCom.warrs = ["off", "elm", "bh"] := rfl
 
 set_option maxRecDepth 8000 in
@@ -2112,27 +2139,31 @@ set_option maxRecDepth 8000 in
 theorem n_notMem_augCom : "n" ∉ RamAugment.augCom.wvars := by decide
 
 set_option maxRecDepth 8000 in
+/-- Nor the live width the block copies read (rebase G2/E1). -/
+theorem lw_notMem_augCom : "lw" ∉ RamAugment.augCom.wvars := by decide
+
+set_option maxRecDepth 8000 in
 /-- Every scalar a round assigns is one of nineteen short literals. -/
-theorem mem_wvars_augRoundCom : ∀ y ∈ (augRoundCom 0).wvars,
+theorem mem_wvars_augRoundCom : ∀ y ∈ augRoundCom.wvars,
     y ∈ ["i", "j", "jend", "u", "c", "w", "q", "qe", "mf", "sp", "ls", "d", "mind", "cnt",
       "kmax", "sc", "p", "s", "mn"] := by decide
 
 set_option maxRecDepth 8000 in
 /-- And every array it stores into is one of twenty-six — the round's
 own scratch and block structures, no per-depth name among them. -/
-theorem mem_warrs_augRoundCom : ∀ a ∈ (augRoundCom 0).warrs,
+theorem mem_warrs_augRoundCom : ∀ a ∈ augRoundCom.warrs,
     a ∈ ["off", "elm", "bh", "ooff", "ofl", "otg", "stf", "ffl", "tgt", "alv", "deg", "bv",
       "bn", "rnk", "idg", "ioff", "ifl", "itg", "sta", "std", "ste", "noff", "nfl", "ntg",
       "doff", "dtg"] := by decide
 
 /-! ### The write sets of the phase at general `R`
 
-Everything `orderCom R W j` writes, it writes either at `R = 0` — where
+Everything `orderCom R j` writes, it writes either at `R = 0` — where
 the landed `Syntax` section reads the sets off the text — or inside the
 fold, where it is the round's. -/
 
-theorem mem_wvars_orderCom {R W j : ℕ} {y : String} (h : y ∈ (orderCom R W j).wvars) :
-    y ∈ (orderCom 0 W j).wvars ∨ y ∈ (augRoundCom 0).wvars := by
+theorem mem_wvars_orderCom {R j : ℕ} {y : String} (h : y ∈ (orderCom R j).wvars) :
+    y ∈ (orderCom 0 j).wvars ∨ y ∈ augRoundCom.wvars := by
   simp only [orderCom, Com.wvars, List.mem_append, foldRange_zero, List.not_mem_nil,
     false_or] at h ⊢
   rcases h with h|h|h|h|h|h|h|h|h|h|h|h|h
@@ -2141,7 +2172,7 @@ theorem mem_wvars_orderCom {R W j : ℕ} {y : String} (h : y ∈ (orderCom R W j
   · exact Or.inl (Or.inr (Or.inr (Or.inl h)))
   · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inl h))))
   · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h)))))
-  · exact Or.inr (by rw [← wvars_augRoundCom W]; exact mem_wvars_foldRange_const h)
+  · exact Or.inr (mem_wvars_foldRange_const h)
   · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))))
   · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h)))))))
   · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))))))
@@ -2154,8 +2185,8 @@ theorem mem_wvars_orderCom {R W j : ℕ} {y : String} (h : y ∈ (orderCom R W j
   · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
       (Or.inr (Or.inr h)))))))))))
 
-theorem mem_warrs_orderCom {R W j : ℕ} {a : String} (h : a ∈ (orderCom R W j).warrs) :
-    a ∈ (orderCom 0 W j).warrs ∨ a ∈ (augRoundCom 0).warrs := by
+theorem mem_warrs_orderCom {R j : ℕ} {a : String} (h : a ∈ (orderCom R j).warrs) :
+    a ∈ (orderCom 0 j).warrs ∨ a ∈ augRoundCom.warrs := by
   simp only [orderCom, Com.warrs, List.mem_append, foldRange_zero, List.not_mem_nil,
     false_or] at h ⊢
   rcases h with h|h|h|h|h|h|h|h|h|h|h|h|h
@@ -2164,7 +2195,7 @@ theorem mem_warrs_orderCom {R W j : ℕ} {a : String} (h : a ∈ (orderCom R W j
   · exact Or.inl (Or.inr (Or.inr (Or.inl h)))
   · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inl h))))
   · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h)))))
-  · exact Or.inr (by rw [← warrs_augRoundCom W]; exact mem_warrs_foldRange_const h)
+  · exact Or.inr (mem_warrs_foldRange_const h)
   · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))))
   · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h)))))))
   · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))))))
@@ -2177,38 +2208,45 @@ theorem mem_warrs_orderCom {R W j : ℕ} {a : String} (h : a ∈ (orderCom R W j
   · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
       (Or.inr (Or.inr h)))))))))))
 
-theorem n_notMem_orderCom {R W j : ℕ} : "n" ∉ (orderCom R W j).wvars := by
+theorem n_notMem_orderCom {R j : ℕ} : "n" ∉ (orderCom R j).wvars := by
   intro h
   rcases mem_wvars_orderCom h with h | h
-  · exact n_notMem_orderCom₀ W j h
+  · exact n_notMem_orderCom₀ j h
   · have := mem_wvars_augRoundCom _ h
     simp at this
 
-theorem m_notMem_orderCom {R W j : ℕ} : "m" ∉ (orderCom R W j).wvars := by
+theorem m_notMem_orderCom {R j : ℕ} : "m" ∉ (orderCom R j).wvars := by
   intro h
   rcases mem_wvars_orderCom h with h | h
-  · exact m_notMem_orderCom₀ W j h
+  · exact m_notMem_orderCom₀ j h
   · have := mem_wvars_augRoundCom _ h
     simp at this
 
-theorem ctrName_notMem_orderCom {R W j : ℕ} (a : ℕ) : ctrName a ∉ (orderCom R W j).wvars := by
+theorem lw_notMem_orderCom {R j : ℕ} : "lw" ∉ (orderCom R j).wvars := by
   intro h
   rcases mem_wvars_orderCom h with h | h
-  · exact ctrName_notMem_orderCom₀ W j a h
+  · exact lw_notMem_orderCom₀ j h
+  · have := mem_wvars_augRoundCom _ h
+    simp at this
+
+theorem ctrName_notMem_orderCom {R j : ℕ} (a : ℕ) : ctrName a ∉ (orderCom R j).wvars := by
+  intro h
+  rcases mem_wvars_orderCom h with h | h
+  · exact ctrName_notMem_orderCom₀ j a h
   · have := mem_wvars_augRoundCom _ h
     simp [ctrName, String.ext_iff] at this
 
-theorem gamName_notMem_orderCom {R W j : ℕ} (a : ℕ) : gamName a ∉ (orderCom R W j).warrs := by
+theorem gamName_notMem_orderCom {R j : ℕ} (a : ℕ) : gamName a ∉ (orderCom R j).warrs := by
   intro h
   rcases mem_warrs_orderCom h with h | h
-  · exact gamName_notMem_orderCom₀ W j a h
+  · exact gamName_notMem_orderCom₀ j a h
   · have := mem_warrs_augRoundCom _ h
     simp [gamName, String.ext_iff] at this
 
-theorem alvName_notMem_orderCom {R W j : ℕ} : alvName j ∉ (orderCom R W j).warrs := by
+theorem alvName_notMem_orderCom {R j : ℕ} : alvName j ∉ (orderCom R j).warrs := by
   intro h
   rcases mem_warrs_orderCom h with h | h
-  · exact alvName_notMem_orderCom₀ W j h
+  · exact alvName_notMem_orderCom₀ j h
   · have := mem_warrs_augRoundCom _ h
     rcases List.mem_cons.1 this with hc | this
     · exact absurd hc (by simp [alvName, String.ext_iff])
@@ -2220,25 +2258,25 @@ theorem alvName_notMem_orderCom {R W j : ℕ} : alvName j ∉ (orderCom R W j).w
         hc | hc | hc | hc | hc | hc | hc | hc | hc) <;>
         exact absurd hc (by simp [alvName, String.ext_iff])
 
-theorem colName_notMem_orderCom {R W j : ℕ} (c : ℕ) : colName j c ∉ (orderCom R W j).warrs := by
+theorem colName_notMem_orderCom {R j : ℕ} (c : ℕ) : colName j c ∉ (orderCom R j).warrs := by
   intro h
   rcases mem_warrs_orderCom h with h | h
-  · exact colName_notMem_orderCom₀ W j c h
+  · exact colName_notMem_orderCom₀ j c h
   · have := mem_warrs_augRoundCom _ h
     simp [colName, String.ext_iff] at this
 
-theorem noWrite_orderCom (R W j : ℕ) : (orderCom R W j).NoWrite := by
-  refine ⟨show (saveCsr 0).NoWrite by decide,
+theorem noWrite_orderCom (R j : ℕ) : (orderCom R j).NoWrite := by
+  refine ⟨show saveCsr.NoWrite by decide,
     show (copyCom (alvName j) "alv").NoWrite from show (copyCom "" "").NoWrite by decide,
     show RamElim.elimCom.NoWrite by decide,
     show (copyUpto "ioff" "doff" (.add (.var "n") (.lit 1))).NoWrite by decide,
-    show (copyUpto "itg" "dtg" (.lit 0)).NoWrite by decide,
-    noWrite_foldRange_const (c := augRoundCom W) (show (augRoundCom 0).NoWrite by decide) R,
+    show (copyUpto "itg" "dtg" (.var "lw")).NoWrite by decide,
+    noWrite_foldRange_const (c := augRoundCom) (show augRoundCom.NoWrite by decide) R,
     show RamDriver.symCom.NoWrite by decide,
     show (fillCom "alv" (.lit 0)).NoWrite by decide,
     show elimRezeroCom.NoWrite by decide,
     show RamElim.elimCom.NoWrite by decide,
-    show (restoreCsr 0).NoWrite by decide,
+    show restoreCsr.NoWrite by decide,
     show (ordCom (ordName j)).NoWrite from show (ordCom "").NoWrite by decide,
     show orderZeroCom.NoWrite by decide⟩
 
@@ -2297,14 +2335,14 @@ theorem augPrep_spec {B n : ℕ} (hnB : n < B) (hn1B : n + 1 < B) :
 next round's input, and the seven accumulators and stamps zeroed. -/
 theorem augRelink_spec {B n W : ℕ} {NO NT : ℕ → ℕ} (hnB : n < B) (hn1B : n + 1 < B)
     (hWB : W < B) (hNOB : ∀ k < n + 1, NO k < B) :
-    Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs "noff" = arrOf (n + 1) NO ∧
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars "lw" = W ∧ σ.arrs "noff" = arrOf (n + 1) NO ∧
         σ.arrs "ntg" = arrOf W NT ∧ (∀ v ∈ σ.arrs "ntg", v < B) ∧
         (∃ g, σ.arrs "doff" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "dtg" = arrOf W g) ∧
         (∃ g, σ.arrs "ooff" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "off" = arrOf (n + 1) g) ∧
         (∃ g, σ.arrs "stf" = arrOf n g) ∧ (∃ g, σ.arrs "sta" = arrOf n g) ∧
         (∃ g, σ.arrs "std" = arrOf n g) ∧ (∃ g, σ.arrs "ste" = arrOf n g))
-      (augRelinkCom W)
-      (fun _ σ' => σ'.vars "n" = n ∧
+      augRelinkCom
+      (fun _ σ' => σ'.vars "n" = n ∧ σ'.vars "lw" = W ∧
         σ'.arrs "doff" = arrOf (n + 1) NO ∧ σ'.arrs "dtg" = arrOf W NT ∧
         (∃ g, σ'.arrs "ooff" = arrOf (n + 1) g ∧ ∀ k ≤ n, g k = 0) ∧
         (∃ g, σ'.arrs "off" = arrOf (n + 1) g ∧ ∀ k ≤ n, g k = 0) ∧
@@ -2315,7 +2353,7 @@ theorem augRelink_spec {B n W : ℕ} {NO NT : ℕ → ℕ} (hnB : n < B) (hn1B :
         (∃ g, σ'.arrs "ste" = arrOf n g ∧ ∀ k < n, g k = 0))
       (relinkCostSum n W) := by
   refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨hn, hnoff, hntg, hntgW, hdoffE, hdtgE, hooffE, hoffE, hstfE, hstaE, hstdE,
+  obtain ⟨hn, hlw, hnoff, hntg, hntgW, hdoffE, hdtgE, hooffE, hoffE, hstfE, hstaE, hstdE,
     hsteE⟩ := hσ
   have hNTB : ∀ k < W, NT k < B := fun k hk =>
     RamDriverOrder.lt_of_mem_words hntgW hntg hk
@@ -2332,13 +2370,20 @@ theorem augRelink_spec {B n W : ℕ} {NO NT : ℕ → ℕ} (hnB : n < B) (hn1B :
     hd₁.trans (RamDriverOrder.arrOf_congr hd₁v)
   have f₁ : ∀ a : String, a ≠ "doff" → τ₁.arrs a = σ.arrs a := fun a ha =>
     r₁.frame_arr a (by rw [warrs_copyUpto]; simpa using ha)
-  -- (2) its targets
-  obtain ⟨τ₂, r₂, ⟨d₂, hd₂, hd₂v⟩, -, hntg₂⟩ :=
-    (RamDriverOrder.copyUpto_spec (B := B) W W "ntg" "dtg" (.lit W) NT
-        (fun τ => τ.arrs "ntg" = arrOf W NT) (by omega) hWB le_rfl
-        (fun _ _ hQ _ ha => (ha "ntg" (by decide)).trans hQ)
-        (fun _ _ => evalB_lit hWB) (fun _ hQ => hQ) hNTB).run
-      ⟨sizedRun r₁ hdtgE, by rw [f₁ _ (by decide)]; exact hntg⟩
+  have hlw₁ : τ₁.vars "lw" = W := by
+    rw [r₁.frame_var "lw" (by rw [wvars_copyUpto]; decide)]; exact hlw
+  -- (2) its targets, at the live width the level's state pins
+  obtain ⟨τ₂, r₂, ⟨d₂, hd₂, hd₂v⟩, -, hntg₂, hlw₂⟩ :=
+    (RamDriverOrder.copyUpto_spec (B := B) W W "ntg" "dtg" (.var "lw") NT
+        (fun τ => τ.arrs "ntg" = arrOf W NT ∧ τ.vars "lw" = W) (by omega) hWB le_rfl
+        (fun _ _ hQ hv ha => ⟨(ha "ntg" (by decide)).trans hQ.1,
+          (hv "lw" (by decide)).trans hQ.2⟩)
+        (fun τ hQ => by
+          have h := evalB_var (B := B) (σ := τ) (x := "lw")
+            (show τ.vars "lw" < B by rw [hQ.2]; omega)
+          rw [hQ.2] at h; exact h)
+        (fun _ hQ => hQ.1) hNTB).run
+      ⟨sizedRun r₁ hdtgE, by rw [f₁ _ (by decide)]; exact hntg, hlw₁⟩
   have hdtg₂ : τ₂.arrs "dtg" = arrOf W NT :=
     hd₂.trans (RamDriverOrder.arrOf_congr hd₂v)
   have f₂ : ∀ a : String, a ≠ "dtg" → τ₂.arrs a = τ₁.arrs a := fun a ha =>
@@ -2387,6 +2432,12 @@ theorem augRelink_spec {B n W : ℕ} {NO NT : ℕ → ℕ} (hnB : n < B) (hn1B :
     r₈.frame_arr a (by rw [warrs_fillCom]; simpa using ha)
   have f₉ : ∀ a : String, a ≠ "ste" → τ₉.arrs a = τ₈.arrs a := fun a ha =>
     r₉.frame_arr a (by rw [warrs_fillCom]; simpa using ha)
+  have hlw₉ : τ₉.vars "lw" = W := by
+    rw [r₉.frame_var "lw" (by decide), r₈.frame_var "lw" (by decide),
+      r₇.frame_var "lw" (by decide), r₆.frame_var "lw" (by decide),
+      r₅.frame_var "lw" (by decide), r₄.frame_var "lw" (by decide),
+      r₃.frame_var "lw" (by decide)]
+    exact hlw₂
   have hdoff₉ : τ₉.arrs "doff" = arrOf (n + 1) NO := by
     rw [f₉ _ (by decide), f₈ _ (by decide), f₇ _ (by decide), f₆ _ (by decide),
       f₅ _ (by decide), f₄ _ (by decide), f₃ _ (by decide), f₂ _ (by decide)]
@@ -2414,7 +2465,7 @@ theorem augRelink_spec {B n W : ℕ} {NO NT : ℕ → ℕ} (hnB : n < B) (hn1B :
     rw [f₉ _ (by decide)]; exact hA₈
   refine ⟨τ₉, _,
     r₁.seq (r₂.seq (r₃.seq (r₄.seq (r₅.seq (r₆.seq (r₇.seq (r₈.seq r₉))))))), ?_,
-    hn₉, hdoff₉, hdtg₉,
+    hn₉, hlw₉, hdoff₉, hdtg₉,
     ⟨e₃, hooff₉, fun k hk => hZ₃ k (by omega)⟩,
     ⟨e₄, hoff₉, fun k hk => hZ₄ k (by omega)⟩,
     ⟨e₅, hnoff₉, fun k hk => hZ₅ k (by omega)⟩,
@@ -2435,7 +2486,7 @@ round's prep re-zeroes them, which is the F-c-5 repair. -/
 /-- The invariant of the ordering phase's fold, after `i` rounds. -/
 def FoldInv (B n ns W d₀ : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (i : ℕ)
     (σ : Env) : Prop :=
-  σ.vars "n" = n ∧
+  σ.vars "n" = n ∧ σ.vars "lw" = W ∧
   Sized [("doff", n + 1), ("dtg", W), ("ooff", n + 1), ("otg", W), ("ofl", n),
       ("gof", n + 1), ("gtg", W), ("ffl", n), ("deg", n), ("rnk", n), ("idg", n),
       ("bh", n + 1), ("bv", n + W + 1), ("bn", n + W + 1), ("ioff", n + 1), ("ifl", n),
@@ -2473,11 +2524,11 @@ theorem fold_step {B n ns W d D₁ d₀ R : ℕ} {G : SimpleGraph (Fin n)} {M : 
       Augmentation.AugmentedDepthOneDensity D i D₁)
     (hWc : TgtCoupling.chainWidth n d D₁ R ≤ W) :
     ∀ i σ, i < R → FoldInv B n ns W d₀ G M i σ →
-      ∃ σ', Run B (augRoundCom W) σ σ' (RamAugment.augCost n W + relinkCost n W) ∧
+      ∃ σ', Run B (augRoundCom) σ σ' (RamAugment.augCost n W + relinkCost n W) ∧
         FoldInv B n ns W d₀ G M (i + 1) σ' := by
   intro i σ hiR hI
-  obtain ⟨hn, hsz, hntgW, hooffZ, hnoffZ, hstfZ, hstaZ, hstdZ, hsteZ, hoffE, htgtE, halvE,
-    D, m', DO, DT, hchain, hgreedy, hD0, hincsr, hm'W, -, hdoff, hdtg⟩ := hI
+  obtain ⟨hn, hlw, hsz, hntgW, hooffZ, hnoffZ, hstfZ, hstaZ, hstdZ, hsteZ, hoffE, htgtE,
+    halvE, D, m', DO, DT, hchain, hgreedy, hD0, hincsr, hm'W, -, hdoff, hdtg⟩ := hI
   -- the round's in-degree budget, off the chain so far
   set bi := Augmentation.budget d D₁ i with hbi_def
   have hbi : (D i).InDegLE bi :=
@@ -2498,6 +2549,7 @@ theorem fold_step {B n ns W d D₁ d₀ R : ℕ} {G : SimpleGraph (Fin n)} {M : 
       ⟨hn, hoffE, hsz.get (p := ("elm", n)) (by simp), hsz.get (p := ("bh", n + 1)) (by simp)⟩
   have fb : ∀ a : String, a ∉ augPrepCom.warrs → σb.arrs a = σ.arrs a :=
     fun a ha => rb.frame_arr a ha
+  have hlwb : σb.vars "lw" = W := by rw [rb.frame_var "lw" (by decide)]; exact hlw
   have hszb := hsz.run rb
   -- (2) the round
   obtain ⟨g₃, hg₃, hz₃⟩ := hooffZ
@@ -2534,14 +2586,18 @@ theorem fold_step {B n ns W d D₁ d₀ R : ℕ} {G : SimpleGraph (Fin n)} {M : 
   have hnc : σc.vars "n" = n := by
     rw [rc.frame_var "n" n_notMem_augCom]
     exact hnb
+  have hlwc : σc.vars "lw" = W := by
+    rw [rc.frame_var "lw" lw_notMem_augCom]
+    exact hlwb
   have hNOB : ∀ k < n + 1, NO k < B := fun k hk =>
     lt_of_le_of_lt (le_trans (off_le_of_mono hincsr'.mono hincsr'.last k (by omega)) hm₂W)
       (by omega)
   -- (3) the relink: the round's output becomes the next round's input
-  obtain ⟨σd, rd, hnd, hdoffd, hdtgd, hooffd, hoffd, hnoffd, hstfd, hstad, hstdd, hsted⟩ :=
+  obtain ⟨σd, rd, hnd, hlwd, hdoffd, hdtgd, hooffd, hoffd, hnoffd, hstfd, hstad, hstdd,
+      hsted⟩ :=
     (augRelink_spec (B := B) (n := n) (W := W) (NO := NO) (NT := NT) (by omega) (by omega)
         (by omega) hNOB).run
-      ⟨hnc, hnoff', hntg', run_mem_arrs_lt rc "ntg" (run_mem_arrs_lt rb "ntg" hntgW),
+      ⟨hnc, hlwc, hnoff', hntg', run_mem_arrs_lt rc "ntg" (run_mem_arrs_lt rb "ntg" hntgW),
         hszc.get (p := ("doff", n + 1)) (by simp), hszc.get (p := ("dtg", W)) (by simp),
         hszc.get (p := ("ooff", n + 1)) (by simp),
         sizedRun rc (by
@@ -2553,7 +2609,7 @@ theorem fold_step {B n ns W d D₁ d₀ R : ℕ} {G : SimpleGraph (Fin n)} {M : 
   refine ⟨σd, (rb.seq (rc.seq rd)).mono (by
       have := prep_relink_le n W
       omega),
-    hnd, (hszc.run rd),
+    hnd, hlwd, (hszc.run rd),
     run_mem_arrs_lt rd "ntg" (run_mem_arrs_lt rc "ntg" (run_mem_arrs_lt rb "ntg" hntgW)),
     hooffd, hnoffd, hstfd, hstad, hstdd, hsted,
     (by obtain ⟨g, hg, -⟩ := hoffd; exact ⟨g, hg⟩),
@@ -2727,7 +2783,7 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hvn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCbit, hmem, hdep, hmv,
     hordmem, hpad0, hTBW⟩ := id hσ
-  obtain ⟨hnsW, hosz, hzelm, hzbh, hzooff, hznoff, hzstf, hzsta, hzstd, hzste, hwitg,
+  obtain ⟨hnsW, hlw, hosz, hzelm, hzbh, hzooff, hznoff, hzstf, hzsta, hzstd, hzste, hwitg,
     hwntg⟩ := id hordmem
   have hnB : n < B := hB.n_lt
   have hn1B : n + 1 < B := hB.succ_lt
@@ -2739,20 +2795,20 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
   have hOB : ∀ k < n + 1, O k < B := fun k hk =>
     lt_of_le_of_lt (hcsr.csr.le_ns (by omega)) hnsB
   -- (1) the block structure out of the way
-  obtain ⟨σ₁, r₁, hvn₁, hmv₁, hoff₁, htgt₁, hgof₁, hgtg₁⟩ :=
+  obtain ⟨σ₁, r₁, hvn₁, hmv₁, hlw₁, hoff₁, htgt₁, hgof₁, hgtg₁⟩ :=
     (RamDriverOrder.saveCsr_spec (ns := ns) hn1B hWltB hOB hTBW).run
-      ⟨hvn, hmv, hoff, htgt, hosz.get (p := ("gof", n + 1)) (by simp),
+      ⟨hvn, hmv, hlw, hoff, htgt, hosz.get (p := ("gof", n + 1)) (by simp),
         hosz.get (p := ("gtg", W)) (by simp)⟩
   have hsz₁ := hosz.run r₁
   have hmem₁ := levelMem_run r₁ hmem
-  have f₁ : ∀ a : String, a ∉ (saveCsr W).warrs → σ₁.arrs a = σ.arrs a :=
+  have f₁ : ∀ a : String, a ∉ (saveCsr).warrs → σ₁.arrs a = σ.arrs a :=
     fun a ha => r₁.frame_arr a ha
   -- (2) the depth's mask into the name the engine reads
   obtain ⟨σ₂, r₂, ⟨u₂, hu₂, hag₂⟩, -, hvn₂, -⟩ :=
     (RamDriverCluster.copyCom_spec B n n (alvName j) "alv" M (alvName_ne_alv j) hnB le_rfl
       hMB).run
       ⟨hmem₁.1.get (p := ("alv", n)) (by simp), hvn₁,
-        by rw [f₁ _ (alvName_notMem_saveCsr W j)]; exact halvj⟩
+        by rw [f₁ _ (alvName_notMem_saveCsr j)]; exact halvj⟩
   have halv₂ : σ₂.arrs "alv" = arrOf n M := hu₂.trans (RamDriverOrder.arrOf_congr hag₂)
   have hsz₂ := hsz₁.run r₂
   have f₂ : ∀ a : String, a ∉ (copyCom (alvName j) "alv").warrs → σ₂.arrs a = σ₁.arrs a :=
@@ -2807,17 +2863,28 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
     RamDriverOrder.lt_of_mem_words
       (run_mem_arrs_lt r₄ "itg" (run_mem_arrs_lt r₃ "itg"
         (run_mem_arrs_lt r₂ "itg" (run_mem_arrs_lt r₁ "itg" hwitg)))) hitg₄ hk
+  have hlw₄ : σ₄.vars "lw" = W := by
+    rw [r₄.frame_var "lw" (by rw [wvars_copyUpto]; decide), r₃.frame_var "lw" (by decide),
+      r₂.frame_var "lw" (by rw [wvars_copyCom]; decide)]
+    exact hlw₁
   obtain ⟨σ₅, r₅, ⟨dt₅, hdt₅, hdtv₅⟩, -, -⟩ :=
-    (RamDriverOrder.copyUpto_spec (B := B) W W "itg" "dtg" (.lit W) ITa
-        (fun τ => τ.arrs "itg" = arrOf W ITa) (by omega) hWltB le_rfl
-        (fun _ _ hQ _ ha => (ha "itg" (by decide)).trans hQ)
-        (fun _ _ => evalB_lit hWltB) (fun _ hQ => hQ) hITB).run
-      ⟨hsz₄.get (p := ("dtg", W)) (by simp), hitg₄⟩
+    (RamDriverOrder.copyUpto_spec (B := B) W W "itg" "dtg" (.var "lw") ITa
+        (fun τ => τ.arrs "itg" = arrOf W ITa ∧ τ.vars "lw" = W) (by omega) hWltB le_rfl
+        (fun _ _ hQ hv ha => ⟨(ha "itg" (by decide)).trans hQ.1,
+          (hv "lw" (by decide)).trans hQ.2⟩)
+        (fun τ hQ => by
+          have h := evalB_var (B := B) (σ := τ) (x := "lw")
+            (show τ.vars "lw" < B by rw [hQ.2]; omega)
+          rw [hQ.2] at h; exact h)
+        (fun _ hQ => hQ.1) hITB).run
+      ⟨hsz₄.get (p := ("dtg", W)) (by simp), hitg₄, hlw₄⟩
   have hsz₅ := hsz₄.run r₅
-  have f₅ : ∀ a : String, a ∉ (copyUpto "itg" "dtg" (.lit W)).warrs → σ₅.arrs a = σ₄.arrs a :=
-    fun a ha => r₅.frame_arr a ha
+  have f₅ : ∀ a : String, a ∉ (copyUpto "itg" "dtg" (.var "lw")).warrs →
+      σ₅.arrs a = σ₄.arrs a := fun a ha => r₅.frame_arr a ha
   have hvn₅ : σ₅.vars "n" = n := by
     rw [r₅.frame_var "n" (by rw [wvars_copyUpto]; decide)]; exact hvn₄
+  have hlw₅ : σ₅.vars "lw" = W := by
+    rw [r₅.frame_var "lw" (by rw [wvars_copyUpto]; decide)]; exact hlw₄
   have hdtg₅ : σ₅.arrs "dtg" = arrOf W ITa :=
     hdt₅.trans (RamDriverOrder.arrOf_congr hdtv₅)
   have hdoff₅ : σ₅.arrs "doff" = arrOf (n + 1) IOa := by
@@ -2883,7 +2950,7 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
   have hfit : ma + ma ≤ ns := RamDriverAugment.two_mul_arcs_le hcsr hincsr₃ hsub
   have hka_d : ka ≤ d := hkmin₃ d hd
   have hI0 : FoldInv B n ns W ka G M 0 σ₅ :=
-    ⟨hvn₅, hsz₅,
+    ⟨hvn₅, hlw₅, hsz₅,
       run_mem_arrs_lt r₅ "ntg" (run_mem_arrs_lt r₄ "ntg" (run_mem_arrs_lt r₃ "ntg"
         (run_mem_arrs_lt r₂ "ntg" (run_mem_arrs_lt r₁ "ntg" hwntg)))),
       hooffZ₅, hnoffZ₅, hstfZ₅, hstaZ₅, hstdZ₅, hsteZ₅,
@@ -2897,18 +2964,17 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
   obtain ⟨σF, rF, hIF⟩ :=
     fold_run_aux (fold_step hWB hka_d hdens hWc) R 0 (by omega) σ₅ hI0
   have hIF' : FoldInv B n ns W ka G M R σF := by simpa using hIF
-  obtain ⟨hvnF, hszF, hntgWF, ⟨gOo, hgOo, hzOo⟩, hnoffZF, hstfZF, hstaZF, hstdZF, hsteZF,
+  obtain ⟨hvnF, hlwF, hszF, hntgWF, ⟨gOo, hgOo, hzOo⟩, hnoffZF, hstfZF, hstaZF, hstdZF,
+    hsteZF,
     hoffEF, htgtEF, halvEF, D, mR, DO, DT, hchainR, hgreedyR, hD0F, hincsrR, hmRW, hmR0,
     hdoffF, hdtgF⟩ := hIF'
-  have fF : ∀ a : String, a ∉ (augRoundCom 0).warrs → σF.arrs a = σ₅.arrs a := by
+  have fF : ∀ a : String, a ∉ augRoundCom.warrs → σF.arrs a = σ₅.arrs a := by
     intro a ha
     refine rF.frame_arr a fun h => ha ?_
-    rw [← warrs_augRoundCom W]
     exact mem_warrs_foldRange_const h
-  have fFv : ∀ y : String, y ∉ (augRoundCom 0).wvars → σF.vars y = σ₅.vars y := by
+  have fFv : ∀ y : String, y ∉ augRoundCom.wvars → σF.vars y = σ₅.vars y := by
     intro y hy
     refine rF.frame_var y fun h => hy ?_
-    rw [← wvars_augRoundCom W]
     exact mem_wvars_foldRange_const h
   -- the width still covers twice the chain's arcs
   have hbR : (D R).InDegLE (Augmentation.budget d D₁ R) :=
@@ -2934,6 +3000,8 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
   have hsz₇ := hszF.run r₇
   have hvn₇ : σ₇.vars "n" = n := by
     rw [hfvS "n" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hvnF
+  have hlw₇ : σ₇.vars "lw" = W := by
+    rw [hfvS "lw" (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hlwF
   have hmv₅ : σ₅.vars "m" + σ₅.vars "m" = ns := by
     rw [r₅.frame_var "m" (by rw [wvars_copyUpto]; decide),
       r₄.frame_var "m" (by rw [wvars_copyUpto]; decide),
@@ -3008,15 +3076,19 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
     rw [r₁₀.frame_var "m" (by decide), r₉.frame_var "m" (by decide),
       r₈.frame_var "m" (by decide)]
     exact hmv₇
-  obtain ⟨σ₁₁, r₁₁, hvn₁₁, -, -, -, hoff₁₁, htgt₁₁⟩ :=
+  have hlw₁₀ : σ₁₀.vars "lw" = W := by
+    rw [r₁₀.frame_var "lw" (by decide), r₉.frame_var "lw" (by decide),
+      r₈.frame_var "lw" (by decide)]
+    exact hlw₇
+  obtain ⟨σ₁₁, r₁₁, hvn₁₁, -, -, -, -, hoff₁₁, htgt₁₁⟩ :=
     (RamDriverOrder.restoreCsr_spec (ns := ns) hn1B hWltB hOB hTBW).run
-      ⟨hvn₁₀, hmv₁₀,
+      ⟨hvn₁₀, hmv₁₀, hlw₁₀,
         by rw [f₁₀ _ (by decide), f₉ _ (by decide), f₈ _ (by decide)]; exact hgof₇,
         by rw [f₁₀ _ (by decide), f₉ _ (by decide), f₈ _ (by decide)]; exact hgtg₇,
         sizedRun r₁₀ (sizedRun r₉ (sizedRun r₈ ⟨Os, hoffS⟩)),
         sizedRun r₁₀ (sizedRun r₉ (sizedRun r₈ ⟨Ts, htgtS⟩))⟩
   have hsz₁₁ := hsz₁₀.run r₁₁
-  have f₁₁ : ∀ a : String, a ∉ (restoreCsr W).warrs → σ₁₁.arrs a = σ₁₀.arrs a :=
+  have f₁₁ : ∀ a : String, a ∉ (restoreCsr).warrs → σ₁₁.arrs a = σ₁₀.arrs a :=
     fun a ha => r₁₁.frame_arr a ha
   -- (12) the rank array inverted into the order array, inversion kept
   obtain ⟨σ₁₂, r₁₂, hvn₁₂, -, gord, hord₁₂, hordlt, hRo, hinvv⟩ :=
@@ -3054,13 +3126,15 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
     rw [getElem?_arrOf R₁ hv, getElem?_arrOf R₂ hv] at h
     exact Option.some.inj h
   -- the phase, assembled
-  have hrT : Run B (orderCom R W j) σ ρ _ :=
+  have hrT : Run B (orderCom R j) σ ρ _ :=
     r₁.seq (r₂.seq (r₃.seq (r₄.seq (r₅.seq (rF.seq (r₇.seq (r₈.seq (r₉.seq
       (r₁₀.seq (r₁₁.seq (r₁₂.seq r₁₃)))))))))))
   refine ⟨ρ, _, hrT, ?_, ⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCbit, levelMem_run hrT hmem,
-      hdep.run hrT, ?_, ⟨hnsW, hosz.run hrT, z₁, z₂, z₃, z₄, z₅, z₆, z₇, z₈,
+      hdep.run hrT, ?_,
+      ⟨hnsW, by rw [hrT.frame_var "lw" lw_notMem_orderCom]; exact hlw,
+        hosz.run hrT, z₁, z₂, z₃, z₄, z₅, z₆, z₇, z₈,
         run_mem_arrs_lt hrT "itg" hwitg, run_mem_arrs_lt hrT "ntg" hwntg⟩, hpad0, hTBW⟩,
-    hrT.out_eq (noWrite_orderCom R W j),
+    hrT.out_eq (noWrite_orderCom R j),
     fun a => hrT.frame_var _ (ctrName_notMem_orderCom a),
     fun a => hrT.frame_arr _ (gamName_notMem_orderCom a),
     RamCover.rankPerm n R₂ gord hRlt hordlt hRo hinvv, gord, ?_,

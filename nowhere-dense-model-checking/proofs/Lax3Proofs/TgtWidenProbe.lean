@@ -597,33 +597,37 @@ re-zeroed: a level's exit state is a level's entry state. -/
 (`tgt` at the allocation width `64` with the zero tail), the reserved
 pair, the depth-`0` masks alive, the order array, and the engines'
 scratch fresh at width `64`. -/
-def ordSt : PSt :=
-  { augSt 5 64 64 [0, 0, 0, 0, 0, 0] [] with
-    vars := [("n", 5), ("m", 4)]
+def ordStAt (W : ℕ) : PSt :=
+  { augSt 5 W W [0, 0, 0, 0, 0, 0] [] with
+    vars := [("n", 5), ("m", 4), ("lw", W)]
     arrs :=
       ("off", [0, 4, 5, 6, 7, 8]) ::
-      ("tgt", [1, 2, 3, 4, 0, 0, 0, 0] ++ List.replicate 56 0) ::
-      ("gof", List.replicate 6 0) :: ("gtg", List.replicate 64 0) ::
+      ("tgt", [1, 2, 3, 4] ++ List.replicate (W - 4) 0) ::
+      ("gof", List.replicate 6 0) :: ("gtg", List.replicate W 0) ::
       (RamDriver.alvName 0, List.replicate 5 1) ::
       (RamDriver.gamName 0, List.replicate 5 1) ::
       (RamDriver.ordName 0, List.replicate 5 0) ::
-      (augSt 5 64 64 [0, 0, 0, 0, 0, 0] []).arrs }
+      (augSt 5 W W [0, 0, 0, 0, 0, 0] []).arrs }
+
+/-- The state at the allocation width `64`. The scalar `"lw"` carries
+that width, which is `RamDriver.OrderMem`'s clause read as data. -/
+def ordSt : PSt := ordStAt 64
 
 /-- **The pre-F-c-5 ordering phase at `R = 1`**, written out: the fold
 body is `augCom ; augRelinkCom` with no prep. -/
 def orderComOld1 : Com :=
-  .seq (RamDriver.saveCsr 64)
+  .seq RamDriver.saveCsr
     (.seq (RamDriver.copyCom (RamDriver.alvName 0) "alv")
       (.seq RamElim.elimCom
         (.seq (RamDriver.copyUpto "ioff" "doff" (.add (.var "n") (.lit 1)))
-          (.seq (RamDriver.copyUpto "itg" "dtg" (.lit 64))
+          (.seq (RamDriver.copyUpto "itg" "dtg" (.var "lw"))
             (.seq (RamDriver.foldRange (fun _ =>
-                .seq RamAugment.augCom (RamDriver.augRelinkCom 64)) 1)
+                .seq RamAugment.augCom RamDriver.augRelinkCom) 1)
               (.seq RamDriver.symCom
                 (.seq (RamDriver.fillCom "alv" (.lit 1))
                   (.seq RamDriver.elimRezeroCom
                     (.seq RamElim.elimCom
-                      (.seq (RamDriver.restoreCsr 64)
+                      (.seq RamDriver.restoreCsr
                         (.seq (RamDriver.ordCom (RamDriver.ordName 0))
                           RamDriver.orderZeroCom)))))))))))
 
@@ -635,23 +639,23 @@ def orderComOld1 : Com :=
 -- vertex is flagged eliminated
 def ord1Pre : PRes :=
   exec pB pF
-    (.seq (RamDriver.saveCsr 64)
+    (.seq RamDriver.saveCsr
       (.seq (RamDriver.copyCom (RamDriver.alvName 0) "alv")
         (.seq RamElim.elimCom
           (.seq (RamDriver.copyUpto "ioff" "doff" (.add (.var "n") (.lit 1)))
-            (RamDriver.copyUpto "itg" "dtg" (.lit 64)))))) ordSt
+            (RamDriver.copyUpto "itg" "dtg" (.var "lw")))))) ordSt
 
 #guard ord1Pre.isOk
 #guard (List.range 5).map (ord1Pre.cell "elm") = [1, 1, 1, 1, 1]
 
 /-- The repaired phase at `R = 0`. -/
-def ord0Run : PRes := exec pB pF (RamDriver.orderCom 0 64 0) ordSt
+def ord0Run : PRes := exec pB pF (RamDriver.orderCom 0 0) ordSt
 
 /-- At `R = 1`. -/
-def ord1Run : PRes := exec pB pF (RamDriver.orderCom 1 64 0) ordSt
+def ord1Run : PRes := exec pB pF (RamDriver.orderCom 1 0) ordSt
 
 /-- At `R = 2`. -/
-def ord2Run : PRes := exec pB pF (RamDriver.orderCom 2 64 0) ordSt
+def ord2Run : PRes := exec pB pF (RamDriver.orderCom 2 0) ordSt
 
 -- **the repaired phase runs at all three round counts**
 #guard ord0Run.isOk
@@ -678,5 +682,58 @@ def ord2Run : PRes := exec pB pF (RamDriver.orderCom 2 64 0) ordSt
 #guard (List.range 12).map (fun k => ord1Run.cell "tgt" (8 + k)) = List.replicate 12 0
 #guard (List.range 5).map (ord1Run.cell "elm") = List.replicate 5 0
 #guard (List.range 6).map (ord1Run.cell "bh") = List.replicate 6 0
+
+/-! ### The uniformity gate (rebase G2/E1)
+
+`Refine.G2CostProbe`'s `saveCsr_reads_W`/`orderCom_reads_W` compiled the
+defect this wave repairs: the phase's four block copies read the
+allocation width as a *literal of the program text*, so two widths gave
+two programs and `Lax3.ModelChecking`'s one-program-before-all-inputs
+quantifier could not be met. The repair is the runtime scalar `"lw"`,
+pinned to the width by `RamDriver.OrderMem`, and the tombstones in that
+file record the positive form: `RamDriver.orderCom R j` is W-free *by
+signature*.
+
+What follows is the executed control the signature argument cannot give
+on its own — that the one text, run at two different allocation widths
+on states that differ in nothing else, agrees on the live prefix. The
+same `orderCom 1 0` runs at `W = 64` (`ord1Run`) and at `W = 96`
+(`ord1Wide`); at the second the arrays are half again as long and `"lw"`
+says so, and the phase copies half again as many cells. Its answers —
+the elimination bound, the exported order, and the restored block
+structure — are identical. -/
+
+/-- The same `K₁,₄` level state, allocated at width `96`. -/
+def ordStWide : PSt := ordStAt 96
+
+/-- The SAME program text, at the wider allocation. -/
+def ord1Wide : PRes := exec pB pF (RamDriver.orderCom 1 0) ordStWide
+
+#guard ord1Wide.isOk
+
+-- the differential: one text, two widths, one answer on the live prefix
+#guard ord1Wide.scalar "kmax" = ord1Run.scalar "kmax"
+#guard (List.range 5).map (ord1Wide.cell (RamDriver.ordName 0)) =
+  (List.range 5).map (ord1Run.cell (RamDriver.ordName 0))
+#guard (List.range 6).map (ord1Wide.cell "off") = (List.range 6).map (ord1Run.cell "off")
+#guard (List.range 8).map (ord1Wide.cell "tgt") = (List.range 8).map (ord1Run.cell "tgt")
+
+-- and the wider allocation's own tail is restored to zero too, which is
+-- the clause `RamDriver.LevelPre` carries and `restoreCsr` now re-copies
+-- through the scalar rather than through a literal
+#guard (List.range 92).map (fun k => ord1Wide.cell "tgt" (4 + k)) = List.replicate 92 0
+
+-- the scalar is not written by the phase: it comes out as it went in,
+-- at both widths (`RamDriverCompose.lw_notMem_orderCom`, executed)
+#guard ord1Run.scalar "lw" = 64
+#guard ord1Wide.scalar "lw" = 96
+
+/-- **The empty-word check** (refute-before-prove; the instance that
+killed F-c-3's range form, `RamDriver.LevelPre`'s `hpad` at `n = 0`).
+The clause this wave adds is a scalar equation and carries no range, so
+it is satisfiable where the range form was not: at `n = 0`, `ns = 0`,
+`W = 0` the whole of `RamDriver.OrderMem`'s new conjunct is
+`σ.vars "lw" = 0`, which the empty state meets. -/
+example : ((⟨fun _ => 0, fun _ => [], [], []⟩ : Env).vars "lw") = 0 := rfl
 
 end Lax3Proofs.TgtWidenProbe

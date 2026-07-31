@@ -245,6 +245,9 @@ theorem sweepImplements {n B q_top cap mb ns W ℓ jd : ℕ} {φ : Lax3.FirstOrd
       (notMem_wvars_sweepCom hlocal (by decide)
         (fun i => RamDriverBot.lit_ne_envName ⟨_, rfl⟩ (by decide) i)
         (RamDriverBot.not_ext_of_not_prefix (by decide)))
+      (notMem_wvars_sweepCom hlocal (by decide)
+        (fun i => RamDriverBot.lit_ne_envName ⟨_, rfl⟩ (by decide) i)
+        (RamDriverBot.not_ext_of_not_prefix (by decide)))
       (notMem_warrs_sweepCom hlocal
         (fun i => RamDriverBase.lit_ne_tabName (by decide) jd i)
         (RamDriverBot.not_ext_of_not_prefix (by decide)))

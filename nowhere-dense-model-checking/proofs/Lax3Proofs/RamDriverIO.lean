@@ -451,7 +451,7 @@ theorem decodeImplements {B n ns Ws K : ℕ} {G : SimpleGraph (Fin n)} {O T : �
   subst hns
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨⟨hoffL, htgtL, htgtZ, halvL, hgamL⟩,
-    ⟨hOle, hOsz, hz₁, hz₂, hz₃, hz₄, hz₅, hz₆, hz₇, hz₈, hw₁, hw₂⟩,
+    ⟨hOle, hOlw, hOsz, hz₁, hz₂, hz₃, hz₄, hz₅, hz₆, hz₇, hz₈, hw₁, hw₂⟩,
     hinp, hout⟩ := hσ
   -- the word: the two header entries, the offsets, the targets
   have hlen := hx.length_eq
@@ -592,7 +592,7 @@ theorem decodeImplements {B n ns Ws K : ℕ} {G : SimpleGraph (Fin n)} {O T : �
     · rw [hT₆ j hjs, hzd j hjs, hT j hjs]
     · rw [hT₆pad j hjs hj, hpad0 j hjs hj]
   · rw [hm₈]; omega
-  · exact ⟨hOle, hOsz.run rall,
+  · exact ⟨hOle, by rw [rall.frame_var "lw" (by decide)]; exact hOlw, hOsz.run rall,
       by rw [hall₈ "elm" (by decide) (by decide) (by decide) (by decide)]; exact hz₁,
       by rw [hall₈ "bh" (by decide) (by decide) (by decide) (by decide)]; exact hz₂,
       by rw [hall₈ "ooff" (by decide) (by decide) (by decide) (by decide)]; exact hz₃,
@@ -604,6 +604,100 @@ theorem decodeImplements {B n ns Ws K : ℕ} {G : SimpleGraph (Fin n)} {O T : �
       run_mem_arrs_lt rall "itg" hw₁, run_mem_arrs_lt rall "ntg" hw₂⟩
   · exact ⟨M, by rw [hfa₈ _ (by decide)]; exact halv₇, hM₇⟩
   · exact ⟨Gm, hgam₈, hGm₈⟩
+
+/-! ### The width prologue (rebase G2/E1)
+
+Wave E1 made the driver's text `W`-free: the ordering phase's four block
+copies read the scalar `"lw"`, and `RamDriver.OrderMem` pins its value
+to the allocation width. Something has to *write* that scalar, and this
+is that something — the arithmetic half of the root prologue, stated
+here beside the decode because it reads exactly the decode's own two
+scalars.
+
+`widthCom` computes `n · bq² + (m + m) + 1` where `bq` is the per-vertex
+chain-row budget `Augmentation.budget d D₁ R + 1`. At that reading the
+produced value is the repaired width `Refine.G2CostProbe.chainWidthE`
+(`n · (budget + 1)² + ns + 1`) — the design's §3(a) form, whose `ns`
+term replaces `TgtCoupling.chainWidth`'s fatal `n · n`. Note what is
+*not* in the text: no literal that scales with the input. `"n"` and
+`"m"` are the decode's, `"bq"` is a scalar the prologue derives from the
+program parameter `R` by the budget recursion — a constant-length
+straight-line block, since `R` is fixed before the input — against the
+runtime degeneracy parameters. That last block is not written here: at
+the C0 path `d` comes from the sparsity class and is B7's to supply
+along with the allocation it sizes, and this wave deliberately stops at
+the arithmetic it can state without it.
+
+The block is **not yet spliced into `RamDriver.driverRoot`**: splicing
+it would force the root obligation to fix `W = chainWidthE`, and the
+consumer contract of this wave is that
+`RamDriverRoot.driverRoot_decides_sentence` changes only where the
+program's parameter list does. The prologue is B7's seam — where the
+`W`-wide arrays are allocated, which needs the same number. -/
+
+/-- **The width prologue's arithmetic**: the live width, from the
+carrier, the slot count and the chain-row budget. -/
+def widthCom : Com :=
+  .assign "lw"
+    (.add (.add (.mul (.var "n") (.mul (.var "bq") (.var "bq")))
+      (.add (.var "m") (.var "m"))) (.lit 1))
+
+/-- **The prologue writes the width.** Everything is a scalar read, so
+the pass is one assignment and the only side condition is that the width
+is a word — which `RamDriver.WordBound` gives wherever the driver runs
+at all. -/
+theorem widthCom_run {B n ns b : ℕ} {σ : Env}
+    (hn : σ.vars "n" = n) (hm : σ.vars "m" + σ.vars "m" = ns) (hb : σ.vars "bq" = b)
+    (hnB : n < B) (hbB : b < B) (hbbB : b * b < B)
+    (hlt : n * (b * b) + ns + 1 < B) :
+    Run B widthCom σ (σ.setVar "lw" (n * (b * b) + ns + 1)) (1 + 11) := by
+  have hB : 0 < B := by omega
+  have hbb : (Expr.mul (.var "bq") (.var "bq")).evalB B σ = some (b * b) := by
+    have h := evalB_bin (B := B) (σ := σ) (op := .mul) (e := .var "bq") (f := .var "bq")
+      (evalB_var (show σ.vars "bq" < B by rw [hb]; omega))
+      (evalB_var (show σ.vars "bq" < B by rw [hb]; omega))
+      (show Bop.apply .mul (σ.vars "bq") (σ.vars "bq") < B by
+        simp only [Bop.apply_mul, hb]; omega)
+    rw [Bop.apply_mul, hb] at h
+    exact h
+  have hnb : (Expr.mul (.var "n") (.mul (.var "bq") (.var "bq"))).evalB B σ =
+      some (n * (b * b)) := by
+    have h := evalB_bin (B := B) (σ := σ) (op := .mul) (e := .var "n")
+      (f := .mul (.var "bq") (.var "bq"))
+      (evalB_var (show σ.vars "n" < B by rw [hn]; omega)) hbb
+      (show Bop.apply .mul (σ.vars "n") (b * b) < B by
+        rw [Bop.apply_mul, hn]
+        exact lt_of_le_of_lt (Nat.le_add_right _ (ns + 1)) (by omega))
+    rw [Bop.apply_mul, hn] at h
+    exact h
+  have hmm : (Expr.add (.var "m") (.var "m")).evalB B σ = some ns := by
+    have h := evalB_bin (B := B) (σ := σ) (op := .add) (e := .var "m") (f := .var "m")
+      (evalB_var (by omega)) (evalB_var (by omega))
+      (show Bop.apply .add (σ.vars "m") (σ.vars "m") < B by
+        simp only [Bop.apply_add, hm]; omega)
+    rw [Bop.apply_add, hm] at h
+    exact h
+  have hsum : (Expr.add (.mul (.var "n") (.mul (.var "bq") (.var "bq")))
+      (.add (.var "m") (.var "m"))).evalB B σ = some (n * (b * b) + ns) := by
+    have h := evalB_bin (B := B) (σ := σ) (op := .add) hnb hmm (by simp only [Bop.apply_add]; omega)
+    rw [Bop.apply_add] at h
+    exact h
+  have htop : (Expr.add (.add (.mul (.var "n") (.mul (.var "bq") (.var "bq")))
+      (.add (.var "m") (.var "m"))) (.lit 1)).evalB B σ = some (n * (b * b) + ns + 1) := by
+    have h := evalB_bin (B := B) (σ := σ) (op := .add) hsum
+      (evalB_lit (show (1 : ℕ) < B by omega))
+      (by simp only [Bop.apply_add]; omega)
+    rw [Bop.apply_add] at h
+    exact h
+  have h := Run.assign (B := B) (σ := σ) (x := "lw") htop
+  simpa using h
+
+/-- **The width the prologue produces is the repaired one.** Read at
+`b = Augmentation.budget d D₁ R + 1` the value is
+`n · (budget + 1)² + ns + 1` — the design's `chainWidthE`, stated here
+without importing the probe. -/
+theorem widthCom_value (n ns b : ℕ) : n * (b * b) + ns + 1 = n * b ^ 2 + ns + 1 := by
+  ring
 
 /-! ### The arithmetic of the bits
 
