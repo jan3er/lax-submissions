@@ -3508,3 +3508,29 @@ binds proof-worker briefs to it; nd-mc-rebase-plan.md gained a "Worker
 process" section (split at brief time, named falsification gate,
 budget check before long waves); memory indexed.
 Next: ND-MC rebase P0 (hfcomp first) with briefs from the template.
+
+## Session 21 — 2026-07-30 → 07-31 (ND-MC tower rebase, single supervised session)
+
+Milestone: the ND-MC rebase campaign executed P0 through the C0 gate in
+one continuous supervised session (~35 waves: Opus workhorses, Fable on
+the tool/design/last-obligation waves per Jan's mid-session authority).
+Commits: f8cfa36 → 2bab5b8 on worktree-ndmc-rebase-p0, landed on main.
+State: P0/P1/P2/P3 complete — all engines tower-derived with computed
+costs (headlines: clusterLoad 16n²→12n+15m, expandCom's n·ns dies,
+coverCost's n² → Σ|X_c|, carrier-free BFS turn), the R1 compacted
+skeleton, the Σ/size interface, dead-vertex path, tgt widening
+end-to-end, symCom + orderImplementsR (Fable's R=1 probe refuted the
+designed fold body before proof — re-zeroing was missing). All 30
+hypotheses of driverRoot_decides_sentence have named producers. C0
+itself: B7 stopped at the gate with two compiled findings (C0Probe.lean
+— EncodesGraph permits repeats ⇒ CsrSimple underivable; Ω(n·W) floor
+from the carrier-width phase constants with W ≥ n²+1 on the C0 path).
+Repair legs G1 (dedup guard) + G2 (phase-cost re-thread) specced; both
+launched and stopped at Jan's wrap order. Next session: resume G1 ∥
+G2-design (briefs in the session log / plan wrap section), G2
+execution, B7 re-run, P5. Process notes: refute-before-prove caught
+eleven+ wave-level defects including three refuted cost constants and
+two refuted design assumptions; the worker-brief template held; two
+structural floors were found only by compiled probes after prose
+verdicts passed — compiled accounting is now the standing requirement
+for any "the recurrence closes" claim.

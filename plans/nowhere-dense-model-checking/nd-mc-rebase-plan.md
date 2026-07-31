@@ -256,6 +256,39 @@ old-style cost wave remains specced verbatim in nd-mc-plan P7 —
 that text is the fallback contract and is not edited beyond a
 supersession pointer.
 
+## Session wrap 2026-07-31 (Jan: "wrap up here")
+
+State at wrap (branch `worktree-ndmc-rebase-p0` @ 2bab5b8, landed
+on main; every commit green, kernel-three, lax-audit-clean):
+
+- **DONE**: P0 (G0 green, five items), P1 (G1 green), P2 (all
+  engines derived, widened, and integrated: BFS/Scatter/Elim/
+  Augment-outPass/Cover/order/cluster leaves/expandCom; two tool
+  waves T1+T2; the R1 compacted skeleton; the Σ/size cost
+  interface; the dead-vertex path; the tgt widening end-to-end;
+  symCom + the R\* fold `orderImplementsR` — all 30 hypotheses of
+  `driverRoot_decides_sentence` have named producers), P3 (math
+  satellite).
+- **OPEN — P4 (C0)**: wave B7 stopped at the gate with two
+  compiled findings (`Lax3Proofs/C0Probe.lean`): (#1)
+  `EncodesGraph` permits repeated targets ⇒ `CsrSimple`
+  underivable at the C0 boundary — repair = the G1 dedup-guard
+  wave (specced, splice point identified); (#2) an Ω(n·W) floor
+  from `hKo`/`hKc`/`hKd`/`hKbase` verbatim — the per-level PHASE
+  costs are carrier-width while the C0 path pins W ≥ n²+1 (60n³
+  floor compiled). Repair = the G2 phase-cost leg: arena-charged
+  phase forms wiring the landed-but-unwired capital (BlockLeaves,
+  BfsQTrail, aliveMass) + live-width save/restore + degree-aware
+  chainWidth; design brief written (the G2-design wave was
+  launched and stopped at wrap — re-issue its brief verbatim from
+  the session log to resume). The fallback (old cost wave) is
+  dominated — it inherits the same floors.
+- **Next session starts at**: G1 (independent, fully specced) ∥
+  G2-design (Fable; the accounting must be COMPILED this time —
+  §2.4's prose verdict was wrong once), then G2 execution, the B7
+  re-run (its brief + the F-c-5 hdeg composition + the 30-slot
+  table are in the log below), then P5.
+
 ## Progress log
 
 - 2026-07-30 — Rev 1 written; direction approved in conversation
