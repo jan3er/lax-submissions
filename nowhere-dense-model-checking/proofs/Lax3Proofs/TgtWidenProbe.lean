@@ -564,4 +564,119 @@ def decodeNarrow : PRes :=
 
 end FlipGate
 
+/-! ### The `R = 1` fold gate (rebase F-c-5)
+
+The whole ordering phase, run end to end on a `K₁,₄` level state at
+`R = 0`, `1` and `2` — the honest instance of the `R*` fold, and the
+compiled record of the defect its walk found.
+
+**The defect.** `RamAugment.AugPre` asks for `off`, `elm` and `bh`
+zeroed at every round's entry, and the landed text had no pass that
+re-zeroes them: the phase's *first* elimination leaves `elm[w] = 1` at
+every extracted vertex and `bh` holding bucket heads, and `off` holds
+the level's own block structure until the first relink. So the fold body
+`augCom ; augRelinkCom` had **no run** at `R ≥ 1` — wave D4's defect A,
+one pass earlier — and `orderComOld1` below, which is the pre-F-c-5 text
+written out, is stuck on this state. The repair is
+`RamDriver.augPrepCom` *inside* the fold body (`augRoundCom`), so the
+`R = 0` text is byte-identical (`foldRange` of anything at `0` is
+`skip`).
+
+**The differential.** At `R = 0` the final elimination reports the
+star's bound `kmax = 1`; at `R = 1` it reports `2` — the machine's own
+augmented graph is the double star (`D 0` here is the *machine's* first
+elimination orientation, which orients one leaf into the centre and the
+centre into the other three, so one transitive round attaches that
+leaf's three links and no fraternal edge — a smaller instance than the
+hand-fed `sym5Final` `K₅`, and the honest one, being the phase's own
+chain). At `R = 2` the chain has saturated and the bound stays `2`. In
+every case the level's structure comes back restored and the scratch
+re-zeroed: a level's exit state is a level's entry state. -/
+
+/-- A `K₁,₄` level state: the star's block structure in `off`/`tgt`
+(`tgt` at the allocation width `64` with the zero tail), the reserved
+pair, the depth-`0` masks alive, the order array, and the engines'
+scratch fresh at width `64`. -/
+def ordSt : PSt :=
+  { augSt 5 64 64 [0, 0, 0, 0, 0, 0] [] with
+    vars := [("n", 5), ("m", 4)]
+    arrs :=
+      ("off", [0, 4, 5, 6, 7, 8]) ::
+      ("tgt", [1, 2, 3, 4, 0, 0, 0, 0] ++ List.replicate 56 0) ::
+      ("gof", List.replicate 6 0) :: ("gtg", List.replicate 64 0) ::
+      (RamDriver.alvName 0, List.replicate 5 1) ::
+      (RamDriver.gamName 0, List.replicate 5 1) ::
+      (RamDriver.ordName 0, List.replicate 5 0) ::
+      (augSt 5 64 64 [0, 0, 0, 0, 0, 0] []).arrs }
+
+/-- **The pre-F-c-5 ordering phase at `R = 1`**, written out: the fold
+body is `augCom ; augRelinkCom` with no prep. -/
+def orderComOld1 : Com :=
+  .seq (RamDriver.saveCsr 64)
+    (.seq (RamDriver.copyCom (RamDriver.alvName 0) "alv")
+      (.seq RamElim.elimCom
+        (.seq (RamDriver.copyUpto "ioff" "doff" (.add (.var "n") (.lit 1)))
+          (.seq (RamDriver.copyUpto "itg" "dtg" (.lit 64))
+            (.seq (RamDriver.foldRange (fun _ =>
+                .seq RamAugment.augCom (RamDriver.augRelinkCom 64)) 1)
+              (.seq RamDriver.symCom
+                (.seq (RamDriver.fillCom "alv" (.lit 1))
+                  (.seq RamDriver.elimRezeroCom
+                    (.seq RamElim.elimCom
+                      (.seq (RamDriver.restoreCsr 64)
+                        (.seq (RamDriver.ordCom (RamDriver.ordName 0))
+                          RamDriver.orderZeroCom)))))))))))
+
+-- **the defect, compiled**: the old text's round is entered with `elm`,
+-- `bh` and `off` dirty, and the phase has no run
+#guard (exec pB pF orderComOld1 ordSt).isStuck
+
+-- and the dirt is the first elimination's: at the fold's entry every
+-- vertex is flagged eliminated
+def ord1Pre : PRes :=
+  exec pB pF
+    (.seq (RamDriver.saveCsr 64)
+      (.seq (RamDriver.copyCom (RamDriver.alvName 0) "alv")
+        (.seq RamElim.elimCom
+          (.seq (RamDriver.copyUpto "ioff" "doff" (.add (.var "n") (.lit 1)))
+            (RamDriver.copyUpto "itg" "dtg" (.lit 64)))))) ordSt
+
+#guard ord1Pre.isOk
+#guard (List.range 5).map (ord1Pre.cell "elm") = [1, 1, 1, 1, 1]
+
+/-- The repaired phase at `R = 0`. -/
+def ord0Run : PRes := exec pB pF (RamDriver.orderCom 0 64 0) ordSt
+
+/-- At `R = 1`. -/
+def ord1Run : PRes := exec pB pF (RamDriver.orderCom 1 64 0) ordSt
+
+/-- At `R = 2`. -/
+def ord2Run : PRes := exec pB pF (RamDriver.orderCom 2 64 0) ordSt
+
+-- **the repaired phase runs at all three round counts**
+#guard ord0Run.isOk
+#guard ord1Run.isOk
+#guard ord2Run.isOk
+
+-- the differential: the star's bound at `R = 0`, the augmented graph's
+-- from `R = 1` on — the fold really hands the chain's datum to the
+-- final elimination
+#guard ord0Run.scalar "kmax" = 1
+#guard ord1Run.scalar "kmax" = 2
+#guard ord2Run.scalar "kmax" = 2
+#guard ord0Run.scalar "kmax" ≠ ord1Run.scalar "kmax"
+
+-- the exported order arrays: an inversion of the final elimination's
+-- ranking in each case
+#guard (List.range 5).map (ord0Run.cell (RamDriver.ordName 0)) = [1, 0, 2, 3, 4]
+#guard (List.range 5).map (ord1Run.cell (RamDriver.ordName 0)) = [0, 2, 1, 3, 4]
+
+-- a level's exit state is a level's entry state: the block structure
+-- restored — zero tail included — and the scratch re-zeroed
+#guard (List.range 6).map (ord1Run.cell "off") = [0, 4, 5, 6, 7, 8]
+#guard (List.range 8).map (ord1Run.cell "tgt") = [1, 2, 3, 4, 0, 0, 0, 0]
+#guard (List.range 12).map (fun k => ord1Run.cell "tgt" (8 + k)) = List.replicate 12 0
+#guard (List.range 5).map (ord1Run.cell "elm") = List.replicate 5 0
+#guard (List.range 6).map (ord1Run.cell "bh") = List.replicate 6 0
+
 end Lax3Proofs.TgtWidenProbe

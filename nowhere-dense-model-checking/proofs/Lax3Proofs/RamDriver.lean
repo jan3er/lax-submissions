@@ -1680,6 +1680,34 @@ array has to be preceded by the fills that zero it. -/
 def elimRezeroCom : Com :=
   .seq (fillCom "elm" (.lit 0)) (fillUpto "bh" (.add (.var "n") (.lit 1)) (.lit 0))
 
+/-- **The scratch an augmentation round needs zeroed** (rebase F-c-5,
+session repair — reviewable, the same defect class as wave D4's A).
+`RamAugment.AugPre` asks for three arrays *zeroed* that nothing between
+the phase's first elimination and the fold re-zeroes: the fraternity
+build's accumulator `off` — which at the fold's entry holds the level's
+own block structure — and the engine's `elm`/`bh`, which the first
+elimination has just dirtied (`elm[w] = 1` at every extracted vertex).
+`augRelinkCom` re-zeroes `off` between rounds but neither of the other
+two, since the round's *inner* elimination dirties them again. So at
+`R ≥ 1` and `n ≥ 1` the landed fold body had **no run** — the round's
+inner `elimLoop` drops every flagged slot and reads `bh[n+1]` out of
+range, which in IMP+ is stuck, not defaulted — and `OrderImplementsR`
+was refuted rather than unproved. `TgtWidenProbe`'s R = 1 gate is the
+compiled record: the old body sticks on the K₁,₄ level state and the
+prepped one completes.
+
+The insertion is the minimal one, and it sits *inside* the fold body so
+that `foldRange (fun _ => augRoundCom W) 0 = .skip` — the `R = 0` text,
+its walk `RamDriverCompose.orderImplements₀` and every consumer above
+are byte-identical. -/
+def augPrepCom : Com :=
+  .seq (fillUpto "off" (.add (.var "n") (.lit 1)) (.lit 0)) elimRezeroCom
+
+/-- **One round of the fold**: the scratch re-zeroed, the round, the
+bookkeeping into the next round's input. -/
+def augRoundCom (W : ℕ) : Com :=
+  .seq augPrepCom (.seq RamAugment.augCom (augRelinkCom W))
+
 /-- **The ordering pass at depth `j`.** The block structure saved, one
 elimination to orient the arena, `R` augmentation rounds, the chain's
 last orientation symmetrized into `off`/`tgt`, the elimination scratch
@@ -1737,7 +1765,7 @@ def orderCom (R W j : ℕ) : Com :=
       (.seq RamElim.elimCom
         (.seq (copyUpto "ioff" "doff" (.add (.var "n") (.lit 1)))
           (.seq (copyUpto "itg" "dtg" (.lit W))
-            (.seq (foldRange (fun _ => .seq RamAugment.augCom (augRelinkCom W)) R)
+            (.seq (foldRange (fun _ => augRoundCom W) R)
               (.seq symCom
                 (.seq (fillCom "alv" (.lit 1))
                   (.seq elimRezeroCom

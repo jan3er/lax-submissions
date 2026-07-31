@@ -560,3 +560,95 @@ supersession pointer.
   item 6 (the cost) is closed. Probe family re-run green:
   `TgtWidenProbe` (K₁,₄ / `sym5*` / the new flip gate), `RamCover.Demo`,
   `RamAugment.Demo`, the padded-run differentials.
+
+- 2026-07-31 — **rebase F-c-5: `orderImplementsR` LANDED — the last
+  obligation before the headline theorem; the fold body was refuted and
+  repaired on the way.** Worktree `ndmc-rebase-p0`, on `03df23e`. Full
+  `lake build` green, `lax build --only proofs
+  nowhere-dense-model-checking` OK, no `sorry`, kernel-three, zero
+  consumer breakage (`driverRoot_decides_sentence`,
+  `driverRoot_decides_sentence_binj`, `levelAt_of_sigma`,
+  `orderImplements₀` and everything above byte-identical in statement).
+
+  **(A) The defect, compiled before any proof (refute-before-prove).**
+  The R = 1 probe the brief mandated — `orderCom 1 64 0` run end to end
+  on a `K₁,₄` level state — found the landed fold body **stuck**:
+  `RamAugment.AugPre` asks for `off`, `elm` and `bh` zeroed at every
+  round's entry, the phase's *first* elimination leaves `elm` all-ones
+  and `bh` dirty, `off` holds the level's structure until the first
+  relink, and `augRelinkCom` re-zeroes `off` but never `elm`/`bh` (the
+  round's inner elimination re-dirties them). Wave D4's defect A one
+  pass earlier: at `R ≥ 1`, `n ≥ 1` the obligation was refuted, not
+  unproved. `TgtWidenProbe`'s new R = 1 gate is the record: the old text
+  (written out as `orderComOld1`) sticks, the fold-entry state shows
+  `elm = [1,1,1,1,1]`, and the repaired text completes.
+  **The repair** (session repair, D4's precedent): `RamDriver.augPrepCom`
+  — `fillUpto "off"` + `elimRezeroCom`, the minimal three fills — inside
+  the new fold body `RamDriver.augRoundCom W`, so `foldRange _ 0 = skip`
+  keeps the `R = 0` text **byte-identical** and `orderImplements₀`
+  re-checks untouched. Two cost constants fell with it. `relinkCost`
+  repaired a second time, `100n+20W+120 → 140n+20W+170`, now the budget
+  for twelve passes (`prepCostSum + relinkCostSum = 134n+12W+163`;
+  `prep_relink_le`, with `#guard`s recording that F-c-4's constant
+  cannot pay for the prep). And **`orderPhaseCostR`'s round coefficient
+  was refuted as landed**: at `R ≥ 1` the symmetrization and the final
+  elimination charge at up to `W` slots (`2m ≤ ns` is an `R = 0` fact),
+  up to `650·W` beyond the fixed part's `60·W`, while the fold's own
+  component budgets consume the whole round term. Repaired with a
+  `650·W` surcharge on the coefficient (`… + R·(augCost + relinkCost +
+  650·W)`; same `R`-linear shape P3 consumes, `R = 0` reading
+  unchanged); the accounting `#guard` at the smallest widened shape
+  (`n=0, W=2, 2m=W, R=1`: components `26194` vs old budget `24980`) is
+  the record.
+
+  **(B) The theorem.** `RamDriverCompose.orderImplementsR {…} (hd :
+  LowDegreeVertices (masked G M) d) (hdens : ∀ D i, i ≤ R → IsAugChain →
+  Greedy → AugmentedDepthOneDensity D i D₁) (hWc : chainWidth n d D₁ R ≤
+  W) : OrderImplementsR B n R W cap mb ns j G O T M Gm C` — the
+  thirteen-step walk at general `R`. The fold is `fold_run_aux` over
+  `fold_step` with invariant `FoldInv`: machine side (Sized scratch,
+  re-zeroed accumulators/stamps, `ntg` word clause, `doff`/`dtg` =
+  the chain's last orientation) ∧ chain side (`IsAugChain` + greedy
+  clauses to `i`, `(D 0).InDegLE d₀`, `InCsr (D i) m' DO DT`, `m' ≤ W`,
+  and `i = 0 → m'+m' ≤ ns` — the clause that keeps the R = 0 cost at
+  `ns`). Per round: `augPrep_spec` (new), `RamAugment.augment_specW` off
+  `RamDriverAugment.implementsW`, `augRelink_spec` (new — the nine
+  passes walked as a Spec, F-c-4 only summed their costs); the chain
+  grows by the `if l = i+1` update, `AugPost`'s `AugStep` +
+  `GreedyFratRound`. Width thread: `greedy_chain_inDegLE` +
+  `budget_mono` + `augWidth_mono` + `chainWidth_eq_augWidth` (rfl); the
+  symmetrization fits by `arcs_le` + `2b ≤ (b+1)²`. Both `ElimPost`s are
+  now *kept*: the first is the chain's foot (`d₀ = ka`, minimality
+  against the arena, `ka ≤ d` via `hd`), the second — on the
+  symmetrized `(D R).toGraph` — its head (`k`, minimality), with
+  `masked_of_all_alive` collapsing the all-ones mask.
+  **L-10, and its repair.** `ordCom_spec`'s postcondition quantifies the
+  permutation away, and nothing ties the exported `π` to the final
+  elimination's rank — information-theoretically unrecoverable from its
+  statement (the ∃ hides the inversion). `ordCom_specData` is the landed
+  proof with the final weakening removed (the loop invariant already
+  carries `g (R v) = v`); `π := RamCover.rankPerm` at the kept data, so
+  `(π v : ℕ) = R₂ v` definitionally and the exported `OrderP` bundle's
+  `BackDegLE` is the final elimination's, transported across the two
+  rank reads by `arrOf` agreement.
+  Syntax at general `R`: `mem_wvars/warrs_orderCom` decompose into the
+  landed R = 0 sets ∨ the round's (`mem_*_foldRange_const`, write sets
+  W-independent by `rfl`), `noWrite_orderCom` by per-component `decide`.
+
+  **(C) The probes.** `TgtWidenProbe` R = 1 gate: old text stuck; new
+  text ok at R = 0/1/2 with the differential `kmax = 1 / 2 / 2` — the
+  machine's own chain augments `K₁,₄` to the double star (one leaf into
+  the centre, centre into three ⇒ three transitive links, no fraternal
+  edge; smaller than the hand-fed `sym5Final` K₅ and the honest
+  instance, being the phase's own run); order arrays `[1,0,2,3,4]` /
+  `[0,2,1,3,4]`; exit state = entry state (structure + zero tail
+  restored, `elm`/`bh` re-zeroed). All landed guards re-run green.
+
+  **B7's `hdeg` discharge, end to end.** `horder :=
+  orderImplementsR hd hdens hWc` replaces `orderImplements₀` at
+  `P := OrderP R G M`, cost `orderPhaseCostR n ns W R`; then with
+  `⟨c, hc⟩ := RamDriverRoot.exists_wreachDeg_of_orderP C hC cap R t ht
+  hrt δ hδ` and `Kmass := ⌈c·n^δ⌉₊`, the slot value discharges `hdeg`
+  via `RamDriverRoot.wreachDeg_of_orderP` — the conditional (per-`π`)
+  form `levelImplements`'s repaired `hmass` consumes. Slot #26 now has
+  a landed producer; all 30 slots do.
