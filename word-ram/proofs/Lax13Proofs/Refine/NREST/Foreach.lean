@@ -238,6 +238,17 @@ noncomputable def itToSortedListE (R : α → α → Prop) (S : Set α)
   spec (fun xs => xs.Nodup ∧ S = {x | x ∈ xs} ∧ xs.Pairwise R)
     (fun _ => toSortedListCost)
 
+/-- The placeholder returns exactly distinct enumerations of `S`, ordered
+by `R`, and admits precisely the budgets below its declared vector. -/
+@[simp] theorem inresT_itToSortedListE_iff (R : α → α → Prop) (S : Set α)
+    (toSortedListCost : ECost) (xs : List α) (t : ECost) :
+    inresT (itToSortedListE R S toSortedListCost) xs t ↔
+      (xs.Nodup ∧ S = {x | x ∈ xs} ∧ xs.Pairwise R) ∧ t ≤ toSortedListCost := by
+  simp only [itToSortedListE, inresT, spec, rest_le_rest_iff, single_le_iff]
+  by_cases hp : xs.Nodup ∧ S = {x | x ∈ xs} ∧ xs.Pairwise R
+  · simp [hp]
+  · simp [hp]
+
 /-- Source `LIST_FOREACH`, at vector cost. -/
 noncomputable def LIST_FOREACHE [Inhabited α] (Φ : Set α → σ → Prop)
     (toList : NRest (List α) ECost) (c : σ → Bool)

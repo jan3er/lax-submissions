@@ -3677,3 +3677,23 @@ and no new warnings (only the root replay's recorded warnings). Work stayed in m
 standing authorization.
 Next: P2.B — `list_set_rel`/sorted-list iteration refinement, the Autoref
 iteration rule set, and RECT-based nested for-loop combinators.
+
+## Session 28 — 2026-07-31 (tower expansion P2.B, Codex)
+
+Milestone: tower-expansion P2 complete; iteration-list refinement, Autoref
+rules, and nested for combinators are root-green. State:
+`Autoref/Foreach.lean` ports the distinct-list/set relation,
+`autoref_nfoldli`, source `LIST_FOREACH'`, and its currency-vector
+parametricity theorem. `itToSortedListE` now has an exact observable-result
+theorem: every result is a distinct enumeration of precisely the input set,
+is pairwise ordered by the requested relation, and respects its declared
+cost vector. A two-member sorted-list gate pins the relation discipline.
+`NREST/For.lean` provides the inclusive one-index recursion and the source's
+closed two-/three-index forms, proving them equal to nested `nfoldli` walks
+over `List.range (n + 1)`; a full 2×2×2 cube is the compiled shape gate.
+Ledger E13 records the closed-form rendering of the source's public
+lexicographic recursion. Root imports both modules. Concepts: 505 jobs; full
+proofs: 3,061 jobs; `lax build --only proofs word-ram` OK; zero sorry/admit
+and no new warnings (only recorded root replay diagnostics). Work stayed in
+main under Jan's standing authorization.
+Next: P3.A — currency normalization and cost-side-condition automation.

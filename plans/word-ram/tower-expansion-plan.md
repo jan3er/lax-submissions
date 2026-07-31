@@ -4,7 +4,7 @@ Rev 3, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0, P1, and P2.A complete, P2.B next.** This document is the contract:
+P0, P1, and P2 complete, P3.A next.** This document is the contract:
 implementing sessions follow it, deviations need an owner decision first.
 
 ## One-off note from one Codex supervisor to the next (non-contractual)
@@ -444,6 +444,21 @@ repair enters as a tower wave under this plan (the T1/T2 precedent).
    final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — P2.B COMPLETE; iteration-list/Autoref discipline and
+  nested for combinators green.** `Autoref/Foreach.lean` ports
+  `list_set_rel`, the `autoref_nfoldli` rule, source `LIST_FOREACH'` and its
+  vector parametricity rule. Observable `itToSortedListE` results are proved
+  to be distinct `listSetRel` enumerations of exactly the input set, retaining
+  the source ordering witness and the declared vector bound; the two-member
+  sorted-list gate is compiled. `NREST/For.lean` ports the one-, two-, and
+  three-index recursion combinators and proves their full traversals equal
+  one/two/three nested `nfoldli`s over `List.range (n + 1)`, with a cube-shape
+  gate. Ledger E13 records use of the source's own proved closed forms for the
+  multi-index definitions. The root imports both modules. Concepts build 505
+  jobs; full proofs root builds 3,061 jobs; `lax build --only proofs word-ram`
+  is green; zero sorry/admit and no new warnings. **Next: P3.A, currency
+  normalization and side-condition automation.**
 
 - **2026-07-31 — P2.A COMPLETE; currency-vector member iteration and
   compiled carrier-blindness green.** `NREST/Foreach.lean` adds the authored

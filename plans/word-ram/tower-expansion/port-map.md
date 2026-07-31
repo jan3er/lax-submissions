@@ -157,9 +157,9 @@ Acceptance stays as the plan wrote it (BfsQSynth re-derived signature-only
 | item | source (size) | deps | consumer | wave |
 |---|---|---|---|---|
 | currency-vector `nfoldli` + FOREACH family + their hnr/sepref rules — **authored, E5** | shape sources: AFP `Refine_Monadic/Refine_Foreach.thy` (81.5 KB, rule organization + invariant style); AFP `NREST/Refine_Foreach.thy` (15.4 KB, `enat` cost form); Sepreftime `Refine_Foreach.thy` (17.0 KB) + `Sepref_Foreach.thy` (34.0 KB — size-identical to the AFP no-cost copy); existing `Combinators.lean` FOREACH (ℕ∞). Landed: `NREST/Foreach.lean`, `Sepref/Foreach.lean`. | P1 (rules in signature form) | R1.6 member lists; arena walks | P2.A — landed |
-| iteration-list refinement: `list_set_rel`, `it_to_sorted_list` discipline | `Refine_Foreach.thy` §sorted-list + Collections `Iterator/` core: `Proper_Iterator` (9.4 KB), `It_to_It` (4.7 KB), `Idx_Iterator` (4.3 KB); `SetIterator`(+`Operations`) (39.1+38.3 KB) as reference, not text | P2.A | "iterate over exactly this set" as abstract op | P2.B |
-| Autoref rule set for iteration | `Refine_Foreach.thy` autoref setup + `Lib/Foldi.thy` (4.9 KB) | P2.A | autoref'd abstract programs | P2.B |
-| `Recursion_Combinators` (for-loops over RECT, nesting discipline) | Sepreftime `FloydWarshall/Recursion_Combinators.thy` (4.4 KB) | P1 | nested per-arena passes (order phase) | P2.B |
+| iteration-list refinement: `list_set_rel`, `it_to_sorted_list` discipline | `Refine_Foreach.thy` §sorted-list + Collections `Iterator/` core: `Proper_Iterator` (9.4 KB), `It_to_It` (4.7 KB), `Idx_Iterator` (4.3 KB); `SetIterator`(+`Operations`) (39.1+38.3 KB) as reference, not text. Landed: `Autoref/Foreach.lean`, `NREST/Foreach.lean` result discipline. | P2.A | "iterate over exactly this set" as abstract op | P2.B — landed |
+| Autoref rule set for iteration | `Refine_Foreach.thy` autoref setup + `Lib/Foldi.thy` (4.9 KB). Landed: `autoref_nfoldli`, `LIST_FOREACHPrimeE_param`, sorted-list gates in `Autoref/Foreach.lean`. | P2.A | autoref'd abstract programs | P2.B — landed |
+| `Recursion_Combinators` (for-loops over RECT, nesting discipline) | Sepreftime `FloydWarshall/Recursion_Combinators.thy` (4.4 KB). Landed: `NREST/For.lean`; ledger E13. | P1 | nested per-arena passes (order phase) | P2.B — landed |
 
 Acceptance as planned (arena-walk exemplar with compiled
 carrier-blindness probe).

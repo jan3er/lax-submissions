@@ -201,6 +201,22 @@ uses no caller-authored metaprogramming or direct FCOMP. Revisit if P5 finds a
 repeated pure-to-mop wrapper worth generating, or needs a source flag whose
 derived theorem cannot be expressed by the explicit command surface.
 
+### E13 — multi-index recursion combinators expose the source's closed forms
+
+**Status: accepted.** Sepreftime defines lexicographically recursive
+`for_rec2`/`for_rec3`, introduces private closed forms `for_rec2'`/`for_rec3'`,
+and proves the full square/cube calls equal two/three nested `nfoldli`s. Lean
+can encode the public equations with well-founded recursion, but that would
+add termination machinery which no campaign consumer observes.
+
+P2.B therefore exposes the source's proved closed forms directly as
+`forRec2`/`forRec3`, alongside the structurally recursive exact `forRec`, and
+proves the same full-traversal equalities. This is a representation delta,
+not a traversal or cost delta: endpoint order, inclusive range, monadic bind
+order, and the one/two/three nested-fold results are unchanged. Revisit if a
+consumer needs to unfold an intermediate public `for_rec2`/`for_rec3`
+recursive equation rather than use the full square/cube theorem.
+
 ## 4. Corrections that are not deviations
 
 These P0 discoveries change citations or scheduling without changing a
