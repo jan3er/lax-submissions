@@ -29,26 +29,39 @@ support named by a mask array — `{v | Alv v ≠ 0}`, which is
 `RamDriverCluster.markSet n Alv` unfolded, so the driver instantiates it
 by `rfl`.
 
-# The clause `CoverOut` does not carry (finding for B3/B4)
+# The clause `CoverOut` did not carry — and now does (B3 → F-c-3)
 
-Block injectivity is **not** derivable from `RamCover.CoverInv` /
-`CoverOut` as they stand. `CoverOut.block` fixes each block's *value
-set*; nothing in the invariant forbids a block from listing one vertex
-a hundred times, and the only length control it carries is
+Block injectivity was **not** derivable from `RamCover.CoverInv` /
+`CoverOut` as B6 found them. `CoverOut.block` fixes each block's *value
+set*; nothing in the invariant then forbade a block from listing one
+vertex a hundred times, and the only length control it carried was
 `CoverInv.ptr_le : xp ≤ c * n` — the trivial `n²`. The falsification
-block below compiles that: a block of three slots all holding vertex
-`0` satisfies every clause of the invariant that mentions the block and
-has `blockSize = 3` against `|cluster| = 1`.
+block below still compiles that reading: a block of three slots all
+holding vertex `0` satisfies every *other* clause of the invariant that
+mentions the block and has `blockSize = 3` against `|cluster| = 1`, so
+the hypothesis is load-bearing and cannot be dropped from the lemmas
+below.
 
-So injectivity is taken here as the named hypothesis `BlockInj`, and
-the missing clause is reported rather than added (the pass's files are
-another wave's). The tower-side twin is `CoverSynth.ReachedList`, whose
-*second* conjunct is exactly this — `∀ k k' < max tl 1, reach[k]! =
-reach[k']! → k = k'` — so the fact is true of the program and is
-already checked on every worked run there; what is missing is the
-clause's journey through `CoverInv.step` (one new hypothesis, on the
-new block only) into `CoverInv`/`CoverOut`. §6 of the report names the
-three lines.
+So injectivity was taken here as the named hypothesis `BlockInj` and
+the missing clause was reported rather than added (the pass's files
+were another wave's). **Wave B3 then added it**: `CoverInv.block_inj`
+travels through `CoverInv.step` — with strict monotonicity of the write
+pointer as its step argument — into `CoverOut.block_inj`, whose
+statement is `BlockInj n Xoff Xmem` clause for clause. The projection
+is `blockInj_of_coverOut` below, one field access, and it is what
+discharges the `hbinj` slot of
+`RamDriverRoot.driverRoot_decides_sentence`
+(`RamDriverRoot.blockInj_slot`). The tower-side twin is
+`CoverSynth.ReachedList`, whose *second* conjunct is the same fact —
+`∀ k k' < max tl 1, reach[k]! = reach[k']! → k = k'` — checked on every
+worked run there.
+
+The hypothesis is **kept** on the lemmas of this file rather than
+replaced by the projection: several of them (`blockSize_eq_ncard`,
+`mass_eq_sum_ncard`) are stated of block data that no `CoverOut` need
+accompany, and rewriting the signatures would break consumers for
+nothing. Callers who hold a `CoverOut` supply it by
+`blockInj_of_coverOut`.
 
 # Carrier mass versus arena mass
 
@@ -93,12 +106,27 @@ def coverFam (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ) (π : Equiv.Perm (Fi
     (u : Fin n) : Set (Fin n) :=
   {w : Fin n | u ∈ wreach (masked G A₀) π (2 * r) w}
 
-/-- **The clause `CoverOut` is missing**: no block lists a vertex
-twice. Hypothesis here, reported as a `CoverInv`/`CoverOut`
-strengthening — see the header. -/
+/-- **The clause `CoverOut` was missing**: no block lists a vertex
+twice. Named here as a hypothesis and reported as a `CoverInv`/
+`CoverOut` strengthening; wave B3 made the strengthening, so it is now
+a *consequence* — see `blockInj_of_coverOut` and the header. -/
 def BlockInj (n : ℕ) (Xoff Xmem : ℕ → ℕ) : Prop :=
   ∀ c < n, ∀ p q, Xoff c ≤ p → p < Xoff (c + 1) → Xoff c ≤ q → q < Xoff (c + 1) →
     Xmem p = Xmem q → p = q
+
+/-- **The projection** (rebase F-c-3). B6 designed `BlockInj` to be
+discharged from the cover pass once the pass carried the clause; B3
+made it carry it, and the two shapes came out identical, so the
+discharge is `CoverOut`'s own field. Every lemma of this file that
+takes both a `CoverOut` and a `BlockInj` is therefore callable with the
+second supplied from the first — which is exactly how the driver's
+`hbinj` slot is filled (`RamDriverRoot.blockInj_slot`).
+
+The hypothesis is not *removed* from those lemmas: `blockSize_eq_ncard`
+and `mass_eq_sum_ncard` are about block data, not about a pass, and the
+falsification block below is what says the clause is load-bearing. -/
+theorem blockInj_of_coverOut (h : CoverOut G A₀ π ord r m Xoff Xmem asg) :
+    BlockInj n Xoff Xmem := h.block_inj
 
 /-! ### The arena's offsets -/
 
@@ -313,7 +341,9 @@ section Falsification
 -- A three-slot block all of whose slots hold vertex `0`. Its value set
 -- is `{0}`, so it satisfies `CoverOut.block` against the singleton
 -- cluster, and every other clause of the invariant that mentions the
--- block (`mono`, `mem_lt`, `ptr_le`) as well.
+-- block (`mono`, `mem_lt`, `ptr_le`) as well — every clause except the
+-- one B3 added, which is the point: drop `BlockInj` from the lemmas
+-- below and this block refutes them.
 private def badXoff : ℕ → ℕ := fun c => if c = 0 then 0 else 3
 private def badXmem : ℕ → ℕ := fun _ => 0
 
@@ -321,8 +351,9 @@ private def badXmem : ℕ → ℕ := fun _ => 0
 #guard ((List.range 3).map badXmem).dedup.length = 1
 
 -- **Refuted**: without injectivity a block's size is *not* its
--- cluster's size — `CoverOut` as it stands does not carry the mass
--- equation, and `BlockInj` is a genuine new hypothesis.
+-- cluster's size — the mass equation does not follow from the other
+-- clauses, so `BlockInj` is a genuine clause and B3's strengthening of
+-- `CoverInv`/`CoverOut` was a real addition, not a restatement.
 #guard ¬ (blockSize badXoff 0 ≤ ((List.range 3).map badXmem).dedup.length)
 
 -- The edge case the other way: an empty block contributes nothing.

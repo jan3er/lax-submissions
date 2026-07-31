@@ -2213,7 +2213,44 @@ scalar of the decode no sub-program of the driver assigns.
 text allocates it at, with the accumulators, the flags and the stamps
 zeroed; `orderCom`'s re-zeroing tail is what puts the second half back,
 and `Lax3Proofs.RamElim.ElimPre`'s scratch width is what makes the
-first half statable at one `W` for calls of several slot counts. -/
+first half statable at one `W` for calls of several slot counts.
+
+**The `tgt` clause is still pinned at `ns`, and here is what it costs to
+move it** (rebase F-c-3 finding; the widened chain below it is landed —
+`RamCover.CoverPreW`/`CoverStateW`/`ImplementsW`/`cover_specW`,
+`RamDriverOrder.centreStep_specW`/`coverPass_specW`,
+`Refine.BfsBridge.bfsQCom_specW`, on top of `RamElim.ElimPreW` and
+`RamAugment.AugPreW`). The flip is `arrOf ns T → arrOf W T` here, plus
+`("gtg", ns) → ("gtg", W)` in `OrderMem` and a `W` parameter on
+`saveCsr`/`restoreCsr`. It is **blocked on data, not on walking**, and
+the blocker is one hypothesis:
+
+*The tower's `BfsQ.Shape` keeps its range clause over the whole physical
+target array* — `∀ j < tgt.length, tgt[j]! < n` — because
+`Ir.StateBound` is state-global and four ND-MC passes read the same
+clause at full width. F-a's ledger records this as the deliberate
+residual of the decoupling, and `Csr.widen` is stated at exactly it. So
+a level whose `tgt` is `W` wide owes `T j < n` at the padding slots —
+`RamCover.ImplementsW`'s `hpad`, which the cover pass is the only
+consumer of.
+
+That clause cannot simply be added here. At `n = 0` — which
+`WordBound` permits, and which the empty input word reaches — every
+`W > 0` makes `∀ j < W, T j < n` false, so `LevelPre` would become
+unsatisfiable and `RamDriverIO.decodeImplements` could not establish
+it. The satisfiable form is *zero* padding — `∀ j, ns ≤ j → j < W →
+T j = 0` — which yields `hpad` wherever the cover pass runs, since a
+centre turn carries `c < n`. Its price is a second reshape: `DecodeMem`
+becomes `(σ.arrs "tgt").length = W` with the tail zeroed, and the
+decode's walk must show its `ns` stores leave the tail alone. The tail
+then survives the level, because `saveCsr`/`restoreCsr` copy the whole
+`W` slots and every intermediate write to `tgt` is undone by the
+restore.
+
+So the flip is: this clause, `OrderMem`'s `gtg`, the two copy programs,
+the ~20 walks that destructure the clause, **and** the `DecodeMem`
+reshape with its walk. The last item is the one the F-c-2 map did not
+have, and it is why the flip did not land with the chain. -/
 def LevelPre (B n : ℕ) (cap mb : ℕ) (ns W : ℕ) (O T : ℕ → ℕ) (j : ℕ) (M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (σ : Env) : Prop :=
   σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧

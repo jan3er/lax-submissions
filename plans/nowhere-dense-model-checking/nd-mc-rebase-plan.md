@@ -392,3 +392,77 @@ supersession pointer.
   after the final elimination) with the `R = 0` re-discharge of
   `orderImplements₀` at the new text, and the `R*` fold. Both are
   unblocked, not merely unstarted — see the F-c report.
+- 2026-07-31 — **F-c-3 PARTIAL — the widened cover chain landed, both
+  bare slots addressed, the `LevelPre` flip BLOCKED ON DATA** (this
+  session; full `lake build` + root `lax build --only proofs` green,
+  kernel-three, no `sorry`, zero consumer breakage,
+  `driverRoot_decides_sentence` byte-identical). Three items.
+
+  **(A) Cover widening — steps 2–4 landed, step 5 blocked.** Additive
+  and green: `Refine.BfsBridge.csr_of_csrGraphW` + `bfsQCom_specW`;
+  `RamCover.CoverPreW`/`CoverStateW`/`ImplementsW`/`cover_specW`
+  (accessors restated once on `CoverStateW`; every pinned form is the
+  `nt = ns` instance on the nose, RamElim's precedent);
+  `RamDriverOrder.centreStep_specW`/`coverTurnImplementsW`/
+  `coverPass_specW`. Differential `#guard`s in `RamCover.Demo`: the
+  padded run `demoRunPad` — two slots written past the structure's six
+  — agrees with the exact run cell for cell at all four settings of the
+  worked example, and the two clocks differ, so the check has teeth;
+  plus a refutation that the padding hypothesis is not implied by
+  `CsrGraph`.
+  **L-8, the flip's blocker.** The widened relation needs `T j < n` at
+  the *padding* slots — F-a's documented residual, since `BfsQ.Shape`
+  keeps its range clause over the whole physical array (`Ir.StateBound`
+  is state-global, and four ND-MC passes read the same clause at full
+  width). That clause cannot be added to `LevelPre`: `n = 0` is
+  reachable (`WordBound` permits it) and makes `∀ j < W, T j < n` false
+  for every `W > 0`, so `LevelPre` would be unsatisfiable and
+  `RamDriverIO.decodeImplements` could not establish it. The
+  satisfiable form is a **zero-padded tail** — `∀ j, ns ≤ j → j < W →
+  T j = 0`, which yields the clause wherever a centre turn runs, since
+  a turn carries `c < n` — and its price is a reshape the F-c-2 map did
+  not have: `DecodeMem` becomes `length = W` with the tail zeroed, and
+  the decode's walk must show its `ns` stores leave the tail alone. The
+  tail then survives a level, because `saveCsr`/`restoreCsr` copy all
+  `W` slots. Full record at `RamDriver.LevelPre`'s docstring.
+
+  **(B) `orderImplementsR` — the interface landed, the walk not.**
+  `RamDriverCompose.OrderP` (the slot value: `∃ D d₀ k,
+  CoverDegree.AugChainData (masked G M) D π R d₀ k`), `relinkCost`,
+  `orderPhaseCostR n ns W R = orderPhaseCost n ns W + R · (augCost n W +
+  relinkCost n W)` with its `R = 0` and monotonicity readings, and
+  `OrderImplementsR` as a named `def`. The residual is itemized in that
+  section: the fold's chain-carrying induction (the family `D` is built
+  round by round out of `AugPost`'s existential, `isAugChain_succ` /
+  `greedyFratRound_succ` growing the two clauses), one `W` for every
+  round via `TgtCoupling.chainWidth_dominates`, the two `ElimPost`s
+  that steps (3) and (10) of `orderImplements₀` already produce and
+  discard, the syntax section at general `R`, and
+  `AugmentedDepthOneDensity` as an inherited hypothesis.
+  **L-9, and its repair.** The `P` slot F-c anchored was *dropped*:
+  `RamDriverCluster.levelImplements` destructured the phase's witness
+  away one line after it arrived, and its `hmass` slot had no place for
+  it — which left the root's `hdeg` asking for the cover degree at
+  **every** permutation, a hypothesis nothing can discharge, since
+  `CoverDegree.exists_cover_degree` is about the ordering of a chain's
+  last elimination. Repaired: `hmass` takes `P π ord` beside
+  `RamCover.OrdersBy`, `levelAt` supplies it with `_` at `R = 0` (no
+  statement above this moved), and `RamDriverRoot.wreachDeg_of_orderP`
+  / `exists_wreachDeg_of_orderP` are the proved step from the slot to
+  the coefficient.
+
+  **(C) `hbinj` closed.** `Refine.MassMath.blockInj_of_coverOut` is
+  `RamCover.CoverOut.block_inj`: B3's clause and B6's `BlockInj` came
+  out identical clause for clause, so the projection B6 designed is one
+  field access. `RamDriverRoot.blockInj_slot` states it at the slot's
+  own type and `driverRoot_decides_sentence_binj` is the plug check
+  (B8's discipline at a slot with no arithmetic in it). B6's stale
+  header and falsification prose corrected; the hypothesis is *kept* on
+  the mass lemmas — they are about block data, not about a pass — and
+  the `badXoff` control still shows it is load-bearing.
+
+  **B7's hypothesis table.** Of the 29 slots, 27 are input-word data,
+  parameter equations or cost side conditions and always had honest
+  producers; `hbinj` (#24) now has one; `hdeg` (#25) has a *named*
+  producer waiting on `OrderImplementsR` and nothing else. Probe family
+  (`TgtWidenProbe`, K₁,₄ / `sym5*`) re-run green.

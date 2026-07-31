@@ -53,6 +53,23 @@ No obligation `Prop` is a hypothesis. The chain, bottom up:
 the two `tgt` couplings of `RamAugment.AugPre` are still open. The
 augmentation round *itself* is proved — `RamDriverAugment.implements` is
 `AugAvail` here — so what `R > 0` costs is a coupling and not a walk.
+
+**The two data hypotheses, and their producers** (rebase F-c-3). Of the
+hypotheses above that are neither input-word data, parameter equations
+nor cost side conditions, exactly two were bare — carried because
+nothing produced them:
+
+| slot | producer |
+|------|----------|
+| `hbinj` | `blockInj_slot`, off `RamCover.CoverOut.block_inj` (B3) |
+| `hdeg` | `wreachDeg_of_orderP`, off the phase's `P` slot at `R = R*` |
+
+The first is closed here (`driverRoot_decides_sentence_binj`). The
+second is closed *modulo one obligation*: the step from the slot to the
+coefficient is proved, the threading through
+`RamDriverCluster.levelImplements` is done, and what is left is the
+`R > 0` phase walk `RamDriverCompose.OrderImplementsR`. See the two
+sections below.
 -/
 
 namespace Lax3Proofs.RamDriverRoot
@@ -329,7 +346,7 @@ theorem levelAt
     (fun _ _ => loopFrames)
     (fun j _ M _ _ =>
       (Refine.DeadSweep.sweepImplements (jd := j) hB).mono (hKd j (arenaSize n M)))
-    (fun M π ord Xoff Xmem asg cps mm cnum hordby hout hcomp =>
+    (fun M π ord Xoff Xmem asg cps mm cnum hordby _ hout hcomp =>
       Refine.ArenaBlock.mass_of_alive_compaction hordby hout
         (hbinj M π ord Xoff Xmem asg mm hout) (hdeg M π) hcomp)
     hKl
@@ -470,6 +487,119 @@ theorem levelAt_of_sigma
 
 end Plug
 
+/-! ### The `hbinj` slot, discharged (rebase F-c-3)
+
+B6 designed `Refine.MassMath.BlockInj` to be *projected* out of the
+cover pass's exit relation once the pass carried the clause, and in the
+meantime stated every mass lemma against it as a named hypothesis —
+which is how it reached this file's `hbinj`, one of the two slots B7's
+hypothesis table had no producer for. Wave B3 added the clause
+(`RamCover.CoverInv.block_inj`, threaded through `CoverInv.step` on
+strict monotonicity of the write pointer and read off by
+`CoverInv.out`), and its statement came out identical to `BlockInj`'s
+clause for clause, so the projection is one field access —
+`Refine.MassMath.blockInj_of_coverOut`.
+
+`blockInj_slot` is that projection *at the slot's type*, written out
+rather than inlined: the type below is `levelAt`'s and
+`driverRoot_decides_sentence`'s `hbinj` hypothesis verbatim, so
+supplying it is a type-check and not an argument. This is B8's
+stale-corollary discipline applied to a slot with no arithmetic in it —
+a producer compiles whether or not it still fits, and
+`driverRoot_decides_sentence_binj` below is where the fit is
+*witnessed*. -/
+
+section BlockInjSlot
+
+variable {n : ℕ}
+
+/-- **The cover pass's blocks list each vertex once**, at the exact
+shape the driver's `hbinj` slot asks for. Handed the exit relation of
+the cover pass at any mask, any ordering and any emitted mass, this is
+`RamCover.CoverOut.block_inj`. -/
+theorem blockInj_slot (G : SimpleGraph (Fin n)) (cap : ℕ) :
+    ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (mm : ℕ),
+      RamCover.CoverOut G M π ord cap mm Xoff Xmem asg →
+        Refine.MassMath.BlockInj n Xoff Xmem :=
+  fun _ _ _ _ _ _ _ h => Refine.MassMath.blockInj_of_coverOut h
+
+end BlockInjSlot
+
+/-! ### The `hdeg` slot, and where its producer has to come from (F-c-3)
+
+`hdeg` is the other of B7's two producerless hypotheses, and it is
+producerless for a *structural* reason, not for want of a wave: it asks
+for the cover-degree coefficient at **every** permutation of the
+carrier, and a cover's degree is a property of the ordering the phase
+built. No theorem of the campaign proves it for an arbitrary `π`, and
+none can — `CoverDegree.exists_cover_degree`'s conclusion is about the
+ordering of a chain's last elimination.
+
+The slot the fact belongs in is `RamDriver.OrderImplements`'s parametric
+`P`, anchored by F-c and instantiated by
+`RamDriverCompose.OrderP` at `R = R*`. Two things were needed to make
+that reach the coefficient, and both are done:
+
+* **the threading** — `RamDriverCluster.levelImplements` destructured
+  the phase's `P` witness away one line after it arrived; its `hmass`
+  slot now takes `P π ord` beside `RamCover.OrdersBy` (F-c-3). At
+  `R = 0`, `P` is `True` and `levelAt` supplies it with `_`, so nothing
+  above this file moved;
+* **the step** — `wreachDeg_of_orderP` below, which is
+  `CoverDegree.wreach_degree_of_data` read at the slot value.
+
+What is left is the phase walk itself
+(`RamDriverCompose.OrderImplementsR`, residual itemized there). Until it
+lands, `hdeg` stays a hypothesis of `driverRoot_decides_sentence` — but
+it is a hypothesis with a named producer waiting on one obligation,
+rather than one nothing can discharge. -/
+
+section DegSlot
+
+variable {n : ℕ}
+
+/-- **From the phase's ordering property to the cover-degree
+coefficient.** Handed a bound that holds of every `R`-round chain of the
+arena, the phase's own slot value delivers it at the ordering the phase
+built — which is the shape `RamDriverCluster.levelImplements`'s `hmass`
+consumes and `Refine.ArenaBlock.mass_of_alive_compaction` charges the
+level's turns against. -/
+theorem wreachDeg_of_orderP {cap R Kmass : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ}
+    (hchain : ∀ (D : ℕ → Lax3Proofs.Augmentation.Orientation n) (π : Equiv.Perm (Fin n))
+      (d₀ k : ℕ), CoverDegree.AugChainData (masked G M) D π R d₀ k →
+      ∀ v : Fin n, (Lax12.ColoringNumbers.wreach (masked G M) π (2 * cap) v).ncard ≤ Kmass)
+    {π : Equiv.Perm (Fin n)} {ord : ℕ → ℕ} (hP : RamDriverCompose.OrderP R G M π ord) :
+    ∀ v : Fin n, (Lax12.ColoringNumbers.wreach (masked G M) π (2 * cap) v).ncard ≤ Kmass := by
+  obtain ⟨D, d₀, k, hdata⟩ := hP
+  exact hchain D π d₀ k hdata
+
+open scoped SimpleGraph in
+/-- **The producer, end to end.** On a nowhere dense class, for every
+cover radius, round budget and `δ > 0` there is a constant such that
+*any* level whose arena embeds in a member of the class and whose
+ordering carries the `R*` phase's slot has cover degree
+`⌈c · n ^ δ⌉` — the driver's `Kmass`, at the ordering the phase
+produced and at no other.
+
+This is `CoverDegree.wreach_degree_of_data` with its bundle read off
+`RamDriverCompose.OrderP`; the arithmetic that turns the ceiling into
+the driver's cost parameter is P4's. -/
+theorem exists_wreachDeg_of_orderP (C : Lax12.GraphClasses.GraphClass)
+    (hC : Lax12.NowhereDenseClasses.NowhereDense C) (rc R t : ℕ)
+    (ht : 3 * t ≤ R) (hrt : 2 * rc ≤ 2 ^ t) (δ : ℝ) (hδ : 0 < δ) :
+    ∃ c : ℝ, ∀ (nn : ℕ) (Gn : SimpleGraph (Fin nn)), C nn Gn →
+      ∀ (m : ℕ) (G : SimpleGraph (Fin m)) (M : ℕ → ℕ), masked G M ⊑ Gn →
+        ∀ (π : Equiv.Perm (Fin m)) (ord : ℕ → ℕ), RamDriverCompose.OrderP R G M π ord →
+          ∀ v : Fin m,
+            (Lax12.ColoringNumbers.wreach (masked G M) π (2 * rc) v).ncard ≤
+              ⌈c * (m : ℝ) ^ δ⌉₊ := by
+  obtain ⟨c, hc⟩ := CoverDegree.wreach_degree_of_data C hC rc R t ht hrt δ hδ
+  refine ⟨c, fun nn Gn hGn m G M hsub π ord hP => ?_⟩
+  exact wreachDeg_of_orderP (fun D π' d₀ k hdata => hc nn Gn hGn m (masked G M) hsub D π'
+    d₀ k hdata) hP
+
+end DegSlot
+
 end Bridge
 
 /-! ### The theorem -/
@@ -554,6 +684,66 @@ theorem driverRoot_decides_sentence
         hKbase hKo hKc hKd hbinj hdeg hKl 0 (Nat.zero_le ℓ) M Gm C
       rwa [arenaSize_of_all_alive hall] at h)
     (fun _ _ _ => RamDriverIO.sentenceImplements hrank hcsr.csr hatoms hKsent)
+
+open Classical in
+/-- **The same, with `hbinj` supplied** (rebase F-c-3). The root
+theorem minus the block-injectivity slot, which
+`RamDriverRoot.blockInj_slot` fills out of `RamCover.CoverOut`'s own
+field. Nothing else moves: the program, the precondition, the
+postcondition and the cost are `driverRoot_decides_sentence`'s, and the
+remaining hypotheses are the same list in the same order.
+
+This is the plug check for that slot in B8's sense. A producer of the
+right *reading* type-checks on its own; what says it is the reading the
+driver still asks for is this application, and it would break the
+moment either side drifted. -/
+theorem driverRoot_decides_sentence_binj
+    -- the input word
+    (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
+    (hO : ∀ i ≤ n, O i = offset x i) (hT : ∀ i < ns, T i = target x i)
+    (hxB : ∀ v ∈ x, v < B) (hcsr : RamElim.CsrSimple G ns O T)
+    -- the parameters
+    (hrank : Lax3.FirstOrder.rank φ ≤ q_top) (hcap : cap = rhoMinus 0 q_top)
+    (hmb : mb = ℓ * (2 * cap + 1)) (hℓ : ℓ = N (2 * s + 2))
+    (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B) (hpow : 2 ^ sigL cap mb ℓ < B)
+    -- the mathematics of the campaign
+    (hQ : ∀ Pt : Set (Fin n), N (2 * s + 2) ≤ Pt.ncard →
+      ∃ S Bd : Set (Fin n), S.ncard ≤ s ∧ Bd ⊆ Pt \ S ∧ 2 * s + 2 ≤ Bd.ncard ∧
+        DistIndependent (deleteVerts G S) (2 * cap) Bd)
+    -- the value bounds and the costs
+    (hbnd : ∀ j < ℓ, ∀ β ∈ tablesAt q_top cap mb φ j,
+      ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
+        σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n ns σs.t ≤ Kb)
+    (hcostI : ∀ j < ℓ, ∀ β ∈ tablesAt q_top cap mb φ j,
+      Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki j)
+    (hKsc : ∀ j < ℓ, Ki j * (tablesAt q_top cap mb φ j).length + 1 ≤ Ksc j)
+    (hKmono : ∀ j, Monotone (Kl j))
+    (hKs : ∀ j < ℓ, ∀ t : ℕ,
+      turnCostSize n ns cap mb q_top j φ (Ksc j) t (Kl (j + 1) t) ≤ Ks j t)
+    (hKbase : ∀ m, RamDriverBot.baseCost q_top cap mb ℓ n φ ≤ Kl ℓ m)
+    (hKo : ∀ j m, RamDriverCompose.orderPhaseCost n ns W ≤ Ko j m)
+    (hKc : ∀ j m, RamDriverCompose.coverPhaseCost n ns ≤ Kc j m)
+    (hKd : ∀ j m, Refine.DeadSweep.sweepCost q_top cap mb j n φ ≤ Kd j m)
+    (hdeg : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (v : Fin n),
+      (Lax12.ColoringNumbers.wreach (RamBfs.masked G M) π (2 * cap) v).ncard ≤ Kmass)
+    (hKl : ∀ j < ℓ, ∀ m t : ℕ, t ≤ m → ∀ bs : ℕ → ℕ,
+      (∑ c ∈ Finset.range t, bs c) ≤ Kmass * (m + 1) →
+      Ko j m + (Kc j m + (Kd j m + ((∑ c ∈ Finset.range t, (Ks j (bs c) + 11)) + 6)))
+        ≤ Kl j m)
+    (hKdec : RamDriverIO.decodeCost n ns ≤ Kdec)
+    (hatoms : ∀ s ∈ (bcAtomsOf₀ q_top (Reduction.toDistFO (L := sigL cap mb 0) φ)).2,
+      s.r + 1 < B ∧ s.t < B ∧ RamDriverIO.atomCost n ns s.t ≤ Kb₀)
+    (hKsent : Kb₀ * (bcAtomsOf₀ q_top (Reduction.toDistFO (L := sigL cap mb 0) φ)).2.length + 1 +
+      (1 + (RamDriverIO.sentenceExpr q_top cap mb φ).size) ≤ Ksent) :
+    Spec B (fun σ => DecodeMem n ns σ ∧ LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
+        OrderMem B n ns W σ ∧ TablesSized q_top cap mb φ n σ ∧
+        BaseArrs B q_top cap mb ℓ φ σ ∧ σ.inp = x ∧ σ.out = [])
+      (driverRoot q_top cap mb 0 ℓ W φ)
+      (fun _ σ' => σ'.out = [if Lax3.FirstOrder.Sat G Fin.elim0 φ then 1 else 0])
+      (Kdec + (Kl 0 n + Ksent)) :=
+  driverRoot_decides_sentence hx hns hO hT hxB hcsr hrank hcap hmb hℓ hB hWB hpow hQ
+    hbnd hcostI hKsc hKmono hKs hKbase hKo hKc hKd (blockInj_slot G cap) hdeg hKl
+    hKdec hatoms hKsent
 
 end Main
 

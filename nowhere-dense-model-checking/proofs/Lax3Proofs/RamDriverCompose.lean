@@ -1819,5 +1819,119 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
   · rw [hrT.frame_var "m" (m_notMem_orderCom₀ W j)]; exact hmv
   · rw [f₁₃ _ (ordName_notMem_orderZeroCom j)]; exact hord₁₂
 
+/-! ### The `R*` phase: the statement, and what is left of it (rebase F-c-3)
+
+`orderImplements₀` is the phase at `R = 0`, where the fold is
+`Com.skip` and the parametric slot `P` is `True`. At `R = R*` the fold
+is the point of the phase, and what it produces is
+`Lax3Proofs.CoverDegree.AugChainData` — the six-clause bundle F-c-2
+anchored the slot on. This section writes that statement down: the slot
+value `OrderP`, the cost `orderPhaseCostR`, and the obligation
+`OrderImplementsR` naming both.
+
+**Why the statement is landed before the walk.** The bundle is the
+*only* producer the driver's cover-degree coefficient can have —
+`RamDriverRoot.wreachDeg_of_orderP` is that step, and it is proved —
+so the interface is what the two sides have to agree on, and it is
+cheaper to agree on it in Lean than in prose. `OrderImplementsR` is a
+`def`, not a `theorem`: nothing here claims the phase runs.
+
+**What the walk still owes**, in the order `orderImplements₀`'s
+thirteen steps are written:
+
+1. **Step (6), the fold.** `foldRange (fun _ => .seq RamAugment.augCom
+   (augRelinkCom W)) R` against an invariant carrying the chain built so
+   far — the family `D : ℕ → Orientation n` is *constructed* round by
+   round out of `RamAugment.AugPost`'s existential, so the induction
+   carries both the machine state and the chain, and `isAugChain_succ` /
+   `greedyFratRound_succ` are what grow the two chain clauses. The
+   memory side composes as `RamAugment`'s composition-surface note says:
+   `noff`/`ntg` at `n+1`/`W` become `doff`/`dtg` at the same lengths,
+   which is what `augRelinkCom` does.
+2. **The width.** One `W` must serve every round: that is
+   `TgtCoupling.chainWidth_dominates` (`budget_mono` +
+   `Augmentation.greedy_chain_inDegLE` inside it), at `W := chainWidth n
+   d₀ D₁ R`. It also dominates the level's own `ns`, which is the
+   clause the same lemma's first conjunct states.
+3. **The two ends.** `d₀` and its minimality are the *first*
+   elimination's `RamElim.ElimPost` — step (3), whose `ka` the `R = 0`
+   walk currently discards; `k` and its minimality are the *second*
+   elimination's, at the symmetrized graph — step (10), whose
+   `ElimPost` the `R = 0` walk also discards. Both are already produced
+   by the steps that are written; they are dropped, not missing.
+4. **The syntax section.** `wvars_orderCom₀` and friends are stated at
+   `R = 0`; at general `R` the write sets are `foldRange`'s, so each
+   needs an induction on `R`. Mechanical, and none of it is
+   mathematics.
+5. **`AugmentedDepthOneDensity`**, which `greedy_chain_inDegLE` takes as
+   a hypothesis and `Augmentation`'s own header records as the one
+   statement of that file that is not proved. It enters the phase as a
+   hypothesis and leaves through `P` — it is not this walk's debt. -/
+
+section Rstar
+
+variable {n : ℕ}
+
+/-- **The `R*` phase's ordering property**, the value its parametric
+slot `P` takes: the ordering `π` the phase built carries an `R`-round
+greedy augmentation chain of the depth's arena, with the two elimination
+bounds at its ends. This is `CoverDegree.AugChainData` with the
+orientation family and the two bounds existentially quantified — the
+phase knows they exist, the consumer needs nothing else.
+
+The order array is not mentioned: the chain is a statement about the
+permutation, and `RamCover.OrdersBy` is what ties the array to it. -/
+def OrderP (R : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ)
+    (π : Equiv.Perm (Fin n)) (_ord : ℕ → ℕ) : Prop :=
+  ∃ (D : ℕ → Lax3Proofs.Augmentation.Orientation n) (d₀ k : ℕ),
+    CoverDegree.AugChainData (masked G M) D π R d₀ k
+
+/-- At `R = 0` the bundle degenerates to the two elimination bounds of
+the level's own arena (`CoverDegree.augChainData_zero`) and says nothing
+about augmentation — which is why `orderImplements₀` instantiates the
+slot at `True` and not at this. -/
+theorem orderP_zero {R : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ}
+    {π : Equiv.Perm (Fin n)} {ord : ℕ → ℕ} (h : OrderP R G M π ord) :
+    ∃ (D : ℕ → Lax3Proofs.Augmentation.Orientation n) (d₀ k : ℕ),
+      CoverDegree.AugChainData (masked G M) D π R d₀ k := h
+
+/-- **The bookkeeping between two rounds, charged.** `augRelinkCom` is
+two copies and seven flat fills; the constant is generous in the
+campaign's usual way and is **not yet walked** — the fold that consumes
+it is item 1 of the residual above. -/
+def relinkCost (n W : ℕ) : ℕ := 100 * n + 20 * W + 100
+
+/-- **The cost of the ordering phase at `R` rounds**: the `R = 0`
+phase, plus `R` times a round and its relink. The shape is what P3's
+`CostRecurrence` consumes — linear in `R` with the round's own cost as
+the coefficient — and the `R = 0` instance is `orderPhaseCost` on the
+nose. -/
+def orderPhaseCostR (n ns W R : ℕ) : ℕ :=
+  orderPhaseCost n ns W + R * (RamAugment.augCost n W + relinkCost n W)
+
+/-- The `R = 0` reading of the `R`-round cost is the landed one. -/
+theorem orderPhaseCostR_zero (n ns W : ℕ) :
+    orderPhaseCostR n ns W 0 = orderPhaseCost n ns W := by
+  simp [orderPhaseCostR]
+
+/-- The budget grows with the round count, which is what a phase
+obligation stated at `R` and consumed at `R' ≥ R` needs. -/
+theorem orderPhaseCostR_mono (n ns W : ℕ) {R R' : ℕ} (h : R ≤ R') :
+    orderPhaseCostR n ns W R ≤ orderPhaseCostR n ns W R' := by
+  simp only [orderPhaseCostR]
+  exact Nat.add_le_add_left (Nat.mul_le_mul_right _ h) _
+
+/-- **The ordering phase at `R` rounds** — the obligation the fold has
+to discharge, named. `RamDriver.OrderImplements` at the slot value
+`OrderP` and the cost `orderPhaseCostR`; every other component is the
+`R = 0` obligation's, unchanged.
+
+This is a `def`. What is missing is its proof, and the residual is
+itemized in this section's header. -/
+def OrderImplementsR (B n R W cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
+    (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) : Prop :=
+  OrderImplements B n R W cap mb ns j G O T M Gm C (OrderP R G M) (orderPhaseCostR n ns W R)
+
+end Rstar
 
 end Lax3Proofs.RamDriverCompose

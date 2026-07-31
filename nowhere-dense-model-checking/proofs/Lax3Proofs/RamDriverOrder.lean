@@ -12,7 +12,8 @@ open Lax3.ColoredGraphs Lax3.NeighborhoodCovers
 open Lax12.ColoringNumbers Lax12.UniformQuasiWideness
 open Lax3Proofs.WalkDistance Lax3Proofs.CoverConstruction
 open Lax3Proofs.RamBfs (masked masked_def CsrGraph)
-open Lax3Proofs.RamCover (CoverInv CoverState CoverOut CoverPre CoverPost OrdersBy)
+open Lax3Proofs.RamCover (CoverInv CoverState CoverStateW CoverOut CoverPre CoverPreW
+  CoverPost OrdersBy)
 open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
 
 variable {n ns : ℕ} {G : SimpleGraph (Fin n)} {A₀ O T ord : ℕ → ℕ}
@@ -445,13 +446,25 @@ theorem emitLoop_wvars (r : ℕ) : (RamCover.emitLoop r).wvars = ["z", "dz", "xp
 
 theorem emitLoop_warrs (r : ℕ) : (RamCover.emitLoop r).warrs = ["xmem", "asg"] := rfl
 
-/-- **One centre.** The source load, the search, the emission scan, the
-kill, and the two commands that close the block. -/
-theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n π ord)
-    (hB : n * n + ns + 2 * r + 2 < B) :
-    Spec B (fun σ => CoverState B G A₀ π ns O T ord r σ ∧ σ.vars "c" < n)
+/-- **One centre, at a target array materialized wider than the block
+structure occupies** (rebase F-c-3). The source load, the search, the
+emission scan, the kill, and the two commands that close the block —
+the same five, at `RamCover.CoverStateW`.
+
+The width reaches exactly two lines of the walk: the search enters
+through `Refine.BfsBridge.bfsQCom_specW` instead of its pinned
+instance, and the `tgt` clause is carried across the search and the
+emission scan (`b9`, `c4`) as the opaque frame it always was. Nothing
+addressed moves — the search scans rows, and a row ends at an offset —
+so the cost is still read at the slot count `ns`.
+
+`centreStep_spec` is this at `nt = ns`. -/
+theorem centreStep_specW {B nt : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n π ord)
+    (hB : n * n + ns + 2 * r + 2 < B) (hnt : ns ≤ nt)
+    (hpad : ∀ j, ns ≤ j → j < nt → T j < n) :
+    Spec B (fun σ => CoverStateW B G A₀ π ns nt O T ord r σ ∧ σ.vars "c" < n)
       (RamCover.centreStep r)
-      (fun σ σ' => CoverState B G A₀ π ns O T ord r σ' ∧ σ'.vars "c" = σ.vars "c" + 1)
+      (fun σ σ' => CoverStateW B G A₀ π ns nt O T ord r σ' ∧ σ'.vars "c" = σ.vars "c" + 1)
       (RamCover.centreCost n ns) := by
   have hnnB : n * n < B := by omega
   have hnB : n < B := lt_of_le_of_lt (RamDriver.le_mul_self n) hnnB
@@ -476,8 +489,9 @@ theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n 
   set σ₁ := σ.setVar "src" (ord (σ.vars "c")) with hσ₁
   -- the search
   obtain ⟨σ₂, hrun₂, ⟨D, hdistD, hDspec⟩, hfv₂, hfa₂, -, -⟩ :=
-    ((Refine.BfsBridge.bfsQCom_spec (G := G) (M := M) (ns := ns) (O := O) (T := T)
-      (s := ord (σ.vars "c")) (d := 2 * r) hcsr hv hnB hnsB hrB hMB).frame).run (σ := σ₁)
+    ((Refine.BfsBridge.bfsQCom_specW (G := G) (M := M) (ns := ns) (nt := nt) (O := O) (T := T)
+      (s := ord (σ.vars "c")) (d := 2 * r) hcsr hv hnB hnsB hrB hMB hnt hpad).frame).run
+      (σ := σ₁)
       ⟨by simp [hσ₁, hn], by simp [hσ₁], by simp [hσ₁, hoff], by simp [hσ₁, htgt],
         by simp [hσ₁, halv], ⟨gd, by simp [hσ₁, hdist]⟩, ⟨gq, by simp [hσ₁, hq]⟩,
         by simpa [hσ₁] using (hW.run h1).2.1, by simpa [hσ₁] using (hW.run h1).2.2⟩
@@ -500,7 +514,7 @@ theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n 
     rw [hfa₂ "alv" (by rw [bfsQCom_warrs]; decide), hσ₁]; simpa using halv
   have b8 : σ₂.arrs "off" = arrOf (n + 1) O := by
     rw [hfa₂ "off" (by rw [bfsQCom_warrs]; decide), hσ₁]; simpa using hoff
-  have b9 : σ₂.arrs "tgt" = arrOf ns T := by
+  have b9 : σ₂.arrs "tgt" = arrOf nt T := by
     rw [hfa₂ "tgt" (by rw [bfsQCom_warrs]; decide), hσ₁]; simpa using htgt
   have b10 : σ₂.arrs "ord" = arrOf n ord := by
     rw [hfa₂ "ord" (by rw [bfsQCom_warrs]; decide), hσ₁]; simpa using hordarr
@@ -529,7 +543,7 @@ theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n 
     rw [hfa₃ "alv" (by rw [emitLoop_warrs]; decide)]; exact b7
   have c3 : σ₃.arrs "off" = arrOf (n + 1) O := by
     rw [hfa₃ "off" (by rw [emitLoop_warrs]; decide)]; exact b8
-  have c4 : σ₃.arrs "tgt" = arrOf ns T := by
+  have c4 : σ₃.arrs "tgt" = arrOf nt T := by
     rw [hfa₃ "tgt" (by rw [emitLoop_warrs]; decide)]; exact b9
   have c5 : σ₃.arrs "ord" = arrOf n ord := by
     rw [hfa₃ "ord" (by rw [emitLoop_warrs]; decide)]; exact b10
@@ -654,11 +668,28 @@ establishes them at entry from its own `hA` and two hypotheses on
 `RamDriver.LevelMem`'s own conjuncts. `CoverWords` survives above only
 as the shorthand this walk carries its three clauses in. -/
 
+/-- **One centre, at the pinned width.** The widened walk at `nt = ns`,
+where the padding hypothesis is vacuous. -/
+theorem centreStep_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n π ord)
+    (hB : n * n + ns + 2 * r + 2 < B) :
+    Spec B (fun σ => CoverState B G A₀ π ns O T ord r σ ∧ σ.vars "c" < n)
+      (RamCover.centreStep r)
+      (fun σ σ' => CoverState B G A₀ π ns O T ord r σ' ∧ σ'.vars "c" = σ.vars "c" + 1)
+      (RamCover.centreCost n ns) :=
+  centreStep_specW (nt := ns) hcsr hord hB le_rfl (fun _ h₁ h₂ => absurd h₁ (by omega))
+
+/-- **The single-turn walk of the cover pass at a widened target array,
+discharged** (rebase F-c-3): `RamCover.ImplementsW` itself, with no
+clause left over. -/
+theorem coverTurnImplementsW (B n ns nt : ℕ) (G : SimpleGraph (Fin n)) (A₀ O T ord : ℕ → ℕ)
+    (π : Equiv.Perm (Fin n)) (r : ℕ) : RamCover.ImplementsW B n ns nt G A₀ O T ord π r :=
+  fun hcsr hord hB _ hnt hpad => centreStep_specW hcsr hord hB hnt hpad
+
 /-- **The single-turn walk of the cover pass, discharged**: this is
 `RamCover.Implements` itself, with no clause left over. -/
 theorem coverTurnImplements (B n ns : ℕ) (G : SimpleGraph (Fin n)) (A₀ O T ord : ℕ → ℕ)
     (π : Equiv.Perm (Fin n)) (r : ℕ) : RamCover.Implements B n ns G A₀ O T ord π r :=
-  fun hcsr hord hB _ => centreStep_spec hcsr hord hB
+  RamCover.implements_of_implementsW (coverTurnImplementsW B n ns ns G A₀ O T ord π r)
 
 /-! ### The whole pass
 
@@ -675,6 +706,21 @@ theorem coverPass_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n �
         (∀ v ∈ σ.arrs "q", v < B))
       (RamCover.coverCom r) (CoverPost G A₀ π ord r) (RamCover.coverCost n ns) :=
   RamCover.cover_spec (coverTurnImplements B n ns G A₀ O T ord π r) hcsr hord hB hA
+
+/-- **The same pass at a widened target array** (rebase F-c-3). The one
+call surface a level whose `tgt` array is allocated at the ordering
+phase's width needs: the level's own block structure occupies `ns`
+slots of an array of `nt ≥ ns`, and the pass is unchanged — same
+program, same cost, same `RamCover.CoverPost`, which does not mention
+the target array at all. -/
+theorem coverPass_specW {B nt : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n π ord)
+    (hB : n * n + ns + 2 * r + 2 < B) (hA : ∀ z < n, A₀ z < B) (hnt : ns ≤ nt)
+    (hpad : ∀ j, ns ≤ j → j < nt → T j < n) :
+    Spec B (fun σ => CoverPreW n ns nt O T A₀ ord σ ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
+        (∀ v ∈ σ.arrs "q", v < B))
+      (RamCover.coverCom r) (CoverPost G A₀ π ord r) (RamCover.coverCost n ns) :=
+  RamCover.cover_specW (coverTurnImplementsW B n ns nt G A₀ O T ord π r) hcsr hord hB hA
+    hnt hpad
 
 /-! ### A scan against an arbitrary bound
 

@@ -1129,7 +1129,17 @@ neither is about the program:
 
 * `hmass`, the mass mathematics — that the compacted loop takes at most
   `arenaSize n M` turns, and that the turns' blocks sum to at most
-  `Kmass · (arenaSize n M + 1)`. `Refine.ArenaBlock.mass_of_alive_compaction`
+  `Kmass · (arenaSize n M + 1)`. **Rebase F-c-3:** it is handed the
+  ordering-property slot `P π ord` beside `RamCover.OrdersBy`, because
+  the coefficient `Kmass` *is* the cover's degree and a cover's degree
+  is a property of the ordering the phase built, not of every ordering.
+  At `R = 0`, `P` is `fun _ _ => True` and the clause costs its supplier
+  nothing; at `R = R*` it is `CoverDegree.AugChainData`, and
+  `RamDriverRoot.wreachDeg_of_orderP` is the step from the slot to the
+  degree. Before this the phase's `P` witness was destructured away one
+  line after it arrived (`horder`'s postcondition), which left the
+  root's `hdeg` slot asking for a bound at *every* permutation — a
+  hypothesis with no possible producer. `Refine.ArenaBlock.mass_of_alive_compaction`
   is that pair, compiled, from wave B4's `Refine.MassAlive.aliveMass_le`
   plus **one clause `RamDriver.compactCom` does not yet establish**: that
   the listed centres are alive. It is threaded parametrically here
@@ -1199,7 +1209,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
     (hsweep : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
       SweepImplements B q_top cap mb ns W ℓ j φ G O T M Gm C (Kd j (arenaSize n M)))
     (hmass : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg cps : ℕ → ℕ)
-        (mm cnum : ℕ), RamCover.OrdersBy n π ord →
+        (mm cnum : ℕ), RamCover.OrdersBy n π ord → P π ord →
       RamCover.CoverOut G M π ord cap mm Xoff Xmem asg → Compacted n cnum mm M ord Xoff cps →
       cnum ≤ arenaSize n M ∧
         (∑ k ∈ Finset.range cnum, blockSize Xoff (cps k)) ≤ Kmass * (arenaSize n M + 1))
@@ -1238,7 +1248,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
       refine Spec.of_exists fun σ hσ => ?_
       rw [driverAt_succ q_top cap mb R ℓ W φ hjl]
       -- the ordering pass
-      obtain ⟨σ₁, hr₁, hlev₁, hout₁, hctr₁, hgam₁, π, ord, hord₁, hordby, -⟩ :=
+      obtain ⟨σ₁, hr₁, hlev₁, hout₁, hctr₁, hgam₁, π, ord, hord₁, hordby, hordP⟩ :=
         (horder j hjl M Gm C hB hcsr hWB helim haug).run hσ.1
       have htsz₁ : TablesSized q_top cap mb φ n σ₁ := hσ.2.1.run hr₁
       have hbarr₁ : BaseArrs B q_top cap mb ℓ φ σ₁ := hσ.2.2.1.run hr₁
@@ -1429,7 +1439,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
       -- cluster arena, so their sizes sum to at most its mass; the mass mathematics
       -- turns that into the coefficient the level condition consumes.
       obtain ⟨hturns, hbs⟩ :=
-        hmass M π ord Xoff Xmem asg cps mm cnum hordby hheld₂.2.2.2.2.2.2.2 hcomp₂
+        hmass M π ord Xoff Xmem asg cps mm cnum hordby hordP hheld₂.2.2.2.2.2.2.2 hcomp₂
       have hsum : (∑ kk ∈ Finset.range cnum, (Ks j (blockSize Xoff (cps kk)) + 7 + 4)) =
           ∑ kk ∈ Finset.range cnum, (Ks j (blockSize Xoff (cps kk)) + 11) :=
         Finset.sum_congr rfl fun _ _ => by omega

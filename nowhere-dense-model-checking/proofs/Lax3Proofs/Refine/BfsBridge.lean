@@ -119,34 +119,63 @@ theorem wd_iff_withinDist {k : ℕ} {u v : Fin n} :
 
 /-! ### P1/B-b — the block structure -/
 
-/-- **The block structure, as the tower reads it.** `RamBfs.CsrGraph`'s
-five clauses, restated on the lists the arrays actually hold. -/
-theorem csr_of_csrGraph (hcsr : RamBfs.CsrGraph G ns O T) :
-    BfsQ.Csr n ns G (arrOf (n + 1) O) (arrOf ns T) (arrOf n M) := by
+/-- **The block structure, as the tower reads it, at a target array
+materialized wider than the structure occupies** (rebase F-c-3). The
+slot count `ns` is the last offset; `nt` is the physical width of the
+array the caller allocated, and `ns ≤ nt` is all that relates them —
+`BfsQ.Csr` was decoupled at exactly that by F-a (`tlen`), so nothing
+here is a re-proof of the relation.
+
+**The padding hypothesis is F-a's own residual, and it is not
+removable.** `BfsQ.Shape`'s range clause is `∀ j < tgt.length,
+tgt[j]! < n` — over the *whole* array, not the occupied prefix —
+because the tower's state bound `Ir.StateBound` is state-global and
+four ND-MC passes read the same clause at full width (F-a's ledger note
+records this deliberately). So a widened caller owes `T j < n` at the
+padding slots too, which is `hpad`. Everything the *run* addresses is
+still below `ns`: `hrow` is unchanged, and the adjacency clause is
+proved from `hcsr` alone.
+
+`csr_of_csrGraph` is the case `nt = ns`, where `hpad` is vacuous. -/
+theorem csr_of_csrGraphW {nt : ℕ} (hcsr : RamBfs.CsrGraph G ns O T) (hnt : ns ≤ nt)
+    (hpad : ∀ j, ns ≤ j → j < nt → T j < n) :
+    BfsQ.Csr n ns G (arrOf (n + 1) O) (arrOf nt T) (arrOf n M) := by
   have hO : ∀ i < n + 1, (arrOf (n + 1) O)[i]! = O i := fun i hi => getElem!_arrOf O hi
-  have hT : ∀ j < ns, (arrOf ns T)[j]! = T j := fun j hj => getElem!_arrOf T hj
-  -- a slot named by an adjacency lies inside the target array
+  have hT : ∀ j < nt, (arrOf nt T)[j]! = T j := fun j hj => getElem!_arrOf T hj
+  -- a slot named by an adjacency lies inside the *occupied prefix*
   have hrow : ∀ u : Fin n, O ((u : ℕ) + 1) ≤ ns := by
     intro u
     have := hcsr.mono' (show (u : ℕ) + 1 ≤ n from u.isLt) (le_refl n)
     rw [hcsr.last] at this
     exact this
-  refine ⟨⟨by simp, by simp, fun i hi => ?_, ?_, fun j hj => ?_⟩, by simp, ?_, fun u v => ?_⟩
+  refine ⟨⟨by simp, by simp, fun i hi => ?_, ?_, fun j hj => ?_⟩, ?_, ?_, fun u v => ?_⟩
   · rw [hO i (by omega), hO (i + 1) (by omega)]
     exact hcsr.mono i hi
   · rw [hO n (by omega), hcsr.last, length_arrOf]
+    exact hnt
   · rw [length_arrOf] at hj
     rw [hT j hj]
-    exact hcsr.target_lt j hj
+    rcases Nat.lt_or_ge j ns with h | h
+    · exact hcsr.target_lt j h
+    · exact hpad j h hj
+  · rw [length_arrOf]; exact hnt
   · rw [hO n (by omega), hcsr.last]
   · rw [hO (u : ℕ) (by omega), hO ((u : ℕ) + 1) (by omega)]
     constructor
     · intro h
       obtain ⟨j, h₁, h₂, h₃⟩ := (hcsr.adj_iff u v).1 h
-      exact ⟨j, h₁, h₂, by rw [hT j (lt_of_lt_of_le h₂ (hrow u))]; exact h₃⟩
+      exact ⟨j, h₁, h₂,
+        by rw [hT j (lt_of_lt_of_le (lt_of_lt_of_le h₂ (hrow u)) hnt)]; exact h₃⟩
     · rintro ⟨j, h₁, h₂, h₃⟩
       refine (hcsr.adj_iff u v).2 ⟨j, h₁, h₂, ?_⟩
-      rwa [hT j (lt_of_lt_of_le h₂ (hrow u))] at h₃
+      rwa [hT j (lt_of_lt_of_le (lt_of_lt_of_le h₂ (hrow u)) hnt)] at h₃
+
+/-- **The block structure, as the tower reads it.** `RamBfs.CsrGraph`'s
+five clauses, restated on the lists the arrays actually hold — the
+widened relation at the pinned width, where the padding is empty. -/
+theorem csr_of_csrGraph (hcsr : RamBfs.CsrGraph G ns O T) :
+    BfsQ.Csr n ns G (arrOf (n + 1) O) (arrOf ns T) (arrOf n M) :=
+  csr_of_csrGraphW hcsr le_rfl (fun _ h₁ h₂ => absurd h₁ (by omega))
 
 /-! ### P1/B-c — the pinned entry store -/
 
@@ -226,16 +255,18 @@ the two word clauses of P1/B-d added to the precondition. Everything
 else — the vocabulary of the pre, the shape of the post, the arena, the
 threshold direction — is the baseline's, verbatim. -/
 
-/-- **The tower's search, in the driver stack's shape.** Handed a block
-structure for `G`, a mask, a source and two scratch arrays of the right
-length whose entries are words, `bfsQCom d` leaves in `dist` a function
-that decides, at every threshold up to the cap, the distance bound of
-the arena — `G` with the mask's dead vertices isolated. -/
-theorem bfsQCom_spec {B : ℕ} (hcsr : RamBfs.CsrGraph G ns O T) (hs : s < n) (hnB : n < B)
-    (hnsB : ns < B) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B) :
+/-- **The tower's search, in the driver stack's shape, at a widened
+target array** (rebase F-c-3). `bfsQCom_spec` with the `tgt` clause
+stated at the allocation width `nt` rather than at the slot count `ns`;
+`hnt` and `hpad` are `csr_of_csrGraphW`'s two, and nothing else moves —
+the cost is still read at `ns`, since the search scans only the
+occupied prefix. `bfsQCom_spec` is this at `nt = ns`. -/
+theorem bfsQCom_specW {B nt : ℕ} (hcsr : RamBfs.CsrGraph G ns O T) (hs : s < n) (hnB : n < B)
+    (hnsB : ns < B) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B) (hnt : ns ≤ nt)
+    (hpad : ∀ j, ns ≤ j → j < nt → T j < n) :
     Spec B
       (fun σ => σ.vars "n" = n ∧ σ.vars "src" = s ∧
-        σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+        σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf nt T ∧
         σ.arrs "alv" = arrOf n M ∧ (∃ g, σ.arrs "dist" = arrOf n g) ∧
         (∃ g, σ.arrs "q" = arrOf n g) ∧
         (∀ w ∈ σ.arrs "dist", w < B) ∧ (∀ w ∈ σ.arrs "q", w < B))
@@ -256,8 +287,8 @@ theorem bfsQCom_spec {B : ℕ} (hcsr : RamBfs.CsrGraph G ns O T) (hs : s < n) (h
   -- the synthesized program
   obtain ⟨σ₂, hrun₂, D, hD, hDlen, hDspec⟩ :=
     (BfsQSynth.bfsQ_spec (n := n) (ns := ns) (d := d) (B := B) (src := s) (G := G)
-      (off := arrOf (n + 1) O) (tgt := arrOf ns T) (alv := arrOf n M)
-      (csr_of_csrGraph (M := M) hcsr) hs ⟨hnB, hnsB, hdB⟩ (mem_arrOf_lt hMB)).run
+      (off := arrOf (n + 1) O) (tgt := arrOf nt T) (alv := arrOf n M)
+      (csr_of_csrGraphW (M := M) hcsr hnt hpad) hs ⟨hnB, hnsB, hdB⟩ (mem_arrOf_lt hMB)).run
       (σ := σ₁)
       ⟨hn₁, hsrc₁, e₁, e₂, e₃, e₄, e₅, e₆, e₇, e₈, e₉, e₁₀, e₁₁, e₁₂, e₁₃, e₁₄, e₁₅, e₁₆,
         by rw [harr, hoff], by rw [harr, htgt], by rw [harr, halv],
@@ -271,11 +302,40 @@ theorem bfsQCom_spec {B : ℕ} (hcsr : RamBfs.CsrGraph G ns O T) (hs : s < n) (h
     rw [getElem_arrOf, getElem!_pos D i (by omega)]
   · exact (hDspec v k hk).trans wd_iff_withinDist
 
+/-- **The tower's search, in the driver stack's shape.** Handed a block
+structure for `G`, a mask, a source and two scratch arrays of the right
+length whose entries are words, `bfsQCom d` leaves in `dist` a function
+that decides, at every threshold up to the cap, the distance bound of
+the arena — `G` with the mask's dead vertices isolated.
+
+This is the widened statement at `nt = ns`, on the nose, so the pinned
+export is a hypothesis instance and not a second walk. -/
+theorem bfsQCom_spec {B : ℕ} (hcsr : RamBfs.CsrGraph G ns O T) (hs : s < n) (hnB : n < B)
+    (hnsB : ns < B) (hdB : d + 1 < B) (hMB : ∀ z < n, M z < B) :
+    Spec B
+      (fun σ => σ.vars "n" = n ∧ σ.vars "src" = s ∧
+        σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf ns T ∧
+        σ.arrs "alv" = arrOf n M ∧ (∃ g, σ.arrs "dist" = arrOf n g) ∧
+        (∃ g, σ.arrs "q" = arrOf n g) ∧
+        (∀ w ∈ σ.arrs "dist", w < B) ∧ (∀ w ∈ σ.arrs "q", w < B))
+      (bfsQCom d)
+      (fun _ σ' => ∃ D, σ'.arrs "dist" = arrOf n D ∧
+        ∀ (v : Fin n) (k : ℕ), k ≤ d →
+          (D (v : ℕ) ≤ k ↔ WithinDist (RamBfs.masked G M) k ⟨s, hs⟩ v))
+      (bfsQCost n ns) :=
+  bfsQCom_specW hcsr hs hnB hnsB hdB hMB le_rfl (fun _ h₁ h₂ => absurd h₁ (by omega))
+
 /-- info: 'Lax3Proofs.Refine.BfsBridge.bfsQCom_spec' depends on axioms: [propext,
 Classical.choice,
 Quot.sound] -/
 #guard_msgs in
 #print axioms bfsQCom_spec
+
+/-- info: 'Lax3Proofs.Refine.BfsBridge.bfsQCom_specW' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms bfsQCom_specW
 
 /-! ### Refutation
 

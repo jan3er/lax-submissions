@@ -851,6 +851,38 @@ def CoverPre (n ns : ℕ) (O T A₀ ord : ℕ → ℕ) (σ : Env) : Prop :=
   (∃ g, σ.arrs "asg" = arrOf n g) ∧
   (∃ g, σ.arrs "xoff" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "xmem" = arrOf (n * n) g)
 
+/-- **The same surface with the target array widened** (rebase F-c-3):
+the block structure's targets are materialized at a caller-chosen width
+`nt`, the call's slot count `ns` being only a lower bound.
+`RamElim.ElimPreW` is the precedent and the reason is the same one — a
+caller that runs several passes on graphs it materializes itself
+allocates `tgt` once and cannot re-allocate it, an IMP+ run being unable
+to change the length of an array. Everything this pass *addresses* is
+still below `O n = ns`: the search scans rows, and a row ends at an
+offset.
+
+The slot count is carried as a parameter and constrains no clause here
+— it is `ImplementsW` that asks `ns ≤ nt` — so that a caller reads the
+two widths of one surface off one parameter list. `CoverPre` is the
+case `nt = ns`, clause for clause. -/
+def CoverPreW (n _ns nt : ℕ) (O T A₀ ord : ℕ → ℕ) (σ : Env) : Prop :=
+  σ.vars "n" = n ∧
+  σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf nt T ∧
+  σ.arrs "alv" = arrOf n A₀ ∧ σ.arrs "ord" = arrOf n ord ∧
+  (∃ g, σ.arrs "dist" = arrOf n g) ∧ (∃ g, σ.arrs "q" = arrOf n g) ∧
+  (∃ g, σ.arrs "asg" = arrOf n g) ∧
+  (∃ g, σ.arrs "xoff" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "xmem" = arrOf (n * n) g)
+
+/-- The pinned surface is the widened one at `nt = ns` — on the nose,
+which is what makes the widening a hypothesis generalization and not a
+second pass. -/
+theorem coverPreW_of_coverPre {σ : Env} (h : CoverPre n ns O T A₀ ord σ) :
+    CoverPreW n ns ns O T A₀ ord σ := h
+
+/-- And back. -/
+theorem coverPre_of_coverPreW {σ : Env} (h : CoverPreW n ns ns O T A₀ ord σ) :
+    CoverPre n ns O T A₀ ord σ := h
+
 /-- **The state the loop runs against**: the invariant of the pass,
 carried by the four arrays it writes, with the arrays it only reads
 frozen and the two scratch arrays of the search at their lengths. The
@@ -883,6 +915,31 @@ def CoverState (B : ℕ) {n : ℕ} (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ
     (∀ v ∈ σ.arrs "q", v < B) ∧
     CoverInv G A₀ π ord r (σ.vars "c") (σ.vars "xp") Xoff Xmem asg M
 
+/-- **The same loop state at the widened target array** (rebase F-c-3),
+`CoverPreW`'s clause for `CoverPre`'s. The slot count is a parameter and
+constrains no clause; `CoverState` is the case `nt = ns`, clause for
+clause, and every accessor below is stated once, on this one. -/
+def CoverStateW (B : ℕ) {n : ℕ} (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ) (π : Equiv.Perm (Fin n))
+    (_ns nt : ℕ) (O T ord : ℕ → ℕ) (r : ℕ) (σ : Env) : Prop :=
+  ∃ Xoff Xmem asg M : ℕ → ℕ,
+    σ.vars "n" = n ∧
+    σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf nt T ∧
+    σ.arrs "ord" = arrOf n ord ∧ σ.arrs "alv" = arrOf n M ∧
+    (∃ g, σ.arrs "dist" = arrOf n g) ∧ (∃ g, σ.arrs "q" = arrOf n g) ∧
+    σ.arrs "asg" = arrOf n asg ∧
+    σ.arrs "xoff" = arrOf (n + 1) Xoff ∧ σ.arrs "xmem" = arrOf (n * n) Xmem ∧
+    (∀ v ∈ σ.arrs "alv", v < B) ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
+    (∀ v ∈ σ.arrs "q", v < B) ∧
+    CoverInv G A₀ π ord r (σ.vars "c") (σ.vars "xp") Xoff Xmem asg M
+
+/-- The pinned state is the widened one at `nt = ns`. -/
+theorem coverStateW_of_coverState {B : ℕ} {σ : Env}
+    (h : CoverState B G A₀ π ns O T ord r σ) : CoverStateW B G A₀ π ns ns O T ord r σ := h
+
+/-- And back. -/
+theorem coverState_of_coverStateW {B : ℕ} {σ : Env}
+    (h : CoverStateW B G A₀ π ns ns O T ord r σ) : CoverState B G A₀ π ns O T ord r σ := h
+
 /-- **What the pass leaves**: the cluster arena in compressed-row form,
 the assignment array, and the two facts that make the pair a
 neighborhood cover — each block is a weak-`2r`-reachability fibre, and
@@ -894,46 +951,66 @@ def CoverPost {n : ℕ} (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ) (π : Equ
     σ'.arrs "asg" = arrOf n asg ∧ σ'.vars "xp" = m ∧ m ≤ n * n ∧
     CoverOut G A₀ π ord r m Xoff Xmem asg
 
-theorem CoverState.n_eq {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
+theorem CoverStateW.n_eq {B nt : ℕ} {σ : Env} (h : CoverStateW B G A₀ π ns nt O T ord r σ) :
     σ.vars "n" = n := by
   obtain ⟨-, -, -, -, hn, -⟩ := h
   exact hn
 
-theorem CoverState.c_le {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
+theorem CoverStateW.c_le {B nt : ℕ} {σ : Env} (h : CoverStateW B G A₀ π ns nt O T ord r σ) :
     σ.vars "c" ≤ n := by
   obtain ⟨Xoff, Xmem, asg, M, -, -, -, -, -, -, -, -, -, -, -, -, -, hI⟩ := h
   exact hI.pos_le
 
 /-- The mask's cells are words, which is what the search's own `hMB`
 asks of the arena a turn runs against. -/
-theorem CoverState.alv_lt {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
+theorem CoverStateW.alv_lt {B nt : ℕ} {σ : Env} (h : CoverStateW B G A₀ π ns nt O T ord r σ) :
     ∀ v ∈ σ.arrs "alv", v < B := by
   obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, halv, -⟩ := h
   exact halv
 
 /-- And so are the distance array's, which the emission scan reads at
 every vertex. -/
-theorem CoverState.dist_lt {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
+theorem CoverStateW.dist_lt {B nt : ℕ} {σ : Env} (h : CoverStateW B G A₀ π ns nt O T ord r σ) :
     ∀ v ∈ σ.arrs "dist", v < B := by
   obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, hd, -⟩ := h
   exact hd
 
 /-- And so are the search's other scratch array's, which the tower
 export asks of the state it starts in (ledger P1/B-d). -/
-theorem CoverState.q_lt {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
+theorem CoverStateW.q_lt {B nt : ℕ} {σ : Env} (h : CoverStateW B G A₀ π ns nt O T ord r σ) :
     ∀ v ∈ σ.arrs "q", v < B := by
   obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, -, hq, -⟩ := h
   exact hq
 
+theorem CoverState.n_eq {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
+    σ.vars "n" = n := CoverStateW.n_eq (ns := ns) (nt := ns) h
+
+theorem CoverState.c_le {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
+    σ.vars "c" ≤ n := CoverStateW.c_le (ns := ns) (nt := ns) h
+
+theorem CoverState.alv_lt {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
+    ∀ v ∈ σ.arrs "alv", v < B := CoverStateW.alv_lt (ns := ns) (nt := ns) h
+
+theorem CoverState.dist_lt {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
+    ∀ v ∈ σ.arrs "dist", v < B := CoverStateW.dist_lt (ns := ns) (nt := ns) h
+
+theorem CoverState.q_lt {B : ℕ} {σ : Env} (h : CoverState B G A₀ π ns O T ord r σ) :
+    ∀ v ∈ σ.arrs "q", v < B := CoverStateW.q_lt (ns := ns) (nt := ns) h
+
 /-- **The specification comes off the invariant.** Nothing in this
 proof knows about the program: it is `CoverInv.out`, read once, at the
-state the loop exits in. -/
-theorem coverPost_of_state {B : ℕ} (hord : OrdersBy n π ord) {σ σ' : Env}
-    (h : CoverState B G A₀ π ns O T ord r σ') (hc : σ'.vars "c" = n) :
+state the loop exits in — and it never mentions the target array, so
+the widening does not reach it. -/
+theorem coverPost_of_stateW {B nt : ℕ} (hord : OrdersBy n π ord) {σ σ' : Env}
+    (h : CoverStateW B G A₀ π ns nt O T ord r σ') (hc : σ'.vars "c" = n) :
     CoverPost G A₀ π ord r σ σ' := by
   obtain ⟨Xoff, Xmem, asg, M, -, -, -, -, -, -, -, hasg, hxoff, hxmem, -, -, -, hI⟩ := h
   rw [hc] at hI
   exact ⟨Xoff, Xmem, asg, σ'.vars "xp", hxoff, hxmem, hasg, rfl, hI.ptr_le, hI.out hord⟩
+
+theorem coverPost_of_state {B : ℕ} (hord : OrdersBy n π ord) {σ σ' : Env}
+    (h : CoverState B G A₀ π ns O T ord r σ') (hc : σ'.vars "c" = n) :
+    CoverPost G A₀ π ord r σ σ' := coverPost_of_stateW (ns := ns) (nt := ns) hord h hc
 
 /-- The cost of one centre: one search over the block structure and one
 flat scan of the vertices. -/
@@ -970,6 +1047,31 @@ def Implements (B n ns : ℕ) (G : SimpleGraph (Fin n)) (A₀ O T ord : ℕ → 
       (fun σ σ' => CoverState B G A₀ π ns O T ord r σ' ∧ σ'.vars "c" = σ.vars "c" + 1)
       (centreCost n ns)
 
+/-- **The same obligation at the widened target array** (rebase F-c-3).
+Two hypotheses join the four: `hnt : ns ≤ nt`, and the padding clause
+`hpad` — every slot of the array above the structure's own holds a
+vertex. `hpad` is **not** an artefact of this file: it is the residual
+of the tower's F-a decoupling, whose `BfsQ.Shape` keeps its range
+clause over the whole physical array because `Ir.StateBound` is
+state-global (`Refine.BfsBridge.csr_of_csrGraphW` carries the note).
+The pass reads the target array only through the search, so this is the
+only place the padding is seen.
+
+`Implements` is the case `nt = ns`, where `hpad` is vacuous. -/
+def ImplementsW (B n ns nt : ℕ) (G : SimpleGraph (Fin n)) (A₀ O T ord : ℕ → ℕ)
+    (π : Equiv.Perm (Fin n)) (r : ℕ) : Prop :=
+  RamBfs.CsrGraph G ns O T → OrdersBy n π ord → n * n + ns + 2 * r + 2 < B →
+    (∀ z < n, A₀ z < B) → ns ≤ nt → (∀ j, ns ≤ j → j < nt → T j < n) →
+    Spec B (fun σ => CoverStateW B G A₀ π ns nt O T ord r σ ∧ σ.vars "c" < n) (centreStep r)
+      (fun σ σ' => CoverStateW B G A₀ π ns nt O T ord r σ' ∧ σ'.vars "c" = σ.vars "c" + 1)
+      (centreCost n ns)
+
+/-- The pinned obligation is the widened one at `nt = ns` — the walk is
+written once, at `ImplementsW`, and read off here. -/
+theorem implements_of_implementsW {B : ℕ} (h : ImplementsW B n ns ns G A₀ O T ord π r) :
+    Implements B n ns G A₀ O T ord π r :=
+  fun hcsr hord hB hA => h hcsr hord hB hA le_rfl (fun _ h₁ h₂ => absurd h₁ (by omega))
+
 /-- **The cover pass of Grohe–Kreutzer–Siebertz §6.** Handed a block
 structure for `G`, an ambient mask, and the order array of an ordering
 `π`, `coverCom r` leaves in `xoff`/`xmem` the fibres of weak
@@ -983,16 +1085,22 @@ degree, is the ordering's own weak reachability bound, which
 # Proof strategy
 
 The loop is `Spec.forRangeZero` over the positions of the order, run
-against `CoverState`; `CoverInv.init` is what the three commands before
-it establish, `Implements` is one turn, and `CoverInv.out` — through
-`coverPost_of_state` — is what the exit `c = n` gives. The fill that
+against `CoverStateW`; `CoverInv.init` is what the three commands before
+it establish, `ImplementsW` is one turn, and `CoverInv.out` — through
+`coverPost_of_stateW` — is what the exit `c = n` gives. The fill that
 clears the assignments is the kit's array pass with the sentinel `n` as
 its cell function, and the two commands that open the cluster arena are
-walked in place. -/
-theorem cover_spec {B : ℕ} (h : Implements B n ns G A₀ O T ord π r)
+walked in place.
+
+**Rebase F-c-3: the walk is written at the widened width.** Nothing in
+it reads the target array — the search does, and it enters through the
+turn obligation — so `nt` travels from the precondition to the loop
+state and nowhere else. `cover_spec` is this at `nt = ns`. -/
+theorem cover_specW {B nt : ℕ} (h : ImplementsW B n ns nt G A₀ O T ord π r)
     (hcsr : RamBfs.CsrGraph G ns O T) (hord : OrdersBy n π ord)
-    (hB : n * n + ns + 2 * r + 2 < B) (hA : ∀ z < n, A₀ z < B) :
-    Spec B (fun σ => CoverPre n ns O T A₀ ord σ ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
+    (hB : n * n + ns + 2 * r + 2 < B) (hA : ∀ z < n, A₀ z < B) (hnt : ns ≤ nt)
+    (hpad : ∀ j, ns ≤ j → j < nt → T j < n) :
+    Spec B (fun σ => CoverPreW n ns nt O T A₀ ord σ ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
         (∀ v ∈ σ.arrs "q", v < B))
       (coverCom r) (CoverPost G A₀ π ord r)
       (coverCost n ns) := by
@@ -1031,7 +1139,7 @@ theorem cover_spec {B : ℕ} (h : Implements B n ns G A₀ O T ord π r)
     Run.store (evalB_lit (by omega)) (evalB_lit (by omega))
       (by rw [hxoff₂, length_arrOf]; omega)
   -- the three commands before the loop are exactly `CoverInv.init`
-  have hstart : CoverState B G A₀ π ns O T ord r
+  have hstart : CoverStateW B G A₀ π ns nt O T ord r
       (((σ₁.setVar "xp" 0).setArr "xoff" 0 0).setVar "c" 0) := by
     obtain ⟨gd, hgd⟩ := hdist
     obtain ⟨gq, hgq⟩ := hq
@@ -1062,8 +1170,9 @@ theorem cover_spec {B : ℕ} (h : Implements B n ns G A₀ O T ord π r)
     exact CoverInv.init (fun _ _ => rfl) (upd_self gx 0 0) hg₁
   -- the loop, against the invariant of the pass
   obtain ⟨σ₄, hrun₄, hst, hcn⟩ :=
-    (Spec.forRangeZero (B := B) "c" "n" (CoverState B G A₀ π ns O T ord r) n (centreCost n ns)
-      hnB (fun _ hτ => hτ.c_le) (fun _ hτ => hτ.n_eq) (h hcsr hord hB hA)).run
+    (Spec.forRangeZero (B := B) "c" "n" (CoverStateW B G A₀ π ns nt O T ord r) n
+      (centreCost n ns) hnB (fun _ hτ => CoverStateW.c_le hτ) (fun _ hτ => CoverStateW.n_eq hτ)
+      (h hcsr hord hB hA hnt hpad)).run
       (σ := (σ₁.setVar "xp" 0).setArr "xoff" 0 0) hstart
   have hcost : (10 + (Expr.var "n").size) * n + 6 +
       ((1 + (Expr.lit 0).size) + ((1 + (Expr.lit 0).size + (Expr.lit 0).size) +
@@ -1075,7 +1184,20 @@ theorem cover_spec {B : ℕ} (h : Implements B n ns G A₀ O T ord π r)
     have e₃ : 50 * n * ns = 50 * (n * ns) := by ring
     omega
   exact ⟨σ₄, _, (hrun₁.seq (hrun₂.seq (hrun₃.seq hrun₄))).mono hcost, le_rfl,
-    coverPost_of_state hord hst hcn⟩
+    coverPost_of_stateW hord hst hcn⟩
+
+/-- **The cover pass of Grohe–Kreutzer–Siebertz §6, at the pinned
+width.** The widened walk at `nt = ns`, where the padding hypothesis is
+vacuous — the frozen export, byte for byte what it was. -/
+theorem cover_spec {B : ℕ} (h : Implements B n ns G A₀ O T ord π r)
+    (hcsr : RamBfs.CsrGraph G ns O T) (hord : OrdersBy n π ord)
+    (hB : n * n + ns + 2 * r + 2 < B) (hA : ∀ z < n, A₀ z < B) :
+    Spec B (fun σ => CoverPre n ns O T A₀ ord σ ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
+        (∀ v ∈ σ.arrs "q", v < B))
+      (coverCom r) (CoverPost G A₀ π ord r)
+      (coverCost n ns) :=
+  cover_specW (nt := ns) (fun hc ho hb ha _ _ => h hc ho hb ha) hcsr hord hB hA le_rfl
+    (fun _ h₁ h₂ => absurd h₁ (by omega))
 
 /-! ### The worked example
 
@@ -1210,6 +1332,74 @@ def demoRun (a2 r : ℕ) : Option (List ℕ × ℕ) :=
 -- three of the four path vertices then claim
 #guard demoRun 1 2 =
   some ([0, 4, 7, 9, 10, 11, 0, 1, 2, 3, 1, 2, 3, 2, 3, 3, 0, 0, 0, 1, 4], 6201)
+
+/-! ### The widening, differentially (rebase F-c-3)
+
+`cover_specW` claims that materializing the target array wider than the
+block structure occupies changes nothing the pass computes. That is a
+claim about *runs*, so it is checked on runs: the same graph, the same
+ordering, the same radii — and two more slots written past the
+structure's six, holding vertices the structure never names.
+
+The check is the F-a pattern: the padded run's answers are compared to
+the exact run's cell by cell, at all four settings of the worked
+example. Only the clock moves, by the two extra stores. -/
+
+/-- The demo's targets, in an array materialized two slots wider: the
+padding names vertices `0` and `4`, which is `csr_of_csrGraphW`'s
+`hpad`. -/
+def demoTgtPad : Com :=
+  .seq demoTgt (.seq (.store "tgt" (.lit 6) (.lit 0)) (.store "tgt" (.lit 7) (.lit 4)))
+
+/-- The same setup at the widened array. -/
+def demoSetupPad (a2 : ℕ) : Com :=
+  .seq (.assign "n" (.lit 5))
+    (.seq demoOff (.seq demoTgtPad (.seq (demoAlv a2) demoOrd)))
+
+def demoWatchedPad (a2 r : ℕ) : Com :=
+  .seq (demoSetupPad a2) (.seq (coverCom r) demoReport)
+
+def demoProgPad (a2 r : ℕ) : Lax13.Ram.Program :=
+  Lax13Proofs.Compile.compileProgram demoLayout (demoWatchedPad a2 r)
+
+theorem demoWatchedPad_ok (a2 r : ℕ) :
+    Lax13Proofs.Compile.Com.Ok demoLayout (demoWatchedPad a2 r) := by
+  simp [demoWatchedPad, demoSetupPad, demoOff, demoTgtPad, demoTgt, demoAlv, demoOrd,
+    demoReport, coverCom, initAsg, centreStep, emitLoop, emitSlot,
+    Refine.BfsBridge.bfsQCom, Refine.BfsBridge.bfsSetup,
+    Lax13Proofs.Refine.BfsQSynth.bfsQSynth_impl, Fill.put, demoLayout,
+    Lax13Proofs.Compile.Com.Ok, Lax13Proofs.Compile.Cond.Ok,
+    Lax13Proofs.Compile.condExpr, Lax13Proofs.Compile.Expr.Ok]
+
+def demoRunPad (a2 r : ℕ) : Option (List ℕ × ℕ) :=
+  runOut 16 400000 (demoProgPad a2 r) (Lax13.Ram.initState []) 0
+
+-- **The widening is invisible**: padded and exact agree on every
+-- reported cell, at every setting of the worked example.
+#guard (demoRunPad 1 1).map Prod.fst = (demoRun 1 1).map Prod.fst
+#guard (demoRunPad 0 1).map Prod.fst = (demoRun 0 1).map Prod.fst
+#guard (demoRunPad 1 0).map Prod.fst = (demoRun 1 0).map Prod.fst
+#guard (demoRunPad 1 2).map Prod.fst = (demoRun 1 2).map Prod.fst
+
+-- … and the check has teeth: the two runs are not the same run, they
+-- only compute the same thing. The padded one pays for its two stores.
+#guard (demoRunPad 1 1).map Prod.snd ≠ (demoRun 1 1).map Prod.snd
+
+/-! **Refuted: the padding hypothesis is not redundant.** `hpad` is not
+implied by the block structure — `RamBfs.CsrGraph G ns O T` constrains
+`T` only below the slot count `ns = 6`, so a target function agreeing
+with the demo's there and holding a non-vertex above it satisfies every
+clause of `CsrGraph` and none of `hpad`. That is why
+`csr_of_csrGraphW` asks for it separately, and it is F-a's own residual
+(`BfsQ.Shape`'s range clause runs over the whole physical array). -/
+
+private def demoT : ℕ → ℕ := fun j => [1, 0, 2, 1, 3, 2].getD j 9
+
+-- below the slot count it is the structure's own target array …
+#guard (List.range 6).all fun j => demoT j < 5
+-- … and above it there is nothing to say, so `hpad` is a real
+-- hypothesis and not a consequence
+#guard ! ((List.range 8).all fun j => demoT j < 5)
 
 end Demo
 
