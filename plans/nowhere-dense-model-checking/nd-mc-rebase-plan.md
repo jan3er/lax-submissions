@@ -377,6 +377,45 @@ on main; every commit green, kernel-three, lax-audit-clean):
 
 ## Progress log
 
+- 2026-07-31 — **G-road session (continuation; Jan: full plan-rework
+  authority + "more fable for the harder parts")**. Rev 3 landed
+  (e5e0f91): G1 re-scoped, compiled-costs-both-directions standing
+  rule, sweep-first B7 re-run, budget honesty; model allocation
+  pinned (7c63a23). Waves, all green, per-wave ledgers in the commit
+  messages: **G1a/G1b** (Opus, 23dd151 + 6e6335d) — dedup guard
+  COMPLETE, `decodeImplementsD`, `CsrSimple` at the C0 boundary,
+  cost validated+tightened `31n+50ns+29`; finding #1 repaired.
+  **G2-design** (Fable, 7cb1b40) — arena-weight interface compiled
+  both directions (existence probe `g2_exists` clears the budgets
+  where the floor lost); slot audit found TWO MORE carrier sources
+  (coverPhaseCost's own 12n², the hbnd→hKsc per-turn chain) and
+  three capital-list corrections. **E5** (Opus, 8267f4c) —
+  `MassWeight.lean`: weighted descend/mass at the unweighted
+  coefficient, `arenaWeight_root = n+ns` (CsrSimple — G1 interlock),
+  size-only budgets compiled-refuted. **E1** (Opus, fb213e7) —
+  W-free uniform text (`driverRoot q_top cap mb R ℓ φ`), the C0
+  ∃p-before-∀n constraint closed by signature; `"lw"` scalar;
+  `widthCom` producer landed unspliced (B7 seam). **E2** (Fable,
+  a2be151) — `chainWidthE` (n·n term dead, floor route compiled
+  dead), capacity re-discharged degree-aware (doc §3(a) prose
+  corrected in-wave), symPass tail export, live-width gates.
+  **E2b** (Fable, 18b9166) — live-prefix copies end-to-end with a
+  compiled clock differential (the 2112-tick gap IS the four
+  copies' walk), `OrderMem` bounds pair, `OrderImplementsRL`; one
+  frozen Dedup hypothesis repaired+flagged (refutable under the
+  pair). **E3a** (Opus, ce02174) — block-driven cover leaves;
+  findings: 12n² is an accounting loss not a program delta, `n ≤ m`
+  carrier floor forces the alive-prefix copy, NO carrier-free BFS
+  existed (capital table wrong). **E4a** (Opus, 8e51cd3) —
+  touched-only BFS, queue-is-the-trail, measured carrier-free
+  (1076 steps at carriers 100 AND 400). **E4b** (Opus, 01210a0) —
+  active-set scatter, `scatBlockK` carrier-free, landed
+  postcondition verbatim, `atomCostA` bridge family; BfsBlock
+  export gaps found (E6 folds in). **E6** (Fable) launched: slots
+  1–5 re-thread + plug check; then B7 re-run (sweep first), P5.
+  Root theorems byte-identical kernel-three at every commit; full
+  build 3539 jobs, lax OK at 01210a0.
+
 - 2026-07-30 — Rev 1 written; direction approved in conversation
   (rebase-now over ship-then-rederive; no eval gates). No code yet.
 - 2026-07-30 — Rev 2: FLAGs 1–3 resolved at defaults under
