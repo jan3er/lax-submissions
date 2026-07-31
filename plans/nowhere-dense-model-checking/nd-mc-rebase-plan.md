@@ -258,7 +258,14 @@ integration wave; ledger entry required there.
 
 Sequencing: **G1 ∥ G2-design** (disjoint files, same worktree; lake
 lock contention is the template's wait-and-retry) → **G2 execution**
-→ **B7 re-run** → **P5**. The fallback clause stands: a structural
+→ **B7 re-run** → **P5**.
+
+Model allocation (Jan, 2026-07-31 in session: "more fable over opus
+for the harder parts"): **Fable** on the waves where authored-surface
+subtlety and cross-file integration dominate — G2-design (done), E2,
+E6, and the B7 re-run; **Opus** on template-shaped waves — G1a/G1b,
+E1, E3, E4, E5. Always fresh agents with a template brief, never
+forks ([[fable-subagents-no-fork]]). The fallback clause stands: a structural
 blocker in G2 goes to Jan with a write-up, noting the frozen
 old-style wave is *dominated* (inherits both floors), so the honest
 fallback there is a weaker headline (cost bound at a worse exponent)
