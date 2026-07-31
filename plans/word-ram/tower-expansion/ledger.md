@@ -168,6 +168,32 @@ preparation must transform a non-transparent refinement judgment, or if a
 consumer needs non-reflexive post/result consequence solving during
 preparation.
 
+### E12 — declaration commands use explicit Lean statements and proof terms
+
+**Status: accepted.** Isabelle's `sepref_decl_op` parses a relation language,
+analyzes its precondition/arguments/result, defines pure and optional mop
+variants, and enters an after-QED callback that derives and registers the
+parametricity family. `sepref_decl_impl` discovers the matching interface
+fact, transforms theorem objects through FCOMP, and derives optional op/mop
+variants under command flags.
+
+Lean has no separate Isabelle relation parser or after-QED theorem-attribute
+pipeline. P1.C keeps the semantic boundary explicit: `sepref_decl_op` takes
+the cost-carrying operation definition, conceptual interface, precondition,
+and complete `fref` statement/proof; it checks the interface against the
+logical type and registers both products. `sepref_decl_impl` takes its result
+statement plus raw and `fref` facts, invokes checked FCOMP itself, exposes the
+honest `attainsSup` residue to the trailing proof, and registers the result.
+Pure source operations are written with `NRest.returnT`, and asserted source
+mops include `NRest.assert` in their declared body. The source command flags
+are consequently not a second hidden derivation path.
+
+This is a D1 frontend rendering: the public facts remain `intf_type`, `fref`,
+`hfref`, and `sepref_fr_rules`, and the full interface-to-implementation gate
+uses no caller-authored metaprogramming or direct FCOMP. Revisit if P5 finds a
+repeated pure-to-mop wrapper worth generating, or needs a source flag whose
+derived theorem cannot be expressed by the explicit command surface.
+
 ## 4. Corrections that are not deviations
 
 These P0 discoveries change citations or scheduling without changing a

@@ -147,7 +147,7 @@ P1 wave is the half-size calibration wave.
 | `hrrCompDep` flattening lemma | local residue (`nd-mc-rebase-plan.md:298`; bites loop composition) | — | seam loop-composition | P1.A |
 | signature→goal derivation: `sepref_definition`/`sepref_thm` goal preparation (retires hand-holed `hnRefine` goals) | `Sepref_Definition.thy` (6.2 KB) + `Sepref_Tool.thy` glue (16.5 KB; command shell already ported) | P1.A | every synthesis; ND-MC order phase | P1.B |
 | `sepref_register` + interface-type discipline (`intf_of_assn`, TYPE annotations) | `Sepref_Combinator_Setup.thy` (19.8 KB; only the arity-equation schema is ported) + the register half of `Sepref_Id_Op.thy` | P1.A | operator identification at 15-array scale | P1.B |
-| `sepref_decl_op`/`sepref_decl_intf`/`sepref_decl_impl` commands | `Sepref_Intf_Util.thy` (56.3 KB) | P1.B | P5 consumes for every container | P1.C |
+| `sepref_decl_op`/`sepref_decl_intf`/`sepref_decl_impl` commands | `Sepref_Intf_Util.thy` (56.3 KB) | P1.B | P5 consumes for every container | P1.C — landed (`Sepref/IntfUtil.lean`, E12) |
 
 Acceptance stays as the plan wrote it (BfsQSynth re-derived signature-only
 + FCOMP tutorial chain + ≥8-array toy).

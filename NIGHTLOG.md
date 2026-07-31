@@ -3638,3 +3638,21 @@ in main under Jan's explicit authorization for this and future tasks.
 Next: P1.C — port `sepref_decl_op`, `sepref_decl_intf`, and
 `sepref_decl_impl` so P5 can declare container interfaces without bespoke
 metaprogramming.
+
+## Session 26 — 2026-07-31 (tower expansion P1.C, Codex)
+
+Milestone: tower-expansion P1 complete; the declaration layer is root-green.
+State: `Sepref/IntfUtil.lean` adds parameterized nominal interfaces,
+interface-type normalization/checking, configured and structural
+`INTF_OF_REL` inference with the abstract-carrier fallback, and the three
+commands `sepref_decl_intf`, `sepref_decl_op`, and `sepref_decl_impl`.
+The compiled gate declares fresh `CounterI`/`PairI` interfaces, preserves the
+nominal counter interface through list/product relators, defines and
+registers `op_counterRead` plus its `fref`, composes the existing raw heap
+signature through checked FCOMP, and verifies the generated implementation
+is in `sepref_fr_rules`. `Iicf/Basic.lean` imports the declaration surface for
+P5. Ledger E12 records the explicit-statement/proof Lean frontend delta;
+SIG-8 is closed. Concepts: 505 jobs; proofs: 3,057 jobs in 80 s after an
+initial 120 s replay timeout at 3,046/3,057; zero sorry/admit and no new
+warnings. Work stayed in main under Jan's standing authorization.
+Next: P2.A — currency-vector `nfoldli`/FOREACH and its hnr/sepref rules.

@@ -4,7 +4,7 @@ Rev 3, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0, P1.A, and P1.B complete, P1.C next.** This document is the contract:
+P0 and P1 complete, P2.A next.** This document is the contract:
 implementing sessions follow it, deviations need an owner decision first.
 
 ## One-off note from one Codex supervisor to the next (non-contractual)
@@ -444,6 +444,24 @@ repair enters as a tower wave under this plan (the T1/T2 precedent).
    final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — P1.C COMPLETE; P1 signature machinery closed.**
+  `Sepref/IntfUtil.lean` lands the `sepref_decl_intf`, `sepref_decl_op`,
+  and `sepref_decl_impl` layer. Nominal interface declarations support
+  parameters and feed a checked logical-type normalizer. `INTF_OF_REL`
+  lookup preserves configured interfaces through list/option/product/sum/
+  function/NREST relators and retains the source abstract-carrier fallback.
+  Operation declarations define `op_…`/`pre_…`, validate and register the
+  conceptual type, and publish the proved `fref` fact; implementation
+  declarations perform checked FCOMP and install the result in
+  `sepref_fr_rules`. The root-imported gate declares a fresh `CounterI`,
+  its operation, and a composed concrete implementation entirely through
+  those commands, then checks the public rule database. Ledger E12 records
+  the explicit-proof Lean frontend in place of Isabelle's relation parser
+  and after-QED ML transformation. SIG-8 closes. Concepts build 505 jobs;
+  full proofs root builds 3,057 jobs in 80 s after the initial 120 s replay
+  timed out at 3,046/3,057; no new warnings and zero sorry/admit.
+  **Next: P2.A, currency-vector `nfoldli`/FOREACH and its refinement rules.**
 
 - **2026-07-31 — P1.B COMPLETE; signature-driven synthesis and operation
   registration green.** `sepref_synth` now accepts an `hfref` signature,

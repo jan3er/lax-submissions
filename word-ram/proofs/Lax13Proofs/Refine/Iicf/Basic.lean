@@ -1,4 +1,4 @@
-import Lax13Proofs.Refine.Sepref.Definition
+import Lax13Proofs.Refine.Sepref.IntfUtil
 
 /-!
 # P6 conventions — how a collection is written in this tower
