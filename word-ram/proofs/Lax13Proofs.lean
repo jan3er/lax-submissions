@@ -100,6 +100,7 @@ import Lax13Proofs.Refine.Examples.BfsQTrail
 import Lax13Proofs.Refine.Examples.IntrosortBudget
 import Lax13Proofs.Refine.Asymptotics.OneDimensional
 import Lax13Proofs.Refine.Asymptotics.OneDimensionalOperations
+import Lax13Proofs.Refine.Asymptotics.TwoDimensional
 import Lax13Proofs.Refine.Sepref.Bounds
 import Lax13Proofs.Refine.Sepref.Examples.WordAssnSpike
 import Lax13Proofs.Refine.Examples.BfsQBounded

@@ -4,7 +4,7 @@ Rev 4, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0, P1, P2, P3.A, P3.B, P3.C-A, and P3.C-B complete; P3.C-C next. The source-first scope
+P0, P1, P2, P3.A, P3.B, and P3.C-A through P3.C-C complete; P3.C-D next. The source-first scope
 firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -354,6 +354,22 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — P3.C-C COMPLETE; genuine product-filter two-dimensional
+  foundations green.** `Asymptotics/TwoDimensional.lean` maps all 26 scheduled
+  declarations from `Asymptotics_2D.thy` lines 5–270, 467–559, and 638–669:
+  the four Landau faces over literal `atTop ×ˢ atTop`, `polylog2`, stability
+  and eventual norm-monotonicity, O/Ω extraction, and 1D-to-2D little-o and Θ
+  lifting. The disjoint P3.C-D composition/comparison/normalization ranges did
+  not leak into this leaf. Natural multiplication remains before coercion;
+  Ω remains reverse big-O. Twelve principal exports carry kernel-three guards
+  and representative positive checks exercise independent thresholds,
+  coordinate lifts, extraction, and multiplication. Independent semantic
+  review found no source-fidelity defect. Supervisor replay: focused module
+  1,988 jobs, concepts 505, full proofs 3,074, and
+  `lax build --only proofs word-ram` green; zero `sorry`/`admit`/
+  `native_decide` and no new warnings. **Next: P3.C-D, two-coordinate
+  composition, comparison, and named normalization.**
 
 - **2026-07-31 — P3.C-B COMPLETE; one-dimensional operations and
   normalization green.** `Asymptotics/OneDimensionalOperations.lean` accounts
