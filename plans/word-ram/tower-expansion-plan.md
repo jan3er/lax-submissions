@@ -4,7 +4,7 @@ Rev 4, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0, P1, P2, P3.A, and P3.B complete; P3.C next. The source-first scope
+P0, P1, P2, P3.A, P3.B, and P3.C-A complete; P3.C-B next. The source-first scope
 firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -354,6 +354,24 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — P3.C-A COMPLETE; one-dimensional asymptotic foundations
+  green.** `Asymptotics/OneDimensional.lean` ports the complete scheduled
+  `Asymptotics_1D.thy` lines 7–384 family: eventual nonnegativity, `polylog`,
+  positive-natural scaling stability, eventual norm-monotonicity, O/Ω
+  introduction and extraction, and the four eventual-growth consequences. Its
+  38-row source table accounts for five source/substrate definitions and 33
+  public theorems. Isabelle Ω is pinned as reverse mathlib big-O; natural-valued
+  boundaries cast only in Landau premises and return natural witnesses. Three
+  compiled negative controls reject reversed polylog comparison, zero scaling,
+  and monotone-norm addition without nonnegativity; positive gates cover strict
+  polylog order, stability/monotonicity closure, and both extractors. Thirteen
+  principal exports carry kernel-three guards. Independent semantic review
+  found no source-fidelity defect. Supervisor replay: focused module 1,986 jobs,
+  concepts 505, full proofs 3,072, and `lax build --only proofs word-ram` green;
+  zero `sorry`/`admit` and no new warnings. **Next: P3.C-B, the remaining 1D
+  composition, arithmetic, ceiling/log, Θ-addition, and named normalization
+  families.**
 
 - **2026-07-31 — Rev 4 focus firewall; source machinery first.** At Jan's
   direction, the contract was pruned of latent consumer side-tracks. P0's
