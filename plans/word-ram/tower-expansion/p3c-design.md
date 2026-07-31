@@ -1,6 +1,6 @@
 # P3.C design — mathlib asymptotic face
 
-Status: ACTIVE, 2026-07-31. P3.C-A is complete; P3.C-B is next. This note freezes the source-facing decomposition
+Status: ACTIVE, 2026-07-31. P3.C-A and P3.C-B are complete; P3.C-C is next. This note freezes the source-facing decomposition
 for P3.C. It is subordinate to `tower-expansion-plan.md` and its source-first
 firewall.
 
@@ -29,7 +29,7 @@ audits the source table, replays all gates, and commits to `main`.
 | wave | owned Lean file | exact source family | gate |
 |---|---|---|---|
 | P3.C-A — complete | `Refine/Asymptotics/OneDimensional.lean` | 1D lines 7–384: nonnegativity, `polylog`, stability, eventual monotonicity, basic O/Ω eliminators and growth consequences | 38-row source table; strict polylog comparison; sum/product stability and monotonicity; O and Ω extraction; supervisor gates green |
-| P3.C-B | `Refine/Asymptotics/OneDimensionalOperations.lean` | 1D lines 386–854: composition, division/difference, ceiling/log, Θ addition, named normalization rules | composition gates; arithmetic/log gates; source ML rules rendered as named Lean theorems |
+| P3.C-B — complete | `Refine/Asymptotics/OneDimensionalOperations.lean` | 1D lines 386–854: composition, division/difference, ceiling/log, Θ addition, named normalization rules | 32 live declarations and four exclusions classified; composition, arithmetic/log, and named-rule gates green; supervisor gates green |
 | P3.C-C | `Refine/Asymptotics/TwoDimensional.lean` | 2D lines 5–270, 467–559, and 638–669 in dependency order: genuine product-filter notation, `polylog2`, stability/monotonicity, eliminators, multiplicative lifting | a theorem that genuinely uses `atTop ×ˢ atTop`, not a diagonal surrogate |
 | P3.C-D | `Refine/Asymptotics/TwoDimensionalComposition.lean` | 2D composition/comparison/normalization: lines 272, 342, 412, 432, 453, 563, 566, 602, 612, 624, 634, 671 plus the named rule family | two-coordinate composition and lexicographic polylog comparison gates |
 | P3.C-E | `Refine/Asymptotics/Recurrences.lean` | all public recurrence declarations at lines 7–585, including linear O/Ω/Θ families and bivariate families | source-shaped 1D and bivariate recurrence gates; reuse mathlib Akra–Bazzi rather than duplicate it |

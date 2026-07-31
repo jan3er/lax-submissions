@@ -4,7 +4,7 @@ Rev 4, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0, P1, P2, P3.A, P3.B, and P3.C-A complete; P3.C-B next. The source-first scope
+P0, P1, P2, P3.A, P3.B, P3.C-A, and P3.C-B complete; P3.C-C next. The source-first scope
 firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -354,6 +354,22 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — P3.C-B COMPLETE; one-dimensional operations and
+  normalization green.** `Asymptotics/OneDimensionalOperations.lean` accounts
+  for all 32 live public declarations in the scheduled `Asymptotics_1D.thy`
+  lines 386–854 family and records four exact exclusions: composition for
+  O/Ω/Θ, natural division and subtraction before coercion, ceiling and log
+  bounds, Θ addition, and the named normalization-rule family. The dead
+  `polylog_power_compose` proof ending in `oops`, the supporting ML registry,
+  the source attribute, and the master-theorem method are classified rather
+  than silently omitted. Twelve principal exports carry kernel-three guards;
+  negative controls preserve composition direction, truncation, and
+  nonnegativity premises. Independent semantic review found no source-fidelity
+  defect. Supervisor replay: focused module 1,987 jobs, concepts 505, full
+  proofs 3,073, and `lax build --only proofs word-ram` green; zero
+  `sorry`/`admit` and no new warnings. **Next: P3.C-C, genuine product-filter
+  two-dimensional foundations and lifting.**
 
 - **2026-07-31 — P3.C-A COMPLETE; one-dimensional asymptotic foundations
   green.** `Asymptotics/OneDimensional.lean` ports the complete scheduled
