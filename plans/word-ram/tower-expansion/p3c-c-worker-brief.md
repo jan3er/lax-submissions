@@ -104,18 +104,17 @@ Trust this report; do not re-verify modules it declares green.
   directory. On a Lake lock conflict, wait briefly and retry.
 - Do not commit; do not stage. The supervisor commits per wave.
 
-## 4. Falsification gate (required for authored obligations)
+## 4. Lightweight sanity checks (Jan-approved exception)
 
-Refute the diagonal surrogate before proving the API: use a predicate such as
-`fun (n, m) => n = m`, which is true along the diagonal but is not eventual in
-`atTop ×ˢ atTop`. Add a coordinate-swap or independent-threshold control so a
-proof cannot accidentally inspect only one coordinate. Compile negative
-controls showing zero scaling is rejected and addition without the source
-nonnegativity premises is invalid. Positive gates must exercise independent
-product thresholds, both coordinate lifts, O and Ω extraction, 1D×1D little-o
-lifting in both orientations, and Θ multiplication. If a statement is
-refuted, report the counterexample and stop on that obligation; do not repair
-the surface without supervisor authority.
+This is a direct source-shaped port, so Jan has explicitly waived a compiled
+falsification/negative-control suite. Do not spend time formalizing diagonal,
+zero-scaling, or cancellation counterexamples. Source review must still confirm
+that the carrier is literally `atTop ×ˢ atTop` and that both coordinates occur
+where the source requires them. Representative positive checks should exercise
+independent product thresholds, coordinate lifting, O/Ω extraction, and Θ
+multiplication. Escalate only if a source statement itself looks false or a
+substantive adaptation is needed; do not repair the surface without supervisor
+authority.
 
 ## 5. Working method
 

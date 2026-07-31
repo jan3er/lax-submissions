@@ -81,8 +81,11 @@ These are acceptance-review items, not permission to redesign the source:
 ## Acceptance law
 
 Each wave must be zero-`sorry`/`admit`, build its leaf, carry kernel-three axiom
-guards on principal exports, and include falsification/negative controls for
-newly authored adaptations. P3.C closes only after a complete source-to-Lean
+guards on principal exports, and include representative positive integration
+checks. Per Jan's 2026-07-31 direction, routine source-shaped P3.C ports do not
+need compiled falsification or negative-control suites; reserve those for a
+genuinely new or subtle authored claim where source review and typechecking do
+not adequately test the risk. P3.C closes only after a complete source-to-Lean
 declaration table classifies every public declaration in all three theories as
 ported, mathlib-supplied with a local source-shaped wrapper/gate, or explicitly
 excluded for substrate/dead-code reasons.
