@@ -3656,3 +3656,24 @@ SIG-8 is closed. Concepts: 505 jobs; proofs: 3,057 jobs in 80 s after an
 initial 120 s replay timeout at 3,046/3,057; zero sorry/admit and no new
 warnings. Work stayed in main under Jan's standing authorization.
 Next: P2.A — currency-vector `nfoldli`/FOREACH and its hnr/sepref rules.
+
+## Session 27 — 2026-07-31 (tower expansion P2.A, Codex)
+
+Milestone: tower-expansion P2.A complete; vector FOREACH and its compiled
+masked-walk acceptance are green. State: `NREST/Foreach.lean` adds the
+source-shaped `nfoldli` equations, monotonicity, append/assert and relational
+refinement rules, inert IE annotations with an exact vector invariant/cost
+rule, the `FOREACHociE`/`FOREACHciE` family, and the
+`itToSortedListE`/`LIST_FOREACHE` decomposition. `Sepref/Foreach.lean` adds
+the hnr lowering bridge, synthesizes the concrete member-index loop, and
+pins its generated `Com`. The acceptance arena has members `[7,91]` in a
+100-cell carrier; the kernel proof equates the compiled loop to the abstract
+member-list fold plus three guard evaluations. Its vector is exactly four
+reads, four additions, two skips, and three while checks, independent of
+carrier length. The generated judgment is lifted to the abstract fold and
+both axiom probes are kernel-three. NR-9 closed. Concepts: 505 jobs; full
+proofs: 3,059 jobs; `lax build --only proofs word-ram` OK; zero sorry/admit
+and no new warnings (only the root replay's recorded warnings). Work stayed in main under Jan's
+standing authorization.
+Next: P2.B — `list_set_rel`/sorted-list iteration refinement, the Autoref
+iteration rule set, and RECT-based nested for-loop combinators.

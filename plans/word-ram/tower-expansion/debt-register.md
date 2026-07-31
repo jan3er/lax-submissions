@@ -41,7 +41,7 @@ Status vocabulary:
 | NR-6 | OPEN P6 | `bindT_mono_res`, `mono2_monadicWhileBody`, and `monadicWhileIT_unfold_pure` have thaw-placement debt. | Tower P4 progress log. | Each reusable NREST lemma lives in the lowest non-cyclic module that states its vocabulary. |
 | NR-7 | VERIFY P6 | The unfueled `hnr_while` rule landed after the tower verdict refuted the proposed global fuel lemma. | `Sepref/CombRules.lean` R0/D-b; `NREST/Rec.lean` `NoFuelBound.no_fuel_bound`; ND-MC P0.3. | Root tests exercise `hnr_while`; no rule database lookup requires `LOOP_VARIANT`. |
 | NR-8 | OPEN P6 | Consumers still carry obsolete `LOOP_VARIANT` hypotheses and compatibility wrappers. | `Examples/BfsQ*.lean`, `Iicf/Iicf{Stack,Queue,Csr,Bitmask,TrailArray}.lean`; comments already say the DB no longer reads them. | Remove dead hypotheses/annotations at every site while retaining measured-rule tests as calculus coverage. |
-| NR-9 | OPEN P2 | Currency-vector `nfoldli`/FOREACH and its refinement rules do not exist. | Ledger E5; existing `NREST/Combinators.lean` is the earlier single-currency form. | P2 arena-walk acceptance and compiled carrier-blindness guard pass. |
+| NR-9 | CLOSED | Currency-vector `nfoldli`/FOREACH and its refinement rules were absent. | `NREST/Foreach.lean`, `Sepref/Foreach.lean`; ledger E5. | The synthesized 2-member walk in a 100-cell carrier is definitionally pinned and proved equal to its abstract `nfoldli` plus member-count guard cost. |
 
 ## C. Sepref frame, copy, and operator layer
 

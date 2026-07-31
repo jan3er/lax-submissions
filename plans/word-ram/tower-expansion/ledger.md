@@ -57,6 +57,13 @@ NREST/Sepreftime for the single-currency cost statement, and
 a transcription from the ESOP'21 artifact. The compiled carrier-blindness
 probe is the soundness/fitness gate for the adaptation.
 
+**Landed in P2.A.** `NREST/Foreach.lean` keeps the AFP recursion,
+invariant/energy annotation, relational rule, and list-decomposition shapes
+while lifting every scalar charge to `ECost`. `Sepref/Foreach.lean` renders
+the iterator hnr conclusion as an explicit lowering premise. Its compiled
+2-member walk over a 100-cell carrier proves exact vector cost and pins an
+IR condition whose bound is the member count, not the carrier length.
+
 ### E6 — the exemplar suite is retargeted and adapted
 
 **Status: accepted.** The primary artifact has sorting/introsort, not the

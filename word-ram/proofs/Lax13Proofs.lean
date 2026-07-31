@@ -24,6 +24,8 @@ import Lax13Proofs.Refine.NREST.Pw
 import Lax13Proofs.Refine.NREST.Sanity
 import Lax13Proofs.Refine.NREST.Rec
 import Lax13Proofs.Refine.NREST.Combinators
+import Lax13Proofs.Refine.NREST.Foreach
+import Lax13Proofs.Refine.Sepref.Foreach
 import Lax13Proofs.Refine.Autoref.Attrs
 import Lax13Proofs.Refine.Autoref.Relators
 import Lax13Proofs.Refine.Autoref.Tagging

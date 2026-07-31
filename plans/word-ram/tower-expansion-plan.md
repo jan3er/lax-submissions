@@ -4,7 +4,7 @@ Rev 3, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0 and P1 complete, P2.A next.** This document is the contract:
+P0, P1, and P2.A complete, P2.B next.** This document is the contract:
 implementing sessions follow it, deviations need an owner decision first.
 
 ## One-off note from one Codex supervisor to the next (non-contractual)
@@ -444,6 +444,24 @@ repair enters as a tower wave under this plan (the T1/T2 precedent).
    final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — P2.A COMPLETE; currency-vector member iteration and
+  compiled carrier-blindness green.** `NREST/Foreach.lean` adds the authored
+  E5 vector `nfoldli`, append/assert/relational-refinement laws, inert
+  invariant/energy annotations, an exact invariant-and-cost rule, the
+  `FOREACHociE`/`FOREACHciE` family, and the source decomposition through
+  `itToSortedListE`/`LIST_FOREACHE`. `Sepref/Foreach.lean` adds the
+  source-shaped hnr lowering bridge and synthesizes a masked index walk.
+  Its compiled IR is pinned: `while k < kend`, reading `members[k]` and only
+  then `carrier[u]`; the carrier is framed read-only and cannot determine
+  the bound. The 2-member/100-cell gate proves the loop exactly equals the
+  abstract `nfoldli` plus three guard charges and pins 4 `aget`, 4 `add`,
+  2 `skip`, 3 `while`, with kernel-three synthesized/abstract judgments.
+  NR-9 closes. Concepts build 505 jobs; full proofs root builds 3,059 jobs;
+  `lax build --only proofs word-ram` is green; zero sorry/admit and no new
+  warnings (the root replay retains its recorded warnings). **Next: P2.B,
+  iteration-list refinement, Autoref
+  iteration rules, and RECT for-loop nesting.**
 
 - **2026-07-31 — P1.C COMPLETE; P1 signature machinery closed.**
   `Sepref/IntfUtil.lean` lands the `sepref_decl_intf`, `sepref_decl_op`,
