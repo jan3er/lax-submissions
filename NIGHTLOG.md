@@ -3847,3 +3847,11 @@ directions, while nonempty pick proves a related element-and-remainder
 decomposition at zero cost. Registrations, pattern/custom-empty accounting,
 and kernel guards pass. Supervisor replay: 2,984 jobs; zero placeholders.
 Next: Prio_Bag, sequentially on warm main.
+
+P5.A Prio_Bag is green as the seventh interface leaf. New unrooted
+`Iicf/Intf/PrioBag.lean` keeps the general cross-priority relational theorems
+and the source's below-identity registration boundary for pop-min and
+peek-min. Their outer frefs are unrestricted; empty bags fail through the
+internal assertion, and pop returns the exact related erase remainder.
+Generic, diagonal, registration, and kernel gates pass. Supervisor replay:
+2,985 jobs; zero placeholders. Next: Prio_Map, sequentially on warm main.
