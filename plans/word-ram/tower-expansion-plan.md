@@ -7,7 +7,8 @@ Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0, P1, P2, P3.A, P3.B, and P3.C complete; P4 design is locked, A1 generic
 amortization and B1 pure union-find are complete, and A2 bounded dynamic array
 has a green abstract/bounded-spec foundation with its concrete `Ir.Com` seam
-next. The source-first
+partially green: exact success/failure branch programs synthesize, while their
+dispatcher bridge remains. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -384,7 +385,11 @@ proves a scheduled source declaration was mistranslated or omitted.
   storage, or fail cleanly when full. Compiled sequence/cost probes and the
   2,984-job leaf build are green. This is not A2 completion: the leaf is not yet
   root-wired and `boundedPushSpec` still needs a concrete `Ir.Com`/`hnRefine`
-  implementation. **Next: that concrete seam only.**
+  implementation. The next sequential worker landed exact loop-free success
+  and non-mutating failure branch programs with an explicit physical-capacity
+  operand. Whole-tree synthesis timed out in `isDefEq` through 800k heartbeats,
+  so no composite theorem was claimed. **Next: manually compose the two green
+  branch judgments under `irIf`; do not retry whole-tree synthesis.**
 
 - **2026-08-01 — P4.B1 COMPLETE.** The accepted operations boundary now
   extends through the pinned height/rank/logarithmic source slice.

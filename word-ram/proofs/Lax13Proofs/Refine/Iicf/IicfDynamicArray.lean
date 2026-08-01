@@ -469,7 +469,102 @@ theorem boundedPush_full (s : BoundedArray) (x : ℕ) (h : s.Wf)
   · omega
   · omega
 
-/-! ## 4. Explicit ownership assertion and bounded executable specification -/
+/-! ## 4. Loop-free executable adapter -/
+
+/-- Observable convention: `1` carries the pushed state; `0` carries the
+unchanged input state. -/
+def boundedPushObs (s : BoundedArray) (x : ℕ) : ℕ × BoundedArray :=
+  match boundedPush s x with
+  | some t => (1, t)
+  | none => (0, s)
+
+@[simp] theorem boundedPushObs_success (s t : BoundedArray) (x : ℕ)
+    (hp : boundedPush s x = some t) :
+    boundedPushObs s x = (1, t) := by simp [boundedPushObs, hp]
+
+@[simp] theorem boundedPushObs_failure (s : BoundedArray) (x : ℕ)
+    (hp : boundedPush s x = none) :
+    boundedPushObs s x = (0, s) := by simp [boundedPushObs, hp]
+
+private def irCostN (c : String) : Ir.Cost := ACost.cost c 1
+
+private def packCostN : Ir.Cost := 4 • irCostN Currency.skip
+
+private def successCostN : Ir.Cost :=
+  irCostN Currency.aset + irCostN Currency.add + irCostN Currency.copy +
+    irCostN Currency.const + packCostN
+
+private def failCostN : Ir.Cost :=
+  irCostN Currency.copy + irCostN Currency.copy + irCostN Currency.const + packCostN
+
+/-- Exact synthesized-command cost, including every branch, scalar operation,
+array write and tuple `skip`. -/
+def boundedExecCostN (s : BoundedArray) : Ir.Cost :=
+  if s.length < s.capacity then
+    irCostN Currency.ite + successCostN
+  else if s.buffer.length < 2 * s.capacity then
+    irCostN Currency.ite + irCostN (binopCurrency .mul) +
+      irCostN Currency.ite + failCostN
+  else
+    irCostN Currency.ite + irCostN (binopCurrency .mul) +
+      irCostN Currency.ite + successCostN
+
+noncomputable def boundedExecCost (s : BoundedArray) : ECost :=
+  liftACost (boundedExecCostN s)
+
+private noncomputable def packBoundedRaw (ok : ℕ) (buf : List ℕ)
+    (len cap phys : ℕ) : NRest (ℕ × (List ℕ × (ℕ × (ℕ × ℕ)))) ECost :=
+  NRest.bindT (mopPair cap phys) fun cp =>
+    NRest.bindT (mopPair len cp) fun lcp =>
+      NRest.bindT (mopPair buf lcp) fun st => mopPair ok st
+
+private noncomputable def boundedSuccessRaw (s : BoundedArray) (x newCap : ℕ) :
+    NRest (ℕ × (List ℕ × (ℕ × (ℕ × ℕ)))) ECost :=
+  NRest.bindT (mopAset s.buffer s.length x) fun buf' =>
+    NRest.bindT (mopBinop .add s.length 1) fun len' =>
+      NRest.bindT (mopCopy newCap) fun cap' =>
+        NRest.bindT (mopConstN 1) fun ok =>
+          packBoundedRaw ok buf' len' cap' s.buffer.length
+
+private noncomputable def boundedFailRaw (s : BoundedArray) :
+    NRest (ℕ × (List ℕ × (ℕ × (ℕ × ℕ)))) ECost :=
+  NRest.bindT (mopCopy s.length) fun len' =>
+    NRest.bindT (mopCopy s.capacity) fun cap' =>
+      NRest.bindT (mopConstN 0) fun ok =>
+        packBoundedRaw ok s.buffer len' cap' s.buffer.length
+
+/-- Raw branch tree.  The physical bound is an operand of both fit tests. -/
+noncomputable def boundedExecRaw (s : BoundedArray) (x : ℕ) :
+    NRest (ℕ × (List ℕ × (ℕ × (ℕ × ℕ)))) ECost :=
+  irIf (decide (s.length < s.capacity))
+    (boundedSuccessRaw s x s.capacity)
+    (NRest.bindT (mopBinop .mul s.capacity 2) fun doubled =>
+      irIf (decide (s.buffer.length < doubled))
+        (boundedFailRaw s) (boundedSuccessRaw s x doubled))
+
+sepref_synth boundedSuccessSynth
+    (A len newCapCell phys value one outLen outCap ok : String)
+    (s : BoundedArray) (x newCap : ℕ) :
+  hnRefine (junkCell outLen ∗ junkCell outCap ∗ junkCell ok ∗
+      hnCtxt arrayAssn s.buffer A ∗ hnCtxt natAssn s.length len ∗
+      hnCtxt natAssn newCap newCapCell ∗ hnCtxt natAssn s.buffer.length phys ∗
+      hnCtxt natAssn x value ∗ hnCtxt natAssn 1 one)
+    _ _ (ok, (A, (outLen, (outCap, phys))))
+    (natAssn ×ₐ (arrayAssn ×ₐ (natAssn ×ₐ (natAssn ×ₐ natAssn))))
+    (boundedSuccessRaw s x newCap)
+
+sepref_synth boundedFailSynth
+    (A len cap phys outLen outCap ok : String) (s : BoundedArray) :
+  hnRefine (junkCell outLen ∗ junkCell outCap ∗ junkCell ok ∗
+      hnCtxt arrayAssn s.buffer A ∗ hnCtxt natAssn s.length len ∗
+      hnCtxt natAssn s.capacity cap ∗ hnCtxt natAssn s.buffer.length phys)
+    _ _ (ok, (A, (outLen, (outCap, phys))))
+    (natAssn ×ₐ (arrayAssn ×ₐ (natAssn ×ₐ (natAssn ×ₐ natAssn))))
+    (boundedFailRaw s)
+
+attribute [sepref_fr_rules] boundedSuccessSynth boundedFailSynth
+
+/-! ## 5. Explicit ownership assertion and bounded executable specification -/
 
 /-- Three caller-owned cells: physical buffer, logical length, logical capacity. -/
 def boundedArrayAssn : BoundedArray → String × String × String → Assn := fun s c =>

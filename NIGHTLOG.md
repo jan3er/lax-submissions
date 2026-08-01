@@ -3725,3 +3725,10 @@ full. The 2,984-job leaf build and compiled functional/cost probes pass. A2 is
 not marked complete: `boundedPushSpec` still lacks its concrete
 `Ir.Com`/`hnRefine` implementation and the leaf is not root-wired. Next is that
 single seam, not a redesign of the landed foundation.
+
+That seam now has green concrete leaves: exact loop-free success and
+non-mutating failure `Ir.Com` programs synthesize with an explicit physical
+capacity operand. Whole-dispatcher synthesis repeatedly timed out inside
+`isDefEq` even at 800k heartbeats, so the worker removed the unfinished theorem
+and stopped. Next: manual `hnRefine` composition from the two landed leaves;
+do not repeat the whole-tree synthesis experiment.
