@@ -3771,3 +3771,11 @@ cost for the executed rewrites with a starting-height upper bound. Its public
 HNR bridge consumes the representative left by find. Compressed and two-edge
 chain gates pin both the final arrays and distinct costs. Supervisor replay:
 2,998 jobs; kernel-three and zero placeholders. Next: comparison.
+
+Comparison is green. Valid inputs sequentially find and compress both paths,
+then compare the representatives; invalid inputs return false without mutating
+the structure. `hnr_ufCompare` preserves the abstract relation, rank invariant,
+and caller-owned arrays. Exact branch-sensitive vector costs are exposed with
+both measured phases, and their heights and rewrite counts are bounded by
+`heightUb`. True/false forest gates and supervisor replay pass at 2,998 jobs;
+kernel-three and zero placeholders. Next: union-by-size.

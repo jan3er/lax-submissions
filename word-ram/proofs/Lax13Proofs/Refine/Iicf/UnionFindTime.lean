@@ -18,7 +18,7 @@ Source accounting:
 | `Union_Find_Time.thy` | 651--666 | landed: two-array representation `ufAssn` |
 | same | 667--703 | landed: no-allocation `ufInit` from two `junkArrayOfLen` buffers |
 | same | 707--844 | landed: height-bounded root search and in-place path compression |
-| same | 850--897 | open: comparison |
+| same | 850--897 | landed: bounds-checked same-set comparison with compression |
 | same | 899--1174 | open: union-by-size and both rank-preservation branches |
 | same | 1177--1204 | open: final interface interpretation |
 
@@ -1345,6 +1345,658 @@ theorem hnr_ufCompress (R : Per ℕ) (parents sizes : List ℕ) (x : ℕ)
   simp only [out, hnCtxt_def, prodAssn_apply]
   ac_rfl
 
+/-! ## Same-set comparison -/
+
+theorem findExplicitExactHnr (X D P : String) (parents : List ℕ) (x : ℕ)
+    (hU : ufaInvar parents) (hx : x < parents.length) :
+    hnRefine (hnCtxt natAssn x X ∗ junkCell D ∗ hnCtxt arrayAssn parents P)
+      (findCom X D P) (junkCell D ∗ hnCtxt arrayAssn parents P)
+      X natAssn
+      (NRest.consume (NRest.returnT (repOf parents x))
+        (findCost (heightOf parents x))) := by
+  have hraw := findRawExactHnr X D P parents x hU hx
+  refine hnRefine_res_cast' hraw ?_
+  refine entails_trans (entails_of_eq ?_)
+    (conj_entails_mono
+      (conj_entails_mono (natAssn_entails_junkCell 0 D)
+        (entails_refl (arrayAssn parents P)))
+      (entails_refl (natAssn (repOf parents x) X)))
+  simp only [prodAssn_apply, emp_sepConj]
+  ac_rfl
+
+theorem compressExplicitExactHnr (X D P Root : String) (parents : List ℕ) (x : ℕ)
+    (hU : ufaInvar parents) (hx : x < parents.length) :
+    hnRefine (hnCtxt natAssn x X ∗ junkCell D ∗ hnCtxt arrayAssn parents P ∗
+        hnCtxt natAssn (repOf parents x) Root)
+      (compressCom X D P Root)
+      (junkCell X ∗ junkCell D ∗ hnCtxt arrayAssn (compressPath parents x) P)
+      Root natAssn
+      (NRest.consume (NRest.returnT (repOf parents x))
+        (compressCost (compressSteps parents x))) := by
+  let out := compressExec (repOf parents x) (heightOf parents x)
+    (compressState (repOf parents x) parents x)
+  have hraw := compressRawExactHnr X D P Root parents x hU hx
+  refine hnRefine_res_cast' hraw ?_
+  refine entails_trans (entails_of_eq ?_)
+    (conj_entails_mono
+      (conj_entails_mono (natAssn_entails_junkCell out.1 X)
+        (conj_entails_mono (natAssn_entails_junkCell out.2.1 D)
+          (entails_refl (arrayAssn (compressPath parents x) P))))
+      (entails_refl (natAssn (repOf parents x) Root)))
+  simp only [out, compressPath, hnCtxt_def, prodAssn_apply]
+  ac_rfl
+
+noncomputable def repCompressCost (parents : List ℕ) (x : ℕ) : ECost :=
+  2 • irUnit Currency.copy + findCost (heightOf parents x) +
+    compressCost (compressSteps parents x)
+
+noncomputable def repCompressAbs (parents : List ℕ) (x : ℕ) : NRest ℕ ECost :=
+  NRest.bindT (mopCopy x) fun _ =>
+    NRest.bindT
+      (NRest.consume (NRest.returnT (repOf parents x))
+        (findCost (heightOf parents x))) fun _ =>
+      NRest.bindT (mopCopy x) fun _ =>
+        NRest.consume (NRest.returnT (repOf parents x))
+          (compressCost (compressSteps parents x))
+
+theorem repCompressAbs_eq :
+    repCompressAbs parents x =
+      NRest.consume (NRest.returnT (repOf parents x))
+        (repCompressCost parents x) := by
+  simp only [repCompressAbs, mopCopy, bindT_unit, NRest.consume_consume,
+    repCompressCost]
+  congr 1
+  simp [two_nsmul]
+  ac_rfl
+
+def repCompressCom (I Root D F P : String) : Com :=
+  (Com.copy Root I).seq
+    ((findCom Root D P).seq
+      ((Com.copy D I).seq (compressCom D F P Root)))
+
+theorem repCompressHnr (I Root D F P : String) (parents : List ℕ) (x : ℕ)
+    (hU : ufaInvar parents) (hx : x < parents.length) :
+    hnRefine (hnCtxt natAssn x I ∗ junkCell Root ∗ junkCell D ∗ junkCell F ∗
+        hnCtxt arrayAssn parents P)
+      (repCompressCom I Root D F P)
+      (hnCtxt natAssn x I ∗ junkCell D ∗ junkCell F ∗
+        hnCtxt arrayAssn (compressPath parents x) P)
+      Root natAssn (repCompressAbs parents x) := by
+  unfold repCompressCom repCompressAbs
+  have hcopyRoot :
+      hnRefine (hnCtxt natAssn x I ∗ junkCell Root ∗ junkCell D ∗ junkCell F ∗
+          hnCtxt arrayAssn parents P)
+        (.copy Root I)
+        (hnCtxt natAssn x I ∗
+          (junkCell D ∗ junkCell F ∗ hnCtxt arrayAssn parents P))
+        Root natAssn (mopCopy x) := by
+    exact hnRefine_frame_perm (by ac_rfl) (hnr_mop_copy Root I x)
+  apply hnr_bind
+    (Γ₂ := fun _ => hnCtxt natAssn x I ∗ junkCell D ∗ junkCell F ∗
+      hnCtxt arrayAssn (compressPath parents x) P) hcopyRoot
+  · intro root₀ hroot₀
+    have hroot₀' : root₀ = x := bind_ref_tag_pin (by simpa [mopCopy] using hroot₀)
+    subst root₀
+    have hfind :
+        hnRefine (hnCtxt natAssn x Root ∗
+            (hnCtxt natAssn x I ∗
+              (junkCell D ∗ junkCell F ∗ hnCtxt arrayAssn parents P)))
+          (findCom Root D P)
+          ((junkCell D ∗ hnCtxt arrayAssn parents P) ∗
+            (hnCtxt natAssn x I ∗ junkCell F))
+          Root natAssn
+          (NRest.consume (NRest.returnT (repOf parents x))
+            (findCost (heightOf parents x))) := by
+      exact hnRefine_frame_perm (by ac_rfl)
+        (findExplicitExactHnr Root D P parents x hU hx)
+    apply hnr_bind
+      (Γ₂ := fun _ => hnCtxt natAssn x I ∗ junkCell D ∗ junkCell F ∗
+        hnCtxt arrayAssn (compressPath parents x) P) hfind
+    · intro root hroot
+      have hroot' : root = repOf parents x := bind_ref_tag_pin hroot
+      subst root
+      have hcopyD :
+          hnRefine (hnCtxt natAssn (repOf parents x) Root ∗
+              ((junkCell D ∗ hnCtxt arrayAssn parents P) ∗
+                (hnCtxt natAssn x I ∗ junkCell F)))
+            (.copy D I)
+            (hnCtxt natAssn x I ∗
+              (hnCtxt natAssn (repOf parents x) Root ∗
+                (hnCtxt arrayAssn parents P ∗ junkCell F)))
+            D natAssn (mopCopy x) := by
+        exact hnRefine_frame_perm (by ac_rfl) (hnr_mop_copy D I x)
+      apply hnr_bind
+        (Γ₂ := fun _ => hnCtxt natAssn x I ∗ junkCell D ∗ junkCell F ∗
+          hnCtxt arrayAssn (compressPath parents x) P) hcopyD
+      · intro original horiginal
+        have horiginal' : original = x :=
+          bind_ref_tag_pin (by simpa [mopCopy] using horiginal)
+        subst original
+        have hcompress :
+            hnRefine (hnCtxt natAssn x D ∗
+                (hnCtxt natAssn x I ∗
+                  (hnCtxt natAssn (repOf parents x) Root ∗
+                    (hnCtxt arrayAssn parents P ∗ junkCell F))))
+              (compressCom D F P Root)
+              (hnCtxt natAssn x I ∗ junkCell D ∗ junkCell F ∗
+                hnCtxt arrayAssn (compressPath parents x) P)
+              Root natAssn
+              (NRest.consume (NRest.returnT (repOf parents x))
+                (compressCost (compressSteps parents x))) := by
+          exact hnRefine_cons_post
+            (hnRefine_frame_perm (F := hnCtxt natAssn x I) (by ac_rfl)
+              (compressExplicitExactHnr D F P Root parents x hU hx))
+            (entails_of_eq (by ac_rfl))
+        exact hcompress
+      · intro original
+        exact entails_of_eq (by ac_rfl)
+    · intro root
+      exact entails_of_eq (by ac_rfl)
+  · intro root₀
+    exact entails_of_eq (by ac_rfl)
+
+theorem repCompressExactHnr (I Root D F P : String) (parents : List ℕ) (x : ℕ)
+    (hU : ufaInvar parents) (hx : x < parents.length) :
+    hnRefine (hnCtxt natAssn x I ∗ junkCell Root ∗ junkCell D ∗ junkCell F ∗
+        hnCtxt arrayAssn parents P)
+      (repCompressCom I Root D F P)
+      (hnCtxt natAssn x I ∗ junkCell D ∗ junkCell F ∗
+        hnCtxt arrayAssn (compressPath parents x) P)
+      Root natAssn
+      (NRest.consume (NRest.returnT (repOf parents x))
+        (repCompressCost parents x)) := by
+  rw [← repCompressAbs_eq]
+  exact repCompressHnr I Root D F P parents x hU hx
+
+theorem ufaCompressRep_local (hI : ufaInvar parents) (hx : x < parents.length)
+    (hi : i < parents.length) :
+    repOf (ufaCompress parents x) i = repOf parents i := by
+  have hI' := ufaCompressInvar hI hx
+  have hi' : i < (ufaCompress parents x).length := by simpa [ufaCompress] using hi
+  have hr := repOfBound hI hi
+  have hr' : repOf parents i < (ufaCompress parents x).length := by
+    simpa [ufaCompress] using hr
+  have hroot' : (ufaCompress parents x)[repOf parents i]! = repOf parents i :=
+    (ufaCompress_isRoot_iff hI hx hr).mpr (repOfRoot hI hi)
+  have hmem : (i, repOf parents i) ∈ ufaAlpha (ufaCompress parents x) := by
+    rw [ufaCompressCorrect hI hx]
+    exact (ufaFindCorrect hI hi hr).mp (repOfIdem hI hi).symm
+  have heq := (ufaFindCorrect hI' hi' hr').mpr hmem
+  rwa [repOfRefl hI' hr' hroot'] at heq
+
+theorem compressExec_rep (hI : compressI root s) (hi : i < s.2.2.length) :
+    ∀ fuel, repOf (compressExec root fuel s).2.2 i = repOf s.2.2 i := by
+  intro fuel
+  induction fuel generalizing s with
+  | zero => rfl
+  | succ fuel ih =>
+      simp only [compressExec]
+      split
+      next hb =>
+        have hstepI := compressStep_inv hI hb
+        have hstepEq := compressStep_eq_ufaCompress hI
+        have hi' : i < (compressStep root s).2.2.length := by
+          rw [hstepEq]
+          simpa [ufaCompress] using hi
+        calc
+          repOf (compressExec root fuel (compressStep root s)).2.2 i =
+              repOf (compressStep root s).2.2 i := ih hstepI hi'
+          _ = repOf s.2.2 i := by
+            rw [hstepEq]
+            exact ufaCompressRep_local hI.1 hI.2.1 hi
+      next => rfl
+
+theorem compressPath_rep (hU : ufaInvar parents) (hx : x < parents.length)
+    (hi : i < parents.length) :
+    repOf (compressPath parents x) i = repOf parents i := by
+  exact compressExec_rep (compressState_inv hU hx) hi (heightOf parents x)
+
+noncomputable def rootsEqAbs (a b : ℕ) : NRest ℕ ECost :=
+  irIf (decide (a = b)) (mopConstN 1) (mopConstN 0)
+
+noncomputable def rootsEqCost : ECost :=
+  irUnit Currency.ite + irUnit Currency.const
+
+theorem rootsEqAbs_eq :
+    rootsEqAbs a b =
+      NRest.consume (NRest.returnT (if decide (a = b) then 1 else 0)) rootsEqCost := by
+  by_cases h : a = b
+  · simp [rootsEqAbs, rootsEqCost, h, irIf_true, mopConstN,
+      NRest.consume_consume, add_comm]
+  · simp [rootsEqAbs, rootsEqCost, h, irIf_false, mopConstN,
+      NRest.consume_consume, add_comm]
+
+sepref_synth rootsEqSynth (A B R : String) (a b : ℕ) :
+  hnRefine (hnCtxt natAssn a A ∗ hnCtxt natAssn b B ∗ junkCell R)
+    _ _ R natAssn (rootsEqAbs a b)
+
+def rootsEqCom (A B R : String) : Com :=
+  .ite (.eq (.cell A) (.cell B)) (.const R 1) (.const R 0)
+
+theorem rootsEqExactHnr (A B R : String) (a b : ℕ) :
+    hnRefine (hnCtxt natAssn a A ∗ hnCtxt natAssn b B ∗ junkCell R)
+      (rootsEqCom A B R) (hnCtxt natAssn a A ∗ hnCtxt natAssn b B)
+      R natAssn
+      (NRest.consume (NRest.returnT (if decide (a = b) then 1 else 0))
+        rootsEqCost) := by
+  rw [← rootsEqAbs_eq]
+  simpa only [rootsEqCom, emp_sepConj] using rootsEqSynth A B R a b
+
+noncomputable def compareCoreCost (parents : List ℕ) (i j : ℕ) : ECost :=
+  repCompressCost parents i + repCompressCost (compressPath parents i) j + rootsEqCost
+
+noncomputable def compareCoreAbs (parents : List ℕ) (i j : ℕ) : NRest ℕ ECost :=
+  NRest.bindT
+    (NRest.consume (NRest.returnT (repOf parents i)) (repCompressCost parents i)) fun _ =>
+      NRest.bindT
+        (NRest.consume
+          (NRest.returnT (repOf (compressPath parents i) j))
+          (repCompressCost (compressPath parents i) j)) fun _ =>
+            NRest.consume
+              (NRest.returnT
+                (if decide (repOf parents i = repOf (compressPath parents i) j)
+                  then 1 else 0)) rootsEqCost
+
+theorem compareCoreAbs_eq :
+    compareCoreAbs parents i j =
+      NRest.consume
+        (NRest.returnT
+          (if decide (repOf parents i = repOf (compressPath parents i) j) then 1 else 0))
+        (compareCoreCost parents i j) := by
+  simp only [compareCoreAbs, bindT_unit, NRest.consume_consume, compareCoreCost]
+  congr 1
+  ac_rfl
+
+def compareCoreCom (I J Ri Rj D F P R : String) : Com :=
+  (repCompressCom I Ri D F P).seq
+    ((repCompressCom J Rj D F P).seq (rootsEqCom Ri Rj R))
+
+theorem compareCoreRawHnr (I J Ri Rj D F P S R : String)
+    (parents sizes : List ℕ) (i j : ℕ) (hW : UfArrays.Wf (parents, sizes))
+    (hi : i < parents.length) (hj : j < parents.length) :
+    let parentsI := compressPath parents i
+    let parentsIJ := compressPath parentsI j
+    hnRefine (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell Ri ∗
+        junkCell Rj ∗ junkCell D ∗ junkCell F ∗ hnCtxt arrayAssn parents P ∗
+        hnCtxt arrayAssn sizes S ∗ junkCell R)
+      (compareCoreCom I J Ri Rj D F P R)
+      (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell D ∗ junkCell F ∗
+        hnCtxt natAssn (repOf parents i) Ri ∗
+        hnCtxt natAssn (repOf parentsI j) Rj ∗
+        hnCtxt arrayAssn parentsIJ P ∗ hnCtxt arrayAssn sizes S)
+      R natAssn (compareCoreAbs parents i j) := by
+  dsimp only
+  let parentsI := compressPath parents i
+  let parentsIJ := compressPath parentsI j
+  have hpresI := compressPath_preserves hW hi
+  have hWI : UfArrays.Wf (parentsI, sizes) := by
+    simpa only [parentsI] using hpresI.2
+  have hjI : j < parentsI.length := by
+    rw [hWI.2.1, ← hW.2.1]
+    exact hj
+  unfold compareCoreCom compareCoreAbs
+  have hphaseI :
+      hnRefine (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell Ri ∗
+          junkCell Rj ∗ junkCell D ∗ junkCell F ∗ hnCtxt arrayAssn parents P ∗
+          hnCtxt arrayAssn sizes S ∗ junkCell R)
+        (repCompressCom I Ri D F P)
+        ((hnCtxt natAssn i I ∗ junkCell D ∗ junkCell F ∗
+            hnCtxt arrayAssn parentsI P) ∗
+          (hnCtxt natAssn j J ∗ junkCell Rj ∗ hnCtxt arrayAssn sizes S ∗ junkCell R))
+        Ri natAssn
+        (NRest.consume (NRest.returnT (repOf parents i))
+          (repCompressCost parents i)) := by
+    exact hnRefine_frame_perm (by ac_rfl)
+      (repCompressExactHnr I Ri D F P parents i hW.1 hi)
+  apply hnr_bind
+    (Γ₂ := fun _ => hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell D ∗
+      junkCell F ∗ hnCtxt natAssn (repOf parents i) Ri ∗
+      hnCtxt natAssn (repOf parentsI j) Rj ∗
+      hnCtxt arrayAssn parentsIJ P ∗ hnCtxt arrayAssn sizes S) hphaseI
+  · intro rootI hrootI
+    have hrootI' : rootI = repOf parents i := bind_ref_tag_pin hrootI
+    subst rootI
+    have hphaseJ :
+        hnRefine (hnCtxt natAssn (repOf parents i) Ri ∗
+            ((hnCtxt natAssn i I ∗ junkCell D ∗ junkCell F ∗
+                hnCtxt arrayAssn parentsI P) ∗
+              (hnCtxt natAssn j J ∗ junkCell Rj ∗
+                hnCtxt arrayAssn sizes S ∗ junkCell R)))
+          (repCompressCom J Rj D F P)
+          ((hnCtxt natAssn j J ∗ junkCell D ∗ junkCell F ∗
+              hnCtxt arrayAssn parentsIJ P) ∗
+            (hnCtxt natAssn i I ∗ hnCtxt natAssn (repOf parents i) Ri ∗
+              hnCtxt arrayAssn sizes S ∗ junkCell R))
+          Rj natAssn
+          (NRest.consume (NRest.returnT (repOf parentsI j))
+            (repCompressCost parentsI j)) := by
+      exact hnRefine_frame_perm (by ac_rfl)
+        (repCompressExactHnr J Rj D F P parentsI j hWI.1 hjI)
+    apply hnr_bind
+      (Γ₂ := fun _ => hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell D ∗
+        junkCell F ∗ hnCtxt natAssn (repOf parents i) Ri ∗
+        hnCtxt natAssn (repOf parentsI j) Rj ∗
+        hnCtxt arrayAssn parentsIJ P ∗ hnCtxt arrayAssn sizes S) hphaseJ
+    · intro rootJ hrootJ
+      have hrootJ' : rootJ = repOf parentsI j := bind_ref_tag_pin hrootJ
+      subst rootJ
+      have heq :
+          hnRefine (hnCtxt natAssn (repOf parentsI j) Rj ∗
+              ((hnCtxt natAssn j J ∗ junkCell D ∗ junkCell F ∗
+                  hnCtxt arrayAssn parentsIJ P) ∗
+                (hnCtxt natAssn i I ∗ hnCtxt natAssn (repOf parents i) Ri ∗
+                  hnCtxt arrayAssn sizes S ∗ junkCell R)))
+            (rootsEqCom Ri Rj R)
+            (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell D ∗ junkCell F ∗
+              hnCtxt natAssn (repOf parents i) Ri ∗
+              hnCtxt natAssn (repOf parentsI j) Rj ∗
+              hnCtxt arrayAssn parentsIJ P ∗ hnCtxt arrayAssn sizes S)
+            R natAssn
+            (NRest.consume
+              (NRest.returnT
+                (if decide (repOf parents i = repOf parentsI j) then 1 else 0))
+              rootsEqCost) := by
+        exact hnRefine_cons_post
+          (hnRefine_frame_perm
+            (F := hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell D ∗
+              junkCell F ∗ hnCtxt arrayAssn parentsIJ P ∗
+              hnCtxt arrayAssn sizes S) (by ac_rfl)
+            (rootsEqExactHnr Ri Rj R (repOf parents i) (repOf parentsI j)))
+          (entails_of_eq (by ac_rfl))
+      exact heq
+    · intro rootJ
+      exact entails_of_eq (by ac_rfl)
+  · intro rootI
+    exact entails_of_eq (by ac_rfl)
+
+noncomputable def perCompareB (Rel : Per ℕ) (i j : ℕ) : Bool := by
+  classical
+  exact decide (perCompare Rel i j)
+
+theorem compareRoots_correct (Rel : Per ℕ) (hU : ufaInvar parents)
+    (hAlpha : ufaAlpha parents = Rel)
+    (hi : i < parents.length) (hj : j < parents.length) :
+    decide (repOf parents i = repOf (compressPath parents i) j) =
+      perCompareB Rel i j := by
+  classical
+  unfold perCompareB
+  have hjrep := compressPath_rep hU hi hj
+  have hiff : repOf parents i = repOf parents j ↔ perCompare Rel i j := by
+    simpa [perCompare, hAlpha] using ufaFindCorrect hU hi hj
+  rw [hjrep]
+  by_cases h : repOf parents i = repOf parents j
+  · have := hiff.mp h
+    simp [h, this]
+  · have : ¬perCompare Rel i j := fun hr => h (hiff.mpr hr)
+    simp [h, this]
+
+theorem compareCoreHnr (I J Ri Rj D F P S R : String) (Rel : Per ℕ)
+    (parents sizes : List ℕ) (i j : ℕ) (hW : UfArrays.Wf (parents, sizes))
+    (hAlpha : ufaAlpha parents = Rel) (hi : i < parents.length)
+    (hj : j < parents.length) :
+    hnRefine (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell Ri ∗
+        junkCell Rj ∗ junkCell D ∗ junkCell F ∗ hnCtxt arrayAssn parents P ∗
+        hnCtxt arrayAssn sizes S ∗ junkCell R)
+      (compareCoreCom I J Ri Rj D F P R)
+      (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell Ri ∗ junkCell Rj ∗
+        junkCell D ∗ junkCell F ∗ ufAssn Rel (P, S))
+      R natAssn
+      (NRest.consume
+        (NRest.returnT (if perCompareB Rel i j then 1 else 0))
+        (compareCoreCost parents i j)) := by
+  let parentsI := compressPath parents i
+  let parentsIJ := compressPath parentsI j
+  have hpresI := compressPath_preserves hW hi
+  have hWI : UfArrays.Wf (parentsI, sizes) := by simpa [parentsI] using hpresI.2
+  have hjI : j < parentsI.length := by rw [hWI.2.1, ← hW.2.1]; exact hj
+  have hpresJ := compressPath_preserves hWI hjI
+  have hWIJ : UfArrays.Wf (parentsIJ, sizes) := by simpa [parentsIJ] using hpresJ.2
+  have hAlphaIJ : ufaAlpha parentsIJ = Rel := by
+    simpa [parentsI, parentsIJ] using hpresJ.1.trans (hpresI.1.trans hAlpha)
+  have hflag := compareRoots_correct Rel hW.1 hAlpha hi hj
+  have hraw := compareCoreRawHnr I J Ri Rj D F P S R parents sizes i j hW hi hj
+  rw [compareCoreAbs_eq] at hraw
+  refine hnRefine_res_cast' hraw ?_
+  refine entails_trans (entails_of_eq ?_)
+    (conj_entails_mono
+      (conj_entails_mono (entails_refl (natAssn i I))
+        (conj_entails_mono (entails_refl (natAssn j J))
+          (conj_entails_mono
+            (natAssn_entails_junkCell (repOf parents i) Ri)
+            (conj_entails_mono
+              (natAssn_entails_junkCell (repOf parentsI j) Rj)
+              (conj_entails_mono (entails_refl (junkCell D))
+                (conj_entails_mono (entails_refl (junkCell F))
+                  (ufAssn_pack hWIJ hAlphaIJ P S)))))))
+      (entails_refl
+        (natAssn (if perCompareB Rel i j then 1 else 0) R)))
+  simp only [parentsI, parentsIJ, hnCtxt_def, hflag]
+  ac_rfl
+
+noncomputable def compareCost (parents : List ℕ) (i j : ℕ) : ECost :=
+  if i < parents.length then
+    irUnit Currency.ite +
+      if j < parents.length then irUnit Currency.ite + compareCoreCost parents i j
+      else irUnit Currency.ite + irUnit Currency.const
+  else irUnit Currency.ite + irUnit Currency.const
+
+noncomputable def compareAbs (Rel : Per ℕ) (parents : List ℕ) (i j : ℕ) :
+    NRest ℕ ECost :=
+  irIf (decide (i < parents.length))
+    (irIf (decide (j < parents.length))
+      (NRest.consume
+        (NRest.returnT (if perCompareB Rel i j then 1 else 0))
+        (compareCoreCost parents i j))
+      (mopConstN 0))
+    (mopConstN 0)
+
+theorem perCompareB_false_left (Rel : Per ℕ) (hAlpha : ufaAlpha parents = Rel)
+    (hi : ¬i < parents.length) : perCompareB Rel i j = false := by
+  classical
+  unfold perCompareB perCompare
+  rw [← hAlpha]
+  simp [ufaAlpha, hi]
+
+theorem perCompareB_false_right (Rel : Per ℕ) (hAlpha : ufaAlpha parents = Rel)
+    (hj : ¬j < parents.length) : perCompareB Rel i j = false := by
+  classical
+  unfold perCompareB perCompare
+  rw [← hAlpha]
+  simp [ufaAlpha, hj]
+
+theorem compareAbs_eq (Rel : Per ℕ) (hAlpha : ufaAlpha parents = Rel) :
+    compareAbs Rel parents i j =
+      NRest.consume
+        (NRest.returnT (if perCompareB Rel i j then 1 else 0))
+        (compareCost parents i j) := by
+  by_cases hi : i < parents.length
+  · by_cases hj : j < parents.length
+    · simp [compareAbs, compareCost, hi, hj, irIf_true, NRest.consume_consume]
+    · have hfalse := perCompareB_false_right (i := i) Rel hAlpha hj
+      simp [compareAbs, compareCost, hi, hj, hfalse, irIf_true, irIf_false,
+        mopConstN, NRest.consume_consume, add_comm]
+  · have hfalse := perCompareB_false_left (j := j) Rel hAlpha hi
+    simp [compareAbs, compareCost, hi, hfalse, irIf_false, mopConstN,
+      NRest.consume_consume, add_comm]
+
+def compareCom (I J N Ri Rj D F P R : String) : Com :=
+  .ite (.lt (.cell I) (.cell N))
+    (.ite (.lt (.cell J) (.cell N)) (compareCoreCom I J Ri Rj D F P R)
+      (.const R 0))
+    (.const R 0)
+
+theorem compareFalseHnr (I J N Ri Rj D F P S R : String) (Rel : Per ℕ)
+    (parents sizes : List ℕ) (i j : ℕ) (hW : UfArrays.Wf (parents, sizes))
+    (hAlpha : ufaAlpha parents = Rel) :
+    hnRefine (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+        hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+        junkCell D ∗ junkCell F ∗ hnCtxt arrayAssn parents P ∗
+        hnCtxt arrayAssn sizes S ∗ junkCell R)
+      (.const R 0)
+      (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+        hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+        junkCell D ∗ junkCell F ∗ ufAssn Rel (P, S))
+      R natAssn (mopConstN 0) := by
+  let Frame := hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+    hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+    junkCell D ∗ junkCell F ∗ hnCtxt arrayAssn parents P ∗
+    hnCtxt arrayAssn sizes S
+  have h :
+      hnRefine (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+          hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+          junkCell D ∗ junkCell F ∗ hnCtxt arrayAssn parents P ∗
+          hnCtxt arrayAssn sizes S ∗ junkCell R)
+        (.const R 0) ((□ : Assn) ∗ Frame) R natAssn (mopConstN 0) := by
+    exact hnRefine_frame_perm (F := Frame) (by dsimp [Frame]; ac_rfl)
+      (hnr_mop_constN R 0)
+  refine hnRefine_cons_post h ?_
+  refine entails_trans
+    (entails_of_eq (by simp only [Frame, emp_sepConj, hnCtxt_def])) <|
+      (conj_entails_mono (entails_refl (natAssn i I))
+        (conj_entails_mono (entails_refl (natAssn j J))
+          (conj_entails_mono (entails_refl (natAssn parents.length N))
+            (conj_entails_mono (entails_refl (junkCell Ri))
+              (conj_entails_mono (entails_refl (junkCell Rj))
+                (conj_entails_mono (entails_refl (junkCell D))
+                  (conj_entails_mono (entails_refl (junkCell F))
+                    (ufAssn_pack hW hAlpha P S))))))))
+
+theorem compareRawHnr (I J N Ri Rj D F P S R : String) (Rel : Per ℕ)
+    (parents sizes : List ℕ) (i j : ℕ) (hW : UfArrays.Wf (parents, sizes))
+    (hAlpha : ufaAlpha parents = Rel) :
+    hnRefine (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+        hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+        junkCell D ∗ junkCell F ∗ hnCtxt arrayAssn parents P ∗
+        hnCtxt arrayAssn sizes S ∗ junkCell R)
+      (compareCom I J N Ri Rj D F P R)
+      (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+        hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+        junkCell D ∗ junkCell F ∗ ufAssn Rel (P, S))
+      R natAssn (compareAbs Rel parents i j) := by
+  unfold compareCom compareAbs
+  let Γ' := hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+    hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+    junkCell D ∗ junkCell F ∗ ufAssn Rel (P, S)
+  apply hnr_If
+  · exact CondRefine_perm
+      (P := hnCtxt natAssn i I ∗ hnCtxt natAssn parents.length N)
+      (F := hnCtxt natAssn j J ∗ junkCell Ri ∗ junkCell Rj ∗ junkCell D ∗
+        junkCell F ∗ hnCtxt arrayAssn parents P ∗ hnCtxt arrayAssn sizes S ∗ junkCell R)
+      (by ac_rfl) (condRefine_lt_cells i parents.length I N)
+  · intro hbi
+    have hi : i < parents.length := of_decide_eq_true hbi
+    apply hnr_If
+    · exact CondRefine_perm
+        (P := hnCtxt natAssn j J ∗ hnCtxt natAssn parents.length N)
+        (F := hnCtxt natAssn i I ∗ junkCell Ri ∗ junkCell Rj ∗ junkCell D ∗
+          junkCell F ∗ hnCtxt arrayAssn parents P ∗ hnCtxt arrayAssn sizes S ∗ junkCell R)
+        (by ac_rfl) (condRefine_lt_cells j parents.length J N)
+    · intro hbj
+      have hj : j < parents.length := of_decide_eq_true hbj
+      have hcore :
+          hnRefine (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+              hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+              junkCell D ∗ junkCell F ∗ hnCtxt arrayAssn parents P ∗
+              hnCtxt arrayAssn sizes S ∗ junkCell R)
+            (compareCoreCom I J Ri Rj D F P R) Γ' R natAssn
+            (NRest.consume
+              (NRest.returnT (if perCompareB Rel i j then 1 else 0))
+              (compareCoreCost parents i j)) := by
+        exact hnRefine_cons_post
+          (hnRefine_frame_perm
+            (Γ := hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+              hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+              junkCell D ∗ junkCell F ∗ hnCtxt arrayAssn parents P ∗
+              hnCtxt arrayAssn sizes S ∗ junkCell R)
+            (F := hnCtxt natAssn parents.length N) (by ac_rfl)
+            (compareCoreHnr I J Ri Rj D F P S R Rel parents sizes i j hW hAlpha hi hj))
+          (entails_of_eq (by dsimp [Γ']; ac_rfl))
+      exact hcore
+    · intro _
+      exact compareFalseHnr I J N Ri Rj D F P S R Rel parents sizes i j hW hAlpha
+    · exact MERGE_triv Γ'
+  · intro _
+    exact compareFalseHnr I J N Ri Rj D F P S R Rel parents sizes i j hW hAlpha
+  · exact MERGE_triv Γ'
+
+def boolNatAssn (b : Bool) (R : String) : Assn :=
+  natAssn (if b then 1 else 0) R
+
+theorem mopPerCompare_eq (Rel : Per ℕ) :
+    mopPerCompare Rel i j = NRest.returnT (perCompareB Rel i j) := by
+  rfl
+
+theorem compareCost_eq_phases (hi : i < parents.length) (hj : j < parents.length) :
+    compareCost parents i j =
+      2 • irUnit Currency.ite + repCompressCost parents i +
+        repCompressCost (compressPath parents i) j + rootsEqCost := by
+  rw [compareCost, if_pos hi, if_pos hj]
+  simp only [compareCoreCost, two_nsmul]
+  ac_rfl
+
+theorem compareCost_oob_left (hi : ¬i < parents.length) :
+    compareCost parents i j = irUnit Currency.ite + irUnit Currency.const := by
+  simp [compareCost, hi]
+
+theorem compareCost_oob_right (hi : i < parents.length) (hj : ¬j < parents.length) :
+    compareCost parents i j =
+      2 • irUnit Currency.ite + irUnit Currency.const := by
+  simp only [compareCost, hi, hj, if_true, if_false, two_nsmul]
+  ac_rfl
+
+/-- Public comparison boundary. `N` carries the array length because the local
+IR deliberately has no array-length instruction; it is preserved unchanged. -/
+theorem hnr_ufCompare (I J N Ri Rj D F P S R : String) (Rel : Per ℕ)
+    (parents sizes : List ℕ) (i j : ℕ) (hW : UfArrays.Wf (parents, sizes))
+    (hAlpha : ufaAlpha parents = Rel) :
+    hnRefine (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+        hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+        junkCell D ∗ junkCell F ∗ hnCtxt arrayAssn parents P ∗
+        hnCtxt arrayAssn sizes S ∗ junkCell R)
+      (compareCom I J N Ri Rj D F P R)
+      (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+        hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+        junkCell D ∗ junkCell F ∗ ufAssn Rel (P, S))
+      R boolNatAssn
+      (NRest.consume (mopPerCompare Rel i j) (compareCost parents i j)) := by
+  have h := compareRawHnr I J N Ri Rj D F P S R Rel parents sizes i j hW hAlpha
+  rw [compareAbs_eq Rel hAlpha] at h
+  have hcast :
+      hnRefine (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+          hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+          junkCell D ∗ junkCell F ∗ hnCtxt arrayAssn parents P ∗
+          hnCtxt arrayAssn sizes S ∗ junkCell R)
+        (compareCom I J N Ri Rj D F P R)
+        (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+          hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+          junkCell D ∗ junkCell F ∗ ufAssn Rel (P, S))
+        R boolNatAssn
+        (NRest.consume (NRest.returnT (perCompareB Rel i j))
+          (compareCost parents i j)) := by
+    refine hnRefine_res_cast' h ?_
+    exact entails_refl _
+  simpa only [mopPerCompare_eq] using hcast
+
+theorem compare_height_bounds (hW : UfArrays.Wf (parents, sizes))
+    (hi : i < parents.length) (hj : j < parents.length) :
+    let parentsI := compressPath parents i
+    heightOf parents i ≤ heightUb parents.length ∧
+      compressSteps parents i ≤ heightUb parents.length ∧
+      heightOf parentsI j ≤ heightUb parents.length ∧
+      compressSteps parentsI j ≤ heightUb parents.length := by
+  dsimp only
+  let parentsI := compressPath parents i
+  have hpresI := compressPath_preserves hW hi
+  have hWI : UfArrays.Wf (parentsI, sizes) := by simpa [parentsI] using hpresI.2
+  have hlen : parentsI.length = parents.length := by
+    rw [hWI.2.1, hW.2.1]
+  have hjI : j < parentsI.length := by simpa [hlen] using hj
+  have hiUb := heightOfLeHeightUb hW.2.2 hW.1 hi
+  have hjUb := heightOfLeHeightUb hWI.2.2 hWI.1 hjI
+  rw [hlen] at hjUb
+  exact ⟨hiUb, (compressSteps_le_height parents i).trans hiUb,
+    hjUb, (compressSteps_le_height parentsI j).trans hjUb⟩
+
 /-! ## Exact vector-cost and execution gates for the landed loops -/
 
 theorem rangeCost_aset : (rangeCost 3).toFun Currency.aset = 3 := by decide +kernel
@@ -1529,6 +2181,137 @@ theorem compressProg_chain :
   rw [rep_chain, height_chain, compressSteps_chain, compressExec_chain] at h
   exact h
 
+private theorem compareForestInvar : ufaInvar [0, 0, 2] := by
+  intro i hi
+  norm_num at hi
+  have his : i = 0 ∨ i = 1 ∨ i = 2 := by omega
+  rcases his with rfl | rfl | rfl
+  · refine ⟨by decide, 0, 1, ?_⟩; decide
+  · refine ⟨by decide, 0, 2, ?_⟩; decide
+  · refine ⟨by decide, 2, 1, ?_⟩; decide
+
+private theorem compareForest_rep0 : repOf [0, 0, 2] 0 = 0 := by
+  exact repOfRefl compareForestInvar (by decide) (by decide)
+
+private theorem compareForest_rep1 : repOf [0, 0, 2] 1 = 0 := by
+  rw [repOfStep compareForestInvar (by decide) (by decide)]
+  simpa using compareForest_rep0
+
+private theorem compareForest_rep2 : repOf [0, 0, 2] 2 = 2 := by
+  exact repOfRefl compareForestInvar (by decide) (by decide)
+
+private theorem compareForest_height0 : heightOf [0, 0, 2] 0 = 0 := by
+  exact heightOfRoot compareForestInvar (by decide) (by decide)
+
+private theorem compareForest_height1 : heightOf [0, 0, 2] 1 = 1 := by
+  rw [heightOfStep compareForestInvar (by decide) (by decide)]
+  simpa using congrArg Nat.succ compareForest_height0
+
+private theorem compareForest_height2 : heightOf [0, 0, 2] 2 = 0 := by
+  exact heightOfRoot compareForestInvar (by decide) (by decide)
+
+private theorem compareForestRank : rankInvar [0, 0, 2] [2, 0, 1] := by
+  constructor
+  · decide
+  constructor
+  · decide
+  · intro i hi hroot
+    norm_num at hi
+    have his : i = 0 ∨ i = 1 ∨ i = 2 := by omega
+    rcases his with rfl | rfl | rfl
+    · have hh : hOf [0, 0, 2] 0 ≤ 1 := by
+        unfold hOf
+        apply Finset.sup_le
+        intro j hj
+        simp only [Finset.mem_range] at hj
+        norm_num at hj
+        have hjs : j = 0 ∨ j = 1 ∨ j = 2 := by omega
+        rcases hjs with rfl | rfl | rfl
+        · simp [compareForest_rep0, compareForest_height0]
+        · simp [compareForest_rep1, compareForest_height1]
+        · simp [compareForest_rep2]
+      exact (Nat.pow_le_pow_right (by omega) hh).trans (by decide)
+    · norm_num at hroot
+    · have hh : hOf [0, 0, 2] 2 ≤ 0 := by
+        unfold hOf
+        apply Finset.sup_le
+        intro j hj
+        simp only [Finset.mem_range] at hj
+        norm_num at hj
+        have hjs : j = 0 ∨ j = 1 ∨ j = 2 := by omega
+        rcases hjs with rfl | rfl | rfl
+        · simp [compareForest_rep0]
+        · simp [compareForest_rep1]
+        · simp [compareForest_rep2, compareForest_height2]
+      exact (Nat.pow_le_pow_right (by omega) hh).trans (by decide)
+
+private theorem compareForestWf : UfArrays.Wf ([0, 0, 2], [2, 0, 1]) :=
+  ⟨compareForestInvar, by decide, compareForestRank⟩
+
+private theorem compareForest_path0 : compressPath [0, 0, 2] 0 = [0, 0, 2] := by
+  rw [compressPath, compareForest_height0, compareForest_rep0]
+  rfl
+
+private theorem compareForest_path1 : compressPath [0, 0, 2] 1 = [0, 0, 2] := by
+  rw [compressPath, compareForest_height1, compareForest_rep1]
+  decide +kernel
+
+private theorem compareForest_steps0 : compressSteps [0, 0, 2] 0 = 0 := by
+  rw [compressSteps, compareForest_height0, compareForest_rep0]
+  rfl
+
+private theorem compareForest_steps1 : compressSteps [0, 0, 2] 1 = 1 := by
+  rw [compressSteps, compareForest_height1, compareForest_rep1]
+  decide +kernel
+
+private theorem compareForest_steps2 : compressSteps [0, 0, 2] 2 = 0 := by
+  rw [compressSteps, compareForest_height2, compareForest_rep2]
+  rfl
+
+theorem compare_true_forest :
+    perCompareB (ufaAlpha [0, 0, 2]) 0 1 = true := by
+  classical
+  unfold perCompareB perCompare
+  rw [decide_eq_true_eq]
+  exact (ufaFindCorrect compareForestInvar (by decide) (by decide)).mp (by
+    rw [compareForest_rep0, compareForest_rep1])
+
+theorem compare_false_forest :
+    perCompareB (ufaAlpha [0, 0, 2]) 1 2 = false := by
+  classical
+  unfold perCompareB perCompare
+  rw [decide_eq_false_iff_not]
+  intro hmem
+  have heq := (ufaFindCorrect compareForestInvar (by decide) (by decide)).mpr hmem
+  rw [compareForest_rep1, compareForest_rep2] at heq
+  omega
+
+theorem compareAbs_true_forest :
+    compareAbs (ufaAlpha [0, 0, 2]) [0, 0, 2] 0 1 =
+      NRest.consume (NRest.returnT 1) (compareCost [0, 0, 2] 0 1) := by
+  rw [compareAbs_eq (ufaAlpha [0, 0, 2]) rfl, compare_true_forest]
+  rfl
+
+theorem compareAbs_false_forest :
+    compareAbs (ufaAlpha [0, 0, 2]) [0, 0, 2] 1 2 =
+      NRest.consume (NRest.returnT 0) (compareCost [0, 0, 2] 1 2) := by
+  rw [compareAbs_eq (ufaAlpha [0, 0, 2]) rfl, compare_false_forest]
+  rfl
+
+theorem compare_true_while_cost :
+    (compareCost [0, 0, 2] 0 1).toFun Currency.«while» = 6 := by
+  rw [compareCost_eq_phases (by decide) (by decide), compareForest_path0]
+  simp only [repCompressCost, compareForest_height0, compareForest_height1,
+    compareForest_steps0, compareForest_steps1]
+  decide +kernel
+
+theorem compare_false_while_cost :
+    (compareCost [0, 0, 2] 1 2).toFun Currency.«while» = 6 := by
+  rw [compareCost_eq_phases (by decide) (by decide), compareForest_path1]
+  simp only [repCompressCost, compareForest_height1, compareForest_height2,
+    compareForest_steps1, compareForest_steps2]
+  decide +kernel
+
 /-! ## Kernel-three guards -/
 
 /-- info: 'Lax13Proofs.Refine.Sepref.Iicf.UnionFindTime.hnr_range_init' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -1552,5 +2335,9 @@ theorem compressProg_chain :
 /-- info: 'Lax13Proofs.Refine.Sepref.Iicf.UnionFindTime.hnr_ufCompress' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms hnr_ufCompress
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.UnionFindTime.hnr_ufCompare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms hnr_ufCompare
 
 end Lax13Proofs.Refine.Sepref.Iicf.UnionFindTime

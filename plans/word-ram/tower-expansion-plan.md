@@ -7,7 +7,8 @@ Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0, P1, P2, P3.A, P3.B, and P3.C complete; P4 design is locked, A1 generic
 amortization and B1 pure union-find are complete, and A2 bounded dynamic array
 is complete. B2 timed loop-form union-find has green initialization,
-height-sensitive root-search, and path-compression boundaries; comparison is next. The source-first
+height-sensitive root-search, path-compression, and comparison boundaries;
+union-by-size is next. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -376,6 +377,16 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P4.B2 comparison boundary green.** Bounds-checked same-set
+  comparison now composes two find/compress phases, preserves the abstract
+  relation and both arrays' invariants, and compares the representatives. Its
+  exact vector cost is branch-sensitive: invalid inputs return false without
+  mutation, while valid inputs expose the sum of both measured phases and the
+  final equality test. The phase heights and rewrite counts are bounded by
+  `heightUb`. True/false forest gates and the public `hnr_ufCompare` kernel
+  guard pass. Supervisor replay: 2,998 jobs; zero placeholders. **Next:
+  union-by-size and its two rank-preservation branches.**
 
 - **2026-08-01 — P4.B2 path-compression boundary green.** The unrooted timed
   union-find leaf now follows the found path and rewrites every visited parent
