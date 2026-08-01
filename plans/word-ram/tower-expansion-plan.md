@@ -10,7 +10,8 @@ union-find. P5.A is complete: all eight interface families are root-imported
 and archive-green. P5.B is complete: all five concrete bounded-sequence and
 all three bounded-key map families are green as unrooted leaves: `Array_List`,
 `DArray_List`, `MS_Array_List`, `Indexed_Array_List`,
-`Array_of_Array_List`, `Array_Map`, `Array_Map_Total`, and `ArrayMap_Map`. The source-first
+`Array_of_Array_List`, `Array_Map`, `Array_Map_Total`, and `ArrayMap_Map`.
+P5.C has begun with the row-major `Array_Matrix` family green. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -378,6 +379,18 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P5.C Array_Matrix green (1/5 families).** New unrooted
+  `Iicf/Impl/ArrayMatrix.lean` ports the general `N × M` row-major relation,
+  bounded-support and zero-preservation theory, semantic tabulation/new, and
+  rectangular plus source-specialized square get/set refinements. Executable
+  caller-owned default fill and get/set are synthesized; get/set compute the
+  physical index with actual `mul` and `add` before `aget`/`aset`, with exact
+  vector costs. Allocation and the source's higher-order heap callback remain
+  explicit unsupported boundaries, while the generic semantic new rule keeps
+  the source's pure zero-unique relation. Supervisor replay: 2,988 jobs;
+  relation/index, registration, command/currency, kernel-three, and zero-
+  placeholder gates pass. **Next: P5.C Abs_Heap.**
 
 - **2026-08-01 — P5.B complete: ArrayMap_Map green (8/8 implementation
   families; 3/3 map families).** New unrooted

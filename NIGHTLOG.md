@@ -3949,3 +3949,14 @@ Source scalar costs remain provenance, not fake vector equalities, and
 allocation/free remain unsupported. Supervisor replay: 2,988 jobs;
 relation/cardinality, registration, branch/currency, kernel-three, and zero-
 placeholder gates pass. Next: P5.C, sequentially on warm main.
+
+P5.C has begun with `Array_Matrix`. The new unrooted leaf ports the general
+row-major `N × M` relation, index and bounded-support theory, generic semantic
+tabulation/new under the source's pure zero-unique condition, and rectangular
+plus square get/set refinements. Caller-owned default fill and exact get/set
+commands are executable; get/set visibly spend `mul`, `add`, then `aget` or
+`aset`. Allocation and the higher-order heap callback remain unsupported
+rather than receiving a fake command. Supervisor replay: 2,988 jobs after a
+review correction restored the generic new rule; relation/index,
+registration, command/currency, kernel-three, and zero-placeholder gates pass.
+Next: `Abs_Heap`, sequentially on warm main.
