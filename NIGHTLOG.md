@@ -3813,3 +3813,12 @@ conditions; checked lookup keeps the paired-input nonempty precondition and a
 zero-cost unique specification. Registrations, diagonal frefs, source
 pattern/locale accounting, and kernel guards all pass. Supervisor replay:
 2,984 jobs; zero placeholders. Next: List, sequentially on warm main.
+
+P5.A List is green as the third interface leaf. New unrooted
+`Iicf/Intf/List.lean` ports the list-relational support and all twenty-two
+cost-silent operations, preserving the exact bound, nonempty, and nested-tuple
+preconditions. Index/contains keep their single-valued relation requirements,
+and the generic swap expansion is proved from the get/set sequence.
+Registrations, diagonal frefs, source automation dispositions, and kernel
+guards pass. Supervisor replay: 2,984 jobs; zero placeholders. Next: List_List,
+sequentially on warm main.
