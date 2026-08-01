@@ -85,6 +85,14 @@ import Lax13Proofs.Refine.Codegen.Cash
 import Lax13Proofs.Refine.NREST.FlattenCurrencies
 import Lax13Proofs.Refine.Codegen.Examples.EndToEnd
 import Lax13Proofs.Refine.Iicf.Basic
+import Lax13Proofs.Refine.Iicf.Intf.Set
+import Lax13Proofs.Refine.Iicf.Intf.Map
+import Lax13Proofs.Refine.Iicf.Intf.List
+import Lax13Proofs.Refine.Iicf.Intf.ListList
+import Lax13Proofs.Refine.Iicf.Intf.Matrix
+import Lax13Proofs.Refine.Iicf.Intf.Multiset
+import Lax13Proofs.Refine.Iicf.Intf.PrioBag
+import Lax13Proofs.Refine.Iicf.Intf.PrioMap
 import Lax13Proofs.Refine.Iicf.IicfArray
 import Lax13Proofs.Refine.Iicf.IicfTrailArray
 import Lax13Proofs.Refine.Iicf.ExercisesA

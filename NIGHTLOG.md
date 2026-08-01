@@ -3863,3 +3863,10 @@ and below-identity requirements. Peek/pop transport global minima, and pop
 returns the exact related delete remainder. Proper-below-id, diagonal,
 registration, and kernel gates pass. Supervisor replay: 2,987 jobs; zero
 placeholders. Next: root wiring and the package/archive boundary on warm main.
+
+P5.A is complete. `Lax13Proofs.lean` explicitly imports all eight interface
+families, and the aggregate boundary preserves their registration and kernel
+gates. Final checks: concepts 505 jobs, rooted proofs 3,263 jobs, and
+`lax build --only proofs word-ram` green with no dependency leak; zero
+placeholders. Next: P5.B concrete bounded sequence/map families, sequentially
+on warm main.
