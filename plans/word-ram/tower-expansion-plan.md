@@ -6,7 +6,7 @@ by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0 through P4 are complete. P4 lands generic vector amortization, the bounded
 dynamic-array adapter, pure logarithmic union-find, and timed loop-form
-union-find. P5.A has completed the Set, Map, and List interfaces; List_List is next. The source-first
+union-find. P5.A has completed Set, Map, List, and List_List; Matrix is next. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -374,6 +374,14 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P5.A List_List interface green (4/8).** New unrooted leaf
+  `Iicf/Intf/ListList.lean` ports all eight nested-list operations and six
+  semantic fold equalities with exact bounds and product shapes. A nominal
+  `ListListI` is limited to repairing the interface normalizer's inability to
+  expand nested `ListI`; semantics remain `List (List α)`. All registrations,
+  diagonal frefs, custom-empty disposition, and kernel guards pass. Supervisor
+  replay: 2,985 jobs; kernel-three and zero placeholders. **Next: P5.A Matrix.**
 
 - **2026-08-01 — P5.A List interface green (3/8).** New unrooted leaf
   `Iicf/Intf/List.lean` ports the list-relational support and all twenty-two

@@ -3822,3 +3822,11 @@ and the generic swap expansion is proved from the get/set sequence.
 Registrations, diagonal frefs, source automation dispositions, and kernel
 guards pass. Supervisor replay: 2,984 jobs; zero placeholders. Next: List_List,
 sequentially on warm main.
+
+P5.A List_List is green as the fourth interface leaf. New unrooted
+`Iicf/Intf/ListList.lean` ports all eight nested-list operations and six fold
+equalities with their original bounds and tuple shapes. The nominal
+`ListListI` exists only because nested `ListI` does not normalize to
+`List (List α)`; it adds no representation or operations. Registrations,
+diagonal frefs, custom-empty accounting, and kernel guards pass. Supervisor
+replay: 2,985 jobs; zero placeholders. Next: Matrix, sequentially on warm main.
