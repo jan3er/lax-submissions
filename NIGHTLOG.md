@@ -3797,3 +3797,11 @@ mathlib-owned bitwise module preserved the proof and cleared the audit. Final
 gates: focused leaf 3,000 jobs, concepts 505, root proofs and proofs-only lax
 3,255, kernel-three, zero placeholders. Next: P5 IICF breadth, sequentially on
 warm main.
+
+P5.A has started with the smallest complete source family. New unrooted
+`Iicf/Intf/Set.lean` defines the bidirectional set relator, `SetI`, inference,
+and all eleven cost-silent interface operations; pick retains its nonempty
+precondition and zero-cost nondeterminism. Source single-valued/converse
+conditions, operation registrations, and diagonal frefs are gated. Supervisor
+replay: 2,983 jobs; kernel-three and zero placeholders. Next: Map, still one
+worker at a time on warm main.
