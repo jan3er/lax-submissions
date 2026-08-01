@@ -11,8 +11,9 @@ and archive-green. P5.B is complete: all five concrete bounded-sequence and
 all three bounded-key map families are green as unrooted leaves: `Array_List`,
 `DArray_List`, `MS_Array_List`, `Indexed_Array_List`,
 `Array_of_Array_List`, `Array_Map`, `Array_Map_Total`, and `ArrayMap_Map`.
-P5.C has begun with the row-major `Array_Matrix` family green. The source-first
-scope firewall below was added at Jan's request on 2026-07-31.** This document is
+P5.C has begun with the row-major `Array_Matrix` and source-shaped `Abs_Heap`
+families green. The source-first scope firewall below was added at Jan's request
+on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
 
@@ -379,6 +380,20 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P5.C Abs_Heap green (2/5 families; 1/4 heap families).**
+  New unrooted `Iicf/Impl/AbsHeap.lean` ports the pure one-based list heap:
+  navigation, invariant and root-minimum theory, update/exchange/append/
+  butlast primitives, and the actual source-shaped swim, optimized sink,
+  repair, insert, peek, and pop algorithms. Review rejected an interim
+  insertion-sort normalization and restored the recursive heap motions; a
+  second correction restored the source `change_key` seam by proving repair
+  after an arbitrary valid cell update, with explicit decreased- and
+  increased-priority cases. The five multiset/prio-bag frefs are semantic and
+  intentionally expose no executable rules or vector costs at this abstract
+  layer. Supervisor replay: 2,988 jobs; motion regressions, source/fref
+  registration, kernel-three, and zero-placeholder gates pass. **Next: P5.C
+  Impl_Heap.**
 
 - **2026-08-01 — P5.C Array_Matrix green (1/5 families).** New unrooted
   `Iicf/Impl/ArrayMatrix.lean` ports the general `N × M` row-major relation,

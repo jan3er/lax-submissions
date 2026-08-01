@@ -3960,3 +3960,15 @@ rather than receiving a fake command. Supervisor replay: 2,988 jobs after a
 review correction restored the generic new rule; relation/index,
 registration, command/currency, kernel-three, and zero-placeholder gates pass.
 Next: `Abs_Heap`, sequentially on warm main.
+
+P5.C `Abs_Heap` is green as the second P5.C family and first heap family. The
+new unrooted leaf ports the abstract one-based list heap with invariant and
+root-minimum theory, actual recursive swim and optimized sink, repair, insert,
+peek, and pop, plus five semantic multiset/prio-bag refinements. Supervisor
+review rejected an interim insertion-sort normalization and restored exact
+heap motion; a second correction proved the source-required repair theorem
+after arbitrary valid key replacement, split into decreased- and increased-
+priority cases. No executable IR rules or vector costs are claimed at this
+pure layer. Supervisor replay: 2,988 jobs; motion regressions, source/fref
+registration, kernel-three, and zero-placeholder gates pass. Next:
+`Impl_Heap`, sequentially on warm main.
