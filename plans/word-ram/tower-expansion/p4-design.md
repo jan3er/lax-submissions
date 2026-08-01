@@ -1,9 +1,8 @@
 # Tower expansion P4 — credits and amortization design
 
-Status: **ACTIVE 2026-08-01; A1 and B1 complete; A2 foundation green.** A2's
-abstract amortization and bounded specification are landed; its concrete
-success/failure branch programs are green, and only their manual `irIf`
-dispatcher bridge remains. B2 follows after this sequential wave. This record
+Status: **ACTIVE 2026-08-01; A1, A2, and B1 complete; B2 next.** A2's abstract
+amortization, bounded specification, concrete success/failure programs, and
+manual `irIf` dispatcher bridge are root-green. This record
 instantiates P4 of `tower-expansion-plan.md`. It is source-first: every selected
 source range receives a Lean owner, an existing-capital mapping, or an explicit
 exclusion. The machine model remains frozen.
@@ -22,7 +21,7 @@ P4.B1 pure union-find ──────┴────▶ P4.B2 timed loop-form
 - **P4.A1 — complete** creates `Sepref/Amortization.lean`: generic
   vector-credit reclaim, potential assertions, and the amortized `hnRefine`
   bridge.
-- **P4.A2** creates `Iicf/IicfDynamicArray.lean`: the source-faithful abstract
+- **P4.A2 — complete** creates `Iicf/IicfDynamicArray.lean`: the source-faithful abstract
   dynamic-list/potential development plus a bounded executable adapter over
   caller-owned, preallocated storage. Capacity and buffer ownership are explicit.
 - **P4.B1 — complete** creates

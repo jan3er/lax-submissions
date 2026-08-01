@@ -92,6 +92,7 @@ import Lax13Proofs.Refine.Iicf.IicfStack
 import Lax13Proofs.Refine.Iicf.IicfQueue
 import Lax13Proofs.Refine.Iicf.IicfCsr
 import Lax13Proofs.Refine.Iicf.IicfBitmask
+import Lax13Proofs.Refine.Iicf.IicfDynamicArray
 import Lax13Proofs.Refine.Iicf.UnionFindAbstract
 import Lax13Proofs.Refine.Sepref.IrLoop
 import Lax13Proofs.Refine.Examples.BfsQ

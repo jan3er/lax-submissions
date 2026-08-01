@@ -564,6 +564,426 @@ sepref_synth boundedFailSynth
 
 attribute [sepref_fr_rules] boundedSuccessSynth boundedFailSynth
 
+/-- The concrete success leaf exposed by `boundedSuccessSynth`. -/
+def boundedSuccessCom (A len newCapCell value one outLen outCap ok : String) : Com :=
+  (Com.aset A len value).seq
+    ((Com.binop .add outLen len one).seq
+      ((Com.copy outCap newCapCell).seq
+        ((Com.const ok 1).seq (Com.skip.seq (Com.skip.seq (Com.skip.seq Com.skip))))))
+
+/-- The concrete failure leaf.  It only copies metadata and never writes the array. -/
+def boundedFailCom (len cap outLen outCap ok : String) : Com :=
+  (Com.copy outLen len).seq
+    ((Com.copy outCap cap).seq
+      ((Com.const ok 0).seq (Com.skip.seq (Com.skip.seq (Com.skip.seq Com.skip)))))
+
+/-- The complete loop-free dispatcher.  The second comparison is intentionally
+`physical < doubled`: its false arm is exactly the in-buffer growth gate. -/
+def boundedExecCom (A len cap phys value one two outLen outCap ok doubled : String) : Com :=
+  .ite (.lt (.cell len) (.cell cap))
+    (boundedSuccessCom A len cap value one outLen outCap ok)
+    ((Com.binop .mul doubled cap two).seq
+      (.ite (.lt (.cell phys) (.cell doubled))
+        (boundedFailCom len cap outLen outCap ok)
+        (boundedSuccessCom A len doubled value one outLen outCap ok)))
+
+/-- Cell-level encoding of the public success flag and bounded state. -/
+def boundedObsRaw (o : ℕ × BoundedArray) : ℕ × (List ℕ × (ℕ × (ℕ × ℕ))) :=
+  (o.1, (o.2.buffer, (o.2.length, (o.2.capacity, o.2.buffer.length))))
+
+/-- Direct executable specification: the public bounded operation, with the
+exact branch-sensitive concrete cost. -/
+noncomputable def boundedExecSpec (s : BoundedArray) (x : ℕ) :
+    NRest (ℕ × (List ℕ × (ℕ × (ℕ × ℕ)))) ECost :=
+  NRest.consume (NRest.returnT (boundedObsRaw (boundedPushObs s x))) (boundedExecCost s)
+
+private theorem lift_irCostN (c : String) : liftACost (irCostN c) = irUnit c := by
+  simp [irCostN, liftACost_cost]
+
+private theorem lift_nsmul_irCostN {κ : Type} (n : ℕ) (A : ACost κ ℕ) :
+    liftACost (n • A) = n • liftACost A := by
+  ext k
+  simp [ACost.toFun_nsmul, nsmul_eq_mul]
+
+private theorem four_nsmul_irUnit (c : String) :
+    4 • irUnit c = irUnit c + irUnit c + irUnit c + irUnit c := by
+  simp [succ_nsmul]
+
+private theorem boundedSuccessRaw_eq (s : BoundedArray) (x newCap : ℕ)
+    (hidx : s.length < s.buffer.length) :
+    boundedSuccessRaw s x newCap =
+      NRest.consume
+        (NRest.returnT
+          (1, (s.buffer.set s.length x, (s.length + 1, (newCap, s.buffer.length)))))
+        (liftACost successCostN) := by
+  simp only [boundedSuccessRaw, packBoundedRaw, mopAset_def, mopBinop_def, mopCopy,
+    mopConstN, mopPair_def, NRest.assert_pos hidx, NRest.returnT_bindT,
+    NRest.bindT_consume NRest.addSupContinuousB_acost, NRest.consume_consume,
+    Imp.Bop.apply_add, binopCurrency_add, successCostN, packCostN, liftACost_add,
+    lift_nsmul_irCostN, lift_irCostN, four_nsmul_irUnit]
+  congr 1
+  ac_rfl
+
+private theorem boundedFailRaw_eq (s : BoundedArray) :
+    boundedFailRaw s =
+      NRest.consume
+        (NRest.returnT (0, (s.buffer, (s.length, (s.capacity, s.buffer.length)))))
+        (liftACost failCostN) := by
+  simp only [boundedFailRaw, packBoundedRaw, mopCopy, mopConstN, mopPair_def,
+    NRest.returnT_bindT, NRest.bindT_consume NRest.addSupContinuousB_acost,
+    NRest.consume_consume, failCostN, packCostN, liftACost_add,
+    lift_nsmul_irCostN, lift_irCostN, four_nsmul_irUnit]
+  congr 1
+  ac_rfl
+
+/-- The raw branch tree is exactly the public bounded operation and its
+branch-sensitive cost.  This is the semantic link used by the compiled bridge. -/
+theorem boundedExecRaw_eq_spec (s : BoundedArray) (x : ℕ) (hwf : s.Wf) :
+    boundedExecRaw s x = boundedExecSpec s x := by
+  rcases hwf with ⟨hpos, hlen, hcap⟩
+  by_cases hspace : s.length < s.capacity
+  · have hidx : s.length < s.buffer.length := by omega
+    rw [boundedExecRaw, show decide (s.length < s.capacity) = true by simp [hspace],
+      irIf_true, boundedSuccessRaw_eq s x s.capacity hidx]
+    simp only [NRest.consume_consume, boundedExecSpec, boundedExecCost,
+      boundedExecCostN, if_pos hspace, liftACost_add, lift_irCostN]
+    congr 1
+    simp [boundedObsRaw, boundedPushObs, boundedPush, hspace]
+  · have heq : s.length = s.capacity := by omega
+    have htwo : s.capacity * 2 = 2 * s.capacity := by omega
+    by_cases hfull : s.buffer.length < 2 * s.capacity
+    · have hnofit : ¬2 * s.capacity ≤ s.buffer.length := by omega
+      rw [boundedExecRaw, show decide (s.length < s.capacity) = false by simp [hspace],
+        irIf_false]
+      simp only [mopBinop_def, Imp.Bop.apply_mul, binopCurrency_mul,
+        NRest.bindT_consume NRest.addSupContinuousB_acost, NRest.returnT_bindT, htwo,
+        show decide (s.buffer.length < 2 * s.capacity) = true by simp [hfull],
+        irIf_true, boundedFailRaw_eq, NRest.consume_consume, boundedExecSpec,
+        boundedExecCost, boundedExecCostN, if_neg hspace, if_pos hfull,
+        liftACost_add, lift_irCostN]
+      congr 1
+      · simp [boundedObsRaw, boundedPushObs, boundedPush, hspace, hnofit]
+      · ac_rfl
+    · have hfit : 2 * s.capacity ≤ s.buffer.length := by omega
+      have hidx : s.length < s.buffer.length := by omega
+      rw [boundedExecRaw, show decide (s.length < s.capacity) = false by simp [hspace],
+        irIf_false]
+      simp only [mopBinop_def, Imp.Bop.apply_mul, binopCurrency_mul,
+        NRest.bindT_consume NRest.addSupContinuousB_acost, NRest.returnT_bindT, htwo,
+        show decide (s.buffer.length < 2 * s.capacity) = false by simp [hfull],
+        irIf_false, boundedSuccessRaw_eq s x (2 * s.capacity) hidx,
+        NRest.consume_consume, boundedExecSpec, boundedExecCost, boundedExecCostN,
+        if_neg hspace, if_neg hfull, liftACost_add, lift_irCostN]
+      congr 1
+      · simp [boundedObsRaw, boundedPushObs, boundedPush, hspace, hfit]
+      · ac_rfl
+
+/-- Assertion for the flag/buffer/length/capacity/physical-capacity result tuple. -/
+abbrev boundedRawAssn :
+    (ℕ × (List ℕ × (ℕ × (ℕ × ℕ)))) →
+      (String × (String × (String × (String × String)))) → Assn :=
+  natAssn ×ₐ (arrayAssn ×ₐ (natAssn ×ₐ (natAssn ×ₐ natAssn)))
+
+/-- Owned inputs and scratch cells required by `boundedExecCom`. -/
+def boundedExecPre (s : BoundedArray) (x : ℕ)
+    (A len cap phys value one two outLen outCap ok doubled : String) : Assn :=
+  junkCell outLen ∗ junkCell outCap ∗ junkCell ok ∗ junkCell doubled ∗
+    hnCtxt arrayAssn s.buffer A ∗ hnCtxt natAssn s.length len ∗
+    hnCtxt natAssn s.capacity cap ∗ hnCtxt natAssn s.buffer.length phys ∗
+    hnCtxt natAssn x value ∗ hnCtxt natAssn 1 one ∗ hnCtxt natAssn 2 two
+
+private def boundedKept (s : BoundedArray) (x : ℕ)
+    (len cap value one two : String) : Assn :=
+  hnCtxt natAssn s.capacity cap ∗ hnCtxt natAssn s.length len ∗
+    hnCtxt natAssn x value ∗ hnCtxt natAssn 1 one ∗ hnCtxt natAssn 2 two
+
+/-- The dispatcher preserves its scalar inputs and releases its multiplication scratch. -/
+def boundedExecPost (s : BoundedArray) (x : ℕ)
+    (len cap value one two doubled : String) : Assn :=
+  junkCell doubled ∗ boundedKept s x len cap value one two
+
+private def boundedMulPost (s : BoundedArray) (x : ℕ)
+    (A len cap phys value one two outLen outCap ok : String) : Assn :=
+  hnCtxt natAssn s.capacity cap ∗ hnCtxt natAssn 2 two ∗
+    (junkCell outLen ∗ junkCell outCap ∗ junkCell ok ∗
+      hnCtxt arrayAssn s.buffer A ∗ hnCtxt natAssn s.length len ∗
+      hnCtxt natAssn s.buffer.length phys ∗ hnCtxt natAssn x value ∗
+      hnCtxt natAssn 1 one)
+
+private def boundedInnerPost (s : BoundedArray) (x a : ℕ)
+    (len cap value one two doubled : String) : Assn :=
+  hnCtxt natAssn a doubled ∗ boundedKept s x len cap value one two
+
+/-- Manual composition of the two synthesized leaves.  This theorem is kept
+separate from the public bridge so the rule boundary remains inspectable. -/
+theorem boundedExecRaw_hnr
+    (s : BoundedArray) (x : ℕ)
+    (A len cap phys value one two outLen outCap ok doubled : String) :
+    hnRefine (boundedExecPre s x A len cap phys value one two outLen outCap ok doubled)
+      (boundedExecCom A len cap phys value one two outLen outCap ok doubled)
+      (boundedExecPost s x len cap value one two doubled)
+      (ok, (A, (outLen, (outCap, phys)))) boundedRawAssn (boundedExecRaw s x) := by
+  unfold boundedExecCom boundedExecRaw
+  have outerCond :
+      CondRefine (boundedExecPre s x A len cap phys value one two outLen outCap ok doubled)
+        (.lt (.cell len) (.cell cap)) (decide (s.length < s.capacity)) := by
+    apply CondRefine_perm
+      (P := hnCtxt natAssn s.length len ∗ hnCtxt natAssn s.capacity cap)
+      (F := junkCell outLen ∗ junkCell outCap ∗ junkCell ok ∗ junkCell doubled ∗
+        hnCtxt arrayAssn s.buffer A ∗ hnCtxt natAssn s.buffer.length phys ∗
+        hnCtxt natAssn x value ∗ hnCtxt natAssn 1 one ∗ hnCtxt natAssn 2 two)
+    · unfold boundedExecPre
+      ac_rfl
+    · exact condRefine_lt_cells s.length s.capacity len cap
+  have outerSuccess :
+      hnRefine (boundedExecPre s x A len cap phys value one two outLen outCap ok doubled)
+        (boundedSuccessCom A len cap value one outLen outCap ok)
+        (boundedExecPost s x len cap value one two doubled)
+        (ok, (A, (outLen, (outCap, phys)))) boundedRawAssn
+        (boundedSuccessRaw s x s.capacity) := by
+    have h := hnRefine_frame_perm
+      (Γ := boundedExecPre s x A len cap phys value one two outLen outCap ok doubled)
+      (P := junkCell outLen ∗ junkCell outCap ∗ junkCell ok ∗
+        hnCtxt arrayAssn s.buffer A ∗ hnCtxt natAssn s.length len ∗
+        hnCtxt natAssn s.capacity cap ∗ hnCtxt natAssn s.buffer.length phys ∗
+        hnCtxt natAssn x value ∗ hnCtxt natAssn 1 one)
+      (F := hnCtxt natAssn 2 two ∗ junkCell doubled)
+      (by unfold boundedExecPre; ac_rfl)
+      (boundedSuccessSynth A len cap phys value one outLen outCap ok s x s.capacity)
+    have heq :
+        (hnCtxt natAssn s.capacity cap ∗ hnCtxt natAssn s.length len ∗
+          hnCtxt natAssn 1 one ∗ hnCtxt natAssn x value) ∗
+            (hnCtxt natAssn 2 two ∗ junkCell doubled) =
+          boundedExecPost s x len cap value one two doubled := by
+      unfold boundedExecPost boundedKept
+      ac_rfl
+    rw [heq] at h
+    simpa only [boundedSuccessCom] using h
+  have mulStep :
+      hnRefine (boundedExecPre s x A len cap phys value one two outLen outCap ok doubled)
+        (.binop .mul doubled cap two)
+        (boundedMulPost s x A len cap phys value one two outLen outCap ok)
+        doubled natAssn (mopBinop .mul s.capacity 2) := by
+    have h := hnRefine_frame_perm
+      (Γ := boundedExecPre s x A len cap phys value one two outLen outCap ok doubled)
+      (P := junkCell doubled ∗ hnCtxt natAssn s.capacity cap ∗ hnCtxt natAssn 2 two)
+      (F := junkCell outLen ∗ junkCell outCap ∗ junkCell ok ∗
+        hnCtxt arrayAssn s.buffer A ∗ hnCtxt natAssn s.length len ∗
+        hnCtxt natAssn s.buffer.length phys ∗ hnCtxt natAssn x value ∗
+        hnCtxt natAssn 1 one)
+      (by unfold boundedExecPre; ac_rfl)
+      (hnr_mop_binop .mul doubled cap two s.capacity 2)
+    have heq :
+        (hnCtxt natAssn s.capacity cap ∗ hnCtxt natAssn 2 two) ∗
+          (junkCell outLen ∗ junkCell outCap ∗ junkCell ok ∗
+            hnCtxt arrayAssn s.buffer A ∗ hnCtxt natAssn s.length len ∗
+            hnCtxt natAssn s.buffer.length phys ∗ hnCtxt natAssn x value ∗
+            hnCtxt natAssn 1 one) =
+          boundedMulPost s x A len cap phys value one two outLen outCap ok := by
+      unfold boundedMulPost
+      ac_rfl
+    rw [heq] at h
+    exact h
+  have innerStep (a : ℕ) :
+      hnRefine
+        (hnCtxt natAssn a doubled ∗
+          boundedMulPost s x A len cap phys value one two outLen outCap ok)
+        (.ite (.lt (.cell phys) (.cell doubled))
+          (boundedFailCom len cap outLen outCap ok)
+          (boundedSuccessCom A len doubled value one outLen outCap ok))
+        (boundedInnerPost s x a len cap value one two doubled)
+        (ok, (A, (outLen, (outCap, phys)))) boundedRawAssn
+        (irIf (decide (s.buffer.length < a))
+          (boundedFailRaw s) (boundedSuccessRaw s x a)) := by
+    have innerCond :
+        CondRefine
+          (hnCtxt natAssn a doubled ∗
+            boundedMulPost s x A len cap phys value one two outLen outCap ok)
+          (.lt (.cell phys) (.cell doubled)) (decide (s.buffer.length < a)) := by
+      apply CondRefine_perm
+        (P := hnCtxt natAssn s.buffer.length phys ∗ hnCtxt natAssn a doubled)
+        (F := junkCell outLen ∗ junkCell outCap ∗ junkCell ok ∗
+          hnCtxt arrayAssn s.buffer A ∗ hnCtxt natAssn s.length len ∗
+          hnCtxt natAssn s.capacity cap ∗ hnCtxt natAssn x value ∗
+          hnCtxt natAssn 1 one ∗ hnCtxt natAssn 2 two)
+      · unfold boundedMulPost
+        ac_rfl
+      · exact condRefine_lt_cells s.buffer.length a phys doubled
+    have failBranch :
+        hnRefine
+          (hnCtxt natAssn a doubled ∗
+            boundedMulPost s x A len cap phys value one two outLen outCap ok)
+          (boundedFailCom len cap outLen outCap ok)
+          (boundedInnerPost s x a len cap value one two doubled)
+          (ok, (A, (outLen, (outCap, phys)))) boundedRawAssn (boundedFailRaw s) := by
+      have h := hnRefine_frame_perm
+        (Γ := hnCtxt natAssn a doubled ∗
+          boundedMulPost s x A len cap phys value one two outLen outCap ok)
+        (P := junkCell outLen ∗ junkCell outCap ∗ junkCell ok ∗
+          hnCtxt arrayAssn s.buffer A ∗ hnCtxt natAssn s.length len ∗
+          hnCtxt natAssn s.capacity cap ∗ hnCtxt natAssn s.buffer.length phys)
+        (F := hnCtxt natAssn a doubled ∗ hnCtxt natAssn x value ∗
+          hnCtxt natAssn 1 one ∗ hnCtxt natAssn 2 two)
+        (by unfold boundedMulPost; ac_rfl)
+        (boundedFailSynth A len cap phys outLen outCap ok s)
+      have heq :
+          (hnCtxt natAssn s.capacity cap ∗ hnCtxt natAssn s.length len) ∗
+            (hnCtxt natAssn a doubled ∗ hnCtxt natAssn x value ∗
+              hnCtxt natAssn 1 one ∗ hnCtxt natAssn 2 two) =
+            boundedInnerPost s x a len cap value one two doubled := by
+        unfold boundedInnerPost boundedKept
+        ac_rfl
+      rw [heq] at h
+      simpa only [boundedFailCom] using h
+    have successBranch :
+        hnRefine
+          (hnCtxt natAssn a doubled ∗
+            boundedMulPost s x A len cap phys value one two outLen outCap ok)
+          (boundedSuccessCom A len doubled value one outLen outCap ok)
+          (boundedInnerPost s x a len cap value one two doubled)
+          (ok, (A, (outLen, (outCap, phys)))) boundedRawAssn
+          (boundedSuccessRaw s x a) := by
+      have h := hnRefine_frame_perm
+        (Γ := hnCtxt natAssn a doubled ∗
+          boundedMulPost s x A len cap phys value one two outLen outCap ok)
+        (P := junkCell outLen ∗ junkCell outCap ∗ junkCell ok ∗
+          hnCtxt arrayAssn s.buffer A ∗ hnCtxt natAssn s.length len ∗
+          hnCtxt natAssn a doubled ∗ hnCtxt natAssn s.buffer.length phys ∗
+          hnCtxt natAssn x value ∗ hnCtxt natAssn 1 one)
+        (F := hnCtxt natAssn s.capacity cap ∗ hnCtxt natAssn 2 two)
+        (by unfold boundedMulPost; ac_rfl)
+        (boundedSuccessSynth A len doubled phys value one outLen outCap ok s x a)
+      have heq :
+          (hnCtxt natAssn a doubled ∗ hnCtxt natAssn s.length len ∗
+            hnCtxt natAssn 1 one ∗ hnCtxt natAssn x value) ∗
+              (hnCtxt natAssn s.capacity cap ∗ hnCtxt natAssn 2 two) =
+            boundedInnerPost s x a len cap value one two doubled := by
+        unfold boundedInnerPost boundedKept
+        ac_rfl
+      rw [heq] at h
+      simpa only [boundedSuccessCom] using h
+    exact hnr_If innerCond (fun _ => failBranch) (fun _ => successBranch)
+      (MERGE_triv _)
+  have outerElse :
+      hnRefine (boundedExecPre s x A len cap phys value one two outLen outCap ok doubled)
+        ((Com.binop .mul doubled cap two).seq
+          (Com.ite (.lt (.cell phys) (.cell doubled))
+            (boundedFailCom len cap outLen outCap ok)
+            (boundedSuccessCom A len doubled value one outLen outCap ok)))
+        (boundedExecPost s x len cap value one two doubled)
+        (ok, (A, (outLen, (outCap, phys)))) boundedRawAssn
+        (NRest.bindT (mopBinop .mul s.capacity 2) fun a =>
+          irIf (decide (s.buffer.length < a))
+            (boundedFailRaw s) (boundedSuccessRaw s x a)) := by
+    apply hnr_bind mulStep (fun a _ => innerStep a)
+    intro a
+    unfold boundedInnerPost boundedExecPost
+    apply conj_entails_mono (natAssn_entails_junkCell a doubled)
+      (entails_refl (boundedKept s x len cap value one two))
+  exact hnr_If outerCond (fun _ => outerSuccess) (fun _ => outerElse) (MERGE_triv _)
+
+/-- End-to-end compiled bridge.  The concrete loop-free command implements
+`boundedPushObs`; its abstract execution pays exactly `boundedExecCost`. -/
+theorem boundedExec_hnr
+    (s : BoundedArray) (x : ℕ) (hwf : s.Wf)
+    (A len cap phys value one two outLen outCap ok doubled : String) :
+    hnRefine (boundedExecPre s x A len cap phys value one two outLen outCap ok doubled)
+      (boundedExecCom A len cap phys value one two outLen outCap ok doubled)
+      (boundedExecPost s x len cap value one two doubled)
+      (ok, (A, (outLen, (outCap, phys)))) boundedRawAssn (boundedExecSpec s x) :=
+  hnRefine_ref (boundedExecRaw_hnr s x A len cap phys value one two outLen outCap ok doubled)
+    (le_of_eq (boundedExecRaw_eq_spec s x hwf))
+
+/-- No-resize gate: success, same logical capacity, exact branch cost. -/
+theorem boundedExecSpec_noResize (s : BoundedArray) (x : ℕ)
+    (hspace : s.length < s.capacity) :
+    boundedExecSpec s x =
+      NRest.consume
+        (NRest.returnT
+          (1, (s.buffer.set s.length x,
+            (s.length + 1, (s.capacity, s.buffer.length)))))
+        (boundedExecCost s) := by
+  simp [boundedExecSpec, boundedObsRaw, boundedPushObs, boundedPush, hspace]
+
+/-- In-buffer growth gate: success with doubled logical capacity and the same
+physical buffer allocation. -/
+theorem boundedExecSpec_grow (s : BoundedArray) (x : ℕ)
+    (hspace : ¬s.length < s.capacity) (hfit : 2 * s.capacity ≤ s.buffer.length) :
+    boundedExecSpec s x =
+      NRest.consume
+        (NRest.returnT
+          (1, (s.buffer.set s.length x,
+            (s.length + 1, (2 * s.capacity, s.buffer.length)))))
+        (boundedExecCost s) := by
+  simp [boundedExecSpec, boundedObsRaw, boundedPushObs, boundedPush, hspace, hfit]
+
+/-- Full gate: failure returns the original buffer and metadata unchanged. -/
+theorem boundedExecSpec_full (s : BoundedArray) (x : ℕ)
+    (hspace : ¬s.length < s.capacity) (hfull : s.buffer.length < 2 * s.capacity) :
+    boundedExecSpec s x =
+      NRest.consume
+        (NRest.returnT (0, (s.buffer, (s.length, (s.capacity, s.buffer.length)))))
+        (boundedExecCost s) := by
+  have hnofit : ¬2 * s.capacity ≤ s.buffer.length := by omega
+  simp [boundedExecSpec, boundedObsRaw, boundedPushObs, boundedPush, hspace, hnofit]
+
+private def boundedGateCom : Com :=
+  boundedExecCom "A" "len" "cap" "phys" "value" "one" "two"
+    "outLen" "outCap" "ok" "doubled"
+
+private def boundedGateState (buf : List ℕ) (len cap value : ℕ) : State :=
+  State.ofPairs
+    [("len", len), ("cap", cap), ("phys", buf.length), ("value", value),
+      ("one", 1), ("two", 2), ("outLen", 0), ("outCap", 0), ("ok", 0),
+      ("doubled", 0)]
+    [("A", buf)]
+
+private def boundedNoResizeOut : State × Cost :=
+  (evalFuel 30 boundedGateCom (boundedGateState [0, 0, 0, 0] 1 4 7)).getD
+    (boundedGateState [0, 0, 0, 0] 1 4 7, 0)
+
+private def boundedGrowOut : State × Cost :=
+  (evalFuel 30 boundedGateCom (boundedGateState (List.replicate 8 0) 2 2 5)).getD
+    (boundedGateState (List.replicate 8 0) 2 2 5, 0)
+
+private def boundedFullOut : State × Cost :=
+  (evalFuel 30 boundedGateCom (boundedGateState [1, 2, 3, 4] 4 4 9)).getD
+    (boundedGateState [1, 2, 3, 4] 4 4 9, 0)
+
+-- Compiled no-resize gate.
+#guard Ir.Gate.readVars boundedNoResizeOut.1 ["len", "cap", "phys", "outLen", "outCap", "ok", "doubled"] =
+  [("len", some 1), ("cap", some 4), ("phys", some 4), ("outLen", some 2),
+    ("outCap", some 4), ("ok", some 1), ("doubled", some 0)]
+#guard Ir.Gate.readArrs boundedNoResizeOut.1 ["A"] = [("A", some [0, 7, 0, 0])]
+#guard Ir.Gate.costVector boundedNoResizeOut.2 =
+  [("ir.skip", 4), ("ir.const", 1), ("ir.copy", 1), ("ir.aget", 0),
+    ("ir.aset", 1), ("ir.ite", 1), ("ir.while", 0), ("ir.add", 1),
+    ("ir.sub", 0), ("ir.mul", 0), ("ir.div", 0), ("ir.and", 0),
+    ("ir.or", 0), ("ir.xor", 0), ("ir.shiftl", 0), ("ir.shiftr", 0)]
+
+-- Compiled in-buffer growth gate.
+#guard Ir.Gate.readVars boundedGrowOut.1 ["len", "cap", "phys", "outLen", "outCap", "ok", "doubled"] =
+  [("len", some 2), ("cap", some 2), ("phys", some 8), ("outLen", some 3),
+    ("outCap", some 4), ("ok", some 1), ("doubled", some 4)]
+#guard Ir.Gate.readArrs boundedGrowOut.1 ["A"] =
+  [("A", some [0, 0, 5, 0, 0, 0, 0, 0])]
+#guard Ir.Gate.costVector boundedGrowOut.2 =
+  [("ir.skip", 4), ("ir.const", 1), ("ir.copy", 1), ("ir.aget", 0),
+    ("ir.aset", 1), ("ir.ite", 2), ("ir.while", 0), ("ir.add", 1),
+    ("ir.sub", 0), ("ir.mul", 1), ("ir.div", 0), ("ir.and", 0),
+    ("ir.or", 0), ("ir.xor", 0), ("ir.shiftl", 0), ("ir.shiftr", 0)]
+
+-- Compiled full gate: input metadata and array are unchanged.
+#guard Ir.Gate.readVars boundedFullOut.1 ["len", "cap", "phys", "outLen", "outCap", "ok", "doubled"] =
+  [("len", some 4), ("cap", some 4), ("phys", some 4), ("outLen", some 4),
+    ("outCap", some 4), ("ok", some 0), ("doubled", some 8)]
+#guard Ir.Gate.readArrs boundedFullOut.1 ["A"] = [("A", some [1, 2, 3, 4])]
+#guard Ir.Gate.costVector boundedFullOut.2 =
+  [("ir.skip", 4), ("ir.const", 1), ("ir.copy", 2), ("ir.aget", 0),
+    ("ir.aset", 0), ("ir.ite", 2), ("ir.while", 0), ("ir.add", 0),
+    ("ir.sub", 0), ("ir.mul", 1), ("ir.div", 0), ("ir.and", 0),
+    ("ir.or", 0), ("ir.xor", 0), ("ir.shiftl", 0), ("ir.shiftr", 0)]
+
 /-! ## 5. Explicit ownership assertion and bounded executable specification -/
 
 /-- Three caller-owned cells: physical buffer, logical length, logical capacity. -/
@@ -628,5 +1048,9 @@ info: 'Lax13Proofs.Refine.Sepref.Iicf.sourcePush_public_amortized_costN' depends
 /-- info: 'Lax13Proofs.Refine.Sepref.Iicf.boundedPush_full' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms boundedPush_full
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.boundedExec_hnr' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms boundedExec_hnr
 
 end Lax13Proofs.Refine.Sepref.Iicf

@@ -6,9 +6,7 @@ by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0, P1, P2, P3.A, P3.B, and P3.C complete; P4 design is locked, A1 generic
 amortization and B1 pure union-find are complete, and A2 bounded dynamic array
-has a green abstract/bounded-spec foundation with its concrete `Ir.Com` seam
-partially green: exact success/failure branch programs synthesize, while their
-dispatcher bridge remains. The source-first
+is complete. B2 timed loop-form union-find is next. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -377,19 +375,19 @@ proves a scheduled source declaration was mistranslated or omitted.
 
 ## Progress log
 
-- **2026-08-01 — P4.A2 abstract/bounded-spec boundary green.** New leaf
+- **2026-08-01 — P4.A2 COMPLETE.** New root-imported leaf
   `Iicf/IicfDynamicArray.lean` proves functional snoc, the standard and nested
   vector-potential inequalities, and the A1 reclaim/consume amortized push.
   Its caller-owned adapter exposes physical buffer length, logical length, and
   logical capacity; pushes either write in place, grow only inside already-owned
-  storage, or fail cleanly when full. Compiled sequence/cost probes and the
-  2,984-job leaf build are green. This is not A2 completion: the leaf is not yet
-  root-wired and `boundedPushSpec` still needs a concrete `Ir.Com`/`hnRefine`
-  implementation. The next sequential worker landed exact loop-free success
-  and non-mutating failure branch programs with an explicit physical-capacity
-  operand. Whole-tree synthesis timed out in `isDefEq` through 800k heartbeats,
-  so no composite theorem was claimed. **Next: manually compose the two green
-  branch judgments under `irIf`; do not retry whole-tree synthesis.**
+  storage, or fails cleanly when full. Exact loop-free success and non-mutating
+  failure programs synthesize with an explicit physical-capacity operand.
+  Whole-tree synthesis timed out in `isDefEq`; manual `hnr_If`/`hnr_bind`
+  composition closes the dispatcher without tower changes. Three evaluator
+  gates pin functional output and complete IR cost vectors, including unchanged
+  state on failure. Kernel-three guard green; full proofs 3,251 jobs and
+  proofs-only lax green; zero placeholders. **Next: P4.B2 timed loop-form
+  union-find.**
 
 - **2026-08-01 — P4.B1 COMPLETE.** The accepted operations boundary now
   extends through the pinned height/rank/logarithmic source slice.

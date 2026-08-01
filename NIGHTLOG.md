@@ -3732,3 +3732,12 @@ capacity operand. Whole-dispatcher synthesis repeatedly timed out inside
 `isDefEq` even at 800k heartbeats, so the worker removed the unfinished theorem
 and stopped. Next: manual `hnRefine` composition from the two landed leaves;
 do not repeat the whole-tree synthesis experiment.
+
+Manual composition closed that final seam without touching the tower:
+`boundedExec_hnr` assembles the two green leaves under `hnr_If`/`hnr_bind` and
+connects the explicit loop-free command to the observable bounded push at its
+exact branch-sensitive vector cost. Compiled no-resize, in-buffer growth, and
+full-failure gates pin complete state and cost vectors; failure preserves the
+array and metadata. The leaf is root-imported. Full proofs: 3,251 jobs; concepts:
+505; proofs-only lax green; kernel-three and zero placeholders. P4.A2 is
+complete. Next: P4.B2 timed loop-form union-find, sequentially on warm main.
