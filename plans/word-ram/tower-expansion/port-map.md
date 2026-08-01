@@ -206,7 +206,7 @@ The generic/abstract amortization theorem remains source-faithful.
 
 | item | source (size) | deps | consumer | wave |
 |---|---|---|---|---|
-| the 8 interfaces: Set, Map, List, List_List, Matrix, Multiset, Prio_Bag, Prio_Map | artifact `Intf/` (3.4 / 6.9 / 7.4 / 3.7 / 19.9 / 8.6 / 5.7 / 6.5 KB) — interface text is monad-level, portable despite F1 | P1.C (`sepref_decl_*`) | everything below | **P5.A — active; Set, Map, List, and List_List complete (4/8)** |
+| the 8 interfaces: Set, Map, List, List_List, Matrix, Multiset, Prio_Bag, Prio_Map | artifact `Intf/` (3.4 / 6.9 / 7.4 / 3.7 / 19.9 / 8.6 / 5.7 / 6.5 KB) — interface text is monad-level, portable despite F1 | P1.C (`sepref_decl_*`) | everything below | **P5.A — active; Set, Map, List, List_List, and Matrix complete (5/8)** |
 | array lists / resizable arrays: `Array_List`, `DArray_List` (dynamic-array-backed), `MS_Array_List`, `Indexed_Array_List`, `Array_of_Array_List` | Sepreftime cost copies (8.8 / 3.1 / 8.5 / 16.9 KB) + artifact `Array_of_Array_List` (9.1, + `ds/` twin 14.5 shape); no-cost twins for shape | P4.A (dyn array), P5.A | bounded sequences; general | P5.B |
 | array maps: `Array_Map`, `Array_Map_Total`, `ArrayMap_Map` | artifact (7.7 / 4.2 KB, dead — shape) + Sepreftime `IICF_ArrayMap_Map` (6.5 KB, cost) | P5.A | bounded-key maps (the honest hash-map replacement, X5) | P5.B |
 | matrices: `Matrix` intf + array matrix | AFP `IICF_Array_Matrix` (23.5 KB) + Sepreftime (10.4 KB, cost) | P5.A | Floyd–Warshall-class; PCP constraint graphs | P5.C |

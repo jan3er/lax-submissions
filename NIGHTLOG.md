@@ -3830,3 +3830,12 @@ equalities with their original bounds and tuple shapes. The nominal
 `List (List α)`; it adds no representation or operations. Registrations,
 diagonal frefs, custom-empty accounting, and kernel guards pass. Supervisor
 replay: 2,985 jobs; zero placeholders. Next: Matrix, sequentially on warm main.
+
+P5.A Matrix is green as the fifth interface leaf. New unrooted
+`Iicf/Intf/Matrix.lean` includes the relator and five operations plus the full
+portable pointwise theory from the same source file: div/mod fold conversions,
+nonzero support, unary/binary refinements, and the finite interruptible
+comparison proof. The Isabelle heap code-generation locales are explicitly
+disposed of while their semantic NRest refinements are retained; no fake API
+was introduced. Supervisor replay: 2,985 jobs; kernel-three and zero
+placeholders. Next: Multiset, sequentially on warm main.

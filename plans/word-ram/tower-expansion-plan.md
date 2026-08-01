@@ -6,7 +6,7 @@ by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0 through P4 are complete. P4 lands generic vector amortization, the bounded
 dynamic-array adapter, pure logarithmic union-find, and timed loop-form
-union-find. P5.A has completed Set, Map, List, and List_List; Matrix is next. The source-first
+union-find. P5.A has completed Set, Map, List, List_List, and Matrix; Multiset is next. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -374,6 +374,15 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P5.A Matrix interface/theory green (5/8).** New unrooted
+  `Iicf/Intf/Matrix.lean` ports the matrix relator and five operations together
+  with the source file's full portable pointwise theory: row-major div/mod
+  conversions, unary/binary fold refinements, nonzero support, and the finite
+  interruptible comparison refinement. Isabelle-only heap code-generation
+  locales have explicit dispositions; no fake concrete API is emitted. All
+  operation registrations and kernel guards pass. Supervisor replay: 2,985
+  jobs; kernel-three and zero placeholders. **Next: P5.A Multiset.**
 
 - **2026-08-01 — P5.A List_List interface green (4/8).** New unrooted leaf
   `Iicf/Intf/ListList.lean` ports all eight nested-list operations and six
