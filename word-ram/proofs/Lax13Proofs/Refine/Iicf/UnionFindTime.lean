@@ -1,6 +1,6 @@
 import Lax13Proofs.Refine.Iicf.IicfArray
 import Lax13Proofs.Refine.Iicf.UnionFindAbstract
-import Batteries.Data.Nat.Bitwise.Lemmas
+import Mathlib.Data.Nat.Bitwise
 
 /-!
 # Timed loop-form union-find

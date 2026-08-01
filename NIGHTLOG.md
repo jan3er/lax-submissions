@@ -3787,3 +3787,13 @@ orientations preserve `UfArrays.Wf` and `rankInvar`, and refine exactly to
 `heightUb` bounds, orientation/no-op gates, and `hnr_ufUnion` pass the 2,998-job
 supervisor replay with kernel-three and zero placeholders. Next: the final B2
 interface and root wiring.
+
+P4.B2 and P4 are complete. The final timed implementation certificate packages
+init, compare, and union HNR rules with exact `ECost` vectors bounded pointwise
+by `heightUb`; the certificate carries `heightUb = Θ(log n)` and makes no
+inverse-Ackermann claim. The leaf is root-imported. The proofs-only archive
+audit found one undeclared direct Batteries import; replacing it with the
+mathlib-owned bitwise module preserved the proof and cleared the audit. Final
+gates: focused leaf 3,000 jobs, concepts 505, root proofs and proofs-only lax
+3,255, kernel-three, zero placeholders. Next: P5 IICF breadth, sequentially on
+warm main.

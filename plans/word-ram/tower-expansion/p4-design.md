@@ -1,10 +1,10 @@
 # Tower expansion P4 — credits and amortization design
 
-Status: **ACTIVE 2026-08-01; A1, A2, and B1 complete; B2 operations green.**
-A2 is root-green. B2 has its MOP/assertion surface, no-allocation two-array
-initialization, and height-sensitive measured root-search and path-compression
-loops, bounds-checked comparison, and invariant-preserving union-by-size; only
-the final interface interpretation and root wiring remain. This record
+Status: **COMPLETE 2026-08-01; A1, A2, B1, and B2 root-green.**
+B2 packages its no-allocation two-array initialization, measured find and
+compression loops, comparison, and union-by-size rules into a timed interface
+with pointwise vector bounds and an explicit Theta(log n) height certificate.
+This record
 instantiates P4 of `tower-expansion-plan.md`. It is source-first: every selected
 source range receives a Lean owner, an existing-capital mapping, or an explicit
 exclusion. The machine model remains frozen.
@@ -29,8 +29,8 @@ P4.B1 pure union-find ──────┴────▶ P4.B2 timed loop-form
 - **P4.B1 — complete** creates
   `Iicf/UnionFindAbstract.lean`: PER/list semantics, representation invariants,
   union/compression correctness, and logarithmic height theory are green.
-- **P4.B2** creates `Iicf/UnionFindTime.lean`: the MOP/HNR interface and timed
-  loop-form implementation over caller-owned parent and size arrays.
+- **P4.B2 — complete** creates `Iicf/UnionFindTime.lean`: the MOP/HNR interface
+  and timed loop-form implementation over caller-owned parent and size arrays.
 
 A1 and B1 may run in parallel. A2 waits for A1. B2 waits for both A1 and B1;
 it does not wait for A2.

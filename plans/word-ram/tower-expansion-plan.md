@@ -4,11 +4,9 @@ Rev 4, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0, P1, P2, P3.A, P3.B, and P3.C complete; P4 design is locked, A1 generic
-amortization and B1 pure union-find are complete, and A2 bounded dynamic array
-is complete. B2 timed loop-form union-find has green initialization,
-height-sensitive root-search, path-compression, and comparison boundaries;
-union-by-size is also green, leaving the final interface. The source-first
+P0 through P4 are complete. P4 lands generic vector amortization, the bounded
+dynamic-array adapter, pure logarithmic union-find, and timed loop-form
+union-find. P5 IICF breadth is next. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -211,12 +209,11 @@ exact vector/cash theorem and introsort O(n log n) from its exact source
 upper-bound cash polynomial. No Θ consumer claim is made from an O-only
 upper bound.
 
-### P4 — Credits and amortization · budget 3–5 sessions
+### P4 — Credits and amortization · COMPLETE 2026-08-01
 
-P4 design is locked in `tower-expansion/p4-design.md` as four worker-sized
-waves: A1 generic amortization, A2 bounded dynamic array, B1 pure union-find,
-and B2 timed loop-form union-find. A1 and B1 may run in parallel; A2 waits for
-A1, and B2 waits for A1+B1. P4 ports and validates the source credit calculus
+P4 landed the four waves locked in `tower-expansion/p4-design.md`: A1 generic
+amortization, A2 bounded dynamic array, B1 pure union-find, and B2 timed
+loop-form union-find. It ports and validates the source credit calculus
 before consumer adaptation: generic time-credit assertions and rules,
 potential-carrying data-structure assertions, the pay-on-entry/spend-on-touch
 discipline, and the scheduled dynamic-array and timed union-find developments.
@@ -377,6 +374,17 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P4 COMPLETE.** Root-imported `Iicf/UnionFindTime.lean`
+  packages initialization, bounds-checked comparison with path compression,
+  and union-by-size into a timed implementation certificate. Exact `ECost`
+  vectors are bounded pointwise by `heightUb`, whose Theta(log n) certificate
+  is carried explicitly; no inverse-Ackermann claim is made. Both union
+  orientations, comparison outcomes, compression shapes, and no-op branches
+  are gated, and all public boundaries stay within kernel-three. The archive
+  import audit caught and repaired one direct Batteries import by routing it
+  through mathlib. Final gates: focused leaf 3,000 jobs, concepts 505, proofs
+  and proofs-only lax 3,255; zero placeholders. **Next: P5 IICF breadth.**
 
 - **2026-08-01 — P4.B2 union-by-size boundary green.** The timed leaf now
   performs two measured finds and links the smaller representative below the
