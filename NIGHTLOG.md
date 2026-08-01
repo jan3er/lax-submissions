@@ -3697,3 +3697,16 @@ proofs: 3,061 jobs; `lax build --only proofs word-ram` OK; zero sorry/admit
 and no new warnings (only recorded root replay diagnostics). Work stayed in
 main under Jan's standing authorization.
 Next: P3.A — currency normalization and cost-side-condition automation.
+
+## Session 29 — 2026-08-01 (tower expansion supervision reset, Codex)
+
+Jan corrected a supervision failure mode before the next P4 worker launch:
+do not multiply worktrees, seeds, briefs, or planning ceremony around this
+campaign. The authoritative execution rhythm is now sequential work on the
+already-warm clean `main`: one proof worker, one concrete outcome, then
+supervisor review and commit before the next worker. Fresh worktrees and
+seeding are specifically excluded for tower expansion. Two empty attempted P4
+worktrees were removed after their parallel seeds hit ENOSPC; no proof edits
+were lost. Inherited briefs remain useful technical reference only and must
+not drive process overengineering. Next: one B1 successor finishes the
+height/rank/logarithmic union-find slice; A2 waits.
