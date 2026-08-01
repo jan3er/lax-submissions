@@ -3938,3 +3938,14 @@ composition; exact caller-owned fill/aget/aset commands connect through
 whole-state bridges. Allocation/free/export remain unsupported. Supervisor
 replay: 2,987 jobs; registration, command/currency, kernel-three, and zero-
 placeholder gates pass. Next: `ArrayMap_Map`, sequentially on warm main.
+
+P5.B is complete. `ArrayMap_Map` is green as the eighth implementation
+family and third bounded-key map. The new unrooted leaf reuses the honest
+two-array option encoding and adds an owned scalar proved equal to the exact
+finite domain cardinality. Empty, membership, present-key lookup, and update
+retain Sepreftime's contracts; first insertion alone increments cardinality,
+and its synthesized branch cost has exactly one more `add` than overwrite.
+Source scalar costs remain provenance, not fake vector equalities, and
+allocation/free remain unsupported. Supervisor replay: 2,988 jobs;
+relation/cardinality, registration, branch/currency, kernel-three, and zero-
+placeholder gates pass. Next: P5.C, sequentially on warm main.

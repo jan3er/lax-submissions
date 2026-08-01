@@ -7,10 +7,10 @@ Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0 through P4 are complete. P4 lands generic vector amortization, the bounded
 dynamic-array adapter, pure logarithmic union-find, and timed loop-form
 union-find. P5.A is complete: all eight interface families are root-imported
-and archive-green. P5.B has all five concrete bounded-sequence families and
-the first two bounded-key map families green as unrooted leaves: `Array_List`,
+and archive-green. P5.B is complete: all five concrete bounded-sequence and
+all three bounded-key map families are green as unrooted leaves: `Array_List`,
 `DArray_List`, `MS_Array_List`, `Indexed_Array_List`,
-`Array_of_Array_List`, `Array_Map`, and `Array_Map_Total`. The source-first
+`Array_of_Array_List`, `Array_Map`, `Array_Map_Total`, and `ArrayMap_Map`. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -378,6 +378,18 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P5.B complete: ArrayMap_Map green (8/8 implementation
+  families; 3/3 map families).** New unrooted
+  `Iicf/Impl/ArrayMapMap.lean` ports Sepreftime's cardinality-carrying map on
+  the honest two-array option encoding plus an owned scalar equal to the
+  exact finite domain cardinality. Empty, membership, present-key lookup, and
+  update retain their source contracts; fresh insertion alone increments the
+  scalar, and the synthesized update cost differs from overwrite by exactly
+  one `add`. SepLogicTime scalar costs remain provenance rather than false
+  `ECost` equalities; allocation/free remain unsupported. Supervisor replay:
+  2,988 jobs; relation/cardinality, registration, branch/currency,
+  kernel-three, and zero-placeholder gates pass. **Next: P5.C.**
 
 - **2026-08-01 — P5.B Array_Map_Total green (7/8 implementation families;
   2/3 map families).** New unrooted `Iicf/Impl/ArrayMapTotal.lean` preserves
