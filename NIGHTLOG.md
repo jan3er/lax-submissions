@@ -3717,3 +3717,11 @@ finished the remaining height/rank/logarithmic slice in
 3,250-job proofs root, and `lax build --only proofs word-ram`; kernel guards
 remain within `propext`, `Classical.choice`, and `Quot.sound`, with zero
 placeholders. P4.B1 is complete. Next: P4.A2, still sequentially on warm main.
+
+P4.A2 then reached a deliberately partial green boundary in one new leaf:
+source-shaped vector amortization plus a caller-owned bounded adapter whose
+logical capacity grows only inside existing storage and fails cleanly when
+full. The 2,984-job leaf build and compiled functional/cost probes pass. A2 is
+not marked complete: `boundedPushSpec` still lacks its concrete
+`Ir.Com`/`hnRefine` implementation and the leaf is not root-wired. Next is that
+single seam, not a redesign of the landed foundation.

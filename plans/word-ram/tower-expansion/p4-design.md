@@ -1,7 +1,8 @@
 # Tower expansion P4 — credits and amortization design
 
-Status: **ACTIVE 2026-08-01; A1 and B1 complete.** A2 may consume the frozen A1
-API; B2 may consume both frozen foundations after A2's sequential wave. This record
+Status: **ACTIVE 2026-08-01; A1 and B1 complete; A2 foundation green.** A2's
+abstract amortization and bounded specification are landed; its concrete
+`Ir.Com`/`hnRefine` seam remains. B2 follows after this sequential wave. This record
 instantiates P4 of `tower-expansion-plan.md`. It is source-first: every selected
 source range receives a Lean owner, an existing-capital mapping, or an explicit
 exclusion. The machine model remains frozen.

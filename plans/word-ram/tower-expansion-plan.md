@@ -6,7 +6,8 @@ by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0, P1, P2, P3.A, P3.B, and P3.C complete; P4 design is locked, A1 generic
 amortization and B1 pure union-find are complete, and A2 bounded dynamic array
-is next. The source-first
+has a green abstract/bounded-spec foundation with its concrete `Ir.Com` seam
+next. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -374,6 +375,16 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P4.A2 abstract/bounded-spec boundary green.** New leaf
+  `Iicf/IicfDynamicArray.lean` proves functional snoc, the standard and nested
+  vector-potential inequalities, and the A1 reclaim/consume amortized push.
+  Its caller-owned adapter exposes physical buffer length, logical length, and
+  logical capacity; pushes either write in place, grow only inside already-owned
+  storage, or fail cleanly when full. Compiled sequence/cost probes and the
+  2,984-job leaf build are green. This is not A2 completion: the leaf is not yet
+  root-wired and `boundedPushSpec` still needs a concrete `Ir.Com`/`hnRefine`
+  implementation. **Next: that concrete seam only.**
 
 - **2026-08-01 — P4.B1 COMPLETE.** The accepted operations boundary now
   extends through the pinned height/rank/logarithmic source slice.
