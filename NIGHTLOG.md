@@ -3855,3 +3855,11 @@ peek-min. Their outer frefs are unrestricted; empty bags fail through the
 internal assertion, and pop returns the exact related erase remainder.
 Generic, diagonal, registration, and kernel gates pass. Supervisor replay:
 2,985 jobs; zero placeholders. Next: Prio_Map, sequentially on warm main.
+
+All eight P5.A leaves are individually green. The final unrooted leaf,
+`Iicf/Intf/PrioMap.lean`, ports the conversion helpers and all seven priority-
+map operations with the exact presence, monotonicity, nonempty, uniqueness,
+and below-identity requirements. Peek/pop transport global minima, and pop
+returns the exact related delete remainder. Proper-below-id, diagonal,
+registration, and kernel gates pass. Supervisor replay: 2,987 jobs; zero
+placeholders. Next: root wiring and the package/archive boundary on warm main.

@@ -6,7 +6,7 @@ by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0 through P4 are complete. P4 lands generic vector amortization, the bounded
 dynamic-array adapter, pure logarithmic union-find, and timed loop-form
-union-find. P5.A has completed Set, Map, List, List_List, Matrix, Multiset, and Prio_Bag; Prio_Map is next. The source-first
+union-find. All eight P5.A interface families are individually complete; root wiring and the archive gate are next. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -374,6 +374,15 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P5.A Prio_Map interface green (8/8 leaves).** New unrooted
+  `Iicf/Intf/PrioMap.lean` ports the conversion helpers and all seven priority-
+  map operations with their exact presence, monotonicity, nonempty, key-
+  uniqueness, and below-identity requirements. Peek/pop preserve global-minimum
+  witnesses; pop returns the exact related delete remainder. Proper-below-id,
+  diagonal, registration, and kernel gates pass. Supervisor replay: 2,987 jobs;
+  kernel-three and zero placeholders. **Next: root-wire all eight P5.A leaves
+  and run the package/archive boundary.**
 
 - **2026-08-01 — P5.A Prio_Bag interface green (7/8).** New unrooted leaf
   `Iicf/Intf/PrioBag.lean` ports the general cross-relation priority proofs and
