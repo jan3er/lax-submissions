@@ -3879,3 +3879,13 @@ capacity without reallocating the physical buffer; fresh empty, sized empty,
 and copy remain honest non-executable allocation boundaries. Supervisor replay:
 2,990 jobs; registration, command-shape, currency, kernel-three, and zero-
 placeholder gates pass. Next: `DArray_List`, sequentially on warm main.
+
+`DArray_List` is green as the second P5.B implementation family. The new
+unrooted leaf keeps the source surface narrow: pure-element assertion
+composition, the actual `dyn_da` identity cast, combined/empty assertion facts,
+and empty/push. Empty is caller-owned and nonallocating; push reuses P4's
+fallible command and exact branch-sensitive vector cost. The source's scalar
+12/23 pair is recorded only as provenance, never passed off as an `ECost`.
+Supervisor replay: 2,987 jobs; relation, registration, branch/currency,
+kernel-three, and zero-placeholder gates pass. Next: `MS_Array_List`,
+sequentially on warm main.

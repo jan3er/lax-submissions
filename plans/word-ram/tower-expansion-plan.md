@@ -7,8 +7,8 @@ Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0 through P4 are complete. P4 lands generic vector amortization, the bounded
 dynamic-array adapter, pure logarithmic union-find, and timed loop-form
 union-find. P5.A is complete: all eight interface families are root-imported
-and archive-green. P5.B has begun with the first concrete bounded-sequence
-family, `Array_List`, green as an unrooted leaf. The source-first
+and archive-green. P5.B has two concrete bounded-sequence families green as
+unrooted leaves: `Array_List` and `DArray_List`. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -376,6 +376,16 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P5.B DArray_List green (2/8 implementation families).** New
+  unrooted `Iicf/Impl/DArrayList.lean` ports the source's narrow dynamic-array
+  list surface: composed pure-element assertion, actual `dyn_da` identity cast,
+  combined assertion and empty fact, plus empty/push rules. Empty remains a
+  pure caller-owned boundary because the IR has no allocator. Push reuses P4's
+  fallible dispatcher and exact branch-sensitive vector cost; source scalar
+  bounds 12/23 are provenance-only and are not fabricated as `ECost`s.
+  Supervisor replay: 2,987 jobs; relation, registration, branch/currency,
+  kernel-three, and zero-placeholder gates pass. **Next: P5.B MS_Array_List.**
 
 - **2026-08-01 — P5.B Array_List green (1/8 implementation families).** New
   unrooted `Iicf/Impl/ArrayList.lean` adapts the source representation to P4's
