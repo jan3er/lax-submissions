@@ -3898,3 +3898,13 @@ command-derived vector costs. Custom-empty folds and both source synthesis
 examples survive at this honest boundary. Supervisor replay: 2,991 jobs;
 relation/precision, registration, command/currency, kernel-three, and zero-
 placeholder gates pass. Next: `Indexed_Array_List`, sequentially on warm main.
+
+`Indexed_Array_List` is green as the fourth P5.B implementation family. The
+new coupled representation proves its distinct bounded-list/inverse-position
+invariant through swap, append, and butlast. All seven source operations have
+synthesized exact-cost commands; contains is branch-sensitive. The registered
+generic rules use `ialRel N A`, with append enforcing the source below-identity
+condition and index/contains retaining two-way uniqueness. Empty remains a
+caller-owned two-buffer boundary. Supervisor replay: 2,992 jobs; invariant,
+generic-registration, command/currency, kernel-three, and zero-placeholder
+gates pass. Next: `Array_of_Array_List`, sequentially on warm main.
