@@ -8,7 +8,7 @@ P0, P1, P2, P3.A, P3.B, and P3.C complete; P4 design is locked, A1 generic
 amortization and B1 pure union-find are complete, and A2 bounded dynamic array
 is complete. B2 timed loop-form union-find has green initialization,
 height-sensitive root-search, path-compression, and comparison boundaries;
-union-by-size is next. The source-first
+union-by-size is also green, leaving the final interface. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -377,6 +377,15 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P4.B2 union-by-size boundary green.** The timed leaf now
+  performs two measured finds and links the smaller representative below the
+  larger, updating the winning size. Both orientations preserve `rankInvar`
+  and `UfArrays.Wf`; the abstract result is exactly `perUnion`. Equal roots are
+  a non-mutating no-op, while index validity remains the source precondition.
+  Exact branch costs, `heightUb` phase bounds, orientation/no-op gates, and the
+  public `hnr_ufUnion` kernel guard pass. Supervisor replay: 2,998 jobs; zero
+  placeholders. **Next: final B2 interface interpretation and root wiring.**
 
 - **2026-08-01 — P4.B2 comparison boundary green.** Bounds-checked same-set
   comparison now composes two find/compress phases, preserves the abstract

@@ -19,7 +19,7 @@ Source accounting:
 | same | 667--703 | landed: no-allocation `ufInit` from two `junkArrayOfLen` buffers |
 | same | 707--844 | landed: height-bounded root search and in-place path compression |
 | same | 850--897 | landed: bounds-checked same-set comparison with compression |
-| same | 899--1174 | open: union-by-size and both rank-preservation branches |
+| same | 899--1174 | landed: union-by-size and both rank-preservation branches |
 | same | 1177--1204 | open: final interface interpretation |
 
 The initialization loop and its price are synthesized from primitive array
@@ -851,6 +851,349 @@ theorem rankInvar_compress (hR : rankInvar parents sizes) (hU : ufaInvar parents
     exact (Nat.pow_le_pow_right (by omega) (hOfCompress hU hx)).trans
       (hR.2.2 i hi hroot)
 
+/-! ## Union-by-size invariant core -/
+
+noncomputable def unionSizes (parents sizes : List ℕ) (x y : ℕ) : List ℕ :=
+  sizes.set (repOf parents y) (sizes[repOf parents x]! + sizes[repOf parents y]!)
+
+/-- Linking one root below a root of at least its recorded size preserves the
+source rank invariant.  This is the common argument behind both orientations
+of union-by-size. -/
+theorem rankInvar_union_roots (hU : ufaInvar parents)
+    (hR : rankInvar parents sizes) (hx : x < parents.length)
+    (hy : y < parents.length) (hne : repOf parents x ≠ repOf parents y)
+    (hsize : sizes[repOf parents x]! ≤ sizes[repOf parents y]!) :
+    rankInvar (ufaUnion parents x y) (unionSizes parents sizes x y) := by
+  let rx := repOf parents x
+  let ry := repOf parents y
+  have hrx : rx < parents.length := repOfBound hU hx
+  have hry : ry < parents.length := repOfBound hU hy
+  have hrootx : parents[rx]! = rx := repOfRoot hU hx
+  have hrooty : parents[ry]! = ry := repOfRoot hU hy
+  have hrootx' : parents[rx] = rx := by
+    rw [← getElem!_pos parents rx hrx]
+    exact hrootx
+  have hrooty' : parents[ry] = ry := by
+    rw [← getElem!_pos parents ry hry]
+    exact hrooty
+  have hrxy : rx ≠ ry := by simpa [rx, ry] using hne
+  have hlen : sizes.length = parents.length := hR.1.symm
+  have hsize' : sizes[rx]! ≤ sizes[ry]! := by simpa [rx, ry] using hsize
+  constructor
+  · simp [ufaUnion, unionSizes, hR.1]
+  constructor
+  · rw [show (ufaUnion parents x y).length = parents.length by simp [ufaUnion]]
+    let oldWeight := fun (k : ℕ) => if parents[k]! = k then sizes[k]! else 0
+    let newWeight := fun (k : ℕ) =>
+      if (ufaUnion parents x y)[k]! = k then (unionSizes parents sizes x y)[k]! else 0
+    have hrxMem : rx ∈ Finset.range parents.length := by simpa using hrx
+    have hryMem : ry ∈ (Finset.range parents.length).erase rx := by
+      simp [hry, Ne.symm hrxy]
+    have hcommon :
+        ∑ k ∈ ((Finset.range parents.length).erase rx).erase ry, newWeight k =
+          ∑ k ∈ ((Finset.range parents.length).erase rx).erase ry, oldWeight k := by
+      apply Finset.sum_congr rfl
+      intro k hk
+      have hkRange : k < parents.length := by simpa using (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase hk))
+      have hkx : k ≠ rx := by
+        exact Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hk)
+      have hky : k ≠ ry := by exact Finset.ne_of_mem_erase hk
+      simp [newWeight, oldWeight, ufaUnion, unionSizes, rx, ry, hkRange,
+        Ne.symm hkx, Ne.symm hky]
+    change ∑ k ∈ Finset.range parents.length, newWeight k = parents.length
+    have hnewParentRx : (ufaUnion parents x y)[rx]! = ry := by
+      simp [ufaUnion, rx, ry, hrx]
+    have hnewParentRy : (ufaUnion parents x y)[ry]! = ry := by
+      rw [getElem!_pos _ ry (by simpa [ufaUnion] using hry)]
+      change (parents.set rx ry)[ry]'(by simpa using hry) = ry
+      rw [List.getElem_set_ne hrxy]
+      exact hrooty'
+    have hnewSizeRy : (unionSizes parents sizes x y)[ry]! = sizes[rx]! + sizes[ry]! := by
+      simp [unionSizes, rx, ry, hry, hlen]
+    have hnewRx : newWeight rx = 0 := by
+      change (if (ufaUnion parents x y)[rx]! = rx then
+        (unionSizes parents sizes x y)[rx]! else 0) = 0
+      rw [hnewParentRx]
+      simp [Ne.symm hrxy]
+    have hnewRy : newWeight ry = sizes[rx]! + sizes[ry]! := by
+      change (if (ufaUnion parents x y)[ry]! = ry then
+        (unionSizes parents sizes x y)[ry]! else 0) = sizes[rx]! + sizes[ry]!
+      rw [hnewParentRy, if_pos rfl, hnewSizeRy]
+    have holdRx : oldWeight rx = sizes[rx]! := by
+      change (if parents[rx]! = rx then sizes[rx]! else 0) = sizes[rx]!
+      rw [hrootx, if_pos rfl]
+    have holdRy : oldWeight ry = sizes[ry]! := by
+      change (if parents[ry]! = ry then sizes[ry]! else 0) = sizes[ry]!
+      rw [hrooty, if_pos rfl]
+    have hsplitNewRx :
+        (∑ k ∈ Finset.range parents.length, newWeight k) =
+          newWeight rx + ∑ k ∈ (Finset.range parents.length).erase rx, newWeight k := by
+      simpa only [Finset.sdiff_singleton_eq_erase] using
+        (Finset.sum_eq_add_sum_diff_singleton rx newWeight
+          (fun hnot => (hnot hrxMem).elim))
+    have hsplitNewRy :
+        (∑ k ∈ (Finset.range parents.length).erase rx, newWeight k) =
+          newWeight ry +
+            ∑ k ∈ ((Finset.range parents.length).erase rx).erase ry, newWeight k := by
+      simpa only [Finset.sdiff_singleton_eq_erase] using
+        (Finset.sum_eq_add_sum_diff_singleton ry newWeight
+          (fun hnot => (hnot hryMem).elim))
+    have hsplitOldRx :
+        (∑ k ∈ Finset.range parents.length, oldWeight k) =
+          oldWeight rx + ∑ k ∈ (Finset.range parents.length).erase rx, oldWeight k := by
+      simpa only [Finset.sdiff_singleton_eq_erase] using
+        (Finset.sum_eq_add_sum_diff_singleton rx oldWeight
+          (fun hnot => (hnot hrxMem).elim))
+    have hsplitOldRy :
+        (∑ k ∈ (Finset.range parents.length).erase rx, oldWeight k) =
+          oldWeight ry +
+            ∑ k ∈ ((Finset.range parents.length).erase rx).erase ry, oldWeight k := by
+      simpa only [Finset.sdiff_singleton_eq_erase] using
+        (Finset.sum_eq_add_sum_diff_singleton ry oldWeight
+          (fun hnot => (hnot hryMem).elim))
+    calc
+      (∑ k ∈ Finset.range parents.length, newWeight k) =
+          newWeight rx + ∑ k ∈ (Finset.range parents.length).erase rx, newWeight k := by
+            exact hsplitNewRx
+      _ = newWeight rx +
+          (newWeight ry +
+            ∑ k ∈ ((Finset.range parents.length).erase rx).erase ry, newWeight k) := by
+            rw [hsplitNewRy]
+      _ = oldWeight rx +
+          (oldWeight ry +
+            ∑ k ∈ ((Finset.range parents.length).erase rx).erase ry, oldWeight k) := by
+            rw [hcommon]
+            rw [hnewRx, hnewRy, holdRx, holdRy]
+            omega
+      _ = ∑ k ∈ Finset.range parents.length, oldWeight k := by
+            rw [hsplitOldRx, hsplitOldRy]
+      _ = parents.length := hR.2.1
+  · intro k hkNew hrootNew
+    have hk : k < parents.length := by simpa [ufaUnion] using hkNew
+    by_cases hky : k = ry
+    · subst k
+      have htouched := hOfUnionTouched hU hx hy hry (repOfRefl hU hry hrooty)
+        rfl (by simpa [rx, ry] using Ne.symm hrxy)
+      have hxRank := hR.2.2 rx hrx hrootx
+      have hyRank := hR.2.2 ry hry hrooty
+      have hpowMax :
+          (2 : ℕ) ^ max (hOf parents ry) (Nat.succ (hOf parents rx)) =
+            max (2 ^ hOf parents ry) (2 ^ Nat.succ (hOf parents rx)) := by
+        by_cases hle : hOf parents ry ≤ Nat.succ (hOf parents rx)
+        · rw [max_eq_right hle,
+              max_eq_right (Nat.pow_le_pow_right (by omega) hle)]
+        · have hge : Nat.succ (hOf parents rx) ≤ hOf parents ry :=
+            Nat.le_of_not_ge hle
+          rw [max_eq_left hge,
+            max_eq_left (Nat.pow_le_pow_right (by omega) hge)]
+      have hpow :
+          2 ^ max (hOf parents ry) (Nat.succ (hOf parents rx)) ≤
+            sizes[rx]! + sizes[ry]! := by
+        rw [hpowMax, pow_succ]
+        apply max_le
+        · omega
+        · omega
+      have hnewSizeRy : (unionSizes parents sizes x y)[ry]! =
+          sizes[rx]! + sizes[ry]! := by simp [unionSizes, rx, ry, hry, hlen]
+      rw [hnewSizeRy]
+      exact (Nat.pow_le_pow_right (by omega) htouched).trans hpow
+    · have hkx : k ≠ rx := by
+        intro h
+        subst k
+        have hnewParentRx : (ufaUnion parents x y)[rx]! = ry := by
+          simp [ufaUnion, rx, ry, hrx]
+        rw [hnewParentRx] at hrootNew
+        exact hrxy hrootNew.symm
+      have hroot : parents[k]! = k := by
+        simpa [ufaUnion, rx, hk, hkx, Ne.symm hkx] using hrootNew
+      have huntouched := hOfUnionUntouched hU hx hy hk hroot
+        (by simpa [rx] using hkx) (by simpa [ry] using hky)
+      rw [huntouched]
+      simpa [unionSizes, ry, hk, hky, Ne.symm hky] using hR.2.2 k hk hroot
+
+noncomputable def unionArrays (u : UfArrays) (i j : ℕ) : UfArrays :=
+  let parents := u.1
+  let sizes := u.2
+  if repOf parents i = repOf parents j then u
+  else if sizes[repOf parents i]! < sizes[repOf parents j]! then
+    (ufaUnion parents i j, unionSizes parents sizes i j)
+  else
+    (ufaUnion parents j i, unionSizes parents sizes j i)
+
+theorem unionArrays_wf (hW : UfArrays.Wf (parents, sizes))
+    (hi : i < parents.length) (hj : j < parents.length) :
+    UfArrays.Wf (unionArrays (parents, sizes) i j) := by
+  have hU := hW.1
+  have hR := hW.2.2
+  by_cases heq : repOf parents i = repOf parents j
+  · simpa [unionArrays, heq] using hW
+  · by_cases hlt : sizes[repOf parents i]! < sizes[repOf parents j]!
+    · have hrank := rankInvar_union_roots hU hR hi hj heq (Nat.le_of_lt hlt)
+      rw [unionArrays, if_neg heq, if_pos hlt]
+      refine ⟨ufaUnionInvar hU hi hj, ?_, hrank⟩
+      simp [ufaUnion, unionSizes, hW.2.1]
+    · have hrank := rankInvar_union_roots hU hR hj hi (Ne.symm heq)
+        (Nat.le_of_not_gt hlt)
+      rw [unionArrays, if_neg heq, if_neg hlt]
+      refine ⟨ufaUnionInvar hU hj hi, ?_, hrank⟩
+      simp [ufaUnion, unionSizes, hW.2.1]
+
+theorem unionArrays_alpha (hU : ufaInvar parents)
+    (hi : i < parents.length) (hj : j < parents.length) :
+    ufaAlpha (unionArrays (parents, sizes) i j).1 =
+      perUnion (ufaAlpha parents) i j := by
+  by_cases heq : repOf parents i = repOf parents j
+  · rw [unionArrays, if_pos heq]
+    exact (perUnionCompare ufaAlphaPartEquiv
+      ((ufaFindCorrect hU hi hj).mp heq)).symm
+  · by_cases hlt : sizes[repOf parents i]! < sizes[repOf parents j]!
+    · rw [unionArrays, if_neg heq, if_pos hlt]
+      exact ufaUnionCorrect hU hi hj
+    · rw [unionArrays, if_neg heq, if_neg hlt, ufaUnionCorrect hU hj hi,
+        perUnionComm]
+
+theorem unionArrays_refines (Rel : Per ℕ) (hW : UfArrays.Wf (parents, sizes))
+    (hAlpha : ufaAlpha parents = Rel) (hi : i < parents.length)
+    (hj : j < parents.length) :
+    UfArrays.Wf (unionArrays (parents, sizes) i j) ∧
+      ufaAlpha (unionArrays (parents, sizes) i j).1 = perUnion Rel i j := by
+  refine ⟨unionArrays_wf hW hi hj, ?_⟩
+  rw [← hAlpha]
+  exact unionArrays_alpha hW.1 hi hj
+
+noncomputable def unionRootsAbs (parents sizes : List ℕ) (ri rj : ℕ) :
+    NRest UfArrays ECost :=
+  irIf (decide (ri = rj))
+    (mopPair parents sizes)
+    (NRest.bindT (mopAget sizes ri) fun si =>
+      NRest.bindT (mopAget sizes rj) fun sj =>
+        irIf (decide (si < sj))
+          (NRest.bindT (mopAset parents ri rj) fun parents' =>
+            NRest.bindT (mopBinop .add si sj) fun total =>
+              NRest.bindT (mopAset sizes rj total) fun sizes' =>
+                mopPair parents' sizes')
+          (NRest.bindT (mopAset parents rj ri) fun parents' =>
+            NRest.bindT (mopBinop .add sj si) fun total =>
+              NRest.bindT (mopAset sizes ri total) fun sizes' =>
+                mopPair parents' sizes'))
+
+noncomputable def unionRootsCost (ri rj : ℕ) : ECost :=
+  if ri = rj then irUnit Currency.ite + irUnit Currency.skip
+  else irUnit Currency.ite + 2 • irUnit Currency.aget + irUnit Currency.ite +
+    2 • irUnit Currency.aset + irUnit Currency.add + irUnit Currency.skip
+
+theorem unionRootsAbs_eq (hri : ri < parents.length) (hrj : rj < parents.length)
+    (hlen : parents.length = sizes.length) :
+    unionRootsAbs parents sizes ri rj =
+      NRest.consume
+        (NRest.returnT
+          (if ri = rj then (parents, sizes)
+          else if sizes[ri]! < sizes[rj]! then
+            (parents.set ri rj, sizes.set rj (sizes[ri]! + sizes[rj]!))
+          else (parents.set rj ri, sizes.set ri (sizes[rj]! + sizes[ri]!))))
+        (unionRootsCost ri rj) := by
+  have hriS : ri < sizes.length := by omega
+  have hrjS : rj < sizes.length := by omega
+  by_cases heq : ri = rj
+  · simp [unionRootsAbs, unionRootsCost, heq, irIf_true, mopPair_def,
+      NRest.consume_consume]
+  · by_cases hlt : sizes[ri]! < sizes[rj]!
+    · have hlt' : sizes[ri] < sizes[rj] := by
+        rwa [getElem!_pos sizes ri hriS, getElem!_pos sizes rj hrjS] at hlt
+      simp [unionRootsAbs, unionRootsCost, heq, hlt', irIf_false,
+        mopAget_def, mopAset_def, mopBinop_def, mopPair_def, hri, hrj, hriS,
+        hrjS, NRest.returnT_bindT, bindT_unit, NRest.consume_consume,
+        Imp.Bop.apply_add, binopCurrency_add, two_nsmul]
+      congr 1
+      ac_rfl
+    · have hlt' : ¬ sizes[ri] < sizes[rj] := by
+        rwa [getElem!_pos sizes ri hriS, getElem!_pos sizes rj hrjS] at hlt
+      simp [unionRootsAbs, unionRootsCost, heq, hlt', irIf_false,
+        mopAget_def, mopAset_def, mopBinop_def, mopPair_def, hri, hrj, hriS,
+        hrjS, NRest.returnT_bindT, bindT_unit, NRest.consume_consume,
+        Imp.Bop.apply_add, binopCurrency_add, two_nsmul]
+      congr 1
+      ac_rfl
+
+sepref_synth unionRootsSynth (Ri Rj Si Sj Total P S : String)
+    (parents sizes : List ℕ) (ri rj : ℕ) :
+    hnRefine (hnCtxt natAssn ri Ri ∗ hnCtxt natAssn rj Rj ∗ junkCell Si ∗
+        junkCell Sj ∗ junkCell Total ∗ hnCtxt arrayAssn parents P ∗
+        hnCtxt arrayAssn sizes S)
+      _ _ (P, S) (arrayAssn ×ₐ arrayAssn) (unionRootsAbs parents sizes ri rj)
+
+def unionRootsCom (Ri Rj Si Sj Total P S : String) : Com :=
+  Com.ite (.eq (.cell Ri) (.cell Rj)) Com.skip
+    ((Com.aget Si S Ri).seq
+      ((Com.aget Sj S Rj).seq
+        (Com.ite (.lt (.cell Si) (.cell Sj))
+          ((Com.aset P Ri Rj).seq
+            ((Com.binop .add Total Si Sj).seq ((Com.aset S Rj Total).seq Com.skip)))
+          ((Com.aset P Rj Ri).seq
+            ((Com.binop .add Total Sj Si).seq ((Com.aset S Ri Total).seq Com.skip))))))
+
+theorem unionRootsResult_eq (parents sizes : List ℕ) (i j : ℕ) :
+    (if repOf parents i = repOf parents j then (parents, sizes)
+    else if sizes[repOf parents i]! < sizes[repOf parents j]! then
+      (parents.set (repOf parents i) (repOf parents j),
+        sizes.set (repOf parents j)
+          (sizes[repOf parents i]! + sizes[repOf parents j]!))
+    else
+      (parents.set (repOf parents j) (repOf parents i),
+        sizes.set (repOf parents i)
+          (sizes[repOf parents j]! + sizes[repOf parents i]!))) =
+      unionArrays (parents, sizes) i j := by
+  rfl
+
+theorem unionRootsExactHnr (Ri Rj Si Sj Total P S : String)
+    (parents sizes : List ℕ) (i j : ℕ) (hU : ufaInvar parents)
+    (hi : i < parents.length) (hj : j < parents.length)
+    (hlen : parents.length = sizes.length) :
+    hnRefine (hnCtxt natAssn (repOf parents i) Ri ∗
+        hnCtxt natAssn (repOf parents j) Rj ∗ junkCell Si ∗ junkCell Sj ∗
+        junkCell Total ∗ hnCtxt arrayAssn parents P ∗ hnCtxt arrayAssn sizes S)
+      (unionRootsCom Ri Rj Si Sj Total P S)
+      (hnCtxt natAssn (repOf parents i) Ri ∗
+        hnCtxt natAssn (repOf parents j) Rj ∗ junkCell Si ∗ junkCell Sj ∗
+        junkCell Total)
+      (P, S) (arrayAssn ×ₐ arrayAssn)
+      (NRest.consume (NRest.returnT (unionArrays (parents, sizes) i j))
+        (unionRootsCost (repOf parents i) (repOf parents j))) := by
+  have h := unionRootsSynth Ri Rj Si Sj Total P S parents sizes
+    (repOf parents i) (repOf parents j)
+  rw [unionRootsAbs_eq (repOfBound hU hi) (repOfBound hU hj) hlen,
+    unionRootsResult_eq] at h
+  simpa only [unionRootsCom] using h
+
+theorem unionRootsPublicHnr (Ri Rj Si Sj Total P S : String)
+    (Rel : Per ℕ) (parents sizes : List ℕ) (i j : ℕ)
+    (hW : UfArrays.Wf (parents, sizes)) (hAlpha : ufaAlpha parents = Rel)
+    (hi : i < parents.length) (hj : j < parents.length) :
+    hnRefine (hnCtxt natAssn (repOf parents i) Ri ∗
+        hnCtxt natAssn (repOf parents j) Rj ∗ junkCell Si ∗ junkCell Sj ∗
+        junkCell Total ∗ hnCtxt arrayAssn parents P ∗ hnCtxt arrayAssn sizes S)
+      (unionRootsCom Ri Rj Si Sj Total P S)
+      (junkCell Ri ∗ junkCell Rj ∗ junkCell Si ∗ junkCell Sj ∗ junkCell Total)
+      (P, S) ufAssn
+      (NRest.consume (NRest.returnT (perUnion Rel i j))
+        (unionRootsCost (repOf parents i) (repOf parents j))) := by
+  have hout := unionArrays_refines Rel hW hAlpha hi hj
+  have hraw := unionRootsExactHnr Ri Rj Si Sj Total P S parents sizes i j
+    hW.1 hi hj hW.2.1
+  refine hnRefine_res_cast' hraw ?_
+  refine entails_trans (entails_of_eq ?_)
+    (conj_entails_mono
+      (conj_entails_mono
+        (natAssn_entails_junkCell (repOf parents i) Ri)
+        (conj_entails_mono
+          (natAssn_entails_junkCell (repOf parents j) Rj)
+          (conj_entails_mono (entails_refl (junkCell Si))
+            (conj_entails_mono (entails_refl (junkCell Sj))
+              (entails_refl (junkCell Total))))))
+      (ufAssn_pack hout.1 hout.2 P S))
+  simp only [prodAssn_apply, hnCtxt_def]
+  ac_rfl
+
 abbrev CompressState := ℕ × (ℕ × List ℕ)
 abbrev compressStateAssn := natAssn ×ₐ (natAssn ×ₐ arrayAssn)
 
@@ -1363,6 +1706,165 @@ theorem findExplicitExactHnr (X D P : String) (parents : List ℕ) (x : ℕ)
       (entails_refl (natAssn (repOf parents x) X)))
   simp only [prodAssn_apply, emp_sepConj]
   ac_rfl
+
+/-! ## Source-shaped union-by-size command -/
+
+noncomputable def unionCost (parents : List ℕ) (i j : ℕ) : ECost :=
+  2 • irUnit Currency.copy + findCost (heightOf parents i) +
+    findCost (heightOf parents j) +
+      unionRootsCost (repOf parents i) (repOf parents j)
+
+noncomputable def unionAbs (Rel : Per ℕ) (parents : List ℕ) (i j : ℕ) :
+    NRest (Per ℕ) ECost :=
+  NRest.bindT (mopCopy i) fun _ =>
+    NRest.bindT
+      (NRest.consume (NRest.returnT (repOf parents i))
+        (findCost (heightOf parents i))) fun _ =>
+      NRest.bindT (mopCopy j) fun _ =>
+        NRest.bindT
+          (NRest.consume (NRest.returnT (repOf parents j))
+            (findCost (heightOf parents j))) fun _ =>
+          NRest.consume (NRest.returnT (perUnion Rel i j))
+            (unionRootsCost (repOf parents i) (repOf parents j))
+
+theorem unionAbs_eq (Rel : Per ℕ) :
+    unionAbs Rel parents i j =
+      NRest.consume (mopPerUnion Rel i j) (unionCost parents i j) := by
+  simp only [unionAbs, mopCopy, mopPerUnion, bindT_unit, NRest.consume_consume,
+    unionCost, two_nsmul]
+  congr 1
+  ac_rfl
+
+def unionCom (I J Ri Rj D Si Sj Total P S : String) : Com :=
+  (Com.copy Ri I).seq
+    ((findCom Ri D P).seq
+      ((Com.copy Rj J).seq
+        ((findCom Rj D P).seq (unionRootsCom Ri Rj Si Sj Total P S))))
+
+/-- Public union boundary.  As in the source rule, the indices are domain
+preconditions; an out-of-domain call is not replaced by a totalized update. -/
+@[sepref_fr_rules]
+theorem hnr_ufUnion (I J Ri Rj D Si Sj Total P S : String) (Rel : Per ℕ)
+    (parents sizes : List ℕ) (i j : ℕ) (hW : UfArrays.Wf (parents, sizes))
+    (hAlpha : ufaAlpha parents = Rel) (hi : i < parents.length)
+    (hj : j < parents.length) :
+    hnRefine (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell Ri ∗
+        junkCell Rj ∗ junkCell D ∗ junkCell Si ∗ junkCell Sj ∗
+        junkCell Total ∗ hnCtxt arrayAssn parents P ∗ hnCtxt arrayAssn sizes S)
+      (unionCom I J Ri Rj D Si Sj Total P S)
+      (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell Ri ∗
+        junkCell Rj ∗ junkCell D ∗ junkCell Si ∗ junkCell Sj ∗ junkCell Total)
+      (P, S) ufAssn
+      (NRest.consume (mopPerUnion Rel i j) (unionCost parents i j)) := by
+  rw [← unionAbs_eq]
+  unfold unionCom unionAbs
+  let Final := hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell Ri ∗
+    junkCell Rj ∗ junkCell D ∗ junkCell Si ∗ junkCell Sj ∗ junkCell Total
+  have hcopyI :
+      hnRefine (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell Ri ∗
+          junkCell Rj ∗ junkCell D ∗ junkCell Si ∗ junkCell Sj ∗
+          junkCell Total ∗ hnCtxt arrayAssn parents P ∗ hnCtxt arrayAssn sizes S)
+        (.copy Ri I)
+        (hnCtxt natAssn i I ∗
+          (hnCtxt natAssn j J ∗ junkCell Rj ∗ junkCell D ∗ junkCell Si ∗
+            junkCell Sj ∗ junkCell Total ∗ hnCtxt arrayAssn parents P ∗
+            hnCtxt arrayAssn sizes S))
+        Ri natAssn (mopCopy i) := by
+    exact hnRefine_frame_perm (by ac_rfl) (hnr_mop_copy Ri I i)
+  apply hnr_bind (Γ₂ := fun _ => Final) hcopyI
+  · intro copiedI hcopiedI
+    have hcopiedI' : copiedI = i :=
+      bind_ref_tag_pin (by simpa [mopCopy] using hcopiedI)
+    subst copiedI
+    have hfindI :
+        hnRefine (hnCtxt natAssn i Ri ∗
+            (hnCtxt natAssn i I ∗
+              (hnCtxt natAssn j J ∗ junkCell Rj ∗ junkCell D ∗ junkCell Si ∗
+                junkCell Sj ∗ junkCell Total ∗ hnCtxt arrayAssn parents P ∗
+                hnCtxt arrayAssn sizes S)))
+          (findCom Ri D P)
+          ((junkCell D ∗ hnCtxt arrayAssn parents P) ∗
+            (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell Rj ∗
+              junkCell Si ∗ junkCell Sj ∗ junkCell Total ∗
+              hnCtxt arrayAssn sizes S))
+          Ri natAssn
+          (NRest.consume (NRest.returnT (repOf parents i))
+            (findCost (heightOf parents i))) := by
+      exact hnRefine_frame_perm (by ac_rfl)
+        (findExplicitExactHnr Ri D P parents i hW.1 hi)
+    apply hnr_bind (Γ₂ := fun _ => Final) hfindI
+    · intro rootI hrootI
+      have hrootI' : rootI = repOf parents i := bind_ref_tag_pin hrootI
+      subst rootI
+      have hcopyJ :
+          hnRefine (hnCtxt natAssn (repOf parents i) Ri ∗
+              ((junkCell D ∗ hnCtxt arrayAssn parents P) ∗
+                (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell Rj ∗
+                  junkCell Si ∗ junkCell Sj ∗ junkCell Total ∗
+                  hnCtxt arrayAssn sizes S)))
+            (.copy Rj J)
+            (hnCtxt natAssn j J ∗
+              (hnCtxt natAssn (repOf parents i) Ri ∗ hnCtxt natAssn i I ∗
+                junkCell D ∗ junkCell Si ∗ junkCell Sj ∗ junkCell Total ∗
+                hnCtxt arrayAssn parents P ∗ hnCtxt arrayAssn sizes S))
+            Rj natAssn (mopCopy j) := by
+        exact hnRefine_frame_perm (by ac_rfl) (hnr_mop_copy Rj J j)
+      apply hnr_bind (Γ₂ := fun _ => Final) hcopyJ
+      · intro copiedJ hcopiedJ
+        have hcopiedJ' : copiedJ = j :=
+          bind_ref_tag_pin (by simpa [mopCopy] using hcopiedJ)
+        subst copiedJ
+        have hfindJ :
+            hnRefine (hnCtxt natAssn j Rj ∗
+                (hnCtxt natAssn j J ∗
+                  (hnCtxt natAssn (repOf parents i) Ri ∗ hnCtxt natAssn i I ∗
+                    junkCell D ∗ junkCell Si ∗ junkCell Sj ∗ junkCell Total ∗
+                    hnCtxt arrayAssn parents P ∗ hnCtxt arrayAssn sizes S)))
+              (findCom Rj D P)
+              ((junkCell D ∗ hnCtxt arrayAssn parents P) ∗
+                (hnCtxt natAssn j J ∗ hnCtxt natAssn (repOf parents i) Ri ∗
+                  hnCtxt natAssn i I ∗ junkCell Si ∗ junkCell Sj ∗
+                  junkCell Total ∗ hnCtxt arrayAssn sizes S))
+              Rj natAssn
+              (NRest.consume (NRest.returnT (repOf parents j))
+                (findCost (heightOf parents j))) := by
+          exact hnRefine_frame_perm (by ac_rfl)
+            (findExplicitExactHnr Rj D P parents j hW.1 hj)
+        apply hnr_bind (Γ₂ := fun _ => Final) hfindJ
+        · intro rootJ hrootJ
+          have hrootJ' : rootJ = repOf parents j := bind_ref_tag_pin hrootJ
+          subst rootJ
+          have hroot := unionRootsPublicHnr Ri Rj Si Sj Total P S Rel
+            parents sizes i j hW hAlpha hi hj
+          have hframed := hnRefine_frame_perm
+            (F := hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell D)
+            (by ac_rfl) hroot
+          exact hnRefine_cons_pre
+            (hnRefine_cons_post hframed
+              (entails_of_eq (by dsimp [Final]; ac_rfl)))
+            (entails_of_eq (by ac_rfl))
+        · intro _
+          exact entails_refl Final
+      · intro _
+        exact entails_refl Final
+    · intro _
+      exact entails_refl Final
+  · intro _
+    dsimp [Final]
+    exact entails_refl _
+
+theorem unionCost_eq_phases :
+    unionCost parents i j =
+      2 • irUnit Currency.copy + findCost (heightOf parents i) +
+        findCost (heightOf parents j) +
+          unionRootsCost (repOf parents i) (repOf parents j) := rfl
+
+theorem union_height_bounds (hW : UfArrays.Wf (parents, sizes))
+    (hi : i < parents.length) (hj : j < parents.length) :
+    heightOf parents i ≤ heightUb parents.length ∧
+      heightOf parents j ≤ heightUb parents.length := by
+  exact ⟨heightOfLeHeightUb hW.2.2 hW.1 hi,
+    heightOfLeHeightUb hW.2.2 hW.1 hj⟩
 
 theorem compressExplicitExactHnr (X D P Root : String) (parents : List ℕ) (x : ℕ)
     (hU : ufaInvar parents) (hx : x < parents.length) :
@@ -1999,6 +2501,62 @@ theorem compare_height_bounds (hW : UfArrays.Wf (parents, sizes))
 
 /-! ## Exact vector-cost and execution gates for the landed loops -/
 
+private theorem twoRootsInvar : ufaInvar [0, 1] := by
+  intro i hi
+  norm_num at hi
+  rcases (show i = 0 ∨ i = 1 by omega) with rfl | rfl
+  · refine ⟨by decide, 0, 1, ?_⟩; decide
+  · refine ⟨by decide, 1, 1, ?_⟩; decide
+
+private theorem twoRootsRep0 : repOf [0, 1] 0 = 0 := by
+  exact repOfRefl twoRootsInvar (by decide) (by decide)
+
+private theorem twoRootsRep1 : repOf [0, 1] 1 = 1 := by
+  exact repOfRefl twoRootsInvar (by decide) (by decide)
+
+theorem unionArrays_left_orientation :
+    unionArrays ([0, 1], [1, 2]) 0 1 = ([1, 1], [1, 3]) := by
+  simp [unionArrays, twoRootsRep0, twoRootsRep1, unionSizes, ufaUnion]
+
+theorem unionArrays_right_orientation :
+    unionArrays ([0, 1], [2, 1]) 0 1 = ([0, 0], [3, 1]) := by
+  simp [unionArrays, twoRootsRep0, twoRootsRep1, unionSizes, ufaUnion]
+
+theorem unionArrays_same_root_noop :
+    unionArrays ([0, 1], [1, 1]) 0 0 = ([0, 1], [1, 1]) := by
+  simp [unionArrays, twoRootsRep0]
+
+theorem unionRootsAbs_left_orientation :
+    unionRootsAbs [0, 1] [1, 2] 0 1 =
+      NRest.consume (NRest.returnT ([1, 1], [1, 3])) (unionRootsCost 0 1) := by
+  simpa using unionRootsAbs_eq (parents := [0, 1]) (sizes := [1, 2])
+    (ri := 0) (rj := 1) (by decide) (by decide) (by decide)
+
+theorem unionRootsAbs_right_orientation :
+    unionRootsAbs [0, 1] [2, 1] 0 1 =
+      NRest.consume (NRest.returnT ([0, 0], [3, 1])) (unionRootsCost 0 1) := by
+  simpa using unionRootsAbs_eq (parents := [0, 1]) (sizes := [2, 1])
+    (ri := 0) (rj := 1) (by decide) (by decide) (by decide)
+
+theorem unionRootsAbs_same_root_noop :
+    unionRootsAbs [0, 1] [1, 1] 0 0 =
+      NRest.consume (NRest.returnT ([0, 1], [1, 1])) (unionRootsCost 0 0) := by
+  simpa using unionRootsAbs_eq (parents := [0, 1]) (sizes := [1, 1])
+    (ri := 0) (rj := 0) (by decide) (by decide) (by decide)
+
+theorem unionRootsCost_same_ite :
+    (unionRootsCost 0 0).toFun Currency.ite = 1 := by decide +kernel
+theorem unionRootsCost_same_aset :
+    (unionRootsCost 0 0).toFun Currency.aset = 0 := by decide +kernel
+theorem unionRootsCost_distinct_ite :
+    (unionRootsCost 0 1).toFun Currency.ite = 2 := by decide +kernel
+theorem unionRootsCost_distinct_aget :
+    (unionRootsCost 0 1).toFun Currency.aget = 2 := by decide +kernel
+theorem unionRootsCost_distinct_aset :
+    (unionRootsCost 0 1).toFun Currency.aset = 2 := by decide +kernel
+theorem unionRootsCost_distinct_add :
+    (unionRootsCost 0 1).toFun Currency.add = 1 := by decide +kernel
+
 theorem rangeCost_aset : (rangeCost 3).toFun Currency.aset = 3 := by decide +kernel
 theorem rangeCost_add : (rangeCost 3).toFun Currency.add = 6 := by decide +kernel
 theorem rangeCost_while : (rangeCost 3).toFun Currency.«while» = 4 := by decide +kernel
@@ -2339,5 +2897,9 @@ theorem compare_false_while_cost :
 /-- info: 'Lax13Proofs.Refine.Sepref.Iicf.UnionFindTime.hnr_ufCompare' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms hnr_ufCompare
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.UnionFindTime.hnr_ufUnion' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms hnr_ufUnion
 
 end Lax13Proofs.Refine.Sepref.Iicf.UnionFindTime

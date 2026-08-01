@@ -3779,3 +3779,11 @@ and caller-owned arrays. Exact branch-sensitive vector costs are exposed with
 both measured phases, and their heights and rewrite counts are bounded by
 `heightUb`. True/false forest gates and supervisor replay pass at 2,998 jobs;
 kernel-three and zero placeholders. Next: union-by-size.
+
+Union-by-size is green. The concrete operation performs two measured finds,
+then links the smaller root below the larger and updates the winning size. Both
+orientations preserve `UfArrays.Wf` and `rankInvar`, and refine exactly to
+`perUnion`; equal roots take a non-mutating no-op branch. Exact branch costs,
+`heightUb` bounds, orientation/no-op gates, and `hnr_ufUnion` pass the 2,998-job
+supervisor replay with kernel-three and zero placeholders. Next: the final B2
+interface and root wiring.

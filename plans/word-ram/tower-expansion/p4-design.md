@@ -1,9 +1,10 @@
 # Tower expansion P4 — credits and amortization design
 
-Status: **ACTIVE 2026-08-01; A1, A2, and B1 complete; B2 comparison green.**
+Status: **ACTIVE 2026-08-01; A1, A2, and B1 complete; B2 operations green.**
 A2 is root-green. B2 has its MOP/assertion surface, no-allocation two-array
 initialization, and height-sensitive measured root-search and path-compression
-loops, plus bounds-checked same-set comparison; union-by-size is next. This record
+loops, bounds-checked comparison, and invariant-preserving union-by-size; only
+the final interface interpretation and root wiring remain. This record
 instantiates P4 of `tower-expansion-plan.md`. It is source-first: every selected
 source range receives a Lean owner, an existing-capital mapping, or an explicit
 exclusion. The machine model remains frozen.
