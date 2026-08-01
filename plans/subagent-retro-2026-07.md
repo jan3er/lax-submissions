@@ -180,3 +180,37 @@ Jan clarified worker transport during the wave: normal Codex collaboration
 subagents are the default; a nested `codex exec` process is unnecessary.
 This changes transport only. The same brief, ownership, falsification,
 module-build, supervisor-review, and root-build gates remain binding.
+
+## August correction — do not generalize a parallel-wave retro into default workflow
+
+Jan's 2026-08-01 correction supersedes the workflow generalization in the
+July conclusions. The July data came from large parallel waves with disjoint
+files and cold or isolated checkouts. Its ownership clauses remain useful in
+that setting, but “instantiate the full template for every proof worker” was
+not a valid repo-wide conclusion.
+
+During the Codex takeover, applying that conclusion universally caused the
+process to dominate the proofs:
+
+- already-warm `main` was abandoned for fresh worktrees whose seed cost was
+  about ten minutes per submission;
+- dependency-ordered Lean leaves were parallelized, adding coordination and
+  dirty-tree reasoning without reducing the critical path;
+- workers were repeatedly polled or interrupted instead of receiving one
+  coherent leaf and an uninterrupted working window;
+- source work was delayed while mandatory-looking brief sections, campaign
+  plans, and audit records were reconstructed;
+- checklist-shaped assignments made plausible semantic weakenings easier to
+  miss, so supervisor correction rounds increased.
+
+The corrected default is sequential and source-first: warm `main`, one worker,
+one leaf, roughly one uninterrupted hour, semantic review, focused build, and
+commit. The full July template is now conditional tooling for an explicitly
+requested parallel/isolated wave or a specifically recorded handoff risk.
+“Required” means required after selecting that mode, not required before any
+worker may prove anything.
+
+This is not a rejection of supervision. The supervisor still owns source
+selection, narrow file ownership, semantic and cost review, verification, and
+commits. It is a correction in where supervision pays: at the source boundary
+and acceptance review, rather than in continuous process narration.

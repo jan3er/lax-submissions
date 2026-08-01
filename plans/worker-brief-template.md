@@ -1,10 +1,38 @@
 # Worker brief template
 
-Status: LIVE from 2026-07-30. Instantiate this for every proof-worker
-subagent; derived from the July retro (`subagent-retro-2026-07.md`), which
-measured what each section pays for. Sections marked (required) were each
-missing from some July brief at observable cost. Drop a section only with a
-reason; add task specifics freely — this is a floor, not a ceiling.
+Status: **CONDITIONAL** from 2026-08-01.
+
+This template records safeguards that paid for themselves in July's large,
+parallel, isolated waves. It is not the default way to assign sequential proof
+work. Applying every section to every worker caused a measurable takeover
+slowdown: cold worktrees and seeding, repeated orientation, parallel
+coordination, status polling, and briefs that became larger than the next proof
+leaf.
+
+## Default: compact sequential task packet
+
+On the already-warm `main`, do not instantiate the full template. Give one
+worker one coherent leaf containing only:
+
+- the exact pinned source path/commit and the source declarations to preserve;
+- the one file the worker owns and the landed APIs it may reuse;
+- semantic hazards that could produce a plausible but weaker port;
+- the exact focused build and substantive gates for acceptance;
+- “touch only this file; do not stage or commit.”
+
+Then leave the worker uninterrupted for roughly an hour. Do not poll it on a
+timer. When it finishes, inspect the file itself, request a focused correction
+if necessary, replay the build, and commit before assigning the next leaf.
+Worker reports may be short: result, build, unresolved defect, and files
+touched.
+
+## When the full template applies
+
+Use the sections below only when Jan explicitly requests a parallel or isolated
+wave, or when the supervisor records a concrete handoff risk that the compact
+packet cannot control. Once the full template is deliberately selected, its
+sections marked “required” do not drop. They are requirements of that mode,
+not repo-wide ceremony.
 
 ---
 
@@ -14,16 +42,17 @@ One paragraph: wave name, campaign, the exact declarations to produce
 (fully qualified), and what "done" means (module builds green, zero sorry,
 statements byte-identical to the surface / new satellite file).
 
-## 2. State of the world (required — kills the orientation tax)
+## 2. State of the world (required in full-template mode)
 
 The retro measured a median 35% of every worker's messages spent
 re-deriving context the supervisor already had. This section is where that
 goes instead. Include *inline*, not as pointers:
 
-- Worktree path, package dir, namespace, green commit + job count, and
-  **seed state** (the exact `lake-manifest.json` checked by the supervisor).
-  The supervisor owns seeding; a worker whose manifest is missing waits and
-  reports it rather than launching a second seed or an unseeded build.
+- Checkout path, package dir, namespace, green commit, and job count. In the
+  default workflow this is the already-warm `main` and there is no seed step.
+  If Jan explicitly requested a worktree, also include its **seed state** (the
+  exact `lake-manifest.json` checked by the supervisor). The supervisor owns
+  that opt-in seed; the worker never launches or retries it.
 - The load-bearing definitions and lemma statements the task composes
   against, quoted, with `file:line` anchors.
 - What is FROZEN (files, surfaces, imports) vs what the worker owns.
@@ -34,7 +63,7 @@ For re-spawns/successors: embed the predecessor's final report verbatim,
 plus one line: "Trust this report; do not re-verify modules it declares
 green."
 
-## 3. File ownership (required for parallel waves)
+## 3. File ownership (required in full-template mode)
 
 The July clause set, verbatim-adaptable — zero contamination incidents
 once all four lines were present:
@@ -42,11 +71,10 @@ once all four lines were present:
 - Create and own `<file(s)>` and ONLY them; imports `<frozen list>`.
 - You MUST NOT edit any existing file; sibling agents own their leaves;
   the supervisor wires roots.
-- Build ONLY your module: `lake build <Module>` from the proofs dir. On a
-  lake lock conflict, wait briefly and retry.
+- Build ONLY your module: `lake build <Module>` from the proofs dir.
 - Do not commit; do not stage. The supervisor commits per wave.
 
-## 4. Falsification gate (required for authored obligations)
+## 4. Falsification gate (required in full-template mode for authored obligations)
 
 Refute before prove: before any proof attempt on a *newly authored*
 statement, falsify it — `Plausible`, `#guard` on small cases, python
@@ -69,7 +97,7 @@ a *result*: record the counterexample and stop on that obligation; do not
 - Landed proofs are capital: thread parameters through existing lemmas,
   don't re-prove them.
 
-## 6. Budget and stop rule (required — kills 3-agent chains)
+## 6. Budget and stop rule (required in full-template mode)
 
 State the size estimate and what to do at the boundary:
 
@@ -81,7 +109,7 @@ State the size estimate and what to do at the boundary:
 - Never leave a half-proved lemma: revert to the last green state and
   file the attempt (the S4 rule).
 
-## 7. Report format (required)
+## 7. Report format (required in full-template mode)
 
 End with a report the next agent can resume from cold:
 
