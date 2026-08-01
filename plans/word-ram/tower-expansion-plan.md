@@ -6,7 +6,7 @@ by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0 through P4 are complete. P4 lands generic vector amortization, the bounded
 dynamic-array adapter, pure logarithmic union-find, and timed loop-form
-union-find. P5.A has completed Set, Map, List, List_List, and Matrix; Multiset is next. The source-first
+union-find. P5.A has completed Set, Map, List, List_List, Matrix, and Multiset; Prio_Bag is next. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -374,6 +374,15 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P5.A Multiset interface green (6/8).** New unrooted leaf
+  `Iicf/Intf/Multiset.lean` ports the full multiset-relational algebra and all
+  nine cost-silent operations. Bi-unique requirements are retained for
+  deletion, subtraction, membership, and count; nonempty pick returns a
+  related element/remainder decomposition under a zero-cost specification.
+  All registrations, source pattern/custom-empty dispositions, and kernel
+  guards pass. Supervisor replay: 2,984 jobs; kernel-three and zero
+  placeholders. **Next: P5.A Prio_Bag.**
 
 - **2026-08-01 — P5.A Matrix interface/theory green (5/8).** New unrooted
   `Iicf/Intf/Matrix.lean` ports the matrix relator and five operations together

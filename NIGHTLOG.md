@@ -3839,3 +3839,11 @@ comparison proof. The Isabelle heap code-generation locales are explicitly
 disposed of while their semantic NRest refinements are retained; no fake API
 was introduced. Supervisor replay: 2,985 jobs; kernel-three and zero
 placeholders. Next: Multiset, sequentially on warm main.
+
+P5.A Multiset is green as the sixth interface leaf. New unrooted
+`Iicf/Intf/Multiset.lean` ports the complete multiset-relational algebra and
+all nine operations. Delete/subtract/count/membership retain both uniqueness
+directions, while nonempty pick proves a related element-and-remainder
+decomposition at zero cost. Registrations, pattern/custom-empty accounting,
+and kernel guards pass. Supervisor replay: 2,984 jobs; zero placeholders.
+Next: Prio_Bag, sequentially on warm main.
