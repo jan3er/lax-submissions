@@ -6,8 +6,8 @@ by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0, P1, P2, P3.A, P3.B, and P3.C complete; P4 design is locked, A1 generic
 amortization and B1 pure union-find are complete, and A2 bounded dynamic array
-is complete. B2 timed loop-form union-find has a green initialization boundary;
-root search and compression are next. The source-first
+is complete. B2 timed loop-form union-find has green initialization and
+height-sensitive root-search boundaries; path compression is next. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -375,6 +375,15 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P4.B2 height-sensitive find boundary green.** The unrooted
+  `Iicf/UnionFindTime.lean` leaf now implements root search as a manually
+  composed measured loop. Its exact vector cost is indexed by `heightOf`, its
+  public HNR rule preserves `ufAssn` and returns `repOf`, and singleton,
+  compressed, and two-edge-chain gates distinguish the expected costs. A
+  preliminary length-bounded Theta(n) loop was rejected rather than landed.
+  Focused Lake replay: 2,998 jobs; kernel-three and zero placeholders. **Next:
+  path compression in the same leaf.**
 
 - **2026-08-01 — P4.B2 initialization boundary green.** New leaf
   `Iicf/UnionFindTime.lean` lands the timed MOP/assertion surface, an exact-cost

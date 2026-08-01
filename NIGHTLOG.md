@@ -3748,3 +3748,11 @@ no-allocation initialization from two caller-owned buffers. The resulting
 parents/sizes pair satisfies the accepted pure `ufaInvar` and `rankInvar`.
 Focused Lake build: 2,997 jobs; kernel-three and zero placeholders. Next:
 bounded root search and path compression in the same leaf.
+
+The root-search half is green. A first length-bounded loop was rejected because
+its Theta(n) cost could not support B2's logarithmic contract. The accepted
+implementation manually composes a measured loop whose exact vector cost is
+indexed by `heightOf`; `hnr_ufFind` preserves the two-array assertion and returns
+`repOf`. Singleton, compressed, and two-edge-chain gates pin both semantics and
+strictly different costs. Focused replay: 2,998 jobs; kernel-three and zero
+placeholders. Next: path compression, sequentially in the same warm-main leaf.
