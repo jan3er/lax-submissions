@@ -3908,3 +3908,13 @@ condition and index/contains retaining two-way uniqueness. Empty remains a
 caller-owned two-buffer boundary. Supervisor replay: 2,992 jobs; invariant,
 generic-registration, command/currency, kernel-three, and zero-placeholder
 gates pass. Next: `Array_of_Array_List`, sequentially on warm main.
+
+`Array_of_Array_List` is green as the fifth P5.B implementation family and
+closes the bounded-sequence group. The new unrooted leaf carries the generic
+nested-list relation and the source empty/push/pop/index/update/length/take
+semantic rules. Exact vector-cost commands begin at the selected-row boundary,
+where the caller supplies the row buffer and metadata; the IR has no allocator,
+deallocator, or runtime array-of-pointers selection, and the leaf says so
+instead of inventing those capabilities. Strict spare-cell push bounds,
+registration, command/currency, kernel-three, and zero-placeholder gates pass.
+Supervisor replay: 2,993 jobs. Next: `Array_Map`, sequentially on warm main.

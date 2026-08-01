@@ -7,9 +7,9 @@ Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0 through P4 are complete. P4 lands generic vector amortization, the bounded
 dynamic-array adapter, pure logarithmic union-find, and timed loop-form
 union-find. P5.A is complete: all eight interface families are root-imported
-and archive-green. P5.B has four concrete bounded-sequence families green as
-unrooted leaves: `Array_List`, `DArray_List`, `MS_Array_List`, and
-`Indexed_Array_List`. The source-first
+and archive-green. P5.B has all five concrete bounded-sequence families green
+as unrooted leaves: `Array_List`, `DArray_List`, `MS_Array_List`,
+`Indexed_Array_List`, and `Array_of_Array_List`. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -377,6 +377,18 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P5.B Array_of_Array_List green (5/8 implementation
+  families; 5/5 sequence families).** New unrooted
+  `Iicf/Impl/ArrayOfArrayList.lean` ports the generic nested-list relation,
+  empty/push/pop/index/update/length/take semantic rules, and exact executable
+  rules once a caller has supplied the selected row's owned buffer and scalar
+  metadata. The IR cannot allocate/free or store and dynamically select an
+  outer array of row pointers, so those source operations are explicitly
+  excluded rather than represented by placeholder costs. Strict spare-cell
+  push bounds, registration, command/currency, kernel-three, and zero-
+  placeholder gates pass. Supervisor replay: 2,993 jobs. **Next: P5.B
+  Array_Map.**
 
 - **2026-08-01 — P5.B Indexed_Array_List green (4/8 implementation
   families).** New unrooted `Iicf/Impl/IndexedArrayList.lean` couples a fixed
