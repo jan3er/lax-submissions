@@ -3710,3 +3710,10 @@ worktrees were removed after their parallel seeds hit ENOSPC; no proof edits
 were lost. Inherited briefs remain useful technical reference only and must
 not drive process overengineering. Next: one B1 successor finishes the
 height/rank/logarithmic union-find slice; A2 waits.
+
+The reset immediately produced a clean boundary: the single B1 successor
+finished the remaining height/rank/logarithmic slice in
+`Iicf/UnionFindAbstract.lean`. Supervisor replay passed the 1,992-job leaf,
+3,250-job proofs root, and `lax build --only proofs word-ram`; kernel guards
+remain within `propext`, `Classical.choice`, and `Quot.sound`, with zero
+placeholders. P4.B1 is complete. Next: P4.A2, still sequentially on warm main.

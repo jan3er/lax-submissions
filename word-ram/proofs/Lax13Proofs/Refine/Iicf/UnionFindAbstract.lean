@@ -24,11 +24,11 @@ Source table (all selected rows):
 | `Union_Find_Time.thy` | 20--116 | landed: private `repOfFuel`, `repOf`, `ufaInvar`, `ufaInvarD`, source equations, induction, root/bound/idempotence/update/index |
 | same | 117--147 | landed: `ufaAlpha`, `ufaAlphaPartEquiv`, `ufaAlphaLength`, `ufaAlphaDomain`, `ufaAlphaRefl`, `ufaAlphaLengthEq` |
 | same | 148--331 | landed: init/find, `ufaUnion` invariant/representative/correctness, `ufaCompress` invariant/correctness |
-| same | 333--389 | remaining after the green operations stop boundary: `heightOfFuel`, `heightOf`, `heightOfStep`, `hOf`, `rankInvar`, `rankAtRootLeLength`, `heightOfRoot` |
-| same | 394--510 | remaining after the green operations stop boundary: compression/union height effects |
-| same | 512--564 | remaining: six individually-accounted Max helpers (`hel`, `MAXIMUM_mono`, `MAXIMUM_eq`, `Suc_h_of`, `MAXIMUM_Un`, unnamed max monotonicity) plus `h_of_alt` |
-| same | 568--647 | remaining: `hOf` union cases and exponential height bound |
-| same | 813--828 | remaining: `heightUb`, `heightUbThetaLog`, `heightOfLeHeightUb` |
+| same | 333--389 | landed: `heightOfFuel`, `heightOf`, `heightOfStep`, `hOf`, `rankInvar`, `rankAtRootLeLength`, `heightOfRoot` |
+| same | 394--510 | landed: `heightOfCompress`, `heightOfUnionOnPath`, `heightOfUnionOffPath`, `heightOfUnion` |
+| same | 512--564 | private proof helpers: the three generic `Max` lemmas, `Suc_h_of`, `MAXIMUM_Un`, and max monotonicity are subsumed by `Finset.sup` laws; landed source alternative form as `hOf` itself |
+| same | 568--647 | landed: `hOfUnionUntouched`, `hOfUnionId`, `hOfUnionTouched`, `heightOfLeHOf`, `heightPowLeLength` |
+| same | 813--828 | landed: `heightUb`, `heightUbThetaLog`, `heightOfLeHeightUb` |
 -/
 
 open Set Filter
@@ -721,7 +721,375 @@ theorem ufaCompressCorrect (hI : ufaInvar l) (hx : x < l.length) :
     rw [ufaCompressRep hI hx hi, ufaCompressRep hI hx hj]
     exact hrep
 
+/-! ## Height and rank bounds -/
+
+private def heightOfFuel (l : List ℕ) : ℕ → ℕ → Option ℕ
+  | 0, _ => none
+  | fuel + 1, i =>
+      if hi : i < l.length then
+        if l[i] = i then some 0 else (heightOfFuel l fuel l[i]).map Nat.succ
+      else none
+
+private theorem heightOfFuel_unique
+    (h₁ : heightOfFuel l f₁ i = some n₁) (h₂ : heightOfFuel l f₂ i = some n₂) :
+    n₁ = n₂ := by
+  induction f₁ generalizing f₂ i n₁ n₂ with
+  | zero => simp [heightOfFuel] at h₁
+  | succ f₁ ih =>
+      cases f₂ with
+      | zero => simp [heightOfFuel] at h₂
+      | succ f₂ =>
+          simp only [heightOfFuel] at h₁ h₂
+          split at h₁
+          next hi =>
+            split at h₁
+            next hroot =>
+              simp only [Option.some.injEq] at h₁
+              subst n₁
+              simp [hi, hroot] at h₂
+              exact h₂
+            next hroot =>
+              simp only [Option.map_eq_some_iff] at h₁
+              obtain ⟨m₁, hm₁, rfl⟩ := h₁
+              simp [hi, hroot] at h₂
+              obtain ⟨m₂, hm₂, hsucc⟩ := h₂
+              calc
+                m₁.succ = m₂.succ := congrArg Nat.succ (ih hm₁ hm₂)
+                _ = n₂ := by simpa using hsucc
+          next hi => simp [hi] at h₁
+
+private theorem heightOfFuel_of_repOfFuel
+    (h : repOfFuel l fuel i = some r) : ∃ n, heightOfFuel l fuel i = some n := by
+  induction fuel generalizing i with
+  | zero => simp [repOfFuel] at h
+  | succ fuel ih =>
+      simp only [repOfFuel] at h
+      split at h
+      next hi =>
+        split at h
+        next hroot => exact ⟨0, by simp [heightOfFuel, hi, hroot]⟩
+        next hroot =>
+          obtain ⟨n, hn⟩ := ih h
+          exact ⟨n + 1, by simp [heightOfFuel, hi, hroot, hn]⟩
+      next hi => contradiction
+
+noncomputable def heightOf (l : List ℕ) (i : ℕ) : ℕ :=
+  by
+    classical
+    exact if h : ∃ n fuel, heightOfFuel l fuel i = some n then Classical.choose h else 0
+
+private theorem heightOf_eq_of_fuel (h : heightOfFuel l fuel i = some n) :
+    heightOf l i = n := by
+  classical
+  let hex : ∃ n fuel, heightOfFuel l fuel i = some n := ⟨n, fuel, h⟩
+  rw [heightOf, dif_pos hex]
+  obtain ⟨fuel', hn'⟩ := Classical.choose_spec hex
+  exact heightOfFuel_unique hn' h
+
+theorem heightOfRoot (hI : ufaInvar l) (hi : i < l.length) (hroot : l[i]! = i) :
+    heightOf l i = 0 := by
+  have hroot' : l[i] = i := by rw [getElem!_pos] at hroot; exact hroot
+  apply heightOf_eq_of_fuel (fuel := 1)
+  rw [heightOfFuel]
+  simp [hi, hroot']
+
+theorem heightOfStep (hI : ufaInvar l) (hi : i < l.length) (hne : l[i]! ≠ i) :
+    heightOf l i = Nat.succ (heightOf l l[i]!) := by
+  have hne' : l[i] ≠ i := by rw [getElem!_pos] at hne; exact hne
+  obtain ⟨r, fuel, hrun⟩ := (hI i hi).2
+  cases fuel with
+  | zero => simp [repOfFuel] at hrun
+  | succ fuel =>
+      have hchildRep : repOfFuel l fuel l[i]! = some r := by
+        simpa [repOfFuel, hi, hne'] using hrun
+      obtain ⟨n, hn⟩ := heightOfFuel_of_repOfFuel hchildRep
+      have hn' : heightOfFuel l fuel l[i] = some n := by
+        simpa [getElem!_pos, hi] using hn
+      have hparent : heightOfFuel l (fuel + 1) i = some (n + 1) := by
+        simp [heightOfFuel, hi, hne', hn']
+      rw [heightOf_eq_of_fuel hparent, heightOf_eq_of_fuel hn]
+
+/-- Maximum height among the vertices represented by `i`.  The source uses
+`Max` of a finite set; `Finset.sup` gives the same value and totalizes the
+empty component at zero. -/
+noncomputable def hOf (l : List ℕ) (i : ℕ) : ℕ :=
+  (Finset.range l.length).sup fun j => if repOf l j = i then heightOf l j else 0
+
+def rankInvar (l ranks : List ℕ) : Prop :=
+  l.length = ranks.length ∧
+    (Finset.range l.length).sum (fun i => if l[i]! = i then ranks[i]! else 0) = l.length ∧
+    ∀ i, i < l.length → l[i]! = i → 2 ^ hOf l i ≤ ranks[i]!
+
+theorem rankAtRootLeLength (hR : rankInvar l ranks) (hI : ufaInvar l)
+    (hi : i < l.length) : ranks[repOf l i]! ≤ l.length := by
+  let r := repOf l i
+  have hr : r < l.length := repOfBound hI hi
+  have hroot : l[r]! = r := repOfRoot hI hi
+  have hle : (if l[r]! = r then ranks[r]! else 0) ≤
+      (Finset.range l.length).sum (fun j => if l[j]! = j then ranks[j]! else 0) := by
+    exact Finset.single_le_sum (s := Finset.range l.length)
+      (f := fun j => if l[j]! = j then ranks[j]! else 0)
+      (fun _ _ => Nat.zero_le _) (by simpa using hr)
+  rw [hR.2.1] at hle
+  simpa [r, hroot] using hle
+
+theorem heightOfLeHOf (hi : i < l.length) : heightOf l i ≤ hOf l (repOf l i) := by
+  unfold hOf
+  have h := Finset.le_sup (s := Finset.range l.length) (f := fun j =>
+    if repOf l j = repOf l i then heightOf l j else 0) (show i ∈ Finset.range l.length by
+      simpa using hi)
+  simpa using h
+
+private theorem hOf_le {l : List ℕ} {i b : ℕ}
+    (h : ∀ j, j < l.length → repOf l j = i → heightOf l j ≤ b) : hOf l i ≤ b := by
+  unfold hOf
+  apply Finset.sup_le
+  intro j hj
+  simp only [Finset.mem_range] at hj
+  split
+  · exact h j hj (by assumption)
+  · exact Nat.zero_le _
+
+theorem heightOfCompress (hI : ufaInvar l) (hi : i < l.length) (hj : j < l.length) :
+    heightOf (ufaCompress l j) i ≤ heightOf l i := by
+  apply repOfInduct hI hi
+  · intro i _ hi hroot
+    have hold : heightOf l i = 0 := heightOfRoot hI hi hroot
+    have hroot' : (ufaCompress l j)[i]! = i := by
+      by_cases hij : i = j
+      · subst i
+        rw [ufaCompress_get_eq hj, repOfRefl hI hj hroot]
+      · rw [ufaCompress_get_ne hi hij]
+        exact hroot
+    have hnew : heightOf (ufaCompress l j) i = 0 :=
+      heightOfRoot (ufaCompressInvar hI hj) (by simpa [ufaCompress] using hi) hroot'
+    omega
+  · intro i _ hi hne ih
+    have hold := heightOfStep hI hi hne
+    by_cases hij : i = j
+    · subst i
+      have hrne : repOf l j ≠ j := by
+        intro hr
+        have hroot := repOfRoot hI hj
+        rw [hr] at hroot
+        exact hne hroot
+      have hnewStep := heightOfStep (ufaCompressInvar hI hj)
+        (by simpa [ufaCompress] using hj) (by
+          rw [ufaCompress_get_eq hj]
+          exact hrne)
+      have hnewRoot : heightOf (ufaCompress l j) (repOf l j) = 0 := by
+        apply heightOfRoot (ufaCompressInvar hI hj)
+        · simpa [ufaCompress] using repOfBound hI hj
+        · rw [ufaCompress_get_ne (repOfBound hI hj) hrne]
+          exact repOfRoot hI hj
+      rw [ufaCompress_get_eq hj, hnewRoot] at hnewStep
+      omega
+    · have hnewStep := heightOfStep (ufaCompressInvar hI hj)
+        (by simpa [ufaCompress] using hi) (by
+          rw [ufaCompress_get_ne hi hij]
+          exact hne)
+      rw [ufaCompress_get_ne hi hij] at hnewStep
+      omega
+
+theorem heightOfUnionOnPath (hI : ufaInvar l) (hi : i < l.length)
+    (hx : x < l.length) (hy : y < l.length) (hpath : repOf l i = repOf l x) :
+    heightOf (ufaUnion l x y) i ≤ Nat.succ (heightOf l i) := by
+  revert hpath
+  apply repOfInduct hI hi
+  · intro i _ hi hroot
+    intro hpath
+    have hri : repOf l i = i := repOfRefl hI hi hroot
+    have hold : heightOf l i = 0 := heightOfRoot hI hi hroot
+    by_cases hir : i = repOf l x
+    · subst i
+      by_cases hxy : repOf l x = repOf l y
+      · have hnewRoot : (ufaUnion l x y)[repOf l x]! = repOf l x := by
+          rw [ufaUnion_get_root hI hx, ← hxy]
+        have hnew := heightOfRoot (ufaUnionInvar hI hx hy)
+          (by simpa [ufaUnion] using repOfBound hI hx) hnewRoot
+        omega
+      · have hstep := heightOfStep (ufaUnionInvar hI hx hy)
+          (by simpa [ufaUnion] using repOfBound hI hx) (by
+            rw [ufaUnion_get_root hI hx]
+            exact Ne.symm hxy)
+        have hrootY : heightOf (ufaUnion l x y) (repOf l y) = 0 := by
+          apply heightOfRoot (ufaUnionInvar hI hx hy)
+          · simpa [ufaUnion] using repOfBound hI hy
+          · rw [ufaUnion_get_ne (repOfBound hI hy) (Ne.symm hxy)]
+            exact repOfRoot hI hy
+        rw [ufaUnion_get_root hI hx, hrootY] at hstep
+        omega
+    · have hnewRoot : (ufaUnion l x y)[i]! = i := by
+        rw [ufaUnion_get_ne hi hir]
+        exact hroot
+      have hnew := heightOfRoot (ufaUnionInvar hI hx hy)
+        (by simpa [ufaUnion] using hi) hnewRoot
+      omega
+  · intro i _ hi hne ih
+    intro hpath
+    have hir : i ≠ repOf l x := by
+      intro hir
+      subst i
+      exact hne (repOfRoot hI hx)
+    have hnewStep := heightOfStep (ufaUnionInvar hI hx hy)
+      (by simpa [ufaUnion] using hi) (by
+        rw [ufaUnion_get_ne hi hir]
+        exact hne)
+    have holdStep := heightOfStep hI hi hne
+    rw [ufaUnion_get_ne hi hir] at hnewStep
+    have hchildPath : repOf l l[i]! = repOf l x := by
+      rw [repOfIndex hI hi]
+      exact hpath
+    have hchild := ih hchildPath
+    omega
+
+theorem heightOfUnionOffPath (hI : ufaInvar l) (hi : i < l.length)
+    (hx : x < l.length) (hy : y < l.length) (hoff : repOf l i ≠ repOf l x) :
+    heightOf (ufaUnion l x y) i = heightOf l i := by
+  revert hoff
+  apply repOfInduct hI hi
+  · intro i _ hi hroot
+    intro hoff
+    have hri : repOf l i = i := repOfRefl hI hi hroot
+    have hir : i ≠ repOf l x := by simpa [hri] using hoff
+    apply (heightOfRoot (ufaUnionInvar hI hx hy) (by simpa [ufaUnion] using hi) (by
+      rw [ufaUnion_get_ne hi hir]
+      exact hroot)).trans
+    exact (heightOfRoot hI hi hroot).symm
+  · intro i _ hi hne ih
+    intro hoff
+    have hir : i ≠ repOf l x := by
+      intro hir
+      subst i
+      exact hne (repOfRoot hI hx)
+    have hnewStep := heightOfStep (ufaUnionInvar hI hx hy)
+      (by simpa [ufaUnion] using hi) (by
+        rw [ufaUnion_get_ne hi hir]
+        exact hne)
+    have holdStep := heightOfStep hI hi hne
+    rw [ufaUnion_get_ne hi hir] at hnewStep
+    have hchildOff : repOf l l[i]! ≠ repOf l x := by
+      rw [repOfIndex hI hi]
+      exact hoff
+    rw [hnewStep, holdStep, ih hchildOff]
+
+theorem heightOfUnion (hI : ufaInvar l) (hi : i < l.length)
+    (hx : x < l.length) (hy : y < l.length) :
+    heightOf (ufaUnion l x y) i ≤ Nat.succ (heightOf l i) := by
+  by_cases hpath : repOf l i = repOf l x
+  · exact heightOfUnionOnPath hI hi hx hy hpath
+  · rw [heightOfUnionOffPath hI hi hx hy hpath]
+    omega
+
+theorem hOfCompress (hI : ufaInvar l) (hj : j < l.length) :
+    hOf (ufaCompress l j) i ≤ hOf l i := by
+  apply hOf_le
+  intro k hk hrep
+  have hk' : k < l.length := by simpa [ufaCompress] using hk
+  have hrep' : repOf l k = i := by
+    rw [ufaCompressRep hI hj hk'] at hrep
+    exact hrep
+  exact (heightOfCompress hI hk' hj).trans (hrep' ▸ heightOfLeHOf hk')
+
+theorem hOfUnionUntouched (hI : ufaInvar l) (hx : x < l.length) (hy : y < l.length)
+    (hi : i < l.length) (hroot : l[i]! = i)
+    (hix : i ≠ repOf l x) (hiy : i ≠ repOf l y) :
+    hOf (ufaUnion l x y) i = hOf l i := by
+  unfold hOf
+  rw [show (ufaUnion l x y).length = l.length by simp [ufaUnion]]
+  apply Finset.sup_congr rfl
+  intro j hj
+  have hj' : j < l.length := by simpa using hj
+  rw [ufaUnionRep hI hx hy hj']
+  by_cases hjx : repOf l j = repOf l x
+  · rw [if_pos hjx]
+    have hji : repOf l j ≠ i := by intro h; exact hix (h.symm.trans hjx)
+    simp [Ne.symm hiy, hji]
+  · rw [if_neg hjx, heightOfUnionOffPath hI hj' hx hy hjx]
+
+theorem hOfUnionId (hI : ufaInvar l) (hx : x < l.length) (hy : y < l.length)
+    (hi : i < l.length) (hroot : repOf l i = i) (hiy : i = repOf l y)
+    (hxy : repOf l y = repOf l x) :
+    hOf (ufaUnion l x y) i = hOf l i := by
+  have hu : ufaUnion l x y = l := by
+    unfold ufaUnion
+    apply List.ext_getElem
+    · simp
+    · intro j hj₁ hj₂
+      by_cases hj : j = repOf l x
+      · subst j
+        rw [List.getElem_set, if_pos rfl]
+        have hr := repOfRoot hI hx
+        rw [getElem!_pos] at hr
+        · exact hxy.trans hr.symm
+        · exact repOfBound hI hx
+      · rw [List.getElem_set, if_neg (Ne.symm hj)]
+  rw [hu]
+
+theorem hOfUnionTouched (hI : ufaInvar l) (hx : x < l.length) (hy : y < l.length)
+    (hi : i < l.length) (hroot : repOf l i = i) (hiy : i = repOf l y)
+    (hxy : repOf l y ≠ repOf l x) :
+    hOf (ufaUnion l x y) i ≤
+      max (hOf l (repOf l y)) (Nat.succ (hOf l (repOf l x))) := by
+  apply hOf_le
+  intro j hj hrep
+  have hj' : j < l.length := by simpa [ufaUnion] using hj
+  have hrep' := hrep
+  rw [ufaUnionRep hI hx hy hj'] at hrep'
+  by_cases hjx : repOf l j = repOf l x
+  · have hheight := heightOfUnionOnPath hI hj' hx hy hjx
+    have hold := heightOfLeHOf hj'
+    rw [hjx] at hold
+    exact hheight.trans ((Nat.succ_le_succ hold).trans (le_max_right _ _))
+  · rw [if_neg hjx] at hrep'
+    have hheight := heightOfUnionOffPath hI hj' hx hy hjx
+    have hold := heightOfLeHOf hj'
+    rw [hrep', hiy] at hold
+    rw [hheight]
+    exact hold.trans (le_max_left _ _)
+
+theorem heightPowLeLength (hR : rankInvar l ranks) (hI : ufaInvar l)
+    (hi : i < l.length) : 2 ^ heightOf l i ≤ l.length := by
+  have hh : heightOf l i ≤ hOf l (repOf l i) := heightOfLeHOf hi
+  have hp : 2 ^ heightOf l i ≤ 2 ^ hOf l (repOf l i) :=
+    Nat.pow_le_pow_right (by omega) hh
+  have hrank : 2 ^ hOf l (repOf l i) ≤ ranks[repOf l i]! :=
+    hR.2.2 (repOf l i) (repOfBound hI hi) (repOfRoot hI hi)
+  exact hp.trans (hrank.trans (rankAtRootLeLength hR hI hi))
+
+noncomputable def heightUb (n : ℕ) : ℕ := ⌈Real.logb 2 (n : ℝ)⌉₊
+
+theorem heightUbThetaLog :
+    (fun n : ℕ => ((heightUb n : ℕ) : ℝ)) =Θ[atTop]
+      fun n => Real.log (n : ℝ) := by
+  simpa [heightUb] using
+    (abcdLog (a := 0) (b := 1) (c := 1) (d := 0) (by positivity) (by norm_num)
+      (by norm_num) (by omega))
+
+theorem heightOfLeHeightUb (hR : rankInvar l ranks) (hI : ufaInvar l)
+    (hi : i < l.length) : heightOf l i ≤ heightUb l.length := by
+  have hp := heightPowLeLength hR hI hi
+  have hnpos : 0 < (l.length : ℝ) := by exact_mod_cast (Nat.zero_lt_of_lt hi)
+  have hrealPow : (2 : ℝ) ^ (heightOf l i : ℝ) ≤ (l.length : ℝ) := by
+    rw [Real.rpow_natCast]
+    exact_mod_cast hp
+  have hlog : (heightOf l i : ℝ) ≤ Real.logb 2 (l.length : ℝ) :=
+    (Real.le_logb_iff_rpow_le (b := 2) (by norm_num) hnpos).2 hrealPow
+  have hceil := hlog.trans (Nat.le_ceil (Real.logb 2 (l.length : ℝ)))
+  have hnat : heightOf l i ≤ ⌈Real.logb 2 (l.length : ℝ)⌉₊ := by
+    exact_mod_cast hceil
+  exact hnat
+
 /-! ## Executable sanity probes for the authored totalization -/
+
+private example : heightOf [0] 0 = 0 :=
+  heightOf_eq_of_fuel (show heightOfFuel [0] 1 0 = some 0 by decide)
+
+private example : heightOf [0, 0, 1] 2 = 2 :=
+  heightOf_eq_of_fuel (show heightOfFuel [0, 0, 1] 3 2 = some 2 by decide)
+
+private example : heightOf [0, 0, 0] 2 = 1 :=
+  heightOf_eq_of_fuel (show heightOfFuel [0, 0, 0] 2 2 = some 1 by decide)
 
 private example : repOf [0] 0 = 0 :=
   repOf_eq_of_fuel (show repOfFuel [0] 1 0 = some 0 by decide)
@@ -768,5 +1136,13 @@ private example : ufaUnion [0, 1] 1 0 = [0, 0] := by
 /-- info: 'Lax13Proofs.Refine.Iicf.UnionFind.ufaCompressCorrect' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms ufaCompressCorrect
+
+/-- info: 'Lax13Proofs.Refine.Iicf.UnionFind.heightOfUnion' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms heightOfUnion
+
+/-- info: 'Lax13Proofs.Refine.Iicf.UnionFind.heightOfLeHeightUb' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms heightOfLeHeightUb
 
 end Lax13Proofs.Refine.Iicf.UnionFind

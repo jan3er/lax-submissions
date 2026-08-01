@@ -1,8 +1,7 @@
 # Tower expansion P4 — credits and amortization design
 
-Status: **ACTIVE 2026-07-31; A1 complete, B1 operations boundary accepted.**
-The B1 height/rank/logarithmic section remains open; A2 may now consume the
-frozen A1 API. This record
+Status: **ACTIVE 2026-08-01; A1 and B1 complete.** A2 may consume the frozen A1
+API; B2 may consume both frozen foundations after A2's sequential wave. This record
 instantiates P4 of `tower-expansion-plan.md`. It is source-first: every selected
 source range receives a Lean owner, an existing-capital mapping, or an explicit
 exclusion. The machine model remains frozen.
@@ -24,10 +23,9 @@ P4.B1 pure union-find ──────┴────▶ P4.B2 timed loop-form
 - **P4.A2** creates `Iicf/IicfDynamicArray.lean`: the source-faithful abstract
   dynamic-list/potential development plus a bounded executable adapter over
   caller-owned, preallocated storage. Capacity and buffer ownership are explicit.
-- **P4.B1 — operations boundary accepted** creates
+- **P4.B1 — complete** creates
   `Iicf/UnionFindAbstract.lean`: PER/list semantics, representation invariants,
-  and union/compression correctness are green; logarithmic height theory is the
-  remaining successor chunk.
+  union/compression correctness, and logarithmic height theory are green.
 - **P4.B2** creates `Iicf/UnionFindTime.lean`: the MOP/HNR interface and timed
   loop-form implementation over caller-owned parent and size arrays.
 
