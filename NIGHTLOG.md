@@ -3763,3 +3763,11 @@ indexed by `heightOf`; `hnr_ufFind` preserves the two-array assertion and return
 `repOf`. Singleton, compressed, and two-edge-chain gates pin both semantics and
 strictly different costs. Focused replay: 2,998 jobs; kernel-three and zero
 placeholders. Next: path compression, sequentially in the same warm-main leaf.
+
+Path compression is now green in that leaf. The measured IR loop rewrites each
+visited parent to the representative, preserves the abstract forest, both
+union-find invariants, and the untouched size array, and charges an exact vector
+cost for the executed rewrites with a starting-height upper bound. Its public
+HNR bridge consumes the representative left by find. Compressed and two-edge
+chain gates pin both the final arrays and distinct costs. Supervisor replay:
+2,998 jobs; kernel-three and zero placeholders. Next: comparison.

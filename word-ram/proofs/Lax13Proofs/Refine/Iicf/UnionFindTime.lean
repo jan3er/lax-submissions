@@ -17,7 +17,7 @@ Source accounting:
 | same | 44--86 | open: the implementation interface is completed after find/union land |
 | `Union_Find_Time.thy` | 651--666 | landed: two-array representation `ufAssn` |
 | same | 667--703 | landed: no-allocation `ufInit` from two `junkArrayOfLen` buffers |
-| same | 707--844 | partial: bounded root search landed; path compression remains open |
+| same | 707--844 | landed: height-bounded root search and in-place path compression |
 | same | 850--897 | open: comparison |
 | same | 899--1174 | open: union-by-size and both rank-preservation branches |
 | same | 1177--1204 | open: final interface interpretation |
@@ -800,6 +800,551 @@ theorem hnr_ufFind (R : Per ℕ) (parents sizes : List ℕ) (x : ℕ)
   simp only [prodAssn_apply, emp_sepConj]
   ac_rfl
 
+/-! ## Height-bounded path compression -/
+
+theorem ufaCompress_isRoot_iff (hU : ufaInvar parents) (hx : x < parents.length)
+    (hi : i < parents.length) :
+    (ufaCompress parents x)[i]! = i ↔ parents[i]! = i := by
+  by_cases hix : i = x
+  · subst i
+    constructor
+    · intro hnew
+      have hr : repOf parents x = x := by simpa [ufaCompress, hx] using hnew
+      exact hr ▸ repOfRoot hU hx
+    · intro hold
+      have hr := repOfRefl hU hx hold
+      simp [ufaCompress, hx, hr]
+  · simp [ufaCompress, hi, Ne.symm hix]
+
+private theorem ufaCompress_isRootD_iff (hU : ufaInvar parents)
+    (hx : x < parents.length) (hi : i < parents.length) :
+    (ufaCompress parents x)[i]?.getD 0 = i ↔ parents[i]?.getD 0 = i := by
+  have hinew : i < (ufaCompress parents x).length := by simpa [ufaCompress] using hi
+  have h := ufaCompress_isRoot_iff hU hx hi
+  rw [getElem!_pos (ufaCompress parents x) i hinew, getElem!_pos parents i hi] at h
+  simpa [List.getElem?_eq_getElem hinew, List.getElem?_eq_getElem hi] using h
+
+theorem rankInvar_compress (hR : rankInvar parents sizes) (hU : ufaInvar parents)
+    (hx : x < parents.length) : rankInvar (ufaCompress parents x) sizes := by
+  constructor
+  · simpa [ufaCompress] using hR.1
+  constructor
+  · rw [show (ufaCompress parents x).length = parents.length by simp [ufaCompress]]
+    calc
+      (∑ i ∈ Finset.range parents.length,
+          if (ufaCompress parents x)[i]! = i then sizes[i]! else 0) =
+          ∑ i ∈ Finset.range parents.length,
+            if parents[i]! = i then sizes[i]! else 0 := by
+        apply Finset.sum_congr rfl
+        intro i hi
+        have hib : i < parents.length := by simpa using hi
+        have hiff := ufaCompress_isRootD_iff hU hx hib
+        by_cases hold : parents[i]?.getD 0 = i
+        · have hnew := hiff.mpr hold
+          simp [hold, hnew]
+        · have hnew := not_congr hiff |>.mpr hold
+          simp [hold, hnew]
+      _ = parents.length := hR.2.1
+  · intro i hiNew hrootNew
+    have hi : i < parents.length := by simpa [ufaCompress] using hiNew
+    have hroot : parents[i]! = i := (ufaCompress_isRoot_iff hU hx hi).mp hrootNew
+    exact (Nat.pow_le_pow_right (by omega) (hOfCompress hU hx)).trans
+      (hR.2.2 i hi hroot)
+
+abbrev CompressState := ℕ × (ℕ × List ℕ)
+abbrev compressStateAssn := natAssn ×ₐ (natAssn ×ₐ arrayAssn)
+
+def compressI (root : ℕ) (s : CompressState) : Prop :=
+  ufaInvar s.2.2 ∧ s.1 < s.2.2.length ∧ root < s.2.2.length ∧
+    repOf s.2.2 s.1 = root ∧ s.2.1 = Nat.xor s.1 root
+
+def compressB (s : CompressState) : Bool := decide (0 < s.2.1)
+
+def compressState (root : ℕ) (parents : List ℕ) (i : ℕ) : CompressState :=
+  (i, (Nat.xor i root, parents))
+
+noncomputable def compressStep (root : ℕ) (s : CompressState) : CompressState :=
+  (s.2.2[s.1]!, (Nat.xor s.2.2[s.1]! root, s.2.2.set s.1 root))
+
+noncomputable def mopCopyOverwrite (_old new : ℕ) : NRest ℕ ECost := mopCopy new
+
+@[sepref_fr_rules]
+private theorem hnr_mop_copyOverwrite (x y : String) (old new : ℕ) :
+    hnRefine (hnCtxt natAssn old x ∗ hnCtxt natAssn new y) (.copy x y)
+      (hnCtxt natAssn new y) x natAssn (mopCopyOverwrite old new) := by
+  unfold mopCopyOverwrite
+  exact hnRefine_cons_pre (hnr_mop_copy x y new)
+    (conj_entails_mono (natAssn_entails_junkCell old x) (entails_refl _))
+
+noncomputable def compressF (root : ℕ) (s : CompressState) : NRest CompressState ECost :=
+  NRest.bindT (mopAgetOverwrite s.2.1 s.2.2 s.1) fun next =>
+    NRest.bindT (mopAset s.2.2 s.1 root) fun parents' =>
+      NRest.bindT (mopCopyOverwrite s.1 next) fun i' =>
+        NRest.bindT (mopBinopSelf .xor next root) fun flag =>
+          NRest.bindT (mopPair flag parents') fun t => mopPair i' t
+
+noncomputable def compressStepCost : ECost :=
+  irUnit Currency.aget + irUnit Currency.aset + irUnit Currency.copy +
+    irUnit Currency.xor + 2 • irUnit Currency.skip
+
+noncomputable def compressRestCost (steps : ℕ) : ECost :=
+  steps • compressStepCost + (steps + 1) • irUnit Currency.«while»
+
+noncomputable def compressV (s : CompressState) : ℕ := heightOf s.2.2 s.1
+
+theorem compressStep_eq_ufaCompress (hI : compressI root s) :
+    (compressStep root s).2.2 = ufaCompress s.2.2 s.1 := by
+  simp only [compressStep, ufaCompress, hI.2.2.2.1]
+
+theorem compressF_eq (hI : compressI root s) (_hb : compressB s = true) :
+    compressF root s =
+      NRest.consume (NRest.returnT (compressStep root s)) compressStepCost := by
+  have hi := hI.2.1
+  simp only [compressF, mopAgetOverwrite, mopAget_def, NRest.assert_pos hi,
+    mopAset_def, mopCopyOverwrite, mopCopy, mopBinopSelf, mopBinop_def, mopPair_def,
+    NRest.returnT_bindT, bindT_unit, NRest.consume_consume, Imp.Bop.apply_xor,
+    binopCurrency_xor, compressStep, compressStepCost]
+  congr 1
+  simp [two_nsmul]
+  ac_rfl
+
+private theorem compress_nonroot (hI : compressI root s) (hb : compressB s = true) :
+    s.1 ≠ root := by
+  have hpos : 0 < s.2.1 := by simpa [compressB] using hb
+  intro heq
+  subst root
+  simp [hI.2.2.2.2] at hpos
+
+theorem compressStep_inv (hI : compressI root s) (hb : compressB s = true) :
+    compressI root (compressStep root s) := by
+  rcases hI with ⟨hU, hi, hr, hrep, hflag⟩
+  have hneRoot : s.1 ≠ root := compress_nonroot ⟨hU, hi, hr, hrep, hflag⟩ hb
+  have hnext : s.2.2[s.1]! < s.2.2.length := (ufaInvarD hU hi).1
+  have hparentNe : s.2.2[s.1]! ≠ s.1 := by
+    intro hp
+    have hrefl := repOfRefl hU hi hp
+    exact hneRoot (hrefl.symm.trans hrep)
+  have hU' := ufaCompressInvar hU hi
+  have hrootOld : s.2.2[root]! = root := by
+    rw [← hrep]
+    exact repOfRoot hU hi
+  have hrootNew : (ufaCompress s.2.2 s.1)[root]! = root := by
+    exact (ufaCompress_isRoot_iff hU hi hr).mpr hrootOld
+  have hrepNextOld : repOf s.2.2 s.2.2[s.1]! = root := by
+    rw [repOfIndex hU hi]
+    exact hrep
+  have hmem : (s.2.2[s.1]!, root) ∈ ufaAlpha (ufaCompress s.2.2 s.1) := by
+    rw [ufaCompressCorrect hU hi]
+    exact (ufaFindCorrect hU hnext hr).mp (by
+      rw [hrepNextOld, repOfRefl hU hr hrootOld])
+  have hrepNew : repOf (ufaCompress s.2.2 s.1) s.2.2[s.1]! = root := by
+    have heq := (ufaFindCorrect hU' (by simpa [ufaCompress] using hnext)
+      (by simpa [ufaCompress] using hr)).mpr hmem
+    rw [repOfRefl hU' (by simpa [ufaCompress] using hr) hrootNew] at heq
+    exact heq
+  refine ⟨?_, ?_, ?_, ?_, rfl⟩
+  · simpa [compressStep_eq_ufaCompress ⟨hU, hi, hr, hrep, hflag⟩] using hU'
+  · simpa [compressStep, ufaCompress] using hnext
+  · simpa [compressStep, ufaCompress] using hr
+  · simpa [compressStep, ufaCompress, hrep] using hrepNew
+
+theorem compressStep_variant (hI : compressI root s) (hb : compressB s = true) :
+    compressV (compressStep root s) < compressV s := by
+  have hnext := (ufaInvarD hI.1 hI.2.1).1
+  have hneRoot := compress_nonroot hI hb
+  have hparentNe : s.2.2[s.1]! ≠ s.1 := by
+    intro hp
+    have hrefl := repOfRefl hI.1 hI.2.1 hp
+    exact hneRoot (hrefl.symm.trans hI.2.2.2.1)
+  have hle := heightOfCompress hI.1 hnext hI.2.1
+  unfold compressV
+  simp only [compressStep]
+  change heightOf (s.2.2.set s.1 root) s.2.2[s.1]! < heightOf s.2.2 s.1
+  rw [show s.2.2.set s.1 root = ufaCompress s.2.2 s.1 by
+    simp [ufaCompress, hI.2.2.2.1]]
+  rw [heightOfStep hI.1 hI.2.1 hparentNe]
+  omega
+
+theorem compress_variant (root : ℕ) :
+    LOOP_VARIANT (compressI root) compressB (compressF root) compressV := by
+  intro s s' hI hb hle
+  rw [compressF_eq hI hb, NRest.consume_returnT, returnT_le_rest_iff] at hle
+  have hs' : s' = compressStep root s := by
+    by_contra hne
+    rw [NRest.single_of_ne hne, le_bot_iff, ← WithBot.coe_zero] at hle
+    exact WithBot.coe_ne_bot hle
+  subst s'
+  exact compressStep_variant hI hb
+
+noncomputable def compressExec (root : ℕ) : ℕ → CompressState → CompressState
+  | 0, s => s
+  | fuel + 1, s =>
+      if compressB s then compressExec root fuel (compressStep root s) else s
+
+noncomputable def compressCount (root : ℕ) : ℕ → CompressState → ℕ
+  | 0, _ => 0
+  | fuel + 1, s =>
+      if compressB s then compressCount root fuel (compressStep root s) + 1 else 0
+
+theorem compressCount_le (root : ℕ) (fuel : ℕ) (s : CompressState) :
+    compressCount root fuel s ≤ fuel := by
+  induction fuel generalizing s with
+  | zero => simp [compressCount]
+  | succ fuel ih =>
+      simp only [compressCount]
+      split
+      · exact Nat.succ_le_succ (ih _)
+      · omega
+
+theorem compressExec_inv (hI : compressI root s) :
+    ∀ fuel, compressI root (compressExec root fuel s) := by
+  intro fuel
+  induction fuel generalizing s with
+  | zero => simpa [compressExec]
+  | succ fuel ih =>
+      simp only [compressExec]
+      split
+      next hb => exact ih (compressStep_inv hI hb)
+      next => exact hI
+
+theorem compressExec_preserves (hI : compressI root s)
+    (hR : rankInvar s.2.2 sizes) : ∀ fuel,
+    ufaAlpha (compressExec root fuel s).2.2 = ufaAlpha s.2.2 ∧
+      rankInvar (compressExec root fuel s).2.2 sizes := by
+  intro fuel
+  induction fuel generalizing s with
+  | zero => exact ⟨rfl, hR⟩
+  | succ fuel ih =>
+      simp only [compressExec]
+      split
+      next hb =>
+        have hstepI := compressStep_inv hI hb
+        have hstepEq := compressStep_eq_ufaCompress hI
+        have hstepR : rankInvar (compressStep root s).2.2 sizes := by
+          rw [hstepEq]
+          exact rankInvar_compress hR hI.1 hI.2.1
+        obtain ⟨ha, hr⟩ := ih hstepI hstepR
+        refine ⟨ha.trans ?_, hr⟩
+        rw [hstepEq, ufaCompressCorrect hI.1 hI.2.1]
+      next => exact ⟨rfl, hR⟩
+
+theorem compressLoop_value : ∀ (fuel : ℕ) (s : CompressState),
+    compressV s ≤ fuel → compressI root s →
+      irWhileIT (compressI root) compressB (compressF root) s =
+        NRest.consume (NRest.returnT (compressExec root fuel s))
+          (compressRestCost (compressCount root fuel s)) := by
+  intro fuel
+  induction fuel with
+  | zero =>
+      intro s hv hI
+      have hb : compressB s = false := by
+        by_contra hbne
+        have hbtrue : compressB s = true := by simpa using hbne
+        have := compressStep_variant hI hbtrue
+        omega
+      rw [irWhileIT_of_false hI hb]
+      simp only [compressExec, compressCount]
+      congr 1
+      simp only [compressRestCost, zero_nsmul, one_nsmul, zero_add]
+  | succ fuel ih =>
+      intro s hv hI
+      by_cases hb : compressB s = true
+      · have hv' : compressV (compressStep root s) ≤ fuel := by
+          have := compressStep_variant hI hb
+          omega
+        rw [irWhileIT_of_true hI hb, compressF_eq hI hb, bindT_unit,
+          ih (compressStep root s) hv' (compressStep_inv hI hb),
+          NRest.consume_consume, NRest.consume_consume]
+        simp only [compressExec, compressCount, hb, if_true]
+        congr 1
+        simp only [compressRestCost, succ_nsmul]
+        abel
+      · have hbfalse : compressB s = false := by simpa using hb
+        rw [irWhileIT_of_false hI hbfalse]
+        simp [compressExec, compressCount, hbfalse]
+        congr 1
+        simp only [compressRestCost, zero_nsmul, one_nsmul, zero_add]
+
+noncomputable def compressPath (parents : List ℕ) (x : ℕ) : List ℕ :=
+  let root := repOf parents x
+  (compressExec root (heightOf parents x) (compressState root parents x)).2.2
+
+noncomputable def compressSteps (parents : List ℕ) (x : ℕ) : ℕ :=
+  let root := repOf parents x
+  compressCount root (heightOf parents x) (compressState root parents x)
+
+theorem compressState_inv (hU : ufaInvar parents) (hx : x < parents.length) :
+    compressI (repOf parents x) (compressState (repOf parents x) parents x) := by
+  exact ⟨hU, hx, repOfBound hU hx, rfl, rfl⟩
+
+theorem compressSteps_le_height (parents : List ℕ) (x : ℕ) :
+    compressSteps parents x ≤ heightOf parents x := by
+  exact compressCount_le _ _ _
+
+theorem compressPath_preserves (hW : UfArrays.Wf (parents, sizes))
+    (hx : x < parents.length) :
+    ufaAlpha (compressPath parents x) = ufaAlpha parents ∧
+      UfArrays.Wf (compressPath parents x, sizes) := by
+  have hI := compressState_inv hW.1 hx
+  have h := compressExec_preserves hI hW.2.2 (heightOf parents x)
+  have houtI := compressExec_inv hI (heightOf parents x)
+  change ufaAlpha
+      (compressExec (repOf parents x) (heightOf parents x)
+        (compressState (repOf parents x) parents x)).2.2 = ufaAlpha parents ∧ _
+  exact ⟨h.1, houtI.1, h.2.1, h.2⟩
+
+noncomputable def compressInitF (root : ℕ) (parents : List ℕ) (x : ℕ) :
+    NRest CompressState ECost :=
+  NRest.bindT (mopBinop .xor x root) fun flag =>
+    NRest.bindT (mopPair flag parents) fun t => mopPair x t
+
+noncomputable def compressInitCost : ECost :=
+  irUnit Currency.xor + 2 • irUnit Currency.skip
+
+noncomputable def compressCost (steps : ℕ) : ECost :=
+  compressInitCost + compressRestCost steps
+
+noncomputable def compressProg (root : ℕ) (parents : List ℕ) (x : ℕ) :
+    NRest CompressState ECost :=
+  NRest.bindT (compressInitF root parents x) fun s₀ =>
+    irWhileIT (compressI root) compressB (compressF root) s₀
+
+theorem compressInitF_eq :
+    compressInitF root parents x =
+      NRest.consume (NRest.returnT (compressState root parents x)) compressInitCost := by
+  simp only [compressInitF, mopBinop_def, mopPair_def, Imp.Bop.apply_xor,
+    binopCurrency_xor, bindT_unit, NRest.consume_consume,
+    compressState, compressInitCost]
+  congr 1
+  simp [two_nsmul]
+
+theorem compressProg_value (hU : ufaInvar parents) (hx : x < parents.length) :
+    compressProg (repOf parents x) parents x =
+      NRest.consume
+        (NRest.returnT
+          (compressExec (repOf parents x) (heightOf parents x)
+            (compressState (repOf parents x) parents x)))
+        (compressCost (compressSteps parents x)) := by
+  unfold compressProg
+  rw [compressInitF_eq, bindT_unit,
+    compressLoop_value (heightOf parents x) _ (Nat.le_refl _)
+      (compressState_inv hU hx), NRest.consume_consume]
+  congr 1
+
+sepref_synth compressInitSynth (X D P Root : String)
+    (root x : ℕ) (parents : List ℕ) :
+  hnRefine (hnCtxt natAssn x X ∗ junkCell D ∗ hnCtxt arrayAssn parents P ∗
+      hnCtxt natAssn root Root)
+    _ _ (X, (D, P)) compressStateAssn
+    (compressInitF root parents x)
+
+def compressBodyCom (X D P Root : String) : Com :=
+  (Com.aget D P X).seq
+    ((Com.aset P X Root).seq
+      ((Com.copy X D).seq
+        ((Com.binop .xor D D Root).seq (Com.skip.seq Com.skip))))
+
+theorem compressBodyHnr (X D P Root : String) (root : ℕ) (s : CompressState) :
+    hnRefine (hnCtxt natAssn s.1 X ∗ hnCtxt natAssn s.2.1 D ∗
+        hnCtxt arrayAssn s.2.2 P ∗ hnCtxt natAssn root Root)
+      (compressBodyCom X D P Root) (hnCtxt natAssn root Root)
+      (X, (D, P)) compressStateAssn (compressF root s) := by
+  unfold compressF compressBodyCom
+  have h₁ :
+      hnRefine (hnCtxt natAssn s.1 X ∗ hnCtxt natAssn s.2.1 D ∗
+          hnCtxt arrayAssn s.2.2 P ∗ hnCtxt natAssn root Root)
+        (.aget D P X)
+        ((hnCtxt arrayAssn s.2.2 P ∗ hnCtxt natAssn s.1 X) ∗
+          hnCtxt natAssn root Root)
+        D natAssn (mopAgetOverwrite s.2.1 s.2.2 s.1) := by
+    exact hnRefine_frame_perm (by ac_rfl)
+      (hnr_mop_agetOverwrite D P X s.2.1 s.2.2 s.1)
+  apply hnr_bind h₁
+  · intro next _
+    have h₂ :
+        hnRefine (hnCtxt natAssn next D ∗
+            ((hnCtxt arrayAssn s.2.2 P ∗ hnCtxt natAssn s.1 X) ∗
+              hnCtxt natAssn root Root))
+          (.aset P X Root)
+          ((hnCtxt natAssn s.1 X ∗ hnCtxt natAssn root Root) ∗
+            hnCtxt natAssn next D)
+          P arrayAssn (mopAset s.2.2 s.1 root) := by
+      exact hnRefine_frame_perm (by ac_rfl)
+        (hnr_mop_aset P X Root s.2.2 s.1 root)
+    apply hnr_bind h₂
+    · intro parents' _
+      have h₃ :
+          hnRefine (hnCtxt arrayAssn parents' P ∗
+              ((hnCtxt natAssn s.1 X ∗ hnCtxt natAssn root Root) ∗
+                hnCtxt natAssn next D))
+            (.copy X D)
+            (hnCtxt natAssn next D ∗
+              (hnCtxt arrayAssn parents' P ∗ hnCtxt natAssn root Root))
+            X natAssn (mopCopyOverwrite s.1 next) := by
+        exact hnRefine_frame_perm (by ac_rfl)
+          (hnr_mop_copyOverwrite X D s.1 next)
+      apply hnr_bind h₃
+      · intro current _
+        have h₄ :
+            hnRefine (hnCtxt natAssn current X ∗
+                (hnCtxt natAssn next D ∗
+                  (hnCtxt arrayAssn parents' P ∗ hnCtxt natAssn root Root)))
+              (.binop .xor D D Root)
+              (hnCtxt natAssn root Root ∗
+                (hnCtxt natAssn current X ∗ hnCtxt arrayAssn parents' P))
+              D natAssn (mopBinopSelf .xor next root) := by
+          exact hnRefine_frame_perm (by ac_rfl)
+            (hnr_mop_binopSelf .xor D Root next root)
+        apply hnr_bind h₄
+        · intro flag _
+          have h₅ :
+              hnRefine (hnCtxt natAssn flag D ∗
+                  (hnCtxt natAssn root Root ∗
+                    (hnCtxt natAssn current X ∗ hnCtxt arrayAssn parents' P)))
+                .skip
+                (hnCtxt natAssn current X ∗ hnCtxt natAssn root Root)
+                (D, P) (natAssn ×ₐ arrayAssn) (mopPair flag parents') := by
+            have h := hnRefine_frame_perm
+              (Γ := hnCtxt natAssn flag D ∗
+                (hnCtxt natAssn root Root ∗
+                  (hnCtxt natAssn current X ∗ hnCtxt arrayAssn parents' P)))
+              (P := hnCtxt natAssn flag D ∗ hnCtxt arrayAssn parents' P)
+              (F := hnCtxt natAssn current X ∗ hnCtxt natAssn root Root)
+              (by ac_rfl)
+              (hnr_mop_pair natAssn arrayAssn flag parents' D P)
+            simpa only [emp_sepConj] using h
+          apply hnr_bind h₅
+          · intro t _
+            have h := hnRefine_frame_perm
+                (Γ := hnCtxt (natAssn ×ₐ arrayAssn) t (D, P) ∗
+                  (hnCtxt natAssn current X ∗ hnCtxt natAssn root Root))
+                (P := hnCtxt natAssn current X ∗
+                  hnCtxt (natAssn ×ₐ arrayAssn) t (D, P))
+                (F := hnCtxt natAssn root Root) (by ac_rfl)
+                (hnr_mop_pair natAssn (natAssn ×ₐ arrayAssn) current t X (D, P))
+            simpa only [emp_sepConj] using h
+          · intro t
+            exact entails_refl (hnCtxt natAssn root Root)
+        · intro flag
+          exact entails_refl (hnCtxt natAssn root Root)
+      · intro current
+        exact entails_refl (hnCtxt natAssn root Root)
+    · intro parents'
+      exact entails_refl (hnCtxt natAssn root Root)
+  · intro next
+    exact entails_refl (hnCtxt natAssn root Root)
+
+def compressInitCom (X D Root : String) : Com :=
+  (Com.binop .xor D X Root).seq (Com.skip.seq Com.skip)
+
+def compressCond (D : String) : Cond := .lt (.lit 0) (.cell D)
+
+def compressLoopCom (X D P Root : String) : Com :=
+  .while (compressCond D) (compressBodyCom X D P Root)
+
+theorem compressCondRefine (X D P Root : String) (root : ℕ) (s : CompressState)
+    (_hI : compressI root s) :
+    CondRefine
+      (hnCtxt compressStateAssn s (X, (D, P)) ∗ hnCtxt natAssn root Root)
+      (compressCond D) (compressB s) := by
+  apply CondRefine_perm
+    (P := hnCtxt natAssn s.2.1 D)
+    (F := hnCtxt natAssn s.1 X ∗ hnCtxt arrayAssn s.2.2 P ∗
+      hnCtxt natAssn root Root)
+  · simp only [hnCtxt_def, prodAssn_apply]
+    ac_rfl
+  · exact condRefine_lt_lit_cell 0 s.2.1 D
+
+theorem compressWhileHnr (X D P Root : String) (root : ℕ) (s : CompressState) :
+    hnRefine
+      (hnCtxt compressStateAssn s (X, (D, P)) ∗ hnCtxt natAssn root Root)
+      (compressLoopCom X D P Root) (hnCtxt natAssn root Root)
+      (X, (D, P)) compressStateAssn
+      (irWhileIT (compressI root) compressB (compressF root) s) := by
+  unfold compressLoopCom
+  have h := hnr_while_measured
+      (Rs := compressStateAssn) (Γ := hnCtxt natAssn root Root)
+      (d := (X, (D, P))) (cond := compressCond D)
+      (cbody := compressBodyCom X D P Root) compressV
+      (fun t ht => compressCondRefine X D P Root root t ht)
+      (fun t _ _ => by
+        exact hnRefine_pre_perm
+          (by simp only [hnCtxt_def, prodAssn_apply]; ac_rfl)
+          (compressBodyHnr X D P Root root t))
+      (compress_variant root) s
+  exact h
+
+def compressCom (X D P Root : String) : Com :=
+  (compressInitCom X D Root).seq (compressLoopCom X D P Root)
+
+theorem compressRawHnr (X D P Root : String) (root x : ℕ) (parents : List ℕ) :
+    hnRefine (hnCtxt natAssn x X ∗ junkCell D ∗ hnCtxt arrayAssn parents P ∗
+        hnCtxt natAssn root Root)
+      (compressCom X D P Root) (hnCtxt natAssn root Root)
+      (X, (D, P)) compressStateAssn (compressProg root parents x) := by
+  unfold compressCom compressProg
+  have hinit :
+      hnRefine (hnCtxt natAssn x X ∗ junkCell D ∗ hnCtxt arrayAssn parents P ∗
+          hnCtxt natAssn root Root)
+        (compressInitCom X D Root) (hnCtxt natAssn root Root)
+        (X, (D, P)) compressStateAssn (compressInitF root parents x) := by
+    simpa only [compressInitCom] using compressInitSynth X D P Root root x parents
+  apply hnr_bind hinit
+  · intro s _
+    exact compressWhileHnr X D P Root root s
+  · intro s
+    exact entails_refl (hnCtxt natAssn root Root)
+
+theorem compressRawExactHnr (X D P Root : String) (parents : List ℕ) (x : ℕ)
+    (hU : ufaInvar parents) (hx : x < parents.length) :
+    hnRefine (hnCtxt natAssn x X ∗ junkCell D ∗ hnCtxt arrayAssn parents P ∗
+        hnCtxt natAssn (repOf parents x) Root)
+      (compressCom X D P Root) (hnCtxt natAssn (repOf parents x) Root)
+      (X, (D, P)) compressStateAssn
+      (NRest.consume
+        (NRest.returnT
+          (compressExec (repOf parents x) (heightOf parents x)
+            (compressState (repOf parents x) parents x)))
+        (compressCost (compressSteps parents x))) := by
+  have h := compressRawHnr X D P Root (repOf parents x) x parents
+  rw [compressProg_value hU hx] at h
+  exact h
+
+/-- End-to-end path-compression bridge. The representative supplied by the
+find phase remains the result, while the traversed path is rewritten to it. -/
+theorem hnr_ufCompress (R : Per ℕ) (parents sizes : List ℕ) (x : ℕ)
+    (hW : UfArrays.Wf (parents, sizes)) (hAlpha : ufaAlpha parents = R)
+    (hx : x < parents.length) (X D P S Root : String) :
+    hnRefine (hnCtxt natAssn x X ∗ junkCell D ∗
+        hnCtxt arrayAssn parents P ∗ hnCtxt arrayAssn sizes S ∗
+        hnCtxt natAssn (repOf parents x) Root)
+      (compressCom X D P Root)
+      (junkCell X ∗ junkCell D ∗ ufAssn R (P, S)) Root natAssn
+      (NRest.consume (NRest.returnT (repOf parents x))
+        (compressCost (compressSteps parents x))) := by
+  let out := compressExec (repOf parents x) (heightOf parents x)
+    (compressState (repOf parents x) parents x)
+  have hI := compressState_inv hW.1 hx
+  have houtI : compressI (repOf parents x) out := by
+    exact compressExec_inv hI (heightOf parents x)
+  have hout := compressExec_preserves hI hW.2.2 (heightOf parents x)
+  have houtW : UfArrays.Wf (out.2.2, sizes) :=
+    ⟨houtI.1, hout.2.1, hout.2⟩
+  have houtAlpha : ufaAlpha out.2.2 = R := hout.1.trans hAlpha
+  have hraw := compressRawExactHnr X D P Root parents x hW.1 hx
+  have hframe := hnRefine_frame' (F := arrayAssn sizes S) hraw
+  refine hnRefine_cons_pre (hnRefine_res_cast' hframe ?_) (by iicf_perm)
+  refine entails_trans (entails_of_eq ?_)
+    (conj_entails_mono
+      (conj_entails_mono
+        (natAssn_entails_junkCell out.1 X)
+        (conj_entails_mono
+          (natAssn_entails_junkCell out.2.1 D)
+          (ufAssn_pack houtW houtAlpha P S)))
+      (entails_refl (natAssn (repOf parents x) Root)))
+  simp only [out, hnCtxt_def, prodAssn_apply]
+  ac_rfl
+
 /-! ## Exact vector-cost and execution gates for the landed loops -/
 
 theorem rangeCost_aset : (rangeCost 3).toFun Currency.aset = 3 := by decide +kernel
@@ -901,6 +1446,89 @@ theorem findProg_chain :
     repOfRefl chainInvar (by decide) (by decide)] at h
   exact h
 
+private theorem rep_compressed : repOf [0, 0, 0] 2 = 0 := by
+  rw [repOfStep compressedInvar (by decide) (by decide),
+    repOfRefl compressedInvar (by decide) (by decide)]
+  decide
+
+private theorem rep_chain : repOf [0, 0, 1] 2 = 0 := by
+  rw [repOfStep chainInvar (by decide) (by decide),
+    repOfStep chainInvar (by decide) (by decide),
+    repOfRefl chainInvar (by decide) (by decide)]
+  decide
+
+theorem compressExec_compressed :
+    compressExec 0 1 (compressState 0 [0, 0, 0] 2) =
+      (0, (0, [0, 0, 0])) := by
+  decide +kernel
+
+theorem compressExec_chain :
+    compressExec 0 2 (compressState 0 [0, 0, 1] 2) =
+      (0, (0, [0, 0, 0])) := by
+  decide +kernel
+
+theorem compressSteps_compressed : compressSteps [0, 0, 0] 2 = 1 := by
+  rw [compressSteps, height_compressed, rep_compressed]
+  decide +kernel
+
+theorem compressSteps_chain : compressSteps [0, 0, 1] 2 = 2 := by
+  rw [compressSteps, height_chain, rep_chain]
+  decide +kernel
+
+theorem compressPath_compressed : compressPath [0, 0, 0] 2 = [0, 0, 0] := by
+  rw [compressPath, height_compressed, rep_compressed, compressExec_compressed]
+
+theorem compressPath_chain : compressPath [0, 0, 1] 2 = [0, 0, 0] := by
+  rw [compressPath, height_chain, rep_chain, compressExec_chain]
+
+theorem compressCost1_aset : (compressCost 1).toFun Currency.aset = 1 := by
+  decide +kernel
+theorem compressCost1_aget : (compressCost 1).toFun Currency.aget = 1 := by
+  decide +kernel
+theorem compressCost1_copy : (compressCost 1).toFun Currency.copy = 1 := by
+  decide +kernel
+theorem compressCost1_xor : (compressCost 1).toFun Currency.xor = 2 := by
+  decide +kernel
+theorem compressCost1_skip : (compressCost 1).toFun Currency.skip = 4 := by
+  decide +kernel
+theorem compressCost1_while : (compressCost 1).toFun Currency.«while» = 2 := by
+  decide +kernel
+
+theorem compressCost2_aset : (compressCost 2).toFun Currency.aset = 2 := by
+  decide +kernel
+theorem compressCost2_aget : (compressCost 2).toFun Currency.aget = 2 := by
+  decide +kernel
+theorem compressCost2_copy : (compressCost 2).toFun Currency.copy = 2 := by
+  decide +kernel
+theorem compressCost2_xor : (compressCost 2).toFun Currency.xor = 3 := by
+  decide +kernel
+theorem compressCost2_skip : (compressCost 2).toFun Currency.skip = 6 := by
+  decide +kernel
+theorem compressCost2_while : (compressCost 2).toFun Currency.«while» = 3 := by
+  decide +kernel
+
+theorem compressed_compression_cheaper_than_chain :
+    (compressCost 1).toFun Currency.«while» <
+      (compressCost 2).toFun Currency.«while» := by
+  decide +kernel
+
+theorem compressProg_compressed :
+    compressProg 0 [0, 0, 0] 2 =
+      NRest.consume (NRest.returnT (0, (0, [0, 0, 0]))) (compressCost 1) := by
+  have h := compressProg_value compressedInvar (x := 2) (parents := [0, 0, 0])
+    (by decide)
+  rw [rep_compressed, height_compressed, compressSteps_compressed,
+    compressExec_compressed] at h
+  exact h
+
+theorem compressProg_chain :
+    compressProg 0 [0, 0, 1] 2 =
+      NRest.consume (NRest.returnT (0, (0, [0, 0, 0]))) (compressCost 2) := by
+  have h := compressProg_value chainInvar (x := 2) (parents := [0, 0, 1])
+    (by decide)
+  rw [rep_chain, height_chain, compressSteps_chain, compressExec_chain] at h
+  exact h
+
 /-! ## Kernel-three guards -/
 
 /-- info: 'Lax13Proofs.Refine.Sepref.Iicf.UnionFindTime.hnr_range_init' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -920,5 +1548,9 @@ theorem findProg_chain :
 /-- info: 'Lax13Proofs.Refine.Sepref.Iicf.UnionFindTime.hnr_ufFind' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms hnr_ufFind
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.UnionFindTime.hnr_ufCompress' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms hnr_ufCompress
 
 end Lax13Proofs.Refine.Sepref.Iicf.UnionFindTime
