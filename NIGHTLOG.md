@@ -3928,3 +3928,13 @@ rules are linked by whole-state bridges; caller-owned empty is a linear fill,
 and allocation/free/export stay explicit unsupported boundaries. Supervisor
 replay: 2,987 jobs; registration, command/currency, kernel-three, and zero-
 placeholder gates pass. Next: `Array_Map_Total`, sequentially on warm main.
+
+`Array_Map_Total` is green as the seventh P5.B implementation family and the
+second bounded-key map. The new unrooted leaf preserves the source's weak
+one-array relation: only abstractly present keys constrain backing cells, so
+absent entries remain arbitrary garbage and lookup requires presence. Custom
+empty, lookup, and update retain the fixed-key bound and double relation
+composition; exact caller-owned fill/aget/aset commands connect through
+whole-state bridges. Allocation/free/export remain unsupported. Supervisor
+replay: 2,987 jobs; registration, command/currency, kernel-three, and zero-
+placeholder gates pass. Next: `ArrayMap_Map`, sequentially on warm main.

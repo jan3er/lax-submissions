@@ -8,9 +8,9 @@ P0 through P4 are complete. P4 lands generic vector amortization, the bounded
 dynamic-array adapter, pure logarithmic union-find, and timed loop-form
 union-find. P5.A is complete: all eight interface families are root-imported
 and archive-green. P5.B has all five concrete bounded-sequence families and
-the first bounded-key map family green as unrooted leaves: `Array_List`,
+the first two bounded-key map families green as unrooted leaves: `Array_List`,
 `DArray_List`, `MS_Array_List`, `Indexed_Array_List`,
-`Array_of_Array_List`, and `Array_Map`. The source-first
+`Array_of_Array_List`, `Array_Map`, and `Array_Map_Total`. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -378,6 +378,17 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P5.B Array_Map_Total green (7/8 implementation families;
+  2/3 map families).** New unrooted `Iicf/Impl/ArrayMapTotal.lean` preserves
+  the source's deliberately partial dense-map relation: the one backing array
+  has length `N`, present abstract entries constrain their cells, and absent
+  entries remain arbitrary garbage. Custom empty, present-key lookup, and
+  update retain the fixed-key bound and double relation composition. Their
+  caller-owned commands have exact fill/aget/aset vector costs and whole-state
+  bridges; allocation/free/export remain unsupported. Supervisor replay:
+  2,987 jobs; registration, command/currency, kernel-three, and zero-
+  placeholder gates pass. **Next: P5.B ArrayMap_Map.**
 
 - **2026-08-01 — P5.B Array_Map green (6/8 implementation families; 1/3
   map families).** New unrooted `Iicf/Impl/ArrayMap.lean` replaces the
