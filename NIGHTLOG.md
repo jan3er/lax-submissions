@@ -3918,3 +3918,13 @@ deallocator, or runtime array-of-pointers selection, and the leaf says so
 instead of inventing those capabilities. Strict spare-cell push bounds,
 registration, command/currency, kernel-three, and zero-placeholder gates pass.
 Supervisor replay: 2,993 jobs. Next: `Array_Map`, sequentially on warm main.
+
+`Array_Map` is green as the sixth P5.B implementation family and the first
+bounded-key map. Because the IR cannot store `Option Nat` in a natural array
+without reserving a value, the new unrooted leaf uses caller-owned presence
+and value arrays and proves the presence entries canonical 0/1. Generic
+empty/update/delete/lookup/contains refinements and exact two-array executable
+rules are linked by whole-state bridges; caller-owned empty is a linear fill,
+and allocation/free/export stay explicit unsupported boundaries. Supervisor
+replay: 2,987 jobs; registration, command/currency, kernel-three, and zero-
+placeholder gates pass. Next: `Array_Map_Total`, sequentially on warm main.

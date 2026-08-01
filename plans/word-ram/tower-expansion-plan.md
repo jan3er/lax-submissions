@@ -7,9 +7,10 @@ Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0 through P4 are complete. P4 lands generic vector amortization, the bounded
 dynamic-array adapter, pure logarithmic union-find, and timed loop-form
 union-find. P5.A is complete: all eight interface families are root-imported
-and archive-green. P5.B has all five concrete bounded-sequence families green
-as unrooted leaves: `Array_List`, `DArray_List`, `MS_Array_List`,
-`Indexed_Array_List`, and `Array_of_Array_List`. The source-first
+and archive-green. P5.B has all five concrete bounded-sequence families and
+the first bounded-key map family green as unrooted leaves: `Array_List`,
+`DArray_List`, `MS_Array_List`, `Indexed_Array_List`,
+`Array_of_Array_List`, and `Array_Map`. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -377,6 +378,18 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P5.B Array_Map green (6/8 implementation families; 1/3
+  map families).** New unrooted `Iicf/Impl/ArrayMap.lean` replaces the
+  source's allocated array of options with two caller-owned fixed arrays: a
+  proved-canonical 0/1 presence array and an unrestricted value array, so no
+  natural sentinel is reserved. Generic empty/update/delete/lookup/contains
+  rules refine the map interface; caller-owned empty and all four point
+  operations have synthesized exact vector-cost commands and whole-state
+  bridges. Allocation/free/export remain explicit unsupported boundaries.
+  Supervisor replay: 2,987 jobs; relation, registration, command/currency,
+  kernel-three, and zero-placeholder gates pass. **Next: P5.B
+  Array_Map_Total.**
 
 - **2026-08-01 — P5.B Array_of_Array_List green (5/8 implementation
   families; 5/5 sequence families).** New unrooted
