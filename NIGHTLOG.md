@@ -3870,3 +3870,12 @@ gates. Final checks: concepts 505 jobs, rooted proofs 3,263 jobs, and
 `lax build --only proofs word-ram` green with no dependency leak; zero
 placeholders. Next: P5.B concrete bounded sequence/map families, sequentially
 on warm main.
+
+P5.B has begun with `Array_List`. The new unrooted implementation leaf adapts
+the source to caller-owned `BoundedArray`: bounded/fallible append reuses P4,
+and length, is-empty, last, butlast, get, set, and swap have synthesized
+command rules with exact vector costs. Conditional shrink updates logical
+capacity without reallocating the physical buffer; fresh empty, sized empty,
+and copy remain honest non-executable allocation boundaries. Supervisor replay:
+2,990 jobs; registration, command-shape, currency, kernel-three, and zero-
+placeholder gates pass. Next: `DArray_List`, sequentially on warm main.

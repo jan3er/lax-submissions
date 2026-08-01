@@ -6,7 +6,9 @@ by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0 through P4 are complete. P4 lands generic vector amortization, the bounded
 dynamic-array adapter, pure logarithmic union-find, and timed loop-form
-union-find. P5.A is complete: all eight interface families are root-imported and archive-green. P5.B is next. The source-first
+union-find. P5.A is complete: all eight interface families are root-imported
+and archive-green. P5.B has begun with the first concrete bounded-sequence
+family, `Array_List`, green as an unrooted leaf. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -374,6 +376,17 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P5.B Array_List green (1/8 implementation families).** New
+  unrooted `Iicf/Impl/ArrayList.lean` adapts the source representation to P4's
+  caller-owned `BoundedArray`. Append reuses P4's honest bounded/fallible
+  growth rule; length, is-empty, last, butlast, get, set, and swap have
+  synthesized command rules with exact `ECost` vectors. Butlast performs the
+  source's conditional logical-capacity shrink without reallocating the
+  physical buffer. Fresh empty, sized empty, and copy remain pure boundaries
+  because the substrate has no allocator. Supervisor replay: 2,990 jobs;
+  registration, command-shape, currency, kernel-three, and zero-placeholder
+  gates pass. **Next: P5.B DArray_List.**
 
 - **2026-08-01 — P5.A COMPLETE.** The root now explicitly imports all eight
   interface families: Set, Map, List, List_List, Matrix, Multiset, Prio_Bag,
