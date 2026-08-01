@@ -18,12 +18,13 @@ Codex supervises plan, sequencing, source review, acceptance calls, and
 commits. Where practical, one subagent owns a coherent phase or subphase;
 the supervisor audits its source map and diff, requests corrections,
 independently rebuilds, and commits. Main-tree work is authorized for this
-campaign. **Execution rule from Jan, 2026-08-01: work sequentially on the
-already-warm clean `main`; do not create or seed fresh worktrees for this
-campaign. Run one proof worker at a time, give it room to finish, then review
-and commit before launching the next. Keep assignments compact and
-outcome-focused; inherited briefs are reference material, not a planning
-ritual.** A worker's green report is not acceptance evidence until the
+campaign. **Execution rule from Jan, reaffirmed 2026-08-01 after a repeated
+process failure: work sequentially on the already-warm `main`; do not create
+or seed fresh worktrees, launch parallel workers, or interrupt implementation
+with brief-derived ceremony. This rule overrides seemingly required process
+sections in inherited briefs. Finish one concrete proof task, review and
+commit it, then start the next. Briefs remain technical reference only.** A
+worker's green report is not acceptance evidence until the
 supervisor replays the relevant build and axiom gates.
 
 Scope is **proofs-only**: no concept-surface changes, toolchain or mathlib

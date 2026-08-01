@@ -3711,6 +3711,13 @@ were lost. Inherited briefs remain useful technical reference only and must
 not drive process overengineering. Next: one B1 successor finishes the
 height/rank/logarithmic union-find slice; A2 waits.
 
+Jan reaffirmed this after the instruction was nevertheless misread: the warm
+`main` checkout is not a fallback but the required execution environment.
+Proceed sequentially there. Do not treat apparently mandatory parts of a
+worker brief as authorization for worktrees, seeding, parallelism, or process
+ceremony; the warm-main rule takes precedence unless Jan explicitly changes
+it.
+
 The reset immediately produced a clean boundary: the single B1 successor
 finished the remaining height/rank/logarithmic slice in
 `Iicf/UnionFindAbstract.lean`. Supervisor replay passed the 1,992-job leaf,
