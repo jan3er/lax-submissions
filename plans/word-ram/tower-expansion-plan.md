@@ -4,8 +4,9 @@ Rev 4, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
 autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
 by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0, P1, P2, P3.A, P3.B, and P3.C complete; P4 design is locked, with A1
-generic amortization and B1 pure union-find ready to launch. The source-first
+P0, P1, P2, P3.A, P3.B, and P3.C complete; P4 design is locked, A1 generic
+amortization is complete, and B1 has reached its accepted operations boundary
+with height/rank theory next. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -370,6 +371,25 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-07-31 — P4.A1 COMPLETE; P4.B1 operations boundary accepted.**
+  `Sepref/Amortization.lean` lands the complete generic vector-amortization
+  slice: 17 public declarations, a 12-row source table, and 11 kernel-three
+  guards. Its genuinely authored two-currency seam is checked through a proved
+  correspondence with the actual `NRest.reclaim`, covering exact residual,
+  insufficient potential, currency isolation, and top subtraction. The direct
+  source-shaped remainder needs no ceremonial falsification suite.
+  `Iicf/UnionFindAbstract.lean` has a green first boundary through the AFP PER
+  family, finite-fuel representative equations, abstraction, init/find/union,
+  and compression correctness; six small probes cover singleton, chains,
+  compression, and both union directions. Height/rank/logarithmic rows remain
+  explicitly open for the B1 successor. Independent audit caught and repaired
+  a weakened `per_supset_rel`, two missing AFP helpers, disconnected A1 tests,
+  and incomplete B1 probes before acceptance. Supervisor replay: A1 2,960
+  jobs, B1 1,992, concepts 505, full proofs 3,250, and
+  `lax build --only proofs word-ram` green; zero placeholders and no new target
+  warnings. **Next: finish B1 height/rank theory; A2 briefing may proceed from
+  the frozen A1 API.**
 
 - **2026-07-31 — P3.C COMPLETE; asymptotic source families and consumer
   gates green.** `Examples/AsymptoticConsumers.lean` closes the phase with

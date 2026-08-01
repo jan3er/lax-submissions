@@ -1,6 +1,8 @@
 # Tower expansion P4 — credits and amortization design
 
-Status: **DESIGN LOCKED 2026-07-31; A1 and B1 ready to launch.** This record
+Status: **ACTIVE 2026-07-31; A1 complete, B1 operations boundary accepted.**
+The B1 height/rank/logarithmic section remains open; A2 may now consume the
+frozen A1 API. This record
 instantiates P4 of `tower-expansion-plan.md`. It is source-first: every selected
 source range receives a Lean owner, an existing-capital mapping, or an explicit
 exclusion. The machine model remains frozen.
@@ -16,14 +18,16 @@ P4.A1 generic amortization ───────▶ P4.A2 bounded dynamic array
 P4.B1 pure union-find ──────┴────▶ P4.B2 timed loop-form union-find
 ```
 
-- **P4.A1** creates `Sepref/Amortization.lean`: generic vector-credit reclaim,
-  potential assertions, and the amortized `hnRefine` bridge.
+- **P4.A1 — complete** creates `Sepref/Amortization.lean`: generic
+  vector-credit reclaim, potential assertions, and the amortized `hnRefine`
+  bridge.
 - **P4.A2** creates `Iicf/IicfDynamicArray.lean`: the source-faithful abstract
   dynamic-list/potential development plus a bounded executable adapter over
   caller-owned, preallocated storage. Capacity and buffer ownership are explicit.
-- **P4.B1** creates `Iicf/UnionFindAbstract.lean`: PER/list semantics,
-  representation invariants, union/compression correctness, and logarithmic
-  height theory.
+- **P4.B1 — operations boundary accepted** creates
+  `Iicf/UnionFindAbstract.lean`: PER/list semantics, representation invariants,
+  and union/compression correctness are green; logarithmic height theory is the
+  remaining successor chunk.
 - **P4.B2** creates `Iicf/UnionFindTime.lean`: the MOP/HNR interface and timed
   loop-form implementation over caller-owned parent and size arrays.
 

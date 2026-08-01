@@ -61,6 +61,7 @@ import Lax13Proofs.Refine.Sepref.SignatureTool
 import Lax13Proofs.Refine.Sepref.Attrs
 import Lax13Proofs.Refine.Sepref.IrOps
 import Lax13Proofs.Refine.Sepref.CombRules
+import Lax13Proofs.Refine.Sepref.Amortization
 import Lax13Proofs.Refine.Examples.Bfs
 import Lax13Proofs.Refine.Examples.ArrayFill
 import Lax13Proofs.Refine.Examples.AutorefTutorial
@@ -91,6 +92,7 @@ import Lax13Proofs.Refine.Iicf.IicfStack
 import Lax13Proofs.Refine.Iicf.IicfQueue
 import Lax13Proofs.Refine.Iicf.IicfCsr
 import Lax13Proofs.Refine.Iicf.IicfBitmask
+import Lax13Proofs.Refine.Iicf.UnionFindAbstract
 import Lax13Proofs.Refine.Sepref.IrLoop
 import Lax13Proofs.Refine.Examples.BfsQ
 import Lax13Proofs.Refine.Examples.BfsQSynth
