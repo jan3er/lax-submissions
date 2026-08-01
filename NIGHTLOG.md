@@ -3889,3 +3889,12 @@ fallible command and exact branch-sensitive vector cost. The source's scalar
 Supervisor replay: 2,987 jobs; relation, registration, branch/currency,
 kernel-three, and zero-placeholder gates pass. Next: `MS_Array_List`,
 sequentially on warm main.
+
+`MS_Array_List` is green as the third P5.B implementation family. Its fixed
+maximum `N` is tied to both the owned buffer length and capacity. Empty-size
+stays a caller-owned nonallocation boundary; append is exactly set/increment,
+butlast exactly decrements length, and all seven executable operations expose
+command-derived vector costs. Custom-empty folds and both source synthesis
+examples survive at this honest boundary. Supervisor replay: 2,991 jobs;
+relation/precision, registration, command/currency, kernel-three, and zero-
+placeholder gates pass. Next: `Indexed_Array_List`, sequentially on warm main.

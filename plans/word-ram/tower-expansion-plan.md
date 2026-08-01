@@ -7,8 +7,8 @@ Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0 through P4 are complete. P4 lands generic vector amortization, the bounded
 dynamic-array adapter, pure logarithmic union-find, and timed loop-form
 union-find. P5.A is complete: all eight interface families are root-imported
-and archive-green. P5.B has two concrete bounded-sequence families green as
-unrooted leaves: `Array_List` and `DArray_List`. The source-first
+and archive-green. P5.B has three concrete bounded-sequence families green as
+unrooted leaves: `Array_List`, `DArray_List`, and `MS_Array_List`. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -376,6 +376,17 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P5.B MS_Array_List green (3/8 implementation families).**
+  New unrooted `Iicf/Impl/MSArrayList.lean` pins the source's fixed maximum
+  `N` to both owned buffer length and runtime capacity. Caller-owned empty-size
+  remains nonallocating. All seven executable operations have synthesized or
+  semantically identical reused commands with exact vector costs; append has
+  only set/increment and butlast only decrements length. The custom-empty folds
+  and both source synthesis examples are retained at the honest caller-owned
+  boundary. Supervisor replay: 2,991 jobs; relation/precision, registration,
+  command/currency, kernel-three, and zero-placeholder gates pass. **Next:
+  P5.B Indexed_Array_List.**
 
 - **2026-08-01 — P5.B DArray_List green (2/8 implementation families).** New
   unrooted `Iicf/Impl/DArrayList.lean` ports the source's narrow dynamic-array
