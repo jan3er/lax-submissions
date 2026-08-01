@@ -3805,3 +3805,11 @@ precondition and zero-cost nondeterminism. Source single-valued/converse
 conditions, operation registrations, and diagonal frefs are gated. Supervisor
 replay: 2,983 jobs; kernel-three and zero placeholders. Next: Map, still one
 worker at a time on warm main.
+
+P5.A Map is green as the second interface leaf. New unrooted
+`Iicf/Intf/Map.lean` ports the active key-supported `map_rel`, `MapI`, and all
+seven cost-silent operations. Update/delete keep both single-valued key
+conditions; checked lookup keeps the paired-input nonempty precondition and a
+zero-cost unique specification. Registrations, diagonal frefs, source
+pattern/locale accounting, and kernel guards all pass. Supervisor replay:
+2,984 jobs; zero placeholders. Next: List, sequentially on warm main.

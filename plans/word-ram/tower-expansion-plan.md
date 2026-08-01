@@ -6,7 +6,7 @@ by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0 through P4 are complete. P4 lands generic vector amortization, the bounded
 dynamic-array adapter, pure logarithmic union-find, and timed loop-form
-union-find. P5.A has begun with the complete Set interface; Map is next. The source-first
+union-find. P5.A has completed the Set and Map interfaces; List is next. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -374,6 +374,14 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P5.A Map interface green (2/8).** New unrooted leaf
+  `Iicf/Intf/Map.lean` ports the key-supported bidirectional `mapRel`, nominal
+  `MapI`, and all seven cost-silent operations. Update/delete retain both key
+  single-valued requirements; checked lookup retains its nonempty paired-input
+  precondition and zero-cost unique specification. All registrations, diagonal
+  frefs, pattern/locale dispositions, and kernel guards pass. Supervisor replay:
+  2,984 jobs; kernel-three and zero placeholders. **Next: P5.A List interface.**
 
 - **2026-08-01 — P5.A Set interface green (1/8).** New unrooted leaf
   `Iicf/Intf/Set.lean` defines the source's bidirectional `setRel`, nominal
