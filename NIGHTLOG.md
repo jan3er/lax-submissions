@@ -3741,3 +3741,10 @@ full-failure gates pin complete state and cost vectors; failure preserves the
 array and metadata. The leaf is root-imported. Full proofs: 3,251 jobs; concepts:
 505; proofs-only lax green; kernel-three and zero placeholders. P4.A2 is
 complete. Next: P4.B2 timed loop-form union-find, sequentially on warm main.
+
+P4.B2's first green boundary is now landed in an unrooted leaf: the MOP and
+two-array assertion surface, an exact-vector-cost parent-range loop, and
+no-allocation initialization from two caller-owned buffers. The resulting
+parents/sizes pair satisfies the accepted pure `ufaInvar` and `rankInvar`.
+Focused Lake build: 2,997 jobs; kernel-three and zero placeholders. Next:
+bounded root search and path compression in the same leaf.

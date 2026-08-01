@@ -6,7 +6,8 @@ by the supervisor under that grant. Codex-only governance confirmed by
 Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
 P0, P1, P2, P3.A, P3.B, and P3.C complete; P4 design is locked, A1 generic
 amortization and B1 pure union-find are complete, and A2 bounded dynamic array
-is complete. B2 timed loop-form union-find is next. The source-first
+is complete. B2 timed loop-form union-find has a green initialization boundary;
+root search and compression are next. The source-first
 scope firewall below was added at Jan's request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
@@ -374,6 +375,14 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-01 — P4.B2 initialization boundary green.** New leaf
+  `Iicf/UnionFindTime.lean` lands the timed MOP/assertion surface, an exact-cost
+  parent-range loop, and two-array initialization from caller-owned buffers.
+  The result is proved to satisfy both `ufaInvar` and `rankInvar`; its synthesized
+  vector costs and kernel-three guards are green. Focused Lake build: 2,997
+  jobs; zero placeholders. The leaf remains deliberately unrooted while B2 is
+  open. **Next: bounded root-search and path-compression loops.**
 
 - **2026-08-01 — P4.A2 COMPLETE.** New root-imported leaf
   `Iicf/IicfDynamicArray.lean` proves functional snoc, the standard and nested
