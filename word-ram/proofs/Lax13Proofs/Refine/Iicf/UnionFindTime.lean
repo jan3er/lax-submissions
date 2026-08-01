@@ -14,13 +14,13 @@ Source accounting:
 | source | range | disposition |
 |---|---:|---|
 | `UnionFind_Impl.thy` | 7--40 | landed below as the closed-form MOP operations |
-| same | 44--86 | open: the implementation interface is completed after find/union land |
+| same | 44--86 | landed: timed implementation certificate over the three HNR rules |
 | `Union_Find_Time.thy` | 651--666 | landed: two-array representation `ufAssn` |
 | same | 667--703 | landed: no-allocation `ufInit` from two `junkArrayOfLen` buffers |
 | same | 707--844 | landed: height-bounded root search and in-place path compression |
 | same | 850--897 | landed: bounds-checked same-set comparison with compression |
 | same | 899--1174 | landed: union-by-size and both rank-preservation branches |
-| same | 1177--1204 | open: final interface interpretation |
+| same | 1177--1204 | landed: final timed interface interpretation and bounds |
 
 The initialization loop and its price are synthesized from primitive array
 writes.  Thus its cost is a vector over the actual IR currencies, rather than
@@ -2499,6 +2499,259 @@ theorem compare_height_bounds (hW : UfArrays.Wf (parents, sizes))
   exact ⟨hiUb, (compressSteps_le_height parents i).trans hiUb,
     hjUb, (compressSteps_le_height parentsI j).trans hjUb⟩
 
+/-! ## Final timed implementation interface -/
+
+noncomputable def perSize (Rel : Per ℕ) : ℕ :=
+  by
+    classical
+    exact if h : ∃ n, relDomain Rel = Set.Iio n then Nat.find h else 0
+
+private theorem Iio_nat_injective {a b : ℕ}
+    (h : (Set.Iio a : Set ℕ) = Set.Iio b) : a = b := by
+  apply le_antisymm
+  · by_contra hn
+    have hba : b < a := Nat.lt_of_not_ge hn
+    have hb : b ∈ (Set.Iio a : Set ℕ) := hba
+    rw [h] at hb
+    exact (Nat.lt_irrefl b hb)
+  · by_contra hn
+    have hab : a < b := Nat.lt_of_not_ge hn
+    have ha : a ∈ (Set.Iio b : Set ℕ) := hab
+    rw [← h] at ha
+    exact (Nat.lt_irrefl a ha)
+
+theorem perSize_eq_length (Rel : Per ℕ) (hAlpha : ufaAlpha parents = Rel) :
+    perSize Rel = parents.length := by
+  classical
+  have hdom : relDomain Rel = Set.Iio parents.length := by
+    rw [← hAlpha, ufaAlphaDomain]
+  have hex : ∃ n, relDomain Rel = Set.Iio n := ⟨parents.length, hdom⟩
+  rw [perSize, dif_pos hex]
+  exact Iio_nat_injective ((Nat.find_spec hex).symm.trans hdom)
+
+theorem findCost_mono (hab : a ≤ b) : findCost a ≤ findCost b := by
+  intro currency
+  simp only [findCost, findRestCost, ACost.toFun_add, ACost.toFun_nsmul]
+  exact add_le_add le_rfl
+    (add_le_add (nsmul_le_nsmul_left bot_le hab)
+      (nsmul_le_nsmul_left bot_le (Nat.add_le_add_right hab 1)))
+
+theorem compressCost_mono (hab : a ≤ b) : compressCost a ≤ compressCost b := by
+  intro currency
+  simp only [compressCost, compressRestCost, ACost.toFun_add, ACost.toFun_nsmul]
+  exact add_le_add le_rfl
+    (add_le_add (nsmul_le_nsmul_left bot_le hab)
+      (nsmul_le_nsmul_left bot_le (Nat.add_le_add_right hab 1)))
+
+noncomputable def repCompressTime (n : ℕ) : ECost :=
+  2 • irUnit Currency.copy + findCost (heightUb n) + compressCost (heightUb n)
+
+noncomputable def ufCompareTime (n : ℕ) : ECost :=
+  2 • irUnit Currency.ite + 2 • repCompressTime n + rootsEqCost
+
+noncomputable def ufUnionTime (n : ℕ) : ECost :=
+  2 • irUnit Currency.copy + 2 • findCost (heightUb n) +
+    (irUnit Currency.ite + 2 • irUnit Currency.aget + irUnit Currency.ite +
+      2 • irUnit Currency.aset + irUnit Currency.add + irUnit Currency.skip)
+
+theorem unionRootsCost_le_time :
+    unionRootsCost ri rj ≤
+      irUnit Currency.ite + 2 • irUnit Currency.aget + irUnit Currency.ite +
+        2 • irUnit Currency.aset + irUnit Currency.add + irUnit Currency.skip := by
+  intro currency
+  by_cases h : ri = rj
+  · rw [unionRootsCost, if_pos h]
+    calc
+      (irUnit Currency.ite + irUnit Currency.skip).toFun currency ≤
+          ((irUnit Currency.ite + irUnit Currency.skip) +
+            (2 • irUnit Currency.aget + irUnit Currency.ite +
+              2 • irUnit Currency.aset + irUnit Currency.add)).toFun currency := by
+            rw [ACost.toFun_add]
+            exact le_self_add
+      _ = (irUnit Currency.ite + 2 • irUnit Currency.aget + irUnit Currency.ite +
+          2 • irUnit Currency.aset + irUnit Currency.add +
+          irUnit Currency.skip).toFun currency := by
+            congr 1
+            ac_rfl
+  · rw [unionRootsCost, if_neg h]
+
+theorem repCompressCost_le_time (hW : UfArrays.Wf (parents, sizes))
+    (hi : i < parents.length) :
+    repCompressCost parents i ≤ repCompressTime parents.length := by
+  unfold repCompressCost repCompressTime
+  exact add_le_add
+    (add_le_add le_rfl
+      (findCost_mono (heightOfLeHeightUb hW.2.2 hW.1 hi)))
+    (compressCost_mono
+      ((compressSteps_le_height parents i).trans
+        (heightOfLeHeightUb hW.2.2 hW.1 hi)))
+
+theorem compareCost_le_time (hW : UfArrays.Wf (parents, sizes))
+    (hi : i < parents.length) (hj : j < parents.length) :
+    compareCost parents i j ≤ ufCompareTime parents.length := by
+  let parentsI := compressPath parents i
+  have hpresI := compressPath_preserves hW hi
+  have hWI : UfArrays.Wf (parentsI, sizes) := by simpa [parentsI] using hpresI.2
+  have hlen : parentsI.length = parents.length := by
+    rw [hWI.2.1, hW.2.1]
+  have hjI : j < parentsI.length := by simpa [hlen] using hj
+  rw [compareCost_eq_phases hi hj]
+  have hfirst := repCompressCost_le_time hW hi
+  have hsecond := repCompressCost_le_time hWI hjI
+  rw [hlen] at hsecond
+  calc
+    2 • irUnit Currency.ite + repCompressCost parents i +
+        repCompressCost parentsI j + rootsEqCost ≤
+      2 • irUnit Currency.ite + repCompressTime parents.length +
+        repCompressTime parents.length + rootsEqCost :=
+          add_le_add (add_le_add
+            (add_le_add le_rfl hfirst) hsecond) le_rfl
+    _ = ufCompareTime parents.length := by
+      unfold ufCompareTime
+      simp only [two_nsmul]
+      ac_rfl
+
+theorem unionCost_le_time (hW : UfArrays.Wf (parents, sizes))
+    (hi : i < parents.length) (hj : j < parents.length) :
+    unionCost parents i j ≤ ufUnionTime parents.length := by
+  rw [unionCost_eq_phases]
+  unfold ufUnionTime
+  have hiCost := findCost_mono (heightOfLeHeightUb hW.2.2 hW.1 hi)
+  have hjCost := findCost_mono (heightOfLeHeightUb hW.2.2 hW.1 hj)
+  calc
+    2 • irUnit Currency.copy + findCost (heightOf parents i) +
+        findCost (heightOf parents j) +
+          unionRootsCost (repOf parents i) (repOf parents j) ≤
+      2 • irUnit Currency.copy + findCost (heightUb parents.length) +
+        findCost (heightUb parents.length) +
+          (irUnit Currency.ite + 2 • irUnit Currency.aget + irUnit Currency.ite +
+            2 • irUnit Currency.aset + irUnit Currency.add + irUnit Currency.skip) :=
+        add_le_add (add_le_add (add_le_add le_rfl hiCost) hjCost)
+          unionRootsCost_le_time
+    _ = ufUnionTime parents.length := by
+      unfold ufUnionTime
+      simp only [two_nsmul]
+      ac_rfl
+
+theorem mem_relDomain_iff (Rel : Per ℕ) (hAlpha : ufaAlpha parents = Rel) :
+    i ∈ relDomain Rel ↔ i < parents.length := by
+  rw [← hAlpha, ufaAlphaDomain]
+  rfl
+
+theorem ufInitMop_eq :
+    ufInitMop n = NRest.consume (mopPerInit n) (ufInitCost n) := rfl
+
+theorem hnr_ufInit_interface (n : ℕ) (i v P S oneVal oneInc NP NS : String) :
+    hnRefine (junkArrayOfLen n P ∗ junkArrayOfLen n S ∗ junkCell i ∗ junkCell v ∗
+        hnCtxt natAssn 1 oneVal ∗ hnCtxt natAssn 1 oneInc ∗
+        hnCtxt natAssn n NP ∗ hnCtxt natAssn n NS)
+      (ufInitCom i v P S oneVal oneInc NP NS)
+      (junkCell i ∗ junkCell v ∗ hnCtxt natAssn 1 oneVal ∗
+        hnCtxt natAssn 1 oneInc ∗ hnCtxt natAssn n NP ∗ hnCtxt natAssn n NS)
+      (P, S) ufAssn
+      (NRest.consume (mopPerInit n) (ufInitCost n)) := by
+  rw [← ufInitMop_eq]
+  exact hnr_ufInit n i v P S oneVal oneInc NP NS
+
+theorem hnr_ufUnion_domain (I J Ri Rj D Si Sj Total P S : String)
+    (Rel : Per ℕ) (parents sizes : List ℕ) (i j : ℕ)
+    (hW : UfArrays.Wf (parents, sizes)) (hAlpha : ufaAlpha parents = Rel)
+    (hi : i ∈ relDomain Rel) (hj : j ∈ relDomain Rel) :
+    hnRefine (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell Ri ∗
+        junkCell Rj ∗ junkCell D ∗ junkCell Si ∗ junkCell Sj ∗
+        junkCell Total ∗ hnCtxt arrayAssn parents P ∗ hnCtxt arrayAssn sizes S)
+      (unionCom I J Ri Rj D Si Sj Total P S)
+      (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell Ri ∗
+        junkCell Rj ∗ junkCell D ∗ junkCell Si ∗ junkCell Sj ∗ junkCell Total)
+      (P, S) ufAssn
+      (NRest.consume (mopPerUnion Rel i j) (unionCost parents i j)) := by
+  exact hnr_ufUnion I J Ri Rj D Si Sj Total P S Rel parents sizes i j hW hAlpha
+    ((mem_relDomain_iff Rel hAlpha).mp hi) ((mem_relDomain_iff Rel hAlpha).mp hj)
+
+theorem compareCost_le_domain_time (Rel : Per ℕ)
+    (hW : UfArrays.Wf (parents, sizes)) (hAlpha : ufaAlpha parents = Rel)
+    (hi : i ∈ relDomain Rel) (hj : j ∈ relDomain Rel) :
+    compareCost parents i j ≤ ufCompareTime (perSize Rel) := by
+  rw [perSize_eq_length Rel hAlpha]
+  exact compareCost_le_time hW ((mem_relDomain_iff Rel hAlpha).mp hi)
+    ((mem_relDomain_iff Rel hAlpha).mp hj)
+
+theorem unionCost_le_domain_time (Rel : Per ℕ)
+    (hW : UfArrays.Wf (parents, sizes)) (hAlpha : ufaAlpha parents = Rel)
+    (hi : i ∈ relDomain Rel) (hj : j ∈ relDomain Rel) :
+    unionCost parents i j ≤ ufUnionTime (perSize Rel) := by
+  rw [perSize_eq_length Rel hAlpha]
+  exact unionCost_le_time hW ((mem_relDomain_iff Rel hAlpha).mp hi)
+    ((mem_relDomain_iff Rel hAlpha).mp hj)
+
+def UfInitInterfaceRule : Prop :=
+  ∀ (n : ℕ) (i v P S oneVal oneInc NP NS : String),
+    hnRefine (junkArrayOfLen n P ∗ junkArrayOfLen n S ∗ junkCell i ∗ junkCell v ∗
+        hnCtxt natAssn 1 oneVal ∗ hnCtxt natAssn 1 oneInc ∗
+        hnCtxt natAssn n NP ∗ hnCtxt natAssn n NS)
+      (ufInitCom i v P S oneVal oneInc NP NS)
+      (junkCell i ∗ junkCell v ∗ hnCtxt natAssn 1 oneVal ∗
+        hnCtxt natAssn 1 oneInc ∗ hnCtxt natAssn n NP ∗ hnCtxt natAssn n NS)
+      (P, S) ufAssn (NRest.consume (mopPerInit n) (ufInitCost n))
+
+def UfCompareInterfaceRule : Prop :=
+  ∀ (I J N Ri Rj D F P S R : String) (Rel : Per ℕ)
+    (parents sizes : List ℕ) (i j : ℕ),
+    UfArrays.Wf (parents, sizes) → ufaAlpha parents = Rel →
+    hnRefine (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+        hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+        junkCell D ∗ junkCell F ∗ hnCtxt arrayAssn parents P ∗
+        hnCtxt arrayAssn sizes S ∗ junkCell R)
+      (compareCom I J N Ri Rj D F P R)
+      (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗
+        hnCtxt natAssn parents.length N ∗ junkCell Ri ∗ junkCell Rj ∗
+        junkCell D ∗ junkCell F ∗ ufAssn Rel (P, S))
+      R boolNatAssn (NRest.consume (mopPerCompare Rel i j) (compareCost parents i j))
+
+def UfUnionInterfaceRule : Prop :=
+  ∀ (I J Ri Rj D Si Sj Total P S : String) (Rel : Per ℕ)
+    (parents sizes : List ℕ) (i j : ℕ),
+    UfArrays.Wf (parents, sizes) → ufaAlpha parents = Rel →
+      i ∈ relDomain Rel → j ∈ relDomain Rel →
+    hnRefine (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell Ri ∗
+        junkCell Rj ∗ junkCell D ∗ junkCell Si ∗ junkCell Sj ∗
+        junkCell Total ∗ hnCtxt arrayAssn parents P ∗ hnCtxt arrayAssn sizes S)
+      (unionCom I J Ri Rj D Si Sj Total P S)
+      (hnCtxt natAssn i I ∗ hnCtxt natAssn j J ∗ junkCell Ri ∗
+        junkCell Rj ∗ junkCell D ∗ junkCell Si ∗ junkCell Sj ∗ junkCell Total)
+      (P, S) ufAssn (NRest.consume (mopPerUnion Rel i j) (unionCost parents i j))
+
+structure TimedUnionFindImplementation : Prop where
+  initRule : UfInitInterfaceRule
+  compareRule : UfCompareInterfaceRule
+  unionRule : UfUnionInterfaceRule
+  compareBound : ∀ (Rel : Per ℕ) (parents sizes : List ℕ) (i j : ℕ),
+    UfArrays.Wf (parents, sizes) → ufaAlpha parents = Rel →
+      i ∈ relDomain Rel → j ∈ relDomain Rel →
+      compareCost parents i j ≤ ufCompareTime (perSize Rel)
+  unionBound : ∀ (Rel : Per ℕ) (parents sizes : List ℕ) (i j : ℕ),
+    UfArrays.Wf (parents, sizes) → ufaAlpha parents = Rel →
+      i ∈ relDomain Rel → j ∈ relDomain Rel →
+      unionCost parents i j ≤ ufUnionTime (perSize Rel)
+  logarithmicHeight :
+    (fun n : ℕ => ((heightUb n : ℕ) : ℝ)) =Θ[Filter.atTop]
+      (fun n => Real.log (n : ℝ))
+
+theorem unionFindTimedImplementation : TimedUnionFindImplementation where
+  initRule := hnr_ufInit_interface
+  compareRule := fun I J N Ri Rj D F P S R Rel parents sizes i j hW hAlpha =>
+    hnr_ufCompare I J N Ri Rj D F P S R Rel parents sizes i j hW hAlpha
+  unionRule := fun I J Ri Rj D Si Sj Total P S Rel parents sizes i j hW hAlpha hi hj =>
+    hnr_ufUnion_domain I J Ri Rj D Si Sj Total P S Rel parents sizes i j
+      hW hAlpha hi hj
+  compareBound := fun Rel parents sizes i j hW hAlpha hi hj =>
+    compareCost_le_domain_time (parents := parents) (sizes := sizes) (i := i) (j := j)
+      Rel hW hAlpha hi hj
+  unionBound := fun Rel parents sizes i j hW hAlpha hi hj =>
+    unionCost_le_domain_time (parents := parents) (sizes := sizes) (i := i) (j := j)
+      Rel hW hAlpha hi hj
+  logarithmicHeight := heightUbThetaLog
+
 /-! ## Exact vector-cost and execution gates for the landed loops -/
 
 private theorem twoRootsInvar : ufaInvar [0, 1] := by
@@ -2901,5 +3154,11 @@ theorem compare_false_while_cost :
 /-- info: 'Lax13Proofs.Refine.Sepref.Iicf.UnionFindTime.hnr_ufUnion' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms hnr_ufUnion
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.UnionFindTime.unionFindTimedImplementation' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#print axioms unionFindTimedImplementation
 
 end Lax13Proofs.Refine.Sepref.Iicf.UnionFindTime
