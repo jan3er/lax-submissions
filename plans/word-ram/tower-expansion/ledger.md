@@ -834,3 +834,67 @@ must fail if the no-reuse invariant is dropped.
 *Revisit trigger.* E23's, plus: if D3 codegen shows the pointer-cell update
 costs more than a constant on some path, the constant changes but the class
 does not.
+
+### E25 — P4.5.A is range ownership, not an allocator
+
+**Status: accepted (re-scope of an accepted phase, taken under the standing
+autonomy grant).** Added 2026-08-02, before any P4.5.A work was assigned.
+Full argument and the rejected alternative: `p4.5-design.md` §4.
+
+*What the plan directs.* "Render `mop_oarray_new` as an IR operation … reserve
+a heap-pointer cell, allocate by reading and advancing it", and *prove* two
+consequences: that `alloc n` is O(1), and that exhaustion is a global side
+condition stated once at program level.
+
+*Why that is the wrong target.* Both consequences are already properties of
+the landed substrate, and the thing that actually blocks the phase's own
+acceptance test is a third thing the plan does not name.
+
+1. **O(1) is already the architecture's premise.** `Imp.lean:305-313`'s
+   docstring: "an array costs nothing, since the machine's memory starts
+   zeroed, and the lengths exist only to make an out-of-range access stuck."
+2. **Sizing is already per-input.** `Cash.lean:385-405` quantifies the array
+   lengths existentially per input, for exactly the reason E24 needs: "an
+   algorithm sizes its arrays by what it reads".
+3. **The global exhaustion condition already exists**, stated once and only
+   once, as `Layout.FitsWords (B x) w` (`Compile.lean:76,85`), consumed
+   solely by `computesInTime_of_spec`. Authoring a second one would be the
+   rule-5 violation the phase exists to remove.
+4. **The real blocker is `Tsa`.** `Cells γ := String → Tsa γ` with
+   `a ## b ↔ a = 0 ∨ b = 0` (`Assn.lean:450-469,676`) makes an array **name**
+   owned all-or-nothing. Source `push` is unconditional because the source
+   *reallocates*; reallocation needs unboundedly many independently-ownable
+   regions; `Layout.arrays` is a static list, so regions cannot be names; so
+   regions must be sub-ranges of one array. That is `ll_range`, which judgment
+   call D-m (`Assn.lean:72-83`) deliberately declined on the ground that "P5's
+   lowering never needs a sub-range". P4.5 is where that stops being true.
+
+*Chosen architecture.* One reserved array name carrying a second, per-index
+view: `AState` gains `ℕ → Tsa Val`, `acells` sends the heap name to
+`Tsa.zero`, and `p ↦ₕ xs` owns `[p, p + xs.length)` and splits at any point.
+Name-partitioning the two views is a **soundness** requirement, not hygiene —
+a name ownable in both views would make framing a range across a whole-name
+`aset` unsound.
+
+*Cause: local machine boundary.* Our arrays are named objects and the source's
+are address ranges; P4.5 is the first consumer that needs the source's
+granularity, so the boundary moves here rather than being worked around a
+thirteenth time.
+
+*Consequences that shrink the phase, recorded so the budget is not
+re-spent.* No new `Ir.Com` constructor is required — a heap access is
+`aget`/`aset` on the heap name at a computed index. So the sixteen currencies,
+`Currency.all`, `embed`, `weight`/`cash`, `BigStepB`, `bpre`/`bwp` and
+`embed_sim` are **inherited unchanged**, and binding **D3 is discharged by
+inheritance rather than extended**. The allocator itself becomes
+`p := hp; hp := hp + n` — two existing constructors, cost two `irUnit`s.
+
+*Falsification (clause 2 — authored, no source counterpart).* The split/join
+algebra needs compiled negative controls: overlapping ranges must not be
+simultaneously ownable, and the heap name must not be ownable in the
+whole-name view.
+
+*Revisit trigger.* If A.1 cannot preserve every landed `ptoArr` interface
+lemma, stop and re-decide rather than weakening them — twelve structures rest
+on them, and a weakened array assertion is the F11 failure mode (a guarantee
+nobody re-checked) at carrier level.

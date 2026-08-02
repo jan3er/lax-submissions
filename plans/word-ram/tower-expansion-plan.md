@@ -527,7 +527,28 @@ Source slice, all at `isabelle_llvm_time@42dd7f5`:
 | `thys/ds/Proto_EOArray.thy` | 186 L | no | earlier no-cost prototype; shape reference |
 | `thys/sepref/IICF/Impl/Proto_IICF_EOArray.thy` | 298 L | no | the bridge from EO arrays back into IICF interfaces — the shape that satisfies Jan's "same interface, different internals" |
 
-**A. The costed allocator.** Render `mop_oarray_new` as an IR operation.
+**A. The costed allocator. — RE-SCOPED 2026-08-02 (ledger E25,
+`p4.5-design.md` §4): the content is range ownership, and the allocator is a
+two-instruction program on top of it.** Surveying the substrate before
+assigning the work showed that both consequences this subsection asks to be
+*proved* are already properties of the landed architecture — `Imp.lean:305`
+records that an array costs nothing because the machine starts zeroed,
+`Cash.lean:385` already quantifies array lengths existentially **per input**,
+and `Layout.FitsWords` (`Compile.lean:85`) already **is** the once-stated
+global address-space condition, so authoring a second one would itself violate
+rule 5. What actually blocks the acceptance test below is neither: `Tsa`
+ownership is per array **name**, all-or-nothing, so a runtime-computed base
+pointer cannot designate an independently-ownable region. Source `push` is
+unconditional because the source *reallocates*, and reallocation needs
+unboundedly many independently-ownable regions, which under a static
+`Layout.arrays` must be sub-ranges of one array. That is the source's
+`ll_range`, declined by judgment call D-m on the ground that "P5's lowering
+never needs a sub-range" — true until this phase. The re-scope is toward
+source fidelity, not away from it. It also *shrinks* the budget: no new
+`Ir.Com` constructor is needed, so D3 is discharged by inheritance rather than
+extended. The paragraph below is retained as the original directive.
+
+Render `mop_oarray_new` as an IR operation.
 This adds to the IR, not to the endorsed machine: `Lax13/Ram.lean` gives
 `2 ^ w` cells addressed `% 2 ^ w`, **initialised to zero**, with indirect
 addressing both ways (`Op.ind`, `Instr.storeInd`). A bump allocator is
