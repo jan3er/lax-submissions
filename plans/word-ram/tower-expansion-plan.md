@@ -527,65 +527,58 @@ Source slice, all at `isabelle_llvm_time@42dd7f5`:
 | `thys/ds/Proto_EOArray.thy` | 186 L | no | earlier no-cost prototype; shape reference |
 | `thys/sepref/IICF/Impl/Proto_IICF_EOArray.thy` | 298 L | no | the bridge from EO arrays back into IICF interfaces — the shape that satisfies Jan's "same interface, different internals" |
 
-**A. The costed allocator. — RE-SCOPED 2026-08-02 (ledger E25,
-`p4.5-design.md` §4): the content is range ownership, and the allocator is a
-two-instruction program on top of it.** Surveying the substrate before
-assigning the work showed that both consequences this subsection asks to be
-*proved* are already properties of the landed architecture — `Imp.lean:305`
-records that an array costs nothing because the machine starts zeroed,
-`Cash.lean:385` already quantifies array lengths existentially **per input**,
-and `Layout.FitsWords` (`Compile.lean:85`) already **is** the once-stated
-global address-space condition, so authoring a second one would itself violate
-rule 5. What actually blocks the acceptance test below is neither: `Tsa`
-ownership is per array **name**, all-or-nothing, so a runtime-computed base
-pointer cannot designate an independently-ownable region. Source `push` is
-unconditional because the source *reallocates*, and reallocation needs
-unboundedly many independently-ownable regions, which under a static
-`Layout.arrays` must be sub-ranges of one array. That is the source's
-`ll_range`, declined by judgment call D-m on the ground that "P5's lowering
-never needs a sub-range" — true until this phase. The re-scope is toward
-source fidelity, not away from it. It also *shrinks* the budget: no new
-`Ir.Com` constructor is needed, so D3 is discharged by inheritance rather than
-extended. The paragraph below is retained as the original directive.
+**A. Range ownership and the allocator.** Give arrays the source's ownership
+granularity, then allocate on top of it.
 
-Render `mop_oarray_new` as an IR operation.
-This adds to the IR, not to the endorsed machine: `Lax13/Ram.lean` gives
-`2 ^ w` cells addressed `% 2 ^ w`, **initialised to zero**, with indirect
-addressing both ways (`Op.ind`, `Instr.storeInd`). A bump allocator is
-therefore an ordinary program — reserve a heap-pointer cell, allocate by
-reading and advancing it, address the result through `ind`/`storeInd`.
+Our carrier owns an array **name** all-or-nothing (`Tsa`, `Assn.lean:450`),
+so no runtime-computed base pointer can designate an independently-ownable
+region. The source owns an address **range** (`ll_range`), splittable index by
+index. Unconditional `push` needs reallocation, reallocation needs unboundedly
+many independently-ownable regions, and a static `Layout.arrays` means those
+regions must be sub-ranges of one array. So range ownership is the phase's
+content and the allocator is a short program on top of it.
 
-Two consequences to prove, not assume:
+Architecture (D-A1): one reserved array name carrying a second, per-index
+view; `acells` sends that name to `Tsa.zero`, which is a soundness
+requirement rather than hygiene. Additive by construction — the twelve landed
+structures use non-heap names and do not change. **No new `Ir.Com`
+constructor**: a heap access is `aget`/`aset` on the heap name at a computed
+index, so the currency table, `embed`, `weight`/`cash`, `BigStepB`,
+`bpre`/`bwp` and `embed_sim` are inherited and binding **D3 is discharged by
+inheritance rather than extended**.
 
-- **`alloc n` is O(1), not O(n).** *Reason corrected 2026-08-02 (ledger
-  E24) — the source has no fill loop either.* `narrayo_new` never writes the
-  contents, and that is sound because `lo_init` makes an all-`None` EO array
-  own no element memory for any concrete contents. The source's `n` is
-  charged to the **`malloc` currency**: a real LLVM `malloc` honestly costs
-  proportionally to the block it returns. `Lax13/Ram.lean` has no `malloc` —
-  `2 ^ w` zeroed cells already exist — so allocation is a pointer read, an
-  add, and a write back. The difference is substrate, not optimisation. It
-  still dissolves the O(n)-init × n-arenas → n² problem the campaign has
-  been working around structure by structure. The O(1) figure is contingent
-  on never reusing: **no-reuse is a stated, enforced invariant**, and if
-  free/reuse is ever added the bound reverts.
-- **Exhaustion is a global side condition.** Total allocation ≤ `2 ^ w`,
-  stated once at program level, mirroring the source's "given `malloc`
-  succeeds". Per rule 5 it must **not** be pushed down onto individual
-  operations — that is precisely the move that produced the conditional
-  append.
+The allocator is then `p := hp; hp := hp + n` — two existing constructors,
+cost two `irUnit`s, O(1) in `n`. Two properties it rests on:
 
-Deallocation is **excluded** — **by our decision, not by a source gap
-(ledger E23, corrected 2026-08-02).** The source *does* support and prove
-deallocation (`mop_oarray_free` + `hnr_eoarray_free`, `:328–340`, under
-`set xs ⊆ {None}`); what it declares false is the automatic `MK_FREE` **frame
-rule**, which we therefore do not state at all. Our argument for excluding
-`free` itself is E23's: non-reuse is exactly what buys the O(1) allocation, so
-free-with-reuse forfeits it and free-without-reuse buys nothing. Consequence
-stated plainly — **peak memory equals total allocation.**
+- **`alloc n` is O(1), not O(n)** (ledger E24). Substrate, not optimisation:
+  the source charges `n` to the **`malloc` currency** because a real LLVM
+  `malloc` costs proportionally to the block it returns, while
+  `Lax13/Ram.lean` has no `malloc` — `2 ^ w` zeroed cells already exist. The
+  source has no fill loop either; `narrayo_new` never writes the contents,
+  which is sound because `lo_init` makes an all-`None` EO array own no element
+  memory for any concrete contents. This dissolves the O(n)-init × n-arenas →
+  n² problem the campaign has been working around structure by structure.
+  Contingent on never reusing: **no-reuse is a stated, enforced invariant**,
+  and if free/reuse is ever added the bound reverts.
+- **Exhaustion is a global side condition, and it already exists.**
+  `Layout.FitsWords (B x) w` (`Compile.lean:85`), consumed only by
+  `computesInTime_of_spec`, **is** "total allocation ≤ `2 ^ w`" stated once at
+  program level; array lengths are already existential per input
+  (`Cash.lean:385`). P4.5 adds **no second** exhaustion statement — a
+  per-operation copy is precisely the rule-5 violation that produced the
+  conditional append.
 
-Binding D3 applies: `Ir → IMP+ → RAM` codegen coverage with a proved cost
-before any structure depends on `alloc`.
+Deallocation is **excluded by our decision, not by a source gap** (ledger
+E23). The source supports and proves deallocation (`mop_oarray_free` +
+`hnr_eoarray_free`, `:328–340`, under `set xs ⊆ {None}`); what it declares
+false is the automatic `MK_FREE` **frame rule**, which we therefore do not
+state at all. Excluding `free` itself is ours: non-reuse is exactly what buys
+the O(1) allocation, so free-with-reuse forfeits it and free-without-reuse
+buys nothing. Consequence stated plainly — **peak memory equals total
+allocation.**
+
+Leaf sequence: **A.1** the heap view (range algebra + heap-view triples),
+**A.2** the allocator. Detail in `p4.5-design.md` §4.
 
 **B. Element-level ownership.** Port `mop_oarray_extract` / `mop_oarray_upd`
 and `eoarray_assn`: slot-wise `Some`/`None` ownership, `extract` requiring
