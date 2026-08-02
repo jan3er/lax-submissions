@@ -3972,3 +3972,16 @@ priority cases. No executable IR rules or vector costs are claimed at this
 pure layer. Supervisor replay: 2,988 jobs; motion regressions, source/fref
 registration, kernel-three, and zero-placeholder gates pass. Next:
 `Impl_Heap`, sequentially on warm main.
+
+P5.C `Impl_Heap` is green as the third P5.C family and second heap family.
+The new unrooted leaf composes caller-owned `ArrayList` through `AbsHeap` and
+ports the natural/identity-priority executable specialization: exact one-based
+primitives, explicit swim and optimized tie-left sink IR loops, bounded insert,
+and root-read/exchange/shrink/sink pop. Supervisor review held the boundary
+until swim, sink, insert, and pop all had registered operational `hnRefine`
+proofs rather than parallel command/cost definitions. Empty allocation remains
+semantic and unsupported, and insert requires caller readiness. The source
+record now distinguishes Sepreftime's generic pin from the executable
+`isabelle_llvm_time` specialization. Supervisor replay: 2,995 jobs; source,
+fref/executable registration, branch-cost, kernel-three, and zero-placeholder
+gates pass. Next: `Abs_Heapmap`, sequentially on warm main.

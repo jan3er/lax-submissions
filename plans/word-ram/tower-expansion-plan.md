@@ -11,9 +11,9 @@ and archive-green. P5.B is complete: all five concrete bounded-sequence and
 all three bounded-key map families are green as unrooted leaves: `Array_List`,
 `DArray_List`, `MS_Array_List`, `Indexed_Array_List`,
 `Array_of_Array_List`, `Array_Map`, `Array_Map_Total`, and `ArrayMap_Map`.
-P5.C has begun with the row-major `Array_Matrix` and source-shaped `Abs_Heap`
-families green. The source-first scope firewall below was added at Jan's request
-on 2026-07-31.** This document is
+P5.C has begun with `Array_Matrix`, `Abs_Heap`, and executable `Impl_Heap`
+green. The source-first scope firewall below was added at Jan's request on
+2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
 
@@ -380,6 +380,21 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-02 — P5.C Impl_Heap green (3/5 families; 2/4 heap families).**
+  New unrooted `Iicf/Impl/ImplHeap.lean` composes the caller-owned `ArrayList`
+  representation through `AbsHeap`, specializes the executable source to
+  natural elements and identity priority, and ports the exact one-based
+  update/value/exchange/valid/prio seams. Swim and optimized tie-left sink are
+  explicit IR loops with operational `irWhileIT` specifications and registered
+  `hnRefine` proofs; public insert composes bounded append with swim, while pop
+  composes root read, exchange, logical shrink, sink, and result pairing with
+  path-sensitive vector costs. Empty allocation remains intentionally semantic
+  and unsupported; insert requires the caller-owned ready relation. Provenance
+  records both the generic Sepreftime pin and its executable
+  `isabelle_llvm_time` specialization. Supervisor replay: 2,995 jobs; source,
+  fref/executable registration, branch-cost, kernel-three, and zero-placeholder
+  gates pass. **Next: P5.C Abs_Heapmap.**
 
 - **2026-08-01 — P5.C Abs_Heap green (2/5 families; 1/4 heap families).**
   New unrooted `Iicf/Impl/AbsHeap.lean` ports the pure one-based list heap:
