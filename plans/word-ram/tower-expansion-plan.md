@@ -523,7 +523,7 @@ Source slice, all at `isabelle_llvm_time@42dd7f5`:
 
 | file | size | carries cost | note |
 |---|---|---|---|
-| `thys/sepref/Hnr_Primitives_Experiment.thy` | 985 L | **yes** (`acost`, `lift_acost`) | the real target: `mop_oarray_new/extract/upd/free`, `eoarray_assn`, registered `sepref_fr_rules`. **Correction 2026-08-02 (F12):** carries **no live `sorry`** — the `FREE_eoarray_assn` attempt at `:318–325` is inside a comment block (`:316–326`) whose author's note says the rule *does not hold*. See ledger E23 |
+| `thys/sepref/Hnr_Primitives_Experiment.thy` | 985 L | **yes** (`acost`, `lift_acost`) | the real target: `mop_oarray_new/extract/upd/free`, `eoarray_assn`, registered `sepref_fr_rules`. carries **no live `sorry`** — the `FREE_eoarray_assn` attempt at `:318–325` is inside a comment block (`:316–326`) whose author's note says the rule *does not hold* (ledger E23) |
 | `thys/ds/Proto_EOArray.thy` | 186 L | no | earlier no-cost prototype; shape reference |
 | `thys/sepref/IICF/Impl/Proto_IICF_EOArray.thy` | 298 L | no | the bridge from EO arrays back into IICF interfaces — the shape that satisfies Jan's "same interface, different internals" |
 
