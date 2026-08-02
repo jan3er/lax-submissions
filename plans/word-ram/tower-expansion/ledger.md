@@ -1116,3 +1116,116 @@ this entry unlocks).
 
 *Consequence for consumers.* "Peak memory equals total allocation" is repealed
 (E23). Only the live set must fit, plus whatever LIFO cannot reclaim.
+
+### E29 — the consumer space budget: address space is scarcer than time on the C0 path
+
+**Status: binding.** Added 2026-08-02 (rev 6, external review).
+
+*The fact.* `Layout.FitsWords (B x) w` is quantified over every admissible
+word length, and ND-MC C0's domain is
+`{x | EncodesGraph x n G ∧ ∀ v ∈ x, c*(|x|+v+1) ≤ 2^w}` with the statement
+quantifying over **all** `w` — so the smallest admissible word is in scope,
+where `2 ^ w` is linear in `|x|` (`BridgeSeamProbe.no_word_size_for_sparse`
+is the compiled mechanism, on the consumer side). The bump pointer is a
+machine value below `B ≤ 2 ^ w`, so **live + LIFO-unreclaimable allocation
+must stay `O(|x|)`** — strictly tighter than the `n^{1+ε}` time budget.
+Even touched-only per-arena *fresh* allocation (Σ|X_c| ≈ n^{1+ε}) blows it.
+
+*Consequences.* (1) Loop-interior structures reuse — raw allocation over
+LIFO-freed space (E28) or caller-owned buffers — or are shown
+live-set-bounded; geometric-growth leaks under LIFO are live-set-bounded
+and tolerable, unfreed per-turn buffers are not. (2) Zeroed availability
+out of reused memory costs O(n) and has no theorem (E28), so
+trail/touched-only reset remains the loop-interior discipline for
+structures needing clean state per arena; the allocator complements the
+touched-only law, it does not supersede it. (3) **Registration
+discipline:** the `sepref_fr_rules` default per operation family is a
+recorded decision at re-seat time — allocating forms for setup-scale
+operations, reuse/in-place forms for loop-interior ones — so synthesis
+cannot silently emit an allocating loop body that fails only at the bridge,
+sessions later.
+
+*Compiled control (clause 2 — this is an authored claim about the
+substrate/consumer seam).* P4.5's acceptance gains a space-budget probe: a
+driver-shaped skeleton (setup allocation, then turns × levels of arena
+passes over LIFO-reused or caller-owned storage) fits the smallest
+admissible word on a C0-shaped domain; negative control — the same
+skeleton on per-turn fresh zeroed allocation provably does not.
+
+*Why now rather than at P9.* Every boundary fact of this class in the
+record (`no_word_size_for_sparse`, both B7 gate findings) was found
+compiled and late. This one is visible in advance; the probe makes it
+impossible to rediscover at the consumer gate.
+
+*Revisit trigger.* A consumer domain that pins `2 ^ w` strictly above
+linear, or a non-LIFO allocator with its own cost story (E23's trigger).
+
+### E30 — the orderCom synthesis retry runs at P4.6, not at the P7 boundary
+
+**Status: accepted (re-slot; supersedes the `bb9329e`/`9f343f0` scheduling
+notes).** Added 2026-08-02 (rev 6, external review).
+
+Jan ordered the retry "ahead of the ND-MC cost residue"; the corrected
+scheduling note still left it at the P7 boundary, behind P5.D, P5.E
+breadth, and P6 — plausibly four to six sessions. Its actual dependencies
+are P1 (landed) and P4.5 (constructible structures); nothing in P5.D/P6 is
+load-bearing for a capped, measured probe. Information ordering decides
+the slot: the probe's outcome reprioritizes everything behind it — a
+carrier-blind landing re-derives the order/cover phases, deletes most of
+the ND-MC residue, *and* changes what P5.D/P6 should contain; a miss hands
+P7 a real profile. Spending the intervening sessions before knowing the
+branch is the wrong order. Hence new phase **P4.6**, immediately after
+P4.5's acceptance re-seat.
+
+One criterion tightened in the move: "lands" means **carrier-blind**
+(P9's empty-arena-O(1) check, compiled) — a synthesis that completes at
+`hKo`'s size-blind cost kills no floor and routes as a miss.
+
+### E31 — rev 6 governance changes, and the plan's revision archaeology
+
+**Status: accepted.** Added 2026-08-02 (rev 6, external review). This entry
+is the retained record for text removed from the plan under the
+supersede-in-place rule (Jan, 2026-08-02: a changed plan section is
+rewritten as if it always said the new thing; reasoning lives in the
+ledger).
+
+*Governance changes.*
+
+1. **Supervision tiering (Jan, 2026-08-02: Opus supervises, for cost).**
+   Opus runs day-to-day supervision; Fable reviews at phase boundaries and
+   owns clause-2 acceptance calls. Evidence for the split: worker output in
+   the record is consistently strong, while the recurring failure class is
+   supervisor state-tracking and prose verdicts — F9 (gate unrun,
+   unobserved for a day and a half), F10 (ledger stopped before twelve
+   leaves), the E-mem retarget on a premise contradicting `Layout.span`
+   quoted the same day, "finding 2 closed" (`9f343f0`), the
+   self-contradictory G4 slot (`bb9329e`), and a re-issued completed phase
+   (the ND-MC checkbox note). The mid-phase review that produced F6–F11 was
+   the highest-leverage single session in the record; boundary reviews buy
+   that systematically.
+2. **Closure rule.** A closure names the compiled artifact (theorem or
+   `#guard`) that closes it. Both false closures in the record were prose;
+   every compiled verdict held.
+3. **Gate mechanization.** The gate law's mechanical checks run as
+   `.claude/leaf-gate.sh <submission>`: concepts+proofs `lake build`,
+   `lax build --only proofs <submission>` with its violation output, the
+   ND-MC consumer build when an exported surface is touched, and a printed
+   ledger-recency reminder for gate (iii), which is not automatable.
+   Landing the script precedes P4.5.B; its first use validates it.
+
+*Plan archaeology folded here.* Removed from the plan text, retained in git
+history and summarized: rev 1 authored 2026-07-31 from the ND-MC C0
+blocker analysis; rev 2 accepted the same day (full autonomy, GPT-5.6-Sol
+workers via `codex exec`, half-size P1 calibration wave); rev 3 Codex-only
+governance ("we only use codex, not claude"), P0 landed; rev 4 pruned
+latent consumer side-tracks and replaced the unconditional
+refute-before-prove law with a routine-port waiver — under which
+`Plausible` reached zero of twenty P5 files and E20's wrong costs went
+unchecked; the 2026-07-31 waiver was confirmed as Jan's own approval, with
+the forward decision delegated to the supervisor; rev 5 (the mid-phase
+review, F6–F11) added P4.5, rule 5 with Jan's verbatim ordering (now
+quoted at charter rule 5), the per-declaration provenance re-scope of the
+falsification law, the gate law, and the restored traceability table; the
+rev-2 worktree-workflow clause was superseded 2026-08-01 by the sequential
+warm-`main` rule. None of the removed text carried live authority beyond
+what the current plan states.

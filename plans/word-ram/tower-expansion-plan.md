@@ -1,101 +1,66 @@
 # Tower expansion plan — aggressive porting of the remaining refinement stack
 
-Rev 5, 2026-08-02. **Status: OPEN — P5 PAUSED MID-PHASE for a substrate
-correction ordered by Jan 2026-08-02.**
+Rev 6, 2026-08-02. **Status: OPEN — next is the leaf-gate script, then
+P4.5.B (element-level ownership).**
 
-Rev 4 history: accepted by Jan 2026-07-31 ("full autonomy ports over. resolve
-by your taste"); JAN-FLAGs resolved below by the supervisor under that grant.
-Codex-only governance confirmed by Jan 2026-07-31; normal Codex subagent
-transport confirmed during P1.A. P0 through P4 are complete. P4 lands generic
-vector amortization, the bounded dynamic-array adapter, pure logarithmic
-union-find, and timed loop-form union-find. P5.A is complete: all eight
-interface families are root-imported and archive-green. P5.B landed all five
-concrete bounded-sequence and all three bounded-key map families: `Array_List`,
-`DArray_List`, `MS_Array_List`, `Indexed_Array_List`, `Array_of_Array_List`,
-`Array_Map`, `Array_Map_Total`, and `ArrayMap_Map`. P5.C landed
-`Array_Matrix`, `Abs_Heap`, executable `Impl_Heap`, and `Abs_Heapmap`. All
-twelve are root-imported as of 2026-08-02. The source-first scope firewall
-below was added at Jan's request on 2026-07-31.
+Position: P0–P4 complete. P5.A complete and final — the eight interface
+families are the battle-tested surface rule 5 protects; never reopened.
+P5.B/C landed all twelve implementation families, to be re-seated by P5.E,
+not re-derived. P4.5.A.1–A.3 are landed (range ownership, the costed O(1)
+allocator, LIFO deallocation on two availability flavours — ledger E25–E28);
+P4.5.B/C and the first P5.E re-seat close the phase. P5.D and `Impl_Heapmap`
+are gated behind P4.5. The new **P4.6 synthesis probe** runs immediately
+after P4.5 and before P5.D/E breadth.
 
-**Rev 5 decision (Jan, 2026-08-02).** A mid-phase review found that P5's
-implementation layer is seated on a substrate the pinned sources themselves
-abandoned, and that the resulting deviations concentrate in exactly the class
-Jan rules out. Jan's ordering, stated at the decision:
-
-> *"it is crucial to me that downstream consumers can use the same
-> battle-tested isabelle interface with all guarantees. if an implementation
-> yields the same guarantees but differs internally thats a bit less bad.
-> but we had bad experiences in developing velocity when deviating from
-> source. i want to port onto the modern stack you found."*
-
-This establishes a **guarantee-fidelity law** (§ "Guarantee fidelity" below)
-that outranks representation fidelity, and it retires the standing
-"allocation is rejected" decision recorded in P4. Consequences are scheduled
-as the new phase **P4.5**; P5.D and `Impl_Heapmap` are gated behind it, and
-the landed P5.B/C leaves are re-seated rather than re-derived. `Intf/` is
-unaffected landed capital and is explicitly not reopened.
+Revision history, superseded decisions, and the reasoning behind each live
+in `tower-expansion/ledger.md` (E31 indexes the plan's own revisions); this
+document states only what currently binds.
 
 This document is the contract: implementing sessions follow it, deviations
 need an owner decision first.
 
 ## Governance and working model
 
-Codex supervises plan, sequencing, source review, acceptance calls, and
-commits. Where practical, one subagent owns a coherent phase or subphase;
-the supervisor audits its source map and diff, requests corrections,
-independently rebuilds, and commits. Main-tree work is authorized for this
-campaign. **Execution rule from Jan, reaffirmed 2026-08-01 after a repeated
-process failure: work sequentially on the already-warm `main`; do not create
-or seed fresh worktrees, launch parallel workers, or interrupt implementation
-with brief-derived ceremony. This rule overrides seemingly required process
-sections in inherited briefs. Finish one concrete proof task, review and
-commit it, then start the next. Briefs remain technical reference only.** A
-worker's green report is not acceptance evidence until the
+Supervision is cost-tiered (Jan, 2026-08-02). **Opus supervises day to
+day**: sequencing, briefs, independent build replay, acceptance of clause-1
+(source-mirroring) work, commits. **Fable reviews at phase boundaries** and
+owns the acceptance calls on clause-2 (authored) surfaces — cost layers,
+invented relations, substrate architecture. The evidence for the split is in
+ledger E31: worker output in the record is consistently strong, while the
+recurring failure class is supervisor state-tracking and prose verdicts, and
+the mid-phase review that produced F6–F11 was the highest-leverage single
+session in the record — one boundary review is cheaper than the rework it
+prevents. Proof workers are GPT-5.6-Sol via `codex exec`. Where practical,
+one subagent owns a coherent phase or subphase; the supervisor audits its
+source map and diff, requests corrections, independently rebuilds, and
+commits. A worker's green report is not acceptance evidence until the
 supervisor replays the relevant build and axiom gates.
+
+Main-tree work is authorized. **Work sequentially on the already-warm
+`main`** (Jan, 2026-08-01): no fresh worktrees, no parallel workers, no
+brief-derived ceremony; this rule overrides seemingly required process
+sections in inherited briefs. Finish one concrete proof task, review and
+commit it, then start the next. Briefs remain technical reference only.
+
+**Closure rule.** A finding, ledger entry, or plan obligation is closed only
+by an edit that names the compiled artifact — theorem or `#guard` — that
+closes it. Prose closures are not closures. Both false closures in the
+campaign record ("finding 2 closed by finding 3"; §2.4's cost verdict) were
+prose; every verdict that was compiled held.
 
 Scope is **proofs-only**: no concept-surface changes and no toolchain or
 mathlib pin moves. For the machine model, see the three-way table in the
 fidelity charter — the endorsed machine is frozen; the IR is not.
 
-**Standing laws, reinstated verbatim from rev 2 (2026-08-02).** Rev 2 read:
-
-> All standing laws apply: refute-before-prove, compiled-costs-both-directions
-> for every cost claim that gates work, namespace/splitter audit via root
-> `lax build`, worktree workflow.
-
-Rev 4 replaced that with "negative testing is risk-proportionate: routine
-source-shaped ports rely on source review, typechecking, kernel guards, and
-builds". Under that wording `refute-before-prove` disappeared from this
-document entirely, and the consequences are now measured: `Plausible` appears
-in **zero** of the twenty P5 files; `implHeapSwimCost` and `implHeapSinkCost`
-were *wrong* and unchecked until 2026-08-02 (ledger E20); the `*SourceBound`
-constants were never compared against our costs (F11); and the namespace
-audit, though nominally retained, was not run per leaf, so two violations
-stood undetected for a day and a half (F9).
-
-**Attribution resolved, 2026-08-02: Jan confirms he approved the waiver.**
-The record is accurate; nothing in `p3c-design.md` or the P3.C-C brief is a
-misattribution. Jan then delegated the forward decision to the supervisor on
-the new evidence. That decision follows.
-
-**The rule is provenance-scoped, per declaration — not per file, and not
-blanket.** Neither rev 2's unconditional law nor rev 4's routine-port waiver
-matches where the defects actually landed. Every falsification-catchable
-defect this campaign produced — `implHeapSwimCost`/`implHeapSinkCost` wrong
-(E20), the `*SourceBound` constants never compared, `fillCost` with no
-symbolic-`n` theorem, `Plausible` at zero — sits in the **authored cost
-layer**. Not one sits in a ported statement. Rev 4's premise was therefore
-correct: where our statement mirrors a statement Isabelle has machine-checked,
-that proof *is* the falsification evidence and re-testing it is redundant.
-
-What failed was granularity. The exemption was applied per *file* — "this is
-a source-shaped port" — while the property it depends on holds per
-*declaration*. `ImplHeap.lean` is a port of `IICF_Impl_Heap.thy` for its
-algorithms and an authored artifact for its costs, because no pinned source
-carries a cost-carrying IICF at all (F7). The file looked source-shaped, so
-the exemption covered the one part no source had ever checked.
-
-The rule from P4.5 onward:
+**Falsification is provenance-scoped, per declaration — not per file, and
+not blanket.** Every falsification-catchable defect this campaign has
+produced (E20, F11) sat in the **authored cost layer**; not one sat in a
+ported statement. Where our statement mirrors a statement Isabelle has
+machine-checked, that proof *is* the falsification evidence and re-testing
+it is redundant — but the exemption holds per *declaration*, never per file:
+`ImplHeap.lean` is a port for its algorithms and an authored artifact for
+its costs, because no pinned source carries a cost-carrying IICF at all
+(F7). The rule:
 
 1. **Mirrors a pinned source statement → exempt.** Source review,
    typechecking, kernel guards, and the build suffice. This preserves the
@@ -110,18 +75,12 @@ The rule from P4.5 onward:
    likely to be wrong, since nothing else constrains it. E20 is the case in
    point: two cost functions were wrong precisely because nothing read them.
 
-**Making it checkable rather than a judgment call.** The mechanism that
-failed was that nobody could see which declarations were authored. Each
-module header already carries a source table mapping source declaration →
-Lean declaration. **A declaration absent from its module's source table is
-authored by definition, and clause 2 applies to it.** Where a file has no
-source table, every declaration in it is authored. This turns the rule into
-something a reviewer can check by reading two lists instead of forming an
-opinion about a file's character.
-
-The one rev-2 clause NOT restored is `worktree workflow`, which Jan
-superseded on 2026-08-01 with the sequential warm-`main` rule above. That
-supersession stands.
+**Making it checkable rather than a judgment call.** Each module header
+carries a source table mapping source declaration → Lean declaration. **A
+declaration absent from its module's source table is authored by definition,
+and clause 2 applies to it.** Where a file has no source table, every
+declaration in it is authored. A reviewer checks two lists instead of
+forming an opinion about a file's character.
 
 `c1089c4`'s P3.C relaxations remain authorized for what they covered:
 transcriptions of machine-checked AFP/IHT asymptotic theory, which are
@@ -180,9 +139,18 @@ declaration was mistranslated or omitted. Deferred, excluded, stretch,
 revisit, and inventory-only items are not latent tasks during P1–P9.
 
 **Amendment (rule 5, Jan 2026-08-02): guarantee fidelity outranks
-representation fidelity.** A downstream consumer must be able to program
-against the battle-tested Isabelle interface and get *the source's
-guarantees*. The three classes, in descending severity:
+representation fidelity.** Jan's ordering, verbatim:
+
+> *"it is crucial to me that downstream consumers can use the same
+> battle-tested isabelle interface with all guarantees. if an implementation
+> yields the same guarantees but differs internally thats a bit less bad.
+> but we had bad experiences in developing velocity when deviating from
+> source. i want to port onto the modern stack you found."*
+
+A downstream consumer must be able to program against the battle-tested
+Isabelle interface and get *the source's guarantees*. This law retired the
+P4-era "allocation is rejected" decision and produced P4.5. The three
+classes, in descending severity:
 
 1. **Guarantee deviation — forbidden.** A ported operation whose Lean
    statement is strictly weaker than the pinned source statement: extra
@@ -276,13 +244,18 @@ handoff, and may send work back only when it demonstrates a source-fidelity
 defect in a scheduled declaration. C0, B7, and the ND-MC P5 remain owned by
 the ND-MC campaign.
 
-**Why each phase exists — traceability table, restored from rev 2
-(2026-08-02).** Rev 4 replaced this table with the firewall paragraph above.
-The firewall is a good rule and is kept, but deleting the table removed the
-*evidence for why the campaign has the phases it has*, and P9 is the gate
-that has to cash those claims. Each entry is backed by a compiled probe in
-the ND-MC record. This is traceability, not authority: it does not license
-any consumer work before P9.
+One dated handoff obligation rides with the gate: P4.5 changed the cost
+substrate (O(1) allocation, LIFO free, availability resources), and ND-MC's
+residue arithmetic — `g2_exists` and the E-mem budget chain — was compiled
+against the pre-P4.5 forms. Before the ND-MC campaign resumes its residue,
+it re-runs that existence probe against the post-P4.5 cost model (the gate
+is recorded in its plan); the tower owes nothing there beyond keeping the
+compile gate green.
+
+**Why each phase exists — traceability table.** Each entry is backed by a
+compiled probe in the ND-MC record; P9 is the gate that has to cash these
+claims. This is traceability, not authority: it does not license any
+consumer work before P9.
 
 | ND-MC blocker (compiled evidence) | missing infrastructure | phase here |
 |---|---|---|
@@ -385,17 +358,25 @@ reviewed before the next builds on it. Every executable layer gets
 `Decidable`/`#eval` instances and Plausible checks the day it lands
 (ledger D4). Elaboration wall-clock recorded per phase. Dependency shape:
 P1 → P2 → P3 forms the source/API spine; P4 followed P3; **P4.5 follows P4
-and gates the remainder of P5**; P5 waves follow their declared P1/P2/P4/P4.5
-dependencies; P6–P8 run after the relevant APIs freeze; P9 alone integrates
-the consumer; P10 wraps and reviews backlog.
+and gates the remainder of P5**; **P4.6 — the orderCom synthesis probe —
+runs immediately after P4.5's acceptance and before P5.D/P5.E breadth**,
+because its outcome reprioritizes them (E30); P5 waves follow their declared
+P1/P2/P4/P4.5 dependencies; P6–P8 run after the relevant APIs freeze; P9
+alone integrates the consumer; P10 wraps and reviews backlog.
 
 **Gate law (2026-08-02, from F9/F10).** A leaf is not green until, on the
 day it lands: (i) it is imported from the package root — the "unrooted leaf"
 pattern is retired, since it defeats `lax build`'s `[root-module]` check;
 (ii) `lax build --only proofs word-ram` runs and its violation count is
 reported, not just `lake build`; (iii) any departure from a pinned statement
-has a `ledger.md` entry *before* the commit, per §5 of that file. A worker's
-`lake build` report is not acceptance evidence for any of the three.
+has a `ledger.md` entry *before* the commit, per §5 of that file; (iv) the
+ND-MC compile gate runs when the leaf touches an exported surface. A
+worker's `lake build` report is not acceptance evidence for any of the four.
+**The mechanical checks run as one command, `.claude/leaf-gate.sh word-ram`
+(E31).** Landing that script precedes P4.5.B, and its first use validates
+it; a gate that exists only as supervisor prose has already failed silently
+once (F9). This is not P8 pulled forward — P8's Lean-side commands
+(`#slot_sweep`, `#cost_probe`) stay where they are.
 
 **The D4 clause above binds from P4.5, read through the provenance rule.**
 "Every executable layer gets `Decidable`/`#eval` instances and Plausible
@@ -580,8 +561,10 @@ cost two `irUnit`s, O(1) in `n`. Two properties it rests on:
   which is sound because `lo_init` makes an all-`None` EO array own no element
   memory for any concrete contents. This dissolves the O(n)-init × n-arenas →
   n² problem the campaign has been working around structure by structure.
-  Contingent on never reusing: **no-reuse is a stated, enforced invariant**,
-  and if free/reuse is ever added the bound reverts.
+  Zeroness is established at machine entry and consumed linearly (E27):
+  no-reuse of *zeroed* space is a consequence of the split law rather than
+  an enforced invariant, and reuse of *raw* space (E28) does not disturb
+  the bound.
 - **Exhaustion is a global side condition, and it already exists.**
   `Layout.FitsWords (B x) w` (`Compile.lean:85`), consumed only by
   `computesInTime_of_spec`, **is** "total allocation ≤ `2 ^ w`" stated once at
@@ -590,17 +573,44 @@ cost two `irUnit`s, O(1) in `n`. Two properties it rests on:
   per-operation copy is precisely the rule-5 violation that produced the
   conditional append.
 
-Deallocation is **excluded by our decision, not by a source gap** (ledger
-E23). The source supports and proves deallocation (`mop_oarray_free` +
-`hnr_eoarray_free`, `:328–340`, under `set xs ⊆ {None}`); what it declares
-false is the automatic `MK_FREE` **frame rule**, which we therefore do not
-state at all. Excluding `free` itself is ours: non-reuse is exactly what buys
-the O(1) allocation, so free-with-reuse forfeits it and free-without-reuse
-buys nothing. Consequence stated plainly — **peak memory equals total
-allocation.**
+Deallocation is **landed, on two availability flavours** (ledger E23 as
+amended, E27, E28): zeroed (`avail`) and raw (`availRaw`), zeroed entailing
+raw and not conversely — the O(1) boundary sits at *knowing* a region reads
+zero, not at never having touched it. `free` is one instruction, LIFO only;
+use-after-free is underivable by linearity. The `MK_FREE` frame rule stays
+unstated because the source declares it false. "Peak memory equals total
+allocation" is repealed: only the **live set must fit, plus whatever LIFO
+cannot reclaim**.
 
-Leaf sequence: **A.1** the heap view (range algebra + heap-view triples),
-**A.2** the allocator. Detail in `p4.5-design.md` §4.
+**Consumer space budget (E29) — the law the repeal does not lift.** The
+global exhaustion condition `Layout.FitsWords (B x) w` quantifies over every
+admissible word length, and the consumer headline's domain (ND-MC C0)
+admits `2 ^ w` **linear in `|x|`** — the seam probe's
+`no_word_size_for_sparse` mechanism. Address space on that path is
+therefore strictly scarcer than time: the time budget is `n^{1+ε}`, but
+live + LIFO-unreclaimable allocation must stay `O(|x|)`. Even touched-only
+per-arena *fresh* allocation (Σ|X_c| ≈ n^{1+ε}) blows it. Three
+consequences bind P4.5's remaining leaves, P5.E, and P9:
+
+- Loop-interior structures (per-turn, per-arena) either reuse — raw
+  allocation over LIFO-freed space, or caller-owned buffers — or must be
+  shown live-set-bounded. Geometric-growth leaks under LIFO are
+  live-set-bounded and tolerable; unfreed per-turn buffers are not.
+- Zeroed availability out of reused memory costs O(n) and has no theorem
+  (E28), so trail/touched-only reset remains the loop-interior discipline
+  for structures needing clean state per arena. The allocator does not
+  supersede the touched-only law; it complements it.
+- **Registration discipline.** Which rule enters `sepref_fr_rules` as the
+  synthesis default is a per-family decision recorded at re-seat time:
+  allocating forms for setup-scale operations, reuse/in-place forms for
+  loop-interior operations. Synthesis must not be able to silently pick an
+  allocating form inside a loop and fail only at the bridge, sessions
+  later.
+
+Leaf sequence: **A.1** the heap view, **A.2** the allocator, **A.3**
+deallocation — all landed 2026-08-02 (`7b9ed53`, `64a0498`, `65d7af1`;
+ledger E25–E28); **B** and **C** below remain. Detail in
+`p4.5-design.md` §4.
 
 **B. Element-level ownership.** Port `mop_oarray_extract` / `mop_oarray_upd`
 and `eoarray_assn`: slot-wise `Some`/`None` ownership, `extract` requiring
@@ -616,7 +626,58 @@ underneath.
 *Acceptance:* `alloc` green with proved O(1) cost and verified codegen; the
 ownership layer green; at least one P5.B structure re-seated (see P5.E) and
 its previously conditional operation restated **unconditionally** under only
-the global address-space side condition; zero `sorry`; gate law satisfied.
+the global address-space side condition; the **compiled space-budget probe**
+(E29): a driver-shaped skeleton — setup allocation, then turns × levels of
+arena passes over LIFO-reused or caller-owned storage — fits the smallest
+admissible word on a C0-shaped domain, with the negative control that the
+same skeleton on per-turn fresh zeroed allocation provably does not (the
+`no_word_size_for_sparse` shape aimed at the heap pointer); zero `sorry`;
+gate law satisfied.
+
+### P4.6 — orderCom whole-phase synthesis probe · budget ≤ 1 session
+
+The retry Jan ordered on 2026-08-02 ("ahead of the ND-MC cost residue"),
+slotted at the earliest point its dependencies allow (ledger E30): it needs
+P1's signature machinery (landed) and P4.5's constructible structures —
+nothing in P5.D, P5.E breadth, or P6 is load-bearing for a capped probe,
+and every session spent there before the probe risks being on the branch
+the probe kills. It runs right after P4.5's acceptance re-seat and before
+P5.D/E breadth.
+
+The "whole-phase synthesis over 15 arrays is intractable" verdict is stale
+for checkable reasons: the recorded cause was hand-holed `sepref_synth`
+goals (`Refine/OrderBridge.lean:36`, `Sepref/Definition.lean:24`), assigned
+to and landed in P1; `transComb` stable-partitioning `hnr_seq` behind
+`hnr_bind` killed the 2^depth retranslation blowup (>9 min → 49 s on one
+real program — exactly what a whole phase would hit hardest); and P4.5
+gives a closed IR program somewhere to get its structures from. Nobody has
+retested since. At the measured exponent 1.28–1.35, a phase 8× BFS's op
+count extrapolates to ~12–15 minutes: slow, and affordable once.
+
+**Run it as a measured probe, not an open-ended attempt:** count
+`orderCom`'s ops, full rule DB, wall-clock cap, record where the time goes
+against BfsQ's 49 s. Outcome routing:
+
+- **Lands, carrier-blind** — the criterion is P9's, checked here: the
+  empty-arena charge is O(1), compiled. A synthesis that completes but
+  reproduces `hKo`'s size-blind cost kills no floor and routes as a miss.
+  On a landing, the order/cover phases are re-derived rather than repaired,
+  most of the ND-MC cost residue stops existing, and the remaining
+  P5.D/P6 content is re-reviewed against what the synthesis actually
+  consumed before those phases run at breadth.
+- **Misses the cap** — P7 gets its target profile from a real phase
+  instead of P0's synthetic 3–5× program, and the ND-MC residue proceeds
+  as planned. Worth having either way.
+
+Also favoring the early slot: `hKo`'s size-blind `orderPhaseCost n ns W` is
+the compiled interface floor's main driver
+(`C0Probe.level_interface_floor`), and a synthesized order phase replaces
+it with a derived cost instead of a hand-written constant.
+
+*Practical constraint:* cannot run concurrently with an ND-MC wave — ND-MC
+requires `Lax13Proofs`, so rebuilding the tower contends on the Lake lock
+and invalidates the consumer build; that contention already cost one wasted
+ND-MC baseline on 2026-08-02.
 
 ### P5 — IICF breadth · budget 2–3 sessions (A–C landed; D/E rescoped in rev 5)
 
@@ -654,7 +715,11 @@ Invented per-structure exercises do not become API requirements.
   `daReadyRel` while restating both pushes unconditionally is the acceptance
   test for P4.5. Re-seating is *statement strengthening plus substrate
   substitution*; the representation theory and the abstract refinement layer
-  are reused, not rewritten.
+  are reused, not rewritten. E29 qualifies the re-seat: deletion applies to
+  the ready *relations*, not to the bounded caller-owned operation forms,
+  which remain landed capital for loop-interior use; and each re-seat
+  records its registration-default decision — allocating vs reuse form per
+  operation — as E29 requires.
 
 - **Hygiene, folded into P5.E (ledger E21).** Five global attribute
   mutations land unrestored: `attribute [irreducible]` on `marlPred`
@@ -716,54 +781,9 @@ each entry closed or re-ledgered with an explicit reason.
 
 ### P7 — Frame-layer performance · budget 1–2 sessions
 
-**Scheduled ahead of P7: retry whole-phase synthesis on `orderCom`
-(Jan, 2026-08-02). Run it BEFORE ND-MC's cost residue — which, corrected
-later the same day, means ahead of C0 rather than after it.**
-
-*Timing corrected.* This was first scheduled "at Gate G4, after C0 discharges,
-before the cost residue", on a supervisor error: B7 finding 2, the interface
-cost floor, was wrongly recorded as closed by the word-bound repair. It is
-not — `C0Probe.level_interface_floor` runs off `hKo`/`hKs`/`hKl`, which the
-root still carries verbatim, and the `WordBoundK` work is about word length,
-not cost. So C0 requires the residue and "after C0, before the residue" was
-self-contradictory. The floor also strengthens the case for going early:
-`hKo`'s size-blind `orderPhaseCost n ns W` is the floor's main driver, and a
-synthesized order phase replaces it with a derived cost instead of a
-hand-written constant.
-
-The "whole-phase synthesis over 15 arrays is intractable" verdict is stale,
-and for a checkable reason. The traceability table records the cause as
-`sepref_synth` goals being **hand-holed** (`Refine/OrderBridge.lean:36`,
-`Sepref/Definition.lean:24`) — synthesis got *stuck*, not merely slow — and
-assigns that row to **P1**, which landed. Nobody has retested since. Also
-changed underneath it: P2–P4; the BfsQ repairs, especially `transComb`
-stable-partitioning `hnr_seq` behind `hnr_bind`, which killed 2^depth
-retranslation and took one program from >9 min to 49 s (exactly the blowup a
-whole phase would hit hardest); and P4.5, without which no closed IR program
-could *construct* a structure at all, so a phase over 15 arrays had nowhere to
-get them from.
-
-P7's exponent is a cost curve, not a wall: at 1.28–1.35, a phase 8× BFS's op
-count extrapolates to ~12–15 minutes. Slow, and affordable once.
-
-**Why at G4 and not later.** The cost residue (E-mem, member-driven interiors,
-E-order re-run, E3b, E4c, R1.8) is largely hand-repair of the order and cover
-phases' costs — `coverCost`'s `100n²`, `coverSaveCost`'s `12(n*n)`, the
-per-centre carrier walk. If whole-phase synthesis works those phases are
-**re-derived rather than repaired** and much of that residue stops existing,
-so doing the residue first risks hand-fixing what synthesis would replace.
-Running it before C0 instead would stall a headline that is close.
-
-**Run it as a measured probe, not an open-ended attempt:** count `orderCom`'s
-ops, full rule DB, wall-clock cap, and record where the time goes against
-BfsQ's 49 s. If it lands, re-derive the phase and drop residue items. If it
-blows past the cap, we get P7's target profile from a **real** phase instead
-of P0's synthetic 3–5× program — worth having either way.
-
-*Practical constraint:* it cannot run concurrently with an ND-MC wave. ND-MC
-requires `Lax13Proofs`, so rebuilding the tower contends on the Lake lock and
-invalidates the consumer build — that contention already cost one wasted ND-MC
-baseline on 2026-08-02.
+(The orderCom synthesis retry formerly slotted at this boundary is now
+phase **P4.6**; if it missed its cap, its telemetry is P7's primary profile
+input in place of P0's synthetic program.)
 
 The measured scaling wall: synthesis exponent 1.28–1.35 in op count and
 `fri` alone 28% of a 100-op synthesis. Attack the frame/entailment layer with
@@ -815,7 +835,7 @@ Deviation-ledger and declaration-coverage review; explicit disposition of
 the quarantined P10 backlog; verdict and handoff notes; README/index and
 memory updates.
 
-**Total budget: 17–28 sessions.** The tower campaign beat the same-shaped
+**Total budget: 17–29 sessions** (P4.6 adds ≤ 1). The tower campaign beat the same-shaped
 budget 5×; set expectations by the budget, not the precedent — P1 and P9
 carry genuine design risk (signature machinery meets Lean's weaker HOU;
 the seam is the largest synthesis attempted).
@@ -876,6 +896,36 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-02 — Rev 6 (Fable review session): P4.5.A recorded, probe
+  re-slotted, space-budget law, mechanized gates, plan superseded in
+  place.** Landed after the session-close entry below and recorded here:
+  **P4.5.A.1–A.3 are green** — range ownership (`7b9ed53`), the costed
+  O(1) allocator (`64a0498`), deallocation on two availability flavours
+  (`65d7af1`; E23 amended by `b39293c`) — with ledger E25–E28 the full
+  record; on the consumer side, the ND-MC compile gate (`dcdca31`) and the
+  ND-MC word-bound repair W1–W3 landed. Rev 6 changes, from an external
+  review of the plan (ledger E29–E31): (1) the **consumer space-budget
+  law** (E29) — address space is scarcer than time on the C0 path; live +
+  LIFO-unreclaimable allocation must fit a word linear in `|x|`;
+  registration discipline for allocating vs reuse forms; a compiled
+  space-budget probe added to P4.5's acceptance. (2) The orderCom synthesis
+  retry is re-slotted from the P7 boundary to new **P4.6**, immediately
+  after P4.5 (E30) — its dependencies are P1 and P4.5 only, and its outcome
+  reprioritizes P5.D/P6 and the ND-MC residue; "lands" now requires
+  carrier-blind, compiled. (3) Governance (E31): Opus supervises day to day
+  (Jan's cost decision), Fable reviews at phase boundaries and owns
+  clause-2 acceptance; the closure rule — closures name their compiled
+  artifact; the gate law is mechanized as `.claude/leaf-gate.sh`. (4) The
+  plan's revision archaeology is folded into ledger E31 per the
+  supersede-in-place rule. The ND-MC plan gains the `g2_exists`
+  re-validation gate ahead of its residue. `.claude/leaf-gate.sh` landed
+  and was validated end-to-end the same session (concepts 505, proofs
+  3,277, lax audit, consumer build 3,549 jobs): its FAIL verdict is
+  exactly the two known pre-existing `GetElem?.match_1.splitter`
+  violations — the gate is strict on purpose, so clearing those two small
+  repairs is the first chore of the next session. **Next: the two
+  splitter repairs, then P4.5.B.**
 
 - **2026-08-02 — Session close: campaign is READY TO RESUME AT P4.5.A.**
   State a next session can rely on without re-deriving it:

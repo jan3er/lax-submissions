@@ -420,8 +420,10 @@ session, per-wave ledgers in the commit messages e5e0f91..10e6dc4):
   membership representation, so E-mem is once again about cost only:
   `RamCover.coverCost = 100n² + 50n·ns + …`, `coverSaveCost`'s `12(n*n)`,
   the cluster load's `16(n*n)`, and the per-centre carrier walk in the
-  emission scan. The prerequisite now ahead of it is the `WordBoundK`
-  threading, W1–W3 below.
+  emission scan. The `WordBoundK` threading W1–W3 has landed; the
+  prerequisites now ahead of E-mem are the tower campaign's **P4.6
+  synthesis probe** and the **`g2_exists` re-validation** (items 3 and 4 of
+  "What remains before C0" below).
 - **Supervisor recommendation (1) — EXECUTED 2026-08-02, and it found a
   third boundary fact.** `Refine/BridgeSeamProbe.lean` (632 lines, 45
   declarations, compiled). See "Seam probe findings" below. Recommendation
@@ -1139,15 +1141,30 @@ plus the allocation clause.
    (`level_interface_floor_cubic`). **C0 is unreachable through the root as it
    stands, and the repair is the cost residue, not B7.**
 
-**Sequencing consequence, and it inverts an earlier decision.** The
-2026-08-02 note in `plans/word-ram/tower-expansion-plan.md` §P7 scheduled the
-whole-phase synthesis retry on `orderCom` "at Gate G4 — after C0 discharges,
-before the cost residue". Given the floor, that is self-contradictory: G4
-requires C0, C0 requires the residue. The retry therefore moves **before the
-residue**, i.e. ahead of C0 rather than after it — and the floor strengthens
-the case, because `hKo`'s size-blind `orderPhaseCost` is the floor's main
-driver and is exactly what a synthesized order phase would replace with a
-derived cost rather than a hand-written constant.
+3. **The `orderCom` synthesis probe runs first, tower-side.** The retry is
+   now the tower campaign's phase **P4.6**, immediately after its P4.5
+   (tower ledger E30); an earlier note scheduling it "at Gate G4, after C0"
+   was self-contradictory (G4 requires C0, C0 requires the residue) and is
+   superseded. The floor strengthens the early slot: `hKo`'s size-blind
+   `orderPhaseCost` is the floor's main driver and is exactly what a
+   synthesized order phase replaces with a derived cost rather than a
+   hand-written constant. "Lands" means **carrier-blind, compiled** (the
+   empty-arena charge is O(1)); a synthesis that completes at the size-blind
+   cost routes as a miss. On a landing, the order/cover phases are
+   re-derived rather than repaired and most of the residue chain above
+   stops existing.
+
+4. **`g2_exists` re-validation before any residue wave.** The residue's
+   arithmetic — `g2_exists` and the E-mem budget chain — was compiled
+   against the pre-P4.5 tower cost model. P4.5 changed the substrate (O(1)
+   allocation, LIFO free, availability resources; tower ledger E25–E29),
+   so if the probe misses and the residue proceeds, one short compiled wave
+   first re-runs the existence probe against the post-P4.5 forms. The
+   tower's E29 space budget also binds every residue and P9 design choice:
+   on the C0 domain, live + LIFO-unreclaimable allocation must stay
+   `O(|x|)`, so member lists and per-arena scratch stay caller-owned or
+   LIFO-reused — per-turn fresh zeroed allocation is budget-fatal, and
+   trail/touched-only reset remains the loop-interior discipline.
 
 ## Slot sweep (2026-08-02) — `Refine/SlotSweep.lean`, and finding 2 is not closed
 
