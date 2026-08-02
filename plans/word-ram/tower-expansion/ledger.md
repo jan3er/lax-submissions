@@ -1832,3 +1832,107 @@ all three primitives, all five exec rules and
 `heapArrayListAssn_entails_packed`, every one
 `[propext, Classical.choice, Quot.sound]`. `arlAppendOp_refines` unchanged
 and `arlAppendOp_refines_unchanged` still passing.
+
+### E39 — append synthesizes end to end; and `butlast` breaks the invariant it needs
+
+**Status: landed, with one named composition gap** (leaf P4.5.A.8, new
+`Iicf/Impl/ArrayListAppendSynth.lean`, 1,062 L, 58 `#guard`s).
+Added 2026-08-02.
+
+*The result.* Array-list append is **one `Com`, one `hnRefine`, an exact
+price, both branches live**:
+
+```
+nc := cap * two
+if len < cap then
+  adr := bc + len ; heap[adr] := xc ; len := len + one ; dc := bc ; skip ; skip
+else
+  pc := $hp ; $hp := $hp + nc
+  si := bc ; se := bc + len ; one := 1 ; di := pc ; dc := pc
+  while si < se { t := heap[si] ; heap[di] := t ; si += one ; di += one }
+  heap[di] := xc ; len := len + one ; cap := nc ; skip ; skip
+```
+
+Both **branches** come out of `sepref_synth`; the **dispatch** is composed
+(`hnr_seq` for the leading `mul`, `hnr_If` for the branch) and used **by
+name**, never registered — E29, for the concrete reason that the command
+allocates, compiled as `mentions hpName arlHAppendCom = true` against
+`… arlHAppendInPlaceCom = false`.
+
+*How the moving base was merged.* It disappears from the **result**
+assertion, which `hnr_If` will not merge (it requires equality), not from
+`Γ`. Growth is already packed, `mopAlloc`'s base being existential; the
+in-place branch is weakened pinned → packed by one `hnRefine_cons_res` over
+the landed `heapBlockAssnAt_entails_heapBlockAssn`, and **no program runs
+for it**. `MERGE`'s three real disagreements — which cell names the live
+block, where availability now starts, whether a superseded block is still
+allocated — are discharged in `arlHAppendMerge`; the last two become one new
+assertion `arlAppendResidue k` ("at least `k` free cells somewhere, at most
+one dead block"), which is the honest post and connects to E34's leak bound.
+
+*F11, fifth appearance, and it held.* The per-branch cost table is
+`arlHAppendMachineN`; `arlHAppendRaw_eq` proves it is what the judgment pays,
+and § 10 `#guard`s it against what the **emitted program** charges on a
+concrete heap. Matched exactly on both branches, nothing adjusted. `dynRate`
+domination still holds untouched (`arlHAppendMachineN_dominated`), so
+`ArrayListCash.lean` needed no constant bumped and is not edited — and the
+amortized shape transfers verbatim (`arlHAppendMachine_amortized_ir`:
+emitted cost + new potential ≤ the length- and capacity-free
+`arlIrAdvertisedCost` + old potential).
+
+*`arlTight` is a representation invariant, not a reintroduced
+precondition.* The heap dispatch is two-way but `arlAppendTotal` has
+**three** branches; the middle one (logical doubling inside a physically
+larger buffer) exists only when the caller owns more than its capacity,
+which a freshly allocated heap block never does. The rules therefore carry
+`arlTight s : s.capacity = s.buffer.length`, **in exactly the position
+`s.Wf` occupies** in the landed `arlAppend_exec_hnr` convention.
+`arlAppendTotal_tight` proves append preserves it, `arlTight_no_double`
+proves it kills the middle branch, and a compiled control shows the two
+models genuinely disagree at a slack state. The dispatch adds no caller
+obligation: the `len < cap` guard is internal and both branches are total.
+`arlAppendOp_refines` is untouched, `arrayListReadyRel` stays deleted, and
+`arlHAppend_leaves_append_unchanged` re-checks
+`arlAppendOp_refines_unchanged` as a term of the new file.
+
+**NEW OPEN ITEM — `butlast` destroys `arlTight`, so append-after-butlast is
+not covered.** Supervisor check, 2026-08-02, verified concretely rather than
+reasoned: `arlButlast?` returns `⟨s.buffer, n, arlShrinkCapacity s n⟩` — the
+buffer **unchanged**, the capacity possibly reduced — and `butlast` is one
+of the seven operations that came across to the heap representation (E38),
+where it emits the *identical* metadata-only command. Evaluated: a tight
+block `⟨replicate 100 0, 17, 100⟩` goes to `(buffer 100, length 16,
+**capacity 32**)`, so `arlTight` fails and `arlHAppend_exec_hnr` no longer
+applies. This is **not** a weakening of append — the abstract guarantee
+`arlAppendOp_refines` is unconditional and untouched — but a program that
+does `butlast` then `append` cannot be synthesized with the landed rules.
+Three routes, in preference order:
+(a) **drop the logical shrink in the heap representation.** The LIFO
+    allocator cannot return the tail anyway (`free_nontop_false`), so the
+    shrink buys nothing physical; the block stays at its geometric size,
+    which E34's `arlAllocatedMany_live_bounded` already bounds at ≤ 4× live,
+    so E29's space budget is unaffected. Costs only a space *constant*,
+    which is explicitly a non-issue (Jan, 2026-08-02).
+(b) restore the three-branch dispatch, generalizing the rules to slack
+    states.
+(c) prove the slack harmless by having the dispatch handle it.
+(a) is the recommendation: it is the smallest change and it removes the
+invariant's only known violator.
+
+*Falsification.* Seven control families, all flipped, all bite, and all
+chosen so the mutilated programs **run to completion rather than faulting**
+(`isSome`-guarded, following E38's lesson): guard against the doubled
+capacity (a full buffer takes the in-place branch and writes past the
+block); guard reversed (a state with room allocates and moves `hp`); the
+in-place block move dropped; the growth capacity write dropped; the growth
+length bump dropped; six one-unit perturbations of the predicted vectors;
+and `arlPushGrown ≠ arlAppendTotal` at a slack state, which is what makes
+`arlTight` load-bearing rather than decoration. Positive differentials: both
+branches' block and `(len, cap)` read back equal `arlAppendTotal`'s answer.
+
+*Closure artifact.* `.claude/leaf-gate.sh word-ram` → `LEAF GATE: mechanical
+checks PASS`: concepts 505, proofs 3,283 → **3,284**, `lax build: OK` with
+zero violations, consumer **3,549** unchanged. Zero
+`sorry`/`admit`/`native_decide`; `#print axioms` on every main theorem
+`[propext, Classical.choice, Quot.sound]` (`arlAppendTotal_tight`:
+`propext, Quot.sound`). `ArrayList.lean` and `ArrayListCash.lean` not edited.
