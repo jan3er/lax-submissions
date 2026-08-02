@@ -1047,3 +1047,72 @@ draft stated that relation as two lemmas whose statements mentioned neither
 `m`); they were deleted as decoration of the F11 kind. `debt-register.md`
 SEP-16 records the prose-only status, the deletion, and the closure test at
 the `Codegen/` boundary.
+
+### E28 — deallocation, on two availability flavours
+
+**Status: accepted (replaces E23's withdrawn clause).** Added 2026-08-02 with
+P4.5.A.3.
+
+```lean
+def rawSpace (hp k : ℕ) : Assn := ∃ᵃ zs, (⌜zs.length = k⌝ ∗ (hp ↦ₕ zs))
+def availRaw (hp k : ℕ) : Assn := (hpName ↦ᵥ hp) ∗ rawSpace hp k
+
+theorem avail_entails_availRaw : avail hp k ⊢ availRaw hp k
+theorem availRaw_not_entails_avail : ¬ (availRaw hp 1 ⊢ avail hp 1)
+```
+
+That pair is the entry's point, and it is why E23's first clause was wrong.
+The O(1) boundary sits at **knowing** a region reads zero, not at never having
+touched it — and now a compiled theorem pair says so rather than an argument.
+Zeroed entails raw; raw does not entail zeroed, because recovering zeroness
+costs O(n), which is simply true and therefore gets no theorem.
+
+The existential in `rawSpace` is the source's own device (`nao_assn A xs p =
+EXS xsi. …`): the abstract value of a raw allocation is its **size**, contents
+hidden in the relation, which also keeps the abstract operation deterministic
+so the landed `hnRefineI_spect` still applies.
+
+*Why both flavours cost the same.* `allocGen_triple` — the allocator is
+**heap-blind**, so the space assertion rides through as a frame and both
+`alloc_triple` and `allocRaw_triple` are instances of it. `alloc_triple`,
+`alloc_rule`, `hnr_mop_alloc` and `alloc_junk_rule` keep their statements
+**byte-identical** (verified by diff against `64a0498`); only `alloc_triple`'s
+proof changed, to go through the general rule. E24's headline did not move.
+
+*`free`.*
+
+```lean
+def freeCost (_n : ℕ) : ECost := irUnit Currency.sub
+def freeProg (nc : String) : Com := Com.binop Imp.Bop.sub hpName hpName nc
+```
+
+**One instruction, not two** — a supervisor spec error, caught and refused by
+the worker rather than padded. `alloc` needs two because it must both read the
+old bump pointer (that is its result) and advance it; `free` returns nothing,
+so only the pointer move remains. Padding with a `skip` for symmetry would
+charge a currency for nothing and break the cost-as-equation claim.
+
+Adjacency is the **shape of the precondition** — you own the block *and* the
+availability starting exactly at `p + xs.length` — so `free_triple` has no
+arithmetic side condition and in fact no hypotheses at all. Use-after-free is
+underivable because `hnr_mop_free`'s Γ owns the block and Γ′ does not: the
+same linearity showcase as `hnr_mop_aset`, at deallocation.
+
+*Deviation: LIFO only.* The source frees arbitrarily; we free only the topmost
+block. No free list, no fragmentation story. It matches a recursive per-arena
+pass, which is a reason it is tolerable, not a reason it is general. Stated in
+the file rather than glossed.
+
+*Reachability.* All three rules driven by `sepref_synth` at a hole and pinned
+by `#guard`: `allocSynth`/`allocRawSynth` → `allocProg "p" "n"`, `freeSynth` →
+`freeProg "n"`.
+
+*Controls.* Twenty compiled gates; six flipped and all six bite, including the
+two that matter most — the round-trip must **not** return zeroed availability,
+and raw must **not** entail zeroed. Round-trips are theorems:
+`alloc_free_roundtrip` (space returns exactly, minus the zeroness) and
+`free_allocRaw_reuse` (free then re-allocate at the same base — the capability
+this entry unlocks).
+
+*Consequence for consumers.* "Peak memory equals total allocation" is repealed
+(E23). Only the live set must fit, plus whatever LIFO cannot reclaim.
