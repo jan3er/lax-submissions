@@ -1629,3 +1629,99 @@ diff**, and `arlAppendOp_refines_unchanged` re-checks the landed rule as a
 compiled term at `fref (fun _ : List ℕ => True) arrayListRel`;
 `arrayListReadyRel` stays absent. Zero `sorry`/`admit`/`native_decide`; eight
 `#print axioms` gates all `[propext, Classical.choice, Quot.sound]`.
+
+### E37 — the cursor-setup block: growth is one synthesized command, and the prediction held
+
+**Status: landed; closes E35's named gap and E36's "no landed single emitted
+command for growth".** New `Iicf/Impl/ArrayListGrowSynth.lean`;
+`Iicf/Impl/ArrayListGrow.lean` header supersedes its open-item section.
+Added 2026-08-02.
+
+*The block, emitted.* `sepref_synth` produces growth as **one command**:
+
+```
+pc := $hp ; $hp := $hp + nc          -- allocProg (A.2, registered)
+si := sc ; se := sc + lc ; one := 1 ; di := pc ; dc := pc
+while si < se do { t := heap[si]; heap[di] := t; si += one; di += one }
+heap[di] := xc                       -- push form only
+```
+
+`arlGrowSynth_impl` is the first, `arlGrowPushSynth_impl` the growth
+*branch* of `arl_append`; both are pinned by `#guard` against fully expanded
+`Com` terms.
+
+*Why the block is one rule and not five synthesized steps.* Two structural
+walls, both reported by the synthesizer rather than guessed at. (1)
+`hnr_seq`'s continuation binds a synthesized step's result value
+**universally** — downstream the context says "`one` holds something", never
+"`one` holds `1`" — while `hnr_mop_blit` genuinely needs `si ↦ᵥ sp`,
+`se ↦ᵥ sp+n`, `one ↦ᵥ 1`. That is why every landed consumer in this tower
+takes `one` as a caller-supplied `hnCtxt natAssn 1 one`. (2) `mopAlloc`'s
+result is `heapBlockAssn … pc = ∃ᵃ p, (pc ↦ᵥ p) ∗ (p ↦ₕ …)`, and a rule that
+lets the block's ownership *survive* the binder cannot compose at all
+("there is no junk form for its assertion"). Both are answered by putting
+the five instructions in **one** registered rule, `hnr_mop_growBlock`, which
+eliminates the existential inside itself and consumes the block. What is
+left for synthesis is exactly two steps, and it finds both.
+
+*The prediction check — and it matched.* E36's `arlBlitSetupN =
+⟨copy 3, const 1, add 1⟩` was written from a *description* of this block
+before the block existed: F11's failure class, fourth opportunity. Checked
+two independent ways: `arlBlitSetupN_toE : arlBlitSetupN.toE = arlSetupCost`
+(the vector equals what the composed triple pays), and
+`#guard growRunVec growDemoOut.2 = arlAllocN + arlBlitSetupN + arlBlitN 3`
+(the emitted program, run by `evalFuel` on a concrete heap, charges exactly
+that). **Exact match.** So `arlAppendMachineN`'s growth branch stands and
+`ArrayListCash.lean` has a zero diff — the first cost prediction in this
+campaign to survive its own program. The one degree of freedom is named
+rather than hidden: aliasing `dc := pc` would save one `ir.copy`, but the
+block must land in the caller's own buffer cell, which is occupied at
+allocation time and so cannot be the allocator's junk destination.
+
+*Disjointness is produced, not assumed.* The composed rule carries **no**
+arithmetic separation hypothesis. The caller supplies `sp ↦ₕ xs` and the
+availability resource; `hnr_mop_alloc` splits `dp ↦ₕ replicate n 0` out of
+`avail hp (n+k)` (`avail_split`), so the two ranges sit side by side in one
+assertion, and `avail_owns_nothing_below` / `alloc_no_reuse` are why the
+fresh range cannot be part of the live one. The only side conditions are the
+two length bounds, inside the `mop`'s own `assert`, discharged from `Wf` in
+`arlGrowRaw_eq` / `arlGrowPushRaw_eq`.
+
+*E29 decision, discharged mechanically.* The two **blocks** are registered;
+the two **composed commands** are not. `growBlock_no_hp` / `growPush_no_hp`
+are compiled checks that neither block mentions `hpName` anywhere, with
+`allocProg_uses_hp` as the positive control that the check can fail — so
+these rules cannot let synthesis place an allocation inside a loop, there
+being none in them. Registering `arlGrowSynth_impl` *would* be the E29
+failure mode (it begins with `allocProg`), and nothing needs it: growth is
+reached by naming `arlGrowRaw` / `arlGrowPushRaw`.
+
+*What is still open — append is not end-to-end.* The remaining gap is
+**representational, not combinatorial**: `ArrayList.lean` holds the buffer as
+a named IR array (`arrayAssn`, `A ↦ₐ xs`) while the allocator and the copy
+loop work on heap ranges (`p ↦ₕ xs` in the one reserved `heapName` array).
+No `arrayAssn ⟷ heapBlockAssn` bridge is landed, so the growth command cannot
+yet be the `else` branch of `arlAppendTotal`'s dispatch — the branch test,
+the length bump and the `(A, len, cap)` packing all live on the `arrayAssn`
+side. The missing statement is a rule of the shape
+`hnRefine (hnCtxt arrayAssn xs A ∗ …) c (…) A' heapBlockAssn (mopArrayToBlock xs)`
+and its converse, plus `hnr_If` over the two branches.
+
+*Falsification.* Five "drop exactly one setup instruction" controls
+(`si := sc`, `se := sc + lc`, `one := 1`, `di := pc`, `dc := pc`), each run
+against the emitted program from a state whose six scratch cells hold
+**distinctive junk** — the first draft used zeros and the `si` control did
+not bite, because zero happened to be the right value. Plus two cursor
+off-by-one controls (`lc + 1` breaks the value; `lc + 5`, the
+copy-the-capacity `n²` bug, breaks both value and price), a differential
+test of the emitted growth branch against `arlPushGrown`'s buffer, two
+wrong-element/wrong-index negatives on that test, and a `fail_if_success`
+that the composed triple is not derivable one payload short.
+
+*Closure artifact.* `.claude/leaf-gate.sh word-ram` → `LEAF GATE: mechanical
+checks PASS`: concepts 505, proofs 3,281 → **3,282**, `lax build: OK` with
+zero violations, consumer **3,549** unchanged. `ArrayList.lean` and
+`ArrayListCash.lean` both have a **zero diff**;
+`arlAppendOp_refines_unchanged` still compiles. Zero
+`sorry`/`admit`/`native_decide`; eight `#print axioms` gates all
+`[propext, Classical.choice, Quot.sound]`.

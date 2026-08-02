@@ -54,15 +54,28 @@ remains true either way is the shape: one copy credit per live element, so
 `⟨4, 1, 1, s.length⟩` on the growth branch and amortized `O(1)` over the
 doubling potential, unchanged.
 
-## What is still not closed
+## Where the composition lives
 
-Growth is now two registered rules and an exact price, but it is not yet one
-synthesized command: composing them needs a **cursor-setup block** — `si` and
-`se` from the live block's base, `di` and `dc` from `mopAlloc`'s result cell,
-and the literal `1` in `one` — which is five straight-line instructions at
-constant cost and no loop, plus the `hnr_seq` chain that threads them.  That
-is named here rather than softened, and it is the only thing between this file
-and end-to-end synthesis of `arlAppendTotal`.
+Growth is two registered rules and an exact price *here*; the **cursor-setup
+block** that composes them — `si` and `se` from the live block's base, `di`
+and `dc` from `mopAlloc`'s result cell, and the literal `1` in `one`, five
+straight-line instructions at constant cost and no loop — is landed in the
+satellite `ArrayListGrowSynth.lean`, together with the composition that makes
+growth **one synthesized IR command** (`arlGrowSynth_impl`, and
+`arlGrowPushSynth_impl` with the element write).  That file also checks the
+setup block's price against `ArrayListCash.lean`'s prediction `arlBlitSetupN`,
+by an equation and by running the emitted program.
+
+It is a separate file for the same reason this one is separate from
+`ArrayList.lean`: its two composed rules go into `sepref_fr_rules`, and the
+seven landed nonallocating commands must be synthesized before they do.
+
+What that still does **not** close is end-to-end synthesis of
+`arlAppendTotal`, and the obstacle is representational rather than
+combinatorial: `ArrayList.lean` holds the buffer as a named IR array
+(`arrayAssn`), while the allocator and the copy loop work on heap ranges
+(`↦ₕ`), and no bridge between the two is landed.  That is named there rather
+than softened.
 
 ## Registration default (ledger E29)
 
