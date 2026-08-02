@@ -1363,3 +1363,94 @@ theorems — all `[propext, Classical.choice, Quot.sound]`. Reachability:
 `sepref_synth eoExtractSynth` / `eoUpdSynth` drive off the registered rules
 with `#guard eoExtractSynth_impl = Com.aget "x" heapName "i"` and
 `#guard eoUpdSynth_impl = Com.aset heapName "i" "x"`.
+
+### E34 — E16's abstract half is discharged; the executable growth path is a new, named gap
+
+**Status: landed with a recorded boundary** (leaf P5.E first re-seat,
+`Iicf/Impl/ArrayList.lean` + new `Iicf/Impl/ArrayListGrow.lean`).
+Added 2026-08-02. **E16 is amended, not closed.**
+
+*What is repaired.* `arlAppendOp_refines` is now registered over
+`arrayListRel`, with the fref precondition `fun _ : List ℕ => True` — the
+hypothesis list of `arlCopyOp_refines`, character for character.
+`arrayListReadyRel` and `arrayListReadyAssn` no longer exist as declarations.
+`arlAppendOp` has no `NRest.fail` branch: it is
+`NRest.returnT (arlAppendTotal s x)`. E16 named the defect at exactly this
+layer — *"a caller holding only `arrayListAssn` can no longer conclude that
+append succeeds"* — and at that layer it is gone. The compiled control
+`arlAppend_succeeds_at_full_buffer` instantiates the refinement at
+`⟨[1,2,3,4],4,4⟩`, the state the deleted relation excluded
+(`boundedPush … 0 = none`), supplying only `arrayListRel` membership; a
+readiness conjunct re-added anywhere along the chain would stop it
+elaborating.
+
+*What is not repaired, stated as a gap rather than a caveat.* Growth's
+element-wise copy has **no IR realization**. `arlGrowSpec` is
+`mopAlloc (2·cap) >>= copy` and `arlGrowSpec_eq` proves its value is exactly
+`arlGrow s` and its price exactly `allocCost (2·cap) + arlCopyCost s.length`
+— so `arlGrow` is a derived state, not a postulate — but the copy is a
+bounded `while` over two `↦ₕ` ranges and **no such loop rule is landed**.
+Heap ranges arrived only at A.1, so this is new territory, not an oversight.
+Consequence: append is not synthesizable today. It was not synthesizable
+before either — `arlAppend_exec_hnr` is unregistered and keeps failure
+observable through an `ok` flag — so **the conditionality did not migrate to
+the `hnr` layer**; there is no registered `sepref_fr_rules` append rule at
+all, before or after. That distinction is the whole reason this counts as
+progress rather than relocation. *Next leaf: the range-copy loop rule.*
+
+*Cost, honestly.* The raw price is **not** constant and is not claimed to be:
+`arlAppendCostN` is P4's `boundedPushCostN` verbatim on the two in-place
+branches, and `⟨4,1,1,s.length⟩` on the growth branch — the allocator's two
+`n`-independent units on top of the doubling branch's two, plus one copy
+credit per live element. The public statement is **amortized O(1)** over the
+standard doubling potential `2·length − capacity`:
+`arlAppend_amortized_costN` advertises `⟨4,1,1,2⟩`, independent of length and
+capacity, and `arlAppendRaw_le_amortized` is the `reclaim`-surface statement
+mirroring the landed `sourcePushRaw_le_amortized`. Costs stay vectors
+throughout.
+
+*The LIFO leak, bounded rather than mentioned (E29 applied).* Growth
+allocates **above** the live block, so the superseded buffer is not
+top-of-stack and `free_nontop_false` makes it unfreeable. That is a leak and
+it is stated as one. `arlAllocatedMany_live_bounded` proves
+`arlAllocatedMany s ys ≤ 4 · (arlAppendMany s ys).length`: the total heap
+ever allocated across a whole run, every leaked block included, is at most
+four times the final live set. This is exactly the case E29 anticipated —
+*"geometric-growth leaks under LIFO are live-set-bounded and tolerable;
+unfreed per-turn buffers are not"* — discharged as a theorem rather than
+inherited as a permission.
+
+*A file boundary crossed deliberately, and why it was right.* `ImplHeap.lean`
+consumed `arrayListReadyRel` in five places, so "the relation does not occur
+in the package" and "do not edit another landed structure" could not both
+hold. The relation is **relocated verbatim** as
+`ImplHeap.implHeapArrayReadyRel` (the identical set), every proof going
+through by name substitution alone. `ImplHeap`'s guarantee is unchanged — its
+insert stays conditional, which is the separately gated `Impl_Heapmap` leaf —
+and the deviation now sits in the structure that actually owns it rather than
+being charged to the array list. `implHeapInsertPre` had been isolated for
+precisely this handoff.
+
+*Falsification ran before proof, and killed an assumption.* Two standalone
+Lean runs enumerated ~400 well-formed states and 80 push runs against
+snoc-correctness, well-formedness, the amortized inequality and the
+allocation bound. One design assumption died there: `arlPushGrown` alone is
+correct on every well-formed state, so the branch in `arlAppendTotal` is
+load-bearing for **cost**, not correctness — now recorded as a `#guard`.
+Eight controls were flipped in one build and all eight bit.
+
+*Registration default (E29).* `sepref_fr_rules` gains nothing from this leaf:
+the array-list family's registered executable rules stay the seven
+nonallocating commands plus P4's in-place form, so synthesis cannot silently
+place an allocation inside a loop. The allocating form is the default only at
+the **value** level, where `arlAppendOp_refines` is the `sepref_fref_thms`
+rule.
+
+*Closure artifact.* `.claude/leaf-gate.sh word-ram` → `LEAF GATE: mechanical
+checks PASS`: concepts 505, proofs 3,278 → **3,279**, `lax build: OK` with
+zero violations, consumer **3,549** unchanged, the other eleven landed
+structures rebuild unchanged and all seven `sepref_synth` commands in
+`ArrayList.lean` emit identical programs. Zero
+`sorry`/`admit`/`native_decide`; axioms compiled for
+`arlAppendTotal_refines`, `arlAppendOp_refines`, `arlAppendRaw_le_amortized`
+and `arlAllocatedMany_live_bounded`.

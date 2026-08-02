@@ -9,31 +9,60 @@ import Lax13Proofs.Refine.Iicf.Intf.List
 Adaptation of Sepreftime's `IICF_Array_List.thy` at commit `c1c987b`.
 
 The source owns a heap array and may allocate, copy, grow, and shrink it.
-This repository's P4 substrate deliberately has no allocation: a
-`BoundedArray` owns one caller-supplied buffer and may only double its logical
-capacity when the physical buffer already contains the doubled prefix.  The
-split below is therefore intentional.
+
+**P5.E re-seat, 2026-08-02 (ledger E16 discharged).**  Until P4.5 landed an
+allocator, this repository had no way to obtain a *fresh* buffer, so append
+was fallible and its registered refinement rule was stated over a
+`arrayListReadyRel` — a relation with no source counterpart, carrying the
+extra conjunct `boundedPush s 0 ≠ none`.  A caller holding only
+`arrayListAssn` could therefore not conclude that append succeeds, which
+`IICF_Array_List.thy:177` (`arl_append_hnr_aux`) states with no precondition
+slot at all.  That relation is **gone**, and `arlAppendOp_refines` is now
+registered over `arrayListRel` with exactly the hypothesis list of
+`arlCopyOp_refines`: `fun _ => True`.
 
 * The relation, list semantics, capacities, and all correctness/refinement
-  facts are retained.
+  facts are retained unchanged; this is statement strengthening plus
+  substrate substitution, not a re-derivation.
+* `arlAppendTotal` is the source's `arl_append` (`:30–42`): push in place when
+  a slot exists, otherwise `array_grow a (2 * cap) default` — a fresh block of
+  twice the capacity holding the copied active prefix and the allocator's
+  zeros — and then write.  It is **total**: `arlAppendTotal_refines` has no
+  side condition beyond the relation itself, and `arlAppendOp` never fails.
+* `arlAppend`/`arlAppendExecSpec`/`arlAppend_exec_hnr` — the fallible,
+  caller-owned, no-allocation forms — are **retained as landed capital**, per
+  ledger E29: they are the loop-interior form, and `arlAppendTotal`'s
+  in-place branch is literally `boundedPush`, so P4's representation theory is
+  threaded rather than duplicated.
 * `arlEmptyModel`, `arlEmptySizeModel`, and `arlCopyModel` are pure allocation
-  boundary models.  They have no executable heap rule: empty needs fresh
-  storage, and copy needs a second independently owned buffer.
-* `arlEmptyIn` and `arlEmptySizeIn` establish an empty list in caller-owned
-  storage when it is large enough.
-* `arlAppend` is executable and fallible.  Its successful refinement rule is
-  registered only from `arrayListReadyRel`; physical exhaustion remains
-  observable as `none`.  In particular, no theorem advertises a successful
-  append when logical doubling does not fit.
+  boundary models.  `arlEmptyIn` and `arlEmptySizeIn` establish an empty list
+  in caller-owned storage when it is large enough.
 * Source shrinking is adapted to a logical-capacity reduction in the same
   owned buffer.  No allocation or copy is claimed.
+
+**Cost (§ "Amortized cost").**  Growth copies the whole buffer, so the raw
+price of append is *not* constant: `arlAppendCostN` charges one copy credit
+per live element on the growth branch, plus the allocator's two `n`-independent
+units (`HeapAlloc.allocCost`).  The public statement is the amortized one —
+`arlAppendRaw_le_amortized`, over the standard doubling potential
+`2 * length - capacity` — and it is O(1): four control, one write, one add,
+two copy credits, independent of the length.  No constant price is invented
+for the raw operation and no currency is used to make the copy disappear.
+
+**Space (§ "Allocation accounting").**  A.3's `free` is LIFO only and growth
+allocates *above* the live block, so the superseded buffer leaks
+(`free_nontop_false` makes that a theorem, not an oversight).  The leak is
+bounded, which is what ledger E29 requires of a geometric-growth structure:
+`arlAllocatedMany_live_bounded` proves that the total heap ever allocated by
+a run of appends — every leaked block included — is at most `4 ×` the number
+of elements live at the end.
 
 The pure registered rules are cost-silent because the P5.A list operations are
 cost-silent.  A second layer gives exact costed IR rules for the seven
 nonallocating list families; explicit bridge lemmas connect their values back
-to those pure rules.  The executable append boundary reuses P4's
-branch-sensitive `boundedPushSpec`/`boundedExecSpec`; no constant allocation
-price is invented.
+to those pure rules.  The allocator-backed growth program itself lives in
+`ArrayListGrow.lean`, so that this file's `sepref_synth` environment is
+unchanged by the re-seat.
 -/
 
 namespace Lax13Proofs.Refine.Sepref.Iicf
@@ -143,8 +172,35 @@ theorem arlEmptySizeIn_some {requested : ℕ} {buffer : List ℕ} {s : ArrayList
 
 def arlAppend (s : ArrayList) (x : ℕ) : Option ArrayList := boundedPush s x
 
+/-- Source `array_grow a (2 * cap) default` (`IICF_Array_List.thy:38`).  A
+**fresh** block of twice the logical capacity, holding the copied active
+prefix and the allocator's zeros.  `ArrayListGrow.lean` shows this is exactly
+what `mopAlloc (2 * cap)` followed by an `s.length`-element copy produces. -/
+def arlGrow (s : ArrayList) : ArrayList :=
+  ⟨s.active ++ List.replicate (2 * s.capacity - s.length) 0, s.length, 2 * s.capacity⟩
+
+/-- Grow, then write at the old length: the source's full branch. -/
+def arlPushGrown (s : ArrayList) (x : ℕ) : ArrayList :=
+  ⟨(arlGrow s).buffer.set s.length x, s.length + 1, 2 * s.capacity⟩
+
+/-- **Append at source strength** (`arl_append`, source `:30–42`).  Total: the
+in-place branch is P4's `boundedPush` verbatim, and the branch P4 had to
+reject is now the allocating one.  There is no precondition slot, which is the
+whole point of the P5.E re-seat. -/
+def arlAppendTotal (s : ArrayList) (x : ℕ) : ArrayList :=
+  (boundedPush s x).getD (arlPushGrown s x)
+
+theorem arlAppendTotal_of_some {s t : ArrayList} {x : ℕ}
+    (hp : boundedPush s x = some t) : arlAppendTotal s x = t := by
+  simp [arlAppendTotal, hp]
+
+theorem arlAppendTotal_of_none {s : ArrayList} {x : ℕ}
+    (hp : boundedPush s x = none) : arlAppendTotal s x = arlPushGrown s x := by
+  simp [arlAppendTotal, hp]
+
 /-- Costed executable boundary, exactly P4's successful/failing bounded push
-specification. -/
+specification.  Retained: this is the loop-interior, no-allocation form
+(ledger E29). -/
 noncomputable def arlAppendExecSpec (s : ArrayList) (x : ℕ) :
     NRest ArrayList ECost := boundedPushSpec s x
 
@@ -233,6 +289,102 @@ theorem arlAppend_failure_iff {s : ArrayList} {x : ℕ} (hs : s.Wf) :
     arlAppend s x = none ↔
       s.length = s.capacity ∧ s.buffer.length < 2 * s.capacity :=
   boundedPush_eq_none_iff s x hs
+
+/-! ### The growth branch
+
+`boundedPush` fails exactly when the caller-owned buffer cannot hold the
+doubled capacity.  The re-seat replaces that failure by a fresh allocation,
+and the two lemmas below are all the new representation theory it needs. -/
+
+private theorem take_set_self (l : List ℕ) (k a : ℕ) :
+    (l.set k a).take k = l.take k := by
+  refine List.ext_getElem (by simp) fun m h1 h2 => ?_
+  have hm : m < k := (show m < k ∧ m < l.length by simpa using h1).1
+  simp [Nat.ne_of_lt' hm]
+
+private theorem take_succ_set (l : List ℕ) (k a : ℕ) (h : k < l.length) :
+    (l.set k a).take (k + 1) = l.take k ++ [a] := by
+  rw [List.take_add_one, List.getElem?_eq_getElem (by simpa using h), take_set_self]
+  simp
+
+/-- The fresh block is exactly twice the logical capacity — the source's
+`array_grow a (2 * cap)`. -/
+theorem arlGrow_buffer_length {s : ArrayList} (h : s.Wf) :
+    (arlGrow s).buffer.length = 2 * s.capacity := by
+  have hact := boundedActive_length s h
+  rcases h with ⟨hpos, hlen, hcap⟩
+  simp only [arlGrow, List.length_append, List.length_replicate, hact]
+  omega
+
+/-- Growth preserves the represented list: the copy is faithful. -/
+theorem arlGrow_active {s : ArrayList} (h : s.Wf) : (arlGrow s).active = s.active := by
+  have hact := boundedActive_length s h
+  change (s.active ++ List.replicate (2 * s.capacity - s.length) 0).take s.length = s.active
+  rw [List.take_append_of_le_length (by omega), ← hact]
+  simp
+
+theorem arlPushGrown_wf {s : ArrayList} {x : ℕ} (h : s.Wf) : (arlPushGrown s x).Wf := by
+  have hbuf := arlGrow_buffer_length h
+  have hblen : ((arlGrow s).buffer.set s.length x).length = 2 * s.capacity := by
+    rw [List.length_set, hbuf]
+  rcases h with ⟨hpos, hlen, hcap⟩
+  refine ⟨?_, ?_, ?_⟩
+  · show 0 < 2 * s.capacity
+    omega
+  · show s.length + 1 ≤ 2 * s.capacity
+    omega
+  · show 2 * s.capacity ≤ ((arlGrow s).buffer.set s.length x).length
+    omega
+
+theorem arlPushGrown_active {s : ArrayList} {x : ℕ} (h : s.Wf) :
+    (arlPushGrown s x).active = s.active ++ [x] := by
+  have hbuf := arlGrow_buffer_length h
+  have hgrow := arlGrow_active h
+  have hpos := h.1
+  have hlen := h.2.1
+  have hlt : s.length < (arlGrow s).buffer.length := by omega
+  change ((arlGrow s).buffer.set s.length x).take (s.length + 1) = s.active ++ [x]
+  rw [take_succ_set _ _ _ hlt]
+  exact congrArg (· ++ [x]) hgrow
+
+/-- **The unconditional refinement.** Its complete hypothesis list is
+`(s, xs) ∈ arrayListRel`: nothing about capacity, nothing about the physical
+buffer, and no `boundedPush` side condition. -/
+theorem arlAppendTotal_refines {s : ArrayList} {xs : List ℕ} {x : ℕ}
+    (hs : (s, xs) ∈ arrayListRel) : (arlAppendTotal s x, xs ++ [x]) ∈ arrayListRel := by
+  have hs' : s.Wf ∧ s.active = xs := hs
+  cases hp : boundedPush s x with
+  | some t =>
+      rw [arlAppendTotal_of_some hp]
+      exact arlAppend_some_refines hs hp
+  | none =>
+      rw [arlAppendTotal_of_none hp]
+      exact ⟨arlPushGrown_wf hs'.1,
+        (arlPushGrown_active hs'.1).trans (congrArg (· ++ [x]) hs'.2)⟩
+
+@[simp] theorem arlAppendTotal_length (s : ArrayList) (x : ℕ) :
+    (arlAppendTotal s x).length = s.length + 1 := by
+  simp only [arlAppendTotal, boundedPush]
+  split
+  · rfl
+  · split
+    · rfl
+    · rfl
+
+theorem arlAppendTotal_capacity (s : ArrayList) (x : ℕ) :
+    (arlAppendTotal s x).capacity =
+      if s.length < s.capacity then s.capacity else 2 * s.capacity := by
+  simp only [arlAppendTotal, boundedPush]
+  split
+  · rfl
+  · split
+    · rfl
+    · rfl
+
+theorem arlAppendTotal_capacity_ge (s : ArrayList) (x : ℕ) :
+    s.capacity ≤ (arlAppendTotal s x).capacity := by
+  rw [arlAppendTotal_capacity]
+  split <;> omega
 
 @[simp] theorem arlCopyModel_refines {s : ArrayList} {xs : List ℕ}
     (h : (s, xs) ∈ arrayListRel) : (arlCopyModel s, xs) ∈ arrayListRel := h
@@ -359,24 +511,14 @@ theorem arlSwap?_some_refines {s t : ArrayList} {xs : List ℕ} {i j : ℕ}
 
 /-! ## Pure list-operation refinement rules -/
 
-def arrayListReadyRel : Set (ArrayList × List ℕ) :=
-  {p | (p.1, p.2) ∈ arrayListRel ∧ boundedPush p.1 0 ≠ none}
-
-def arrayListReadyAssn : List ℕ → String × String × String → Assn :=
-  hrComp boundedArrayAssn arrayListReadyRel
-
-@[intf_of_assn] theorem arrayListReadyAssn_intf :
-    intfOfAssn arrayListReadyAssn (ListI ℕ) := trivial
-
 noncomputable def arlEmptyOp : NRest ArrayList ECost := NRest.returnT arlEmptyModel
 noncomputable def arlEmptySizeOp (n : ℕ) : NRest ArrayList ECost :=
   NRest.returnT (arlEmptySizeModel n)
 noncomputable def arlCopyOp (s : ArrayList) : NRest ArrayList ECost :=
   NRest.returnT (arlCopyModel s)
+/-- Total: no `NRest.fail` branch, because there is no failing branch. -/
 noncomputable def arlAppendOp (s : ArrayList) (x : ℕ) : NRest ArrayList ECost :=
-  match arlAppend s x with
-  | some t => NRest.returnT t
-  | none => NRest.fail
+  NRest.returnT (arlAppendTotal s x)
 noncomputable def arlLengthOp (s : ArrayList) : NRest ℕ ECost := NRest.returnT (arlLength s)
 noncomputable def arlIsEmptyOp (s : ArrayList) : NRest Bool ECost :=
   NRest.returnT (arlIsEmpty s)
@@ -412,22 +554,21 @@ theorem arlEmptySizeOp_refines (n : ℕ) :
   intro s xs _ hs
   exact NRest.param_returnT (arlCopyModel_refines hs)
 
+/-- **The re-seated public guarantee** (source `arl_append_hnr_aux`,
+`IICF_Array_List.thy:177`).  The source rule has no precondition slot; neither
+has this one.  Compare the pre-P5.E statement, which took
+`arrayListReadyRel` — `arrayListRel` plus `boundedPush s 0 ≠ none` — as its
+argument relation.  A caller holding `arrayListAssn xs c` alone can now
+conclude that append succeeds. -/
 @[sepref_fref_thms] theorem arlAppendOp_refines :
     (arlAppendOp, op_list_append ℕ) ∈
-      fref (fun _ : List ℕ => True) arrayListReadyRel
+      fref (fun _ : List ℕ => True) arrayListRel
         (fun _ => Set.diagonal ℕ →ᵣ NRest.nrestRel arrayListRel) := by
   intro s xs _ hs x y hxy
   change x = y at hxy
   subst y
-  have hsome : ∃ t, arlAppend s x = some t := by
-    apply Option.ne_none_iff_exists'.mp
-    intro ha
-    have hf := (arlAppend_failure_iff hs.1.1).mp ha
-    have h0 : arlAppend s 0 = none := (arlAppend_failure_iff hs.1.1).mpr hf
-    exact hs.2 h0
-  obtain ⟨t, ht⟩ := hsome
-  simp [arlAppendOp, ht, op_list_append]
-  exact NRest.param_returnT (arlAppend_some_refines hs.1 ht)
+  simp [arlAppendOp, op_list_append]
+  exact NRest.param_returnT (arlAppendTotal_refines hs)
 
 @[sepref_fref_thms] theorem arlLengthOp_refines :
     (arlLengthOp, op_list_length ℕ) ∈
@@ -526,6 +667,197 @@ theorem arlSwap_via_generic (s : ArrayList) (i j : ℕ)
       NRest.bindT (op_list_set ℕ ((xs', j), xi)) fun xs'' =>
       NRest.returnT xs'' :=
   gen_op_list_swap s.active i j hi hj
+
+/-! ## Amortized cost of the unconditional append
+
+The growth branch copies the whole buffer, so the *raw* price of
+`arlAppendTotal` is linear in the live length.  It is not hidden and it is not
+priced by fiat: `arlAppendCostN` is P4's `boundedPushCostN` on the two
+in-place branches, and on the growth branch it charges one copy credit per
+live element plus the allocator's two units (`HeapAlloc.allocCost` is
+`copy + add`, `n`-independent — `allocCost_const`).
+
+The public statement is the amortized one, over the standard doubling
+potential `2 * length - capacity` that P4 already proved for the source-shaped
+`SourceArray`.  It is the same potential and the same argument, re-run on the
+carrier the re-seat actually uses. -/
+
+/-- Exact branch cost.  Branches one and two are `boundedPushCostN` verbatim;
+branch three is the allocating one: two control units for `mopAlloc`, on top
+of the in-place doubling branch's two, and `s.length` copies. -/
+def arlAppendCostN (s : ArrayList) : PushCost :=
+  match boundedPushCostN s with
+  | some c => c
+  | none => ⟨4, 1, 1, s.length⟩
+
+theorem arlAppendCostN_of_some {s : ArrayList} {c : PushCost}
+    (h : boundedPushCostN s = some c) : arlAppendCostN s = c := by
+  simp [arlAppendCostN, h]
+
+theorem arlAppendCostN_of_none {s : ArrayList} (h : boundedPushCostN s = none) :
+    arlAppendCostN s = ⟨4, 1, 1, s.length⟩ := by
+  simp [arlAppendCostN, h]
+
+/-- The standard doubling potential, in the copy currency. -/
+def arlPotentialN (s : ArrayList) : PushCost := ⟨0, 0, 0, 2 * s.length - s.capacity⟩
+
+/-- The advertised price: length-independent and capacity-independent. -/
+def arlAdvertisedCostN : PushCost := ⟨4, 1, 1, 2⟩
+
+/-- **Amortized O(1) append**, componentwise over the cost vector. -/
+theorem arlAppend_amortized_costN (s : ArrayList) (x : ℕ) (h : s.Wf) :
+    PushCost.plus (arlAppendCostN s) (arlPotentialN (arlAppendTotal s x)) ≤
+      PushCost.plus arlAdvertisedCostN (arlPotentialN s) := by
+  rcases h with ⟨hpos, hlen, hcap⟩
+  have hcapEq := arlAppendTotal_capacity s x
+  by_cases hspace : s.length < s.capacity
+  · rw [arlAppendCostN_of_some (c := ⟨1, 1, 1, 0⟩) (by simp [boundedPushCostN, hspace])]
+    simp only [PushCost.le_def, PushCost.plus, arlPotentialN, arlAdvertisedCostN,
+      arlAppendTotal_length, hcapEq, if_pos hspace]
+    omega
+  · by_cases hroom : 2 * s.capacity ≤ s.buffer.length
+    · rw [arlAppendCostN_of_some (c := ⟨2, 1, 1, 0⟩)
+        (by simp [boundedPushCostN, hspace, hroom])]
+      simp only [PushCost.le_def, PushCost.plus, arlPotentialN, arlAdvertisedCostN,
+        arlAppendTotal_length, hcapEq, if_neg hspace]
+      omega
+    · rw [arlAppendCostN_of_none (by simp [boundedPushCostN, hspace, hroom])]
+      simp only [PushCost.le_def, PushCost.plus, arlPotentialN, arlAdvertisedCostN,
+        arlAppendTotal_length, hcapEq, if_neg hspace]
+      omega
+
+noncomputable def arlPotential (s : ArrayList) : ECost := (arlPotentialN s).toECost
+noncomputable def arlAppendRawCost (s : ArrayList) : ECost := (arlAppendCostN s).toECost
+noncomputable def arlAdvertisedCost : ECost := arlAdvertisedCostN.toECost
+
+/-- The same bound in the tower's vector-valued `ECost`; costs stay vectors. -/
+theorem arlAppend_amortized_cost (s : ArrayList) (x : ℕ) (h : s.Wf) :
+    arlAppendRawCost s + arlPotential (arlAppendTotal s x) ≤
+      arlAdvertisedCost + arlPotential s := by
+  unfold arlAppendRawCost arlPotential arlAdvertisedCost
+  rw [← PushCost.toECost_plus, ← PushCost.toECost_plus]
+  exact PushCost.toECost_mono (arlAppend_amortized_costN s x h)
+
+/-- Raw deterministic append: the state transition, at the price it really
+costs on the branch it really takes. -/
+noncomputable def arlAppendRaw (s : ArrayList) (x : ℕ) : NRest ArrayList ECost :=
+  NRest.consume (NRest.returnT (arlAppendTotal s x)) (arlAppendRawCost s)
+
+/-- Constant-price public append specification. -/
+noncomputable def arlAppendPublicSpec (s : ArrayList) (x : ℕ) : NRest ArrayList ECost :=
+  NRest.consume (NRest.returnT (arlAppendTotal s x)) arlAdvertisedCost
+
+noncomputable def arlAppendAmortized (s : ArrayList) (x : ℕ) : NRest ArrayList ECost :=
+  NRest.reclaim (NRest.consume (arlAppendPublicSpec s x) (arlPotential s)) arlPotential
+
+private theorem consume_returnT_eq_spec' {α : Type} (y : α) (c : ECost) :
+    NRest.consume (NRest.returnT y) c =
+      NRest.spec (fun z => z = y) (fun _ => c) := by
+  rw [NRest.consume_returnT, NRest.spec, NRest.rest_inj_iff]
+  funext z
+  by_cases hz : z = y
+  · subst z
+    simp
+  · simp [hz]
+
+/-- **The exported amortized statement.**  The raw operation refines the
+constant-price one after the post-potential is reclaimed.  This is the honest
+headline: worst-case `O(length)` on a growth step, `O(1)` amortized, and every
+cost a vector. -/
+theorem arlAppendRaw_le_amortized (s : ArrayList) (x : ℕ) (h : s.Wf) :
+    arlAppendRaw s x ≤ arlAppendAmortized s x := by
+  unfold arlAppendRaw arlAppendAmortized arlAppendPublicSpec
+  rw [NRest.consume_consume, consume_returnT_eq_spec', consume_returnT_eq_spec']
+  apply le_trans (b := NRest.spec (fun y => y = arlAppendTotal s x)
+      (fun y => (arlPotential s + arlAdvertisedCost) -ᵣ arlPotential y))
+  · rw [NRest.spec, NRest.spec, NRest.rest_le_rest_iff]
+    intro y
+    by_cases hy : y = arlAppendTotal s x
+    · subst y
+      simp only [ite_true, WithBot.coe_le_coe]
+      apply Needname.le_diff_if_add_le
+      · have hc := arlAppend_amortized_cost s x h
+        simpa [add_comm] using hc
+      · apply Needname.add_leD2 (arlAppendRawCost s) (arlPotential (arlAppendTotal s x))
+        simpa [add_comm] using arlAppend_amortized_cost s x h
+    · simp [hy]
+  · exact NRest.reclaim_spec_le
+
+/-! ## Allocation accounting: the LIFO leak, and its bound
+
+A.3's `free` is LIFO only (`free_nontop_false`): it releases the topmost
+block, and it is a compiled theorem that a non-top free is underivable.
+Growth allocates the doubled block *above* the live one, so the superseded
+buffer is not on top and **cannot be freed**.  That is a real leak, and this
+section states it and bounds it rather than pretending otherwise.
+
+Ledger E29 rules that geometric-growth leaks are tolerable exactly when they
+are live-set-bounded.  They are: capacities at least double between
+allocations, so the whole geometric series is bounded by twice the final
+capacity, and the final capacity is bounded by twice the live length. -/
+
+/-- Fresh heap claimed by one append: the doubled block, or nothing. -/
+def arlAllocatedBy (s : ArrayList) (x : ℕ) : ℕ :=
+  if boundedPush s x = none then 2 * s.capacity else 0
+
+def arlAppendMany : ArrayList → List ℕ → ArrayList
+  | s, [] => s
+  | s, x :: ys => arlAppendMany (arlAppendTotal s x) ys
+
+/-- Total heap ever claimed by a run of appends, leaked blocks included. -/
+def arlAllocatedMany : ArrayList → List ℕ → ℕ
+  | _, [] => 0
+  | s, x :: ys => arlAllocatedBy s x + arlAllocatedMany (arlAppendTotal s x) ys
+
+theorem arlAllocatedBy_ne_zero {s : ArrayList} {x : ℕ} (h : arlAllocatedBy s x ≠ 0) :
+    arlAllocatedBy s x = 2 * s.capacity ∧
+      (arlAppendTotal s x).capacity = 2 * s.capacity := by
+  simp only [arlAllocatedBy] at h ⊢
+  split at h
+  · rename_i hnone
+    have hfull : ¬ s.length < s.capacity := by
+      intro hlt
+      rw [boundedPush, if_pos hlt] at hnone
+      simp at hnone
+    exact ⟨by rw [if_pos hnone], by rw [arlAppendTotal_capacity, if_neg hfull]⟩
+  · exact absurd rfl h
+
+/-- **The geometric bound.**  Every block ever handed out, plus the block the
+run started with, fits in twice the final capacity. -/
+theorem arlAllocatedMany_le (s : ArrayList) (ys : List ℕ) :
+    arlAllocatedMany s ys + 2 * s.capacity ≤ 2 * (arlAppendMany s ys).capacity := by
+  induction ys generalizing s with
+  | nil => simp [arlAllocatedMany, arlAppendMany]
+  | cons x ys ih =>
+      have hstep := ih (s := arlAppendTotal s x)
+      simp only [arlAllocatedMany, arlAppendMany]
+      by_cases hz : arlAllocatedBy s x = 0
+      · have hge := arlAppendTotal_capacity_ge s x
+        omega
+      · obtain ⟨hval, hcap⟩ := arlAllocatedBy_ne_zero hz
+        omega
+
+/-- Capacity never runs ahead of the live length by more than the block the
+run started with: the invariant behind "the final capacity is `O(live)`". -/
+theorem arlAppendMany_capacity_bound (c₀ : ℕ) (s : ArrayList) (ys : List ℕ)
+    (h : s.capacity ≤ c₀ + 2 * s.length) :
+    (arlAppendMany s ys).capacity ≤ c₀ + 2 * (arlAppendMany s ys).length := by
+  induction ys generalizing s with
+  | nil => simpa [arlAppendMany] using h
+  | cons x ys ih =>
+      refine ih (s := arlAppendTotal s x) ?_
+      rw [arlAppendTotal_capacity, arlAppendTotal_length]
+      split <;> omega
+
+/-- **The E29 statement.**  Total heap ever allocated by a run of appends —
+every LIFO-unfreeable superseded buffer included — is at most `4 ×` the number
+of elements live at the end.  The leak is live-set-bounded, so the space
+budget survives geometric growth. -/
+theorem arlAllocatedMany_live_bounded (s : ArrayList) (ys : List ℕ) :
+    arlAllocatedMany s ys ≤ 4 * (arlAppendMany s ys).length := by
+  have hgeo := arlAllocatedMany_le s ys
+  have hinv := arlAppendMany_capacity_bound s.capacity s ys (by omega)
+  omega
 
 /-! ## Exact executable layer
 
@@ -1085,7 +1417,83 @@ theorem arlSwapExecSpec_refines {s : ArrayList} {xs : List ℕ} {i j : ℕ}
 #guard arlAppend ⟨[0, 0, 0, 0], 1, 4⟩ 7 = some ⟨[0, 7, 0, 0], 2, 4⟩
 #guard arlAppend ⟨List.replicate 8 0, 2, 2⟩ 5 =
   some ⟨(List.replicate 8 0).set 2 5, 3, 4⟩
+/-! ### The old failure mode, as compiled data
+
+`⟨[1,2,3,4], 4, 4⟩` is the state the pre-P5.E rule could say nothing about:
+well-formed, physically full, `boundedPush` returns `none`.  The re-seated
+append succeeds on it, allocating a block of 8. -/
+
 #guard arlAppend ⟨[1, 2, 3, 4], 4, 4⟩ 9 = none
+#guard arlAppendTotal ⟨[1, 2, 3, 4], 4, 4⟩ 9 =
+  ⟨[1, 2, 3, 4, 9, 0, 0, 0], 5, 8⟩
+#guard (arlAppendTotal ⟨[1, 2, 3, 4], 4, 4⟩ 9).active = [1, 2, 3, 4, 9]
+#guard arlAllocatedBy ⟨[1, 2, 3, 4], 4, 4⟩ 9 = 8
+
+/-- **Non-smuggling control.**  The registered refinement, instantiated at
+exactly the state the deleted `arrayListReadyRel` excluded: well-formed,
+physically full, `boundedPush` returns `none`.  The only hypothesis supplied is
+membership in `arrayListRel`.  If a readiness conjunct had been re-added
+anywhere along the chain — in the relation, in the assertion, or as a fref side
+condition — this would not elaborate. -/
+theorem arlAppend_succeeds_at_full_buffer :
+    (arlAppendTotal ⟨[1, 2, 3, 4], 4, 4⟩ 9, [1, 2, 3, 4] ++ [9]) ∈ arrayListRel ∧
+      boundedPush (⟨[1, 2, 3, 4], 4, 4⟩ : ArrayList) 0 = none := by
+  refine ⟨arlAppendTotal_refines (xs := [1, 2, 3, 4]) ?_, by decide⟩
+  exact ⟨⟨by decide, by decide, by decide⟩, rfl⟩
+-- in-place branch: no allocation, and the buffer is the caller's
+#guard arlAppendTotal ⟨[0, 0, 0, 0], 1, 4⟩ 7 = ⟨[0, 7, 0, 0], 2, 4⟩
+#guard arlAllocatedBy ⟨[0, 0, 0, 0], 1, 4⟩ 7 = 0
+-- logical-doubling branch: still no allocation
+#guard arlAppendTotal ⟨List.replicate 8 0, 2, 2⟩ 5 =
+  ⟨(List.replicate 8 0).set 2 5, 3, 4⟩
+#guard arlAllocatedBy ⟨List.replicate 8 0, 2, 2⟩ 5 = 0
+-- negative control: `arlAppendTotal` is NOT `arlPushGrown` — the branch is
+-- what keeps the amortized bound, and flipping to unconditional growth
+-- changes the state and would allocate on every push.
+#guard arlPushGrown ⟨[0, 0, 0, 0], 1, 4⟩ 7 ≠ arlAppendTotal ⟨[0, 0, 0, 0], 1, 4⟩ 7
+
+/-! ### The leak bound is not vacuous
+
+Sixteen appends into an initially-full capacity-1 buffer really do leak
+`2 + 4 + 8 + 16 + 32 = 62` cells against `17` live elements; the proved
+`4 × live` bound is `68`, and a `3 × live` bound would be false right here. -/
+
+#guard arlAllocatedMany ⟨[7], 1, 1⟩ (List.range 16) = 62
+#guard (arlAppendMany ⟨[7], 1, 1⟩ (List.range 16)).length = 17
+#guard arlAllocatedMany ⟨[7], 1, 1⟩ (List.range 16) ≤
+  4 * (arlAppendMany ⟨[7], 1, 1⟩ (List.range 16)).length
+#guard ¬ (arlAllocatedMany ⟨[7], 1, 1⟩ (List.range 16) ≤
+  3 * (arlAppendMany ⟨[7], 1, 1⟩ (List.range 16)).length)
+#guard (arlAppendMany ⟨[7], 1, 1⟩ (List.range 16)).active =
+  7 :: List.range 16
+
+/-! ### The amortized bound is not vacuous either
+
+Each negative control below is the same inequality with one component
+weakened; each is false, so each of the numbers in `arlAdvertisedCostN` and
+the potential itself is load-bearing.  The Boolean mirror is `PushCost.le_def`
+spelled out, so it is the same inequality the theorem states. -/
+
+private def arlAmortizedHolds (s : ArrayList) (x : ℕ)
+    (adv pot potNext : PushCost) : Bool :=
+  let l := PushCost.plus (arlAppendCostN s) potNext
+  let r := PushCost.plus adv pot
+  l.control ≤ r.control && l.write ≤ r.write && l.add ≤ r.add && l.copy ≤ r.copy
+
+private def arlAmortizedStep (s : ArrayList) (x : ℕ) (adv : PushCost) : Bool :=
+  arlAmortizedHolds s x adv (arlPotentialN s) (arlPotentialN (arlAppendTotal s x))
+
+#guard arlAmortizedStep ⟨[1, 2, 3, 4], 4, 4⟩ 9 arlAdvertisedCostN
+#guard arlAmortizedStep ⟨[0, 0, 0, 0], 1, 4⟩ 7 arlAdvertisedCostN
+#guard arlAmortizedStep ⟨List.replicate 8 0, 2, 2⟩ 5 arlAdvertisedCostN
+-- one fewer copy credit: the growth branch no longer pays for itself
+#guard ¬ arlAmortizedStep ⟨[1, 2, 3, 4], 4, 4⟩ 9 ⟨4, 1, 1, 1⟩
+-- one fewer control credit: the allocator's two units are real
+#guard ¬ arlAmortizedStep ⟨[1, 2, 3, 4], 4, 4⟩ 9 ⟨3, 1, 1, 2⟩
+-- the potential itself is load-bearing: with no potential the copy is naked
+#guard ¬ arlAmortizedHolds ⟨[1, 2, 3, 4], 4, 4⟩ 9 arlAdvertisedCostN
+  ⟨0, 0, 0, 0⟩ ⟨0, 0, 0, 0⟩
+
 #guard arlButlast? ⟨List.replicate 80 0, 20, 80⟩ =
   some ⟨List.replicate 80 0, 19, 38⟩
 #guard arlButlast? ⟨List.replicate 16 0, 1, 16⟩ =
@@ -1167,6 +1575,22 @@ run_cmd do
 /-- info: 'Lax13Proofs.Refine.Sepref.Iicf.arlAppend_some_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms arlAppend_some_refines
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.arlAppendTotal_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms arlAppendTotal_refines
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.arlAppendOp_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms arlAppendOp_refines
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.arlAppendRaw_le_amortized' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms arlAppendRaw_le_amortized
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.arlAllocatedMany_live_bounded' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms arlAllocatedMany_live_bounded
 
 /-- info: 'Lax13Proofs.Refine.Sepref.Iicf.arlButlast?_some_refines' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in

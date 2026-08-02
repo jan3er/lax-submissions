@@ -16,11 +16,22 @@ of `AbsHeap`: one-based update/value/exchange, parent swim, optimized smaller-
 child sink (left on ties), append-then-swim insertion, and exchange/butlast/
 sink deletion.
 
-The source can allocate its initial array and grow by allocation.  This
-repository's array list is caller-owned, so executable insertion is exposed
-only from the existing ready relation and empty remains a semantic model with
-no executable rule.  Reads and in-place motions preserve the caller's buffer;
-pop uses the caller-owned logical-capacity shrink supplied by `ArrayList`.
+The source can allocate its initial array and grow by allocation.  This file's
+insertion seam is still built on `ArrayList`'s **caller-owned, fallible**
+`arlAppend`, so executable insertion is exposed only from a ready relation and
+empty remains a semantic model with no executable rule.  Reads and in-place
+motions preserve the caller's buffer; pop uses the caller-owned
+logical-capacity shrink supplied by `ArrayList`.
+
+**P5.E boundary note, 2026-08-02.**  The ready relation this file consumes
+used to live in `ArrayList.lean` as `arrayListReadyRel`.  P5.E re-seated
+array-list append onto the P4.5 allocator and deleted that relation, because a
+public array-list guarantee must not carry a precondition the source does not
+have (ledger E16).  This file's own guarantee is *unchanged*: the relation is
+relocated here verbatim, as `implHeapArrayReadyRel`, and `ImplHeap` keeps
+exactly the conditional insert it had.  Re-seating this structure onto
+`arlAppendTotal` is the separate `Impl_Heapmap`/`ImplHeap` leaf the plan gates
+behind P4.5; nothing here was weakened or strengthened to make P5.E land.
 -/
 
 namespace Lax13Proofs.Refine.Sepref.Iicf
@@ -33,14 +44,28 @@ open Ir NRest
 def implHeapRel : Set (ArrayList × Multiset ℕ) :=
   relComp arrayListRel (absHeapRel id)
 
+/-- The caller-owned readiness side condition this file's insert seam needs,
+relocated from `ArrayList.lean` by P5.E (see the module header).  It is the
+former `arrayListReadyRel`, verbatim: `arrayListRel` plus "the buffer can take
+one more element".  It is stated here because it is *this* structure's
+deviation from its source, not the array list's. -/
+def implHeapArrayReadyRel : Set (ArrayList × List ℕ) :=
+  {p | (p.1, p.2) ∈ arrayListRel ∧ boundedPush p.1 0 ≠ none}
+
+def implHeapArrayReadyAssn : List ℕ → String × String × String → Assn :=
+  hrComp boundedArrayAssn implHeapArrayReadyRel
+
+@[intf_of_assn] theorem implHeapArrayReadyAssn_intf :
+    intfOfAssn implHeapArrayReadyAssn (ListI ℕ) := trivial
+
 def implHeapReadyRel : Set (ArrayList × Multiset ℕ) :=
-  relComp arrayListReadyRel (absHeapRel id)
+  relComp implHeapArrayReadyRel (absHeapRel id)
 
 def implHeapAssn : Multiset ℕ → String × String × String → Assn :=
   hrComp arrayListAssn (absHeapRel id)
 
 def implHeapReadyAssn : Multiset ℕ → String × String × String → Assn :=
-  hrComp arrayListReadyAssn (absHeapRel id)
+  hrComp implHeapArrayReadyAssn (absHeapRel id)
 
 @[intf_of_assn] theorem implHeapAssn_intf :
     intfOfAssn implHeapAssn (MultisetI ℕ) := trivial
@@ -56,7 +81,7 @@ def implHeapReadyAssn : Multiset ℕ → String × String × String → Assn :=
 
 @[simp] theorem mem_implHeapReadyRel_iff {s : ArrayList} {m : Multiset ℕ} :
     (s, m) ∈ implHeapReadyRel ↔
-      ∃ h : AbsHeap ℕ, (s, h) ∈ arrayListReadyRel ∧
+      ∃ h : AbsHeap ℕ, (s, h) ∈ implHeapArrayReadyRel ∧
         heapInvariant id h ∧ (h : Multiset ℕ) = m := by
   simp [implHeapReadyRel, mem_relComp, mem_absHeapRel_iff]
 
@@ -166,7 +191,7 @@ theorem implHeapSink_refines {s : ArrayList} {h : AbsHeap ℕ} {i : ℕ}
   rw [implHeapSink, arlWithActive_active hlen, hs.2]
 
 theorem implHeapInsert?_refines {s t : ArrayList} {h : AbsHeap ℕ}
-    {x : ℕ} (hs : (s, h) ∈ arrayListReadyRel)
+    {x : ℕ} (hs : (s, h) ∈ implHeapArrayReadyRel)
     (hinv : heapInvariant id h) (ht : implHeapInsert? x s = some t) :
     (t, heapInsert id x h) ∈ arrayListRel := by
   simp only [implHeapInsert?] at ht
@@ -1732,7 +1757,7 @@ noncomputable def implHeapInsertCost? (x : ℕ) (s : ArrayList) : Option ECost :
 
 /-- The one place the caller-owned append precondition enters the heap seam.
 
-This is the second conjunct of `arrayListReadyRel`, isolated as a single
+This is the second conjunct of `implHeapArrayReadyRel`, isolated as a single
 named predicate on purpose: this repository's array-list push is fallible
 where the Isabelle source's is unconditional, and when that gap closes the
 only obligation to discharge is this one definition — no seam statement
@@ -1740,7 +1765,7 @@ below mentions `boundedPush` directly. -/
 def implHeapInsertPre (s : ArrayList) : Prop := boundedPush s 0 ≠ none
 
 theorem implHeapInsertPre_of_readyRel {s : ArrayList} {xs : List ℕ}
-    (h : (s, xs) ∈ arrayListReadyRel) : implHeapInsertPre s := h.2
+    (h : (s, xs) ∈ implHeapArrayReadyRel) : implHeapInsertPre s := h.2
 
 theorem implHeapInsertExecSpec_run {s : ArrayList} {x : ℕ} (hwf : s.Wf)
     (hready : implHeapInsertPre s) :
