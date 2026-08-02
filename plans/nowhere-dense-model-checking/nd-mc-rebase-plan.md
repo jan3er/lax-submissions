@@ -1065,7 +1065,14 @@ One named `Prop`, no `sorry`: `CoverImplementsK`, with
 landed obligation gives it at `d = n`), so the slot change costs no landed
 capital.
 
-## Finding 3 closed (2026-08-02) — `Refine/BridgeCrossing.lean`
+## Finding 3 — repaired at the slot, NOT yet at the root (2026-08-02)
+
+**Heading corrected the same day by the S1 slot sweep.** What follows is
+sound and unchanged: the word-bound repair works *at the slot*. What it does
+not yet do is work *at the root*, because the root's `hdeg` slot forces
+`Kmass ≥ n`, and at `Kmass ≥ n` the new bound **is** the retired carrier bound
+(`SlotSweep.wordBound_of_deg_slot`, `no_word_size_through_deg_slot`). See
+"Slot sweep" below. Threading the right producer is S3.
 
 W1 (`99bc9f4`), W2 (`ff0670a`) and W3 landed the word-bound repair end to end.
 The root's hypothesis is now
@@ -1141,3 +1148,154 @@ residue**, i.e. ahead of C0 rather than after it — and the floor strengthens
 the case, because `hKo`'s size-blind `orderPhaseCost` is the floor's main
 driver and is exactly what a synthesized order phase would replace with a
 derived cost rather than a hand-written constant.
+
+## Slot sweep (2026-08-02) — `Refine/SlotSweep.lean`, and finding 2 is not closed
+
+The B7 re-run's opening leaf (rev 3 delta 3). All thirty slots of
+`driverRoot_decides_sentence` compiled against what a C0 discharge actually
+holds: `EncodesGraph x n G`, the domain word clause, `C n G` with `C` nowhere
+dense, and free parameter choices — all of the latter made **before** `n`, `G`,
+`w` and `x`, because C0 fixes the program and `c` first. The full table is in
+the file header. Twenty-four slots are free or producered. **Six block, in
+three independent groups.**
+
+**Group 1 — #6 `hcsr`.** B7 finding 1. G1 repaired it in
+`RamDriverDedup.DecodeImplementsD`, at `dedupNs/dedupOffset/dedupTarget`; the
+root still reads `CsrSimple` at `2·edgeCount x / offset x / target x`. So the
+slot has no producer *today* and one the moment the root moves to the composed
+decode. `slot06_hcsr_blocked` / `slot06_hcsr_dedup`. Dies at `driverRootD`.
+
+**Group 2 — #26 `hdeg`, and #12 `hB` with it. NEW, and it un-closes finding 3
+at the root.** The slot is quantified over **every** permutation:
+
+```lean
+hdeg : ∀ M (π : Equiv.Perm (Fin n)) v, (wreach (masked G M) π (2*cap) v).ncard ≤ Kmass
+```
+
+Weak reachability is a property of the *ordering*. At `starLast n` — the star
+with its centre ordered last — the centre weakly reaches the whole vertex set
+at radius 1, so the slot forces `n ≤ Kmass` (`deg_slot_at_starLast`), and no
+`Kmass` chosen before `n` satisfies it (`slot26_hdeg_blocked`). Negative
+control: at the edgeless graph the same slot holds at `Kmass = 1`
+(`deg_slot_at_bot`), so it is the graph and not the shape of `wreach`.
+
+The consequence is exactly `ArenaWidth`'s own control 2. `WordBoundK B n Kmass
+ns cap mb` with `Kmass ≥ n` **is** the retired carrier bound
+(`wordBound_of_deg_slot`), and `no_wordConst_at_linear_degree` refutes the flip
+there; `no_word_size_through_deg_slot` closes it back to `n*n < 2^w`. So the
+E-mem/W1–W3 repair is sound at the slot and **not yet usable at the root**: the
+root's `hdeg` is the wrong shape to supply the constant the flip needs. The
+producer with the right shape exists —
+`RamDriverRoot.exists_wreachDeg_of_orderP`, at orderings carrying
+`RamDriverCompose.OrderP R` — and threading it *is* the `levelAtR` /
+general-`R` restatement. Finding 3's closure now depends on B7's own S3.
+
+**Group 3 — #20/#22/#23/#27, the cost group. Finding 2 is ALIVE and sharper.**
+
+`level_cost_floor_cubic`: from `hKs` (#20) and `hKl` (#27) **alone**, at
+`ℓ ≥ 1`, `16·n³ ≤ Kl 0 n`. `W` occurs in neither hypothesis, nor the
+conclusion, nor the proof; no `chainWidth`, no `hWc`, no `R`. The mechanism is
+`RamDriverDescend.descendCost`'s `16*(n*n)` inside `RamDriverRoot.turnCost`,
+paid by every turn including one processing an empty block
+(`turnCostSize_size_blind`), multiplied by `hKl`'s `n` turns at the root.
+`level_cost_floor_sharp` adds `hKo` (#22) and `hKc` (#23) and reaches
+`128·n³`. Plug check: `driverRoot_decides_sentence_floored` takes the root's
+hypothesis list verbatim (plus `2 ≤ ℓ`) and returns the root's own unweakened
+`Spec` **and** `128·n³ ≤ Kdec + (Kl 0 (n+ns) + Ksent)`; `hKmono` is what carries
+the floor across E6's weight re-read. Over C0's budget at every `ε < 2`
+(`#guard` at `ε = 1/2`, with an `ε = 3` control).
+
+Responsible hypothesis shapes, i.e. the residue's work-list:
+
+| slot | shape | repair |
+|------|-------|--------|
+| #20 `hKs` | turn charges `16·n²` for the level's own carrier, size slot ignored | E4c (descend interior) |
+| #22 `hKo` | `orderPhaseCost n ns W ≤ Ko j m`, size-blind in `m` | E-mem → order interior; E-order no-escape |
+| #23 `hKc` | `coverPhaseCost n ns ≤ Kc j m`, size-blind, `112·n²` on its face | E3b |
+| #27 `hKl` | the turn sum — the multiplier, and the slot that is *correct* | repair its summands |
+
+`hKd` (#24) is **not** responsible (`sweepCost` is linear in `n`).
+
+**Verdict: C0 is not reachable through the root as it stands.** The blocker is
+the cost residue (E-mem → member-driven interiors → E-order re-run → E3b →
+E4c → R1.8), not anything the B7 re-run can repair. S2 (finding 4's `"lw"`
+repair) and S3 (`levelAtR`/`driverRootD`) remain worth landing and are the next
+leaf; S5/G4 waits on the residue. G4 has **not** passed — JAN-FLAG 1 disposal
+stays blocked.
+
+**Correction, recorded.** `BridgeSeamProbe.width_lt_two_pow` does **not** close
+finding 2, and the plan's "Arena width" section and the W3 commit message said
+otherwise. `width_lt_two_pow` is a *space* statement bounding `W` by `2^w`; it
+re-reads finding 2's width half and makes the `chainWidth ≤ W` pin
+unaddressable. Finding 2 is a *cost* statement about `Kl`, and §D derives it
+with `W` absent throughout. §E of the file compiles the two side by side
+(`width_is_bounded` / `floor_has_no_width`) so the distinction is checkable.
+
+Gates: `lake build` green at **3549 jobs**; `lax build --only proofs` OK;
+kernel-three on every new declaration (`slot15_hQ` additionally on the one
+endorsed Lax12 axiom, as `UqwInstantiation` does); `lean_verify` clean, no
+source warnings; zero `sorry`/`admit`/`native_decide`. Four break tests run and
+reverted, all biting: cubic `16 → 17` (2 errors), sharp `128 → 129` (1),
+`deg_slot_at_starLast`'s `n → n+1` (1), and the plug's `hdeg` at `Kmass + 1`
+(1 — so the plug is load-bearing on the identification of the word bound's
+degree parameter with `hdeg`'s).
+
+## Slot sweep (2026-08-02) — `Refine/SlotSweep.lean`, B7 S1
+
+All 30 slots of `driverRoot_decides_sentence` checked for producers taking only
+C0's own data. **24 clear, 6 block in three groups.**
+
+**Group 1 — #6 `hcsr`.** Known. G1's repair lives in `DecodeImplementsD` at
+`dedupNs/dedupOffset/dedupTarget`; the root still reads `CsrSimple` at
+`2·edgeCount x / offset x / target x`. A producer exists the moment S3 lands.
+
+**Group 2 — #26 `hdeg` and #12 `hB`. NEW, and it un-closes finding 3 at the
+root.** The slot is quantified over **every** permutation. At `starLast n` —
+the star with its centre ordered last — the centre weakly reaches the whole
+vertex set at radius 1, so the slot forces `n ≤ Kmass`
+(`deg_slot_at_starLast`), and no `Kmass` fixed before `n` satisfies it
+(`slot26_hdeg_blocked`). Negative control `deg_slot_at_bot`: the same slot
+holds at `Kmass = 1` on the edgeless graph, so it is the graph and not
+`wreach`'s shape. Consequence is `ArenaWidth`'s own control 2 —
+`WordBoundK B n Kmass ns cap mb` with `Kmass ≥ n` *is* the carrier bound
+(`wordBound_of_deg_slot`), closing back to `n*n < 2^w`
+(`no_word_size_through_deg_slot`). **W1–W3 are sound at the slot and not yet
+usable at the root.** The producer with the right shape,
+`exists_wreachDeg_of_orderP`, is restricted to `OrderP R` orderings, and
+threading it is exactly S3.
+
+**Group 3 — #20/#22/#23/#27. Finding 2 alive, and far sharper than
+recorded.** `level_cost_floor_cubic`: from `hKs` and `hKl` **alone**, at
+`ℓ ≥ 1`, `16·n³ ≤ Kl 0 n`. `W` occurs in neither hypothesis, nor the
+conclusion, nor the proof — no `chainWidth`, no `hWc`, no `R`. **It was never
+a width problem.** The mechanism is `descendCost`'s `16*(n*n)` inside
+`turnCost`, paid by a turn processing an **empty block**
+(`turnCostSize_size_blind`), times `hKl`'s `n` turns — the touched-only debt,
+at `n³` rather than `n²`. With `hKo`+`hKc`: `128·n³`
+(`level_cost_floor_sharp`).
+
+*Residue work-list, by responsible slot:*
+
+| slot | what is wrong | repair |
+|---|---|---|
+| #20 `hKs` | descent charged at carrier | E4c |
+| #22 `hKo` | `orderPhaseCost` size-blind in `m` | E-mem / E-order |
+| #23 `hKc` | `coverPhaseCost` size-blind, `112·n²` on its face | E3b |
+| #27 `hKl` | the multiplier — **this slot is correct**; repair its summands | — |
+
+`hKd` is **not** responsible (`sweepCost` is linear).
+
+**Plug check.** `driverRoot_decides_sentence_floored` takes the root's
+hypothesis list verbatim (plus `2 ≤ ℓ`) and returns the root's own unweakened
+`Spec` **and** `128·n³ ≤ Kdec + (Kl 0 (n+ns) + Ksent)`. `hKmono` carries the
+floor across E6's weight re-read. Over C0's budget at every `ε < 2`
+(`#guard` at `ε = 1/2`, with an `ε = 3` control confirming it is the exponent
+and not the constants).
+
+**The supervisor's finding-2 correction is now compiled**, §E:
+`width_is_bounded` (space — bounds `W` by `2^w`) beside `floor_has_no_width`
+(cost — no `W` anywhere). The distinction is checkable rather than asserted.
+
+**C0 is not reachable through the root as it stands.** Blocker is the cost
+residue. S2 and S3 remain worth landing and are the next leaf. Gate G4 has not
+passed, so JAN-FLAG 1 disposal stays blocked.
