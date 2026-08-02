@@ -209,15 +209,34 @@ theorem block_extend_skip {D Xm : ℕ → ℕ} {xp₀ xp z r : ℕ}
 /-- **One vertex of the emission scan.** The distance is read once and
 tested at the two radii: the wider test emits into the cluster arena,
 the sharper one records a first catch. The four cases of the walk are
-the four the invariant's two rewritten clauses distinguish. -/
+the four the invariant's two rewritten clauses distinguish.
+
+**The two ceilings are different ceilings** (rebase E-mem/W1). The scan
+forms one pointer *value*, `xp`, and writes into one *array*, `xmem`,
+and the two obligations that creates are separate:
+
+* `hbB : xp₀ + n < B` is the **value** bound — every pointer the scan
+  forms, up to the `n` slots one block may add, must be a word, because
+  the bounded semantics has no value at or above `B`. It used to be read
+  off `n * n < B`, the carrier ceiling `RamCover.CoverInv.ptr_le` paid
+  for; `Refine.ArenaWidth.block_scan_lt` now supplies it from
+  `CoverInv.ptr_le_mass` and `WordBoundK`, at `n * d` instead.
+* `hxp₀ : xp₀ + n ≤ n * n` is the **allocation** bound — the store index
+  must be inside the array, whose length is `n * n`. Nothing here
+  changes it and nothing should: the arena is still `n × n` cells, and
+  `Refine.ArenaWidth` §1 is the reason that costs the word length
+  nothing.
+
+`n < B` was a consequence of the old `n * n < B`; it is now carried
+explicitly, since the block-scan bound does not give it when the pass has
+emitted nothing. -/
 theorem emitSlot_spec {B n : ℕ} {D Xmem asg : ℕ → ℕ} {c xp₀ r : ℕ}
-    (hc : c < n) (hnnB : n * n < B) (hrB : 2 * r + 1 < B)
+    (hc : c < n) (hnB : n < B) (hbB : xp₀ + n < B) (hrB : 2 * r + 1 < B)
     (hasg : ∀ w < n, asg w ≤ n) (hDB : ∀ w < n, D w < B) (hxp₀ : xp₀ + n ≤ n * n) :
     Spec B (fun σ => EmitInv n D Xmem asg c xp₀ r σ ∧ σ.vars "z" < n)
       (RamCover.emitSlot r)
       (fun σ σ' => EmitInv n D Xmem asg c xp₀ r σ' ∧ σ'.vars "z" = σ.vars "z" + 1)
       30 := by
-  have hnB : n < B := lt_of_le_of_lt (RamDriver.le_mul_self n) hnnB
   refine Spec.of_exists fun τ hτ => ?_
   obtain ⟨⟨Xm, as, hnv, hcv, hdist, has, hxmem, hzle, hxpa, hxpb, hkeep, hblock, hmono,
     hrule⟩, hz⟩ := hτ
@@ -395,19 +414,19 @@ theorem emitSlot_spec {B n : ℕ} {D Xmem asg : ℕ → ℕ} {c xp₀ r : ℕ}
       by simpa using hblock₂, by simpa using hmono₂, by simpa using hrule₂⟩
 
 /-- **The emission scan**, the kit's counted scan over the carrier with
-`emitSlot_spec` as its body. -/
+`emitSlot_spec` as its body. The value ceiling `hbB` and the allocation
+ceiling `hxp₀` travel side by side; see `emitSlot_spec`. -/
 theorem emitLoop_spec {B n : ℕ} {D Xmem asg : ℕ → ℕ} {c xp₀ r : ℕ}
-    (hc : c < n) (hnnB : n * n < B) (hrB : 2 * r + 1 < B)
+    (hc : c < n) (hnB : n < B) (hbB : xp₀ + n < B) (hrB : 2 * r + 1 < B)
     (hasg : ∀ w < n, asg w ≤ n) (hDB : ∀ w < n, D w < B) (hxp₀ : xp₀ + n ≤ n * n) :
     Spec B (fun σ => EmitInv n D Xmem asg c xp₀ r (σ.setVar "z" 0))
       (RamCover.emitLoop r)
       (fun _ σ' => EmitInv n D Xmem asg c xp₀ r σ' ∧ σ'.vars "z" = n)
       (34 * n + 6) := by
-  have hnB : n < B := lt_of_le_of_lt (RamDriver.le_mul_self n) hnnB
   refine (Spec.forRangeZero "z" "n" (EmitInv n D Xmem asg c xp₀ r) n 30 hnB
     (fun _ h => by obtain ⟨-, -, -, -, -, -, -, hzle, -⟩ := h; exact hzle)
     (fun _ h => by obtain ⟨-, -, hnv, -⟩ := h; exact hnv)
-    (emitSlot_spec hc hnnB hrB hasg hDB hxp₀)).mono (by omega)
+    (emitSlot_spec hc hnB hbB hrB hasg hDB hxp₀)).mono (by omega)
 
 /-! ### One turn of the cover pass
 
@@ -446,6 +465,45 @@ theorem emitLoop_wvars (r : ℕ) : (RamCover.emitLoop r).wvars = ["z", "dz", "xp
 
 theorem emitLoop_warrs (r : ℕ) : (RamCover.emitLoop r).warrs = ["xmem", "asg"] := rfl
 
+/-- **The one value bound the turn takes off the arena** (rebase
+E-mem/W1). At every state the cover loop can be in — that is, at every
+state whose arena satisfies `RamCover.CoverInv`, below the last centre —
+the widest pointer the emission scan will form, `xp + n`, is a word.
+
+It is a *predicate* and not an inequality because the pointer is not a
+parameter of the walk: it is read off the state the turn starts in, so
+the ceiling has to be quantified over the invariant. There are exactly
+two ways to supply it, and they are the before and after of the width
+repair:
+
+* the carrier reading — `CoverInv.ptr_le : xp ≤ c * n` with `c < n`,
+  against `n * n + … < B` (`ptrWords_of_square`, below), which is what
+  the landed `RamCover.Implements` slot pays for;
+* the arena reading — `CoverInv.ptr_le_mass : xp ≤ n * d` against
+  `Refine.ArenaWidth.WordBoundK` at the ordering's weak-reachability
+  degree, which is `Refine.ArenaWidth.block_scan_lt` and is consumed in
+  `Refine.CoverWidth`.
+
+The **allocation** clause `xp + n ≤ n * n` is not here and does not move:
+it is about the length of the `xmem` list, which the word length never
+reads (`Refine.ArenaWidth` §1), and the walk derives it from `ptr_le`
+either way. -/
+def PtrWords (B : ℕ) {n : ℕ} (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ)
+    (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ) (r : ℕ) : Prop :=
+  ∀ {c xp : ℕ} {Xoff Xmem asg M : ℕ → ℕ},
+    CoverInv G A₀ π ord r c xp Xoff Xmem asg M → c < n → xp + n < B
+
+/-- **The carrier reading of the ceiling**: the landed one. After `c < n`
+centres the pointer is at most `c * n`, so `xp + n ≤ n * n`, and the
+landed value bound makes that a word — with nothing said about degrees.
+-/
+theorem ptrWords_of_square {B : ℕ} (hB : n * n < B) : PtrWords B G A₀ π ord r := by
+  intro c xp _ _ _ _ hI hc
+  have h₁ := hI.ptr_le
+  have h₂ : (c + 1) * n ≤ n * n := Nat.mul_le_mul_right n (by omega)
+  have h₃ : (c + 1) * n = c * n + n := by ring
+  omega
+
 /-- **One centre, at a target array materialized wider than the block
 structure occupies** (rebase F-c-3). The source load, the search, the
 emission scan, the kill, and the two commands that close the block —
@@ -458,29 +516,39 @@ emission scan (`b9`, `c4`) as the opaque frame it always was. Nothing
 addressed moves — the search scans rows, and a row ends at an offset —
 so the cost is still read at the slot count `ns`.
 
+**Rebase E-mem/W1: the value bound enters as `PtrWords`.** The walk used
+to derive `n < B`, `ns < B`, `2r + 1 < B` and the emission scan's
+pointer ceiling from the single hypothesis `n * n + ns + 2 * r + 2 < B`.
+Only the last of the four is about the arena, and it is the only one the
+width repair touches; the other three are read off whichever value bound
+the caller carries. `centreStep_specW` is this at the landed one, and
+`Refine.CoverWidth` runs the same walk at `WordBoundK`.
+
 `centreStep_spec` is this at `nt = ns`. -/
-theorem centreStep_specW {B nt : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n π ord)
-    (hB : n * n + ns + 2 * r + 2 < B) (hnt : ns ≤ nt)
+theorem centreStep_specWB {B nt : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n π ord)
+    (hnB : n < B) (hnsB : ns < B) (hrB : 2 * r + 1 < B)
+    (hptr : PtrWords B G A₀ π ord r) (hnt : ns ≤ nt)
     (hpad : 0 < n → ∀ j, ns ≤ j → j < nt → T j < n) :
     Spec B (fun σ => CoverStateW B G A₀ π ns nt O T ord r σ ∧ σ.vars "c" < n)
       (RamCover.centreStep r)
       (fun σ σ' => CoverStateW B G A₀ π ns nt O T ord r σ' ∧ σ'.vars "c" = σ.vars "c" + 1)
       (RamCover.centreCost n ns) := by
-  have hnnB : n * n < B := by omega
-  have hnB : n < B := lt_of_le_of_lt (RamDriver.le_mul_self n) hnnB
-  have hnsB : ns < B := by omega
-  have hrB : 2 * r + 1 < B := by omega
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨⟨Xoff, Xmem, asg, M, hn, hoff, htgt, hordarr, halv, ⟨gd, hdist⟩, ⟨gq, hq⟩,
     hasgarr, hxoffarr, hxmemarr, halvw, hdistw, hqw, hI⟩, hc⟩ := hσ
   have hW : CoverWords B σ := ⟨halvw, hdistw, hqw⟩
   have hv : ord (σ.vars "c") < n := hord.lt hc
   have hMB : ∀ z < n, M z < B := fun z hz => lt_of_mem_words hW.1 halv hz
+  -- the **allocation** ceiling: the store index stays inside the `n × n`
+  -- arena. It is read off `CoverInv.ptr_le` and is untouched by the width
+  -- repair (rebase E-mem/W1).
   have hxp₀ : σ.vars "xp" + n ≤ n * n := by
     have h₁ := hI.ptr_le
     have h₂ : (σ.vars "c" + 1) * n ≤ n * n := Nat.mul_le_mul_right n (by omega)
     have h₃ : (σ.vars "c" + 1) * n = σ.vars "c" * n + n := by ring
     omega
+  -- the **value** ceiling: every pointer the scan forms is a word.
+  have hbB : σ.vars "xp" + n < B := hptr hI hc
   -- `src := ord[c]`
   have h1 : Run B (.assign "src" (.get "ord" (.var "c"))) σ
       (σ.setVar "src" (ord (σ.vars "c"))) (1 + (Expr.get "ord" (.var "c")).size) :=
@@ -535,7 +603,7 @@ theorem centreStep_specW {B nt : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersB
   obtain ⟨σ₃, hrun₃, ⟨⟨Xm', as', hn₃, hc₃, hdist₃, hasg₃, hxmem₃, -, hxpa₃, hxpb₃,
       hkeep₃, hblock₃, hmono₃, hrule₃⟩, hz₃⟩, hfv₃, hfa₃, -, -⟩ :=
     ((emitLoop_spec (B := B) (n := n) (D := D) (Xmem := Xmem) (asg := asg)
-      (c := σ.vars "c") (xp₀ := σ.vars "xp") (r := r) hc hnnB hrB
+      (c := σ.vars "c") (xp₀ := σ.vars "xp") (r := r) hc hnB hbB hrB
       (fun w hw => hI.asg_le w hw) hDB hxp₀).frame).run (σ := σ₂) hpre
   -- what the scan left where it found it
   have c1 : σ₃.vars "src" = ord (σ.vars "c") := by
@@ -631,6 +699,21 @@ theorem centreStep_specW {B nt : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersB
         rw [hσ₆, vars_setArr, hσ₅, vars_setVar, if_neg (by decide), hσ₄, vars_setArr]]
       exact hstep
   · rw [hσ₆, vars_setArr, hσ₅, vars_setVar, if_pos rfl]
+
+/-- **One centre, at the landed value bound** — the frozen export,
+statement for statement what it was: `centreStep_specWB` with all four
+readings taken off `n * n + ns + 2 * r + 2 < B`, the pointer ceiling
+through `ptrWords_of_square`. -/
+theorem centreStep_specW {B nt : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n π ord)
+    (hB : n * n + ns + 2 * r + 2 < B) (hnt : ns ≤ nt)
+    (hpad : 0 < n → ∀ j, ns ≤ j → j < nt → T j < n) :
+    Spec B (fun σ => CoverStateW B G A₀ π ns nt O T ord r σ ∧ σ.vars "c" < n)
+      (RamCover.centreStep r)
+      (fun σ σ' => CoverStateW B G A₀ π ns nt O T ord r σ' ∧ σ'.vars "c" = σ.vars "c" + 1)
+      (RamCover.centreCost n ns) :=
+  centreStep_specWB hcsr hord
+    (lt_of_le_of_lt (RamDriver.le_mul_self n) (by omega)) (by omega) (by omega)
+    (ptrWords_of_square (by omega)) hnt hpad
 
 /-! ### The obligation, and the repair it names
 

@@ -1103,11 +1103,22 @@ walked in place.
 **Rebase F-c-3: the walk is written at the widened width.** Nothing in
 it reads the target array — the search does, and it enters through the
 turn obligation — so `nt` travels from the precondition to the loop
-state and nowhere else. `cover_spec` is this at `nt = ns`. -/
-theorem cover_specW {B nt : ℕ} (h : ImplementsW B n ns nt G A₀ O T ord π r)
-    (hcsr : RamBfs.CsrGraph G ns O T) (hord : OrdersBy n π ord)
-    (hB : n * n + ns + 2 * r + 2 < B) (hA : ∀ z < n, A₀ z < B) (hnt : ns ≤ nt)
-    (hpad : 0 < n → ∀ j, ns ≤ j → j < nt → T j < n) :
+state and nowhere else. `cover_spec` is this at `nt = ns`.
+
+**Rebase E-mem/W1: the turn arrives as a `Spec`, not as `ImplementsW`.**
+The assembly reads exactly two things off the value bound — `n < B`, for
+the loop's own counter comparison, and the turn triple — and nothing
+else in it mentions the arena. Taking the triple as a parameter is what
+lets the same assembly be run at the landed carrier bound
+(`cover_specW`, below, unchanged) and at
+`Refine.ArenaWidth.WordBoundK`'s arena bound
+(`Refine.CoverWidth.coverPass_specKW`), with the walk written once. -/
+theorem cover_specOfW {B nt : ℕ} (hord : OrdersBy n π ord) (hnB : n < B)
+    (hA : ∀ z < n, A₀ z < B)
+    (hturn : Spec B (fun σ => CoverStateW B G A₀ π ns nt O T ord r σ ∧ σ.vars "c" < n)
+      (centreStep r)
+      (fun σ σ' => CoverStateW B G A₀ π ns nt O T ord r σ' ∧ σ'.vars "c" = σ.vars "c" + 1)
+      (centreCost n ns)) :
     Spec B (fun σ => CoverPreW n ns nt O T A₀ ord σ ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
         (∀ v ∈ σ.arrs "q", v < B))
       (coverCom r) (CoverPost G A₀ π ord r)
@@ -1117,12 +1128,6 @@ theorem cover_specW {B nt : ℕ} (h : ImplementsW B n ns nt G A₀ O T ord π r)
     intro y hy; simp [initAsg, Fill.put, Com.wvars, hy]
   have hwa : ∀ a, a ≠ "asg" → a ∉ initAsg.warrs := by
     intro a ha; simp [initAsg, Fill.put, Com.warrs, ha]
-  have hnn : n ≤ n * n := by
-    rcases Nat.eq_zero_or_pos n with h₀ | h₀
-    · simp [h₀]
-    · calc n = n * 1 := by ring
-        _ ≤ n * n := Nat.mul_le_mul_left n h₀
-  have hnB : n < B := by omega
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨⟨hn, hoff, htgt, halv, hordarr, hdist, hq, ⟨ga, hasg⟩, ⟨gx, hxoff⟩, ⟨gm, hxmem⟩⟩,
     hdw, hqw⟩ := hσ
@@ -1180,7 +1185,7 @@ theorem cover_specW {B nt : ℕ} (h : ImplementsW B n ns nt G A₀ O T ord π r)
   obtain ⟨σ₄, hrun₄, hst, hcn⟩ :=
     (Spec.forRangeZero (B := B) "c" "n" (CoverStateW B G A₀ π ns nt O T ord r) n
       (centreCost n ns) hnB (fun _ hτ => CoverStateW.c_le hτ) (fun _ hτ => CoverStateW.n_eq hτ)
-      (h hcsr hord hB hA hnt hpad)).run
+      hturn).run
       (σ := (σ₁.setVar "xp" 0).setArr "xoff" 0 0) hstart
   have hcost : (10 + (Expr.var "n").size) * n + 6 +
       ((1 + (Expr.lit 0).size) + ((1 + (Expr.lit 0).size + (Expr.lit 0).size) +
@@ -1193,6 +1198,28 @@ theorem cover_specW {B nt : ℕ} (h : ImplementsW B n ns nt G A₀ O T ord π r)
     omega
   exact ⟨σ₄, _, (hrun₁.seq (hrun₂.seq (hrun₃.seq hrun₄))).mono hcost, le_rfl,
     coverPost_of_stateW hord hst hcn⟩
+
+/-- **The cover pass of Grohe–Kreutzer–Siebertz §6, at a widened target
+array** (rebase F-c-3) — the frozen export, statement for statement what
+it was: `cover_specOfW` with the turn supplied by `ImplementsW` at the
+carrier value bound. -/
+theorem cover_specW {B nt : ℕ} (h : ImplementsW B n ns nt G A₀ O T ord π r)
+    (hcsr : RamBfs.CsrGraph G ns O T) (hord : OrdersBy n π ord)
+    (hB : n * n + ns + 2 * r + 2 < B) (hA : ∀ z < n, A₀ z < B) (hnt : ns ≤ nt)
+    (hpad : 0 < n → ∀ j, ns ≤ j → j < nt → T j < n) :
+    Spec B (fun σ => CoverPreW n ns nt O T A₀ ord σ ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
+        (∀ v ∈ σ.arrs "q", v < B))
+      (coverCom r) (CoverPost G A₀ π ord r)
+      (coverCost n ns) :=
+  cover_specOfW hord
+    (by
+      have hnn : n ≤ n * n := by
+        rcases Nat.eq_zero_or_pos n with h₀ | h₀
+        · simp [h₀]
+        · calc n = n * 1 := by ring
+            _ ≤ n * n := Nat.mul_le_mul_left n h₀
+      omega)
+    hA (h hcsr hord hB hA hnt hpad)
 
 /-- **The cover pass of Grohe–Kreutzer–Siebertz §6, at the pinned
 width.** The widened walk at `nt = ns`, where the padding hypothesis is

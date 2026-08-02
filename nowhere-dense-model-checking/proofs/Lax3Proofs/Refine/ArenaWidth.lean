@@ -73,7 +73,8 @@ exactly where it is. That is what this file compiles:
    `Refine.MassMath`'s double count read over the *prefix* of blocks the
    invariant has built, which is the only new mathematics the retirement
    needs.
-6. **§6 — what is still open**, as a named `Prop` with its shape, never
+6. **§6 — the obligation `CoverImplementsK`**, stated here as a named `Prop`
+   and **discharged by `Refine/CoverWidth.coverTurnImplementsK` (W1)**, never
    a `sorry`: `CoverImplementsK` is `RamCover.Implements` with
    `n * n + ns + 2 * r + 2 < B` replaced by `WordBoundK`'s arena clause
    and the degree hypothesis added. `implementsK_of_implements` compiles
@@ -598,7 +599,7 @@ theorem block_scan_lt {B ns cap mb : ℕ} (hord : OrdersBy n π ord)
 
 end Pointer
 
-/-! ## 6. What is still open, named
+/-! ## 6. The obligation, named here and discharged in `CoverWidth` (W1)
 
 The retirement is one obligation: the cover pass re-walked so that its
 value bound is the arena's rather than the carrier's. §5 supplies the

@@ -91,3 +91,4 @@ import Lax3Proofs.Refine.ScatterBlockDiff
 import Lax3Proofs.Refine.OrderBlockProbe
 import Lax3Proofs.Refine.BridgeSeamProbe
 import Lax3Proofs.Refine.ArenaWidth
+import Lax3Proofs.Refine.CoverWidth
