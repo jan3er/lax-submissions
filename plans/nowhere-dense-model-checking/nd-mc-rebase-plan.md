@@ -1106,8 +1106,38 @@ running pointer (`PtrWords`) and the pass's exit pointer `m` (`MassWords`) —
 and `exitWords_not_free` proves the second is not derivable from the first
 plus the allocation clause.
 
-**What remains before C0.** Finding 4 (`rootPre_initEnv_iff_ns_zero`): the
-`OrderMem` clause `ns ≤ σ.vars "lw"` reads `ns ≤ 0` at `initEnv`, so the
-landed `Spec` feeds `solves_of_spec` on edge-free words only. The repair is
-cost 4 — set `"lw"` beside `dedupCom`'s `"dq"`, off the decode's own `m` — and
-lands with the `driverRootD` restatement in the B7 re-run.
+**What remains before C0.**
+
+1. **Finding 4** (`rootPre_initEnv_iff_ns_zero`): the `OrderMem` clause
+   `ns ≤ σ.vars "lw"` reads `ns ≤ 0` at `initEnv`, so the landed `Spec` feeds
+   `solves_of_spec` on edge-free words only. Repair is cost 4 — set `"lw"`
+   beside `dedupCom`'s `"dq"`, off the decode's own `m` — landing with the
+   `driverRootD` restatement in the B7 re-run.
+
+2. **B7 finding 2 — the interface cost floor — is NOT closed.** Correcting a
+   supervisor error of 2026-08-02, propagated into the commit message of
+   `aa2a702` and into the B7 brief: the `ArenaWidth` note said
+   `width_lt_two_pow` "re-reads finding 2 from this side", which is true —
+   it makes the `chainWidth ≤ W` pin unaddressable as a **word-length**
+   matter. That was then restated as finding 2 being *closed by* finding 3.
+   It is not. `width_lt_two_pow` and the whole `WordBoundK` repair are about
+   the word length; neither touches a cost.
+
+   `C0Probe.level_interface_floor` (`:161`) takes `hKs`, `hKo`, `hKl` in
+   exactly the shapes the root still carries (`RamDriverRoot.lean:731`,
+   `:734`, `:741`). `hKo : ∀ j m, orderPhaseCost n ns W ≤ Ko j m` is
+   size-blind — it charges the ordering phase at carrier width at **every**
+   arena, including the empty one — so even at `W = ns` the root's own cost is
+   `≥ 1600·n²`, and on the C0 path `chainWidth`'s `n·n` term makes it `60·n³`
+   (`level_interface_floor_cubic`). **C0 is unreachable through the root as it
+   stands, and the repair is the cost residue, not B7.**
+
+**Sequencing consequence, and it inverts an earlier decision.** The
+2026-08-02 note in `plans/word-ram/tower-expansion-plan.md` §P7 scheduled the
+whole-phase synthesis retry on `orderCom` "at Gate G4 — after C0 discharges,
+before the cost residue". Given the floor, that is self-contradictory: G4
+requires C0, C0 requires the residue. The retry therefore moves **before the
+residue**, i.e. ahead of C0 rather than after it — and the floor strengthens
+the case, because `hKo`'s size-blind `orderPhaseCost` is the floor's main
+driver and is exactly what a synthesized order phase would replace with a
+derived cost rather than a hand-written constant.

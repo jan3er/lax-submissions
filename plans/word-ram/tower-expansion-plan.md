@@ -717,8 +717,19 @@ each entry closed or re-ledgered with an explicit reason.
 ### P7 — Frame-layer performance · budget 1–2 sessions
 
 **Scheduled ahead of P7: retry whole-phase synthesis on `orderCom`
-(Jan, 2026-08-02). Run it at ND-MC's Gate G4 boundary — after C0
-discharges, before the cost residue.**
+(Jan, 2026-08-02). Run it BEFORE ND-MC's cost residue — which, corrected
+later the same day, means ahead of C0 rather than after it.**
+
+*Timing corrected.* This was first scheduled "at Gate G4, after C0 discharges,
+before the cost residue", on a supervisor error: B7 finding 2, the interface
+cost floor, was wrongly recorded as closed by the word-bound repair. It is
+not — `C0Probe.level_interface_floor` runs off `hKo`/`hKs`/`hKl`, which the
+root still carries verbatim, and the `WordBoundK` work is about word length,
+not cost. So C0 requires the residue and "after C0, before the residue" was
+self-contradictory. The floor also strengthens the case for going early:
+`hKo`'s size-blind `orderPhaseCost n ns W` is the floor's main driver, and a
+synthesized order phase replaces it with a derived cost instead of a
+hand-written constant.
 
 The "whole-phase synthesis over 15 arrays is intractable" verdict is stale,
 and for a checkable reason. The traceability table records the cause as
