@@ -1,3 +1,4 @@
+import Lax3Proofs.Refine.ArenaPointer
 import Lax3Proofs.Refine.BridgeSeamProbe
 import Lax3Proofs.Refine.MassMath
 
@@ -71,9 +72,10 @@ exactly where it is. That is what this file compiles:
    driver's array count being constant in `n`, which it is (the
    per-depth, colour and table arrays are indexed by `ℓ`, `sigL` and
    `tablesAt`, all functions of `φ` and the class).
-5. **§5 — the program-side enabling fact.** `RamCover.CoverInv`'s own
+5. **§5 — the program-side enabling fact**, now in
+   `Refine.ArenaPointer` and re-exported here. `RamCover.CoverInv`'s own
    ceiling on the write pointer is `ptr_le : xp ≤ c * n`, the trivial
-   `n²`, and it is what the `n * n` in `WordBound` pays for.
+   `n²`, and it is what the `n * n` in `WordBound` paid for.
    `CoverInv.ptr_le_mass` replaces it: against the *same* invariant,
    with the ordering's weak-reachability degree bounded by `d` — the
    root theorem's own `hdeg` slot — the pointer is at most `n * d` at
@@ -81,7 +83,10 @@ exactly where it is. That is what this file compiles:
    under `WordBoundK` at `K = d` (`block_scan_lt`). The proof is
    `Refine.MassMath`'s double count read over the *prefix* of blocks the
    invariant has built, which is the only new mathematics the retirement
-   needs.
+   needs. It moved down to `Refine.ArenaPointer` at W3, because this
+   file sits **above** `RamDriverRoot` (it imports the seam probe, which
+   is a statement about the root) and the root needs those readings to
+   fill the cover phase's two arena slots.
 6. **§6 — the obligation `CoverImplementsK`**, stated here as a named `Prop`
    and **discharged by `Refine/CoverWidth.coverTurnImplementsK` (W1)**, never
    a `sorry`: `CoverImplementsK` is `RamCover.Implements` with
@@ -440,133 +445,25 @@ end Controls
 /-! ## 5. The program-side enabling fact: the arena pointer is
 almost-linear at every centre boundary
 
+**Moved to `Refine.ArenaPointer` at W3, and re-exported here under its
+landed names.** The mathematics is unchanged; only its position in the
+import order is. This file imports `Refine.BridgeSeamProbe`, which
+imports `RamDriverRoot` because finding 3 is a statement about the root
+theorem — so everything proved here sat strictly above the driver's
+assembly, and W3's root restatement needs the two arena slots to fill
+the cover phase. `Refine.ArenaPointer` depends on nothing but
+`RamDriver` and `Refine.MassMath`.
+
 `RamCover.CoverInv.ptr_le` is `xp ≤ c * n` — the trivial `n²`, and the
-reason `WordBound` carries `n * n`. The invariant already carries
+reason `WordBound` carried `n * n`. The invariant already carries
 everything a sharper ceiling needs: `block` and `block_inj` for every
 block below the current centre, `mono` and `zero` for the offsets, and
 `ptr` for the pointer itself. Reading `Refine.MassMath`'s double count
 over that *prefix* gives `xp ≤ n * d` with `d` the ordering's weak
 reachability degree — which is the root theorem's own `hdeg` slot. -/
 
-section Pointer
-
-open Finset
-open Lax12.ColoringNumbers (wreach)
-open Lax3Proofs.RamBfs (masked)
-open Lax3Proofs.RamCover
-open Lax3Proofs.Refine.MassMath (blockSize clusterAt coverFam)
-
-variable {n : ℕ} {G : SimpleGraph (Fin n)} {A₀ ord Xoff Xmem asg M : ℕ → ℕ}
-  {π : Equiv.Perm (Fin n)} {r c xp d : ℕ}
-
-/-- The blocks the invariant has built tile the arena below the write
-pointer. -/
-theorem sum_blockSize_inv (hI : CoverInv G A₀ π ord r c xp Xoff Xmem asg M) :
-    ∀ k ≤ c, ∑ c' ∈ range k, blockSize Xoff c' = Xoff k := by
-  intro k hk
-  induction k with
-  | zero => simp [blockSize, hI.zero]
-  | succ k ih =>
-      rw [Finset.sum_range_succ, ih (by omega), blockSize]
-      have := hI.mono k (by omega)
-      omega
-
-/-- **A built block's size is its cluster's size** — `MassMath`'s
-`blockSize_eq_ncard`, read off the invariant rather than off the exit
-condition, so it is available *during* the pass. -/
-theorem blockSize_eq_ncard_inv (hI : CoverInv G A₀ π ord r c xp Xoff Xmem asg M)
-    {c' : ℕ} (hc' : c' < c) :
-    blockSize Xoff c' = (clusterAt G A₀ π ord r c').ncard := by
-  classical
-  have hn : 0 < n := by
-    rcases Nat.eq_zero_or_pos n with rfl | h
-    · exact absurd (lt_of_lt_of_le hc' hI.pos_le) (by omega)
-    · exact h
-  have hbound : Xoff (c' + 1) ≤ xp := by
-    rw [← hI.ptr]; exact hI.mono' (by omega) le_rfl
-  have hlt : ∀ p ∈ Finset.Ico (Xoff c') (Xoff (c' + 1)), Xmem p < n := by
-    intro p hp
-    rw [Finset.mem_Ico] at hp
-    exact hI.mem_lt p (lt_of_lt_of_le hp.2 hbound)
-  set f : ℕ → Fin n := fun p => ⟨Xmem p % n, Nat.mod_lt _ hn⟩ with hf
-  have hfval : ∀ p ∈ Finset.Ico (Xoff c') (Xoff (c' + 1)), ((f p : Fin n) : ℕ) = Xmem p :=
-    fun p hp => Nat.mod_eq_of_lt (hlt p hp)
-  have hinj' : Set.InjOn f ↑(Finset.Ico (Xoff c') (Xoff (c' + 1))) := by
-    intro p hp q hq hpq
-    have hp' := Finset.mem_Ico.mp (Finset.mem_coe.mp hp)
-    have hq' := Finset.mem_Ico.mp (Finset.mem_coe.mp hq)
-    have hval : Xmem p = Xmem q := by
-      rw [← hfval p (Finset.mem_coe.mp hp), ← hfval q (Finset.mem_coe.mp hq), hpq]
-    exact hI.block_inj c' hc' p q hp'.1 hp'.2 hq'.1 hq'.2 hval
-  have himg : clusterAt G A₀ π ord r c' = f '' ↑(Finset.Ico (Xoff c') (Xoff (c' + 1))) := by
-    ext z
-    constructor
-    · intro hz
-      obtain ⟨p, hp1, hp2, hp3⟩ := (hI.block c' hc' (z : ℕ)).mpr hz
-      have hmem : p ∈ Finset.Ico (Xoff c') (Xoff (c' + 1)) := Finset.mem_Ico.mpr ⟨hp1, hp2⟩
-      exact ⟨p, Finset.mem_coe.mpr hmem, Fin.ext (by rw [hfval p hmem, hp3])⟩
-    · rintro ⟨p, hp, rfl⟩
-      have hmem := Finset.mem_coe.mp hp
-      have hmem' := Finset.mem_Ico.mp hmem
-      show InCluster (masked G A₀) π r (ord c') ((f p : Fin n) : ℕ)
-      rw [hfval p hmem]
-      exact (hI.block c' hc' (Xmem p)).mp ⟨p, hmem'.1, hmem'.2, rfl⟩
-  rw [himg, Set.InjOn.ncard_image hinj', Set.ncard_coe_finset, Nat.card_Ico, blockSize]
-
-/-- The cover family's total size, against the carrier: `MassMath`'s
-double count with the support taken to be everything. -/
-theorem sum_coverFam_le (hk : ∀ v : Fin n, (wreach (masked G A₀) π (2 * r) v).ncard ≤ d) :
-    ∑ u : Fin n, (coverFam G A₀ π r u).ncard ≤ n * d := by
-  classical
-  have hdeg : ∀ w : Fin n, {u : Fin n | w ∈ coverFam G A₀ π r u}.ncard ≤ d := by
-    intro w
-    have : {u : Fin n | w ∈ coverFam G A₀ π r u} = wreach (masked G A₀) π (2 * r) w := by
-      ext u; exact Iff.rfl
-    rw [this]; exact hk w
-  have huniv : (Set.univ : Set (Fin n)).ncard = n := by simp
-  have := CoverDegree.sum_ncard_le_mul_of_subset (coverFam G A₀ π r) Set.univ d
-    (fun _ => Set.subset_univ _) hdeg
-  rwa [huniv] at this
-
-/-- **The replacement for `CoverInv.ptr_le`.** At every centre boundary
-of the cover pass the write pointer is at most `n * d`, with `d` the
-ordering's weak `2r`-reachability degree — the root theorem's `hdeg`
-slot verbatim. The landed clause `ptr_le : xp ≤ c * n` is the `n = d`
-case and is what the `n * n` in `WordBound` pays for; this is the same
-fact at the sharp constant. -/
-theorem ptr_le_mass (hord : OrdersBy n π ord)
-    (hI : CoverInv G A₀ π ord r c xp Xoff Xmem asg M)
-    (hk : ∀ v : Fin n, (wreach (masked G A₀) π (2 * r) v).ncard ≤ d) :
-    xp ≤ n * d := by
-  classical
-  have hsum : xp = ∑ c' ∈ range c, (clusterAt G A₀ π ord r c').ncard := by
-    rw [← hI.ptr, ← sum_blockSize_inv hI c le_rfl]
-    exact Finset.sum_congr rfl fun c' hc' => blockSize_eq_ncard_inv hI (mem_range.mp hc')
-  have hsub : range c ⊆ range n := by
-    intro y hy
-    rw [Finset.mem_range] at hy ⊢
-    exact lt_of_lt_of_le hy hI.pos_le
-  have hmono : ∑ c' ∈ range c, (clusterAt G A₀ π ord r c').ncard
-      ≤ ∑ c' ∈ range n, (clusterAt G A₀ π ord r c').ncard :=
-    Finset.sum_le_sum_of_subset hsub
-  rw [hsum]
-  exact le_trans hmono
-    (le_trans (le_of_eq (Refine.MassMath.sum_clusterAt_eq hord)) (sum_coverFam_le hk))
-
-/-- **What the new slot buys the block scan.** `RamDriverOrder`'s
-emission scan starts at the pointer and may add one slot per carrier
-vertex, so the widest value it forms is `xp + n`; under `WordBoundK` at
-`K = d` that is a word. This is the inequality the `n * n < B` reading
-is replaced by, and it is where §5 meets §2. -/
-theorem block_scan_lt {B ns cap mb : ℕ} (hord : OrdersBy n π ord)
-    (hI : CoverInv G A₀ π ord r c xp Xoff Xmem asg M)
-    (hk : ∀ v : Fin n, (wreach (masked G A₀) π (2 * r) v).ncard ≤ d)
-    (hB : WordBoundK B n d ns cap mb) : xp + n < B := by
-  have := ptr_le_mass hord hI hk
-  have := hB.1
-  omega
-
-end Pointer
+export Lax3Proofs.Refine.ArenaPointer (sum_blockSize_inv blockSize_eq_ncard_inv
+  sum_coverFam_le ptr_le_mass block_scan_lt)
 
 /-! ## 6. The obligation, named here and discharged in `CoverWidth` (W1)
 
@@ -629,8 +526,7 @@ end Open
 #print axioms no_wordConst_at_square
 #print axioms no_wordConst_at_linear_degree
 #print axioms no_wordConst_growing_layout
-#print axioms ptr_le_mass
-#print axioms block_scan_lt
+-- `ptr_le_mass` and `block_scan_lt` are checked in `Refine.ArenaPointer` §3
 #print axioms coverImplementsK_of_implements
 
 end Lax3Proofs.Refine.ArenaWidth

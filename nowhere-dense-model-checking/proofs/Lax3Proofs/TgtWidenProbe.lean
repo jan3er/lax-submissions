@@ -467,8 +467,9 @@ is the two refutations run before the walks were touched.
 **The first is the shape of the tail clause itself.** The tower's
 `BfsQ.Shape` keeps its range clause over the whole physical array, so
 the obvious padding clause to carry is `∀ j, ns ≤ j → j < W → T j < n`
-— and that clause is *unsatisfiable at `n = 0`*, which
-`RamDriver.WordBound` permits and the empty input word reaches. The
+— and that clause is *unsatisfiable at `n = 0`*, which the driver's
+value bound permits (`RamDriver.WordBoundK`, and `WordBound` before it)
+and the empty input word reaches. The
 three `example`s below are the failure, the repair, and the reason the
 repair is enough: zero padding is satisfiable at every `n`, and it
 *yields* the range clause wherever the cover pass runs, because a centre

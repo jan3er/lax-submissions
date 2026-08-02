@@ -1154,8 +1154,9 @@ is that run on a sentinel tail — so the clause it is handed is the
 clause it hands back.
 
 Zero and not "a vertex" for the reason `LevelPre` gives: at `n = 0`,
-which `WordBound` permits and the empty input word reaches, no cell can
-be below `n`, and the clause would be unsatisfiable. -/
+which the driver's value bound permits — `WordBoundK`, and `WordBound`
+before it — and the empty input word reaches, no cell can be below `n`,
+and the clause would be unsatisfiable. -/
 def DecodeMem (n ns W : ℕ) (σ : Env) : Prop :=
   (σ.arrs "off").length = n + 1 ∧ (σ.arrs "tgt").length = W ∧
     (∀ j, ns ≤ j → j < W → (σ.arrs "tgt").getD j 0 = 0) ∧
@@ -2321,7 +2322,8 @@ records this as the deliberate residual of the decoupling, and
 `Csr.widen` is stated at exactly it. So a level whose `tgt` is `W` wide
 owes something about the padding slots, and the obvious clause — `T j <
 n` there, which is `RamCover.ImplementsW`'s `hpad` — **cannot** be
-carried: at `n = 0`, which `WordBound` permits and the empty input word
+carried: at `n = 0`, which the driver's value bound permits
+(`WordBoundK`, and `WordBound` before it) and the empty input word
 reaches, no cell is below `n`, so `LevelPre` would be unsatisfiable and
 `RamDriverIO.decodeImplements` could not establish it
 (`TgtWidenProbe`'s first flip-gate `example` is that refutation).
@@ -2552,15 +2554,18 @@ theorem WordBound.cover {n ns cap mb : ℕ} (h : WordBound B n ns cap mb) :
 
 /-! ### The degree reading, and every projection off it
 
-`WordBound` is consumed through five projections. All five come off
+`WordBound` was consumed through five projections. All five come off
 `WordBoundK` too, at every degree parameter — which is what makes the
 `hB` slot a *slot* change rather than a weakening: no phase of the
-driver loses a fact. The one reading that does not survive is
-`WordBound.cover`, the carrier ceiling. It has exactly two consumers,
-and both are values the *cover pass* forms out of the arena: the
-emission scan's running pointer and the pointer the pass reports. They
-enter as the slots `PtrWords` and `MassWords` below, each with a carrier
-reading and a mass reading. -/
+driver loses a fact, and `RamDriverRoot` now takes `WordBoundK` at its
+own `hdeg` degree parameter throughout (W3). The one reading that does
+not survive is `WordBound.cover`, the carrier ceiling. It had exactly
+two consumers, and both are values the *cover pass* forms out of the
+arena: the emission scan's running pointer and the pointer the pass
+reports. They enter as the slots `PtrWords` and `MassWords` below, each
+with a carrier reading and a mass reading; the retired `WordBound` and
+its projections stay in the file as the statement that the change is a
+generalization (`wordBoundK_pred_iff`). -/
 
 section BoundK
 
@@ -2819,12 +2824,14 @@ width repair is about. They are named here, beside the value bound and
 below every phase that consumes them, because each has two readings:
 
 * the **carrier** reading, `n * n < B`, which is `WordBound.cover` and
-  is what the driver stands on today (`ptrWords_of_square`,
-  `massWords_of_square`);
+  is what the driver stood on before W3 (`ptrWords_of_square`,
+  `massWords_of_square`), retained because it is what says the slot
+  change costs no landed capital;
 * the **mass** reading, `xp ≤ n * K` against `WordBoundK`, which is
-  `Refine.ArenaWidth.block_scan_lt` and `Refine.CoverWidth`'s
-  `ptrWords_of_mass`, and is what makes the bound satisfiable at C0's
-  own word lengths.
+  `Refine.ArenaPointer`'s `block_scan_lt` / `ptrWords_of_mass` /
+  `massWords_of_mass`, is what the root supplies since W3, and is what
+  makes the bound satisfiable at C0's own word lengths
+  (`Refine.BridgeCrossing`).
 
 The **allocation** clauses (`xp + n ≤ n * n`, `m ≤ n * n`) are not here
 and do not move: they are about the length of the `xmem` list, which the
@@ -2919,9 +2926,11 @@ and the two it forms are the running pointer of the emission scan and
 the exit pointer the phase reports. Neither comes off `WordBoundK`, and
 that is not an accident: the arena's width is what the repair replaced.
 Both enter as slots with two readings apiece — the carrier reading off
-`WordBound.cover`, which is where the driver stands today, and the mass
-reading off `Refine.ArenaWidth`'s degree bound, which is where W3 puts
-it. Every other phase needs neither. -/
+`WordBound.cover`, which is where the driver stood before W3, and the
+mass reading off the ordering's degree bound
+(`Refine.ArenaPointer.ptrWords_of_mass`, `massWords_of_mass`), which is
+what `RamDriverRoot.levelAt` supplies since. Every other phase needs
+neither. -/
 def CoverImplements (cap mb ns W j : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
     (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ) (K : ℕ) : Prop :=
   ∀ {d : ℕ}, WordBoundK B n d ns cap mb → CsrGraph G ns O T →
@@ -3235,7 +3244,7 @@ business, and the composition adds the three phases' own. -/
 
 section Main
 
-variable {n ns : ℕ} {B q_top cap mb R ℓ W Kd Kl Ks : ℕ} {G : SimpleGraph (Fin n)}
+variable {n ns : ℕ} {B q_top cap mb R ℓ W Kd Kl Ks Kmass : ℕ} {G : SimpleGraph (Fin n)}
   {O T : ℕ → ℕ} {x : List ℕ} {φ : Lax3.FirstOrder.FO 0}
 
 open Classical in
@@ -3250,9 +3259,19 @@ bit the last of them writes — that the boolean combination of the top
 sentence, evaluated over the constants its local atoms are and the greedy
 scatter values its scatter atoms are, is the sentence's truth value.
 That is `sat_iff_eval_sentence`, and it is the only step of this proof
-that is not composition. -/
+that is not composition.
+
+**The value bound is `WordBoundK`** (rebase E-mem/W3). The composition
+reads four projections off it — `one_lt`, `n_lt`, `succ_lt`, `ns_lt` —
+and hands it to the sentence readback, and all five are available at
+every degree parameter. It carries no arena reading at all: the two
+addresses into the cluster arena are formed inside a *level*, and enter
+`LevelImplements` through the cover phase's own slots. So the root's
+bound is the one `Refine.ArenaWidth.word_size_for_encoded` makes
+satisfiable at C0's word lengths, and the seam probe's finding 3 no
+longer reaches it (`Refine.BridgeCrossing`). -/
 theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
-    (hB : WordBound B n ns cap mb) (hxB : ∀ v ∈ x, v < B) (hWB : W < B)
+    (hB : WordBoundK B n Kmass ns cap mb) (hxB : ∀ v ∈ x, v < B) (hWB : W < B)
     (hpad0 : ∀ z, ns ≤ z → z < W → T z = 0)
     (hdec : DecodeImplements B x G ns W O T Kd)
     (hlev : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ), (∀ v < n, M v ≠ 0) →
@@ -3306,9 +3325,8 @@ theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
   -- the sentence readback
   obtain ⟨σ₃, hrun₃, hcond, hout₃⟩ :=
     -- the readback takes the value bound at a degree parameter (rebase
-    -- E-mem/W2); the root still carries the carrier bound, which is that
-    -- slot at `K = n - 1`, and W3 replaces it by `WordBoundK` at `Kmass`.
-    (hsent M Gm (fun _ _ => 0) (wordBoundK_pred_iff.mpr hB) hMpos).run (σ := σ₂)
+    -- E-mem/W3); the root carries it at `Kmass`, and hands it down unchanged
+    (hsent M Gm (fun _ _ => 0) hB hMpos).run (σ := σ₂)
       ⟨hpre₂, htab₂, by rw [hout₂, hout₁]⟩
   refine ⟨σ₃, _, (hrun₁.seq (hrun₂.seq hrun₃)).mono le_rfl, le_rfl, ?_⟩
   -- and the one thing that is not composition

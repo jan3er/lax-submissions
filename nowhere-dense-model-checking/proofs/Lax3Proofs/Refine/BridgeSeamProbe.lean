@@ -14,12 +14,25 @@ what each of them demands of
 `C0Probe` and `Refine.G2CostProbe`: a witness where the seam closes, a
 refutation where it does not, and negative controls on both.
 
+**Finding 3 is REPAIRED** (rebase E-mem, leaves W1–W3; the repair route
+is `Refine.ArenaWidth`, the crossing is `Refine.BridgeCrossing`). What
+§5 proves is unchanged and still true — it is a statement about
+`RamDriver.WordBound`, the carrier-width value bound — but that is no
+longer the bound the root theorem carries. Since W3,
+`RamDriverRoot.driverRoot_decides_sentence` takes
+`RamDriver.WordBoundK B n Kmass ns cap mb`, whose arena clause is
+`n * Kmass + n + …` with `Kmass` the cover-degree constant its own
+`hdeg` slot bounds; `Refine.BridgeCrossing.no_word_size_at_root`
+compiles that §5's own argument, restated at that slot, is **false**.
+The account below is the finding as it stood, kept because the repair is
+only intelligible against it.
+
 **Finding 3 — the layout does not fit in the words C0 hands it.**
-`§5`. This is the headline, and it is *unconditional*: it needs no
+`§5`. This was the headline, and it is *unconditional*: it needs no
 width path, no `chainWidth`, no cost side condition and no `R > 0`
 coupling. The driver addresses an `n × n` cluster arena — `xmem` and
 `xmmName j` are `n * n` cells in `RamDriver.LevelMem` / `DepthMem` —
-so its own value bound clause `RamDriver.WordBound` pins
+so its value bound clause `RamDriver.WordBound` pinned
 `n * n + ns + 2 * cap + 2 < B`. `Compile.Layout.FitsWords B w` pins
 `B ≤ 2 ^ w`. And C0's domain only *guarantees* words above
 `c · (|x| + v + 1)`, so at the smallest admissible word size
@@ -32,7 +45,12 @@ repair reaches it. The repair is at the level of the driver's memory —
 the `n × n` block-membership arena must become an almost-linear
 structure (the R1.6/R1.8 block-driven rewrite), which the two B7
 findings already asked for on cost grounds and this finding now makes
-mandatory for existence.
+mandatory for existence. **That reading of the repair was wrong, and
+`Refine.ArenaWidth` §1 is why**: `Compile.Layout.span` never sees the
+length of an IMP+ array, so the `n × n` allocation reaches the word
+length only through the literal `n * n` inside `WordBound`. The arena
+stays exactly where it is; what left the word bound is the *pointer
+ceiling*.
 
 **Finding 4 — the landed precondition is not `initEnv`-reachable.**
 `§2`–`§4`. `solves_of_spec` demands the precondition be *exactly*
@@ -100,7 +118,8 @@ theorem driverRoot_decides_sentence_pre
     (hpad0 : ∀ z, ns ≤ z → z < W → T z = 0)
     (hrank : Lax3.FirstOrder.rank φ ≤ q_top) (hcap : cap = rhoMinus 0 q_top)
     (hmb : mb = ℓ * (2 * cap + 1)) (hℓ : ℓ = N (2 * s + 2))
-    (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B) (hpow : 2 ^ sigL cap mb ℓ < B)
+    (hB : WordBoundK B n Kmass ns cap mb) (hWB : n + W + 1 < B)
+    (hpow : 2 ^ sigL cap mb ℓ < B)
     (hQ : ∀ Pt : Set (Fin n), N (2 * s + 2) ≤ Pt.ncard →
       ∃ S Bd : Set (Fin n), S.ncard ≤ s ∧ Bd ⊆ Pt \ S ∧ 2 * s + 2 ≤ Bd.ncard ∧
         DistIndependent (deleteVerts G S) (2 * cap) Bd)
@@ -450,12 +469,20 @@ end Prologue
 /-! ## 5. Question 3, the refutation: the layout does not fit in C0's words
 
 `computesInTime_of_spec` adds `L.FitsWords (B x) w`, whose `bound` field
-is `B ≤ 2 ^ w`. The driver's own `RamDriver.WordBound` — hypothesis
-`hB` of the root theorem, at `R = 0`, with no width path and no cost
-side condition in sight — is `n * n + ns + 2 * cap + 2 < B`, because
-the cluster arena `xmem` / `xmmName j` is `n * n` cells
-(`RamDriver.LevelMem`, `RamDriver.DepthMem`). So the assembly needs
+is `B ≤ 2 ^ w`. `RamDriver.WordBound` — the root theorem's `hB` slot
+until W3, at `R = 0`, with no width path and no cost side condition in
+sight — is `n * n + ns + 2 * cap + 2 < B`, because the cover pass forms
+the cluster arena's pointer as a *value* and the arena is `n * n` cells
+(`RamDriver.LevelMem`, `RamDriver.DepthMem`). So the assembly needed
 `n * n < 2 ^ w`.
+
+**The root no longer carries this bound** (rebase E-mem/W3): its slot is
+`RamDriver.WordBoundK B n Kmass ns cap mb`, and everything below is
+therefore a theorem about the *retired* form. It is kept, and kept
+sharp, because it is what the repair is measured against —
+`Refine.ArenaWidth`'s flip and `Refine.BridgeCrossing`'s crossing are
+both stated against `no_word_size_for_sparse` at the very instance it
+kills.
 
 C0 gives the opposite. Its domain is
 `{x | EncodesGraph x n G ∧ ∀ v ∈ x, c * (x.length + v + 1) ≤ 2 ^ w}`,
@@ -529,8 +556,8 @@ theorem exists_pow_between {m : ℕ} (hm : 0 < m) : ∃ w : ℕ, m ≤ 2 ^ w ∧
   rw [pow_succ, mul_comm]
   exact Nat.mul_le_mul_left 2 (Nat.pow_log_le_self 2 (by omega))
 
-/-- **What the layout demands of the word length**: the driver's own
-value bound is above `n ^ 2`, and every value of the layout is a word. -/
+/-- **What the layout demanded of the word length** at the carrier
+bound: it is above `n ^ 2`, and every value of the layout is a word. -/
 theorem sq_lt_two_pow_of_fits {L : Lax13Proofs.Compile.Layout} {B w n ns cap mb : ℕ}
     (hfit : L.FitsWords B w) (hB : WordBound B n ns cap mb) : n * n < 2 ^ w := by
   have h := hB.1
@@ -550,11 +577,17 @@ theorem width_lt_two_pow {L : Lax13Proofs.Compile.Layout} {B w n W : ℕ}
 
 /-- **Question 3, the refutation — and the third boundary fact.** For
 every constant `c`, at every sparse instance past the constant's
-crossover, C0's own domain admits a word length at which the driver's
+crossover, C0's own domain admits a word length at which the *carrier*
 value bound and the compile layout's fits-words condition are jointly
 unsatisfiable. No cost repair reaches it: the quantities are `n * n`
-(the cluster arena) against `2 ^ w` (the machine's addressable range),
-and the cost interface does not occur. -/
+(the cluster arena's pointer ceiling) against `2 ^ w` (the machine's
+addressable range), and the cost interface does not occur.
+
+This is the theorem the repair is measured against.
+`Refine.ArenaWidth.flip_at_the_refuting_instance` and
+`Refine.BridgeCrossing` both consume *this* `w`: at the very word length
+that kills `WordBound` for every value bound, the root's restated slot
+has one. -/
 theorem no_word_size_for_sparse (c n : ℕ) (hc : 0 < c) (hcross : 4 * c * (n + 2) ≤ n * n) :
     ∃ w : ℕ, EncodesGraph (emptyWord n) n (⊥ : SimpleGraph (Fin n)) ∧
       (∀ v ∈ emptyWord n, c * ((emptyWord n).length + v + 1) ≤ 2 ^ w) ∧

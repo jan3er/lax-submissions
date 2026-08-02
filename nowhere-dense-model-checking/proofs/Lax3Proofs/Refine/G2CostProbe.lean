@@ -762,7 +762,10 @@ theorem g2_plug {n : ℕ} {B q_top cap mb ns W ℓ s : ℕ} {N : ℕ → ℕ}
     (hKscM : ∀ j < ℓ, Ksc j ≤ kscM)
     (hcap : cap = rhoMinus 0 q_top) (hmb : mb = ℓ * (2 * cap + 1))
     (hℓ : ℓ = N (2 * s + 2))
-    (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B)
+    -- the value bound at the cover-degree parameter `hdeg` bounds (rebase
+    -- E-mem/W3): `RamDriverRoot.levelAt`'s own slot, so the plug is at the
+    -- restated interface and not at the retired carrier one
+    (hB : RamDriver.WordBoundK B n D ns cap mb) (hWB : n + W + 1 < B)
     (hpow : 2 ^ sigL cap mb ℓ < B)
     (hcsr : RamElim.CsrSimple G ns O T)
     (hQ : ∀ Pt : Set (Fin n), N (2 * s + 2) ≤ Pt.ncard →

@@ -1046,7 +1046,7 @@ blocks already built, so it is available *during* the pass, which
 `MassMath.mass_le` (exit-only) is not. `block_scan_lt` closes it to the slot.
 This replaces the trivial `xp ≤ c * n` that `n * n` was paying for.
 
-**Threading, three waves.**
+**Threading — ALL THREE WAVES LANDED 2026-08-02. Finding 3 is CLOSED.**
 
 1. **W1 (hard, single owner)** — re-walk `RamCover.centreStep`/`coverCom` at
    `CoverImplementsK`, and `RamDriverOrder`'s emission scan `hnnB : n*n < B`.
@@ -1064,3 +1064,50 @@ One named `Prop`, no `sorry`: `CoverImplementsK`, with
 `coverImplementsK_of_implements` compiling that it is a generalization (the
 landed obligation gives it at `d = n`), so the slot change costs no landed
 capital.
+
+## Finding 3 closed (2026-08-02) — `Refine/BridgeCrossing.lean`
+
+W1 (`99bc9f4`), W2 (`ff0670a`) and W3 landed the word-bound repair end to end.
+The root's hypothesis is now
+
+```lean
+(hB : WordBoundK B n Kmass ns cap mb)
+```
+
+`Kmass` being the root's *existing* `hdeg` degree parameter — no new binder.
+`driverRoot_decides_sentence` differs from its landed form in **exactly that
+one line**: precondition, program, postcondition, cost and every other
+hypothesis are byte-identical (verified by diff, not by report).
+
+**The crossing is compiled, and the control is what makes it honest.**
+
+- `no_word_size_at_root` — `BridgeSeamProbe.no_word_size_for_sparse` restated
+  at the root's slot is **false**.
+- `word_size_at_carrier` — the **identical statement shape** at the retired
+  `WordBound` is **true**. So the difference is the slot and nothing else:
+  not the quantifier order, not the witness family.
+- `root_flip_at_the_refuting_instance` — at the very `w` where the old bound
+  is refuted for every `B`, the restated root's slot has one.
+- `driverRoot_decides_sentence_bound` — the plug check: the root restated with
+  `RootBound` in that position, proved by the root itself. Break tests
+  (run and reverted): degree bumped to `Kmass + 1` → 1 error; `RootBound`
+  redefined as the carrier bound → 9 errors. Load-bearing on both the slot and
+  the identification of the degree with `hdeg`'s.
+
+**Two structural things the waves had to solve.** `WordBoundK` and then the
+arena-pointer mathematics both sat *above* the driver in the import DAG
+(`CoverWidth → ArenaWidth → BridgeSeamProbe → RamDriverRoot`), so no phase
+obligation and then no root theorem could name what it needed. The definitions
+moved down beside `WordBound` in `RamDriver.lean`, and §5/§1 of the two probe
+files moved into a new low `Refine/ArenaPointer.lean`, with the old sites
+`export`ing them so every landed name and `#print axioms` still resolves.
+Second, the carrier ceiling had **two** consumers — the emission scan's
+running pointer (`PtrWords`) and the pass's exit pointer `m` (`MassWords`) —
+and `exitWords_not_free` proves the second is not derivable from the first
+plus the allocation clause.
+
+**What remains before C0.** Finding 4 (`rootPre_initEnv_iff_ns_zero`): the
+`OrderMem` clause `ns ≤ σ.vars "lw"` reads `ns ≤ 0` at `initEnv`, so the
+landed `Spec` feeds `solves_of_spec` on edge-free words only. The repair is
+cost 4 — set `"lw"` beside `dedupCom`'s `"dq"`, off the decode's own `m` — and
+lands with the `driverRootD` restatement in the B7 re-run.

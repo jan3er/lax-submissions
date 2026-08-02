@@ -1213,10 +1213,18 @@ cluster arena — the emission scan's running pointer and the pass's exit
 pointer — and those are `hptr` and `hexit`, quantified here over the
 mask and the ordering because the ordering is produced inside the loop
 and the mask changes with the depth. Both have a carrier reading
-(`RamDriver.ptrWords_of_square`, `massWords_of_square`, off
-`WordBound.cover`) and a mass reading (`Refine.CoverWidth`'s, off
+(`RamDriver.ptrWords_of_square`, `massWords_of_square`, off the retired
+`WordBound.cover`) and a mass reading
+(`Refine.ArenaPointer.ptrWords_of_mass`, `massWords_of_mass`, off
 `WordBoundK` at the cover's degree); this theorem is indifferent to
-which, and that is the whole point of their being slots. -/
+which, and that is the whole point of their being slots.
+
+Both slots carry `RamCover.OrdersBy n π ord` as a hypothesis (W3). The
+mass readings need it — the double count of `Refine.MassMath` is over
+the ordering's own fibres — and the loop has it in hand at the one
+point either slot is used, since the ordering phase produced `π` and
+`ord` together with it. The carrier readings ignore it, so this costs
+the landed instantiation nothing. -/
 theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s : ℕ}
     {φ : Lax3.FirstOrder.FO 0}
     {G : SimpleGraph (Fin n)} {O T : ℕ → ℕ}
@@ -1227,9 +1235,9 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
     (hcsr : RamElim.CsrSimple G ns O T)
     (helim : ElimAvail B n) (haug : AugAvail B n) (hcovav : CoverAvail B cap ns G O T)
     (hptr : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ),
-      RamDriver.PtrWords B G M π ord cap)
+      RamCover.OrdersBy n π ord → RamDriver.PtrWords B G M π ord cap)
     (hexit : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ),
-      RamDriver.MassWords B G M π ord cap)
+      RamCover.OrdersBy n π ord → RamDriver.MassWords B G M π ord cap)
     (hQ : ∀ Pt : Set (Fin n), N (2 * s + 2) ≤ Pt.ncard →
       ∃ S Bd : Set (Fin n), S.ncard ≤ s ∧ Bd ⊆ Pt \ S ∧ 2 * s + 2 ≤ Bd.ncard ∧
         DistIndependent (deleteVerts G S) (2 * cap) Bd)
@@ -1307,7 +1315,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
       -- the cover pass, and the compaction that ends it
       obtain ⟨σ₂, hr₂, hlev₂, hout₂, hctr₂, hgam₂, Xoff, Xmem, asg, cps, mm, cnum,
           hheld₂, hcps₂, hcnum₂, hcomp₂⟩ :=
-        (hcover j hjl M Gm C π ord hB hcsr.csr (hptr M π ord) (hexit M π ord)
+        (hcover j hjl M Gm C π ord hB hcsr.csr (hptr M π ord hordby) (hexit M π ord hordby)
             hcovav hordby).run
           ⟨hlev₁, hord₁, fun z hz => hordby.lt hz⟩
       have htsz₂ : TablesSized q_top cap mb φ n σ₂ := htsz₁.run hr₂

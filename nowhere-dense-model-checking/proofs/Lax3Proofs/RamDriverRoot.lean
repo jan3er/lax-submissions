@@ -1,5 +1,6 @@
 import Lax3Proofs.RamDriverWrites
 import Lax3Proofs.RamDriverAugment
+import Lax3Proofs.Refine.ArenaPointer
 import Lax3Proofs.Refine.DeadSweep
 import Lax3Proofs.Refine.MassWeight
 
@@ -21,6 +22,21 @@ kinds of thing.
   locality radius `rhoMinus 0 q_top`, `mb = ℓ·(2·cap+1)` the padded batch
   width, `ℓ = N (2s+2)` the round budget, the word bound, and the value
   bounds the base pass and the scatter atoms form.
+
+  **The word bound is `RamDriver.WordBoundK` at `Kmass`** (rebase E-mem,
+  leaf W3), not the carrier bound `RamDriver.WordBound`: the cluster
+  arena's pointer ceiling is read at the cover-degree parameter this
+  theorem's own `hdeg` slot bounds, so the arena clause is
+  `n·Kmass + n + ns + 2·cap + 2 < B` instead of `n² + ns + 2·cap + 2 < B`.
+  No new parameter enters — `Kmass` is `hdeg`'s — and no conclusion
+  moves; the two addresses into the arena that used to come off
+  `WordBound.cover` are supplied by the mass readings
+  `Refine.ArenaPointer.ptrWords_of_mass` / `massWords_of_mass` at the
+  ordering the cover phase produced. What it buys is the bridge:
+  `Refine.BridgeSeamProbe.no_word_size_for_sparse` refuted the carrier
+  bound against `Compile.Layout.FitsWords` at word lengths C0's own
+  domain admits, and `Refine.BridgeCrossing` compiles that the same
+  argument at this slot is false.
 * **The mathematics of the campaign.** `hQ`, uniform quasi-wideness of
   the arena at radius `2·cap` — the one hypothesis that is not about the
   machine at all — together with the cost side conditions, which are
@@ -168,7 +184,7 @@ makes. -/
 
 section Turn
 
-variable {n : ℕ} {B q_top cap mb ns W ℓ j : ℕ} {φ : Lax3.FirstOrder.FO 0}
+variable {n : ℕ} {B q_top cap mb ns W ℓ j Kmass : ℕ} {φ : Lax3.FirstOrder.FO 0}
   {G : SimpleGraph (Fin n)} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
   {ord Xoff Xmem asg : ℕ → ℕ} {mm k : ℕ} {Kb Ki Ksc Ks : ℕ} {Kin : ℕ → ℕ}
 
@@ -213,7 +229,7 @@ the cluster, the cluster weighs at most its block, so a monotone budget
 read at the block's weight pays for it. -/
 theorem clusterStepAt
     (hcap : cap = rhoMinus 0 q_top) (hmb : mb = ℓ * (2 * cap + 1)) (hjl : j < ℓ)
-    (hB : WordBound B n ns cap mb) (hcsr : CsrGraph G ns O T)
+    (hB : WordBoundK B n Kmass ns cap mb) (hcsr : CsrGraph G ns O T)
     (hbnd : ∀ β ∈ tablesAt q_top cap mb φ j,
       ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
         σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n ns σs.t ≤ Kb)
@@ -227,14 +243,14 @@ theorem clusterStepAt
       (arenaWeight n G) (driverAt q_top cap mb 0 ℓ φ (j + 1)) Kin Ks :=
   RamDriverCluster.clusterStepImplements hcap
     (RamDriverDescend.descendStep hmb hjl le_rfl)
-    (fun _ _ _ _ => RamDriverDescend.enumStep (wordBoundK_pred_iff.mpr hB) le_rfl)
+    (fun _ _ _ _ => RamDriverDescend.enumStep hB le_rfl)
     (fun _ _ _ _ _ => RamDriverDescend.colourStep le_rfl)
     (fun hinner _ _ _ _ _ _ => RamDriverFrames.innerFrames hinner
       (fun _ ha => turnFrozen_notMem_warrs_driverAt ha)
       (fun _ ha => ctrName_notMem_wvars_driverAt ha)
       xpName_notMem_wvars_driverAt curName_notMem_wvars_driverAt)
     (fun _ _ _ _ _ _ =>
-      RamDriverFrames.scatterStep hcsr (wordBoundK_pred_iff.mpr hB) hbnd hcostI hKsc)
+      RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
     hmono
     (fun _ hkn hout hsub =>
@@ -245,7 +261,7 @@ open Classical in
 /-- **What one turn leaves alone, at the nested driver.** -/
 theorem clusterFramesAt
     (hmb : mb = ℓ * (2 * cap + 1)) (hjl : j < ℓ)
-    (hB : WordBound B n ns cap mb) (hcsr : CsrGraph G ns O T)
+    (hB : WordBoundK B n Kmass ns cap mb) (hcsr : CsrGraph G ns O T)
     (hbnd : ∀ β ∈ tablesAt q_top cap mb φ j,
       ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
         σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n ns σs.t ≤ Kb)
@@ -258,15 +274,15 @@ theorem clusterFramesAt
     RamDriverCluster.ClusterFrames B q_top cap mb ns W ℓ j φ G O T M Gm C π ord
       Xoff Xmem asg mm k (arenaWeight n G)
       (driverAt q_top cap mb 0 ℓ φ (j + 1)) Kin Ks :=
-  RamDriverFrames.clusterFrames hcsr (wordBoundK_pred_iff.mpr hB)
+  RamDriverFrames.clusterFrames hcsr hB
     (RamDriverDescend.descendStep hmb hjl le_rfl)
-    (fun _ _ _ _ => RamDriverDescend.enumStep (wordBoundK_pred_iff.mpr hB) le_rfl)
+    (fun _ _ _ _ => RamDriverDescend.enumStep hB le_rfl)
     (fun _ _ _ _ _ => RamDriverDescend.colourStep le_rfl)
     (fun _ ha => turnFrozen_notMem_warrs_driverAt ha)
       (fun _ ha => ctrName_notMem_wvars_driverAt ha)
     xpName_notMem_wvars_driverAt curName_notMem_wvars_driverAt
     (fun _ _ _ _ _ _ =>
-      RamDriverFrames.scatterStep hcsr (wordBoundK_pred_iff.mpr hB) hbnd hcostI hKsc)
+      RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
     (fun i => tabName_notMem_warrs_driverAt i)
     hmono
@@ -318,10 +334,18 @@ form-invariant under the re-read; what changed is the point they are
 READ at, and the four phase slots' honest forms are still the
 carrier-charged ones (the per-slot gap ledger is compiled in
 `Refine.G2CostProbe` §7 — they move only when the block-driven engines
-land). -/
+land).
+
+**Rebase E-mem/W3.** `hB` is `RamDriver.WordBoundK` at `Kmass` — the
+degree parameter `hdeg` already bounds — and goes down to every phase
+unchanged; the induction is uniform in it. The cover phase's two arena
+slots, which are the only readings the carrier bound used to be needed
+for, are the mass readings of `Refine.ArenaPointer` at the ordering the
+loop produced, discharged from `hdeg` itself. The hypothesis list is
+otherwise unchanged and the conclusion is untouched. -/
 theorem levelAt
     (hcap : cap = rhoMinus 0 q_top) (hmb : mb = ℓ * (2 * cap + 1)) (hℓ : ℓ = N (2 * s + 2))
-    (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B) (hpow : 2 ^ sigL cap mb ℓ < B)
+    (hB : WordBoundK B n Kmass ns cap mb) (hWB : n + W + 1 < B) (hpow : 2 ^ sigL cap mb ℓ < B)
     (hcsr : RamElim.CsrSimple G ns O T)
     (hQ : ∀ Pt : Set (Fin n), N (2 * s + 2) ≤ Pt.ncard →
       ∃ S Bd : Set (Fin n), S.ncard ≤ s ∧ Bd ⊆ Pt \ S ∧ 2 * s + 2 ≤ Bd.ncard ∧
@@ -350,20 +374,20 @@ theorem levelAt
     ∀ j ≤ ℓ, ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
       LevelImplements B q_top cap mb 0 ℓ W ns j φ G O T M Gm C
         (Kl j (arenaWeight n G M)) :=
-  -- the phases take the value bound at a degree parameter (rebase E-mem/W2); the
-  -- root still carries the carrier bound, which is that slot at `K = n - 1`, and
-  -- supplies the cover phase's two arena slots from `WordBound.cover`. W3 replaces
-  -- the whole group by `WordBoundK` at `Kmass` and the mass readings.
-  RamDriverCluster.levelImplements (wordBoundK_pred_iff.mpr hB) hWB hcsr
+  -- every phase takes the value bound at a degree parameter, and the root now
+  -- carries it there: `hB` goes down unchanged (rebase E-mem/W3). The cover
+  -- phase's two arena slots are the mass readings, off this theorem's own
+  -- `hdeg` at the ordering the loop produced.
+  RamDriverCluster.levelImplements hB hWB hcsr
     (fun _ _ _ _ _ _ => RamElim.implements)
     (fun _ _ _ _ _ _ _ => RamDriverAugment.implements)
     (fun A₀ ord π => RamDriverOrder.coverTurnImplements B n ns G A₀ O T ord π cap)
-    (fun _ _ _ => ptrWords_of_square (by have := hB.cover; omega))
-    (fun _ _ _ => massWords_of_square (by have := hB.cover; omega))
+    (fun M π _ hordby => Refine.ArenaPointer.ptrWords_of_mass hordby (hdeg M π) hB.arena)
+    (fun M π _ hordby => Refine.ArenaPointer.massWords_of_mass hordby (hdeg M π) hB)
     hQ hℓ
     (fun M Gm C hbot hbit => by
       rw [driverAt_bot]
-      exact ((RamDriverCompose.baseImplements (wordBoundK_pred_iff.mpr hB) hpow hbot hbit).pre
+      exact ((RamDriverCompose.baseImplements hB hpow hbot hbit).pre
         (fun _ h => ⟨h.1, h.2.1, h.2.2.1⟩)).mono (hKbase _))
     (fun j _ M _ _ _d h₁ h₂ h₃ h₄ h₅ =>
       (RamDriverCompose.orderImplements₀ h₁ h₂ h₃ h₄ h₅).mono
@@ -378,7 +402,7 @@ theorem levelAt
         (hKmono (j + 1)) (hKs j hj _))
     (fun _ _ => loopFrames)
     (fun j _ M _ _ =>
-      (Refine.DeadSweep.sweepImplements (jd := j) (wordBoundK_pred_iff.mpr hB)).mono
+      (Refine.DeadSweep.sweepImplements (jd := j) hB).mono
         (hKd j (arenaWeight n G M)))
     (fun M π ord Xoff Xmem asg cps mm cnum hordby _ hout hcomp =>
       Refine.MassWeight.mass_of_alive_compaction_weight G hordby hout
@@ -487,7 +511,7 @@ will call, and the check that the Σ interface and the level condition
 have not drifted apart. -/
 theorem levelAt_of_sigma
     (hcap : cap = rhoMinus 0 q_top) (hmb : mb = ℓ * (2 * cap + 1)) (hℓ : ℓ = N (2 * s + 2))
-    (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B) (hpow : 2 ^ sigL cap mb ℓ < B)
+    (hB : WordBoundK B n Kmass ns cap mb) (hWB : n + W + 1 < B) (hpow : 2 ^ sigL cap mb ℓ < B)
     (hcsr : RamElim.CsrSimple G ns O T)
     (hQ : ∀ Pt : Set (Fin n), N (2 * s + 2) ≤ Pt.ncard →
       ∃ S Bd : Set (Fin n), S.ncard ≤ s ∧ Bd ⊆ Pt \ S ∧ 2 * s + 2 ≤ Bd.ncard ∧
@@ -667,7 +691,21 @@ input word's `CsrSimple` — the clause G1's dedup produces at the C0
 boundary). `hKs`/`hKl` are the §5.7/§5.6 shapes read at weights,
 `hKmono` is new, and — rebase B8 — the mass bundle `hmass` has become
 the two facts it is derived from (`hbinj`, `hdeg`) while the level
-gains its dead-row sweep (`hKd`). The conclusion is untouched. -/
+gains its dead-row sweep (`hKd`). The conclusion is untouched.
+
+**Rebase E-mem/W3: the word-bound slot.** `hB` is
+`RamDriver.WordBoundK B n Kmass ns cap mb`, the value bound with the
+cluster arena's pointer ceiling read at `hdeg`'s own degree parameter,
+in place of the carrier bound `RamDriver.WordBound`. It is the *only*
+hypothesis that moved: the list, the order, the program, the
+precondition, the postcondition and the cost are all what they were.
+`hdeg` now does double duty — it bounds the cover's degree for the mass
+recursion, as before, and it is what makes the arena's pointer a word
+(`Refine.ArenaPointer.ptr_le_mass`). The bridge consequence is
+`Refine.BridgeCrossing`: this slot has a value bound at every word of
+C0's domain, at the layout's own constant, including at the instance
+where `Refine.BridgeSeamProbe.no_word_size_for_sparse` kills the carrier
+bound for every value bound. -/
 theorem driverRoot_decides_sentence
     -- the input word
     (hx : EncodesGraph x n G) (hns : ns = 2 * edgeCount x)
@@ -677,7 +715,7 @@ theorem driverRoot_decides_sentence
     -- the parameters
     (hrank : Lax3.FirstOrder.rank φ ≤ q_top) (hcap : cap = rhoMinus 0 q_top)
     (hmb : mb = ℓ * (2 * cap + 1)) (hℓ : ℓ = N (2 * s + 2))
-    (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B) (hpow : 2 ^ sigL cap mb ℓ < B)
+    (hB : WordBoundK B n Kmass ns cap mb) (hWB : n + W + 1 < B) (hpow : 2 ^ sigL cap mb ℓ < B)
     -- the mathematics of the campaign
     (hQ : ∀ Pt : Set (Fin n), N (2 * s + 2) ≤ Pt.ncard →
       ∃ S Bd : Set (Fin n), S.ncard ≤ s ∧ Bd ⊆ Pt \ S ∧ 2 * s + 2 ≤ Bd.ncard ∧
@@ -744,7 +782,7 @@ theorem driverRoot_decides_sentence_binj
     -- the parameters
     (hrank : Lax3.FirstOrder.rank φ ≤ q_top) (hcap : cap = rhoMinus 0 q_top)
     (hmb : mb = ℓ * (2 * cap + 1)) (hℓ : ℓ = N (2 * s + 2))
-    (hB : WordBound B n ns cap mb) (hWB : n + W + 1 < B) (hpow : 2 ^ sigL cap mb ℓ < B)
+    (hB : WordBoundK B n Kmass ns cap mb) (hWB : n + W + 1 < B) (hpow : 2 ^ sigL cap mb ℓ < B)
     -- the mathematics of the campaign
     (hQ : ∀ Pt : Set (Fin n), N (2 * s + 2) ≤ Pt.ncard →
       ∃ S Bd : Set (Fin n), S.ncard ≤ s ∧ Bd ⊆ Pt \ S ∧ 2 * s + 2 ≤ Bd.ncard ∧

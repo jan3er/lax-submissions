@@ -47,60 +47,37 @@ open Lax12.ColoringNumbers (wreach)
 open Lax3Proofs.RamBfs (masked CsrGraph)
 open Lax3Proofs.RamCover (CoverInv CoverState CoverStateW CoverPre CoverPreW CoverPost
   OrdersBy)
-open Lax3Proofs.Refine.ArenaWidth (WordBoundK block_scan_lt)
+open Lax3Proofs.Refine.ArenaWidth (WordBoundK)
+open Lax3Proofs.Refine.ArenaPointer (block_scan_lt)
 open Lax13Proofs.Imp Lax13Proofs.Reasoning
 
 variable {n ns : ℕ} {G : SimpleGraph (Fin n)} {A₀ O T ord : ℕ → ℕ}
 variable {π : Equiv.Perm (Fin n)} {r d : ℕ}
 
-/-! ## 1. The arena reading of the pointer ceiling
+/-! ## 1. The arena readings of the two pointer ceilings
 
-`RamDriverOrder.PtrWords` is the one value bound the turn takes off the
-arena. `RamDriverOrder.ptrWords_of_square` is its carrier reading, the
-landed one. This is its arena reading, and it is `block_scan_lt`
-verbatim: the invariant's own clauses give `xp ≤ n * d`, and
-`WordBoundK`'s arena clause turns that into a word.
+**Proved in `Refine.ArenaPointer` since W3, and re-exported here under
+the names W1/W2 landed them at.** They moved for the import order and
+for no other reason: this file is above `Refine.ArenaWidth`, which is
+above `RamDriverRoot` (it imports the seam probe, a statement about the
+root theorem), and W3's root restatement has to fill the cover phase's
+two arena slots from exactly these two readings.
 
-The `mb` slot of `WordBoundK` plays no part — the cover pass forms no
-padded width — so it is taken at `0`, whose clause `0 < B` the arena
-clause already implies. -/
+`RamDriver.PtrWords` is the value bound the emission scan's running
+pointer needs, and `RamDriver.MassWords` the one the pointer the pass
+*reports* needs — `RamDriver.CoverHeldAt`'s `m`, which
+`RamDriverDescend.clusterLoad_spec` and the readback both form. Each has
+a carrier reading, `RamDriver.ptrWords_of_square` / `massWords_of_square`
+off the retired `WordBound.cover`, and an arena reading, below: the
+invariant's own clauses give `xp ≤ n * d` (`ArenaPointer.ptr_le_mass`)
+and the pass's answer gives `m ≤ n * d` (`MassMath.mass_le`), and
+`WordBoundK`'s arena clause turns either into a word.
 
-/-- **The arena reading**: the pointer ceiling from the mass bound
-rather than from the carrier. -/
-theorem ptrWords_of_mass {B : ℕ} (hord : OrdersBy n π ord)
-    (hk : ∀ v : Fin n, (wreach (masked G A₀) π (2 * r) v).ncard ≤ d)
-    (hB : n * d + n + ns + 2 * r + 2 < B) :
-    RamDriverOrder.PtrWords B G A₀ π ord r := by
-  intro c xp Xoff Xmem asg M hI _
-  exact block_scan_lt (ns := ns) (cap := r) (mb := 0) hord hI hk ⟨hB, by omega⟩
+`ptrWords_of_mass` is stated at the arena clause alone — the cover pass
+forms no padded width, so `WordBoundK`'s `mb` slot plays no part. -/
 
-/-- The same, entered at the driver's own slot rather than at its arena
-clause: `WordBoundK` at the search's radius. -/
-theorem ptrWords_of_wordBoundK {B mb : ℕ} (hord : OrdersBy n π ord)
-    (hk : ∀ v : Fin n, (wreach (masked G A₀) π (2 * r) v).ncard ≤ d)
-    (hB : WordBoundK B n d ns r mb) : RamDriverOrder.PtrWords B G A₀ π ord r :=
-  ptrWords_of_mass (ns := ns) hord hk hB.1
-
-/-! ### The exit pointer: the *second* arena slot
-
-W2 threaded `WordBoundK` through the driver and found that the cover
-phase forms two values out of the arena, not one. The first is the
-emission scan's running pointer, above. The second is the pointer the
-pass *reports* — `RamDriver.CoverHeldAt`'s `m` — which
-`RamDriverDescend.clusterLoad_spec` and the readback both form, and
-every block offset is below. It is `RamDriver.MassWords`; its carrier
-reading is `RamDriver.massWords_of_square`, and this is its arena
-reading. Same double count, read at exit rather than at a centre
-boundary, and block-injectivity read off the pass's own answer rather
-than carried as a slot. -/
-
-/-- **The arena reading of the exit ceiling.** -/
-theorem massWords_of_mass {B ns mb : ℕ} (hord : OrdersBy n π ord)
-    (hk : ∀ v : Fin n, (wreach (masked G A₀) π (2 * r) v).ncard ≤ d)
-    (hB : WordBoundK B n d ns r mb) : RamDriver.MassWords B G A₀ π ord r := fun hout _ =>
-  lt_of_le_of_lt
-    (MassMath.mass_le hord hout (MassMath.blockInj_of_coverOut hout) hk)
-    (by have := hB.arena; omega)
+export Lax3Proofs.Refine.ArenaPointer (ptrWords_of_mass ptrWords_of_wordBoundK
+  massWords_of_mass)
 
 /-! ## 2. One centre, at the arena width
 
@@ -203,8 +180,9 @@ theorem coverPass_specK {B : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n 
     (fun _ _ h₁ h₂ => absurd h₁ (by omega))
 
 /-- **The pass entered at the driver's slot.** `WordBoundK` at the
-search's radius is the shape W3 will restate the root theorem's `hB` in;
-this is the cover phase already reading it. -/
+search's radius is the shape W3 restated the root theorem's `hB` in
+(`RamDriverRoot.driverRoot_decides_sentence`, at its own `hdeg` degree
+parameter); this is the cover phase reading it. -/
 theorem coverPass_specKW_of_wordBoundK {B nt mb : ℕ} (hcsr : CsrGraph G ns O T)
     (hord : OrdersBy n π ord) (hB : WordBoundK B n d ns r mb)
     (hk : ∀ v : Fin n, (wreach (masked G A₀) π (2 * r) v).ncard ≤ d)
@@ -319,8 +297,8 @@ so that no control is refuting something the file also needs. -/
 
 /-! ## 7. The axiom check -/
 
-#print axioms ptrWords_of_mass
-#print axioms massWords_of_mass
+-- `ptrWords_of_mass` and `massWords_of_mass` are checked in
+-- `Refine.ArenaPointer` §3
 #print axioms exitWords_not_free
 #print axioms centreStep_specKW
 #print axioms coverTurnImplementsK

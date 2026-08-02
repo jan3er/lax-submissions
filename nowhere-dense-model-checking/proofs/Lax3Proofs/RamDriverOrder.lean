@@ -220,7 +220,8 @@ and the two obligations that creates are separate:
   the bounded semantics has no value at or above `B`. It used to be read
   off `n * n < B`, the carrier ceiling `RamCover.CoverInv.ptr_le` paid
   for; `Refine.ArenaWidth.block_scan_lt` now supplies it from
-  `CoverInv.ptr_le_mass` and `WordBoundK`, at `n * d` instead.
+  `CoverInv.ptr_le_mass` and `WordBoundK`, at `n * d` instead
+  (`Refine.ArenaPointer`).
 * `hxp₀ : xp₀ + n ≤ n * n` is the **allocation** bound — the store index
   must be inside the array, whose length is `n * n`. Nothing here
   changes it and nothing should: the arena is still `n × n` cells, and
@@ -480,8 +481,8 @@ supply it, and they are the before and after of the width repair:
   the landed `RamCover.Implements` slot pays for;
 * the arena reading — `CoverInv.ptr_le_mass : xp ≤ n * d` against
   `RamDriver.WordBoundK` at the ordering's weak-reachability degree,
-  which is `Refine.ArenaWidth.block_scan_lt` and is consumed in
-  `Refine.CoverWidth`.
+  which is `Refine.ArenaPointer.block_scan_lt`, is consumed in
+  `Refine.CoverWidth`, and is what `RamDriverRoot` supplies since W3.
 
 The **allocation** clause `xp + n ≤ n * n` is not part of it and does not
 move: it is about the length of the `xmem` list, which the word length
