@@ -73,6 +73,7 @@ import Lax13Proofs.Refine.Sepref.Frame
 import Lax13Proofs.Refine.Sepref.Translate
 import Lax13Proofs.Refine.Sepref.Tool
 import Lax13Proofs.Refine.Sepref.Definition
+import Lax13Proofs.Refine.Sepref.HeapAlloc
 import Lax13Proofs.Refine.Sepref.SignaturePrep
 import Lax13Proofs.Refine.Sepref.Register
 import Lax13Proofs.Refine.Sepref.IntfUtil

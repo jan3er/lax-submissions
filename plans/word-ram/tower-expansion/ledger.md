@@ -949,3 +949,57 @@ nothing built on it could ever be `sepref_synth`-reachable).
 *Revisit trigger.* If a consumer ever needs more than one heap, `heapName`
 becomes a parameter and `HCells` becomes `String → ℕ → Tsa Val`. The algebra
 above is unaffected; only the partition predicate widens.
+
+### E27 — the allocator is unconditional because availability is a resource
+
+**Status: accepted (E25's A.2, landed).** Added 2026-08-02.
+
+```lean
+def avail (hp k : ℕ) : Assn := (hpName ↦ᵥ hp) ∗ (hp ↦ₕ List.replicate k 0)
+def allocCost (_n : ℕ) : ECost := irUnit Currency.copy + irUnit Currency.add
+def allocProg (pc nc : String) : Com :=
+  (Com.copy pc hpName).seq (Com.binop Imp.Bop.add hpName hpName nc)
+
+@[sepref_fr_rules]
+theorem hnr_mop_alloc (pc nc : String) (hp n k : ℕ) :
+  hnRefine (junkCell pc ∗ avail hp (n + k) ∗ hnCtxt natAssn n nc) (allocProg pc nc)
+    (avail (hp + n) k ∗ hnCtxt natAssn n nc) pc heapBlockAssn (mopAlloc n)
+```
+
+*The design point.* Ownership cannot be conjured, so the allocator must own
+what it hands out. The naive arrangement is a precondition `hp + n ≤ limit`,
+which would re-create per-operation conditionality and defeat the phase.
+Instead the unallocated space is a **resource in an assertion**, exactly as
+credits are: `avail hp (n + k)` for arbitrary leftover `k` is a decomposition
+of what the caller already owns, not an inequality the operation imposes.
+`mopAlloc` carries no `assert`, matching the source's `hnr_eoarray_new'`,
+which has no precondition either. The distinction — the operation *costs*
+something rather than *requires* something — is the one rule 5 turns on.
+
+*Consequences that are theorems rather than assertions.*
+
+- **No reuse follows from linearity.** Handing out `[hp, hp+n)` removes it from
+  the availability resource, so it cannot be handed out twice
+  (`alloc_no_reuse`, `avail_owns_nothing_below`, `alloc_succ_disj`). E24
+  demanded this as an enforced invariant; it is better than that — it is a
+  consequence of the split law, with nothing to enforce.
+- **Zero contents come from the machine, once.** `avail_of_entry` reads the
+  resource off an entry state of `Imp.initEnv`'s shape, discharged once rather
+  than per call.
+- **Cost is an equation and `n`-free** (`allocCost_const`). Because it is
+  proved as an exact `irTriple`, the figure is pinned by the kernel rather
+  than asserted — over- or under-charging fails the proof.
+
+*Reachability, checked not assumed.* `sepref_synth` was driven at a hole and
+emitted `allocProg "p" "n"` from the registered rule, pinned by `#guard`. This
+is the criterion A.1's first attempt failed and it is now a standing gate.
+
+*No second exhaustion condition was authored.* `Layout.FitsWords` remains the
+only one. The relation between the availability size and `Layout.span` is
+recorded **in prose**, and the file does not import `Compile` — a refinement
+rule has no business seeing which layout a program compiles under. A first
+draft stated that relation as two lemmas whose statements mentioned neither
+`avail` nor anything else in the file (`m ≤ B → m ≤ L.span B`, true of any
+`m`); they were deleted as decoration of the F11 kind. `debt-register.md`
+SEP-16 records the prose-only status, the deletion, and the closure test at
+the `Codegen/` boundary.
