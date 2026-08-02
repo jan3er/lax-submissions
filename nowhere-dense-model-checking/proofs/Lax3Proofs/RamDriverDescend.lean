@@ -84,11 +84,11 @@ went:
    owes nothing at all, and what discharges it is
    `RamBfs.BfsTree.reach` read backwards: a sentinel distance is a proof
    of `¬ WithinDist`.
-5. **`mb < B`** is the second conjunct of `RamDriver.WordBound`, and
-   `enumStepW` reads it off `WordBound.mb_lt`.
+5. **`mb < B`** is the second conjunct of `RamDriver.WordBoundK`, and
+   `enumStepW` reads it off `WordBoundK.mb_lt`.
 6. **The graph is a hypothesis of `ColourStep`.** The three slot
    families are expansion chains and read the block structure, so the
-   obligation is prefixed by `CsrGraph G ns O T` and `WordBound`,
+   obligation is prefixed by `CsrGraph G ns O T` and `WordBoundK`,
    exactly as `DescendStep` is.
 
 # What the batch phase now owes
@@ -265,16 +265,16 @@ theorem levelPre_congr (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (hr : Run
 variable {G : SimpleGraph (Fin n)} {π : Equiv.Perm (Fin n)} {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ}
 
 /-- **The cover's three answers, across a pass.** -/
-theorem coverHeld_congr (h : CoverHeld n j G M π ord cap Xoff Xmem asg m σ)
+theorem coverHeld_congr (h : CoverHeld B n j G M π ord cap Xoff Xmem asg m σ)
     (hord : σ'.arrs (ordName j) = σ.arrs (ordName j))
     (hxoff : σ'.arrs (xofName j) = σ.arrs (xofName j))
     (hxmem : σ'.arrs (xmmName j) = σ.arrs (xmmName j))
     (hasg : σ'.arrs (asgName j) = σ.arrs (asgName j))
     (hxp : σ'.vars (xpName j) = σ.vars (xpName j)) :
-    CoverHeld n j G M π ord cap Xoff Xmem asg m σ' :=
+    CoverHeld B n j G M π ord cap Xoff Xmem asg m σ' :=
   ⟨by rw [hord]; exact h.1, by rw [hxoff]; exact h.2.1, by rw [hxmem]; exact h.2.2.1,
     by rw [hasg]; exact h.2.2.2.1, by rw [hxp]; exact h.2.2.2.2.1, h.2.2.2.2.2.1,
-    h.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2⟩
+    h.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2⟩
 
 variable {X W : Set (Fin n)} {Alv' Gam' : ℕ → ℕ}
 
@@ -646,7 +646,7 @@ theorem enumStepW {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)}
     {O T M Gm : ℕ → ℕ}
     {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)} {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ}
     {X W : Set (Fin n)} {Alv' Gam' : ℕ → ℕ}
-    (hB : WordBound B n ns cap mb) (hK : 20 * n + 12 * mb + 30 ≤ K) :
+    {d : ℕ} (hB : WordBoundK B n d ns cap mb) (hK : 20 * n + 12 * mb + 30 ≤ K) :
     EnumStepW B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' K := by
   have hmbB : mb < B := hB.mb_lt
   intro σ hσ
@@ -711,7 +711,7 @@ array `BatchData` names, so nothing is left over. -/
 theorem enumStep {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)}
         {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
     {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ} {X W : Set (Fin n)} {Alv' Gam' : ℕ → ℕ}
-    (hB : WordBound B n ns cap mb) (hK : 20 * n + 12 * mb + 30 ≤ K) :
+    {d : ℕ} (hB : WordBoundK B n d ns cap mb) (hK : 20 * n + 12 * mb + 30 ≤ K) :
     EnumStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' K :=
   (enumStepW hB hK).pre (fun _ hσ => by
     obtain ⟨hturn, hbat, hplay, hne, hcard, hwa⟩ := hσ
@@ -1481,7 +1481,7 @@ theorem markSet_mul {f g : ℕ → ℕ} : markSet n (fun k => f k * g k) = markS
 /-! #### The relativized colours -/
 
 /-- **One old slot.** The depth's colour, cut down to the cluster. -/
-theorem oldBody_spec (hB : WordBound B n ns cap mb)
+theorem oldBody_spec {d : ℕ} (hB : WordBoundK B n d ns cap mb)
     (hCbit : ∀ c, c < sigL cap mb j → ∀ v, v < n → C c v ≤ 1)
     (hXbit : ∀ v, v < n → Xa v ≤ 1) {c : ℕ} (hc : c < sigL cap mb j) :
     Spec B (ColPre n cap mb nt j O T C Xa Ra Wf)
@@ -1524,7 +1524,7 @@ theorem oldBody_spec (hB : WordBound B n ns cap mb)
   · rw [markSet_congr hgval, markSet_mul]
 
 /-- **The marker slot.** The cluster itself. -/
-theorem oldLast_spec (hB : WordBound B n ns cap mb) (hXbit : ∀ v, v < n → Xa v ≤ 1) :
+theorem oldLast_spec {d : ℕ} (hB : WordBoundK B n d ns cap mb) (hXbit : ∀ v, v < n → Xa v ≤ 1) :
     Spec B (ColPre n cap mb nt j O T C Xa Ra Wf)
       (copyCom (cluName j) (colName (j + 1) (oldIdx cap mb j (sigL cap mb j))))
       (fun _ σ' => ColPre n cap mb nt j O T C Xa Ra Wf σ' ∧
@@ -1549,7 +1549,7 @@ theorem oldLast_spec (hB : WordBound B n ns cap mb) (hXbit : ∀ v, v < n → Xa
 down to the cluster, and the cluster itself in the marker slot: this is
 `Evaluator.relColoring` of the depth's own colouring, read off the
 arrays the old family wrote. -/
-theorem oldCom_spec (hB : WordBound B n ns cap mb)
+theorem oldCom_spec {d : ℕ} (hB : WordBoundK B n d ns cap mb)
     (hCbit : ∀ c, c < sigL cap mb j → ∀ v, v < n → C c v ≤ 1)
     (hXbit : ∀ v, v < n → Xa v ≤ 1) :
     Spec B (ColPre n cap mb nt j O T C Xa Ra Wf) (oldCom cap mb j)
@@ -1602,7 +1602,7 @@ def slotCost (n ns cap : ℕ) : ℕ := ((24 * ns + 44) * n + 6) * cap + 15 * n +
 /-- **One batch profile.** The singleton of the padded entry, expanded
 `cap` times in the cluster-restricted arena: every stage is the ball of
 that radius around the entry. -/
-theorem pdBody_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
+theorem pdBody_spec (hcsr : CsrGraph G ns O T) {d : ℕ} (hB : WordBoundK B n d ns cap mb)
     (hnt : ns ≤ nt) (hRaB : ∀ k, k < n → Ra k < B) {w : Fin mb → Fin n}
     (hWf : ∀ i : Fin mb, Wf (i : ℕ) = (w i : ℕ)) (i : Fin mb) :
     Spec B (ColPre n cap mb nt j O T C Xa Ra Wf)
@@ -1682,7 +1682,7 @@ theorem pdBody_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
     exact ⟨g, hgarr, hgbit, by rw [hgmark, hSmark]⟩
 
 /-- **The batch profiles, discharged.** -/
-theorem pdCom_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb) (hnt : ns ≤ nt)
+theorem pdCom_spec (hcsr : CsrGraph G ns O T) {d : ℕ} (hB : WordBoundK B n d ns cap mb) (hnt : ns ≤ nt)
     (hRaB : ∀ k, k < n → Ra k < B) {w : Fin mb → Fin n}
     (hWf : ∀ i : Fin mb, Wf (i : ℕ) = (w i : ℕ)) :
     Spec B (ColPre n cap mb nt j O T C Xa Ra Wf) (pdCom cap mb j)
@@ -1748,7 +1748,7 @@ theorem oldHeld_run {K : ℕ} {c : Com} {σ σ' : Env} {Vo : ℕ → Set (Fin n)
 
 /-- **One colour profile.** The relativized colour class, expanded `cap`
 times in the cluster-restricted arena. -/
-theorem puBody_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb) (hnt : ns ≤ nt)
+theorem puBody_spec (hcsr : CsrGraph G ns O T) {d : ℕ} (hB : WordBoundK B n d ns cap mb) (hnt : ns ≤ nt)
     (hRaB : ∀ k, k < n → Ra k < B) {Vo : ℕ → Set (Fin n)} {c : ℕ}
     (hc : c < sigL cap mb j + 1) :
     Spec B (fun σ => ColPre n cap mb nt j O T C Xa Ra Wf σ ∧ OldHeld n cap mb j Vo σ)
@@ -1807,7 +1807,7 @@ theorem puBody_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb) (h
   exact ⟨g', hg'arr, hg'bit, by rw [hg'mark, markSet_congr hgval, hg₀mark]⟩
 
 /-- **The colour profiles, discharged.** -/
-theorem puCom_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb) (hnt : ns ≤ nt)
+theorem puCom_spec (hcsr : CsrGraph G ns O T) {d : ℕ} (hB : WordBoundK B n d ns cap mb) (hnt : ns ≤ nt)
     (hRaB : ∀ k, k < n → Ra k < B) {Vo : ℕ → Set (Fin n)} :
     Spec B (fun σ => ColPre n cap mb nt j O T C Xa Ra Wf σ ∧ OldHeld n cap mb j Vo σ)
       (puCom cap mb j)
@@ -1919,7 +1919,7 @@ def colourCost (n ns cap mb L : ℕ) : ℕ := slotCost n ns cap * (2 * (L + 1) +
 depth-`(j+1)` palette hold `Evaluator.isoColoring` of the
 cluster-restricted arena at the relativized colouring and the padded
 enumeration — which is `RamDriver.stepColoringP`. -/
-theorem colourCom_spec (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
+theorem colourCom_spec (hcsr : CsrGraph G ns O T) {d : ℕ} (hB : WordBoundK B n d ns cap mb)
     (hnt : ns ≤ nt) (hRaB : ∀ k, k < n → Ra k < B)
     (hCbit : ∀ c, c < sigL cap mb j → ∀ v, v < n → C c v ≤ 1)
     (hXbit : ∀ v, v < n → Xa v ≤ 1)
@@ -2131,7 +2131,7 @@ variable {Ws : ℕ} {M Gm : ℕ → ℕ} {π : Equiv.Perm (Fin n)}
 theorem colourStep {K : ℕ}
     (hK : colourCost n ns cap mb (sigL cap mb j) ≤ K) :
     ColourStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W w Alv' Gam' K := by
-  intro hcsr hB σ hσ
+  intro hcsr d hB σ hσ
   obtain ⟨⟨hlev, hplayj, hheld⟩, ⟨hbat, hrange⟩, hwa, hplay1⟩ := hσ
   obtain ⟨Xa, hXaarr, hXs, hXbit⟩ := hbat.1
   obtain ⟨Ra, hRaarr, hRam, hRaB⟩ := hbat.2.2.1
@@ -2233,8 +2233,16 @@ def CluScan (n j : ℕ) (Xoff Xmem : ℕ → ℕ) (c : ℕ) (σ : Env) : Prop :=
     ∃ g, σ.arrs (cluName j) = arrOf n g ∧ (∀ k, k < n → g k ≤ 1) ∧
       ∀ k, k < n → (g k ≠ 0 ↔ ∃ p, Xoff c ≤ p ∧ p < σ.vars "p" ∧ Xmem p = k)
 
-/-- **The cluster is materialized, discharged.** -/
-theorem clusterLoad_spec (hB : WordBound B n ns cap mb)
+/-- **The cluster is materialized, discharged.**
+
+The load forms two kinds of value: the depth's own (`n`, the centre
+index, the indicator), which are words by the value bound, and the
+*block offsets* `Xoff c`, which are addresses into the cluster arena and
+are words because the pass's exit pointer is (`hmB`). Under `WordBound`
+that came off the carrier ceiling `n * n < B`; `hm` — the arena's
+**length**, which the offsets index — is a separate clause and is
+unchanged (rebase E-mem/W2). -/
+theorem clusterLoad_spec {d : ℕ} (hB : WordBoundK B n d ns cap mb) (hmB : m < B)
     (hout : RamCover.CoverOut G M π ord cap m Xoff Xmem asg) (hm : m ≤ n * n) :
     Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs (xofName j) = arrOf (n + 1) Xoff ∧
         σ.arrs (xmmName j) = arrOf (n * n) Xmem ∧ (∃ g, σ.arrs (cluName j) = arrOf n g) ∧
@@ -2246,12 +2254,11 @@ theorem clusterLoad_spec (hB : WordBound B n ns cap mb)
       (16 * (n * n) + 11 * n + 24) := by
   refine Spec.of_exists (fun σ hσ => ?_)
   obtain ⟨hn, hxof, hxmm, hclu, hcur⟩ := hσ
-  have hnnB : n * n < B := by have := hB.1; omega
   have h1B := hB.one_lt
   have hnB := hB.n_lt
   set c := σ.vars (curName j) with hc
-  have hoffB : ∀ d, d ≤ n → Xoff d < B := fun d hd =>
-    lt_of_le_of_lt (le_trans (coverOut_off_le hout d hd) hm) hnnB
+  have hoffB : ∀ q, q ≤ n → Xoff q < B := fun q hq =>
+    lt_of_le_of_lt (coverOut_off_le hout q hq) hmB
   -- the indicator, opened
   obtain ⟨σ₁, hr₁, ⟨⟨g₁, hg₁arr, hg₁val⟩, -, hn₁⟩, hfv₁, hfa₁, -, -⟩ :=
     ((fillCom_spec B n (cluName j) 0 hnB (by omega)).frame).run ⟨hclu, hn⟩
@@ -2298,6 +2305,11 @@ theorem clusterLoad_spec (hB : WordBound B n ns cap mb)
     obtain ⟨hxmmρ, hpend, hlo, -, g, hgarr, hgbit, hgval⟩ := hρ
     have hpm : ρ.vars "p" < n * n :=
       lt_of_lt_of_le hlt (le_trans (coverOut_off_le hout (c + 1) (by omega)) hm)
+    -- the scan index is an *address* into the arena, so it is a word because the
+    -- pass's exit pointer is, not because the carrier is (rebase E-mem/W2)
+    have hpB : ρ.vars "p" + 1 < B := by
+      have := coverOut_off_le hout (c + 1) (by omega)
+      omega
     have hXm : Xmem (ρ.vars "p") < n :=
       hout.mem_lt _ (lt_of_lt_of_le hlt (coverOut_off_le hout (c + 1) (by omega)))
     have hidx : (Expr.get (xmmName j) (.var "p")).evalB B ρ = some (Xmem (ρ.vars "p")) :=
@@ -2379,7 +2391,7 @@ def ballCost (n ns cap : ℕ) : ℕ := ((24 * ns + 44) * n + 6) * (2 * cap) + 11
 
 /-- **The ball of the round, discharged.** -/
 theorem ballCom_spec {Gm : ℕ → ℕ} {O T : ℕ → ℕ} (hcsr : CsrGraph G ns O T)
-    (hB : WordBound B n ns cap mb) (hnt : ns ≤ nt) (hGmB : ∀ k, k < n → Gm k < B)
+    {d : ℕ} (hB : WordBoundK B n d ns cap mb) (hnt : ns ≤ nt) (hGmB : ∀ k, k < n → Gm k < B)
     {v : Fin n} :
     Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧
         σ.arrs "tgt" = arrOf nt T ∧ σ.arrs (gamName j) = arrOf n Gm ∧
@@ -2912,7 +2924,7 @@ a set of at most `2·cap + 1` vertices, and — whenever the round's own
 arena puts its connector within `2·cap` of the depth's — that set holds
 the support of a walk between the two in that arena. -/
 theorem ancestorStep_spec {B cap mb j a : ℕ} (hcsr : CsrGraph G ns O T)
-    (hB : WordBound B n ns cap mb) (hnt : ns ≤ nt) {u v : Fin n} {Ga Wa : ℕ → ℕ}
+    {d : ℕ} (hB : WordBoundK B n d ns cap mb) (hnt : ns ≤ nt) {u v : Fin n} {Ga Wa : ℕ → ℕ}
     (hGaB : ∀ z, z < n → Ga z < B) (hbit : ∀ k, k < n → Wa k ≤ 1) :
     Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧
         σ.arrs "tgt" = arrOf nt T ∧
@@ -3128,7 +3140,7 @@ def BatchMark (cap j : ℕ) (G : SimpleGraph (Fin n)) (U : ℕ → Fin n) (Gam :
 
 /-- **The fold over the earlier rounds, discharged.** -/
 theorem batchFold_spec {B cap mb j : ℕ} (hcsr : CsrGraph G ns O T) (hnt : ns ≤ nt)
-    (hB : WordBound B n ns cap mb) {U : ℕ → Fin n} {Gam : ℕ → ℕ → ℕ} {v : Fin n}
+    {d : ℕ} (hB : WordBoundK B n d ns cap mb) {U : ℕ → Fin n} {Gam : ℕ → ℕ → ℕ} {v : Fin n}
     (hGamB : ∀ a, a < j → ∀ z, z < n → Gam a z < B) :
     ∀ (r s : ℕ), s + r ≤ j →
       Spec B (fun σ => BatchEnv cap nt j O T U Gam v σ ∧ BatchMark cap j G U Gam v s σ)
@@ -3196,7 +3208,7 @@ def batchCost (n ns cap j : ℕ) : ℕ := ancestorCost n ns cap * j + 26 * n + 1
 marking is the connector together with one short walk per earlier round
 the round's own arena reaches, everything cut down to the ball. -/
 theorem batchCom_spec {B cap mb j : ℕ} (hcsr : CsrGraph G ns O T) (hnt : ns ≤ nt)
-    (hB : WordBound B n ns cap mb) {U : ℕ → Fin n} {Gam : ℕ → ℕ → ℕ} {v : Fin n}
+    {d : ℕ} (hB : WordBoundK B n d ns cap mb) {U : ℕ → Fin n} {Gam : ℕ → ℕ → ℕ} {v : Fin n}
     {Bal : ℕ → ℕ} (hGamB : ∀ a, a < j → ∀ z, z < n → Gam a z < B)
     (hBalB : ∀ k, k < n → Bal k < B) (hvBal : Bal (v : ℕ) ≠ 0) :
     Spec B (fun σ => BatchEnv cap nt j O T U Gam v σ ∧
@@ -3503,11 +3515,11 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
     (hK : descendCost n ns cap j ≤ K) :
     DescendStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m K := by
   classical
-  intro hcsr hB
+  intro hcsr d hB
   refine Spec.of_exists (fun σ hσ => ?_)
   obtain ⟨⟨hlev, hplay, hheld⟩, hcur⟩ := hσ
   obtain ⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCbit, hmem, hdep, hmvar, hom⟩ := hlev
-  obtain ⟨hordA, hxof, hxmm, hasgA, hxp, hmn, hordlt, hcout⟩ := hheld
+  obtain ⟨hordA, hxof, hxmm, hasgA, hxp, hmn, hmB, hordlt, hcout⟩ := hheld
   have h1B := hB.one_lt
   have hnB := hB.n_lt
   have hnsB := hB.ns_lt
@@ -3561,7 +3573,7 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
   have hcur₁ : σ₁.vars (curName j) = cc := by rw [hvars₁ _ hcurne, hcc]
   -- P2: the cluster, materialized
   obtain ⟨σ₂, hr₂, ⟨Xa, hclu₂, hXbit, hXmark⟩, hfv₂, hfa₂, -, -⟩ :=
-    ((clusterLoad_spec (j := j) hB hcout hmn).frame).run (σ := σ₁)
+    ((clusterLoad_spec (j := j) hB hmB hcout hmn).frame).run (σ := σ₁)
       ⟨by rw [hvars₁ "n" (by simp [ctrName, String.ext_iff]), hn],
         by rw [harrs₁]; exact hxof, by rw [harrs₁]; exact hxmm, by rw [harrs₁]; exact hclu₀,
         by rw [hcur₁]; exact hcur⟩
@@ -3839,7 +3851,7 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
       ⟨rounds, hrec.congr (fun a ha => hfv (ctrName a) (ctrName_ne (by omega))
         (ctrName_notMem_descendScalars a))
         (fun a ha => hfa (gamName a) (hngam a (by omega))), hle, hplayR⟩,
-      coverHeld_congr ⟨hordA, hxof, hxmm, hasgA, hxp, hmn, hordlt, hcout⟩
+      coverHeld_congr ⟨hordA, hxof, hxmm, hasgA, hxp, hmn, hmB, hordlt, hcout⟩
         (hfa _ (by simp [descendArrs, ordName, cluName, resName, balName, balAltName, batName,
           alvName, gamName, String.ext_iff]))
         (hfa _ (by simp [descendArrs, xofName, cluName, resName, balName, balAltName, batName,

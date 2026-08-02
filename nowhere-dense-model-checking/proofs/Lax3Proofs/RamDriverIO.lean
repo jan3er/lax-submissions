@@ -35,9 +35,9 @@ needs no memory conjunct beyond `RamDriver.LevelPre`'s own
 *The value bounds.* Nothing in either obligation used to say that the
 carrier, the slot count, or the constants of the sentence are words.
 They have to be: at `B = 0` no expression evaluates at all, so the
-sentence's own final write has no derivation. `RamDriver.WordBound` is
+sentence's own final write has no derivation. `RamDriver.WordBoundK` is
 the one bound every phase of a level is stated over, and every bound
-this file asks for is one of its four readings.
+this file asks for is one of its projections.
 
 # The walks
 
@@ -644,7 +644,7 @@ def widthCom : Com :=
 
 /-- **The prologue writes the width.** Everything is a scalar read, so
 the pass is one assignment and the only side condition is that the width
-is a word — which `RamDriver.WordBound` gives wherever the driver runs
+is a word — which `RamDriver.WordBoundK` gives wherever the driver runs
 at all. -/
 theorem widthCom_run {B n ns b : ℕ} {σ : Env}
     (hn : σ.vars "n" = n) (hm : σ.vars "m" + σ.vars "m" = ns) (hb : σ.vars "bq" = b)
@@ -1057,7 +1057,7 @@ theorem sentenceImplements {Kb K : ℕ} {Gm : ℕ → ℕ}
     (hK : Kb * (bcAtomsOf₀ q_top (Reduction.toDistFO (L := sigL cap mb 0) φ)).2.length + 1 +
       (1 + (sentenceExpr q_top cap mb φ).size) ≤ K) :
     RamDriver.SentenceImplements B q_top cap mb ns Ws φ G O T M Gm C K := by
-  intro hB _
+  intro d hB _
   have hnB : n < B := hB.n_lt
   have hnsB : ns < B := hB.ns_lt
   have h1B : 1 < B := hB.one_lt

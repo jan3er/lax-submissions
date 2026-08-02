@@ -2477,9 +2477,14 @@ variable (B : ℕ) {n : ℕ}
 in which an expression above the word size has no value at all and a
 command reading one has no derivation. So every obligation carries a
 value bound, and one bound serves them all: the widest address any pass
-of a level forms is the cluster arena's `n * n`, the block structure's
-`ns`, and the search's `2 * cap`. `WordBound` is their sum, and the
-four readings below are how the sub-programs' own bounds come off it. -/
+of a level forms is the cluster arena's pointer, the block structure's
+`ns`, and the search's `2 * cap`. `WordBound` is their sum with the
+arena read at the *carrier* `n * n`, `WordBoundK` is the same sum with
+it read at a degree parameter, and the readings below are how the
+sub-programs' own bounds come off either. Every phase of a level takes
+`WordBoundK`; the two addresses into the arena itself — which is where
+the carrier and the degree differ — are the cover pass's, and they enter
+as the slots `PtrWords` and `MassWords`. -/
 
 /-- **The value bound of a level**: every address any pass of a level
 forms is a word.
@@ -2492,6 +2497,26 @@ since it is a function of the round budget and not of the input. It is
 one clause here rather than a side condition of the padding because
 every caller of the padding has this bound and nothing else. -/
 def WordBound (n ns cap mb : ℕ) : Prop := n * n + ns + 2 * cap + 2 < B ∧ mb < B
+
+/-- **The value bound of a level, with the arena read at a degree**
+(rebase E-mem; `Refine.ArenaWidth` is where it comes from and what it
+buys).
+
+`WordBound`'s `n * n` is the cluster arena's pointer ceiling, read off
+`RamCover.CoverInv.ptr_le : xp ≤ c * n` — the carrier, because that is
+all the landed invariant carried. `Refine.ArenaWidth.CoverInv.ptr_le_mass`
+reads the same pointer at `n * K` for any `K` bounding the ordering's
+weak-`2·cap`-reachability degree, and `K` is the root theorem's own
+`Kmass`. So the arena clause becomes `n * K + n + …`: `n * K` slots of
+arena and the `n` slots one block scan may still add. Every other clause
+is unchanged, and every projection below is the same fact.
+
+The slot lives here rather than in `Refine.ArenaWidth` because the
+driver's own phase obligations take it, and they are below that file in
+the import order; `Refine.ArenaWidth` re-exports it and is where the
+mathematics and the C0-side flip are. -/
+def WordBoundK (n K ns cap mb : ℕ) : Prop :=
+  n * K + n + ns + 2 * cap + 2 < B ∧ mb < B
 
 variable {B}
 
@@ -2524,6 +2549,70 @@ theorem WordBound.mb_lt {n ns cap mb : ℕ} (h : WordBound B n ns cap mb) : mb <
 calls the cover at. -/
 theorem WordBound.cover {n ns cap mb : ℕ} (h : WordBound B n ns cap mb) :
     n * n + ns + 2 * cap + 2 < B := h.1
+
+/-! ### The degree reading, and every projection off it
+
+`WordBound` is consumed through five projections. All five come off
+`WordBoundK` too, at every degree parameter — which is what makes the
+`hB` slot a *slot* change rather than a weakening: no phase of the
+driver loses a fact. The one reading that does not survive is
+`WordBound.cover`, the carrier ceiling. It has exactly two consumers,
+and both are values the *cover pass* forms out of the arena: the
+emission scan's running pointer and the pointer the pass reports. They
+enter as the slots `PtrWords` and `MassWords` below, each with a carrier
+reading and a mass reading. -/
+
+section BoundK
+
+variable {K ns cap mb : ℕ}
+
+theorem WordBoundK.one_lt (h : WordBoundK B n K ns cap mb) : 1 < B := by
+  rw [WordBoundK] at h; omega
+
+theorem WordBoundK.n_lt (h : WordBoundK B n K ns cap mb) : n < B := by
+  rw [WordBoundK] at h; omega
+
+theorem WordBoundK.succ_lt (h : WordBoundK B n K ns cap mb) : n + 1 < B := by
+  rw [WordBoundK] at h; omega
+
+theorem WordBoundK.ns_lt (h : WordBoundK B n K ns cap mb) : ns < B := by
+  rw [WordBoundK] at h; omega
+
+/-- The padded width is a word, which is what `enumBatch`'s second loop
+tests against. -/
+theorem WordBoundK.mb_lt (h : WordBoundK B n K ns cap mb) : mb < B := h.2
+
+/-- The arena reading: every pointer the cover pass forms, including the
+`n` slots of the block being scanned, is a word. -/
+theorem WordBoundK.arena (h : WordBoundK B n K ns cap mb) :
+    n * K + n + ns + 2 * cap + 2 < B := h.1
+
+/-- The arena ceiling of the old bound is the new one at `K = n - 1`. -/
+theorem mul_pred_add_self (n : ℕ) : n * (n - 1) + n = n * n := by
+  cases n with
+  | zero => rfl
+  | succ m => simp [Nat.mul_succ, Nat.mul_comm]
+
+/-- **The slot change is a generalization, not a weakening.** The landed
+`WordBound` *is* `WordBoundK` at the trivial degree parameter. -/
+theorem wordBoundK_pred_iff : WordBoundK B n (n - 1) ns cap mb ↔ WordBound B n ns cap mb := by
+  rw [WordBoundK, WordBound, mul_pred_add_self]
+
+/-- A smaller degree parameter is a weaker demand on `B`. -/
+theorem wordBoundK_mono {K' : ℕ} (hK : K ≤ K') (h : WordBoundK B n K' ns cap mb) :
+    WordBoundK B n K ns cap mb :=
+  ⟨lt_of_le_of_lt (by
+    have : n * K ≤ n * K' := Nat.mul_le_mul_left n hK
+    omega) h.1, h.2⟩
+
+/-- …so the landed bound gives the new one at every degree parameter
+below `n - 1`, which is how a caller who has only `WordBound` still
+enters. -/
+theorem wordBoundK_of_wordBound (hK : K ≤ n - 1) (h : WordBound B n ns cap mb) :
+    WordBoundK B n K ns cap mb :=
+  wordBoundK_mono hK (wordBoundK_pred_iff.mpr h)
+
+end BoundK
 
 variable (B)
 
@@ -2710,7 +2799,7 @@ only place the driver learns anything about *which* ordering it got. -/
 def OrderImplements (n R W cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
     (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ)
     (P : Equiv.Perm (Fin n) → (ℕ → ℕ) → Prop) (K : ℕ) : Prop :=
-  WordBound B n ns cap mb → RamElim.CsrSimple G ns O T → n + W + 1 < B →
+  ∀ {d : ℕ}, WordBoundK B n d ns cap mb → RamElim.CsrSimple G ns O T → n + W + 1 < B →
   ElimAvail B n → AugAvail B n →
     Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ)
       (orderCom R j)
@@ -2721,18 +2810,89 @@ def OrderImplements (n R W cap mb ns j : ℕ) (G : SimpleGraph (Fin n)) (O T : �
         ∃ (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ),
           σ'.arrs (ordName j) = arrOf n ord ∧ RamCover.OrdersBy n π ord ∧ P π ord) K
 
+/-! ### The two arena slots
+
+Everything a level forms is a word, and every one of those words comes
+off `WordBoundK` — except the two the *cover pass* forms, which are
+addresses into the cluster arena and are therefore exactly what the
+width repair is about. They are named here, beside the value bound and
+below every phase that consumes them, because each has two readings:
+
+* the **carrier** reading, `n * n < B`, which is `WordBound.cover` and
+  is what the driver stands on today (`ptrWords_of_square`,
+  `massWords_of_square`);
+* the **mass** reading, `xp ≤ n * K` against `WordBoundK`, which is
+  `Refine.ArenaWidth.block_scan_lt` and `Refine.CoverWidth`'s
+  `ptrWords_of_mass`, and is what makes the bound satisfiable at C0's
+  own word lengths.
+
+The **allocation** clauses (`xp + n ≤ n * n`, `m ≤ n * n`) are not here
+and do not move: they are about the length of the `xmem` list, which the
+word length never reads (`Refine.ArenaWidth` §1). -/
+
+/-- **The running pointer of the emission scan is a word.** A predicate
+and not an inequality because the pointer is read off the state the turn
+starts in, so the ceiling has to be quantified over the invariant. -/
+def PtrWords (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ) (π : Equiv.Perm (Fin n))
+    (ord : ℕ → ℕ) (r : ℕ) : Prop :=
+  ∀ {c xp : ℕ} {Xoff Xmem asg M : ℕ → ℕ},
+    RamCover.CoverInv G A₀ π ord r c xp Xoff Xmem asg M → c < n → xp + n < B
+
+/-- **The exit pointer of the pass is a word.** The arena's length, which
+every block offset is below and which the cluster load and the readback
+both form. The allocation clause is a *hypothesis* here rather than a
+conclusion, so that the carrier reading is immediate and the mass
+reading pays nothing for carrying it. -/
+def MassWords (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ) (π : Equiv.Perm (Fin n))
+    (ord : ℕ → ℕ) (r : ℕ) : Prop :=
+  ∀ {m : ℕ} {Xoff Xmem asg : ℕ → ℕ},
+    RamCover.CoverOut G A₀ π ord r m Xoff Xmem asg → m ≤ n * n → m < B
+
+section ArenaSlots
+
+variable {B} {G : SimpleGraph (Fin n)} {A₀ : ℕ → ℕ} {π : Equiv.Perm (Fin n)}
+  {ord : ℕ → ℕ} {r : ℕ}
+
+/-- **The carrier reading of the scan's ceiling**: the landed one. After
+`c < n` centres the pointer is at most `c * n`, so `xp + n ≤ n * n`, and
+the landed value bound makes that a word — with nothing said about
+degrees. -/
+theorem ptrWords_of_square (hB : n * n < B) : PtrWords B G A₀ π ord r := by
+  intro c xp _ _ _ _ hI hc
+  have h₁ := hI.ptr_le
+  have h₂ : (c + 1) * n ≤ n * n := Nat.mul_le_mul_right n (by omega)
+  have h₃ : (c + 1) * n = c * n + n := by ring
+  omega
+
+/-- **The carrier reading of the exit ceiling.** -/
+theorem massWords_of_square (hB : n * n < B) : MassWords B G A₀ π ord r :=
+  fun _ hm => lt_of_le_of_lt hm hB
+
+end ArenaSlots
+
 /-- **The cover's three answers, at the depth's own names.** This is
 `RamCover.CoverPost` with the arrays it existentially quantifies named
 and moved off the fixed names the pass writes them at: the level copies
 them once, right after the call, and everything below — `clusterLoad`,
 the readback's assignment test, and the loop's own bound — reads the
 copies, so that a nested level taking its own cover cannot disturb
-them. -/
+them.
+
+**The pointer carries two clauses, and they are two** (rebase E-mem/W2).
+`m ≤ n * n` is the **allocation** clause: the pointer indexes the `xmem`
+list, which is `n * n` cells long. `m < B` is the **value** clause:
+`clusterLoad` and the readback *form* the pointer and the block offsets
+below it, and the bounded semantics gives an expression at or above `B`
+no value at all. Under `WordBound` the second followed from the first,
+which is precisely the coupling `Refine.ArenaWidth` had to break; under
+`WordBoundK` it does not, so the cover phase — which is where the
+pointer is produced, and the only place either reading of it is
+available — states it. -/
 def CoverHeldAt (n j : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (π : Equiv.Perm (Fin n))
     (ord : ℕ → ℕ) (cap : ℕ) (Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (σ : Env) : Prop :=
   σ.arrs (ordName j) = arrOf n ord ∧ σ.arrs (xofName j) = arrOf (n + 1) Xoff ∧
     σ.arrs (xmmName j) = arrOf (n * n) Xmem ∧ σ.arrs (asgName j) = arrOf n asg ∧
-    σ.vars (xpName j) = m ∧ m ≤ n * n ∧ (∀ z < n, ord z < n) ∧
+    σ.vars (xpName j) = m ∧ m ≤ n * n ∧ m < B ∧ (∀ z < n, ord z < n) ∧
     RamCover.CoverOut G M π ord cap m Xoff Xmem asg
 
 /-- **The cover phase at a level.** That the two copies, the pass
@@ -2751,10 +2911,21 @@ makes the destructiveness of the pass harmless — it kills the centres in
 **refutable**: its postcondition speaks about `G`, the program has been
 told only about `O` and `T`, and `CoverAvail` — which is
 `RamCover.Implements`, and *takes* that hypothesis — supplies none. Any
-`G` disagreeing with the block structure refutes it. -/
+`G` disagreeing with the block structure refutes it.
+
+**The two arena slots** (rebase E-mem/W2). The cover phase is the one
+phase of a level whose values are addresses *into* the cluster arena,
+and the two it forms are the running pointer of the emission scan and
+the exit pointer the phase reports. Neither comes off `WordBoundK`, and
+that is not an accident: the arena's width is what the repair replaced.
+Both enter as slots with two readings apiece — the carrier reading off
+`WordBound.cover`, which is where the driver stands today, and the mass
+reading off `Refine.ArenaWidth`'s degree bound, which is where W3 puts
+it. Every other phase needs neither. -/
 def CoverImplements (cap mb ns W j : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ)
     (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ) (K : ℕ) : Prop :=
-  WordBound B n ns cap mb → CsrGraph G ns O T →
+  ∀ {d : ℕ}, WordBoundK B n d ns cap mb → CsrGraph G ns O T →
+  PtrWords B G M π ord cap → MassWords B G M π ord cap →
   CoverAvail B cap ns G O T → RamCover.OrdersBy n π ord →
     Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧
         σ.arrs (ordName j) = arrOf n ord ∧ (∀ z < n, ord z < n))
@@ -2763,7 +2934,7 @@ def CoverImplements (cap mb ns W j : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ �
         (∀ a : ℕ, σ'.vars (ctrName a) = σ.vars (ctrName a)) ∧
         (∀ a : ℕ, σ'.arrs (gamName a) = σ.arrs (gamName a)) ∧
         ∃ (Xoff Xmem asg cps : ℕ → ℕ) (m cnum : ℕ),
-          CoverHeldAt n j G M π ord cap Xoff Xmem asg m σ' ∧
+          CoverHeldAt B n j G M π ord cap Xoff Xmem asg m σ' ∧
           σ'.arrs (cpsName j) = arrOf n cps ∧ σ'.vars (cnumName j) = cnum ∧
           Compacted n cnum m M ord Xoff cps) K
 
@@ -2900,7 +3071,7 @@ def ClusterStepImplements (q_top cap mb ns W ℓ j : ℕ) (φ : Lax3.FirstOrder.
     (C : ℕ → ℕ → ℕ)
     (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m k : ℕ)
     (wA : (ℕ → ℕ) → ℕ) (inner : Com) (Kin : ℕ → ℕ) (K : ℕ) : Prop :=
-  WordBound B n ns cap mb → CsrGraph G ns O T → k < n →
+  ∀ {d : ℕ}, WordBoundK B n d ns cap mb → CsrGraph G ns O T → k < n →
   (∀ c < sigL cap mb j, ∀ v < n, C c v ≤ 1) →
   (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ), (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
       Spec B (fun σ => LevelPre B n cap mb ns W O T (j + 1) M' Gm' C' σ ∧
@@ -2911,7 +3082,7 @@ def ClusterStepImplements (q_top cap mb ns W ℓ j : ℕ) (φ : Lax3.FirstOrder.
     Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧
         TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
         PlayRec B cap G j M Gm σ ∧
-        CoverHeldAt n j G M π ord cap Xoff Xmem asg m σ ∧ σ.vars (curName j) = k)
+        CoverHeldAt B n j G M π ord cap Xoff Xmem asg m σ ∧ σ.vars (curName j) = k)
       (clusterCom q_top cap mb φ j inner)
       (fun σ σ' => LevelPre B n cap mb ns W O T j M Gm C σ' ∧
         TablesSized q_top cap mb φ n σ' ∧ BaseArrs B q_top cap mb ℓ φ σ' ∧
@@ -2959,7 +3130,7 @@ the environment slots are the base evaluator's own — one per free
 variable of the deepest formula, which `envDepth` bounds. -/
 def BaseImplements (q_top cap mb ns W ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
-  WordBound B n ns cap mb → 2 ^ sigL cap mb ℓ < B → masked G M = ⊥ →
+  ∀ {d : ℕ}, WordBoundK B n d ns cap mb → 2 ^ sigL cap mb ℓ < B → masked G M = ⊥ →
   (∀ c < sigL cap mb ℓ, ∀ v < n, C c v ≤ 1) →
     Spec B (fun σ => LevelPre B n cap mb ns W O T ℓ M Gm C σ ∧
         TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ)
@@ -2979,7 +3150,7 @@ of the combination, whose local atoms are the *constants*
 means is `sat_iff_eval_sentence`, proved above. -/
 def SentenceImplements (q_top cap mb ns W : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
-  WordBound B n ns cap mb → (∀ v < n, M v ≠ 0) →
+  ∀ {d : ℕ}, WordBoundK B n d ns cap mb → (∀ v < n, M v ≠ 0) →
     Spec B (fun σ => LevelPre B n cap mb ns W O T 0 M Gm C σ ∧
         TableInv q_top cap mb φ G 0 M C σ ∧ σ.out = [])
       (sentenceCom q_top cap mb φ)
@@ -3134,7 +3305,11 @@ theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
         hordmem₁, hpad0, hTB⟩, htsz₁, hbarr₁, hplay₀⟩
   -- the sentence readback
   obtain ⟨σ₃, hrun₃, hcond, hout₃⟩ :=
-    (hsent M Gm (fun _ _ => 0) hB hMpos).run (σ := σ₂) ⟨hpre₂, htab₂, by rw [hout₂, hout₁]⟩
+    -- the readback takes the value bound at a degree parameter (rebase
+    -- E-mem/W2); the root still carries the carrier bound, which is that
+    -- slot at `K = n - 1`, and W3 replaces it by `WordBoundK` at `Kmass`.
+    (hsent M Gm (fun _ _ => 0) (wordBoundK_pred_iff.mpr hB) hMpos).run (σ := σ₂)
+      ⟨hpre₂, htab₂, by rw [hout₂, hout₁]⟩
   refine ⟨σ₃, _, (hrun₁.seq (hrun₂.seq hrun₃)).mono le_rfl, le_rfl, ?_⟩
   -- and the one thing that is not composition
   rw [hout₃]

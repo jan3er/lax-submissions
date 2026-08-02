@@ -359,7 +359,8 @@ postcondition.** Everything the obligation asks for, discharged from a
 the only thing this theorem still wants is the lowering named in the
 header's F-a. -/
 theorem orderImplements_of_spec {R : ℕ} {G : SimpleGraph (Fin n)}
-    (h : RamDriver.WordBound B n ns cap mb → RamElim.CsrSimple G ns O T → n + W + 1 < B →
+    (h : ∀ {d : ℕ}, RamDriver.WordBoundK B n d ns cap mb → RamElim.CsrSimple G ns O T →
+      n + W + 1 < B →
       RamDriver.ElimAvail B n → RamDriver.AugAvail B n →
       Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ)
         (RamDriver.orderCom R j)
@@ -390,8 +391,8 @@ section Adequacy
 postcondition's ordering clause, read back as `OrderPost`. -/
 theorem orderImplements₀_towerPost {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} :
-    RamDriver.WordBound B n ns cap mb → RamElim.CsrSimple G ns O T → n + W + 1 < B →
-    RamDriver.ElimAvail B n → RamDriver.AugAvail B n →
+    ∀ {d : ℕ}, RamDriver.WordBoundK B n d ns cap mb → RamElim.CsrSimple G ns O T →
+    n + W + 1 < B → RamDriver.ElimAvail B n → RamDriver.AugAvail B n →
     Spec B (fun σ => RamDriver.LevelPre B n cap mb ns W O T j M Gm C σ)
       (RamDriver.orderCom 0 j)
       (fun σ σ' => RamDriver.LevelPre B n cap mb ns W O T j M Gm C σ' ∧ σ'.out = σ.out ∧
@@ -399,7 +400,7 @@ theorem orderImplements₀_towerPost {B cap mb ns W j : ℕ} {G : SimpleGraph (F
         (∀ a : ℕ, σ'.arrs (RamDriver.gamName a) = σ.arrs (RamDriver.gamName a)) ∧
         OrderPost n (σ'.arrs (RamDriver.ordName j)))
       (RamDriverCompose.orderPhaseCost n ns W) := by
-  intro hB hcsr hWB helim haug
+  intro d hB hcsr hWB helim haug
   refine (RamDriverCompose.orderImplements₀ hB hcsr hWB helim haug).post ?_
   rintro σ σ' - ⟨h1, h2, h3, h4, π, ord, hord, hOrd, -⟩
   exact ⟨h1, h2, h3, h4, orderPost_of_orderClause hord hOrd⟩

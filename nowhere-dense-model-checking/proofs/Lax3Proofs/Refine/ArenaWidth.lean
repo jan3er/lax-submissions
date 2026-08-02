@@ -40,9 +40,18 @@ exactly where it is. That is what this file compiles:
    the arena width read at a degree parameter `K` instead of at the
    carrier: `n * K + n + ns + 2 * cap + 2 < B ∧ mb < B`. It is an exact
    generalization, not a weakening: `wordBoundK_pred_iff` says the
-   landed `WordBound` *is* `WordBoundK` at `K = n - 1`, and every
-   reading the driver takes off `WordBound` (`n_lt`, `succ_lt`,
-   `ns_lt`, `mb_lt`, `cover`) is taken off `WordBoundK` too.
+   landed `WordBound` *is* `WordBoundK` at `K = n - 1`, and the five
+   projections the driver reads off `WordBound` (`one_lt`, `n_lt`,
+   `succ_lt`, `ns_lt`, `mb_lt`) come off `WordBoundK` at every `K`.
+   The sixth reading, `WordBound.cover`, does **not**, and cannot:
+   `Refine.CoverWidth.arena_not_of_square` compiles that the two arena
+   clauses are incomparable. Its consumers are the two values the cover
+   pass forms out of the arena, and they enter the phase obligation as
+   the slots `RamDriver.PtrWords` and `RamDriver.MassWords`, each with a
+   carrier reading and a mass reading (rebase E-mem/W2). The slot and
+   its projections are declared beside `WordBound` in `RamDriver` —
+   the phase obligations take them and are below this file — and
+   re-exported here.
 3. **§3, the headline** — the flip of finding 3, at C0's own quantifier
    order. For every layout with at least one array and every constant
    profile `(K, cap, mb)` there is a constant `c`, chosen *before* the
@@ -133,70 +142,30 @@ end Span
 The `n * n` is the cluster arena's pointer ceiling. `WordBoundK` reads
 that ceiling at a degree parameter `K` — `n * K` slots of arena, plus
 the `n` slots one block scan may still add — and is otherwise the same
-clause. -/
+clause:
 
-section Bound
+    WordBoundK B n K ns cap mb  :=  n * K + n + ns + 2 * cap + 2 < B ∧ mb < B
 
-variable {B n K ns cap mb : ℕ}
+The slot and its readings are stated **beside `WordBound` in
+`RamDriver`** and re-exported here (rebase E-mem/W2). They have to be:
+the driver's own phase obligations take the slot, and every one of them
+is below this file in the import order. What stays here is what this
+file is for — the C0-side flip that the new slot is satisfiable where the
+old one was not (§3–§4), the controls (§4), and the mass mathematics the
+arena reading stands on (§5–§6).
 
-/-- **The new value bound**: the arena pointer at `n * K`, the block
-scan's `+ n`, the block structure's `ns`, the search's `2 * cap`, and
-the padded width. -/
-def WordBoundK (B n K ns cap mb : ℕ) : Prop :=
-  n * K + n + ns + 2 * cap + 2 < B ∧ mb < B
+The relation between the two, `wordBoundK_pred_iff`, is what makes this
+a *slot* change and not a weakening: `WordBound` **is** `WordBoundK` at
+`K = n - 1`, and every projection the driver takes off `WordBound`
+(`one_lt`, `n_lt`, `succ_lt`, `ns_lt`, `mb_lt`) comes off `WordBoundK`
+at every `K`. The one reading that does not survive is
+`WordBound.cover`, the carrier ceiling, whose two consumers are the
+cover pass's two pointers — `RamDriver.PtrWords` and
+`RamDriver.MassWords`, each with a carrier reading and a mass reading.
+-/
 
-/-- The arena ceiling of the old bound is the new one at `K = n - 1`. -/
-theorem mul_pred_add_self (n : ℕ) : n * (n - 1) + n = n * n := by
-  cases n with
-  | zero => rfl
-  | succ m => simp [Nat.mul_succ, Nat.mul_comm]
-
-/-- **The slot change is a generalization, not a weakening.** The landed
-`WordBound` *is* `WordBoundK` at the trivial degree parameter. -/
-theorem wordBoundK_pred_iff : WordBoundK B n (n - 1) ns cap mb ↔ WordBound B n ns cap mb := by
-  rw [WordBoundK, RamDriver.WordBound, mul_pred_add_self]
-
-/-- A smaller degree parameter is a weaker demand on `B`. -/
-theorem wordBoundK_mono {K' : ℕ} (hK : K ≤ K') (h : WordBoundK B n K' ns cap mb) :
-    WordBoundK B n K ns cap mb :=
-  ⟨lt_of_le_of_lt (by
-    have : n * K ≤ n * K' := Nat.mul_le_mul_left n hK
-    omega) h.1, h.2⟩
-
-/-- …so the landed bound gives the new one at every degree parameter
-below `n - 1`, which is how a caller who has only `WordBound` still
-enters. -/
-theorem wordBoundK_of_wordBound (hK : K ≤ n - 1) (h : WordBound B n ns cap mb) :
-    WordBoundK B n K ns cap mb :=
-  wordBoundK_mono hK (wordBoundK_pred_iff.mpr h)
-
-/-! ### Every reading the driver takes off `WordBound`, taken off
-`WordBoundK`
-
-`RamDriver.WordBound` is consumed through five projections. All five are
-available from the new form, which is what makes the `hB` slot a *slot*
-change: no consumer of the root theorem loses a fact. -/
-
-theorem WordBoundK.one_lt (h : WordBoundK B n K ns cap mb) : 1 < B := by
-  rw [WordBoundK] at h; omega
-
-theorem WordBoundK.n_lt (h : WordBoundK B n K ns cap mb) : n < B := by
-  rw [WordBoundK] at h; omega
-
-theorem WordBoundK.succ_lt (h : WordBoundK B n K ns cap mb) : n + 1 < B := by
-  rw [WordBoundK] at h; omega
-
-theorem WordBoundK.ns_lt (h : WordBoundK B n K ns cap mb) : ns < B := by
-  rw [WordBoundK] at h; omega
-
-theorem WordBoundK.mb_lt (h : WordBoundK B n K ns cap mb) : mb < B := h.2
-
-/-- The arena reading: every pointer the cover pass forms, including the
-`n` slots of the block being scanned, is a word. -/
-theorem WordBoundK.arena (h : WordBoundK B n K ns cap mb) :
-    n * K + n + ns + 2 * cap + 2 < B := h.1
-
-end Bound
+export Lax3Proofs.RamDriver (WordBoundK mul_pred_add_self wordBoundK_pred_iff
+  wordBoundK_mono wordBoundK_of_wordBound)
 
 /-! ## 3. The flip of finding 3
 

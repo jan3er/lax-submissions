@@ -465,44 +465,34 @@ theorem emitLoop_wvars (r : ℕ) : (RamCover.emitLoop r).wvars = ["z", "dz", "xp
 
 theorem emitLoop_warrs (r : ℕ) : (RamCover.emitLoop r).warrs = ["xmem", "asg"] := rfl
 
-/-- **The one value bound the turn takes off the arena** (rebase
-E-mem/W1). At every state the cover loop can be in — that is, at every
-state whose arena satisfies `RamCover.CoverInv`, below the last centre —
-the widest pointer the emission scan will form, `xp + n`, is a word.
-
-It is a *predicate* and not an inequality because the pointer is not a
-parameter of the walk: it is read off the state the turn starts in, so
-the ceiling has to be quantified over the invariant. There are exactly
-two ways to supply it, and they are the before and after of the width
-repair:
+/-! **The one value bound the turn takes off the arena** (rebase
+E-mem/W1, moved E-mem/W2). At every state the cover loop can be in —
+that is, at every state whose arena satisfies `RamCover.CoverInv`, below
+the last centre — the widest pointer the emission scan will form,
+`xp + n`, is a word. That is `RamDriver.PtrWords`, and it is a
+*predicate* and not an inequality because the pointer is not a parameter
+of the walk: it is read off the state the turn starts in, so the ceiling
+has to be quantified over the invariant. There are exactly two ways to
+supply it, and they are the before and after of the width repair:
 
 * the carrier reading — `CoverInv.ptr_le : xp ≤ c * n` with `c < n`,
-  against `n * n + … < B` (`ptrWords_of_square`, below), which is what
+  against `n * n + … < B` (`RamDriver.ptrWords_of_square`), which is what
   the landed `RamCover.Implements` slot pays for;
 * the arena reading — `CoverInv.ptr_le_mass : xp ≤ n * d` against
-  `Refine.ArenaWidth.WordBoundK` at the ordering's weak-reachability
-  degree, which is `Refine.ArenaWidth.block_scan_lt` and is consumed in
+  `RamDriver.WordBoundK` at the ordering's weak-reachability degree,
+  which is `Refine.ArenaWidth.block_scan_lt` and is consumed in
   `Refine.CoverWidth`.
 
-The **allocation** clause `xp + n ≤ n * n` is not here and does not move:
-it is about the length of the `xmem` list, which the word length never
-reads (`Refine.ArenaWidth` §1), and the walk derives it from `ptr_le`
-either way. -/
-def PtrWords (B : ℕ) {n : ℕ} (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ)
-    (π : Equiv.Perm (Fin n)) (ord : ℕ → ℕ) (r : ℕ) : Prop :=
-  ∀ {c xp : ℕ} {Xoff Xmem asg M : ℕ → ℕ},
-    CoverInv G A₀ π ord r c xp Xoff Xmem asg M → c < n → xp + n < B
+The **allocation** clause `xp + n ≤ n * n` is not part of it and does not
+move: it is about the length of the `xmem` list, which the word length
+never reads (`Refine.ArenaWidth` §1), and the walk derives it from
+`ptr_le` either way.
 
-/-- **The carrier reading of the ceiling**: the landed one. After `c < n`
-centres the pointer is at most `c * n`, so `xp + n ≤ n * n`, and the
-landed value bound makes that a word — with nothing said about degrees.
--/
-theorem ptrWords_of_square {B : ℕ} (hB : n * n < B) : PtrWords B G A₀ π ord r := by
-  intro c xp _ _ _ _ hI hc
-  have h₁ := hI.ptr_le
-  have h₂ : (c + 1) * n ≤ n * n := Nat.mul_le_mul_right n (by omega)
-  have h₃ : (c + 1) * n = c * n + n := by ring
-  omega
+The slot itself lives beside the value bound in `RamDriver`, because
+`RamDriver.CoverImplements` — the phase obligation, which is below this
+file — takes it. It is re-exported here, where its walk is. -/
+
+export Lax3Proofs.RamDriver (PtrWords ptrWords_of_square)
 
 /-- **One centre, at a target array materialized wider than the block
 structure occupies** (rebase F-c-3). The source load, the search, the
@@ -805,6 +795,24 @@ theorem coverPass_specW {B nt : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy
       (RamCover.coverCom r) (CoverPost G A₀ π ord r) (RamCover.coverCost n ns) :=
   RamCover.cover_specW (coverTurnImplementsW B n ns nt G A₀ O T ord π r) hcsr hord hB hA
     hnt hpad
+
+/-- **The same pass with the arena ceiling as a slot** (rebase
+E-mem/W2). `coverPass_specW` reads all four of its word clauses off the
+carrier bound `n * n + ns + 2 * r + 2 < B`; only the last of them is
+about the arena, and only that one differs between the carrier and the
+mass reading. This is the same walk with the three level clauses taken
+directly and the arena ceiling taken as `PtrWords`, which is what
+`RamDriver.CoverImplements` hands it. `coverPass_specW` is this at
+`ptrWords_of_square`; `Refine.CoverWidth.coverPass_specKW` is it at
+`ptrWords_of_mass`. -/
+theorem coverPass_specWP {B nt : ℕ} (hcsr : CsrGraph G ns O T) (hord : OrdersBy n π ord)
+    (hnB : n < B) (hnsB : ns < B) (hrB : 2 * r + 1 < B) (hptr : PtrWords B G A₀ π ord r)
+    (hA : ∀ z < n, A₀ z < B) (hnt : ns ≤ nt)
+    (hpad : 0 < n → ∀ j, ns ≤ j → j < nt → T j < n) :
+    Spec B (fun σ => CoverPreW n ns nt O T A₀ ord σ ∧ (∀ v ∈ σ.arrs "dist", v < B) ∧
+        (∀ v ∈ σ.arrs "q", v < B))
+      (RamCover.coverCom r) (CoverPost G A₀ π ord r) (RamCover.coverCost n ns) :=
+  RamCover.cover_specOfW hord hnB hA (centreStep_specWB hcsr hord hnB hnsB hrB hptr hnt hpad)
 
 /-! ### A scan against an arbitrary bound
 

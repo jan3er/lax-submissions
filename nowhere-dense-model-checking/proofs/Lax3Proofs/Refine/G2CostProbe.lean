@@ -458,7 +458,7 @@ theorem orderImplementsR_at_orderCostA {B cap mb ns W j R d D₁ : ℕ} {n : ℕ
       (∀ l < i, Augmentation.GreedyFratRound (D l) (D (l + 1))) →
       Augmentation.AugmentedDepthOneDensity D i D₁)
     (hWl : W ≤ bsq d D₁ R * (n + ns + 1))
-    (hwb : RamDriver.WordBound B n ns cap mb) (hcsr : RamElim.CsrSimple G ns O T)
+    {dw : ℕ} (hwb : RamDriver.WordBoundK B n dw ns cap mb) (hcsr : RamElim.CsrSimple G ns O T)
     (hB : n + W + 1 < B) (he : RamDriver.ElimAvail B n) (ha : RamDriver.AugAvail B n) :
     Lax13Proofs.Reasoning.Spec B
       (fun σ => RamDriver.LevelPre B n cap mb ns W O T j M Gm C σ ∧

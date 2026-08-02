@@ -216,7 +216,7 @@ mask kills the edgeless reading is the reading in the level's own arena.
 Everything else is names. -/
 theorem sweepImplements {n B q_top cap mb ns W ℓ jd : ℕ} {φ : Lax3.FirstOrder.FO 0}
     {G : SimpleGraph (Fin n)} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ}
-    (hB : WordBound B n ns cap mb) :
+    {d : ℕ} (hB : WordBoundK B n d ns cap mb) :
     SweepImplements B q_top cap mb ns W ℓ jd φ G O T M Gm C
       (sweepCost q_top cap mb jd n φ) := by
   have hlocal : ∀ β ∈ tablesAt q_top cap mb φ jd, IsLocal β :=

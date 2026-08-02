@@ -1111,7 +1111,7 @@ the loop's own counter comparison, and the turn triple — and nothing
 else in it mentions the arena. Taking the triple as a parameter is what
 lets the same assembly be run at the landed carrier bound
 (`cover_specW`, below, unchanged) and at
-`Refine.ArenaWidth.WordBoundK`'s arena bound
+`RamDriver.WordBoundK`'s arena bound
 (`Refine.CoverWidth.coverPass_specKW`), with the walk written once. -/
 theorem cover_specOfW {B nt : ℕ} (hord : OrdersBy n π ord) (hnB : n < B)
     (hA : ∀ z < n, A₀ z < B)

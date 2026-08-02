@@ -227,13 +227,14 @@ theorem clusterStepAt
       (arenaWeight n G) (driverAt q_top cap mb 0 ℓ φ (j + 1)) Kin Ks :=
   RamDriverCluster.clusterStepImplements hcap
     (RamDriverDescend.descendStep hmb hjl le_rfl)
-    (fun _ _ _ _ => RamDriverDescend.enumStep hB le_rfl)
+    (fun _ _ _ _ => RamDriverDescend.enumStep (wordBoundK_pred_iff.mpr hB) le_rfl)
     (fun _ _ _ _ _ => RamDriverDescend.colourStep le_rfl)
     (fun hinner _ _ _ _ _ _ => RamDriverFrames.innerFrames hinner
       (fun _ ha => turnFrozen_notMem_warrs_driverAt ha)
       (fun _ ha => ctrName_notMem_wvars_driverAt ha)
       xpName_notMem_wvars_driverAt curName_notMem_wvars_driverAt)
-    (fun _ _ _ _ _ _ => RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
+    (fun _ _ _ _ _ _ =>
+      RamDriverFrames.scatterStep hcsr (wordBoundK_pred_iff.mpr hB) hbnd hcostI hKsc)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
     hmono
     (fun _ hkn hout hsub =>
@@ -257,14 +258,15 @@ theorem clusterFramesAt
     RamDriverCluster.ClusterFrames B q_top cap mb ns W ℓ j φ G O T M Gm C π ord
       Xoff Xmem asg mm k (arenaWeight n G)
       (driverAt q_top cap mb 0 ℓ φ (j + 1)) Kin Ks :=
-  RamDriverFrames.clusterFrames hcsr hB
+  RamDriverFrames.clusterFrames hcsr (wordBoundK_pred_iff.mpr hB)
     (RamDriverDescend.descendStep hmb hjl le_rfl)
-    (fun _ _ _ _ => RamDriverDescend.enumStep hB le_rfl)
+    (fun _ _ _ _ => RamDriverDescend.enumStep (wordBoundK_pred_iff.mpr hB) le_rfl)
     (fun _ _ _ _ _ => RamDriverDescend.colourStep le_rfl)
     (fun _ ha => turnFrozen_notMem_warrs_driverAt ha)
       (fun _ ha => ctrName_notMem_wvars_driverAt ha)
     xpName_notMem_wvars_driverAt curName_notMem_wvars_driverAt
-    (fun _ _ _ _ _ _ => RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
+    (fun _ _ _ _ _ _ =>
+      RamDriverFrames.scatterStep hcsr (wordBoundK_pred_iff.mpr hB) hbnd hcostI hKsc)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
     (fun i => tabName_notMem_warrs_driverAt i)
     hmono
@@ -348,20 +350,26 @@ theorem levelAt
     ∀ j ≤ ℓ, ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
       LevelImplements B q_top cap mb 0 ℓ W ns j φ G O T M Gm C
         (Kl j (arenaWeight n G M)) :=
-  RamDriverCluster.levelImplements hB hWB hcsr
+  -- the phases take the value bound at a degree parameter (rebase E-mem/W2); the
+  -- root still carries the carrier bound, which is that slot at `K = n - 1`, and
+  -- supplies the cover phase's two arena slots from `WordBound.cover`. W3 replaces
+  -- the whole group by `WordBoundK` at `Kmass` and the mass readings.
+  RamDriverCluster.levelImplements (wordBoundK_pred_iff.mpr hB) hWB hcsr
     (fun _ _ _ _ _ _ => RamElim.implements)
     (fun _ _ _ _ _ _ _ => RamDriverAugment.implements)
     (fun A₀ ord π => RamDriverOrder.coverTurnImplements B n ns G A₀ O T ord π cap)
+    (fun _ _ _ => ptrWords_of_square (by have := hB.cover; omega))
+    (fun _ _ _ => massWords_of_square (by have := hB.cover; omega))
     hQ hℓ
     (fun M Gm C hbot hbit => by
       rw [driverAt_bot]
-      exact ((RamDriverCompose.baseImplements hB hpow hbot hbit).pre
+      exact ((RamDriverCompose.baseImplements (wordBoundK_pred_iff.mpr hB) hpow hbot hbit).pre
         (fun _ h => ⟨h.1, h.2.1, h.2.2.1⟩)).mono (hKbase _))
-    (fun j _ M _ _ h₁ h₂ h₃ h₄ h₅ =>
+    (fun j _ M _ _ _d h₁ h₂ h₃ h₄ h₅ =>
       (RamDriverCompose.orderImplements₀ h₁ h₂ h₃ h₄ h₅).mono
         (hKo j (arenaWeight n G M)))
-    (fun j _ M _ _ _ _ h₁ h₂ h₃ h₄ =>
-      (RamDriverCompose.coverImplements h₁ h₂ h₃ h₄).mono (hKc j (arenaWeight n G M)))
+    (fun j _ M _ _ _ _ _d h₁ h₂ h₃ h₄ h₅ h₆ =>
+      (RamDriverCompose.coverImplements h₁ h₂ h₃ h₄ h₅ h₆).mono (hKc j (arenaWeight n G M)))
     (fun j hj _ _ _ _ _ _ _ _ _ _ =>
       clusterStepAt hcap hmb hj hB hcsr.csr (hbnd j hj) (hcostI j hj) (hKsc j hj)
         (hKmono (j + 1)) (hKs j hj _))
@@ -370,7 +378,8 @@ theorem levelAt
         (hKmono (j + 1)) (hKs j hj _))
     (fun _ _ => loopFrames)
     (fun j _ M _ _ =>
-      (Refine.DeadSweep.sweepImplements (jd := j) hB).mono (hKd j (arenaWeight n G M)))
+      (Refine.DeadSweep.sweepImplements (jd := j) (wordBoundK_pred_iff.mpr hB)).mono
+        (hKd j (arenaWeight n G M)))
     (fun M π ord Xoff Xmem asg cps mm cnum hordby _ hout hcomp =>
       Refine.MassWeight.mass_of_alive_compaction_weight G hordby hout
         (hbinj M π ord Xoff Xmem asg mm hout) (hdeg M π) hcomp)

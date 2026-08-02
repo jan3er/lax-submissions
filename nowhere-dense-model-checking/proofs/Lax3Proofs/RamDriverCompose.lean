@@ -816,13 +816,13 @@ def coverPhaseCost (n ns : ℕ) : ℕ :=
 theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)} {ord : ℕ → ℕ} :
     CoverImplements B cap mb ns W j G O T M Gm C π ord (coverPhaseCost n ns) := by
-  intro hB hcsr _ hord
+  intro d hB hcsr hptr hexit _ hord
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hlev, hordarr, hordlt⟩ := hσ
   have hnB : n < B := hB.n_lt
   have hn1B : n + 1 < B := hB.succ_lt
-  have hcovB := hB.cover
-  have hnnB : n * n < B := by omega
+  have hnsB : ns < B := hB.ns_lt
+  have hrB : 2 * cap + 1 < B := by have := hB.arena; omega
   obtain ⟨hvn, hoff, htgt, halvj, -, -, hMB, -, -, hmem, hdep, -, hordmem, hpad0, -⟩ := id hlev
   -- (1) the depth's ordering into the name the pass reads
   obtain ⟨σ₁, hr₁, ⟨u₁, hu₁, hagr₁⟩, -, hvn₁, -⟩ :=
@@ -857,8 +857,8 @@ theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin 
   -- occupies the first `ns` slots and the padding above it is zero, which
   -- is `RamCover.cover_specW`'s `hpad` wherever a centre turn runs
   obtain ⟨σ₃, hr₃, Xoff, Xmem, asg, m, hxoff₃, hxmem₃, hasg₃, hxp₃, hmle, hout⟩ :=
-    (RamDriverOrder.coverPass_specW (r := cap) (A₀ := M) (nt := W) hcsr hord hcovB hMB
-        hordmem.1 (RamDriver.pad_lt_of_zero hpad0)).run
+    (RamDriverOrder.coverPass_specWP (r := cap) (A₀ := M) (nt := W) hcsr hord hnB hnsB hrB
+        hptr hMB hordmem.1 (RamDriver.pad_lt_of_zero hpad0)).run
       ⟨⟨hvn₂, hoff₂, htgt₂, halvA₂, hordA₂, hmem₂.1.get (p := ("dist", n)) (by simp),
         hmem₂.1.get (p := ("q", n)) (by simp), hmem₂.1.get (p := ("asg", n)) (by simp),
         hmem₂.1.get (p := ("xoff", n + 1)) (by simp),
@@ -866,9 +866,11 @@ theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin 
   have hdep₃ : DepthMem n cap mb σ₃ := hdep₂.run hr₃
   have hvn₃ : σ₃.vars "n" = n := by
     rw [hr₃.frame_var "n" (by rw [wvars_coverCom]; decide)]; exact hvn₂
-  have hmB : m < B := by omega
+  -- the exit pointer, and with it every block offset below it, is a word:
+  -- the second of the cover phase's two arena slots (rebase E-mem/W2)
+  have hmB : m < B := hexit hout hmle
   have hXoffB : ∀ k < n + 1, Xoff k < B := fun k hk =>
-    lt_of_le_of_lt (le_trans (coverOut_off_le hout k (by omega)) hmle) hnnB
+    lt_of_le_of_lt (coverOut_off_le hout k (by omega)) hmB
   have hXmemB : ∀ k < m, Xmem k < B := fun k hk => lt_trans (hout.mem_lt k hk) hnB
   -- (4) the four copies that make the answers the depth's own
   obtain ⟨σ₄, hr₄, ⟨v₄, hv₄, hagr₄⟩, -, hvn₄, -⟩ :=
@@ -984,7 +986,7 @@ theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin 
     fun a => hrT.frame_var _ (ctrName_notMem_coverPhase cap j a),
     fun a => hrT.frame_arr _ (gamName_notMem_coverPhase cap j a),
     Xoff, v₅, asg, cps, m, σ₈.vars (cnumName j),
-    ⟨?_, hxof₈, ?_, ?_, ?_, hmle, hordlt, coverOut_congr hout hagr₅⟩,
+    ⟨?_, hxof₈, ?_, ?_, ?_, hmle, hmB, hordlt, coverOut_congr hout hagr₅⟩,
     hcps₈, rfl, ?_⟩
   · rw [hrT.frame_arr _ (ordName_notMem_coverPhase cap j j)]; exact hordarr
   · rw [hr₈.frame_arr _ (by rw [warrs_compactCom]; simp [cpsName, xmmName, String.ext_iff])]
@@ -1042,7 +1044,7 @@ theorem baseImplements {n : ℕ} {B q_top cap mb ns W ℓ : ℕ} {φ : Lax3.Firs
     {G : SimpleGraph (Fin n)} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} :
     BaseImplements B q_top cap mb ns W ℓ φ G O T M Gm C
       (RamDriverBot.baseCost q_top cap mb ℓ n φ) := by
-  intro hB hL hbot hbit
+  intro d hB hL hbot hbit
   have hlocal : ∀ β ∈ tablesAt q_top cap mb φ ℓ, IsLocal β :=
     fun β hβ => (FormulaTables.tableRank_of_mem_tablesAt ℓ β hβ).1
   refine Spec.of_exists fun σ hσ => ?_
@@ -1599,7 +1601,7 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
     {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} :
     OrderImplements B n 0 W cap mb ns j G O T M Gm C (fun _ _ => True)
       (orderPhaseCost n ns W) := by
-  intro hB hcsr hWB _helim _haug
+  intro d hB hcsr hWB _helim _haug
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hvn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCbit, hmem, hdep, hmv,
     hordmem, hpad0, hTBW⟩ := id hσ
@@ -1614,7 +1616,7 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
   have h1B : 1 < B := hB.one_lt
   have hWltB : W < B := by omega
   have hnnsB : n + ns + 1 < B := by
-    have := le_mul_self n; have := hB.cover; omega
+    have := hB.arena; omega
   have hOB : ∀ k < n + 1, O k < B := fun k hk =>
     lt_of_le_of_lt (hcsr.csr.le_ns (by omega)) hnsB
   have hTB : ∀ k < ns, T k < B := fun k hk => lt_trans (hcsr.csr.target_lt k hk) hnB
@@ -2127,7 +2129,7 @@ clause this obligation is **refutable**, which is why the live width
 did not simply replace `W` in `OrderImplementsR`. -/
 def OrderImplementsRL (B n R W cap mb ns j d D₁ : ℕ) (G : SimpleGraph (Fin n))
     (O T : ℕ → ℕ) (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) : Prop :=
-  WordBound B n ns cap mb → RamElim.CsrSimple G ns O T → n + W + 1 < B →
+  ∀ {dK : ℕ}, WordBoundK B n dK ns cap mb → RamElim.CsrSimple G ns O T → n + W + 1 < B →
   ElimAvail B n → AugAvail B n →
     Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧
         TgtCoupling.chainWidthE n ns d D₁ R ≤ σ.vars "lw")
@@ -2919,7 +2921,7 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
       (∀ l < i, Augmentation.GreedyFratRound (D l) (D (l + 1))) →
       Augmentation.AugmentedDepthOneDensity D i D₁) :
     OrderImplementsRL B n R W cap mb ns j d D₁ G O T M Gm C := by
-  intro hB hcsr hWB _helim _haug
+  intro dK hB hcsr hWB _helim _haug
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hσL, hWclw⟩ := hσ
   obtain ⟨hvn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCbit, hmem, hdep, hmv,
@@ -2936,7 +2938,7 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
   have h1B : 1 < B := hB.one_lt
   have hWltB : W < B := by omega
   have hnnsB : n + ns + 1 < B := by
-    have := le_mul_self n; have := hB.cover; omega
+    have := hB.arena; omega
   have hOB : ∀ k < n + 1, O k < B := fun k hk =>
     lt_of_le_of_lt (hcsr.csr.le_ns (by omega)) hnsB
   -- (1) the block structure out of the way — its live prefix

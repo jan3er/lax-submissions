@@ -862,7 +862,7 @@ theorem readbackStep {B q_top cap mb ns Ws j : ℕ} {n : ℕ} {φ : Lax3.FirstOr
     refine arrOf_congr fun v hv => ?_
     rw [hT₀def]
     simp only [hg, getD_arrOf _ hv]
-  obtain ⟨hlevel, hplayrec, hordA, hxoffA, hxmemA, hasgA, hxpA, hmn, hordlt, hcout⟩ := hturn
+  obtain ⟨hlevel, hplayrec, hordA, hxoffA, hxmemA, hasgA, hxpA, hmn, hmB, hordlt, hcout⟩ := hturn
   have hasgB : ∀ v < n, asg v < B := fun v hv => lt_trans (hcout.asg_lt v hv) hn
   -- the atoms of every tabled formula, at every vertex
   have hatom : ∀ (v : Fin n) (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length)
@@ -918,7 +918,7 @@ theorem readbackStep {B q_top cap mb ns Ws j : ℕ} {n : ℕ} {φ : Lax3.FirstOr
     hplayrec.congr (fun a _ => hframeV (ctrName a) (by simp [ctrName, String.ext_iff]))
       (fun a _ => hframeA (gamName a) (fun i => Ne.symm (by
         simp [tabName, gamName, String.ext_iff]))),
-    ?_, ?_, ?_, hbase'.2.1, ?_, hmn, hordlt, hcout⟩,
+    ?_, ?_, ?_, hbase'.2.1, ?_, hmn, hmB, hordlt, hcout⟩,
     hbase'.2.2.2.2.2.1, hbase'.2.2.2.1, ?_⟩
   · rw [hframeA (ordName j) (fun i => Ne.symm (by
       simp [tabName, ordName, String.ext_iff]))]; exact hordA

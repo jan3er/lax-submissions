@@ -81,6 +81,27 @@ theorem ptrWords_of_wordBoundK {B mb : ℕ} (hord : OrdersBy n π ord)
     (hB : WordBoundK B n d ns r mb) : RamDriverOrder.PtrWords B G A₀ π ord r :=
   ptrWords_of_mass (ns := ns) hord hk hB.1
 
+/-! ### The exit pointer: the *second* arena slot
+
+W2 threaded `WordBoundK` through the driver and found that the cover
+phase forms two values out of the arena, not one. The first is the
+emission scan's running pointer, above. The second is the pointer the
+pass *reports* — `RamDriver.CoverHeldAt`'s `m` — which
+`RamDriverDescend.clusterLoad_spec` and the readback both form, and
+every block offset is below. It is `RamDriver.MassWords`; its carrier
+reading is `RamDriver.massWords_of_square`, and this is its arena
+reading. Same double count, read at exit rather than at a centre
+boundary, and block-injectivity read off the pass's own answer rather
+than carried as a slot. -/
+
+/-- **The arena reading of the exit ceiling.** -/
+theorem massWords_of_mass {B ns mb : ℕ} (hord : OrdersBy n π ord)
+    (hk : ∀ v : Fin n, (wreach (masked G A₀) π (2 * r) v).ncard ≤ d)
+    (hB : WordBoundK B n d ns r mb) : RamDriver.MassWords B G A₀ π ord r := fun hout _ =>
+  lt_of_le_of_lt
+    (MassMath.mass_le hord hout (MassMath.blockInj_of_coverOut hout) hk)
+    (by have := hB.arena; omega)
+
 /-! ## 2. One centre, at the arena width
 
 `RamDriverOrder.centreStep_specWB` is the walk; the four readings it
@@ -262,6 +283,20 @@ theorem mass_not_free : ¬ ∀ n d c xp : ℕ, d < n → c < n → xp ≤ c * n 
   have := h 10 3 9 90 (by omega) (by omega) (by omega)
   omega
 
+/-- **Control 5 — the exit ceiling is a second slot, not the first one
+again.** `WordBoundK` together with the *allocation* clause `m ≤ n * n`
+does not make the reported pointer a word: at `n = 10` and degree `0`
+the value bound is met by `B = 13`, and the arena holds `100` cells. So
+`RamDriver.MassWords` is a genuine hypothesis of the cover phase, and
+the `m < B` clause W2 added to `RamDriver.CoverHeldAt` is not implied by
+the `m ≤ n * n` clause beside it. -/
+theorem exitWords_not_free :
+    ¬ ∀ B n K ns cap mb m : ℕ,
+      RamDriver.WordBoundK B n K ns cap mb → m ≤ n * n → m < B := by
+  intro h
+  have := h 13 10 0 0 0 0 100 ⟨by norm_num, by norm_num⟩ (by norm_num)
+  omega
+
 /-! ### The controls, flipped
 
 Each control is a refutation of a *general* statement; the point of the
@@ -275,10 +310,18 @@ so that no control is refuting something the file also needs. -/
 -- the value ceiling *is* available from the mass bound: `xp ≤ n * d` and
 -- the arena clause give `xp + n < B` at the same profile
 #guard 200 * 8 + 200 < 1844
+-- control 5's witness: the value bound holds and the arena does not fit
+#guard 10 * 0 + 10 + 0 + 2 * 0 + 2 < 13
+#guard ¬ (10 * 10 < 13)
+-- and the exit ceiling *is* available at the same profile once the mass
+-- bound replaces the allocation clause: `m ≤ n * d` against the arena clause
+#guard 200 * 8 < 1844
 
 /-! ## 7. The axiom check -/
 
 #print axioms ptrWords_of_mass
+#print axioms massWords_of_mass
+#print axioms exitWords_not_free
 #print axioms centreStep_specKW
 #print axioms coverTurnImplementsK
 #print axioms coverTurnImplementsKW

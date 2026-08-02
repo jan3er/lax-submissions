@@ -624,7 +624,7 @@ the depth-`(j+1)` table row of the atom's own formula — which
 the two copies the calling convention asks for and followed by the
 atom's flag. -/
 theorem scatterStep {Kb Ki K : ℕ}
-    (hcsr : CsrGraph G ns O T) (hB : WordBound B n ns cap mb)
+    (hcsr : CsrGraph G ns O T) {d : ℕ} (hB : WordBoundK B n d ns cap mb)
     (hbnd : ∀ β ∈ tablesAt q_top cap mb φ j, ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
       σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n ns σs.t ≤ Kb)
     (hcost : ∀ β ∈ tablesAt q_top cap mb φ j,
@@ -987,7 +987,7 @@ open Classical in
 theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {inner : Com} {Kin : ℕ → ℕ}
     {Kd Ke Kc Ks Kr K : ℕ}
     (hcsr : CsrGraph G ns O T)
-    (hB : WordBound B n ns cap mb)
+    {d : ℕ} (hB : WordBoundK B n d ns cap mb)
     (hdes : DescendStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m Kd)
     (henum : ∀ X W Alv' Gam',
       EnumStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' Ke)
@@ -1027,7 +1027,7 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
       hsub₁, hbat₁, hplay₁⟩ := (hdes hcsr hB).run ⟨hturn, hcnlt⟩
   rw [hcn] at hsub₁
   have hinsize : Kin (wA Alv') ≤ Kin wBk :=
-    hmono (hwAB Alv' hkn hcov.2.2.2.2.2.2.2 hsub₁)
+    hmono (hwAB Alv' hkn hcov.2.2.2.2.2.2.2.2 hsub₁)
   obtain ⟨σ₂, hr₂, hturn₂, hplay₂, hout₂, hc₂, w, hdat₂, hwa₂⟩ :=
     (henum X W Alv' Gam').run ⟨hturn₁, hbat₁, hplay₁, hWne, hWcard, hwa₁⟩
   obtain ⟨σ₃, hr₃, hturn₃, hdat₃, hplay₃, hout₃, hc₃, C', hcolarr₃, hcolbit₃, hcolread₃⟩ :=
