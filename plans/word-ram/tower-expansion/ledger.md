@@ -1454,3 +1454,98 @@ structures rebuild unchanged and all seven `sepref_synth` commands in
 `sorry`/`admit`/`native_decide`; axioms compiled for
 `arlAppendTotal_refines`, `arlAppendOp_refines`, `arlAppendRaw_le_amortized`
 and `arlAllocatedMany_live_bounded`.
+
+### E35 — the blit, the third `arlCopyCost`-class defect, and a currency gap the leaf exposed
+
+**Status: landed, with one new open item** (leaf A.4,
+`Refine/Sepref/HeapCopy.lean`; `Iicf/Impl/ArrayListGrow.lean` corrected).
+Added 2026-08-02.
+
+*The loop.* `while si < se do { t := heap[si]; heap[di] := t; si := si + one;
+di := di + one }`. `si`/`di` are **cursors** carrying the absolute addresses
+`sp+j` / `dp+j` — the shape `haget_triple`/`haset_triple` take their index
+cell in (D-A1c) — so there is no index cell and no `n` cell, and the bound
+rides in `se = sp + n`. One `add` per iteration cheaper than a counter loop.
+Cost as an **equation** (`blitCost_eq`):
+**`(n+1)·ir.while + n·ir.aget + n·ir.aset + 2n·ir.add`**, on `ArrayFill`'s
+landed convention of one `ir.while` per *guard evaluation*.
+
+*Disjointness is the separating conjunction itself* (D-A4a). The
+precondition owns `sp ↦ₕ xs ∗ dp ↦ₕ zs`; there is no arithmetic side
+condition. `blitPre_overlap_false` and `blitPre_self_false` compile the
+consequence — at overlapping bases the precondition *is* `sepFalse`, so the
+triple is vacuous there rather than wrong — and `blitGate_ranges_hold`
+exhibits a satisfying state, so it is not vacuous at the disjoint instance.
+
+*Hazard 3 does not arise* (D-A4c): the abstract side is `mopBlit`, a
+`consume (returnT …)` in `hnr_mop_alloc`'s idiom, **not** an `irWhileIT`, so
+there is no invariant to strengthen and no `irWhileIT_of_not_inv` trap. The
+real invariant lives as seam hypotheses `n ≤ xs.length`, `n ≤ zs.length`.
+
+*Registration* (D-A4d, E29): `hnr_mop_blit` **is** registered, and it is safe
+to register because `blitProg` is closed and allocation-free —
+`blitProg_pinned` (theorem **and** `#guard`) pins the emitted term as a
+`while` over `aget`/`aset`/`add` with no `hpName` and no `allocProg`.
+Synthesis cannot use this rule to place an allocation inside a loop; there is
+none in it.
+
+*`arlCopyCost` was wrong — F11's class, third occurrence.* It was
+`n • (aget + aset)`: no `ir.while`, no `ir.add`. It had two consumers, both
+in its own file, and no theorem compared it to any emitted program — the
+cost function nobody consumed was the cost function nobody checked, after
+`implHeapSwimCost`/`implHeapSinkCost` (E20/E22) and the P5 currency layer
+(F7). In particular `arlCopyCost_zero : arlCopyCost 0 = 0` was **false**: an
+empty copy still pays its one failed guard. `arlCopyCost` is now **defined
+as** `blitCost`, so it cannot drift again, and the zero law is restated as
+`= irUnit Currency.«while»` with `arlCopyCost_zero_ne_zero` beside it.
+`arlGrowSpec_eq`'s statement is unchanged; only what `arlCopyCost` *denotes*
+changed.
+
+*The predicted blast radius into `ArrayList.lean` does not exist — and the
+reason is itself the finding.* `arlAppendCostN` and the amortized theorems
+are stated in `PushCost`'s four **abstract** currencies (`dyn.control`,
+`dyn.write`, `dyn.add`, `dyn.copy`, via `PushCost.toECost`), while
+`arlCopyCost` is in the IR's (`ir.while`, `ir.aget`, `ir.aset`, `ir.add`).
+The two accounts never meet, so `ArrayList.lean` has a zero diff.
+
+**NEW OPEN ITEM — the `dyn.*` → `ir.*` exchange rate does not exist.**
+Supervisor check, 2026-08-02: the `dyn.*` currencies occur in **no file but
+their own definition** (`Iicf/IicfDynamicArray.lean`), and **no file under
+`Refine/Iicf/` uses `timerefine` at all**. So the array list's amortized-O(1)
+headline — `arlAppend_amortized_costN`, `arlAppendRaw_le_amortized` — is
+internally consistent but currently has **no machine content**: nothing
+connects it to the `ir.*` currencies `computesInTime_of_spec` consumes. The
+tower has the mechanism (`irWhileIT_le_timerefine`, `wfR''` exchange rates,
+`IrOps.lean:621`); no rate for `dyn.*` is landed or applied. This is
+inherited from P4's dynamic-array layer, not introduced by A.4 or by the
+P5.E re-seat — but it is the same failure class one level up, and it would
+surface at the P9 consumer gate as a headline that cannot be cashed.
+**E34 is amended accordingly:** where it says the re-seat's public statement
+is "amortized O(1)", read "amortized O(1) *in `dyn.*`*, pending the exchange
+rate". Scheduling this is a P4.6/P5 ordering decision.
+
+*Falsification.* Thirteen controls, all inverted in a throwaway module and
+**all thirteen errored**, then deleted: guard count 4→3, `ir.add` 6→3, two
+`≠` flips (including a `BigStep`-determinism theorem `decide` proved false),
+the `n = 0` guard 1→0, `blitCost 0 = 0`, a `fail_if_success` with the
+*correct* payloads confirming the control is not vacuous, a differential test
+against `hblit`, jointly-satisfiable overlapping ranges, two `Plausible` cost
+families with wrong multipliers (*"Found a counter-example! m := 1"*), and
+the emitted program with its cursor bumps dropped.
+
+*Still not closed, named precisely.* Growth is now two registered rules
+(`arlGrowAlloc_hnr`, `arlGrowCopy_hnr`) plus an exact price, but not one
+synthesized command. Missing is the **cursor-setup block**: `si`/`se` from
+the live block's base, `di`/`dc` from `mopAlloc`'s result cell, the literal
+`1` into `one` — five straight-line instructions, constant cost, no loop —
+plus the `hnr_seq` chain threading them and the final element write. Nothing
+beyond that is needed for end-to-end append synthesis.
+
+*Closure artifact.* `.claude/leaf-gate.sh word-ram` → `LEAF GATE: mechanical
+checks PASS`: concepts 505, proofs 3,279 → **3,280**, `lax build: OK` with
+zero violations, consumer **3,549** unchanged. `ArrayList.lean` has a zero
+diff, so `arlAppendOp_refines` is still `@[sepref_fref_thms]` over
+`arrayListRel` with precondition `fun _ => True` and `arrayListReadyRel`
+stays deleted. Zero `sorry`/`admit`/`native_decide`; axioms compiled for
+`blit_triple`, `hnr_mop_blit`, `blitCost_eq`, `arlGrowSpec_eq`,
+`arlGrowAlloc_hnr`, `arlGrowCopy_hnr`.
