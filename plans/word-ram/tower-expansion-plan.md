@@ -73,22 +73,60 @@ constants were never compared against our costs (F11); and the namespace
 audit, though nominally retained, was not run per leaf, so two violations
 stood undetected for a day and a half (F9).
 
-The unconditional form is therefore restored. **Refute-before-prove applies
-to every authored obligation, with no routine-port exemption.** A port is not
-exempt merely because a source declaration has the same name: what is being
-tested is *our* statement, and the cost layer in particular is authored
-rather than adapted (F7). `compiled-costs-both-directions` applies to every
-cost claim that gates work, and a cost function that no theorem consumes is
-not thereby exempt — E20 is the case in point.
+**Attribution resolved, 2026-08-02: Jan confirms he approved the waiver.**
+The record is accurate; nothing in `p3c-design.md` or the P3.C-C brief is a
+misattribution. Jan then delegated the forward decision to the supervisor on
+the new evidence. That decision follows.
 
-The one clause NOT restored is `worktree workflow`, which Jan superseded on
-2026-08-01 with the sequential warm-`main` rule above. That supersession
-stands.
+**The rule is provenance-scoped, per declaration — not per file, and not
+blanket.** Neither rev 2's unconditional law nor rev 4's routine-port waiver
+matches where the defects actually landed. Every falsification-catchable
+defect this campaign produced — `implHeapSwimCost`/`implHeapSinkCost` wrong
+(E20), the `*SourceBound` constants never compared, `fillCost` with no
+symbolic-`n` theorem, `Plausible` at zero — sits in the **authored cost
+layer**. Not one sits in a ported statement. Rev 4's premise was therefore
+correct: where our statement mirrors a statement Isabelle has machine-checked,
+that proof *is* the falsification evidence and re-testing it is redundant.
 
-The relaxation was recorded in `tower-expansion/p3c-design.md:88` and commit
-`c1089c4` as "Per Jan's 2026-07-31 direction". That attribution is **open and
-unverified**; until Jan confirms it, the `c1089c4` relaxations in the P3.C
-briefs and design note are not authority for any later phase.
+What failed was granularity. The exemption was applied per *file* — "this is
+a source-shaped port" — while the property it depends on holds per
+*declaration*. `ImplHeap.lean` is a port of `IICF_Impl_Heap.thy` for its
+algorithms and an authored artifact for its costs, because no pinned source
+carries a cost-carrying IICF at all (F7). The file looked source-shaped, so
+the exemption covered the one part no source had ever checked.
+
+The rule from P4.5 onward:
+
+1. **Mirrors a pinned source statement → exempt.** Source review,
+   typechecking, kernel guards, and the build suffice. This preserves the
+   waiver's intent and its velocity, which were real: ~15k lines, zero
+   `sorry`, interfaces exact against source.
+2. **No source counterpart → refute-before-prove, no exemption.** Every
+   `*Cost` definition, currency vector, closed form, invented relation, and
+   any generalization beyond what the source states. These have never been
+   checked by anyone, here or upstream.
+3. **Cost claims are unconditional** (`compiled-costs-both-directions`). A
+   cost function that no theorem consumes is not exempt — it is the *most*
+   likely to be wrong, since nothing else constrains it. E20 is the case in
+   point: two cost functions were wrong precisely because nothing read them.
+
+**Making it checkable rather than a judgment call.** The mechanism that
+failed was that nobody could see which declarations were authored. Each
+module header already carries a source table mapping source declaration →
+Lean declaration. **A declaration absent from its module's source table is
+authored by definition, and clause 2 applies to it.** Where a file has no
+source table, every declaration in it is authored. This turns the rule into
+something a reviewer can check by reading two lists instead of forming an
+opinion about a file's character.
+
+The one rev-2 clause NOT restored is `worktree workflow`, which Jan
+superseded on 2026-08-01 with the sequential warm-`main` rule above. That
+supersession stands.
+
+`c1089c4`'s P3.C relaxations remain authorized for what they covered:
+transcriptions of machine-checked AFP/IHT asymptotic theory, which are
+clause-1 declarations. They are not authority for clause-2 declarations in
+any phase.
 
 ## Mandate
 
@@ -337,17 +375,23 @@ reported, not just `lake build`; (iii) any departure from a pinned statement
 has a `ledger.md` entry *before* the commit, per §5 of that file. A worker's
 `lake build` report is not acceptance evidence for any of the three.
 
-**The D4 clause above is unenforced and must be enforced from P4.5.** "Every
-executable layer gets `Decidable`/`#eval` instances and Plausible checks the
-day it lands" is contract text, but `Plausible` appears in **zero** of the
-twenty P5 files. `#guard` is used well (8–22 per implementation file); the
-falsification half is simply absent. The plan's own risk-proportionality
-escape exempts "routine source-shaped ports" while still requiring compiled
-falsification for "genuinely new, deep, or subtle claims" — and F7 settles
-that P5's cost layer is authored, so the exemption never covered it. P4.5's
-allocator and ownership layer are new authored claims about a machine
-substrate: they carry Plausible checks, and the O(1)-allocation and
-no-reuse invariants get compiled negative controls.
+**The D4 clause above binds from P4.5, read through the provenance rule.**
+"Every executable layer gets `Decidable`/`#eval` instances and Plausible
+checks the day it lands" is contract text, but `Plausible` appears in **zero**
+of the twenty P5 files. `#guard` is used well (8–22 per implementation file);
+the falsification half is simply absent. D4 is therefore enforced as: clause-2
+declarations (no source counterpart — every `*Cost`, currency vector, closed
+form, and invented relation) carry Plausible checks and compiled negative
+controls on the day they land; clause-1 declarations do not need them. The
+per-leaf question a reviewer asks is not "is this file a port?" but "which of
+these declarations are missing from the module's source table?".
+
+P4.5's allocator and ownership layer are clause-2 throughout — they are
+authored claims about a machine substrate with no source statement behind
+them — so they carry Plausible checks, and the O(1)-allocation result and the
+no-reuse invariant get compiled negative controls specifically. The no-reuse
+invariant is the one whose violation silently restores an O(n) cost, so it
+gets a control that fails loudly if reuse is ever introduced.
 
 ### P0 — Port map and new pins · budget 1 session
 
