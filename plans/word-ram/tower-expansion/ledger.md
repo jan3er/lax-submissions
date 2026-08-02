@@ -1285,3 +1285,81 @@ violations**, consumer 3,549), plus a compiled environment scan finding
 zero `GetElem?.match_1.splitter` under any `Lax13Proofs` module, and
 `#print axioms` on both repaired theorems returning
 `[propext, Classical.choice, Quot.sound]`.
+
+### E33 — P4.5.B: element ownership is a law of the element list, not of the range
+
+**Status: landed** (leaf P4.5.B, `Refine/Sepref/HeapEO.lean`, 984 L).
+Added 2026-08-02.
+
+*D-B1 resolved, and the answer is smaller than the question.* §4.4 expected
+the `oelem_assn` carrier to "fall out of `p ↦ₕ xs` directly". It does — by
+barely touching it. `mk_assn` is the source's dual-assertion wrapper; our
+assertions are already `α → κ → Assn`, so `oelemAssn` is a two-case function
+and nothing more. The four `lo_*` laws are laws of the **element list**, so
+the range enters exactly once, in `naoAssn`, where `p ↦ₕ xsi` plays
+`narray_assn xsi p` verbatim. **No new range lemma was needed**;
+`ptoH_append` and `ptoH_focus` are not used in the file at all. A.1's split
+algebra is what makes that possible, not what is consumed by it.
+
+*The four laws are equations.* `loAssn_all_none` (`lo_free`),
+`loAssn_replicate_none` (`lo_init`, generalized from the source's
+`replicate n x` to any backing of the right length), `loAssn_extract`
+(`lo_extract_elem`), `loAssn_insert` (`lo_insert_elem`). Both round-trip
+directions hold on the nose, tag list *and* backing
+(`loAssn_extract_insert`, `loAssn_insert_extract`). An entailment in either
+of the last two is exactly the weakening that turns an exact move cost into
+a bounded one; it was named as the leaf's primary hazard and did not occur.
+
+*Linearity is where the source puts it.* `mopOarrayExtract` and
+`mopOarrayUpd` keep **both** halves of the source `ASSERT` (`j < length` and
+the slot's occupancy). In `hnr_mop_oarray_extract` the array's ownership at
+`xs` is absent from `Γ′` and returns only as the *result*, tagged `None` at
+the slot. In `hnr_mop_oarray_upd` the element context
+`hnCtxt (eoCellAssn A) e x` is in `Γ` and not in `Γ′` — only `junkCell x`
+comes back, so a second use of the element is underivable while the *cell*
+stays reusable, which is what a three-address loop body needs.
+
+*D-B1c — cost.* One `ir.aget` / one `ir.aset`, and **no `ofs_ptr` currency
+is invented**: A.1's `haget_triple`/`haset_triple` take the *absolute*
+address `p + j`, so address arithmetic is not part of the access. What
+collapsed is the source's two-instruction *sequence*, not a charge. It is
+not hidden either — a caller forming `p + j` emits a `binop .add` and pays
+its own `ir.add`, pinned by `HeapEOGate.addrExtractCost`, whose vector
+carries **both** units, with `#guard addrExtractCost != extractCost`
+beside it.
+
+*D-B1d — registration discipline (E29 applied).* Both registered rules are
+stated at a **pinned** base (`eoarrayAssnAt A p`) and hand the array back at
+the same base and cell; neither allocates. The packed form `eoarrayAssn`
+(base-pointer existential) exists for interfaces that must hide the pointer,
+is reachable by `eoarrayAssnAt_entails_eoarrayAssn`, and is deliberately
+**not** registered. E29's failure mode is synthesis silently picking an
+allocating or repacking form inside a loop and failing at the consumer
+bridge sessions later; leaving only the in-place form in the database is
+the mechanism that prevents it.
+
+*A near-miss recorded rather than glossed.* `eoCellAssn A a x ⊢ junkCell x`
+is **false** at a heap-owning `A` — `junkCell` owns the cell and nothing
+else. The `upd` rule returns the cell because its triple *keeps* `x ↦ᵥ w`
+while handing `A a w` to the array, not because the element assertion could
+be weakened to junk. Taking the entailment would have been the easy route
+and would have silently discarded the element's resource.
+
+*Controls that bite, not controls that decorate.* The gate's `boxAssn` is a
+genuinely heap-owning assertion (`w ↦ₕ [v]`), so `boxAssn_sepConj_self`,
+`no_extract_and_keep` and `tag_not_recoverable` are substantive rather than
+vacuous — and D-B1a is exactly the observation that at a *pure* `A` both of
+the last two are false, which is why `A` stays a parameter.
+`insert_needs_none` shows `lo_insert_elem`'s `= None` premise is
+load-bearing by exhibiting a concrete resource separating the two sides.
+
+*Closure artifact.* `.claude/leaf-gate.sh word-ram` → `LEAF GATE:
+mechanical checks PASS`: concepts 505, proofs 3,277 → **3,278** (the one new
+module), `lax build: OK` with **zero** violations, consumer **3,549**
+unchanged, twelve landed structures replay unchanged. Zero
+`sorry`/`admit`/`native_decide`. Axioms are compiled into the file via
+`#guard_msgs` for both `lo_*` pairs, both registered rules and both synth
+theorems — all `[propext, Classical.choice, Quot.sound]`. Reachability:
+`sepref_synth eoExtractSynth` / `eoUpdSynth` drive off the registered rules
+with `#guard eoExtractSynth_impl = Com.aget "x" heapName "i"` and
+`#guard eoUpdSynth_impl = Com.aset heapName "i" "x"`.
