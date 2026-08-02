@@ -156,12 +156,13 @@ def fillState (n sent : ℕ) (D : List ℕ) : Ir.State :=
 
 def fillHole (n sent : ℕ) (D : List ℕ) : Assn :=
   EXACT ((((((vcells (fillState n sent D)).erase "i").erase "n").erase "sent").erase "one",
-    (acells (fillState n sent D)).erase "dist"), 0)
+    (acells (fillState n sent D)).erase "dist", hcells (fillState n sent D)), 0)
 
 theorem fillState_holds (n sent : ℕ) (D : List ℕ) :
     irSTATE (fillΓ n sent (D, 0) ∗ fillHole n sent D) (fillState n sent D, 0) := by
   show (fillΓ n sent (D, 0) ∗ fillHole n sent D)
-    ((vcells (fillState n sent D), acells (fillState n sent D)), 0)
+    ((vcells (fillState n sent D), acells (fillState n sent D),
+      hcells (fillState n sent D)), 0)
   simp only [fillΓ, natAssn_def, arrayAssn_def, sepConj_assoc]
   refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
   refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩

@@ -884,14 +884,14 @@ def bState : Ir.State :=
 
 def bFrame : Assn :=
   EXACT ((((((((vcells bState).erase "i").erase "n").erase "j").erase "m").erase
-    "z").erase "one", acells bState), 0)
+    "z").erase "one", acells bState, hcells bState), 0)
 
 def bOwn : Assn :=
   natAssn 0 "i" ∗ natAssn 1 "n" ∗ natAssn 3 "j" ∗ natAssn 4 "m" ∗ natAssn 4 "z" ∗
     natAssn 1 "one"
 
 theorem bOwn_holds : irSTATE (bOwn ∗ bFrame) (bState, 0) := by
-  show (bOwn ∗ bFrame) ((vcells bState, acells bState), 0)
+  show (bOwn ∗ bFrame) ((vcells bState, acells bState, hcells bState), 0)
   simp only [bOwn, natAssn_def, sepConj_assoc]
   refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
   refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩

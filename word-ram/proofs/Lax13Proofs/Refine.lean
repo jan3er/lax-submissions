@@ -23,6 +23,7 @@ import Lax13Proofs.Refine.Ir.Semantics
 import Lax13Proofs.Refine.Ir.Assn
 import Lax13Proofs.Refine.Ir.Wp
 import Lax13Proofs.Refine.Ir.Triples
+import Lax13Proofs.Refine.Ir.Heap
 import Lax13Proofs.Refine.Ir.Attrs
 import Lax13Proofs.Refine.Ir.SepSolver
 import Lax13Proofs.Refine.Examples.Bfs
@@ -241,6 +242,14 @@ from `Sep_Generic_Wp.thy`, `Sep_Algebra_Add.thy`, `Frame_Infer.thy` and
   wave A's `roundtrip`, runs it end to end at wave A's own state, drives
   wave A's `countdown` through the loop rule with per-iteration credits,
   and shows that a triple with too few credits is not derivable.
+* `Refine/Ir/Heap.lean` — P4.5.A.1's range ownership (`ll_range`, ledger
+  **E25**): the assertion `p ↦ₕ xs` over `AState`'s reserved-heap
+  component, split / join / single-index focus as *equations*
+  (`ptoH_append`, `ptoH_focus`, `ptoH_extract`), and the heap-view
+  `aget` / `aset` triples in `Triples.lean`'s own shape and logic. Its
+  gate carries both negative controls decision D-A1 turns on —
+  overlapping ranges do not compose, and the heap name is unownable in
+  the whole-name view — plus a non-vacuity witness at a concrete state.
 
 and P3's wave C — frame inference and the phase's acceptance:
 

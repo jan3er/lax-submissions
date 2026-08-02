@@ -1276,7 +1276,8 @@ def bfsQHole (n d src : ℕ) (off tgt alv dist₀ q₀ : List ℕ) : Assn :=
         |>.erase "k0" |>.erase "v1" |>.erase "kend" |>.erase "u" |>.erase "au"
         |>.erase "du",
       acells (bfsQState n d src off tgt alv dist₀ q₀) |>.erase "dist" |>.erase "q"
-        |>.erase "off" |>.erase "tgt" |>.erase "alv"), 0)
+        |>.erase "off" |>.erase "tgt" |>.erase "alv",
+      hcells (bfsQState n d src off tgt alv dist₀ q₀)), 0)
 
 theorem bfsQ_state_holds (n d src : ℕ) (off tgt alv dist₀ q₀ : List ℕ) :
     irSTATE (bfsQPre n d src off tgt alv dist₀ q₀
@@ -1284,7 +1285,8 @@ theorem bfsQ_state_holds (n d src : ℕ) (off tgt alv dist₀ q₀ : List ℕ) :
       (bfsQState n d src off tgt alv dist₀ q₀, 0) := by
   show (bfsQPre n d src off tgt alv dist₀ q₀ ∗ bfsQHole n d src off tgt alv dist₀ q₀)
     ((vcells (bfsQState n d src off tgt alv dist₀ q₀),
-      acells (bfsQState n d src off tgt alv dist₀ q₀)), 0)
+      acells (bfsQState n d src off tgt alv dist₀ q₀),
+      hcells (bfsQState n d src off tgt alv dist₀ q₀)), 0)
   simp only [bfsQPre, hnCtxt, natAssn_def, arrayAssn_def, sepConj_assoc]
   refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
   refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩

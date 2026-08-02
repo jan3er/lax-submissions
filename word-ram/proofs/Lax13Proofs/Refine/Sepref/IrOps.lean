@@ -747,10 +747,11 @@ def gatePre : Assn :=
 this state, but written as an `EXACT` resource so the assertion is checked
 by kernel computation rather than by extensionality. -/
 def gateFrame : Assn :=
-  EXACT (((((vcells gateState).erase "i").erase "x"), (acells gateState).erase "A"), 0)
+  EXACT (((((vcells gateState).erase "i").erase "x"), (acells gateState).erase "A",
+    hcells gateState), 0)
 
 theorem gatePre_holds : irSTATE (gatePre ∗ gateFrame) (gateState, 0) := by
-  show (gatePre ∗ gateFrame) ((vcells gateState, acells gateState), 0)
+  show (gatePre ∗ gateFrame) ((vcells gateState, acells gateState, hcells gateState), 0)
   simp only [gatePre, hnCtxt_def, natAssn_def, arrayAssn_def, sepConj_assoc]
   refine ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
   refine ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩

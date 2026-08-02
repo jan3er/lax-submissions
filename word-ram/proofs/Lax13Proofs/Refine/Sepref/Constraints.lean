@@ -138,9 +138,9 @@ source's early-failure flag rather than left to fail in the slot. -/
 a state that is not `0`, so it is not a `⌜⌝`. -/
 theorem not_isPure_natAssn : ¬ isPure natAssn := by
   rintro ⟨P', hP⟩
-  have h0 : natAssn 0 "x" ((Cells.single "x" (0 : Val), 0), (0 : ECost)) := ⟨⟨rfl, rfl⟩, rfl⟩
+  have h0 : natAssn 0 "x" ((Cells.single "x" (0 : Val), 0, 0), (0 : ECost)) := ⟨⟨rfl, rfl⟩, rfl⟩
   rw [hP 0 "x"] at h0
-  have h1 : (Cells.single "x" (0 : Val), (0 : Cells (List Val))) = 0 :=
+  have h1 : (Cells.single "x" (0 : Val), ((0 : Cells (List Val)), (0 : HCells))) = 0 :=
     congrArg (fun p => p.1) h0.2
   have h2 := congrFun (congrArg Prod.fst h1) "x"
   simp [Cells.single] at h2

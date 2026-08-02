@@ -599,10 +599,10 @@ theorem if_bigStep : BigStep ifProg ifState ifOut.1 ifOut.2 := bigStep_of_evalFu
    ("ir.shiftr", 0)]
 
 def ifFrame : Assn :=
-  EXACT (((((vcells ifState).erase "x").erase "n"), acells ifState), 0)
+  EXACT (((((vcells ifState).erase "x").erase "n"), acells ifState, hcells ifState), 0)
 
 theorem ifPre_holds : irSTATE (ifPre ∗ ifFrame) (ifState, 0) := by
-  show (ifPre ∗ ifFrame) ((vcells ifState, acells ifState), 0)
+  show (ifPre ∗ ifFrame) ((vcells ifState, acells ifState, hcells ifState), 0)
   simp only [ifPre, junkCell_def, hnCtxt_def, natAssn_def, sepConj_assoc, sepEx_sepConj]
   refine ⟨0, ?_⟩
   refine ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
@@ -748,11 +748,13 @@ theorem w_bigStep : BigStep wProg wState wOut.1 wOut.2 := bigStep_of_evalFuel w_
    ("ir.shiftr", 0)]
 
 def wFrameAssn : Assn :=
-  EXACT ((((((vcells wState).erase "x").erase "y").erase "three"), acells wState), 0)
+  EXACT ((((((vcells wState).erase "x").erase "y").erase "three"), acells wState,
+    hcells wState), 0)
 
 theorem wPre_holds :
     irSTATE ((hnCtxt natAssn 0 "x" ∗ wFrame) ∗ wFrameAssn) (wState, 0) := by
-  show ((hnCtxt natAssn 0 "x" ∗ wFrame) ∗ wFrameAssn) ((vcells wState, acells wState), 0)
+  show ((hnCtxt natAssn 0 "x" ∗ wFrame) ∗ wFrameAssn)
+    ((vcells wState, acells wState, hcells wState), 0)
   simp only [wFrame, hnCtxt_def, natAssn_def, sepConj_assoc]
   refine ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
   refine ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
@@ -814,12 +816,12 @@ theorem irIf_wrong_currency :
 The context fixes `n = 5`, so `3 < n` is `true`; claiming `false` is
 refutable at the very state the gate uses. -/
 
-def nFrame : Assn := EXACT (((vcells ifState).erase "n", acells ifState), 0)
+def nFrame : Assn := EXACT (((vcells ifState).erase "n", acells ifState, hcells ifState), 0)
 
 theorem condRefine_mismatch : ¬ CondRefine (hnCtxt natAssn 5 "n") ifCondT false := by
   intro h
   have hs : irSTATE (hnCtxt natAssn 5 "n" ∗ nFrame) (ifState, 0) := by
-    show (hnCtxt natAssn 5 "n" ∗ nFrame) ((vcells ifState, acells ifState), 0)
+    show (hnCtxt natAssn 5 "n" ∗ nFrame) ((vcells ifState, acells ifState, hcells ifState), 0)
     simp only [hnCtxt_def, natAssn_def]
     exact ptoVar_sepConj_iff.2 ⟨rfl, rfl⟩
   have hcon := h nFrame ifState 0 hs

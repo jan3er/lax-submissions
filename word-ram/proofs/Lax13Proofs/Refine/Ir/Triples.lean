@@ -408,12 +408,13 @@ resource is what lets the assertion be checked by `rfl` rather than by
 extensionality over the name space. -/
 def rtFrame : Assn :=
   EXACT (((((vcells roundtripState).erase "x").erase "i").erase "j",
-    (acells roundtripState).erase "A"), 0)
+    (acells roundtripState).erase "A", hcells roundtripState), 0)
 
 /-- The precondition really does hold of wave A's state: each conjunct
 is checked by kernel computation on the state's association lists. -/
 theorem rtPre_holds : irSTATE (rtPre ∗ rtFrame) (roundtripState, rtBalance) := by
-  show (rtPre ∗ rtFrame) ((vcells roundtripState, acells roundtripState), rtBalance)
+  show (rtPre ∗ rtFrame)
+    ((vcells roundtripState, acells roundtripState, hcells roundtripState), rtBalance)
   simp only [rtPre, sepConj_assoc, costCredits_def]
   refine credits_sepConj_iff.2 ⟨ACost.cost Currency.aset (1 : ℕ∞), rfl, ?_⟩
   refine credits_sepConj_iff.2 ⟨0, (add_zero _).symm, ?_⟩
@@ -535,7 +536,7 @@ have to run an op priced at one `ir.const` against an empty balance. -/
 theorem const_not_derivable : ¬ irTriple ("x" ↦ᵥ 0) (.const "x" 7) ("x" ↦ᵥ 7) := by
   intro h
   have hstate : irSTATE (("x" ↦ᵥ 0) ∗
-      EXACT (((vcells nzState).erase "x", acells nzState), 0)) (nzState, 0) :=
+      EXACT (((vcells nzState).erase "x", acells nzState, hcells nzState), 0)) (nzState, 0) :=
     ptoVar_sepConj_iff.2 ⟨rfl, rfl⟩
   obtain ⟨s', κ, hrun, -, hi⟩ := h _ (nzState, 0) hstate
   rw [bigStep_const_iff] at hrun

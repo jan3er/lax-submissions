@@ -398,7 +398,8 @@ theorem res_lt_of_hnRefine_wordAssn {B : ℕ} {Γ Γ' F : Assn} {c : Com} {x : S
 def gState : Ir.State := Ir.State.ofPairs [("x", 0), ("y", 3), ("z", 4)] [("A", [1, 2, 3])]
 
 def gFrame : Assn :=
-  EXACT (((((vcells gState).erase "x").erase "y").erase "z", (acells gState).erase "A"), 0)
+  EXACT (((((vcells gState).erase "x").erase "y").erase "z", (acells gState).erase "A",
+    hcells gState), 0)
 
 /-- The owned half, with the destination cell *live* (§4's shape). -/
 def gPreL : Assn :=
@@ -411,7 +412,7 @@ def gPre : Assn :=
     hnCtxt arrayAssn [1, 2, 3] "A"
 
 theorem gPreL_holds : irSTATE (gPreL ∗ gFrame) (gState, 0) := by
-  show (gPreL ∗ gFrame) ((vcells gState, acells gState), 0)
+  show (gPreL ∗ gFrame) ((vcells gState, acells gState, hcells gState), 0)
   simp only [gPreL, hnCtxt_def, natAssn_def, arrayAssn_def, sepConj_assoc]
   refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
   refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩

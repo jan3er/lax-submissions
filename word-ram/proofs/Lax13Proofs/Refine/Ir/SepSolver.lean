@@ -432,8 +432,8 @@ theorem GC_entails_GC : (GC : Assn) ⊢ GC := entails_refl GC
 entailed by, ownership of a cell. The negative control behind D-ab. -/
 theorem ptoVar_not_entails_GC (x : String) (v : Val) : ¬ ((x ↦ᵥ v) ⊢ GC) := by
   intro h
-  have hs : (x ↦ᵥ v) ((Cells.single x v, 0), 0) := ⟨⟨rfl, rfl⟩, rfl⟩
-  have hc : (Cells.single x v, (0 : Cells (List Val))) = 0 := (h _ hs).1
+  have hs : (x ↦ᵥ v) ((Cells.single x v, 0, 0), 0) := ⟨⟨rfl, rfl⟩, rfl⟩
+  have hc : (Cells.single x v, ((0 : Cells (List Val)), (0 : HCells))) = 0 := (h _ hs).1
   have hx := congrFun (congrArg Prod.fst hc) x
   simp [Cells.single] at hx
 

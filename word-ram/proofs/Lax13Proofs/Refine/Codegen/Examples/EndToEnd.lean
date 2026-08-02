@@ -169,11 +169,13 @@ def fcState (ys : List ℕ) (t : ℕ) : Ir.State :=
 /-- The frame: everything `fcPre` leaves. -/
 def fcHole (ys : List ℕ) (t : ℕ) : Assn :=
   EXACT (((((((((vcells (fcState ys t)).erase "k").erase "acc").erase "v").erase "t").erase
-    "n").erase "one").erase "zero", (acells (fcState ys t)).erase "A"), 0)
+    "n").erase "one").erase "zero", (acells (fcState ys t)).erase "A",
+    hcells (fcState ys t)), 0)
 
 theorem fc_state_holds (ys : List ℕ) (t : ℕ) :
     irSTATE (fcPre ys t ∗ fcHole ys t) (fcState ys t, 0) := by
-  show (fcPre ys t ∗ fcHole ys t) ((vcells (fcState ys t), acells (fcState ys t)), 0)
+  show (fcPre ys t ∗ fcHole ys t)
+    ((vcells (fcState ys t), acells (fcState ys t), hcells (fcState ys t)), 0)
   simp only [fcPre, hnCtxt, prod_assn_pair_conv, natAssn_def, arrayAssn_def, sepConj_assoc]
   refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩⟩
   rw [junkCell_def, sepEx_sepConj]
@@ -530,7 +532,7 @@ def rvState (ys : List ℕ) : Ir.State :=
 /-- The frame. -/
 def rvHole (ys : List ℕ) : Assn :=
   EXACT (((((((vcells (rvState ys)).erase "i").erase "j").erase "t1").erase "t2").erase "one",
-    (acells (rvState ys)).erase "A"), 0)
+    (acells (rvState ys)).erase "A", hcells (rvState ys)), 0)
 
 theorem rv_state_holds (ys : List ℕ) :
     irSTATE (rvPre ys ∗ rvHole ys) (rvState ys, 0) := by

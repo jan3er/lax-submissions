@@ -372,7 +372,7 @@ what lets the assertion be checked by `rfl` rather than by
 extensionality over the name space (wave B's `rtFrame`, same trick). -/
 def fillDemoFrame : Assn :=
   EXACT ((((((vcells fillDemoState).erase "i").erase "n").erase "v").erase "one",
-    (acells fillDemoState).erase "A"), 0)
+    (acells fillDemoState).erase "A", hcells fillDemoState), 0)
 
 /-- The precondition and the frame, spelled as one right-nested
 `∗`-list, checked conjunct by conjunct against the concrete state. -/
@@ -382,7 +382,7 @@ theorem fillDemoRaw :
       (fillDemoState, fillDemoBalance) := by
   show (¤¤Currency.«while» 1 ∗ ¤((3 : ℕ) • fillPayload) ∗ "i" ↦ᵥ 0 ∗ "n" ↦ᵥ 3 ∗
       "v" ↦ᵥ 7 ∗ "one" ↦ᵥ 1 ∗ "A" ↦ₐ [0, 0, 0] ∗ fillDemoFrame)
-    ((vcells fillDemoState, acells fillDemoState), fillDemoBalance)
+    ((vcells fillDemoState, acells fillDemoState, hcells fillDemoState), fillDemoBalance)
   rw [costCredits_def]
   refine credits_sepConj_iff.2 ⟨_, rfl, ?_⟩
   refine credits_sepConj_iff.2 ⟨0, (add_zero _).symm, ?_⟩

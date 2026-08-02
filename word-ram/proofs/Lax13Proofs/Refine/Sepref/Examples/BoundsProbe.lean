@@ -309,14 +309,15 @@ def pbOwn : Assn :=
 def pbFrame : Assn :=
   EXACT ((vcells pbState |>.erase "pi" |>.erase "pn" |>.erase "pone" |>.erase "pjo"
       |>.erase "pip" |>.erase "pend" |>.erase "pu" |>.erase "pup" |>.erase "pc",
-    acells pbState |>.erase "poff" |>.erase "pdoff" |>.erase "ptg"), 0)
+    acells pbState |>.erase "poff" |>.erase "pdoff" |>.erase "ptg",
+    hcells pbState), 0)
 
 theorem pb_shape : PbShape 2 2 100 [0, 1, 2] [1, 0] := by
   unfold PbShape
   decide
 
 theorem pbOwn_holds : irSTATE (pbOwn ∗ pbFrame) (pbState, 0) := by
-  show (pbOwn ∗ pbFrame) ((vcells pbState, acells pbState), 0)
+  show (pbOwn ∗ pbFrame) ((vcells pbState, acells pbState, hcells pbState), 0)
   simp only [pbOwn, natAssn_def, arrayAssn_def, sepConj_assoc]
   refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
   refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩

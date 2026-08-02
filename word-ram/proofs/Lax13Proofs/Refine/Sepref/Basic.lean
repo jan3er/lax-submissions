@@ -923,17 +923,18 @@ theorem hnr_const_wrong_currency :
       (NRest.returnT 7) := by
   intro h
   have hpre : irSTATE ((¤¤Currency.skip 1 ∗ junkCell "x") ∗
-      EXACT (((vcells nzState).erase "x", acells nzState), 0))
+      EXACT (((vcells nzState).erase "x", acells nzState, hcells nzState), 0))
       (nzState, ACost.cost Currency.skip (1 : ℕ∞)) := by
     show ((¤¤Currency.skip 1 ∗ junkCell "x") ∗
-      EXACT (((vcells nzState).erase "x", acells nzState), 0))
-      ((vcells nzState, acells nzState), ACost.cost Currency.skip (1 : ℕ∞))
+      EXACT (((vcells nzState).erase "x", acells nzState, hcells nzState), 0))
+      ((vcells nzState, acells nzState, hcells nzState), ACost.cost Currency.skip (1 : ℕ∞))
     rw [sepConj_assoc, costCredits_def]
     refine credits_sepConj_iff.2 ⟨0, (add_zero _).symm, ?_⟩
     rw [junkCell_def, sepEx_sepConj]
     exact ⟨0, ptoVar_sepConj_iff.2 ⟨rfl, rfl⟩⟩
   obtain ⟨ra, Ca, hCa, w⟩ :=
-    hnRefineD (F := EXACT (((vcells nzState).erase "x", acells nzState), 0)) h rfl hpre
+    hnRefineD (F := EXACT (((vcells nzState).erase "x", acells nzState, hcells nzState), 0))
+      h rfl hpre
   have hra : ra = 7 := by
     by_contra hne
     rw [NRest.single_of_ne hne, le_bot_iff] at hCa

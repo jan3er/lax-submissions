@@ -731,9 +731,19 @@ theorem single_disj_erase (V : Cells γ) (x : String) (v : γ) : single x v ## V
 
 end Cells
 
+/-- The heap's ownership component: one `tsa_opt` cell per index of the
+reserved heap array (decision D-A1 of
+`plans/word-ram/tower-expansion/p4.5-design.md` §4.3). This is the
+per-index granularity judgment call D-m declined for *named* arrays —
+`ll_range`, at the one name that has it. `Refine/Ir/Heap.lean` carries
+the range assertion `p ↦ₕ xs` built on it. -/
+abbrev HCells : Type := ℕ → Tsa Val
+
 /-- The IR's assertion-level state: the source's `ll_astate`, with named
-cells in place of an address-indexed memory (ledger D2). -/
-abbrev AState : Type := (Cells Val × Cells (List Val)) × ECost
+cells in place of an address-indexed memory (ledger D2). The memory half
+is scalars, named arrays and the reserved heap (decision D-A1); the
+credit half is unchanged, so `¤c` and `GC` still read `SND`. -/
+abbrev AState : Type := (Cells Val × Cells (List Val) × HCells) × ECost
 
 /-- The IR's assertions: the source's `ll_assn`. -/
 abbrev Assn : Type := AState → Prop
@@ -741,17 +751,52 @@ abbrev Assn : Type := AState → Prop
 /-- The scalar cells of a state. -/
 def vcells (s : State) : Cells Val := fun x => Tsa.ofOption (s.vars x)
 
-/-- The array cells of a state. -/
-def acells (s : State) : Cells (List Val) := fun a => Tsa.ofOption (s.arrs a)
+/-- The one reserved array name the P4.5 heap lives at (design note
+§4.3, decision D-A1). It is named in exactly this one place; every use
+site goes through this definition, never through the literal.
+
+The name is *unownable* in the whole-name view below (`acells` sends it
+to `Tsa.zero`), which is what makes the heap's per-index view a genuine
+separating conjunct rather than a second view of the same resource. See
+`Refine/Ir/Heap.lean` for the range assertion and for the theorem
+(`not_irSTATE_ptoArr_heapName`) that discharges the disjointness this
+partition buys. -/
+def heapName : String := "$heap"
+
+/-- The array cells of a state — *except* the reserved heap name, which
+this view does not own (decision D-A1). Ownership of the heap is
+per-index and lives in the `HCells` component; if the name were ownable
+here as well, the two views would not be disjoint in the underlying
+`Ir.State` and framing a range across a whole-name `aset` would be
+unsound. -/
+def acells (s : State) : Cells (List Val) :=
+  fun a => if a = heapName then 0 else Tsa.ofOption (s.arrs a)
+
+/-- The per-index view of the reserved heap array. An index outside the
+array — or a state with no heap array at all — owns nothing. -/
+def hcells (s : State) : HCells :=
+  fun i => Tsa.ofOption ((s.arrs heapName).bind (fun xs => xs[i]?))
 
 /-- The abstraction function: the source's `ll_α ≡ lift_α_cost llvm_α`.
-Judgment call D-n — ours re-tags the two partial maps and pairs on the
-balance, and that is all it does. -/
-def irα (p : State × ECost) : AState := ((vcells p.1, acells p.1), p.2)
+Judgment call D-n — ours re-tags the two partial maps, adds the reserved
+array's per-index view (decision D-A1) and pairs on the balance, and
+that is all it does. -/
+def irα (p : State × ECost) : AState := ((vcells p.1, acells p.1, hcells p.1), p.2)
 
 @[simp] theorem vcells_apply (s : State) (x : String) : vcells s x = Tsa.ofOption (s.vars x) := rfl
 
-@[simp] theorem acells_apply (s : State) (a : String) : acells s a = Tsa.ofOption (s.arrs a) := rfl
+@[simp] theorem acells_apply {a : String} (h : a ≠ heapName) (s : State) :
+    acells s a = Tsa.ofOption (s.arrs a) := by simp [acells, h]
+
+/-- The heap name owns nothing in the whole-name view: the soundness
+side of decision D-A1. -/
+@[simp] theorem acells_heapName (s : State) : acells s heapName = 0 := by simp [acells]
+
+/-- Whatever a cell of the whole-name view holds, it is not the heap
+name — the form the extraction lemmas below consume. -/
+theorem ne_heapName_of_acells_eq_triv {s : State} {a : String} {xs : List Val}
+    (h : acells s a = .triv xs) : a ≠ heapName := by
+  rintro rfl; rw [acells_heapName] at h; exact absurd h (by simp)
 
 @[simp] theorem vcells_setVar (s : State) (x : String) (v : Val) :
     vcells (s.setVar x v) = (vcells s).update x v := by
@@ -766,14 +811,50 @@ def irα (p : State × ECost) : AState := ((vcells p.1, acells p.1), p.2)
 @[simp] theorem vcells_setArr (s : State) (a : String) (xs : List Val) :
     vcells (s.setArr a xs) = vcells s := rfl
 
-@[simp] theorem acells_setArr (s : State) (a : String) (xs : List Val) :
+@[simp] theorem acells_setArr {a : String} (ha : a ≠ heapName) (s : State) (xs : List Val) :
     acells (s.setArr a xs) = (acells s).update a xs := by
   funext b
   rcases eq_or_ne b a with rfl | h
-  · simp [Cells.update]
-  · simp [Cells.update, h]
+  · simp [Cells.update, acells, ha]
+  · rcases eq_or_ne b heapName with rfl | hb
+    · simp [Cells.update, h, acells]
+    · simp [Cells.update, h, acells, hb]
 
-@[simp] theorem irα_mk (s : State) (cr : ECost) : irα (s, cr) = ((vcells s, acells s), cr) := rfl
+/-- Writing the reserved heap array is invisible to the whole-name view.
+This is the equation that lets `Heap.lean`'s write triple keep the array
+frame untouched. -/
+@[simp] theorem acells_setArr_heapName (s : State) (xs : List Val) :
+    acells (s.setArr heapName xs) = acells s := by
+  funext b
+  rcases eq_or_ne b heapName with rfl | hb
+  · simp
+  · simp [acells, hb, State.setArr]
+
+theorem hcells_apply (s : State) (i : ℕ) :
+    hcells s i = Tsa.ofOption ((s.arrs heapName).bind (fun xs => xs[i]?)) := rfl
+
+/-- A state with no heap array owns no heap. -/
+theorem hcells_of_none {s : State} (h : s.arrs heapName = none) : hcells s = 0 := by
+  funext i; simp [hcells, h]
+
+@[simp] theorem hcells_setVar (s : State) (x : String) (v : Val) :
+    hcells (s.setVar x v) = hcells s := rfl
+
+/-- Writing any *other* array leaves the heap view alone — the equation
+that keeps every landed array triple valid at the widened carrier. -/
+@[simp] theorem hcells_setArr {a : String} (ha : a ≠ heapName) (s : State) (xs : List Val) :
+    hcells (s.setArr a xs) = hcells s := by
+  funext i
+  simp [hcells, State.arrs_setArr, Ne.symm ha]
+
+/-- …and writing the heap array replaces the whole view. -/
+@[simp] theorem hcells_setArr_heapName (s : State) (ys : List Val) :
+    hcells (s.setArr heapName ys) = fun i => Tsa.ofOption ys[i]? := by
+  funext i
+  simp [hcells, State.arrs_setArr]
+
+@[simp] theorem irα_mk (s : State) (cr : ECost) :
+    irα (s, cr) = ((vcells s, acells s, hcells s), cr) := rfl
 
 /-! ## 6. The assertion vocabulary of the IR
 
@@ -804,8 +885,10 @@ def ptoVar (x : String) (v : Val) : Assn := FST (FST (EXACT (Cells.single x v)))
 
 /-- `a ↦ₐ xs`: the array `a` exists and holds `xs`, and this assertion
 owns the name *and* the length (judgment call D-m: one cell, not a
-family). -/
-def ptoArr (a : String) (xs : List Val) : Assn := FST (SND (EXACT (Cells.single a xs)))
+family). It owns no heap cell: the extra `FST` is decision D-A1's third
+memory component, and `a = heapName` is unsatisfiable here by
+`acells_heapName`. -/
+def ptoArr (a : String) (xs : List Val) : Assn := FST (SND (FST (EXACT (Cells.single a xs))))
 
 @[inherit_doc] infix:70 " ↦ₐ " => ptoArr
 
@@ -841,31 +924,33 @@ The three lemmas every triple in `Triples.lean` is proved by. Each is an
 `EXACT`-split (`EXACT_sepConj_iff`) read through `FST`/`SND`. -/
 
 /-- What a points-to assertion says on the nose: it owns exactly the one
-cell, no arrays and no credits. -/
+cell, no arrays, no heap and no credits. -/
 theorem ptoVar_apply {x : String} {v : Val} {V : Cells Val} {Ar : Cells (List Val)}
-    {cr : ECost} : (x ↦ᵥ v) ((V, Ar), cr) ↔ V = Cells.single x v ∧ Ar = 0 ∧ cr = 0 :=
-  ⟨fun ⟨⟨h1, h2⟩, h3⟩ => ⟨h1, h2, h3⟩, fun ⟨h1, h2, h3⟩ => ⟨⟨h1, h2⟩, h3⟩⟩
+    {H : HCells} {cr : ECost} :
+    (x ↦ᵥ v) ((V, Ar, H), cr) ↔ V = Cells.single x v ∧ Ar = 0 ∧ H = 0 ∧ cr = 0 :=
+  ⟨fun ⟨⟨h1, h2⟩, h3⟩ => ⟨h1, congrArg Prod.fst h2, congrArg Prod.snd h2, h3⟩,
+    fun ⟨h1, h2, h3, h4⟩ => ⟨⟨h1, Prod.ext h2 h3⟩, h4⟩⟩
 
 theorem ptoArr_apply {a : String} {xs : List Val} {V : Cells Val} {Ar : Cells (List Val)}
-    {cr : ECost} : (a ↦ₐ xs) ((V, Ar), cr) ↔ V = 0 ∧ Ar = Cells.single a xs ∧ cr = 0 :=
-  ⟨fun ⟨⟨h1, h2⟩, h3⟩ => ⟨h1, h2, h3⟩, fun ⟨h1, h2, h3⟩ => ⟨⟨h1, h2⟩, h3⟩⟩
+    {H : HCells} {cr : ECost} :
+    (a ↦ₐ xs) ((V, Ar, H), cr) ↔ V = 0 ∧ Ar = Cells.single a xs ∧ H = 0 ∧ cr = 0 :=
+  ⟨fun ⟨⟨h1, h2, h3⟩, h4⟩ => ⟨h1, h2, h3, h4⟩, fun ⟨h1, h2, h3, h4⟩ => ⟨⟨h1, h2, h3⟩, h4⟩⟩
 
-theorem credits_apply {k : ECost} {V : Cells Val} {Ar : Cells (List Val)} {cr : ECost} :
-    (¤k) ((V, Ar), cr) ↔ V = 0 ∧ Ar = 0 ∧ cr = k :=
-  ⟨fun ⟨h1, h2⟩ => ⟨congrArg Prod.fst h1, congrArg Prod.snd h1, h2⟩,
-    fun ⟨h1, h2, h3⟩ => ⟨Prod.ext h1 h2, h3⟩⟩
+theorem credits_apply {k : ECost} {V : Cells Val} {Ar : Cells (List Val)} {H : HCells}
+    {cr : ECost} : (¤k) ((V, Ar, H), cr) ↔ V = 0 ∧ Ar = 0 ∧ H = 0 ∧ cr = k :=
+  ⟨fun ⟨h1, h2⟩ => ⟨congrArg Prod.fst h1, congrArg (fun p => p.2.1) h1,
+      congrArg (fun p => p.2.2) h1, h2⟩,
+    fun ⟨h1, h2, h3, h4⟩ => ⟨Prod.ext h1 (Prod.ext h2 h3), h4⟩⟩
 
 theorem ptoVar_sepConj_iff {x : String} {v : Val} {F : Assn} {V : Cells Val}
-    {Ar : Cells (List Val)} {cr : ECost} :
-    ((x ↦ᵥ v) ∗ F) ((V, Ar), cr) ↔ V x = .triv v ∧ F ((V.erase x, Ar), cr) := by
+    {Ar : Cells (List Val)} {H : HCells} {cr : ECost} :
+    ((x ↦ᵥ v) ∗ F) ((V, Ar, H), cr) ↔ V x = .triv v ∧ F ((V.erase x, Ar, H), cr) := by
   constructor
-  · rintro ⟨⟨⟨pv, pa⟩, pc⟩, ⟨⟨qv, qa⟩, qc⟩, hd, hpq, hp, hq⟩
-    have hp1 : pv = Cells.single x v := hp.1.1
-    have hp2 : pa = 0 := hp.1.2
-    have hp3 : pc = 0 := hp.2
-    subst hp1; subst hp2; subst hp3
+  · rintro ⟨⟨⟨pv, pa, ph⟩, pc⟩, ⟨⟨qv, qa, qh⟩, qc⟩, hd, hpq, hp, hq⟩
+    obtain ⟨hp1, hp2, hp3, hp4⟩ := ptoVar_apply.1 hp
+    subst hp1; subst hp2; subst hp3; subst hp4
     simp only [Prod.mk_add_mk, Prod.mk.injEq] at hpq
-    obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hpq
+    obtain ⟨⟨rfl, rfl, rfl⟩, rfl⟩ := hpq
     have hqx : qv x = 0 := by
       have hx : Cells.single x v x ## qv x := hd.1.1 x
       rw [Cells.single_self] at hx
@@ -876,28 +961,27 @@ theorem ptoVar_sepConj_iff {x : String} {v : Val} {F : Assn} {V : Cells Val}
       rcases eq_or_ne y x with rfl | hy
       · simp [hqx]
       · simp [hy]
-    rw [e1, sep_zero_add, sep_zero_add]
+    rw [e1, sep_zero_add, sep_zero_add, sep_zero_add]
     exact hq
   · rintro ⟨hVx, hF⟩
-    refine ⟨((Cells.single x v, 0), 0), ((V.erase x, Ar), cr),
-      ⟨⟨Cells.single_disj_erase V x v, fun b => Tsa.zero_disj _⟩, trivial⟩, ?_,
-      ⟨⟨rfl, rfl⟩, rfl⟩, hF⟩
-    show ((V, Ar), cr) = ((Cells.single x v, 0), 0) + ((V.erase x, Ar), cr)
-    rw [Prod.mk_add_mk, Prod.mk_add_mk, Cells.single_add_erase hVx, sep_zero_add, sep_zero_add]
+    refine ⟨((Cells.single x v, 0, 0), 0), ((V.erase x, Ar, H), cr),
+      ⟨⟨Cells.single_disj_erase V x v, fun b => Tsa.zero_disj _, fun i => Tsa.zero_disj _⟩,
+        trivial⟩, ?_, ⟨⟨rfl, rfl⟩, rfl⟩, hF⟩
+    show ((V, Ar, H), cr) = ((Cells.single x v, 0, 0), 0) + ((V.erase x, Ar, H), cr)
+    rw [Prod.mk_add_mk, Prod.mk_add_mk, Prod.mk_add_mk, Cells.single_add_erase hVx,
+      sep_zero_add, sep_zero_add, sep_zero_add]
 
 theorem ptoArr_sepConj_iff {a : String} {xs : List Val} {F : Assn} {V : Cells Val}
-    {Ar : Cells (List Val)} {cr : ECost} :
-    ((a ↦ₐ xs) ∗ F) ((V, Ar), cr) ↔ Ar a = .triv xs ∧ F ((V, Ar.erase a), cr) := by
+    {Ar : Cells (List Val)} {H : HCells} {cr : ECost} :
+    ((a ↦ₐ xs) ∗ F) ((V, Ar, H), cr) ↔ Ar a = .triv xs ∧ F ((V, Ar.erase a, H), cr) := by
   constructor
-  · rintro ⟨⟨⟨pv, pa⟩, pc⟩, ⟨⟨qv, qa⟩, qc⟩, hd, hpq, hp, hq⟩
-    have hp1 : pv = 0 := hp.1.1
-    have hp2 : pa = Cells.single a xs := hp.1.2
-    have hp3 : pc = 0 := hp.2
-    subst hp1; subst hp2; subst hp3
+  · rintro ⟨⟨⟨pv, pa, ph⟩, pc⟩, ⟨⟨qv, qa, qh⟩, qc⟩, hd, hpq, hp, hq⟩
+    obtain ⟨hp1, hp2, hp3, hp4⟩ := ptoArr_apply.1 hp
+    subst hp1; subst hp2; subst hp3; subst hp4
     simp only [Prod.mk_add_mk, Prod.mk.injEq] at hpq
-    obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hpq
+    obtain ⟨⟨rfl, rfl, rfl⟩, rfl⟩ := hpq
     have hqa : qa a = 0 := by
-      have hx : Cells.single a xs a ## qa a := hd.1.2 a
+      have hx : Cells.single a xs a ## qa a := hd.1.2.1 a
       rw [Cells.single_self] at hx
       exact Tsa.eq_zero_of_disj_triv (sep_disj_commuteI hx)
     refine ⟨by simp [hqa], ?_⟩
@@ -906,34 +990,34 @@ theorem ptoArr_sepConj_iff {a : String} {xs : List Val} {F : Assn} {V : Cells Va
       rcases eq_or_ne b a with rfl | hb
       · simp [hqa]
       · simp [hb]
-    rw [e1, sep_zero_add, sep_zero_add]
+    rw [e1, sep_zero_add, sep_zero_add, sep_zero_add]
     exact hq
   · rintro ⟨hAra, hF⟩
-    refine ⟨((0, Cells.single a xs), 0), ((V, Ar.erase a), cr),
-      ⟨⟨fun y => Tsa.zero_disj _, Cells.single_disj_erase Ar a xs⟩, trivial⟩, ?_,
-      ⟨⟨rfl, rfl⟩, rfl⟩, hF⟩
-    show ((V, Ar), cr) = ((0, Cells.single a xs), 0) + ((V, Ar.erase a), cr)
-    rw [Prod.mk_add_mk, Prod.mk_add_mk, Cells.single_add_erase hAra, sep_zero_add, sep_zero_add]
+    refine ⟨((0, Cells.single a xs, 0), 0), ((V, Ar.erase a, H), cr),
+      ⟨⟨fun y => Tsa.zero_disj _, Cells.single_disj_erase Ar a xs, fun i => Tsa.zero_disj _⟩,
+        trivial⟩, ?_, ⟨⟨rfl, rfl, rfl⟩, rfl⟩, hF⟩
+    show ((V, Ar, H), cr) = ((0, Cells.single a xs, 0), 0) + ((V, Ar.erase a, H), cr)
+    rw [Prod.mk_add_mk, Prod.mk_add_mk, Prod.mk_add_mk, Cells.single_add_erase hAra,
+      sep_zero_add, sep_zero_add, sep_zero_add]
 
 theorem credits_sepConj_iff {k : ECost} {F : Assn} {V : Cells Val} {Ar : Cells (List Val)}
-    {cr : ECost} :
-    ((¤k) ∗ F) ((V, Ar), cr) ↔ ∃ cr₂, cr = k + cr₂ ∧ F ((V, Ar), cr₂) := by
+    {H : HCells} {cr : ECost} :
+    ((¤k) ∗ F) ((V, Ar, H), cr) ↔ ∃ cr₂, cr = k + cr₂ ∧ F ((V, Ar, H), cr₂) := by
   constructor
-  · rintro ⟨⟨⟨pv, pa⟩, pc⟩, ⟨⟨qv, qa⟩, qc⟩, hd, hpq, hp, hq⟩
-    have hp1 : pv = 0 := congrArg Prod.fst hp.1
-    have hp2 : pa = 0 := congrArg Prod.snd hp.1
-    have hp3 : pc = k := hp.2
-    subst hp1; subst hp2; subst hp3
+  · rintro ⟨⟨⟨pv, pa, ph⟩, pc⟩, ⟨⟨qv, qa, qh⟩, qc⟩, hd, hpq, hp, hq⟩
+    obtain ⟨hp1, hp2, hp3, hp4⟩ := credits_apply.1 hp
+    subst hp1; subst hp2; subst hp3; subst hp4
     simp only [Prod.mk_add_mk, Prod.mk.injEq] at hpq
-    obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hpq
+    obtain ⟨⟨rfl, rfl, rfl⟩, rfl⟩ := hpq
     refine ⟨qc, rfl, ?_⟩
-    rw [sep_zero_add, sep_zero_add]
+    rw [sep_zero_add, sep_zero_add, sep_zero_add]
     exact hq
   · rintro ⟨cr₂, rfl, hF⟩
-    refine ⟨((0, 0), k), ((V, Ar), cr₂),
-      ⟨⟨fun _ => Tsa.zero_disj _, fun _ => Tsa.zero_disj _⟩, trivial⟩, ?_, ⟨rfl, rfl⟩, hF⟩
-    show ((V, Ar), k + cr₂) = ((0, 0), k) + ((V, Ar), cr₂)
-    rw [Prod.mk_add_mk, Prod.mk_add_mk, sep_zero_add, sep_zero_add]
+    refine ⟨((0, 0, 0), k), ((V, Ar, H), cr₂),
+      ⟨⟨fun _ => Tsa.zero_disj _, fun _ => Tsa.zero_disj _, fun _ => Tsa.zero_disj _⟩,
+        trivial⟩, ?_, ⟨rfl, rfl⟩, hF⟩
+    show ((V, Ar, H), k + cr₂) = ((0, 0, 0), k) + ((V, Ar, H), cr₂)
+    rw [Prod.mk_add_mk, Prod.mk_add_mk, Prod.mk_add_mk, sep_zero_add, sep_zero_add, sep_zero_add]
 
 /-! ### Negative controls at the assertion level
 
@@ -944,7 +1028,7 @@ nothing. -/
 @[simp] theorem ptoVar_sepConj_self (x : String) (v w : Val) :
     ((x ↦ᵥ v) ∗ (x ↦ᵥ w)) = (sepFalse : Assn) := by
   funext h
-  obtain ⟨⟨V, Ar⟩, cr⟩ := h
+  obtain ⟨⟨V, Ar, H⟩, cr⟩ := h
   refine propext ⟨?_, fun h' => h'.elim⟩
   rw [ptoVar_sepConj_iff]
   rintro ⟨-, h2⟩
@@ -956,7 +1040,7 @@ nothing. -/
 @[simp] theorem ptoArr_sepConj_self (a : String) (xs ys : List Val) :
     ((a ↦ₐ xs) ∗ (a ↦ₐ ys)) = (sepFalse : Assn) := by
   funext h
-  obtain ⟨⟨V, Ar⟩, cr⟩ := h
+  obtain ⟨⟨V, Ar, H⟩, cr⟩ := h
   refine propext ⟨?_, fun h' => h'.elim⟩
   rw [ptoArr_sepConj_iff]
   rintro ⟨-, h2⟩
@@ -966,14 +1050,14 @@ nothing. -/
 
 /-- Distinct names compose, and the composite owns both. -/
 theorem ptoVar_sepConj_ne {x y : String} (h : x ≠ y) (v w : Val) (V : Cells Val)
-    (Ar : Cells (List Val)) (cr : ECost)
+    (Ar : Cells (List Val)) (H : HCells) (cr : ECost)
     (hx : V x = .triv v) (hy : V y = .triv w)
-    (hrest : ∀ z, z ≠ x → z ≠ y → V z = 0) (hAr : Ar = 0) (hcr : cr = 0) :
-    ((x ↦ᵥ v) ∗ (y ↦ᵥ w)) ((V, Ar), cr) := by
+    (hrest : ∀ z, z ≠ x → z ≠ y → V z = 0) (hAr : Ar = 0) (hH : H = 0) (hcr : cr = 0) :
+    ((x ↦ᵥ v) ∗ (y ↦ᵥ w)) ((V, Ar, H), cr) := by
   rw [ptoVar_sepConj_iff]
   refine ⟨hx, ?_⟩
   rw [ptoVar_apply]
-  refine ⟨?_, hAr, hcr⟩
+  refine ⟨?_, hAr, hH, hcr⟩
   funext z
   rcases eq_or_ne z x with rfl | hzx
   · simp [Cells.single_ne h]
@@ -985,7 +1069,7 @@ theorem ptoVar_sepConj_ne {x y : String} (h : x ≠ y) (v w : Val) (V : Cells Va
 credits are not fungible. -/
 theorem credits_injective : Function.Injective credits := by
   intro c c' h
-  have : (¤c) ((0, 0), c) := ⟨rfl, rfl⟩
+  have : (¤c) ((0, 0, 0), c) := ⟨rfl, rfl⟩
   rw [h] at this
   exact this.2
 
@@ -1051,47 +1135,55 @@ assertion to a fact about an `Ir.State`, and back. -/
 /-- Owning `x ↦ᵥ v` means the cell exists and holds `v`. -/
 theorem ptoVar_vars {x : String} {v : Val} {F : Assn} {s : State} {cr : ECost}
     (h : irSTATE ((x ↦ᵥ v) ∗ F) (s, cr)) : s.vars x = some v := by
-  have h' : ((x ↦ᵥ v) ∗ F) ((vcells s, acells s), cr) := h
+  have h' : ((x ↦ᵥ v) ∗ F) ((vcells s, acells s, hcells s), cr) := h
   rw [ptoVar_sepConj_iff] at h'
   exact Tsa.ofOption_eq_triv_iff.1 h'.1
 
 /-- …and writing it preserves the frame. -/
 theorem ptoVar_setVar {x : String} {v n : Val} {F : Assn} {s : State} {cr : ECost}
     (h : irSTATE ((x ↦ᵥ v) ∗ F) (s, cr)) : irSTATE ((x ↦ᵥ n) ∗ F) (s.setVar x n, cr) := by
-  have h' : ((x ↦ᵥ v) ∗ F) ((vcells s, acells s), cr) := h
+  have h' : ((x ↦ᵥ v) ∗ F) ((vcells s, acells s, hcells s), cr) := h
   rw [ptoVar_sepConj_iff] at h'
-  show ((x ↦ᵥ n) ∗ F) ((vcells (s.setVar x n), acells (s.setVar x n)), cr)
-  rw [vcells_setVar, acells_setVar, ptoVar_sepConj_iff, Cells.erase_update]
+  show ((x ↦ᵥ n) ∗ F)
+    ((vcells (s.setVar x n), acells (s.setVar x n), hcells (s.setVar x n)), cr)
+  rw [vcells_setVar, acells_setVar, hcells_setVar, ptoVar_sepConj_iff, Cells.erase_update]
   exact ⟨by simp, h'.2⟩
 
 /-- Owning `a ↦ₐ xs` means the array exists and holds `xs` — length
-included, which is the whole reason the IR needs no `len` op. -/
+included, which is the whole reason the IR needs no `len` op. The
+statement is unchanged by decision D-A1: owning a name in this view
+already forces `a ≠ heapName`, so no side condition appears. -/
 theorem ptoArr_arrs {a : String} {xs : List Val} {F : Assn} {s : State} {cr : ECost}
     (h : irSTATE ((a ↦ₐ xs) ∗ F) (s, cr)) : s.arrs a = some xs := by
-  have h' : ((a ↦ₐ xs) ∗ F) ((vcells s, acells s), cr) := h
+  have h' : ((a ↦ₐ xs) ∗ F) ((vcells s, acells s, hcells s), cr) := h
   rw [ptoArr_sepConj_iff] at h'
-  exact Tsa.ofOption_eq_triv_iff.1 h'.1
+  have h1 := h'.1
+  rw [acells_apply (ne_heapName_of_acells_eq_triv h'.1)] at h1
+  exact Tsa.ofOption_eq_triv_iff.1 h1
 
 /-- …and writing it preserves the frame. -/
 theorem ptoArr_setArr {a : String} {xs ys : List Val} {F : Assn} {s : State} {cr : ECost}
     (h : irSTATE ((a ↦ₐ xs) ∗ F) (s, cr)) : irSTATE ((a ↦ₐ ys) ∗ F) (s.setArr a ys, cr) := by
-  have h' : ((a ↦ₐ xs) ∗ F) ((vcells s, acells s), cr) := h
+  have h' : ((a ↦ₐ xs) ∗ F) ((vcells s, acells s, hcells s), cr) := h
   rw [ptoArr_sepConj_iff] at h'
-  show ((a ↦ₐ ys) ∗ F) ((vcells (s.setArr a ys), acells (s.setArr a ys)), cr)
-  rw [vcells_setArr, acells_setArr, ptoArr_sepConj_iff, Cells.erase_update]
+  have hne : a ≠ heapName := ne_heapName_of_acells_eq_triv h'.1
+  show ((a ↦ₐ ys) ∗ F)
+    ((vcells (s.setArr a ys), acells (s.setArr a ys), hcells (s.setArr a ys)), cr)
+  rw [vcells_setArr, acells_setArr hne, hcells_setArr hne, ptoArr_sepConj_iff,
+    Cells.erase_update]
   exact ⟨by simp, h'.2⟩
 
 /-- Owning `¤k` splits the balance. -/
 theorem credits_split {k : ECost} {F : Assn} {s : State} {cr : ECost}
     (h : irSTATE ((¤k) ∗ F) (s, cr)) : ∃ cr₂, cr = k + cr₂ ∧ irSTATE F (s, cr₂) := by
-  have h' : ((¤k) ∗ F) ((vcells s, acells s), cr) := h
+  have h' : ((¤k) ∗ F) ((vcells s, acells s, hcells s), cr) := h
   rw [credits_sepConj_iff] at h'
   exact h'
 
 /-- …and paying it back rebuilds the assertion. -/
 theorem credits_merge {k : ECost} {F : Assn} {s : State} {cr₂ : ECost}
     (h : irSTATE F (s, cr₂)) : irSTATE ((¤k) ∗ F) (s, k + cr₂) := by
-  show ((¤k) ∗ F) ((vcells s, acells s), k + cr₂)
+  show ((¤k) ∗ F) ((vcells s, acells s, hcells s), k + cr₂)
   rw [credits_sepConj_iff]
   exact ⟨cr₂, rfl, h⟩
 

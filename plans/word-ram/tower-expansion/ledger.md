@@ -898,3 +898,54 @@ whole-name view.
 lemma, stop and re-decide rather than weakening them — twelve structures rest
 on them, and a weakened array assertion is the F11 failure mode (a guarantee
 nobody re-checked) at carrier level.
+
+### E26 — the assertion carrier now has a heap component
+
+**Status: accepted (E25's architecture, landed).** Added 2026-08-02 as P4.5.A.1
+landed. Design detail: `p4.5-design.md` §4.3.
+
+`AState` is widened in place from `(Cells Val × Cells (List Val)) × ECost` to
+`(Cells Val × Cells (List Val) × HCells) × ECost`, with
+`HCells := ℕ → Tsa Val`, `hcells s i := Tsa.ofOption ((s.arrs heapName).bind
+(·[i]?))`, and
+
+```lean
+acells s a = if a = heapName then 0 else Tsa.ofOption (s.arrs a)
+```
+
+`ptoH p xs` owns `[p, p + xs.length)` and splits and rejoins as an equation
+(`ptoH_append`, `ptoH_focus`, `ptoH_extract`, `ptoH_nil`).
+
+*Why the `acells` partition is soundness and not hygiene.* The same
+`s.arrs heapName` is visible through two views. If the heap name were ownable
+in both, framing a range assertion across a whole-name `aset` on it would be
+unsound, because the two views are not disjoint in the underlying state.
+Zeroing the heap name in `acells` makes the whole-name view of it unownable,
+which restores disjointness. A pleasant consequence, and the reason no landed
+lemma needed a side condition: `ptoArr_arrs` and friends are **vacuous** at
+the heap name — their hypothesis `Ar a = .triv xs` cannot hold there — so they
+are preserved *verbatim*, statement byte-identical, rather than guarded.
+Machine-checked by `not_irSTATE_ptoArr_heapName`, over a gate state that
+deliberately *has* a heap array, so the control is about the partition and not
+about absence.
+
+*What did not change, and why that is the point.* No `Ir.Com` constructor, no
+currency, no `Currency.all` entry: a heap access is `aget`/`aset` on the heap
+name at a computed index. `Syntax.lean`, `Semantics.lean` and the whole of
+`Codegen/` are untouched at this boundary, so `embed`, `weight`/`cash`,
+`BigStepB`, `bpre`/`bwp` and `embed_sim` carry over unchanged and **binding D3
+is discharged by inheritance**. Verified by diff, not asserted.
+
+*Cost of the widening.* Fifteen sites in ten files spell an `AState` literally
+and needed one tuple component added; none needed a proof change, and none is
+in `Refine/Iicf/Impl/` — all fifteen are probe or example scaffolding. The
+twelve landed structures have an empty diff.
+
+*Two routes rejected, both recorded in the design note* — the mangled-scalar-
+name view (**unsound**: it makes `ptoVar_setVar` false) and a separate
+`HState` abstraction (**forks the logic**: `hnRefine` is over `irSTATE`, so
+nothing built on it could ever be `sepref_synth`-reachable).
+
+*Revisit trigger.* If a consumer ever needs more than one heap, `heapName`
+becomes a parameter and `HCells` becomes `String → ℕ → Tsa Val`. The algebra
+above is unaffected; only the partition predicate widens.
