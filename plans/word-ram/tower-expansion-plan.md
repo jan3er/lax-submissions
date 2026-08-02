@@ -523,14 +523,25 @@ Invented per-structure exercises do not become API requirements.
   structure, so it checks nothing. Delete it or replace it with a real
   statement about the substrate; after P4.5 the capability it denies may
   simply exist.
-- **`ImplHeap` repair — in flight, must close before P5 closes.** The
-  executable heap's loop invariants are `True`
-  (`ImplHeap.lean:571,781`), its exec specs are the `irWhileIT` programs
-  themselves, and no theorem joins them to `implHeapSwim`/`implHeapPopMin?`.
-  The tower already has the rule this needs
-  (`irWhileIT_le_timerefine_irE`, `Sepref/IrOps.lean:662`), with worked
-  templates at `Sepref/Examples/Acceptance.lean:540–650` and
-  `Examples/Bfs.lean`.
+- **`ImplHeap` repair — CLOSED 2026-08-02 (ledger E20, E22).** The defect
+  was that no theorem joined the exec specs to `implHeapSwim` /
+  `implHeapPopMin?`. Six seam theorems now close it as **equations, not
+  bounds**: the synthesized loops equal `AbsHeap`'s own `heapSwimFuel` /
+  `heapSinkFuel` motions on the active prefix, leave the inactive suffix
+  untouched, terminate, and cost exactly the (corrected) closed forms.
+  **Supervisor correction:** the review's "vacuous invariant" finding was
+  wrong. `irWhileIT_of_not_inv` (`Sepref/IrOps.lean:234`) makes a failed
+  invariant equal `NRest.fail`, the top of the order, so strengthening an
+  `irWhileIT` invariant enlarges the spec and *weakens* every `hnRefine`
+  rule beneath it. `True` was the strongest available choice; the real
+  invariants belong as seam hypotheses, which is where they now are. The
+  repair also found `implHeapSwimCost`/`implHeapSinkCost` were **wrong** —
+  both omitted the `ir.skip` units the loop bodies pay — a direct instance
+  of F11: the cost function nobody consumed was the cost function nobody
+  checked. Forward-compatible with P5.E: the insert precondition is
+  isolated as `implHeapInsertPre`, so no seam statement mentions
+  `arrayListReadyRel` and P5.E discharges one hypothesis rather than
+  restating theorems.
 - **Dead fidelity checks — close or delete (F11).** Prove
   `implHeapSwimCom ≡ implHeapSwimSourceCom` and relate each `*SourceBound`
   constant to the corresponding `*Cost`, or delete them and move the shape

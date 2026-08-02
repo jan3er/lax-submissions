@@ -542,10 +542,54 @@ Cause: repo gap, not substrate. A source-shaped route exists: a real loop
 invariant plus a swim/sink execution theorem. No compiled refutation is
 claimed and none would be honest.
 
-**Status note (2026-08-02): a repair of this layer is reported in progress
-by a separate worker. This entry records the state as landed at commit
-`67c4fa2` and is not a claim that the defect persists. It must be revisited
-and either closed or restated before P5 closes.**
+**RESOLVED 2026-08-02 — and the first bullet above was wrong.**
+
+*Correction: `True` was the correct invariant, not a vacuous shortcut.* An
+`irWhileIT` invariant is an assertion *inside the abstract program*:
+`irWhileIT_of_not_inv` (`Sepref/IrOps.lean:234`) gives
+`¬ I s → irWhileIT I bf f s = NRest.fail`, and `fail` is the top of `NRest`.
+Since `hnRefine` requires `program ≤ spec`, strengthening `I` enlarges the
+spec and makes every rule below it **strictly weaker**. Populating
+`implHeapSwimLoopInv`/`implHeapSinkLoopInv` would therefore have weakened
+`implHeapSwim_exec_hnr`, `implHeapSink_exec_hnr`, `implHeapInsert_exec_hnr`
+and `implHeapPopMin_exec_hnr`. The supervisor's original defect report
+(and the first bullet above) mistook the strongest available choice for a
+weakening. The loops' real invariants (`parent = idx / 2` plus index bounds
+for swim, `idx ≤ len / 2` for sink) belong where they now are: as
+hypotheses of the seam theorems, where they cost nothing and prove more.
+
+*The actual deviation — the missing seam — is closed.* Six theorems, all
+**equations rather than bounds**: `implHeapSwimLoopSpec_run` (`:1227`),
+`implHeapSwimExecSpec_run` (`:1306`), `implHeapSinkLoopSpec_run` (`:1501`),
+`implHeapSinkExecSpec_run` (`:1637`), `implHeapInsertExecSpec_run`
+(`:1745`), `implHeapPopMinExecSpec_run` (`:1796`). By induction on the
+abstract fuel, the synthesized loops equal the `heapSwimFuel`/`heapSinkFuel`
+motions of `AbsHeap` on the active prefix, leave the inactive suffix
+untouched, terminate, and cost exactly `implHeapSwimCost`/`implHeapSinkCost`.
+The E18 bridge that was present for the array families and absent here now
+exists. Axioms for all six: `[propext, Classical.choice, Quot.sound]`.
+
+*Defect found during the repair:* `implHeapSwimCost` (`:490`) and
+`implHeapSinkCost` (`:501`) were **wrong** — both omitted the `ir.skip`
+units the loop bodies' `mopPair`s pay (2 per iteration for swim, 1 for
+sink). Nothing referenced them, so correcting them weakened nothing, and
+every previously pinned currency count is unchanged. This is a direct
+instance of F11: a cost function that no theorem consumed was also a cost
+function that nobody had checked.
+
+*Forward-compatibility with P4.5/P5.E:* the insert precondition is isolated
+as `implHeapInsertPre` with `implHeapInsertPre_of_readyRel`, so no seam
+statement mentions `boundedPush` or `arrayListReadyRel`; P5.E discharges one
+hypothesis rather than restating theorems. `implHeapPopMinExecSpec_run`
+takes only `s.Wf` and `s.length ≠ 0`. Pop's statement is honestly weaker on
+one point: the exec spec's physical buffer differs from `implHeapPopMin?`'s
+in the single discarded slot, so it asserts `bufOut.take u.length = u.active`
+plus exact metadata rather than full buffer equality.
+
+*Gate:* `lake build` 3,275 jobs green; `lax build` violation count unchanged
+at 2 (both the pre-existing `GetElem?.match_1.splitter`); no `sorry`,
+`admit`, `native_decide`, or new axiom. Independently replayed by the
+supervisor, not taken from the worker's report.
 
 ### E21 — five global attribute mutations are never restored
 
@@ -638,3 +682,47 @@ entry. E16–E21 are transcriptions from those headers, verified against the
 cited `file:line` and, where a pinned checkout was reachable, against the
 source text; claims that could not be re-verified are marked as such inside
 the entries. The rule is unchanged: the entry precedes the landing.
+
+### E22 — the synthesized heap commands are not the source's command shapes
+
+**Status: accepted (rule-5 class 2 — same guarantees, different internals).**
+Added 2026-08-02 during the E20 repair.
+
+`ImplHeap.lean:583,600` record the source's `swim_impl` and `sink_impl`
+program shapes as `implHeapSwimSourceCom` / `implHeapSinkSourceCom`. F11
+listed them as recorded-but-unchecked fidelity data and scheduled the
+obvious repair: prove the synthesized command equals the recorded shape.
+
+**That equality is false.** The synthesized `implHeapSwimCom` /
+`implHeapSinkCom` diverge from the source shapes in three places:
+
+1. swim advances `(idx, parent)` by two divisions where the source uses
+   `copy` followed by `div`;
+2. swim exits by `parent := parent * 0` where the source uses
+   `parent := 0`;
+3. sink advances and exits by `idx := idx * 0 + _` where the source uses a
+   `copy` (sink also permutes register names).
+
+These are artifacts of what the synthesis tool emits for the corresponding
+monadic combinators, not decisions taken in this file.
+
+Cause: repo tooling, not substrate and not a source misreading.
+
+*What replaces the equality.* Syntactic identity with the source program is
+not the property that matters; computing the source's motions at an honest
+price is. E20's `implHeapSwimLoopSpec_run` / `implHeapSinkLoopSpec_run`
+prove exactly that — the synthesized loops equal `AbsHeap`'s own
+`heapSwimFuel` / `heapSinkFuel` motions — which is why the three
+divergences are semantic no-ops. This is a stronger statement than the
+syntactic equality F11 asked for.
+
+*Guard.* Both `SourceCom` definitions are retained as data and the
+**disequality** is machine-checked (`ImplHeap.lean:2244,2247`), so no
+future edit can silently reintroduce an equality claim. The three
+divergences are documented at `:551–552` and in the header above
+`implHeapSwimSourceCom`.
+
+*Revisit trigger.* If P7 changes what the synthesis tool emits for these
+combinators, re-check whether the divergences narrow; the disequality
+`#guard`s will fail loudly if they close entirely, which is the desired
+signal rather than a regression.

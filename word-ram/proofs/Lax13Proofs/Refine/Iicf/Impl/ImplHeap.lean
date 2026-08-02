@@ -487,35 +487,99 @@ def implSinkStatsFuel : ℕ → AbsHeap ℕ → ℕ → ImplSinkStats
 def implSinkStats (h : AbsHeap ℕ) (i : ℕ) : ImplSinkStats :=
   implSinkStatsFuel (h.length + 1) h i
 
+/-- The exact `ECost` of `implHeapSwimExecSpec` at a heap whose swim trace is
+`implSwimStats h i`: the initial `parent := i / 2` division, one `ir.while`
+unit per guard evaluation, the per-iteration guard block, and the branch each
+iteration took.  `implHeapSwimCost_eq` and `implHeapSwimExecSpec_run` prove
+this is the price the synthesized command actually pays. -/
 noncomputable def implHeapSwimCost (h : AbsHeap ℕ) (i : ℕ) : ECost :=
-  let s := implSwimStats h i
-  let stops := if s.stoppedOnOrder then 1 else 0
-  let iterations := s.swaps + stops
+  let st := implSwimStats h i
+  let stops := if st.stoppedOnOrder then 1 else 0
+  let iterations := st.swaps + stops
   irUnit Currency.div +
     (iterations + 1) • irUnit Currency.«while» +
     iterations • (2 • irUnit Currency.sub + 2 • irUnit Currency.aget +
-      irUnit Currency.ite) +
-    s.swaps • (2 • irUnit Currency.aset + 2 • irUnit Currency.div) +
+      irUnit Currency.ite + 2 • irUnit Currency.skip) +
+    st.swaps • (2 • irUnit Currency.aset + 2 • irUnit Currency.div) +
     stops • irUnit Currency.mul
 
+/-- The exact `ECost` of `implHeapSinkExecSpec`, in the same shape: the
+`bound`/`bound1`/`len1` prologue, one `ir.while` unit per guard evaluation, the
+per-iteration block, the extra right-child comparison on the iterations where
+a right child exists, and the branch each iteration took.  Proved exact by
+`implHeapSinkCost_eq` and `implHeapSinkExecSpec_run`. -/
 noncomputable def implHeapSinkCost (h : AbsHeap ℕ) (i : ℕ) : ECost :=
-  let s := implSinkStats h i
-  let stops := if s.stoppedOnOrder then 1 else 0
-  let iterations := s.swaps + stops
+  let st := implSinkStats h i
+  let stops := if st.stoppedOnOrder then 1 else 0
+  let iterations := st.swaps + stops
   irUnit Currency.div + 2 • irUnit Currency.add +
     (iterations + 1) • irUnit Currency.«while» +
     iterations • (irUnit Currency.mul + irUnit Currency.add +
       2 • irUnit Currency.ite + irUnit Currency.copy +
-      2 • irUnit Currency.sub + 2 • irUnit Currency.aget) +
-    s.rightChildren • (2 • irUnit Currency.sub +
+      2 • irUnit Currency.sub + 2 • irUnit Currency.aget +
+      irUnit Currency.skip) +
+    st.rightChildren • (2 • irUnit Currency.sub +
       2 • irUnit Currency.aget + irUnit Currency.ite) +
-    s.swaps • (2 • irUnit Currency.aset + irUnit Currency.mul +
+    st.swaps • (2 • irUnit Currency.aset + irUnit Currency.mul +
       irUnit Currency.add) +
     stops • (irUnit Currency.mul + irUnit Currency.add)
 
+/-! ## The loop programs, the source shapes, and what the specs assert
+
+The Isabelle sources this file ports write the two loops as
+
+```
+swim_impl:  parent := idx / 2;
+            while 0 < parent do
+              I := idx - 1; P := parent - 1; XI := A[I]; XP := A[P];
+              if XI < XP then A[I] := XP; A[P] := XI;
+                              idx := parent; parent := idx / 2
+                         else parent := 0
+
+sink_impl:  bound := len / 2; bound1 := bound + 1; len1 := len + 1;
+            while idx < bound1 do
+              left := idx * 2; right := left + 1;
+              child := (if right < len1
+                        then (L := left - 1; R := right - 1;
+                              if A[R] < A[L] then right else left)
+                        else left);
+              C := child - 1; I := idx - 1;
+              if A[C] < A[I] then A[I] := A[C]; A[C] := A[I]; idx := child
+                             else idx := bound1
+```
+
+Those shapes are recorded as data in `implHeapSwimSourceCom` and
+`implHeapSinkSourceCom` below.  The synthesized commands (`implHeapSwimCom`,
+`implHeapSinkCom`) are **not** literally those terms — the `#guard`s at the
+end of this file pin the disequality, so no equality is silently claimed.
+Two encodings differ, in both cases because a `mop` sequence that also moves
+the array cannot use a self-assigning `copy` or an in-loop `const`:
+
+* swim advances the pair `(idx, parent)` by two divisions,
+  `idx := idx / 2; parent := parent / 2`, rather than the source's
+  `idx := parent; parent := idx / 2`.  The two agree exactly under the loop
+  invariant `parent = idx / 2`;
+* swim leaves the loop with `parent := parent * 0` rather than
+  `parent := 0`, and sink with `idx := idx * 0 + bound1`.
+
+Both differences are semantic no-ops, and that is discharged rather than
+asserted: `implHeapSwimLoopSpec_run` and `implHeapSinkLoopSpec_run` below
+prove the synthesized loops compute the abstract `heapSwimFuel` and
+`heapSinkFuel` motions of `AbsHeap`, at an exact price.
+
+The `irWhileIT` invariants `implHeapSwimLoopInv` and `implHeapSinkLoopInv`
+are deliberately `True`.  An `irWhileIT` invariant is an *assertion inside
+the abstract program*: strengthening it makes that program larger (it fails
+where the assertion fails), which would make every registered `hnRefine`
+rule below a strictly weaker statement.  The loops' real invariants —
+`parent = idx / 2` with the index bounds for swim, `idx ≤ len / 2` for sink
+— are therefore carried as hypotheses of the seam theorems under "The
+executable-to-abstract seam", where they cost nothing and prove more. -/
+
 /-- The generated shape of source `swim_impl`: `parent := i/2`, then one
 guard evaluation per recursive level.  `parent := 0` represents the source
-RECT return without changing the heap. -/
+RECT return without changing the heap.  Kept as data, and compared against the
+synthesized command by the `#guard`s at the end of this file. -/
 def implHeapSwimSourceCom (A idx parent two one I P XI XP : String) : Com :=
   .seq (.binop .div parent idx two)
     (.while (.lt (.lit 0) (.cell parent))
@@ -558,13 +622,6 @@ def implHeapSinkSourceCom (A len idx bound bound1 len1 two one left right child
                           (.seq (.aset A I XC)
                             (.seq (.aset A C XI) (.copy idx child)))
                           (.copy idx bound1))))))))))))
-
-/-! The executable specifications below are deliberately the operational
-`irWhileIT` programs themselves.  Thus the registered `hnRefine` rules prove
-the command's actual branch-sensitive execution and price; the closed forms
-`implHeapSwimCost` and `implHeapSinkCost` above remain useful semantic
-accounting functions, but are not silently substituted for an unproved loop
-execution theorem. -/
 
 abbrev ImplSwimLoopState := List ℕ × ℕ × ℕ
 
@@ -1036,6 +1093,573 @@ def implHeapSinkCom (A len idx bound bound1 len1 two one zero left right child
     implHeapSinkExec A len idx bound bound1 len1 two one zero left right
       child L R C I XL XR XC XI s i
 
+/-! ## The executable-to-abstract seam -/
+
+/-! ## Buffer/active helpers -/
+
+theorem implHeapTake_getElem!_eq {buf : List ℕ} {n i : ℕ} (hn : n ≤ buf.length)
+    (hi : i < n) : (buf.take n)[i]! = buf[i]! := by
+  have h1 : i < (buf.take n).length := by
+    rw [List.length_take]; omega
+  have h2 : i < buf.length := by omega
+  rw [getElem!_pos (buf.take n) i h1, getElem!_pos buf i h2, List.getElem_take]
+
+theorem implHeapValue_take {buf : List ℕ} {n i : ℕ} (hn : n ≤ buf.length)
+    (hi : 0 < i) (hin : i ≤ n) :
+    heapValue (buf.take n) i = buf[i - 1]! := by
+  have h1 : i - 1 < (buf.take n).length := by
+    rw [List.length_take]; omega
+  change (buf.take n).getD (i - 1) default = _
+  rw [List.getD_eq_getElem _ _ h1, ← getElem!_pos (buf.take n) (i - 1) h1]
+  exact implHeapTake_getElem!_eq hn (by omega)
+
+theorem implHeapListSwap_eq_set {xs : List ℕ} {i j : ℕ} (hi : i < xs.length)
+    (hj : j < xs.length) :
+    listSwap xs i j = (xs.set i xs[j]!).set j xs[i]! := by
+  unfold listSwap
+  rw [listAt?_eq_getElem?, listAt?_eq_getElem?,
+    List.getElem?_eq_getElem hi, List.getElem?_eq_getElem hj]
+  simp [listSet_eq_set, getElem!_pos, hi, hj]
+
+theorem implHeapDrop_set_of_lt {xs : List ℕ} {i n v : ℕ} (h : i < n) :
+    (xs.set i v).drop n = xs.drop n := by
+  refine List.ext_getElem (by simp) fun k hk hk' => ?_
+  rw [List.getElem_drop, List.getElem_drop, List.getElem_set_ne (by omega)]
+
+/-! ## Swim loop: per-iteration prices -/
+
+noncomputable def implHeapSwimIterCost : ECost :=
+  2 • irUnit Currency.sub + 2 • irUnit Currency.aget + irUnit Currency.ite +
+    2 • irUnit Currency.skip
+
+noncomputable def implHeapSwimMoveCost : ECost :=
+  2 • irUnit Currency.aset + 2 • irUnit Currency.div
+
+noncomputable def implHeapSwimStopCost : ECost := irUnit Currency.mul
+
+theorem implHeapSwimLoopBody_move (buf : List ℕ) (idx parent : ℕ)
+    (hi : idx - 1 < buf.length) (hp : parent - 1 < buf.length)
+    (hlt : buf[idx - 1]! < buf[parent - 1]!) :
+    implHeapSwimLoopBody (buf, idx, parent)
+      = NRest.consume (NRest.returnT
+          ((buf.set (idx - 1) buf[parent - 1]!).set (parent - 1) buf[idx - 1]!,
+            idx / 2, parent / 2))
+          (implHeapSwimIterCost + implHeapSwimMoveCost) := by
+  have hp' : parent - 1 < (buf.set (idx - 1) buf[parent - 1]!).length := by
+    simpa using hp
+  show NRest.bindT (mopBinop .sub idx 1) _ = _
+  simp only [implHeapSwimMove, mopBinop_def, mopAget_def, mopAset_def, mopPair_def,
+    NRest.assert_pos hi, NRest.assert_pos hp, NRest.assert_pos hp',
+    NRest.returnT_bindT, bindT_unit, NRest.consume_consume,
+    Imp.Bop.apply_sub, Imp.Bop.apply_div, binopCurrency_sub, binopCurrency_div,
+    decide_eq_true_eq, hlt, decide_true, if_pos, irIf_true,
+    implHeapSwimIterCost, implHeapSwimMoveCost, two_nsmul]
+  congr 1
+  ac_rfl
+
+theorem implHeapSwimLoopBody_stop (buf : List ℕ) (idx parent : ℕ)
+    (hi : idx - 1 < buf.length) (hp : parent - 1 < buf.length)
+    (hlt : ¬ buf[idx - 1]! < buf[parent - 1]!) :
+    implHeapSwimLoopBody (buf, idx, parent)
+      = NRest.consume (NRest.returnT (buf, idx, 0))
+          (implHeapSwimIterCost + implHeapSwimStopCost) := by
+  show NRest.bindT (mopBinop .sub idx 1) _ = _
+  simp only [implHeapSwimStop, mopBinop_def, mopAget_def, mopPair_def,
+    NRest.assert_pos hi, NRest.assert_pos hp,
+    NRest.returnT_bindT, bindT_unit, NRest.consume_consume,
+    Imp.Bop.apply_sub, Imp.Bop.apply_mul, binopCurrency_sub, binopCurrency_mul,
+    decide_eq_true_eq, hlt, decide_false, if_neg, irIf_false, Nat.mul_zero,
+    implHeapSwimIterCost, implHeapSwimStopCost, two_nsmul]
+  congr 1
+  ac_rfl
+
+noncomputable def implSwimLoopCostOf (st : ImplSwimStats) : ECost :=
+  ((st.swaps + (if st.stoppedOnOrder then 1 else 0)) + 1) • irUnit Currency.«while» +
+    (st.swaps + (if st.stoppedOnOrder then 1 else 0)) • implHeapSwimIterCost +
+    st.swaps • implHeapSwimMoveCost +
+    (if st.stoppedOnOrder then 1 else 0) • implHeapSwimStopCost
+
+theorem implSwimLoopCostOf_succ (st : ImplSwimStats) :
+    implSwimLoopCostOf ⟨st.swaps + 1, st.stoppedOnOrder⟩ =
+      implSwimLoopCostOf st +
+        ((implHeapSwimIterCost + implHeapSwimMoveCost) + irUnit Currency.«while») := by
+  dsimp only [implSwimLoopCostOf]
+  rw [show st.swaps + 1 + (if st.stoppedOnOrder then 1 else 0) + 1
+        = (st.swaps + (if st.stoppedOnOrder then 1 else 0) + 1) + 1 from by omega,
+    show st.swaps + 1 + (if st.stoppedOnOrder then 1 else 0)
+        = (st.swaps + (if st.stoppedOnOrder then 1 else 0)) + 1 from by omega]
+  simp only [succ_nsmul]
+  abel
+
+theorem implSwimLoopCostOf_stop :
+    implSwimLoopCostOf ⟨0, true⟩ =
+      irUnit Currency.«while» + (implHeapSwimIterCost + implHeapSwimStopCost)
+        + irUnit Currency.«while» := by
+  dsimp only [implSwimLoopCostOf]
+  rw [if_pos rfl, show (0 : ℕ) + 1 + 1 = 1 + 1 from rfl]
+  simp only [succ_nsmul, zero_nsmul, zero_add, add_zero]
+  ac_rfl
+
+theorem implSwimLoopCostOf_none :
+    implSwimLoopCostOf ⟨0, false⟩ = irUnit Currency.«while» := by
+  dsimp only [implSwimLoopCostOf]
+  simp
+
+/-! ### The two loop unfoldings, at the vacuous program invariant -/
+
+theorem implHeapSwimLoopSpec_unfold_true (buf : List ℕ) (idx parent : ℕ)
+    (hb : 0 < parent) :
+    implHeapSwimLoopSpec buf idx parent =
+      NRest.consume (NRest.bindT (implHeapSwimLoopBody (buf, idx, parent))
+        (fun s => implHeapSwimLoopSpec s.1 s.2.1 s.2.2))
+        (irUnit Currency.«while») :=
+  irWhileIT_of_true trivial (by simp [implHeapSwimLoopGuard, hb])
+
+theorem implHeapSwimLoopSpec_unfold_false (buf : List ℕ) (idx : ℕ) :
+    implHeapSwimLoopSpec buf idx 0 =
+      NRest.consume (NRest.returnT (buf, idx, 0)) (irUnit Currency.«while») :=
+  irWhileIT_of_false trivial (by simp [implHeapSwimLoopGuard])
+
+/-- **The swim loop's run.** With `parent = idx / 2` and a valid one-based
+index, the synthesized loop terminates, leaves the inactive suffix alone,
+computes exactly the abstract `heapSwimFuel` motion on the active prefix,
+and costs exactly what the `ImplSwimStats` trace accounts for. -/
+theorem implHeapSwimLoopSpec_run (n : ℕ) :
+    ∀ (fuel : ℕ) (buf : List ℕ) (idx : ℕ), n ≤ buf.length → 0 < idx → idx ≤ n →
+      idx ≤ fuel →
+      ∃ j : ℕ, implHeapSwimLoopSpec buf idx (idx / 2)
+        = NRest.consume (NRest.returnT
+            (heapSwimFuel id fuel (buf.take n) idx ++ buf.drop n, j, 0))
+            (implSwimLoopCostOf (implSwimStatsFuel fuel (buf.take n) idx)) := by
+  intro fuel
+  induction fuel with
+  | zero => intro buf idx _ h0 _ hf; omega
+  | succ fuel ih =>
+    intro buf idx hn h0 hin hf
+    have hlen : (buf.take n).length = n := by rw [List.length_take]; omega
+    have hi1 : idx - 1 < buf.length := by omega
+    have hvI : heapValue (buf.take n) idx = buf[idx - 1]! :=
+      implHeapValue_take hn h0 hin
+    by_cases hpar : 0 < idx / 2
+    · have hpn : idx / 2 ≤ n := le_trans (Nat.div_le_self idx 2) hin
+      have hp1 : idx / 2 - 1 < buf.length := by omega
+      have hvP : heapValue (buf.take n) (idx / 2) = buf[idx / 2 - 1]! :=
+        implHeapValue_take hn hpar hpn
+      have habs : 0 < idx / 2 ∧ idx / 2 ≤ n := ⟨hpar, hpn⟩
+      rw [heapSwimFuel, implSwimStatsFuel]
+      simp only [heapParent, id_eq, hlen, hvI, hvP]
+      rw [if_pos habs, if_pos habs]
+      by_cases hle : buf[idx / 2 - 1]! ≤ buf[idx - 1]!
+      · refine ⟨idx, ?_⟩
+        have hlt : ¬ buf[idx - 1]! < buf[idx / 2 - 1]! := by omega
+        rw [if_pos hle, if_pos hle, implSwimLoopCostOf_stop,
+          List.take_append_drop,
+          implHeapSwimLoopSpec_unfold_true buf idx (idx / 2) hpar,
+          implHeapSwimLoopBody_stop buf idx (idx / 2) hi1 hp1 hlt,
+          bindT_unit, implHeapSwimLoopSpec_unfold_false,
+          NRest.consume_consume, NRest.consume_consume]
+      · have hlt : buf[idx - 1]! < buf[idx / 2 - 1]! := by omega
+        rw [if_neg hle, if_neg hle]
+        have hbuflen :
+            ((buf.set (idx - 1) buf[idx / 2 - 1]!).set (idx / 2 - 1)
+              buf[idx - 1]!).length = buf.length := by simp
+        have hn' : n ≤ ((buf.set (idx - 1) buf[idx / 2 - 1]!).set (idx / 2 - 1)
+            buf[idx - 1]!).length := by rw [hbuflen]; exact hn
+        have hdrop : ((buf.set (idx - 1) buf[idx / 2 - 1]!).set (idx / 2 - 1)
+            buf[idx - 1]!).drop n = buf.drop n := by
+          rw [implHeapDrop_set_of_lt (by omega), implHeapDrop_set_of_lt (by omega)]
+        have htake : ((buf.set (idx - 1) buf[idx / 2 - 1]!).set (idx / 2 - 1)
+            buf[idx - 1]!).take n = heapExchange (buf.take n) idx (idx / 2) := by
+          have h1 : idx - 1 < (buf.take n).length := by rw [hlen]; omega
+          have h2 : idx / 2 - 1 < (buf.take n).length := by rw [hlen]; omega
+          rw [heapExchange, implHeapListSwap_eq_set h1 h2, List.take_set, List.take_set,
+            implHeapTake_getElem!_eq hn (show idx / 2 - 1 < n by omega),
+            implHeapTake_getElem!_eq hn (show idx - 1 < n by omega)]
+        obtain ⟨j, hj⟩ := ih _ (idx / 2) hn' hpar hpn (by omega)
+        rw [htake, hdrop] at hj
+        refine ⟨j, ?_⟩
+        rw [implSwimLoopCostOf_succ,
+          implHeapSwimLoopSpec_unfold_true buf idx (idx / 2) hpar,
+          implHeapSwimLoopBody_move buf idx (idx / 2) hi1 hp1 hlt, bindT_unit]
+        show NRest.consume (NRest.consume
+          (implHeapSwimLoopSpec _ (idx / 2) (idx / 2 / 2)) _) _ = _
+        rw [hj, NRest.consume_consume, NRest.consume_consume]
+        congr 1
+        ac_rfl
+    · refine ⟨idx, ?_⟩
+      have hp0 : idx / 2 = 0 := by omega
+      have habs : ¬ (0 < idx / 2 ∧ idx / 2 ≤ n) := by omega
+      rw [heapSwimFuel, implSwimStatsFuel]
+      simp only [heapParent, id_eq, hlen]
+      rw [if_neg habs, if_neg habs, implSwimLoopCostOf_none,
+        List.take_append_drop, hp0, implHeapSwimLoopSpec_unfold_false]
+
+
+/-! ### The swim seam at the array-list level -/
+
+theorem implHeapSwimCost_eq (h : AbsHeap ℕ) (i : ℕ) :
+    implHeapSwimCost h i = irUnit Currency.div + implSwimLoopCostOf (implSwimStats h i) := by
+  dsimp only [implHeapSwimCost, implSwimLoopCostOf, implHeapSwimIterCost,
+    implHeapSwimMoveCost, implHeapSwimStopCost]
+  abel
+
+theorem implHeapSwimExecSpec_run {s : ArrayList} {i : ℕ} (hwf : s.Wf)
+    (h0 : 0 < i) (hin : i ≤ s.length) :
+    ∃ j : ℕ, implHeapSwimExecSpec s i
+      = NRest.consume (NRest.returnT ((implHeapSwim s i).buffer, j, 0))
+          (implHeapSwimCost s.active i) := by
+  have hn : s.length ≤ s.buffer.length := le_trans hwf.2.1 hwf.2.2
+  obtain ⟨j, hj⟩ := implHeapSwimLoopSpec_run s.length i s.buffer i hn h0 hin le_rfl
+  refine ⟨j, ?_⟩
+  show NRest.bindT (mopBinop .div i 2) _ = _
+  rw [mopBinop_def, Imp.Bop.apply_div, binopCurrency_div, bindT_unit, hj,
+    NRest.consume_consume, implHeapSwimCost_eq]
+  congr 1
+
+
+/-! ## Sink loop: per-iteration prices -/
+
+noncomputable def implHeapSinkIterCost : ECost :=
+  irUnit Currency.mul + irUnit Currency.add + 2 • irUnit Currency.ite +
+    irUnit Currency.copy + 2 • irUnit Currency.sub + 2 • irUnit Currency.aget +
+    irUnit Currency.skip
+
+noncomputable def implHeapSinkRightCost : ECost :=
+  2 • irUnit Currency.sub + 2 • irUnit Currency.aget + irUnit Currency.ite
+
+noncomputable def implHeapSinkMoveCost : ECost :=
+  2 • irUnit Currency.aset + irUnit Currency.mul + irUnit Currency.add
+
+noncomputable def implHeapSinkStopCost : ECost :=
+  irUnit Currency.mul + irUnit Currency.add
+
+noncomputable def implHeapSinkRepairBase : ECost :=
+  2 • irUnit Currency.sub + 2 • irUnit Currency.aget + irUnit Currency.ite +
+    irUnit Currency.skip
+
+/-- The child index the source's optimized selector picks, in buffer terms. -/
+def implSinkChild (buf : List ℕ) (idx len1 : ℕ) : ℕ :=
+  if idx * 2 + 1 < len1 then
+    (if buf[idx * 2]! < buf[idx * 2 - 1]! then idx * 2 + 1 else idx * 2)
+  else idx * 2
+
+theorem implHeapSinkChooseChild_eq (buf : List ℕ) (idx len1 : ℕ)
+    (hL : idx * 2 - 1 < buf.length)
+    (hR : idx * 2 + 1 < len1 → idx * 2 < buf.length) :
+    implHeapSinkChooseChild buf (idx * 2) (idx * 2 + 1) len1 =
+      NRest.consume (NRest.returnT (implSinkChild buf idx len1))
+        (irUnit Currency.ite + irUnit Currency.copy +
+          (if idx * 2 + 1 < len1 then implHeapSinkRightCost else 0)) := by
+  unfold implSinkChild implHeapSinkChooseChild
+  by_cases hr : idx * 2 + 1 < len1
+  · have h2 := hR hr
+    by_cases hc : buf[idx * 2]! < buf[idx * 2 - 1]! <;>
+      simp only [hr, hc, decide_true, decide_false, irIf_true, irIf_false,
+        mopBinop_def, mopAget_def, mopCopy, Imp.Bop.apply_sub, binopCurrency_sub,
+        Nat.add_sub_cancel, NRest.assert_pos hL, NRest.assert_pos h2,
+        NRest.returnT_bindT, bindT_unit, NRest.consume_consume,
+        implHeapSinkRightCost, two_nsmul, if_true, if_false] <;>
+      (congr 1; abel)
+  · simp only [hr, decide_false, irIf_false, mopCopy, NRest.consume_consume,
+      add_zero, if_false]
+
+theorem implHeapSinkRepair_eq (buf : List ℕ) (idx child bound1 : ℕ)
+    (hC : child - 1 < buf.length) (hI : idx - 1 < buf.length) :
+    implHeapSinkRepair buf idx child bound1 =
+      NRest.consume (NRest.returnT
+        (if buf[child - 1]! < buf[idx - 1]! then
+          ((buf.set (idx - 1) buf[child - 1]!).set (child - 1) buf[idx - 1]!, child)
+         else (buf, bound1)))
+        (implHeapSinkRepairBase +
+          (if buf[child - 1]! < buf[idx - 1]! then implHeapSinkMoveCost
+           else implHeapSinkStopCost)) := by
+  have hC' : child - 1 < (buf.set (idx - 1) buf[child - 1]!).length := by simpa using hC
+  unfold implHeapSinkRepair
+  by_cases hc : buf[child - 1]! < buf[idx - 1]! <;>
+    simp only [hc, if_true, if_false, decide_true, decide_false,
+      irIf_true, irIf_false, implHeapSinkMove, implHeapSinkStop, mopBinop_def,
+      mopAget_def, mopAset_def, mopPair_def, Imp.Bop.apply_sub, Imp.Bop.apply_mul,
+      Imp.Bop.apply_add, binopCurrency_sub, binopCurrency_mul, binopCurrency_add,
+      NRest.assert_pos hC, NRest.assert_pos hI, NRest.assert_pos hC',
+      NRest.returnT_bindT, bindT_unit, NRest.consume_consume, Nat.mul_zero,
+      Nat.zero_add, implHeapSinkRepairBase, implHeapSinkMoveCost,
+      implHeapSinkStopCost, two_nsmul] <;>
+    (congr 1; abel)
+
+theorem implHeapSinkLoopBody_eq (bound1 len1 : ℕ) (buf : List ℕ) (idx : ℕ)
+    (hI : idx - 1 < buf.length) (hL : idx * 2 - 1 < buf.length)
+    (hR : idx * 2 + 1 < len1 → idx * 2 < buf.length)
+    (hCh : implSinkChild buf idx len1 - 1 < buf.length) :
+    implHeapSinkLoopBody bound1 len1 (buf, idx) =
+      NRest.consume (NRest.returnT
+        (if buf[implSinkChild buf idx len1 - 1]! < buf[idx - 1]! then
+          ((buf.set (idx - 1) buf[implSinkChild buf idx len1 - 1]!).set
+            (implSinkChild buf idx len1 - 1) buf[idx - 1]!,
+            implSinkChild buf idx len1)
+         else (buf, bound1)))
+        (implHeapSinkIterCost +
+          (if idx * 2 + 1 < len1 then implHeapSinkRightCost else 0) +
+          (if buf[implSinkChild buf idx len1 - 1]! < buf[idx - 1]! then
+            implHeapSinkMoveCost else implHeapSinkStopCost)) := by
+  show NRest.bindT (mopBinop .mul idx 2) _ = _
+  rw [mopBinop_def, Imp.Bop.apply_mul, binopCurrency_mul, bindT_unit,
+    mopBinop_def, Imp.Bop.apply_add, binopCurrency_add, bindT_unit,
+    implHeapSinkChooseChild_eq buf idx len1 hL hR, bindT_unit,
+    implHeapSinkRepair_eq buf idx _ bound1 hCh hI,
+    NRest.consume_consume, NRest.consume_consume, NRest.consume_consume]
+  congr 1
+  dsimp only [implHeapSinkIterCost, implHeapSinkRepairBase]
+  abel
+
+
+noncomputable def implSinkLoopCostOf (st : ImplSinkStats) : ECost :=
+  ((st.swaps + (if st.stoppedOnOrder then 1 else 0)) + 1) • irUnit Currency.«while» +
+    (st.swaps + (if st.stoppedOnOrder then 1 else 0)) • implHeapSinkIterCost +
+    st.rightChildren • implHeapSinkRightCost +
+    st.swaps • implHeapSinkMoveCost +
+    (if st.stoppedOnOrder then 1 else 0) • implHeapSinkStopCost
+
+theorem implSinkLoopCostOf_succ (st : ImplSinkStats) (hr : ℕ) :
+    implSinkLoopCostOf ⟨st.swaps + 1, st.rightChildren + hr, st.stoppedOnOrder⟩ =
+      implSinkLoopCostOf st +
+        ((implHeapSinkIterCost + hr • implHeapSinkRightCost +
+          implHeapSinkMoveCost) + irUnit Currency.«while») := by
+  dsimp only [implSinkLoopCostOf]
+  rw [show st.swaps + 1 + (if st.stoppedOnOrder then 1 else 0) + 1
+        = (st.swaps + (if st.stoppedOnOrder then 1 else 0) + 1) + 1 from by omega,
+    show st.swaps + 1 + (if st.stoppedOnOrder then 1 else 0)
+        = (st.swaps + (if st.stoppedOnOrder then 1 else 0)) + 1 from by omega]
+  simp only [succ_nsmul, add_nsmul]
+  abel
+
+theorem implSinkLoopCostOf_stop (hr : ℕ) :
+    implSinkLoopCostOf ⟨0, hr, true⟩ =
+      irUnit Currency.«while» +
+        (implHeapSinkIterCost + hr • implHeapSinkRightCost + implHeapSinkStopCost)
+        + irUnit Currency.«while» := by
+  dsimp only [implSinkLoopCostOf]
+  rw [if_pos rfl, show (0 : ℕ) + 1 + 1 = 1 + 1 from rfl]
+  simp only [succ_nsmul, zero_nsmul, zero_add, add_zero]
+  abel
+
+theorem implSinkLoopCostOf_none :
+    implSinkLoopCostOf ⟨0, 0, false⟩ = irUnit Currency.«while» := by
+  dsimp only [implSinkLoopCostOf]
+  simp
+
+theorem implHeapSinkLoopSpec_unfold_true (buf : List ℕ) (idx bound1 len1 : ℕ)
+    (hb : idx < bound1) :
+    implHeapSinkLoopSpec buf idx bound1 len1 =
+      NRest.consume (NRest.bindT (implHeapSinkLoopBody bound1 len1 (buf, idx))
+        (fun s => implHeapSinkLoopSpec s.1 s.2 bound1 len1))
+        (irUnit Currency.«while») :=
+  irWhileIT_of_true trivial (by simp [implHeapSinkLoopGuard, hb])
+
+theorem implHeapSinkLoopSpec_unfold_false (buf : List ℕ) (idx bound1 len1 : ℕ)
+    (hb : ¬ idx < bound1) :
+    implHeapSinkLoopSpec buf idx bound1 len1 =
+      NRest.consume (NRest.returnT (buf, idx)) (irUnit Currency.«while») :=
+  irWhileIT_of_false trivial (by simp [implHeapSinkLoopGuard, hb])
+
+theorem implSinkChild_bounds (buf : List ℕ) {n idx : ℕ} (h0 : 0 < idx)
+    (hleft : 2 * idx ≤ n) :
+    0 < implSinkChild buf idx (n + 1) ∧ implSinkChild buf idx (n + 1) ≤ n ∧
+      2 * idx ≤ implSinkChild buf idx (n + 1) := by
+  unfold implSinkChild
+  by_cases hr : idx * 2 + 1 < n + 1
+  · by_cases hc : buf[idx * 2]! < buf[idx * 2 - 1]! <;> simp only [hr, hc, if_true,
+      if_false] <;> omega
+  · simp only [hr, if_false]; omega
+
+theorem heapSinkChild?_eq_implSinkChild {buf : List ℕ} {n idx : ℕ}
+    (hn : n ≤ buf.length) (h0 : 0 < idx) (hleft : 2 * idx ≤ n) :
+    heapSinkChild? id (buf.take n) idx = some (implSinkChild buf idx (n + 1)) := by
+  have hlen : (buf.take n).length = n := by rw [List.length_take]; omega
+  unfold heapSinkChild? implSinkChild
+  simp only [heapRight, heapLeft, hlen, id_eq]
+  by_cases hr : 2 * idx + 1 ≤ n
+  · have hr' : idx * 2 + 1 < n + 1 := by omega
+    have hvR : heapValue (buf.take n) (2 * idx + 1) = buf[idx * 2]! := by
+      rw [implHeapValue_take hn (by omega) (by omega)]
+      congr 1
+      omega
+    have hvL : heapValue (buf.take n) (2 * idx) = buf[idx * 2 - 1]! := by
+      rw [implHeapValue_take hn (by omega) (by omega)]
+      congr 1
+      omega
+    rw [if_pos (show 0 < 2 * idx + 1 ∧ 2 * idx + 1 ≤ n from ⟨by omega, hr⟩),
+      hvR, hvL, if_pos hr']
+    by_cases hc : buf[idx * 2]! < buf[idx * 2 - 1]! <;>
+      simp only [hc, if_true, if_false] <;> congr 1 <;> omega
+  · have hr' : ¬ idx * 2 + 1 < n + 1 := by omega
+    rw [if_neg (show ¬ (0 < 2 * idx + 1 ∧ 2 * idx + 1 ≤ n) from by omega),
+      if_pos (show 0 < 2 * idx ∧ 2 * idx ≤ n from ⟨by omega, hleft⟩), if_neg hr']
+    congr 1
+    omega
+
+/-- **The sink loop's run.** -/
+theorem implHeapSinkLoopSpec_run (n : ℕ) :
+    ∀ (fuel : ℕ) (buf : List ℕ) (idx : ℕ), n ≤ buf.length → 0 < idx →
+      n + 1 - idx ≤ fuel →
+      ∃ j : ℕ, implHeapSinkLoopSpec buf idx (n / 2 + 1) (n + 1)
+        = NRest.consume (NRest.returnT
+            (heapSinkFuel id fuel (buf.take n) idx ++ buf.drop n, j))
+            (implSinkLoopCostOf (implSinkStatsFuel fuel (buf.take n) idx)) := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro buf idx hn h0 hf
+    refine ⟨idx, ?_⟩
+    have hg : ¬ idx < n / 2 + 1 := by omega
+    rw [heapSinkFuel, implSinkStatsFuel, implSinkLoopCostOf_none,
+      List.take_append_drop, implHeapSinkLoopSpec_unfold_false buf idx _ _ hg]
+  | succ fuel ih =>
+    intro buf idx hn h0 hf
+    have hlen : (buf.take n).length = n := by rw [List.length_take]; omega
+    by_cases hg : idx < n / 2 + 1
+    · have hleft : 2 * idx ≤ n := by omega
+      have hidxn : idx ≤ n := by omega
+      have hI : idx - 1 < buf.length := by omega
+      have hL : idx * 2 - 1 < buf.length := by omega
+      have hR : idx * 2 + 1 < n + 1 → idx * 2 < buf.length := by omega
+      obtain ⟨hc0, hcn, hc2⟩ := implSinkChild_bounds buf h0 hleft
+      have hCh : implSinkChild buf idx (n + 1) - 1 < buf.length := by omega
+      have hvI : heapValue (buf.take n) idx = buf[idx - 1]! :=
+        implHeapValue_take hn h0 hidxn
+      have hvC : heapValue (buf.take n) (implSinkChild buf idx (n + 1))
+          = buf[implSinkChild buf idx (n + 1) - 1]! := implHeapValue_take hn hc0 hcn
+      have hstat : (if 0 < heapRight idx ∧ heapRight idx ≤ (buf.take n).length
+            then 1 else 0)
+          = (if idx * 2 + 1 < n + 1 then 1 else 0) := by
+        simp only [heapRight, hlen]
+        by_cases h : idx * 2 + 1 < n + 1 <;>
+          simp only [h, if_true, if_false] <;>
+          [rw [if_pos (show 0 < 2 * idx + 1 ∧ 2 * idx + 1 ≤ n from by omega)];
+           rw [if_neg (show ¬ (0 < 2 * idx + 1 ∧ 2 * idx + 1 ≤ n) from by omega)]]
+      have hrcost : (if idx * 2 + 1 < n + 1 then implHeapSinkRightCost else 0)
+          = (if idx * 2 + 1 < n + 1 then 1 else 0) • implHeapSinkRightCost := by
+        by_cases h : idx * 2 + 1 < n + 1 <;>
+          simp only [h, if_true, if_false, one_nsmul, zero_nsmul]
+      rw [heapSinkFuel, implSinkStatsFuel]
+      simp only [heapSinkChild?_eq_implSinkChild hn h0 hleft, hstat, id_eq, hvI, hvC]
+      by_cases hlt : buf[implSinkChild buf idx (n + 1) - 1]! < buf[idx - 1]!
+      · -- exchange with the smaller child and recurse
+        have hbuflen :
+            ((buf.set (idx - 1) buf[implSinkChild buf idx (n + 1) - 1]!).set
+              (implSinkChild buf idx (n + 1) - 1) buf[idx - 1]!).length
+              = buf.length := by simp
+        have hn' : n ≤ ((buf.set (idx - 1) buf[implSinkChild buf idx (n + 1) - 1]!).set
+              (implSinkChild buf idx (n + 1) - 1) buf[idx - 1]!).length := by
+          rw [hbuflen]; exact hn
+        have hdrop : ((buf.set (idx - 1) buf[implSinkChild buf idx (n + 1) - 1]!).set
+              (implSinkChild buf idx (n + 1) - 1) buf[idx - 1]!).drop n
+              = buf.drop n := by
+          rw [implHeapDrop_set_of_lt (by omega), implHeapDrop_set_of_lt (by omega)]
+        have htake : ((buf.set (idx - 1) buf[implSinkChild buf idx (n + 1) - 1]!).set
+              (implSinkChild buf idx (n + 1) - 1) buf[idx - 1]!).take n
+              = heapExchange (buf.take n) idx (implSinkChild buf idx (n + 1)) := by
+          have h1 : idx - 1 < (buf.take n).length := by rw [hlen]; omega
+          have h2 : implSinkChild buf idx (n + 1) - 1 < (buf.take n).length := by
+            rw [hlen]; omega
+          rw [heapExchange, implHeapListSwap_eq_set h1 h2, List.take_set, List.take_set,
+            implHeapTake_getElem!_eq hn (show implSinkChild buf idx (n + 1) - 1 < n by omega),
+            implHeapTake_getElem!_eq hn (show idx - 1 < n by omega)]
+        obtain ⟨j, hj⟩ := ih _ (implSinkChild buf idx (n + 1)) hn' hc0 (by omega)
+        rw [htake, hdrop] at hj
+        refine ⟨j, ?_⟩
+        rw [if_pos hlt, if_pos hlt, implSinkLoopCostOf_succ,
+          implHeapSinkLoopSpec_unfold_true buf idx _ _ hg,
+          implHeapSinkLoopBody_eq (n / 2 + 1) (n + 1) buf idx hI hL hR hCh,
+          if_pos hlt, if_pos hlt, hrcost, bindT_unit]
+        show NRest.consume (NRest.consume
+          (implHeapSinkLoopSpec _ (implSinkChild buf idx (n + 1)) _ _) _) _ = _
+        rw [hj, NRest.consume_consume, NRest.consume_consume]
+        congr 1
+        abel
+      · -- stop on order
+        refine ⟨n / 2 + 1, ?_⟩
+        rw [if_neg hlt, if_neg hlt, implSinkLoopCostOf_stop, List.take_append_drop,
+          implHeapSinkLoopSpec_unfold_true buf idx _ _ hg,
+          implHeapSinkLoopBody_eq (n / 2 + 1) (n + 1) buf idx hI hL hR hCh,
+          if_neg hlt, if_neg hlt, hrcost, bindT_unit,
+          implHeapSinkLoopSpec_unfold_false buf (n / 2 + 1) _ _ (by omega),
+          NRest.consume_consume, NRest.consume_consume]
+    · refine ⟨idx, ?_⟩
+      have hnone : heapSinkChild? id (buf.take n) idx = none := by
+        unfold heapSinkChild?
+        simp only [heapRight, heapLeft, hlen]
+        rw [if_neg (show ¬ (0 < 2 * idx + 1 ∧ 2 * idx + 1 ≤ n) from by omega),
+          if_neg (show ¬ (0 < 2 * idx ∧ 2 * idx ≤ n) from by omega)]
+      rw [heapSinkFuel, implSinkStatsFuel]
+      simp only [hnone]
+      rw [implSinkLoopCostOf_none, List.take_append_drop,
+        implHeapSinkLoopSpec_unfold_false buf idx _ _ hg]
+
+
+/-! ### Length preservation of the two fuelled motions -/
+
+theorem implHeapSwimFuel_length (fuel : ℕ) (h : AbsHeap ℕ) (i : ℕ) :
+    (heapSwimFuel id fuel h i).length = h.length := by
+  induction fuel generalizing h i with
+  | zero => rfl
+  | succ fuel ih =>
+    rw [heapSwimFuel]
+    by_cases hp : 0 < heapParent i ∧ heapParent i ≤ h.length
+    · rw [if_pos hp]
+      by_cases hv : id (heapValue h (heapParent i)) ≤ id (heapValue h i)
+      · rw [if_pos hv]
+      · rw [if_neg hv, ih, heapExchange_length]
+    · rw [if_neg hp]
+
+theorem implHeapSinkFuel_length (fuel : ℕ) (h : AbsHeap ℕ) (i : ℕ) :
+    (heapSinkFuel id fuel h i).length = h.length := by
+  induction fuel generalizing h i with
+  | zero => rfl
+  | succ fuel ih =>
+    rw [heapSinkFuel]
+    cases hc : heapSinkChild? id h i with
+    | none => rfl
+    | some j =>
+      by_cases hv : id (heapValue h j) < id (heapValue h i)
+      · simp only [hv, if_true, ih, heapExchange_length]
+      · simp only [hv, if_false]
+
+/-! ### The sink seam at the array-list level -/
+
+theorem implHeapSinkCost_eq (h : AbsHeap ℕ) (i : ℕ) :
+    implHeapSinkCost h i =
+      irUnit Currency.div + 2 • irUnit Currency.add +
+        implSinkLoopCostOf (implSinkStats h i) := by
+  dsimp only [implHeapSinkCost, implSinkLoopCostOf, implHeapSinkIterCost,
+    implHeapSinkRightCost, implHeapSinkMoveCost, implHeapSinkStopCost]
+  abel
+
+theorem implHeapSinkExecSpec_run {s : ArrayList} {i : ℕ} (hwf : s.Wf)
+    (h0 : 0 < i) :
+    ∃ j : ℕ, implHeapSinkExecSpec s i
+      = NRest.consume (NRest.returnT ((implHeapSink s i).buffer, j))
+          (implHeapSinkCost s.active i) := by
+  have hn : s.length ≤ s.buffer.length := le_trans hwf.2.1 hwf.2.2
+  have hactive : s.active.length = s.length := by
+    show (s.buffer.take s.length).length = s.length
+    rw [List.length_take]; omega
+  have hact : s.buffer.take s.length = s.active := rfl
+  obtain ⟨j, hj⟩ :=
+    implHeapSinkLoopSpec_run s.length (s.length + 1) s.buffer i hn h0 (by omega)
+  rw [hact, show heapSinkFuel id (s.length + 1) s.active i = heapSink id s.active i from by
+      rw [heapSink, hactive],
+    show implSinkStatsFuel (s.length + 1) s.active i = implSinkStats s.active i from by
+      rw [implSinkStats, hactive]] at hj
+  refine ⟨j, ?_⟩
+  show NRest.bindT (mopBinop .div s.length 2) _ = _
+  rw [mopBinop_def, Imp.Bop.apply_div, binopCurrency_div, bindT_unit,
+    mopBinop_def, Imp.Bop.apply_add, binopCurrency_add, bindT_unit,
+    mopBinop_def, Imp.Bop.apply_add, binopCurrency_add, bindT_unit, hj,
+    NRest.consume_consume, NRest.consume_consume, NRest.consume_consume,
+    implHeapSinkCost_eq]
+  congr 1
+  abel
+
 /-! ## Public command shapes and executable boundaries -/
 
 def implHeapIsEmptyCom (len out : String) : Com := arlIsEmptyCom len out
@@ -1074,11 +1698,6 @@ noncomputable def implHeapIsEmptyExecSpec (s : ArrayList) : NRest ℕ ECost :=
 noncomputable def implHeapPeekMinExecSpec (s : ArrayList) : NRest ℕ ECost :=
   NRest.consume (NRest.returnT s.buffer[0]!) implHeapValueCost
 
-noncomputable def implHeapInsertCost? (x : ℕ) (s : ArrayList) : Option ECost := do
-  let t ← boundedPush s x
-  let c ← boundedPushCostN s
-  pure (c.toECost + implHeapSwimCost t.active t.length)
-
 noncomputable def implHeapInsertExecSpec (x : ℕ) (s : ArrayList) :
     NRest (List ℕ × (ℕ × ℕ)) ECost :=
   NRest.bindT (boundedExecSpec s x) fun raw =>
@@ -1088,12 +1707,6 @@ noncomputable def implHeapInsertExecSpec (x : ℕ) (s : ArrayList) :
   NRest.bindT (implHeapSwimExecSpec t idx) fun moved =>
   NRest.bindT (mopPair t.length t.capacity) fun md =>
     mopPair moved.1 md
-
-noncomputable def implHeapPopMinCost (s : ArrayList) : ECost :=
-  let exchanged := heapExchange s.active 1 s.length
-  let moved := heapButlast exchanged
-  implHeapValueCost + implHeapExchangeCost +
-    arlButlastCost s.length s.capacity + implHeapSinkCost moved 1
 
 noncomputable def implHeapPopMinExecSpec (s : ArrayList) :
     NRest (ℕ × (List ℕ × (ℕ × ℕ))) ECost :=
@@ -1110,7 +1723,162 @@ noncomputable def implHeapPopMinExecSpec (s : ArrayList) :
   NRest.bindT (mopPair moved.1 md) fun heap =>
     mopPair root heap
 
-attribute [-sepref_fr_rules] arlAppend_exec_hnr
+/-! ### The public insert seam -/
+
+noncomputable def implHeapInsertCost? (x : ℕ) (s : ArrayList) : Option ECost := do
+  let t ← arlAppend s x
+  pure (boundedExecCost s + irUnit Currency.copy +
+    implHeapSwimCost t.active t.length + 2 • irUnit Currency.skip)
+
+/-- The one place the caller-owned append precondition enters the heap seam.
+
+This is the second conjunct of `arrayListReadyRel`, isolated as a single
+named predicate on purpose: this repository's array-list push is fallible
+where the Isabelle source's is unconditional, and when that gap closes the
+only obligation to discharge is this one definition — no seam statement
+below mentions `boundedPush` directly. -/
+def implHeapInsertPre (s : ArrayList) : Prop := boundedPush s 0 ≠ none
+
+theorem implHeapInsertPre_of_readyRel {s : ArrayList} {xs : List ℕ}
+    (h : (s, xs) ∈ arrayListReadyRel) : implHeapInsertPre s := h.2
+
+theorem implHeapInsertExecSpec_run {s : ArrayList} {x : ℕ} (hwf : s.Wf)
+    (hready : implHeapInsertPre s) :
+    ∃ (w : ArrayList) (c : ECost), implHeapInsert? x s = some w ∧
+      implHeapInsertCost? x s = some c ∧
+      implHeapInsertExecSpec x s =
+        NRest.consume (NRest.returnT (w.buffer, (w.length, w.capacity))) c := by
+  have hpush : arlAppend s x ≠ none := by
+    intro hnone
+    exact hready ((arlAppend_failure_iff hwf).mpr ((arlAppend_failure_iff hwf).mp hnone))
+  obtain ⟨t, ht⟩ := Option.ne_none_iff_exists'.mp hpush
+  have hrel : (t, s.active ++ [x]) ∈ arrayListRel :=
+    arlAppend_some_refines ⟨hwf, rfl⟩ ht
+  have htwf : t.Wf := hrel.1
+  have htlen : 0 < t.length := by
+    have h := boundedActive_length t htwf
+    rw [hrel.2] at h
+    simp only [List.length_append, List.length_cons, List.length_nil] at h
+    omega
+  obtain ⟨j, hj⟩ := implHeapSwimExecSpec_run htwf htlen (le_refl t.length)
+  refine ⟨implHeapSwim t t.length,
+    boundedExecCost s + irUnit Currency.copy +
+      implHeapSwimCost t.active t.length + 2 • irUnit Currency.skip,
+    by simp [implHeapInsert?, ht], by simp [implHeapInsertCost?, ht], ?_⟩
+  · have hlenw : (implHeapSwim t t.length).length = t.length := by
+      show (heapSwim id t.active t.length).length = t.length
+      rw [heapSwim, implHeapSwimFuel_length, boundedActive_length t htwf]
+    show NRest.bindT (boundedExecSpec s x) _ = _
+    rw [boundedExecSpec, boundedPushObs_success s t x ht, boundedObsRaw,
+      bindT_unit]
+    show NRest.consume (NRest.bindT (mopCopy t.length) (fun idx =>
+        NRest.bindT (implHeapSwimExecSpec t idx) fun moved =>
+          NRest.bindT (mopPair t.length t.capacity) fun md =>
+            mopPair moved.1 md)) (boundedExecCost s) = _
+    rw [mopCopy_def, bindT_unit, hj, bindT_unit, mopPair_def, bindT_unit,
+      mopPair_def, NRest.consume_consume, NRest.consume_consume,
+      NRest.consume_consume, NRest.consume_consume]
+    rw [hlenw]
+    congr 1
+    abel
+
+
+/-! ### The public pop seam -/
+
+theorem implHeapSink_nil_one : heapSink id ([] : AbsHeap ℕ) 1 = [] := by decide
+
+noncomputable def implHeapPopMinCost (s : ArrayList) : ECost :=
+  let t := arlButlastExecState (arlSwapExecState s 0 (s.length - 1))
+  implHeapValueCost + implHeapExchangeCost +
+    arlButlastCost s.length s.capacity + implHeapSinkCost t.active 1 +
+    3 • irUnit Currency.skip
+
+theorem implHeapPopMinExecSpec_run {s : ArrayList} (hwf : s.Wf)
+    (hne : s.length ≠ 0) :
+    ∃ (x : ℕ) (u : ArrayList) (bufOut : List ℕ),
+      implHeapPopMin? s = some (x, u) ∧
+      bufOut.take u.length = u.active ∧
+      implHeapPopMinExecSpec s =
+        NRest.consume (NRest.returnT (x, (bufOut, (u.length, u.capacity))))
+          (implHeapPopMinCost s) := by
+  have hn0 : 0 < s.length := Nat.pos_of_ne_zero hne
+  have hs : (s, s.active) ∈ arrayListRel := ⟨hwf, rfl⟩
+  have hactive : s.active.length = s.length := boundedActive_length s hwf
+  have hswap : (arlSwapExecState s 0 (s.length - 1),
+      listSwap s.active 0 (s.length - 1)) ∈ arrayListRel :=
+    arlSwapExecState_refines hs (by omega) (by omega)
+  have hewf : (arlSwapExecState s 0 (s.length - 1)).Wf := hswap.1
+  have heactive : (arlSwapExecState s 0 (s.length - 1)).active.length = s.length :=
+    boundedActive_length _ hewf
+  have hsne : listSwap s.active 0 (s.length - 1) ≠ [] := by
+    intro h
+    rw [hswap.2] at heactive
+    rw [h] at heactive
+    simp at heactive
+    omega
+  have hbut : (arlButlastExecState (arlSwapExecState s 0 (s.length - 1)),
+      listButlast (listSwap s.active 0 (s.length - 1))) ∈ arrayListRel :=
+    arlButlastExecState_refines hswap hsne
+  set t : ArrayList := arlButlastExecState (arlSwapExecState s 0 (s.length - 1))
+    with htdef
+  have htwf : t.Wf := hbut.1
+  have htactive : t.active = listButlast (listSwap s.active 0 (s.length - 1)) :=
+    hbut.2
+  have htlen : t.length = s.length - 1 := rfl
+  obtain ⟨j, hj⟩ := implHeapSinkExecSpec_run (s := t) (i := 1) htwf Nat.one_pos
+  have hsinklen : (heapSink id t.active 1).length = s.length - 1 := by
+    rw [heapSink, implHeapSinkFuel_length, ← htlen, ← boundedActive_length t htwf]
+  -- the abstract pop
+  have hpop : implHeapPopMin? s =
+      some (s.active[0]!, arlWithActive
+        ⟨s.buffer, s.length - 1, arlShrinkCapacity s (s.length - 1)⟩
+        (heapSink id t.active 1)) := by
+    cases hact : s.active with
+    | nil => rw [hact] at hactive; simp at hactive; omega
+    | cons y ys =>
+      have hlen' : (y :: ys).length = s.length := by rw [← hact]; exact hactive
+      have hmoved : heapButlast (heapExchange (y :: ys) 1 (y :: ys).length)
+          = t.active := by
+        rw [htactive, heapButlast, heapExchange, hlen', hact]
+      simp only [implHeapPopMin?, heapPopMin?, hact, hmoved, arlButlast?,
+        hne, if_false]
+      by_cases hem : BoundedArray.active t = []
+      · rw [if_pos hem, hem, implHeapSink_nil_one]
+        rfl
+      · rw [if_neg hem]
+        rfl
+  refine ⟨s.active[0]!, _, (implHeapSink t 1).buffer, hpop, ?_, ?_⟩
+  · show ((implHeapSink t 1).buffer).take _ = _
+    rw [arlWithActive_active (by rw [hsinklen])]
+    show (heapSink id t.active 1 ++ t.buffer.drop t.length).take
+      (heapSink id t.active 1).length = _
+    rw [List.take_left]
+  · show NRest.bindT (implHeapValueExecSpec s.buffer 1) _ = _
+    rw [implHeapValueExecSpec, bindT_unit, implHeapExchangeExecSpec, bindT_unit,
+      arlButlastExecSpec, bindT_unit]
+    show NRest.consume (NRest.consume (NRest.consume
+      (NRest.bindT (implHeapSinkExecSpec t 1) (fun moved =>
+        NRest.bindT (mopPair t.length t.capacity) fun md =>
+          NRest.bindT (mopPair moved.1 md) fun heap =>
+            mopPair s.buffer[1 - 1]! heap)) _) _) _ = _
+    rw [hj, bindT_unit, mopPair_def, bindT_unit, mopPair_def, bindT_unit,
+      mopPair_def, NRest.consume_consume, NRest.consume_consume,
+      NRest.consume_consume, NRest.consume_consume, NRest.consume_consume,
+      NRest.consume_consume]
+    have hroot : s.buffer[1 - 1]! = s.active[0]! :=
+      buffer_getElem_eq_active hwf hn0
+    have hulen : (arlWithActive
+        ⟨s.buffer, s.length - 1, arlShrinkCapacity s (s.length - 1)⟩
+        (heapSink id t.active 1)).length = t.length := by
+      show (heapSink id t.active 1).length = t.length
+      rw [hsinklen, htlen]
+    have hucap : (arlWithActive
+        ⟨s.buffer, s.length - 1, arlShrinkCapacity s (s.length - 1)⟩
+        (heapSink id t.active 1)).capacity = t.capacity := rfl
+    rw [hroot, hulen, hucap]
+    congr 1
+    dsimp only [implHeapPopMinCost]
+    abel
 
 @[sepref_fr_rules] theorem implHeapAppendRaw_exec_hnr
     (s : ArrayList) (x : ℕ) (hwf : s.Wf)
@@ -1461,38 +2229,62 @@ theorem implHeapEmptyOp_refines :
         ((Com.aget "XJ" "A" "L").seq
           ((Com.aset "A" "K" "XJ").seq
             ((Com.aset "A" "L" "XI").seq (Com.skip.seq Com.skip))))))
+/-! **Source conformance, stated exactly.** The synthesized loops are *not*
+the recorded source commands, and the guards below pin that rather than let a
+silent claim of equality stand.  The three divergences, all inside the loop
+bodies, are listed in the header comment above `implHeapSwimSourceCom`'s
+section: swim's paired `idx/parent` update is two divisions instead of
+`copy`+`div`, swim's exit is `parent := parent * 0` instead of
+`parent := 0`, and sink's exit/advance is `idx := idx * 0 + _` instead of a
+`copy`.  What replaces the missing equality is `implHeapSwimLoopSpec_run` and
+`implHeapSinkLoopSpec_run`, which prove the synthesized loops compute the
+source's own `heapSwimFuel`/`heapSinkFuel` motions. -/
+
+#guard implHeapSwimCom "A" "idx" "parent" "two" "one" "zero" "I" "P" "XI" "XP"
+  ≠ implHeapSwimSourceCom "A" "idx" "parent" "two" "one" "I" "P" "XI" "XP"
+#guard implHeapSinkCom "A" "len" "idx" "bound" "bound1" "len1" "two" "one"
+    "zero" "left" "right" "child" "L" "R" "C" "I" "XL" "XR" "XC" "XI"
+  ≠ implHeapSinkSourceCom "A" "len" "idx" "bound" "bound1" "len1" "two" "one"
+    "left" "right" "child" "L" "R" "C" "I" "XL" "XR" "XC" "XI"
+
 #guard implHeapValidCom "len" "idx" "out" =
   Com.ite (Cond.lt (.lit 0) (.cell "idx"))
     (Com.ite (Cond.lt (.cell "len") (.cell "idx"))
       (Com.const "out" 0) (Com.const "out" 1))
     (Com.const "out" 0)
 
-theorem implHeapSwimCost_while :
-    (implHeapSwimCost [1, 2, 3, 0] 4).toFun Currency.«while» = 3 := by
+/-! The general statements about these two cost functions are
+`implHeapSwimExecSpec_run` and `implHeapSinkExecSpec_run`, which prove them to
+be the exact price of the synthesized commands at every input.  What follows
+is only a numeric regression pin at one heap each; it is deliberately *not* a
+named theorem.  `#guard` cannot be used because `ECost` is `noncomputable`,
+so the pins are anonymous `example`s driven by kernel computation. -/
+
+example : (implHeapSwimCost [1, 2, 3, 0] 4).toFun Currency.«while» = 3 := by
   decide +kernel
 
-theorem implHeapSwimCost_aset :
-    (implHeapSwimCost [1, 2, 3, 0] 4).toFun Currency.aset = 4 := by
+example : (implHeapSwimCost [1, 2, 3, 0] 4).toFun Currency.aset = 4 := by
   decide +kernel
 
-theorem implHeapSwimCost_div :
-    (implHeapSwimCost [1, 2, 3, 0] 4).toFun Currency.div = 5 := by
+example : (implHeapSwimCost [1, 2, 3, 0] 4).toFun Currency.div = 5 := by
   decide +kernel
 
-theorem implHeapSinkCost_while :
-    (implHeapSinkCost [8, 2, 3, 4, 5] 1).toFun Currency.«while» = 3 := by
+example : (implHeapSwimCost [1, 2, 3, 0] 4).toFun Currency.skip = 4 := by
   decide +kernel
 
-theorem implHeapSinkCost_ite :
-    (implHeapSinkCost [8, 2, 3, 4, 5] 1).toFun Currency.ite = 6 := by
+example : (implHeapSinkCost [8, 2, 3, 4, 5] 1).toFun Currency.«while» = 3 := by
   decide +kernel
 
-theorem implHeapSinkCost_aget :
-    (implHeapSinkCost [8, 2, 3, 4, 5] 1).toFun Currency.aget = 8 := by
+example : (implHeapSinkCost [8, 2, 3, 4, 5] 1).toFun Currency.ite = 6 := by
   decide +kernel
 
-theorem implHeapSinkCost_add :
-    (implHeapSinkCost [8, 2, 3, 4, 5] 1).toFun Currency.add = 6 := by
+example : (implHeapSinkCost [8, 2, 3, 4, 5] 1).toFun Currency.aget = 8 := by
+  decide +kernel
+
+example : (implHeapSinkCost [8, 2, 3, 4, 5] 1).toFun Currency.add = 6 := by
+  decide +kernel
+
+example : (implHeapSinkCost [8, 2, 3, 4, 5] 1).toFun Currency.skip = 2 := by
   decide +kernel
 
 run_cmd do
@@ -1508,7 +2300,10 @@ run_cmd do
       ``implHeapSwimCom, ``implHeapSwim_exec_hnr,
       ``implHeapSinkCom, ``implHeapSink_exec_hnr,
       ``implHeapInsertCom, ``implHeapInsert_exec_hnr,
-      ``implHeapPopMinCom, ``implHeapPopMin_exec_hnr] do
+      ``implHeapPopMinCom, ``implHeapPopMin_exec_hnr,
+      ``implHeapSwimLoopSpec_run, ``implHeapSwimExecSpec_run,
+      ``implHeapSinkLoopSpec_run, ``implHeapSinkExecSpec_run,
+      ``implHeapInsertExecSpec_run, ``implHeapPopMinExecSpec_run] do
     unless env.contains n do
       throwError "impl-heap source gate: missing declaration {n}"
 
@@ -1555,5 +2350,29 @@ run_cmd do
 /-- info: 'Lax13Proofs.Refine.Sepref.Iicf.implHeapPopMinOp_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms implHeapPopMinOp_refines
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.implHeapSwimLoopSpec_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms implHeapSwimLoopSpec_run
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.implHeapSwimExecSpec_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms implHeapSwimExecSpec_run
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.implHeapSinkLoopSpec_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms implHeapSinkLoopSpec_run
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.implHeapSinkExecSpec_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms implHeapSinkExecSpec_run
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.implHeapInsertExecSpec_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms implHeapInsertExecSpec_run
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.implHeapPopMinExecSpec_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms implHeapPopMinExecSpec_run
 
 end Lax13Proofs.Refine.Sepref.Iicf
