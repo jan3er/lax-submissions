@@ -1229,3 +1229,59 @@ falsification law, the gate law, and the restored traceability table; the
 rev-2 worktree-workflow clause was superseded 2026-08-01 by the sequential
 warm-`main` rule. None of the removed text carried live authority beyond
 what the current plan states.
+
+### E32 — a core matcher split inside our module is a namespace violation, and `getElem!_def` is how it happens
+
+**Status: binding (repair landed).** Added 2026-08-02.
+
+*The defect.* `lax build --only proofs word-ram` reported two
+`[namespace] proof declaration GetElem?.match_1.splitter` violations,
+carried since before P4.5 and recorded twice as "pre-existing, small,
+local". They were neither small in mechanism nor where the record placed
+them.
+
+*The mechanism, established rather than guessed.* The two constants were
+`_private.Lax13Proofs.Refine.Iicf.Impl.ArrayOfArrayList.0.GetElem?.match_1.splitter`
+and its `ArrayMapMap` twin — declarations **our** modules add. `GetElem?.match_1`
+is a core matcher from `Init.GetElem`; `LawfulGetElem.getElem!_def` states
+`c[i]! = match c[i]? with | some e => e | none => default`, so passing it to
+`simp` with a **symbolic scrutinee** forces `Match.getEquationsFor`, which
+materializes `<matcher>.eq_*` *and* `<matcher>.splitter` as private
+declarations in the current module. The private wrapper `_private.<mod>.0.`
+is stripped by the audit, leaving `GetElem?.match_1.splitter` — no
+`Lax13Proofs` prefix, hence the violation. The thirteen splitters that
+remain in the package are all of the form
+`_private.<mod>.0.Lax13Proofs.….match_1.splitter`: they split **our own**
+matchers, so the stripped name still carries the prefix and the audit is
+right to accept them.
+
+*The rule.* The violation is not about `split`. It is about **which
+matcher** gets split: splitting a matcher owned by `Init`/`Std` inside a
+`Lax13Proofs` module always produces a foreign-prefixed declaration.
+Prefer a matcher-free equation. Here:
+`List.getElem!_eq_getElem?_getD : l[i]! = l[i]?.getD default` — same
+rewrite, no `match`. Three call sites, statements unchanged
+(`ammUpdateRaw_eq` ×2, `aalRowPopExecSpec_whole_refines` ×1).
+
+*The asymmetry that located it.* `ArrayMap.lean` carries the identical
+`simp only [amEmptyIn] at h; split at h` shape and generates no splitter,
+because its neighbouring `simpa [getElem!_def, hp]` has the bounds
+hypothesis in the simp set: `getElem?_pos` rewrites `c[i]?` to `some c[i]`
+and iota-reduces, so no equations are ever demanded. The offending sites
+left the scrutinee symbolic.
+
+*Supervisor error corrected in passing.* The first repair attempt targeted
+the one `split at h` in each file and replaced it with `by_cases` +
+`if_pos`/`if_neg`. It elaborated green and cleared nothing — `split` on an
+`ite` takes the `Decidable` path and never materializes a match splitter.
+Those edits were reverted; `aalEmptyIn_some` and `ammEmptyIn_refines` are
+byte-identical to before. Recorded because it is the same failure class the
+closure rule exists for: green is not closed, and a plausible cause is not
+a mechanism.
+
+*Closure artifact.* `.claude/leaf-gate.sh word-ram` → `LEAF GATE:
+mechanical checks PASS` (concepts 505, proofs 3,277, `lax build` **0
+violations**, consumer 3,549), plus a compiled environment scan finding
+zero `GetElem?.match_1.splitter` under any `Lax13Proofs` module, and
+`#print axioms` on both repaired theorems returning
+`[propext, Classical.choice, Quot.sound]`.

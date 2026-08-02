@@ -402,7 +402,7 @@ theorem ammUpdateRaw_eq (present values : List ℕ) (count k v : ℕ)
       ammUpdateExecSpec present values count k v := by
   by_cases fresh : present[k]! = 0
   · have fresh' : present[k]?.getD 0 = 0 := by
-      simpa [getElem!_def] using fresh
+      simpa [List.getElem!_eq_getElem?_getD] using fresh
     simp [ammUpdateRaw, ammUpdateExecSpec, mopAget_def, mopAset_def,
       NRest.assert_pos hp, NRest.assert_pos hv, irIf_def, fresh',
       mopBinop_def, ammPack, mopPair_def, ammUpdateCost, ammPackCost,
@@ -410,7 +410,7 @@ theorem ammUpdateRaw_eq (present values : List ℕ) (count k v : ℕ)
       NRest.consume_consume, two_nsmul]
     ac_rfl
   · have fresh' : ¬ present[k]?.getD 0 = 0 := by
-      simpa [getElem!_def] using fresh
+      simpa [List.getElem!_eq_getElem?_getD] using fresh
     simp [ammUpdateRaw, ammUpdateExecSpec, mopAget_def, mopAset_def,
       NRest.assert_pos hp, NRest.assert_pos hv, irIf_def, fresh',
       ammPack, mopPair_def, ammUpdateCost, ammPackCost,

@@ -796,7 +796,7 @@ theorem aalRowPopExecSpec_whole_refines {outerMax innerMax : ℕ}
     have he := congrFun hlast row.buffer[row.length - 1]!
     simp [NRest.single] at he
     apply hne
-    simpa [getElem!_def] using he
+    simpa [List.getElem!_eq_getElem?_getD] using he
   have hbut := marlButlastExecSpec_refines hr hxsne
   refine ⟨row, xs, x, hrow, hxs, hx, ?_, ?_⟩
   · simp [aalRowPopExecSpec, hv]
