@@ -3985,3 +3985,14 @@ record now distinguishes Sepreftime's generic pin from the executable
 `isabelle_llvm_time` specialization. Supervisor replay: 2,995 jobs; source,
 fref/executable registration, branch-cost, kernel-three, and zero-placeholder
 gates pass. Next: `Abs_Heapmap`, sequentially on warm main.
+
+P5.C `Abs_Heapmap` is green as the fourth P5.C family and third heap family.
+The new unrooted semantic leaf represents a heap map by a distinct one-based
+key heap plus partial key/value map, with exact domain and priority-view heap
+invariants. It proves the indexed primitives and the swim/sink/repair
+commutation needed for insert, set/change, decrease/increase, arbitrary remove,
+peek, and pop; all twelve abstract map/priority-map frefs are registered. No IR
+or vector-cost claims belong to this pure layer. The source header was corrected
+to the exact Sepreftime pin. Supervisor replay: 2,991 jobs; source/fref,
+kernel-three, and zero-placeholder gates pass. Next: `Impl_Heapmap`,
+sequentially on warm main.

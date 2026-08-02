@@ -11,9 +11,9 @@ and archive-green. P5.B is complete: all five concrete bounded-sequence and
 all three bounded-key map families are green as unrooted leaves: `Array_List`,
 `DArray_List`, `MS_Array_List`, `Indexed_Array_List`,
 `Array_of_Array_List`, `Array_Map`, `Array_Map_Total`, and `ArrayMap_Map`.
-P5.C has begun with `Array_Matrix`, `Abs_Heap`, and executable `Impl_Heap`
-green. The source-first scope firewall below was added at Jan's request on
-2026-07-31.** This document is
+P5.C has `Array_Matrix`, `Abs_Heap`, executable `Impl_Heap`, and
+`Abs_Heapmap` green. The source-first scope firewall below was added at Jan's
+request on 2026-07-31.** This document is
 the contract: implementing sessions follow it, deviations need an owner
 decision first.
 
@@ -380,6 +380,17 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-02 — P5.C Abs_Heapmap green (4/5 families; 3/4 heap
+  families).** New unrooted `Iicf/Impl/AbsHeapmap.lean` ports the source pair
+  of a distinct one-based key heap and partial key/value map, its exact domain
+  and priority-view invariants, indexed key/value/priority primitives, and
+  permutation/commutation theory for swim, sink, and repair. Insert, set,
+  arbitrary change, decrease/increase, arbitrary remove, peek, and pop preserve
+  the representation and have exact abstract-map semantics. All twelve map and
+  priority-map frefs are registered. This semantic layer intentionally exposes
+  no IR rules or vector costs. Supervisor replay: 2,991 jobs; source/fref,
+  kernel-three, and zero-placeholder gates pass. **Next: P5.C Impl_Heapmap.**
 
 - **2026-08-02 — P5.C Impl_Heap green (3/5 families; 2/4 heap families).**
   New unrooted `Iicf/Impl/ImplHeap.lean` composes the caller-owned `ArrayList`
