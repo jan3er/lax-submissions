@@ -782,6 +782,37 @@ proves a scheduled source declaration was mistranslated or omitted.
 
 ## Progress log
 
+- **2026-08-02 — Session close: campaign is READY TO RESUME AT P4.5.A.**
+  State a next session can rely on without re-deriving it:
+  *Green* — `lake build` 3,275 jobs; `lax build --only proofs word-ram` 2
+  violations, both the single pre-existing `GetElem?.match_1.splitter`,
+  located to `ArrayOfArrayList.lean:141` and `ArrayMapMap.lean:145` (a
+  `split at h` over a `getElem?` match); zero `sorry`/`admit`/`native_decide`
+  in the package; working tree clean.
+  *Landed this session* — all twelve P5.B/C leaves root-imported (`834b637`);
+  rev 5 substrate correction with P4.5, rule 5, and the gate law (`1ccaa53`);
+  `ImplHeap`'s executable-to-abstract seam closed with six equations
+  (`eb07d99`); rev 2's ND-MC traceability table restored (`55a737b`); the
+  falsification law re-scoped by provenance per declaration (`8419dd1`);
+  ledger backfilled E16–E22.
+  *Decisions closed* — Jan confirmed the 2026-07-31 falsification waiver was
+  his and delegated the forward call; `larray` resolved as argued exclusion
+  X17; the ND-MC delay caused by inserting P4.5 is accepted by Jan.
+  *Open, carried forward* — the two `GetElem?` namespace violations (small,
+  local: replace the `split at h` with a route that generates no foreign
+  splitter); `fillCost`'s missing symbolic-`n` theorem, which is Claude-era
+  debt from `521d8d3`, not P5's — **check first whether P4.5's O(1)
+  allocator deletes its consumers outright before anyone invests in proving
+  it**; five unrestored attribute mutations and the circular
+  `aalOuterSelection_unsupported`, both folded into P5.E (E21); seven helper
+  lemmas sitting in `ImplHeap.lean` that belong in `AbsHeap.lean` /
+  `ArrayList.lean` / `Intf/List.lean`.
+  **Next: P4.5.A — the costed allocator.** Port `mop_oarray_new` from
+  `Hnr_Primitives_Experiment.thy` as an IR operation over a bump allocator;
+  prove the O(1) result and the no-reuse invariant with compiled negative
+  controls (clause 2 — it is authored, so no exemption); carry D3 codegen
+  coverage before anything depends on it. Sequentially, on warm `main`.
+
 - **2026-08-02 — REV 5: P5 paused mid-phase; substrate correction ordered.**
   A mid-phase review of the landed P5 output produced six findings (F6–F11
   above). The load-bearing one is F6: the artifact's IICF is not merely out

@@ -3996,3 +3996,45 @@ or vector-cost claims belong to this pure layer. The source header was corrected
 to the exact Sepreftime pin. Supervisor replay: 2,991 jobs; source/fref,
 kernel-three, and zero-placeholder gates pass. Next: `Impl_Heapmap`,
 sequentially on warm main.
+
+A Claude session reviewed the landed P5 output and the campaign changed shape.
+Six findings (F6-F11 in the plan). The load-bearing one: the artifact's IICF is
+not merely outside its build closure, it is superseded — `thys/ROOT` comments
+out the IICF theories entry, and the only built target takes its containers
+from `sepref/Hnr_Primitives_Experiment.thy`, "arrays and option arrays with
+explicit ownership". P0's F1 had named that file and then E7 concluded the
+opposite without arguing it. F7 found E7's premise false outright: no pinned
+source carries a cost-carrying IICF, so P5's whole currency layer is authored,
+not adapted. F8 corrects the opposite error — the pinned copies are
+byte-identical or near-identical to the live `isabelle_llvm` tree, and three
+structures exist only there, so source selection within the IICF was forced and
+correct. Jan set a guarantee-fidelity law ranking interface guarantees above
+representation, retired the P4-era "allocation is rejected" decision, and
+ordered the port onto the successor stack. New phase P4.5: a costed bump
+allocator, expressible in the existing IR with no endorsed-machine change and
+O(1) rather than the source's O(n) because `Lax13/Ram.lean` starts memory
+zeroed, plus element-level ownership and the IICF bridge. P5.A is not reopened;
+P5.B/C are re-seated by a new P5.E rather than re-derived.
+
+Three gate failures were found and fixed. The unrooted-leaf pattern defeated
+`lax build`'s root-module check, so the archive gate had been blind since the
+first P5.B leaf; root-wiring all twelve built green at 3,275 jobs and exposed
+two real namespace violations. The deviation ledger had not been touched since
+E15 while twelve leaves landed; it is backfilled to E22. And the standing
+falsification law had been relaxed campaign-wide — `refute-before-prove` had
+zero occurrences in the plan, `Plausible` zero occurrences in twenty P5 files.
+Jan confirmed he approved that waiver for routine source-shaped ports and
+delegated the forward call. It is now scoped by provenance per declaration
+rather than per file: a statement mirroring a machine-checked source statement
+stays exempt, anything with no source counterpart does not, and a declaration
+absent from its module's source table is authored by definition. That
+granularity is the actual fix — `ImplHeap.lean` looked like a port and its
+cost layer had no source at all, which is how two wrong cost functions landed.
+
+`ImplHeap`'s executable layer refined against itself; it now has six seam
+theorems, equations rather than bounds, proving the synthesized loops equal
+`AbsHeap`'s own motions at an exact price. A supervisor finding was withdrawn
+in the process: the `True` loop invariants were correct, not vacuous, because a
+failed `irWhileIT` invariant equals `NRest.fail`, the top of the order, so
+strengthening one weakens every rule beneath it. `larray` resolved as argued
+exclusion X17. Next: P4.5.A, the costed allocator, sequentially on warm main.
