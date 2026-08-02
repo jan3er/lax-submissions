@@ -105,6 +105,14 @@ more expensive than it is today.
 
 ## Phases
 
+**Checkbox discipline (added 2026-08-02).** These boxes were left unticked
+for P1–P3 while the wrap sections and progress log recorded them done, and on
+2026-08-02 that inconsistency caused a completed phase to be re-issued to a
+worker. The boxes are authoritative for "what is left"; tick them in the same
+commit that lands the phase. Current live work is **not** in this list — it is
+the G-road below, at the compiled residue (E-mem onward).
+
+
 - [x] **P0 — tower readiness (1–2 sessions).** **GATE G0 GREEN
   2026-07-30**, all five items (see progress log). All items live in
   `Lax13Proofs/Refine/` (tower campaign is closed; these are its
@@ -136,7 +144,7 @@ more expensive than it is today.
   **Gate G0:** items 1–5 green → proceed. Any structural blocker →
   fallback checkpoint with Jan.
 
-- [ ] **P1 — spec-surface alignment acceptance (½–1 session, may
+- [x] **P1 — spec-surface alignment acceptance — GATE G1 GREEN 2026-07-30 (`7e0bd9c`); `Refine/BfsBridge.lean`, 183 code lines, seven bridges B-a…B-g. (½–1 session, may
   interleave with P0).** The tower already re-derived ND-MC's own BFS
   (P7 gate baseline *was* `Lax3Proofs/RamBfs.lean`; export
   `bfsQ_spec`, cost 56n+40ns+33). Swap it in: the driver's BFS-side
@@ -148,7 +156,7 @@ more expensive than it is today.
   the bridges come out ugly, that is a shape report and a pause, not
   a push-through.
 
-- [ ] **P2 — engine waves (2–4 sessions).** Re-derive engines
+- [x] **P2 — engine waves — COMPLETE 2026-07-31.** All engines derived, widened and integrated (BFS/Scatter/Elim/Augment-outPass/Cover/order/cluster leaves/expandCom); all 30 hypotheses of `driverRoot_decides_sentence` have named producers. Original text: (2–4 sessions). Re-derive engines
   smallest-first in dependency order: RamScatter + FormulaTables +
   BotEval; RamElim (the tower version supersedes `elimRezeroCom`'s
   bridge pair and the ElimMem conjunct debt outright); RamCover;
@@ -163,7 +171,7 @@ more expensive than it is today.
   single-owner repair waves folding all defect reports at once.
   Per-engine retention escape hatch: see JAN-FLAG 2.
 
-- [ ] **P3 — math survivors, parallel track (1 session; zero program
+- [x] **P3 — math survivors — COMPLETE 2026-07-31 (math satellite). (1 session; zero program
   contact, runs alongside P0–P2 as a satellite).** (i) Kl/Ks
   recurrence solved **parametrically** in per-engine cost constants —
   never bake in numbers; (ii) `hQ` derived from Lax12's UQW theorem
