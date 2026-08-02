@@ -53,12 +53,42 @@ commit it, then start the next. Briefs remain technical reference only.** A
 worker's green report is not acceptance evidence until the
 supervisor replays the relevant build and axiom gates.
 
-Scope is **proofs-only**: no concept-surface changes, toolchain or mathlib
-pin moves, or machine-model changes. Negative testing is risk-proportionate:
-routine source-shaped ports rely on source review, typechecking, kernel guards,
-and builds; compiled falsification remains required for genuinely new, deep,
-or subtle claims. Compiled-costs-both-directions and root namespace/splitter
-audit remain standing laws.
+Scope is **proofs-only**: no concept-surface changes and no toolchain or
+mathlib pin moves. For the machine model, see the three-way table in the
+fidelity charter — the endorsed machine is frozen; the IR is not.
+
+**Standing laws, reinstated verbatim from rev 2 (2026-08-02).** Rev 2 read:
+
+> All standing laws apply: refute-before-prove, compiled-costs-both-directions
+> for every cost claim that gates work, namespace/splitter audit via root
+> `lax build`, worktree workflow.
+
+Rev 4 replaced that with "negative testing is risk-proportionate: routine
+source-shaped ports rely on source review, typechecking, kernel guards, and
+builds". Under that wording `refute-before-prove` disappeared from this
+document entirely, and the consequences are now measured: `Plausible` appears
+in **zero** of the twenty P5 files; `implHeapSwimCost` and `implHeapSinkCost`
+were *wrong* and unchecked until 2026-08-02 (ledger E20); the `*SourceBound`
+constants were never compared against our costs (F11); and the namespace
+audit, though nominally retained, was not run per leaf, so two violations
+stood undetected for a day and a half (F9).
+
+The unconditional form is therefore restored. **Refute-before-prove applies
+to every authored obligation, with no routine-port exemption.** A port is not
+exempt merely because a source declaration has the same name: what is being
+tested is *our* statement, and the cost layer in particular is authored
+rather than adapted (F7). `compiled-costs-both-directions` applies to every
+cost claim that gates work, and a cost function that no theorem consumes is
+not thereby exempt — E20 is the case in point.
+
+The one clause NOT restored is `worktree workflow`, which Jan superseded on
+2026-08-01 with the sequential warm-`main` rule above. That supersession
+stands.
+
+The relaxation was recorded in `tower-expansion/p3c-design.md:88` and commit
+`c1089c4` as "Per Jan's 2026-07-31 direction". That attribution is **open and
+unverified**; until Jan confirms it, the `c1089c4` relaxations in the P3.C
+briefs and design note are not authority for any later phase.
 
 ## Mandate
 
@@ -185,6 +215,35 @@ boundary: it instantiates the frozen tower APIs, records consumer gaps for
 handoff, and may send work back only when it demonstrates a source-fidelity
 defect in a scheduled declaration. C0, B7, and the ND-MC P5 remain owned by
 the ND-MC campaign.
+
+**Why each phase exists — traceability table, restored from rev 2
+(2026-08-02).** Rev 4 replaced this table with the firewall paragraph above.
+The firewall is a good rule and is kept, but deleting the table removed the
+*evidence for why the campaign has the phases it has*, and P9 is the gate
+that has to cash those claims. Each entry is backed by a compiled probe in
+the ND-MC record. This is traceability, not authority: it does not license
+any consumer work before P9.
+
+| ND-MC blocker (compiled evidence) | missing infrastructure | phase here |
+|---|---|---|
+| THE SEAM — `orderCom` has no synthesized counterpart; whole-phase synthesis over 15 arrays judged intractable because `sepref_synth` goals are hand-holed (`Refine/OrderBridge.lean:36`, `Sepref/Definition.lean:24`) | `hfref` signature machinery + `FCOMP` composition | P1 |
+| R1.6 — no member list exists; every pass carrier-bounded (`Refine/OrderBlockProbe.lean:65`) | FOREACH/`nfoldli` iteration layer: member lists as abstract iteration structure, refined downward | P2 |
+| Uniform-per-turn `hKl` structurally loses the Σ\|X_c\| saving; no-escape theorem: no arithmetic interface between carrier closed form and arena form (`nd-mc-rebase-plan.md:243`, `Refine/OrderBlockProbe.lean:253`) | currency-vector budgets end-to-end, collapse once at cash; the `norm_cost`/`sc_solve` toolchain | P3 |
+| Touched-only charging re-derived by hand per engine; per-arena credit threading ad hoc (`touched-only-costs` standing law) | credit-carrying composite assertions; amortization discipline | P4 |
+| B7 gate findings were prose-audit escapes, found only by compiled probes (`nd-mc-rebase-plan.md:31`) | executable gates: slot sweep, cost probe harness | P8 |
+
+Rev 5 adds one row the original could not have: every P5 structure's
+`empty`/`new`/`copy` sits at a caller-owned boundary, so no closed IR program
+can *construct* one — which P9 would have hit head-on at the consumer gate.
+That is what P4.5 exists to remove.
+
+Sequencing consequences recorded at acceptance (JAN-FLAG 1) are unchanged:
+ND-MC's C0 residue resumes on this campaign's P1–P4 exports rather than on
+hand repair; P9 executes the order-phase pilot as the consumer gate and hands
+its output back to the ND-MC campaign, which runs its own B7 re-run and P5
+under its own plan; and the ND-MC plan's two open supervisor recommendations
+(the `Spec→ComputesInTime` bridge-seam probe, and the provisional-P5 draft
+decision) stay owned there and are not preempted here.
 
 ## 2026-08-02 mid-phase review findings
 
