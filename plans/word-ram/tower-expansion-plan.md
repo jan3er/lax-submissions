@@ -716,6 +716,44 @@ each entry closed or re-ledgered with an explicit reason.
 
 ### P7 — Frame-layer performance · budget 1–2 sessions
 
+**Scheduled ahead of P7: retry whole-phase synthesis on `orderCom`
+(Jan, 2026-08-02). Run it at ND-MC's Gate G4 boundary — after C0
+discharges, before the cost residue.**
+
+The "whole-phase synthesis over 15 arrays is intractable" verdict is stale,
+and for a checkable reason. The traceability table records the cause as
+`sepref_synth` goals being **hand-holed** (`Refine/OrderBridge.lean:36`,
+`Sepref/Definition.lean:24`) — synthesis got *stuck*, not merely slow — and
+assigns that row to **P1**, which landed. Nobody has retested since. Also
+changed underneath it: P2–P4; the BfsQ repairs, especially `transComb`
+stable-partitioning `hnr_seq` behind `hnr_bind`, which killed 2^depth
+retranslation and took one program from >9 min to 49 s (exactly the blowup a
+whole phase would hit hardest); and P4.5, without which no closed IR program
+could *construct* a structure at all, so a phase over 15 arrays had nowhere to
+get them from.
+
+P7's exponent is a cost curve, not a wall: at 1.28–1.35, a phase 8× BFS's op
+count extrapolates to ~12–15 minutes. Slow, and affordable once.
+
+**Why at G4 and not later.** The cost residue (E-mem, member-driven interiors,
+E-order re-run, E3b, E4c, R1.8) is largely hand-repair of the order and cover
+phases' costs — `coverCost`'s `100n²`, `coverSaveCost`'s `12(n*n)`, the
+per-centre carrier walk. If whole-phase synthesis works those phases are
+**re-derived rather than repaired** and much of that residue stops existing,
+so doing the residue first risks hand-fixing what synthesis would replace.
+Running it before C0 instead would stall a headline that is close.
+
+**Run it as a measured probe, not an open-ended attempt:** count `orderCom`'s
+ops, full rule DB, wall-clock cap, and record where the time goes against
+BfsQ's 49 s. If it lands, re-derive the phase and drop residue items. If it
+blows past the cap, we get P7's target profile from a **real** phase instead
+of P0's synthetic 3–5× program — worth having either way.
+
+*Practical constraint:* it cannot run concurrently with an ND-MC wave. ND-MC
+requires `Lax13Proofs`, so rebuilding the tower contends on the Lake lock and
+invalidates the consumer build — that contention already cost one wasted ND-MC
+baseline on 2026-08-02.
+
 The measured scaling wall: synthesis exponent 1.28–1.35 in op count and
 `fri` alone 28% of a 100-op synthesis. Attack the frame/entailment layer with
 the source's own disciplines first (Termtab-style first-order pre-match
