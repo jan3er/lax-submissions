@@ -746,12 +746,12 @@ theorem markSynth' (n rp1 : ℕ) (D E₀ : List ℕ) :
 def clearHole (n : ℕ) (E₀ : List ℕ) : Assn :=
   EXACT ((vcells (clearState n E₀) |>.erase "sw" |>.erase "n" |>.erase "one"
       |>.erase "mkz",
-    acells (clearState n E₀) |>.erase "exc"), 0)
+    acells (clearState n E₀) |>.erase "exc", hcells (clearState n E₀)), 0)
 
 theorem clear_state_holds (n : ℕ) (E₀ : List ℕ) :
     irSTATE (clearPre n E₀ ∗ clearHole n E₀) (clearState n E₀, 0) := by
   show (clearPre n E₀ ∗ clearHole n E₀)
-    ((vcells (clearState n E₀), acells (clearState n E₀)), 0)
+    ((vcells (clearState n E₀), acells (clearState n E₀), hcells (clearState n E₀)), 0)
   simp only [clearPre, hnCtxt, prodAssn, natAssn_def, arrayAssn_def, sepConj_assoc]
   refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
   refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
@@ -763,12 +763,14 @@ def markHole (n rp1 : ℕ) (D E₀ : List ℕ) : Assn :=
   EXACT ((vcells (markState n rp1 D E₀) |>.erase "sw" |>.erase "n" |>.erase "one"
       |>.erase "mkr" |>.erase "mke" |>.erase "mkd" |>.erase "mka" |>.erase "mkb"
       |>.erase "mkc" |>.erase "mkp" |>.erase "mkm",
-    acells (markState n rp1 D E₀) |>.erase "exc" |>.erase "dist"), 0)
+    acells (markState n rp1 D E₀) |>.erase "exc" |>.erase "dist",
+    hcells (markState n rp1 D E₀)), 0)
 
 theorem mark_state_holds (n rp1 : ℕ) (D E₀ : List ℕ) :
     irSTATE (markPre n rp1 D E₀ ∗ markHole n rp1 D E₀) (markState n rp1 D E₀, 0) := by
   show (markPre n rp1 D E₀ ∗ markHole n rp1 D E₀)
-    ((vcells (markState n rp1 D E₀), acells (markState n rp1 D E₀)), 0)
+    ((vcells (markState n rp1 D E₀), acells (markState n rp1 D E₀),
+      hcells (markState n rp1 D E₀)), 0)
   simp only [markPre, hnCtxt, prodAssn, natAssn_def, arrayAssn_def, sepConj_assoc]
   refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
   refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
@@ -786,7 +788,7 @@ theorem mark_state_holds (n rp1 : ℕ) (D E₀ : List ℕ) :
 theorem clearΓ_holds (n : ℕ) (E₀ : List ℕ) :
     irSTATE (clearΓ n (E₀, 0) ∗ clearHole n E₀) (clearState n E₀, 0) := by
   show (clearΓ n (E₀, 0) ∗ clearHole n E₀)
-    ((vcells (clearState n E₀), acells (clearState n E₀)), 0)
+    ((vcells (clearState n E₀), acells (clearState n E₀), hcells (clearState n E₀)), 0)
   simp only [clearΓ, natAssn_def, arrayAssn_def, sepConj_assoc]
   refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
   refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
@@ -798,7 +800,8 @@ theorem mkΓ_holds (n rp1 : ℕ) (D E₀ : List ℕ) :
     irSTATE (mkΓ n rp1 D E₀ 0 0 0 0 0 0 0 0 ∗ markHole n rp1 D E₀)
       (markState n rp1 D E₀, 0) := by
   show (mkΓ n rp1 D E₀ 0 0 0 0 0 0 0 0 ∗ markHole n rp1 D E₀)
-    ((vcells (markState n rp1 D E₀), acells (markState n rp1 D E₀)), 0)
+    ((vcells (markState n rp1 D E₀), acells (markState n rp1 D E₀),
+      hcells (markState n rp1 D E₀)), 0)
   simp only [mkΓ, natAssn_def, arrayAssn_def, sepConj_assoc]
   refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
   refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
@@ -2271,7 +2274,8 @@ def scatHole (n d t : ℕ) (off tgt alv tab exc₀ dist₀ q₀ : List ℕ) : As
         |>.erase "v1" |>.erase "kend" |>.erase "u" |>.erase "au" |>.erase "du",
       acells (scatState n d t off tgt alv tab exc₀ dist₀ q₀)
         |>.erase "exc" |>.erase "dist" |>.erase "q" |>.erase "off" |>.erase "tgt"
-        |>.erase "alv" |>.erase "tab"), 0)
+        |>.erase "alv" |>.erase "tab",
+      hcells (scatState n d t off tgt alv tab exc₀ dist₀ q₀)), 0)
 
 theorem scat_state_holds (n d t : ℕ) (off tgt alv tab exc₀ dist₀ q₀ : List ℕ) :
     irSTATE (scatPre n d t off tgt alv tab exc₀ dist₀ q₀
@@ -2280,7 +2284,8 @@ theorem scat_state_holds (n d t : ℕ) (off tgt alv tab exc₀ dist₀ q₀ : Li
   show (scatPre n d t off tgt alv tab exc₀ dist₀ q₀
       ∗ scatHole n d t off tgt alv tab exc₀ dist₀ q₀)
     ((vcells (scatState n d t off tgt alv tab exc₀ dist₀ q₀),
-      acells (scatState n d t off tgt alv tab exc₀ dist₀ q₀)), 0)
+      acells (scatState n d t off tgt alv tab exc₀ dist₀ q₀),
+      hcells (scatState n d t off tgt alv tab exc₀ dist₀ q₀)), 0)
   simp only [scatPre, hnCtxt, prodAssn, natAssn_def, arrayAssn_def, sepConj_assoc]
   refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
   refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩

@@ -247,8 +247,30 @@ notes and extracts go to `plans/word-ram/tower-expansion/`.
 ## Downstream-consumer boundary
 
 ND-MC evidence motivates several source-slice selections, but it does not
-design P1–P8. No ND-MC module is imported or edited before P9, and no
-consumer-specific API repair widens those phases. P9 is the sole integration
+design P1–P8. No consumer-specific API repair widens those phases.
+
+**The firewall is one-directional, and the reverse direction is now a gate
+(2026-08-02).** `nowhere-dense-model-checking/proofs/lakefile.toml` requires
+`Lax13Proofs`, so tower changes propagate into ND-MC's build whether or not we
+touch their files. P4.5.A.1's carrier widening broke two of their modules
+(`Refine/AugmentSynth`, `Refine/ScatterSynth`) — sixteen sites spelling an
+`AState` literally — and *our own gates could not see it*, because no landed
+structure of ours constructs one: only probes do, and those were fixed in the
+same commit that broke them. Same failure class as F9.
+
+So **ND-MC must compile after every tower leaf that touches an exported
+surface.** A full ND-MC build is 2m47s, which is per-leaf affordable. The
+guarantee is specific and worth naming: strengthening a tower lemma leaves
+ND-MC compiling, while *adding a hypothesis* — slipping an assumption onto
+consumers — breaks it immediately, and that is the direction our own gates are
+worst at catching.
+
+**Compile gate only.** A break has exactly two dispositions: a genuine
+interface break, which is fixed in the tower; or mechanical fallout, which is
+a token edit in place. No ND-MC design work, no new lemmas there, no API added
+for their benefit — anything else is recorded and goes to P9. This keeps the
+firewall's purpose (consumer needs must not widen tower phases) while removing
+its blind spot. P9 is the sole integration
 boundary: it instantiates the frozen tower APIs, records consumer gaps for
 handoff, and may send work back only when it demonstrates a source-fidelity
 defect in a scheduled declaration. C0, B7, and the ND-MC P5 remain owned by

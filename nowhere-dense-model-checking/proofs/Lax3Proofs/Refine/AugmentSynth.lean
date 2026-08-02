@@ -1273,12 +1273,12 @@ theorem alvSynth' (n : ℕ) (A₀ : List ℕ) :
 
 def alvHole (n : ℕ) (A₀ : List ℕ) : Assn :=
   EXACT ((vcells (alvState n A₀) |>.erase "agi" |>.erase "n" |>.erase "one",
-    acells (alvState n A₀) |>.erase "alv"), 0)
+    acells (alvState n A₀) |>.erase "alv", hcells (alvState n A₀)), 0)
 
 theorem alv_state_holds (n : ℕ) (A₀ : List ℕ) :
     irSTATE (alvPre n A₀ ∗ alvHole n A₀) (alvState n A₀, 0) := by
   show (alvPre n A₀ ∗ alvHole n A₀)
-    ((vcells (alvState n A₀), acells (alvState n A₀)), 0)
+    ((vcells (alvState n A₀), acells (alvState n A₀), hcells (alvState n A₀)), 0)
   simp only [alvPre, hnCtxt, prodAssn, natAssn_def, arrayAssn_def, sepConj_assoc]
   refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
   refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
@@ -1288,7 +1288,7 @@ theorem alv_state_holds (n : ℕ) (A₀ : List ℕ) :
 theorem alvΓ_holds (n : ℕ) (A₀ : List ℕ) :
     irSTATE (alvΓ n (A₀, 0) ∗ alvHole n A₀) (alvState n A₀, 0) := by
   show (alvΓ n (A₀, 0) ∗ alvHole n A₀)
-    ((vcells (alvState n A₀), acells (alvState n A₀)), 0)
+    ((vcells (alvState n A₀), acells (alvState n A₀), hcells (alvState n A₀)), 0)
   simp only [alvΓ, natAssn_def, arrayAssn_def, sepConj_assoc]
   refine Ir.ptoArr_sepConj_iff.2 ⟨rfl, ?_⟩
   refine Ir.ptoVar_sepConj_iff.2 ⟨rfl, ?_⟩
