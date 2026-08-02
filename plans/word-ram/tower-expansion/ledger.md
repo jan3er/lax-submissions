@@ -1725,3 +1725,110 @@ zero violations, consumer **3,549** unchanged. `ArrayList.lean` and
 `arlAppendOp_refines_unchanged` still compiles. Zero
 `sorry`/`admit`/`native_decide`; eight `#print axioms` gates all
 `[propext, Classical.choice, Quot.sound]`.
+
+### E38 — the array list moves onto the heap; a bridge would have been the wrong object
+
+**Status: landed** (leaf P4.5.A.7, new `Iicf/Impl/ArrayListHeap.lean`, 1,131 L).
+Added 2026-08-02.
+
+*The rejected alternative, and the correct reason for rejecting it.* E37
+named the remaining obstacle to end-to-end append as an
+`arrayAssn ⟷ heapBlockAssn` bridge (`mopArrayToBlock`). It was not built.
+`arrayAssn xs a = a ↦ₐ xs` owns a **named IR array**; `heapBlockAssn` owns a
+**range inside the one reserved `heapName` array**; these are different
+physical storage, and `not_irSTATE_ptoArr_heapName` closes the unsound
+identification by construction. **The binding argument is structural, not
+performance:** `Layout.arrays` is static, so no larger named array exists to
+grow into — the grown buffer *must* live in the heap, and every subsequent
+operation must therefore read it there. A conversion at growth only would
+have been O(n) per growth, i.e. the same order as the blit it accompanies
+and asymptotically free; that was never the objection, and Jan's standing
+guidance (2026-08-02: we need not beat the LLVM base, and constant factors
+do not matter in the O-notation that ends up mattering) makes the point moot
+either way. Recorded because the first supervisor framing led with the cost
+argument, which was the weaker one.
+
+*The representation.*
+`heapBlockAssnAt p xs c = (c ↦ᵥ p) ∗ (p ↦ₕ xs)`;
+`heapBoundedArrayAssn p s c = ⌜s.Wf⌝ ∗ (heapBlockAssnAt p s.buffer c.1 ∗ …)`;
+`heapArrayListAssn p = hrComp (heapBoundedArrayAssn p) arrayListRel`.
+`ArrayList`, `arrayListRel`, `boundedPush`, `arlShrinkCapacity` and every
+value-level theorem are **reused unchanged** — the new bridges cite
+`ArrayList.lean`'s own `arlSetExecState_refines`,
+`arlButlastExecState_refines`, `arlSwapExecState_refines` and
+`buffer_getElem_eq_active` as proof terms. This is P5.E's "substrate
+substitution, representation theory reused" in its cleanest instance.
+
+*Two landed precedents did the work, followed rather than reinvented.*
+HeapEO's **D-B1d** — register the pinned-base form, keep the packed
+existential out of the database — is mirrored exactly
+(`heapArrayListAssnPacked` exists, with `heapArrayListAssn_entails_packed`,
+deliberately unregistered). HeapEO's **D-B1c** — address arithmetic is the
+caller's — is the one real cost difference of the re-seat.
+
+*All seven executable rules came across*, and `sepref_synth` found all five
+new commands first try: `get` → `adr := bc+idx ; out := heap[adr]`; `last` →
+`idx := len-one` first; `set` → `adr := bc+idx ; heap[adr] := value`; `swap`
+→ two address formations, two `aget`, two `aset`; `butlast` → the *identical*
+command (metadata only); `length`/`isEmpty` reuse the landed rules as proof
+terms. Delta versus the named-array forms is `+1·ir.add` per indexed access
+(`+2` for swap) — a constant factor, explicitly a non-issue under Jan's
+guidance above.
+
+*A design point that is load-bearing, not stylistic.* The new primitives
+`mopHaget`/`mopHaset` take the **absolute address** as their abstract
+operand. A mop indexed by offset would have forced the synthesizer to invert
+`p + ?j` against `hnr_seq`'s opaque binder — precisely the wall E37
+documents. With the address as operand it flows through the binder and every
+synthesis succeeded.
+
+*E29, corrected mid-work by the worker.* The first draft's claim "one rule
+per operation, so no choice is ever made" was **false for `butlast`**, whose
+program and price are unchanged, so its two rules differed only in the
+assertion. Repaired by making `arlHButlastExecSpec` a distinct `irreducible`
+constant; the separation is then syntactic, and `transOp`'s "first entry that
+applies **and** whose side conditions close", with backtracking, protects it.
+get/last/set/swap are non-interchangeable on cost; length/isEmpty carry no
+attribute. No registered rule in this file allocates or repacks, which is
+E29's actual failure mode.
+
+*The cost story is unaffected, verified rather than asserted.*
+`ArrayList.lean` and `ArrayListCash.lean` are **byte-identical**. `dynRate`
+and its domination proofs are stated about `arlAppendMachineN`, assembled
+from the named-array adapter's programs; this file adds programs without
+touching any. F11 discipline held at the fifth opportunity: every price has a
+predicted `IrVecN`, a `_toE` theorem against the `ECost` the rules pay, **and**
+a `#guard` that the emitted program run by `evalFuel` charges that vector —
+plus a *differential* for `get` and `swap` against the landed named-array
+command on the same data. All predictions matched.
+
+*What remains, and it is no longer representational.* End-to-end append is
+now blocked on `hnr_If` over a **moving base pointer**: the in-place branch
+ends at `heapBlockAssnAt p`, the growth branch at `heapBlockAssnAt p'`, and
+`MERGE` cannot identify them. The merged form must be the packed
+`heapBlockAssn` — the form D-B1d keeps out of the database. Next leaf: a
+dispatch rule stated at the packed assertion and used **by name**, never
+registered, in exactly the idiom `arlGrowSynth` already uses.
+
+*Falsification.* Six controls, all flipped, all bit — and chosen, learning
+from E37's vacuous first draft, as *legal but wrong* heap addresses so the
+mutilated programs run to completion rather than faulting. The one that
+matters most is control 2: **the base pointer ignored**, reading at the
+offset as if based at 0. That is the re-seat's characteristic failure and it
+is now compiled.
+
+*Operational note.* `lax build --only proofs word-ram` run from **inside**
+`word-ram/` reports three spurious violations (missing
+manifest/abstract/LICENSE), because it resolves that directory as the
+submission root. From the repo root it is clean. Not a regression, but it
+will mislead anyone who runs it from the wrong cwd; `.claude/leaf-gate.sh`
+always runs it from the root.
+
+*Closure artifact.* `.claude/leaf-gate.sh word-ram` → `LEAF GATE: mechanical
+checks PASS`: concepts 505, proofs 3,282 → **3,283**, `lax build: OK` with
+zero violations, consumer **3,549** unchanged. Zero
+`sorry`/`admit`/`native_decide`; `#print axioms` gates compiled in-file for
+all three primitives, all five exec rules and
+`heapArrayListAssn_entails_packed`, every one
+`[propext, Classical.choice, Quot.sound]`. `arlAppendOp_refines` unchanged
+and `arlAppendOp_refines_unchanged` still passing.
