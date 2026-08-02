@@ -276,6 +276,325 @@ the local IR grows a justified lowering for every source operation; then port th
 relevant source matrices and prove their `pp` composition refines the
 collapsed upper rate.
 
+### E16 — array-list append is conditional where the source rule is unconditional
+
+**Status: accepted; verify before P5 closes.** Sepreftime's
+`Refine_Imperative_HOL/IICF/Impl/IICF_Array_List.thy` at `c1c987b` states
+
+```
+arl_append_hnr_aux:
+  (uncurry arl_append, uncurry (RETURN oo op_list_append))
+    ∈ (is_array_list^d *_a id_assn^k) →_a is_array_list
+```
+
+with no precondition slot (source `:177`). Append is unconditionally total
+because `arl_append` (source `:30–42`) branches into
+`array_grow a (2*len) default` when the physical array is full (source
+`:38`), and `arl_append_rule` (source
+`:87`) is a plain `sep_auto` triple over `is_array_list l a` alone. The
+dynamic-array file `IICF_DArray_List.thy` has the same unconditional push.
+
+`ArrayList.lean:415` registers `arlAppendOp_refines` not over
+`arrayListRel` but over `arrayListReadyRel` (`:362`), which adds the
+conjunct `boundedPush p.1 0 ≠ none`. `DArrayList.lean:193` registers
+`daPushOp_refines` over `daReadyRel` (`:174`) with the identical added
+conjunct. Neither relation has a source counterpart. This is the campaign's
+first **weakened public guarantee**, not a representation choice: a caller
+holding only `arrayListAssn`/`daAssn` can no longer conclude that append
+succeeds, and physical exhaustion stays observable as `NRest.fail`
+(`ArrayList.lean:376–379`) or as the exec dispatcher's `ok` flag
+(`ArrayList.lean:163`).
+
+Cause: substrate, and specifically D2. The endorsed machine's instruction
+set (`word-ram/concepts/Lax13/Ram.lean:161`) and the IR command type
+(`Lax13Proofs/Refine/Ir/Syntax.lean:134–155`, ten constructors: `skip`,
+`const`, `copy`, `binop`, `aget`, `aset`, `seq`, `ite`, `while`) contain no
+allocation instruction, so no program can produce the fresh doubled buffer
+that `array_grow` returns.
+
+**No compiled refutation exists.** Nothing in the repository proves that an
+unconditional source-shaped append rule is underivable; the argument is the
+architectural absence above, read off the `Com` constructor list. If this
+entry is to be closed rather than carried, that refutation is what is
+missing.
+
+The neighbouring fixed-capacity family is *not* affected and must not be
+lumped in: `MSArrayList.lean:237` restricts `marlReadyRel` to
+`p.1.length < N`, which is exactly the source's own
+`[λ((l,a),_). length a < M]` guard on `marl_push_back_impl`
+(`isabelle_llvm_time` `IICF_MS_Array_List.thy:131–132`). That one is
+source-faithful.
+
+Revisit trigger: any P9/consumer use of a P5.B sequence whose append cannot
+be shown to sit in the ready relation, or the arrival of an allocation
+capability in the IR. Fallback if a consumer needs the unconditional rule:
+carry the ready relation in the consumer's own invariant, and record that
+the consumer, not the container, discharges exhaustion.
+
+### E17 — allocation, deallocation, and pointer boundaries are demoted to pure models
+
+**Status: accepted.** Across P5.B/C every source operation that allocates,
+frees, copies into fresh storage, or exports a pointer is replaced by a pure
+value model plus, where meaningful, an establishment operation over
+caller-supplied storage. The pattern is uniform, so it is one entry:
+
+| file | source construct (repo/file) | Lean disposition |
+|---|---|---|
+| `ArrayList.lean:96–108` | `arl_empty`, `arl_empty_sz` (Sepreftime `IICF_Array_List.thy:20–28`, `Array.new`-backed) | `arlEmptyModel`/`arlEmptySizeModel` as pure models, plus the added `arlEmptyIn`/`arlEmptySizeIn` over a caller-owned buffer; `arlEmptyOp_refines` (`:400`) and `arlEmptySizeOp_refines` (`:404`) are deliberately **not** tagged `@[sepref_fref_thms]`, and no exec rule exists |
+| `ArrayList.lean:174` | `arl_copy` (source `:44–47`), whose rule yields two separately owned arrays: `< is_array_list l a > arl_copy a <λr. is_array_list l a * is_array_list l r>` (source `:84`) | `arlCopyModel s = s`. The *pure* refinement stays faithful because the abstract operation is itself identity (`Intf/List.lean:304`: `op_list_copy` is `fun xs => NRest.returnT xs`), and `arlCopyOp_refines` (`:408`) is registered; **no heap rule is claimed**, so the source's ownership-duplication content is dropped, not weakened |
+| `ArrayList.lean:191–200` | source shrink (allocating) | logical-capacity reduction inside the same owned buffer; `arlShrinkCapacity` retains the source's `4·n < cap ∧ 16 ≤ 2·n` decision but never copies |
+| `ArrayMapTotal.lean:60–61`, `:327` | `amt1_init` (`isabelle_llvm_time` `IICF_Array_Map_Total.thy:14`) and the derived `MK_FREE (amt_assn N V) ?fr` (source `:101`) | `amtInitIn` fills an already-owned `N`-cell array; the `MK_FREE`/pointer-export family is dropped with no zero-cost stand-in |
+| `ArrayMap.lean:564–567`, `:641` | `am_assn_free`, allocation-backed `am2_empty`, LLVM export, pointer regression | `amEmpty_exec_hnr` over caller-owned arrays only |
+| `ArrayMapMap.lean:17`, `:614–616` | `new_liam` (Sepreftime `IICF_ArrayMap_Map.thy`) | caller-owned array + caller-owned scalar cell initialization |
+| `ArrayMatrix.lean:315–319`, `:541–543` | the general tabulator, which allocates and calls a higher-order heap callback | `amtxTabulateOp` keeps full semantics and a registered *pure* rule (`:322`) but is given **no** executable rule; `amtxDefault_exec_hnr` is the honest caller-owned fill |
+| `ArrayOfArrayList.lean:242`, `:595–598` | `aal_free`; and the outer array of pointers to independently owned rows | `aal_free` unrepresented; there is no command for selecting `s.rows[i]`, and every executable rule begins after the caller has supplied the selected row's array/length/capacity cells |
+| `ImplHeap.lean:19–23` | allocating heap creation and growth | empty is a semantic model with no executable rule; insertion is exposed only from the ready relation (see E16) |
+
+Cause: substrate (D2), the same missing allocation capability cited in E16.
+
+Two honesty notes belong with this entry rather than in the module headers:
+
+1. `ArrayOfArrayList.lean:866–869` defines
+   `aalOuterSelectionSupported : Prop := False` and proves
+   `aalOuterSelection_unsupported : ¬ aalOuterSelectionSupported` by `simp`.
+   This is a **marker, not a compiled refutation**: the predicate is
+   definitionally `False`, so the theorem says nothing about the IR. Read as
+   a refutation of outer pointer-array selection it would be circular.
+2. No file emits a zero-cost placeholder for a dropped allocation operation
+   (`ArrayMap.lean:641`, `ArrayMapTotal.lean:19`, `ArrayMapMap.lean:614–616`,
+   `ArrayMatrix.lean:543`, `ArrayOfArrayList.lean:952`,
+   `MSArrayList.lean:690`). That restraint is correct and is the reason the
+   demotions are recorded as dropped content rather than as mispriced
+   content.
+
+Revisit trigger: an IR allocation/free capability, or a consumer that needs
+two independently owned copies of one container (the `arl_copy` case is the
+first that would break).
+
+### E18 — correction to E7: no pinned IICF source carries cost text, and the whole P5.B/C cost layer is authored
+
+**Status: accepted; corrects E7 and `port-map.md:210`.** E7 records that the
+`isabelle_llvm_time` `sepref/IICF/` tree "almost entirely lacks cost
+vocabulary" and names "Sepreftime's single-currency IICF" as a *usable
+cost-carrying* container source. `port-map.md:210` calls the Sepreftime
+sequence files "cost copies (8.8 / 3.1 / 8.5 / 16.9 KB)". **That premise is
+false**, and P5.B/C were built on it.
+
+Re-verified in this backfill against the pinned trees:
+
+- Sepreftime `Refine_Imperative_HOL/IICF/Impl/IICF_Array_List.thy` @
+  `c1c987b` contains **no** cost, credit, `enat`, or `acost` text at all.
+  Its rules are plain `sep_auto` Hoare triples in
+  Separation_Logic_Imperative_HOL (`:84`, `:87`, `:162–188`). Its only
+  `$`-shaped token is the `op_arl_empty_sz$N` application at `:217`.
+- The `isabelle_llvm_time` @ `42dd7f5` files
+  `IICF_Array_List.thy`, `IICF_Array_Map.thy`, `IICF_Array_Map_Total.thy`,
+  `IICF_Array_of_Array_List.thy`, `IICF_Indexed_Array_List.thy`,
+  `IICF_MS_Array_List.thy`, `Heaps/IICF_Abs_Heap.thy`,
+  `Heaps/IICF_Impl_Heap.thy`, `Heaps/IICF_Abs_Heapmap.thy` likewise match
+  zero lines of `acost|timerefine|enat|cost`.
+- `IICF_Abs_Heap.thy` is byte-identical between the two trees, so the
+  "Sepreftime cost copy" of the heap layer is not a cost copy either.
+
+Not re-verified in this backfill (no local checkout was available):
+Sepreftime `IICF_ArrayMap_Map.thy` and `IICF_Array_Matrix.thy`. The scalar
+`enat` bounds quoted in `ArrayMapMap.lean:19–22` (`n+3` empty, `6` update,
+`2` membership/lookup) and `ArrayMatrix.lean:20–22` (`3*N*M+3` tabulate,
+`N*M+1` default fill, `1` get/set) are **header assertions, not verified
+here**. Both headers already mark them as provenance only and do not equate
+them with `ECost`; `DArrayList.lean:39–50` does the same for the source's
+12/23 pair, and gates it with `#guard` so it can never drift into the IR
+algebra.
+
+Consequence: **every** vector cost in P5.B/C is authored, not translated —
+each `*Cost` definition, each `Com` program, each `*_exec_hnr` rule, and each
+`*_exec_refines` bridge. The authored cost definitions are:
+
+| file | authored cost definitions |
+|---|---|
+| `ArrayList.lean` | `arlLengthCost` `:666`, `arlIsEmptyCost` `:667`, `arlLastCost` `:669`, `arlGetCost` `:671`, `arlSetCost` `:672`, `arlButlastCost` `:674`, `arlSwapCost` `:678` |
+| `DArrayList.lean` | none of its own; reuses P4's `boundedExecCost` (`:214`) |
+| `MSArrayList.lean` | `marlAppendCost` `:409`, `marlButlastCost` `:412`, and five abbreviations `:415–419` |
+| `IndexedArrayList.lean` | `ialSwapCost` `:975`, `ialLengthCost` `:980`, `ialIndexCost` `:981`, `ialButlastCost` `:982`, `ialAppendCost` `:985`, `ialGetCost` `:989`, `ialContainsCost` `:990` |
+| `ArrayOfArrayList.lean` | five row abbreviations `:599–603`, `aalRowPopCost` `:624`, `aalRowTakeCost` `:660` |
+| `ArrayMap.lean` | `amEmptyCost` `:329`, `amLookupCost` `:331`, `amContainsCost` `:333`, `amUpdateCost` `:334`, `amDeleteCost` `:336` |
+| `ArrayMapTotal.lean` | `amtInitCost` `:217`, `amtLookupCost` `:218`, `amtUpdateCost` `:219` |
+| `ArrayMapMap.lean` | `ammPackCost` `:340`, `ammEmptyCost` `:343`, `ammContainsCost` `:346`, `ammLookupCost` `:348`, `ammUpdateCost` `:351` |
+| `ArrayMatrix.lean` | `amtxDefaultCost` `:386`, `amtxGetCost` `:389`, `amtxSetCost` `:392` |
+| `AbsHeap.lean`, `AbsHeapmap.lean` | none — see E20 |
+| `ImplHeap.lean` | `implHeapUpdateCost` `:262`, `implHeapValueCost` `:265`, `implHeapExchangeCost` `:268`, `implHeapValidCost` `:271`, `implHeapSwimCost` `:490`, `implHeapSinkCost` `:501`, `implHeapInsertCost?` `:1077`, `implHeapPopMinCost` `:1092` |
+
+A second, structural consequence follows and is recorded here rather than
+inflating a further entry. Because the P5.A interface operations are
+cost-silent, a positive-cost IR program cannot refine them at the same
+`NRest` type (`ArrayList.lean:531–534`). P5.B/C therefore replace the
+source's single `sepref_decl_impl` conclusion — one `hfref` fact linking the
+abstract operation to the implementation — with **two surfaces plus a
+bridge**: a cost-silent `fref` at the value level, an exact-budget
+`hnRefine` at the IR level, and `*_exec_refines` lemmas connecting the two.
+That is a departure from the source's rule shape, not only from its cost
+text. It also means no single landed fact says "this command implements this
+list operation at this price".
+
+Cause: repo addition on top of a substrate boundary. This is E7's own
+"derivation, following the `CombRules.lean` precedent" discipline applied at
+scale; what E7 got wrong is only the claim that a cost-carrying source
+existed to derive *from*.
+
+Do not rewrite E7. Its scheduling conclusion (P5 ports the interface table
+and derives vector costs) survives; only its source-availability premise is
+withdrawn here. `port-map.md:210`'s "cost copies" wording should be read as
+size evidence, exactly as E7's own last sentence already instructs.
+
+Revisit trigger: if a currency-native container source is later located in
+any pinned tree, re-derive the affected `*Cost` definitions against it
+before any consumer depends on the authored numbers.
+
+### E19 — monomorphization and representation substitution in the map and matrix families
+
+**Status: accepted.** Three source representations have no faithful image in
+a natural-number-array IR, and were substituted rather than dropped:
+
+1. **`ArrayMapTotal` value type.** The source is
+   `amt1_init :: nat ⇒ 'a::llvm_rep amt1 nres`,
+   `amt1_init N ≡ RETURN (replicate N init)`
+   (`isabelle_llvm_time` `IICF_Array_Map_Total.thy:14`), polymorphic over any
+   LLVM-representable element with that type's own `init`. `ArrayMapTotal.lean:28`
+   fixes the concrete carrier to `List ℕ` and the abstract map to
+   `ℕ → Option ℕ`, and `:58` fixes the fill value to `0`
+   (`amtInitModel N = List.replicate N 0`). Genericity is recovered one level
+   up: `amtRel` (`:36`) and `amtAssn` (`:45`) compose through
+   `mapRel (Set.diagonal ℕ) (thePure A)`, reproducing the source's double
+   composition, and `amtAssn_comp` (`:52`) proves the two associations agree.
+   The source relation's non-single-valuedness is *preserved*, not
+   introduced: source `amt1_rel` (`:12`) constrains only present keys, and
+   `amt1Rel` (`:28`) does the same. The header's "intentionally not
+   single-valued" is therefore source-faithful and is not a deviation.
+2. **`ArrayMap`/`ArrayMapMap` absence encoding.** The source owns one array
+   of `'a option`. No natural can serve as an absent-value sentinel, so
+   `ArrayMap.lean:25–32` uses two caller-owned arrays of equal length — a
+   canonical 0/1 `present` array with a well-formedness constraint plus an
+   unrestricted `values` array — and `amConcrete` (`:34`) reads them as the
+   source's option array. `ArrayMapMap.lean:30–34` extends that with the
+   source `is_liam`'s third owned cell holding `card (dom M)`, proved equal
+   to `(ammDomain N m).card` (`:45`).
+3. **`ImplHeap` instantiation.** The generic Sepreftime locale is kept only
+   at its executable specialization — natural elements, identity priority,
+   array-list carrier (`ImplHeap.lean:12–17`, `:33`). The generic locale
+   parameters are not exposed.
+
+Cause: substrate for (1) and (2) (the IR's only aggregate is a
+natural-number array); local machine boundary for (3), following the
+executable source's own global instantiation.
+
+No compiled refutation is claimed for any of the three, and none is needed:
+each is a representation change with the composition theorems proved
+(`amtAssn_comp`, `amConcrete`, `amm1Rel`). Revisit if a consumer needs a
+non-`ℕ` element type at the *concrete* layer rather than through `thePure`,
+or a heap over a non-identity priority.
+
+### E20 — abstract heap layers are cost-free, and `ImplHeap`'s loop layer proves less than its names suggest
+
+**Status: accepted for the abstract layers; OPEN for `ImplHeap`.**
+
+`AbsHeap.lean:11` and `AbsHeapmap.lean:11–12` declare themselves semantic
+layers with no IR commands, heap assertions, allocation rules, or vector
+costs. That is confirmed: neither file defines any `*Cost` or any
+`hnRefine`, and every operation is a bare `NRest.returnT` or an `assert`-
+guarded `returnT`, i.e. priced at zero (`AbsHeap.lean:1312–1332`,
+`AbsHeapmap.lean:1193–1253`). The corresponding sources also carry no cost
+text (E18), so the *shape* is faithful; the campaign-relevant fact is that
+these two layers contribute nothing to any currency vector, and the
+`Impl_Heapmap` layer that would price the heapmap operations is still
+unported. Any consumer composing `hm*Op` today gets a free priority map.
+`AbsHeap` is at least closed by `ImplHeap`. Also recorded per D1:
+`AbsHeap.lean:12–16` replaces the source's `RECT` swim and optimized-sink
+programs with explicit fuel-bounded structural recursion whose public
+wrappers supply fuel from the one-based position/list length, and
+`:18–20` adds the `[Inhabited α]` needed to keep source `val_of` total
+outside its validity precondition.
+
+`ImplHeap.lean` is the weaker case and the reason this entry stays open:
+
+- `implHeapSwimLoopInv` (`:571`) and `implHeapSinkLoopInv` (`:781`) are both
+  `fun _ => True`. The `irWhileIT` rules are therefore instantiated with
+  vacuous invariants and carry no heap property across the loop.
+- The executable specifications are, by the file's own statement
+  (`:561–566`), the `irWhileIT` programs themselves. So
+  `implHeapSwim_exec_hnr` (`:758`) and `implHeapSink_exec_hnr` (`:1017`)
+  prove that a command refines its own denotation at its own price. The
+  closed forms `implHeapSwimCost` (`:490`) and `implHeapSinkCost` (`:501`)
+  are not connected to them.
+- Grepping the file finds **no theorem relating `implHeapSwimExecSpec`
+  (`:725`) or `implHeapSinkExecSpec` (`:987`) to the abstract
+  `implHeapSwim` (`:88`) or `implHeapPopMin?` (`:100`).** The value-level
+  facts (`implHeapPopMinOp_refines` `:1389`) and the IR-level facts
+  (`implHeapPopMin_exec_hnr` `:1202`) exist side by side with nothing
+  joining them — the E18 bridge is present for the array families and
+  absent here.
+
+The file's header does not overclaim, and the `:562–566` comment explicitly
+refuses to substitute the closed forms for an unproved loop theorem. The
+deviation is that the heap's executable layer, unlike every other P5.B/C
+family, currently delivers no semantic content at the IR level.
+
+Cause: repo gap, not substrate. A source-shaped route exists: a real loop
+invariant plus a swim/sink execution theorem. No compiled refutation is
+claimed and none would be honest.
+
+**Status note (2026-08-02): a repair of this layer is reported in progress
+by a separate worker. This entry records the state as landed at commit
+`67c4fa2` and is not a claim that the defect persists. It must be revisited
+and either closed or restated before P5 closes.**
+
+### E21 — five global attribute mutations are never restored
+
+**Status: accepted; assigned to P6.** `Intf/ListList.lean:74`+`:79` shows
+the correct pattern: `attribute [-intf_of_rel] listRel_intf`, the local
+declaration that needs the hole, then `attribute [intf_of_rel] listRel_intf`
+restoring the database. The P5.B/C implementation leaves do not pair their
+mutations:
+
+| site | mutation | restored? |
+|---|---|---|
+| `ArrayList.lean:571` | `attribute [irreducible] arlPred` | no |
+| `ArrayList.lean:643` | `attribute [irreducible] arlSelectCap` | no |
+| `MSArrayList.lean:402` | `attribute [irreducible] marlPred` | no |
+| `ArrayMapMap.lean:306` | `attribute [irreducible] ammZeroCount` | no |
+| `ImplHeap.lean:1113` | `attribute [-sepref_fr_rules] arlAppend_exec_hnr` | no |
+
+Each `irreducible` is set immediately after the corresponding
+`@[sepref_fr_rules]` rule (`ArrayList.lean:565`, `:595`,
+`MSArrayList.lean:395`, `ArrayMapMap.lean:297`) so that synthesis matches
+the wrapper rather than unfolding it. Since the attribute is global and
+never reverted, every downstream cost computation must re-open the
+definition by hand. Verified workaround sites:
+
+- `marlPred` leaks out of `MSArrayList` into `IndexedArrayList.lean:952` and
+  `ArrayOfArrayList.lean:619`, forcing `simp [… marlPred …]` at
+  `IndexedArrayList.lean:1068` and `ArrayOfArrayList.lean:637`;
+- `arlPred`/`arlSelectCap` force the same at `ArrayList.lean:745`, `:754`,
+  `:761`;
+- `ammZeroCount` forces it at `ArrayMapMap.lean:380`.
+
+`ImplHeap.lean:1113` is different in kind — it erases a rule from the global
+`sepref_fr_rules` label set (`Refine/Sepref/Attrs.lean:50`) so that
+`implHeapAppendRaw_exec_hnr` (`:1115`) can take its place, and never
+restores it. Note for the P6 owner: `ArrayList.lean:163` declares
+`arlAppend_exec_hnr` **without** `@[sepref_fr_rules]`, and no other file in
+the tree registers it, so which registration this erasure cancels could not
+be determined from the source text in this backfill. The mutation is global
+and unrestored either way.
+
+Cause: repo addition (a synthesis-control convenience), not substrate. No
+compiled refutation is relevant; the paired pattern demonstrably works one
+directory over.
+
+Revisit: P6 restores each mutation at the end of its owning section
+(`attribute [semireducible]`, respectively re-adding the label) and deletes
+the `simp` workarounds it makes unnecessary. Do this before any further
+consumer imports these files, since the leak grows with each importer.
+
 ## 4. Corrections that are not deviations
 
 These P0 discoveries change citations or scheduling without changing a
@@ -303,3 +622,19 @@ accepted entry adds an entry here before landing. The entry records:
 
 Local implementation discoveries that do not change a campaign decision
 belong in module headers and `debt-register.md`, not as ledger inflation.
+
+**Backfill note, 2026-08-02.** Entries E16–E21 were written *after* the work
+they describe had landed, and that is a process failure against the rule
+stated at the top of this section. Between E15 (2026-07-31 21:04) and this
+note, all twelve P5.B/P5.C implementation leaves landed —
+`ArrayList`, `DArrayList`, `MSArrayList`, `IndexedArrayList`,
+`ArrayOfArrayList`, `ArrayMap`, `ArrayMapTotal`, `ArrayMapMap`,
+`ArrayMatrix`, `AbsHeap`, `ImplHeap`, `AbsHeapmap` — and not one added an
+entry here. Their deviations were recorded only in the module headers, which
+made them invisible at campaign level; E18's correction to E7 in particular
+would have been caught before eight files were built on the withdrawn
+premise, and E16's weakened append rule should never have landed without an
+entry. E16–E21 are transcriptions from those headers, verified against the
+cited `file:line` and, where a pinned checkout was reachable, against the
+source text; claims that could not be re-verified are marked as such inside
+the entries. The rule is unchanged: the entry precedes the landing.

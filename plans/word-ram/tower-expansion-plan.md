@@ -1,21 +1,42 @@
 # Tower expansion plan — aggressive porting of the remaining refinement stack
 
-Rev 4, 2026-07-31. **Status: OPEN — accepted by Jan 2026-07-31 ("full
-autonomy ports over. resolve by your taste"); JAN-FLAGs resolved below
-by the supervisor under that grant. Codex-only governance confirmed by
-Jan 2026-07-31; normal Codex subagent transport confirmed during P1.A;
-P0 through P4 are complete. P4 lands generic vector amortization, the bounded
-dynamic-array adapter, pure logarithmic union-find, and timed loop-form
-union-find. P5.A is complete: all eight interface families are root-imported
-and archive-green. P5.B is complete: all five concrete bounded-sequence and
-all three bounded-key map families are green as unrooted leaves: `Array_List`,
-`DArray_List`, `MS_Array_List`, `Indexed_Array_List`,
-`Array_of_Array_List`, `Array_Map`, `Array_Map_Total`, and `ArrayMap_Map`.
-P5.C has `Array_Matrix`, `Abs_Heap`, executable `Impl_Heap`, and
-`Abs_Heapmap` green. The source-first scope firewall below was added at Jan's
-request on 2026-07-31.** This document is
-the contract: implementing sessions follow it, deviations need an owner
-decision first.
+Rev 5, 2026-08-02. **Status: OPEN — P5 PAUSED MID-PHASE for a substrate
+correction ordered by Jan 2026-08-02.**
+
+Rev 4 history: accepted by Jan 2026-07-31 ("full autonomy ports over. resolve
+by your taste"); JAN-FLAGs resolved below by the supervisor under that grant.
+Codex-only governance confirmed by Jan 2026-07-31; normal Codex subagent
+transport confirmed during P1.A. P0 through P4 are complete. P4 lands generic
+vector amortization, the bounded dynamic-array adapter, pure logarithmic
+union-find, and timed loop-form union-find. P5.A is complete: all eight
+interface families are root-imported and archive-green. P5.B landed all five
+concrete bounded-sequence and all three bounded-key map families: `Array_List`,
+`DArray_List`, `MS_Array_List`, `Indexed_Array_List`, `Array_of_Array_List`,
+`Array_Map`, `Array_Map_Total`, and `ArrayMap_Map`. P5.C landed
+`Array_Matrix`, `Abs_Heap`, executable `Impl_Heap`, and `Abs_Heapmap`. All
+twelve are root-imported as of 2026-08-02. The source-first scope firewall
+below was added at Jan's request on 2026-07-31.
+
+**Rev 5 decision (Jan, 2026-08-02).** A mid-phase review found that P5's
+implementation layer is seated on a substrate the pinned sources themselves
+abandoned, and that the resulting deviations concentrate in exactly the class
+Jan rules out. Jan's ordering, stated at the decision:
+
+> *"it is crucial to me that downstream consumers can use the same
+> battle-tested isabelle interface with all guarantees. if an implementation
+> yields the same guarantees but differs internally thats a bit less bad.
+> but we had bad experiences in developing velocity when deviating from
+> source. i want to port onto the modern stack you found."*
+
+This establishes a **guarantee-fidelity law** (§ "Guarantee fidelity" below)
+that outranks representation fidelity, and it retires the standing
+"allocation is rejected" decision recorded in P4. Consequences are scheduled
+as the new phase **P4.5**; P5.D and `Impl_Heapmap` are gated behind it, and
+the landed P5.B/C leaves are re-seated rather than re-derived. `Intf/` is
+unaffected landed capital and is explicitly not reopened.
+
+This document is the contract: implementing sessions follow it, deviations
+need an owner decision first.
 
 ## Governance and working model
 
@@ -90,6 +111,49 @@ force an in-phase correction only by exposing that a scheduled source
 declaration was mistranslated or omitted. Deferred, excluded, stretch,
 revisit, and inventory-only items are not latent tasks during P1–P9.
 
+**Amendment (rule 5, Jan 2026-08-02): guarantee fidelity outranks
+representation fidelity.** A downstream consumer must be able to program
+against the battle-tested Isabelle interface and get *the source's
+guarantees*. The three classes, in descending severity:
+
+1. **Guarantee deviation — forbidden.** A ported operation whose Lean
+   statement is strictly weaker than the pinned source statement: extra
+   preconditions, a partial result where the source is total, a success
+   condition the source does not impose. Two are landed, both with the same
+   added conjunct `boundedPush _ 0 ≠ none` against an unconditional source
+   push: `arlAppendOp_refines` over `arrayListReadyRel`
+   (`ArrayList.lean:362,415`, against `arl_append_hnr_aux`) and
+   `daPushOp_refines` over `daReadyRel` (`DArrayList.lean:174,193`). Ledger
+   E16. These require an owner decision before landing, not a module-header
+   note; both are cleared by P5.E once P4.5 lands.
+2. **Representation deviation — acceptable, ledgered.** Same guarantees,
+   different internals: a different concrete encoding, a different proof
+   route, a Lean-idiomatic restructuring. Ledger entry, then land.
+3. **Substrate rendering — expected.** Isabelle/HOL vs Lean/mathlib
+   spellings, tactic differences, locale packaging. Module header only.
+
+A precondition that the *source also carries*, stated at the same scope as
+the source states it, is not a guarantee deviation. Scope is the whole
+question: a global program-level side condition (the source's "given
+`malloc` succeeds", our "total allocation ≤ `2 ^ w`") preserves the
+guarantee; the same condition pushed down onto each individual operation
+destroys it. When rendering a source precondition, keep its scope.
+
+**Velocity note (Jan, 2026-08-02).** Deviating from source has repeatedly
+cost development velocity on this project. Rule 5 is therefore also an
+economic rule, not only a correctness one: the cheapest path is the
+source's, and a deviation must earn itself against that baseline.
+
+**What "the machine model is frozen" means — three distinct things, only
+one of them frozen.** The phrase was applied to all three during P1–P5,
+which is what produced the class-1 deviations above.
+
+| | what it is | status |
+|---|---|---|
+| **Endorsed machine** | `word-ram/concepts/Lax13/Ram.lean`: `State`, `Op`, `Instr`, `run`, `RunsTo`. The submission surface the endorsed theorems quantify over. | **Frozen permanently.** Changing it changes the claim and invalidates endorsement. |
+| **The IR** | `Refine/Ir/Syntax.lean`: `Com`, `Cond`, `Operand`. Proofs-side scaffolding compiled to the endorsed machine by `Refine/Codegen/`. | **Not frozen.** New operations are allowed when they compile down and carry honest cost. Binding D3 still applies: verified codegen coverage before executable capital. |
+| **"Allocation is rejected"** | A P4-era design decision, recorded as if it followed from the row above. | **Retired 2026-08-02.** It does not follow, and it is the direct cause of the guarantee deviations. |
+
 ## Sources (pins carried forward; P0 completes the table)
 
 Carried unchanged from the tower campaign (`refinement-tower/design.md`):
@@ -122,15 +186,109 @@ handoff, and may send work back only when it demonstrates a source-fidelity
 defect in a scheduled declaration. C0, B7, and the ND-MC P5 remain owned by
 the ND-MC campaign.
 
+## 2026-08-02 mid-phase review findings
+
+Six findings from the P5 mid-phase review. F6–F8 correct P0; F9–F11 are
+process failures. Each has a consequence scheduled below.
+
+- **F6 — the IICF is not merely dead in the artifact, it is superseded.**
+  P0's F1 established that `isabelle_llvm_time`'s `sepref/IICF/` is out of
+  the build closure. The review found *what replaced it*. `thys/ROOT` keeps
+  the IICF directories on the theory path but the `theories` entry building
+  `"sepref/IICF/IICF"` is inside `(* … *)`; the only built target is
+  `"examples/sorting/Sorting_Export_Code"`. That target's container
+  substrate is `sepref/Hnr_Primitives_Experiment.thy` — *"Arrays and Option
+  Arrays … monadic operations on lists and lists with explicit ownership"* —
+  imported directly by `Sorting_Setup.thy`, which opens by shadowing the old
+  assertion (`hide_const (open) LLVM_DS_Array.array_assn`) and documents
+  `myswap` as *"swapping elements on array using option arrays internally"*.
+  The timed development routed around the IICF deliberately: costing moves
+  and swaps precisely needs element-level ownership, which the IICF's
+  `hr_comp` style does not provide. The abandoned attempt is still visible
+  as a `sorry`-ed `lift_acost` experiment block at `IICF_Array.thy:89–139`.
+  *Consequence:* phase **P4.5** ports the successor substrate.
+
+- **F7 — E7's premise is false: no cost-carrying IICF exists in any pin.**
+  E7 scheduled P5 implementations "against Sepreftime's cost-carrying IICF
+  (`enat`)". Sepreftime's `IICF_Array_List.thy` carries no cost text at all
+  — plain `sep_auto` Hoare triples, no credits. AFP's IICF is uncosted by
+  design; `isabelle_llvm_time`'s is dead. So the entire currency-vector cost
+  layer of P5.B/C is authored from nothing, not adapted. `port-map.md`'s
+  description of Sepreftime's IICF as "cost copies" is inaccurate and is
+  corrected there. *Consequence:* ledger correction, and P4.5 supplies the
+  cost-carrying substrate E7 assumed already existed.
+
+- **F8 — source selection *within* the IICF was forced and correct; the
+  "dead code" framing was not a source-quality verdict.** Tree listings:
+  AFP 23 files, Sepreftime 30, both LLVM trees 22. `IICF_Array_Map`,
+  `IICF_Array_Map_Total`, and `IICF_Array_of_Array_List` exist **only** in
+  the LLVM trees, so the three leaves citing `isabelle_llvm_time` had no
+  alternative. Diffing the pinned dead copy against the live
+  `isabelle_llvm` 2023 copy: `IICF_Array_of_Array_List` and `IICF_Abs_Heap`
+  byte-identical; the rest differ by 1–4 lines (debug leftovers,
+  whitespace, `Mreturn` vs `return`, one `hrr_comp` arity). The text we
+  ported is the live text. *Consequence:* no re-port needed on these
+  grounds; cite the live pin for provenance where the text is identical.
+
+- **F9 — the per-leaf gate could not see the archive law.** P5.B/C leaves
+  landed "unrooted", gated by `lake build` alone. `lax build`'s
+  `[root-module]` check requires the root to import every module of the
+  package, so the archive gate had been failing since the first unrooted
+  leaf, unobserved. Root-wiring all twelve (2026-08-02, `834b637`) built
+  green at 3,275 jobs with no conflicts — but exposed two real
+  `[namespace]` violations, both `GetElem?.match_1.splitter` from a
+  `split at h` over a `getElem?` match, at `ArrayOfArrayList.lean:141`
+  and `ArrayMapMap.lean:145`. *Consequence:* gate law below.
+
+- **F10 — the deviation register stopped before the implementation
+  campaign.** `ledger.md`'s last entry E15 predates every P5.B/C leaf.
+  The register's own protocol (§5) requires an entry *before* landing.
+  Twelve leaves landed with their deviations recorded only in module
+  headers. *Consequence:* backfilled 2026-08-02; gate law below.
+
+- **F11 — recorded fidelity checks are inert.** `implHeapSwimSourceCom` /
+  `implHeapSinkSourceCom` (`ImplHeap.lean:519,536`) record the source's
+  program shape and are referenced by no theorem. `ammSource*Bound`
+  (`ArrayMapMap.lean:632–635`), `amtxSource*Bound`
+  (`ArrayMatrix.lean:561–564`) and `daPinnedSourceBounds`
+  (`DArrayList.lean:39`) record the source's cost bounds and are guarded
+  only by `#guard`s restating their own definitions. Separately,
+  `fillCost n` (`IicfArray.lean:256`) — the price of every array
+  initialization, consumed at symbolic size by `ufInitCost`, `tinitCost`,
+  `amtInitCost`, `amEmptyCost`, `ammEmptyCost`, `amtxDefaultCost` — has no
+  theorem for symbolic `n`; the only facts are six `decide` evaluations at
+  `n = 3`. *Consequence:* P4.5 and P6 items below.
+
 ## Phases
 
 Each phase lands green with zero `sorry`, is committed on its own, and is
 reviewed before the next builds on it. Every executable layer gets
 `Decidable`/`#eval` instances and Plausible checks the day it lands
 (ledger D4). Elaboration wall-clock recorded per phase. Dependency shape:
-P1 → P2 → P3 forms the source/API spine; P4 follows P3; P5 waves follow
-their declared P1/P2/P4 dependencies; P6–P8 run after the relevant APIs
-freeze; P9 alone integrates the consumer; P10 wraps and reviews backlog.
+P1 → P2 → P3 forms the source/API spine; P4 followed P3; **P4.5 follows P4
+and gates the remainder of P5**; P5 waves follow their declared P1/P2/P4/P4.5
+dependencies; P6–P8 run after the relevant APIs freeze; P9 alone integrates
+the consumer; P10 wraps and reviews backlog.
+
+**Gate law (2026-08-02, from F9/F10).** A leaf is not green until, on the
+day it lands: (i) it is imported from the package root — the "unrooted leaf"
+pattern is retired, since it defeats `lax build`'s `[root-module]` check;
+(ii) `lax build --only proofs word-ram` runs and its violation count is
+reported, not just `lake build`; (iii) any departure from a pinned statement
+has a `ledger.md` entry *before* the commit, per §5 of that file. A worker's
+`lake build` report is not acceptance evidence for any of the three.
+
+**The D4 clause above is unenforced and must be enforced from P4.5.** "Every
+executable layer gets `Decidable`/`#eval` instances and Plausible checks the
+day it lands" is contract text, but `Plausible` appears in **zero** of the
+twenty P5 files. `#guard` is used well (8–22 per implementation file); the
+falsification half is simply absent. The plan's own risk-proportionality
+escape exempts "routine source-shaped ports" while still requiring compiled
+falsification for "genuinely new, deep, or subtle claims" — and F7 settles
+that P5's cost layer is authored, so the exemption never covered it. P4.5's
+allocator and ownership layer are new authored claims about a machine
+substrate: they carry Plausible checks, and the O(1)-allocation and
+no-reuse invariants get compiled negative controls.
 
 ### P0 — Port map and new pins · budget 1 session
 
@@ -227,7 +385,17 @@ discipline, and the scheduled dynamic-array and timed union-find developments.
 The machine model remains frozen and allocation is rejected. A2 combines the
 source-faithful generic/abstract amortization theorem with an explicitly
 bounded executable adapter over caller-owned preallocated buffers; it must not
-claim unbounded allocation. B2 renders the source recursion as loops and
+claim unbounded allocation.
+
+> **Superseded 2026-08-02 (rev 5).** "Allocation is rejected" was a design
+> decision, not a consequence of the frozen machine — see the three-way table
+> in the fidelity charter. It is retired by P4.5. P4's landed results stand
+> unchanged: the bounded caller-owned adapter remains correct and remains the
+> right statement for a caller that supplies its own buffer. What changes is
+> that it is no longer the *only* available statement, so the operations P4
+> and P5 left at caller-owned boundaries can be given their source-strength
+> unconditional forms. A2's "must not claim unbounded allocation" stays
+> binding for the A2 adapter itself. B2 renders the source recursion as loops and
 derives local vector costs. Routine direct ports use source review,
 typechecking, kernel guards, and builds; focused compiled differential tests
 are reserved for the authored vector-reclaim, bounded-array, and union-find
@@ -241,7 +409,67 @@ result plus its explicitly bounded caller-owned executable adapter, with no
 unbounded-allocation claim; and timed union-find green against the frozen
 generic credit API.
 
-### P5 — IICF breadth · budget 2–3 sessions
+### P4.5 — Ownership substrate: EO arrays and a costed allocator · budget 2–3 sessions
+
+**New in rev 5, from F6/F7 and Jan's rule 5.** Port the container substrate
+the pinned artifact actually uses for cost-carrying code, so that P5's
+interfaces can be given their source-strength guarantees instead of
+caller-owned approximations.
+
+Source slice, all at `isabelle_llvm_time@42dd7f5`:
+
+| file | size | carries cost | note |
+|---|---|---|---|
+| `thys/sepref/Hnr_Primitives_Experiment.thy` | 985 L | **yes** (`acost`, `lift_acost`) | the real target: `mop_oarray_new/extract/upd/free`, `eoarray_assn`, registered `sepref_fr_rules`. Carries **one `sorry`**, at `FREE_eoarray_assn:318–325` (the `MK_FREE` deallocation frame rule) |
+| `thys/ds/Proto_EOArray.thy` | 186 L | no | earlier no-cost prototype; shape reference |
+| `thys/sepref/IICF/Impl/Proto_IICF_EOArray.thy` | 298 L | no | the bridge from EO arrays back into IICF interfaces — the shape that satisfies Jan's "same interface, different internals" |
+
+**A. The costed allocator.** Render `mop_oarray_new` as an IR operation.
+This adds to the IR, not to the endorsed machine: `Lax13/Ram.lean` gives
+`2 ^ w` cells addressed `% 2 ^ w`, **initialised to zero**, with indirect
+addressing both ways (`Op.ind`, `Instr.storeInd`). A bump allocator is
+therefore an ordinary program — reserve a heap-pointer cell, allocate by
+reading and advancing it, address the result through `ind`/`storeInd`.
+
+Two consequences to prove, not assume:
+
+- **`alloc n` is O(1), not O(n).** Because the machine starts zeroed and a
+  non-reusing bump allocator never returns a cell twice, fresh memory is
+  already zero — no fill loop. This is *stronger* than the source's
+  `cost'_narray_new n` and it dissolves the O(n)-init × n-arenas → n²
+  problem the campaign has been working around structure by structure. The
+  O(1) figure is contingent on never reusing: **no-reuse is a stated,
+  enforced invariant**, and if free/reuse is ever added the bound reverts.
+- **Exhaustion is a global side condition.** Total allocation ≤ `2 ^ w`,
+  stated once at program level, mirroring the source's "given `malloc`
+  succeeds". Per rule 5 it must **not** be pushed down onto individual
+  operations — that is precisely the move that produced the conditional
+  append.
+
+Deallocation is **excluded**, with the source's own evidence: the artifact's
+`MK_FREE` rule for `eoarray_assn` is its single `sorry`. Ledger entry, with
+the consequence stated plainly — peak memory equals total allocation.
+
+Binding D3 applies: `Ir → IMP+ → RAM` codegen coverage with a proved cost
+before any structure depends on `alloc`.
+
+**B. Element-level ownership.** Port `mop_oarray_extract` / `mop_oarray_upd`
+and `eoarray_assn`: slot-wise `Some`/`None` ownership, `extract` requiring
+`xs!i ≠ None` and yielding `xs[i := None]`, `upd` the converse. This is what
+makes move/swap costs exact and is the mechanism behind the source's
+`myswap`.
+
+**C. The IICF bridge.** Port `Proto_IICF_EOArray.thy`: EO arrays presented
+through the IICF interfaces P5.A already landed. This is the join that lets a
+consumer keep the battle-tested interface while the implementation changes
+underneath.
+
+*Acceptance:* `alloc` green with proved O(1) cost and verified codegen; the
+ownership layer green; at least one P5.B structure re-seated (see P5.E) and
+its previously conditional operation restated **unconditionally** under only
+the global address-space side condition; zero `sorry`; gate law satisfied.
+
+### P5 — IICF breadth · budget 2–3 sessions (A–C landed; D/E rescoped in rev 5)
 
 The mandate's phase. Port the exact source IICF/collections surface assigned
 by P0, honoring X5/E9 and every other recorded exclusion. Each structure:
@@ -252,6 +480,65 @@ implementations per the source's "by sepref" idiom.
 implementation family with zero bespoke tactic work, followed—after the
 P4/P5 APIs freeze—by one source-native Kruskal cross-structure validation.
 Invented per-structure exercises do not become API requirements.
+
+**Rev 5 rescope.**
+
+- **P5.A — landed, not reopened.** The eight interface families are the
+  battle-tested surface Jan's rule 5 protects, and review confirmed them
+  exact against source (`Set` 11/11, `Map` 7/7, `List` 22/22, side
+  conditions at source strength and source scope). P4.5 changes what sits
+  *under* this layer, never the layer itself.
+- **P5.B/P5.C — landed, to be re-seated by P5.E, not re-derived.** The
+  abstract refinement layers and seven of nine `*ExecSpec_refines` seams are
+  sound capital. What changes is the substrate beneath the executable layer.
+- **P5.D — gated behind P4.5.** `List_Mset`, `List_MsetO`, `List_SetO`,
+  `List_Set` and the iterator discipline land on the new substrate; they must
+  not add further caller-owned boundaries.
+- **`Impl_Heapmap` — gated behind P4.5** for the same reason, and behind the
+  `ImplHeap` repair below.
+- **P5.E (new) — re-seat the landed leaves.** Per structure, in dependency
+  order: replace the caller-owned `*In`/ready-relation boundary with the
+  P4.5 allocator, restate every operation the source states unconditionally
+  at source strength, and delete the now-unnecessary ready relations. The
+  first targets are `ArrayList` and `DArray_List` — the two landed class-1
+  guarantee deviations (ledger E16) — and deleting `arrayListReadyRel` and
+  `daReadyRel` while restating both pushes unconditionally is the acceptance
+  test for P4.5. Re-seating is *statement strengthening plus substrate
+  substitution*; the representation theory and the abstract refinement layer
+  are reused, not rewritten.
+
+- **Hygiene, folded into P5.E (ledger E21).** Five global attribute
+  mutations land unrestored: `attribute [irreducible]` on `marlPred`
+  (`MSArrayList.lean:402`), `arlPred` (`ArrayList.lean:571`),
+  `arlSelectCap` (`ArrayList.lean:643`), `ammZeroCount`
+  (`ArrayMapMap.lean:306`), and the `sepref_fr_rules` erasure at
+  `ImplHeap.lean:1113`. The first leaks into `IndexedArrayList.lean:952`
+  and `ArrayOfArrayList.lean:619` and forces `simp` workarounds; the last
+  cancels a registration that no file makes. `Intf/ListList.lean:74`+`:79`
+  is the correct paired pattern to follow. Also
+  `aalOuterSelectionSupported : Prop := False` with
+  `aalOuterSelection_unsupported : ¬ … := by simp`
+  (`ArrayOfArrayList.lean:866–869`) is presented as "a checked negative
+  capability" but is `¬False` — it references neither the IR nor the
+  structure, so it checks nothing. Delete it or replace it with a real
+  statement about the substrate; after P4.5 the capability it denies may
+  simply exist.
+- **`ImplHeap` repair — in flight, must close before P5 closes.** The
+  executable heap's loop invariants are `True`
+  (`ImplHeap.lean:571,781`), its exec specs are the `irWhileIT` programs
+  themselves, and no theorem joins them to `implHeapSwim`/`implHeapPopMin?`.
+  The tower already has the rule this needs
+  (`irWhileIT_le_timerefine_irE`, `Sepref/IrOps.lean:662`), with worked
+  templates at `Sepref/Examples/Acceptance.lean:540–650` and
+  `Examples/Bfs.lean`.
+- **Dead fidelity checks — close or delete (F11).** Prove
+  `implHeapSwimCom ≡ implHeapSwimSourceCom` and relate each `*SourceBound`
+  constant to the corresponding `*Cost`, or delete them and move the shape
+  into prose. A recorded source bound that no theorem compares against ours
+  is decoration, and under rule 5 the comparison is the point.
+- **`fillCost n` general theorem — P6, blocking the cost story (F11).**
+  With P4.5's O(1) `alloc`, several of its consumers may disappear
+  entirely; the remainder still need a symbolic-`n` theorem.
 
 ### P6 — Debt closure: thaw queue and open items · budget 1–2 sessions
 
@@ -380,6 +667,30 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-02 — REV 5: P5 paused mid-phase; substrate correction ordered.**
+  A mid-phase review of the landed P5 output produced six findings (F6–F11
+  above). The load-bearing one is F6: the artifact's IICF is not merely out
+  of its build closure, it is *superseded* by an explicit-ownership container
+  layer (`Hnr_Primitives_Experiment.thy`) that the only built target actually
+  uses — and P0 had already named that file in F1 without acting on it. F7
+  then found that E7's premise was false outright: no pinned source has a
+  cost-carrying IICF, so P5's entire currency layer is authored rather than
+  adapted. Jan's decision the same day set a guarantee-fidelity law (rule 5)
+  ranking interface guarantees above representation, retired the P4-era
+  "allocation is rejected" decision, and ordered the port onto the successor
+  stack. New phase P4.5 ports a costed bump allocator — expressible in the
+  existing IR with **no endorsed-machine change**, and O(1) rather than the
+  source's O(n) because `Lax13/Ram.lean` starts memory zeroed — plus
+  element-level ownership and the IICF bridge. P5.A is explicitly not
+  reopened; P5.B/C are re-seated by the new P5.E, not re-derived.
+  Also landed this session: all twelve P5.B/C leaves root-imported
+  (`834b637`, 3,275 jobs green, no aggregate conflicts), which exposed F9 —
+  the archive gate had been unobservable to the per-leaf `lake build` since
+  the first unrooted leaf, and two real `[namespace]` violations with it. A
+  gate law now requires root-wiring, `lax build`, and a ledger entry on the
+  day a leaf lands. **Next: P4.5.A costed allocator; `ImplHeap` seam repair
+  and ledger backfill in flight.**
 
 - **2026-08-02 — P5.C Abs_Heapmap green (4/5 families; 3/4 heap
   families).** New unrooted `Iicf/Impl/AbsHeapmap.lean` ports the source pair

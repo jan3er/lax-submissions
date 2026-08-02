@@ -204,6 +204,31 @@ The generic/abstract amortization theorem remains source-faithful.
 
 ### P5 — exact P0-fixed IICF table (all cost-adaptations per E7)
 
+> **Rev 5 corrections, 2026-08-02.** Three things in this table are wrong and
+> are corrected in place below.
+>
+> 1. **"Sepreftime cost copies" is inaccurate** (plan finding F7). Sepreftime's
+>    `IICF_Array_List.thy` carries no cost text at all — plain `sep_auto`
+>    Hoare triples, no credits. AFP's IICF is uncosted by design and the
+>    artifact's is dead, so **no pinned source has a cost-carrying IICF**. The
+>    entire currency-vector layer of P5.B/C is authored, not adapted. E7's
+>    premise is corrected in `ledger.md`.
+> 2. **"artifact … dead" is not a source-quality verdict** (F8). Diffed
+>    against the live `isabelle_llvm` 2023 tree: `IICF_Array_of_Array_List`
+>    and `IICF_Abs_Heap` are byte-identical; the rest differ by 1–4 lines
+>    (debug leftovers, whitespace, `Mreturn`/`return`, one `hrr_comp` arity).
+>    The text ported is the live text. Also: `IICF_Array_Map`,
+>    `IICF_Array_Map_Total` and `IICF_Array_of_Array_List` exist **only** in
+>    the LLVM trees (AFP 23 files, Sepreftime 30, both LLVM trees 22), so
+>    those leaves had no alternative source. No re-port is owed on these
+>    grounds.
+> 3. **The IICF is superseded, and this table has no row for its successor**
+>    (F6). Added below as the P4.5 row.
+
+| item | source (size) | deps | consumer | wave |
+|---|---|---|---|---|
+| **ownership substrate: costed allocator + EO arrays + IICF bridge** | artifact `sepref/Hnr_Primitives_Experiment.thy` (985 L, **the only cost-carrying container text in any pin**; 1 `sorry` at `FREE_eoarray_assn`), `ds/Proto_EOArray.thy` (186 L, no cost), `sepref/IICF/Impl/Proto_IICF_EOArray.thy` (298 L, the interface bridge) | P4 | **gates P5.D, `Impl_Heapmap`, and the P5.E re-seat** | **P4.5 — new in rev 5** |
+
 | item | source (size) | deps | consumer | wave |
 |---|---|---|---|---|
 | the 8 interfaces: Set, Map, List, List_List, Matrix, Multiset, Prio_Bag, Prio_Map | artifact `Intf/` (3.4 / 6.9 / 7.4 / 3.7 / 19.9 / 8.6 / 5.7 / 6.5 KB) — interface text is monad-level, portable despite F1 | P1.C (`sepref_decl_*`) | everything below | **P5.A — complete; all 8 root-imported and archive-green** |
@@ -211,8 +236,10 @@ The generic/abstract amortization theorem remains source-faithful.
 | array maps: `Array_Map`, `Array_Map_Total`, `ArrayMap_Map` | artifact (7.7 / 4.2 KB, dead — shape) + Sepreftime `IICF_ArrayMap_Map` (6.5 KB, cost) | P5.A | bounded-key maps (the honest hash-map replacement, X5) | **P5.B complete — all three map families green as unrooted leaves (3/3 map families; 8/8 P5.B implementation families)** |
 | matrices: `Matrix` intf + array matrix | AFP `IICF_Array_Matrix` (23.5 KB) + Sepreftime (10.4 KB, cost) | P5.A | Floyd–Warshall-class; PCP constraint graphs | **P5.C — `Array_Matrix` green as an unrooted leaf (1/1 matrix family; 4/5 P5.C families)** |
 | heaps / prio maps: `Abs_Heap`, `Impl_Heap`, `Abs_Heapmap`, `Impl_Heapmap` | Sepreftime cost copies (33.6 / 6.5 / 50.5 / 32.7 KB); artifact copies dead (F1); `isabelle_llvm` 2023 shapes | P5.A/B | Dijkstra/Prim-class; PCP expanders | **P5.C — `Abs_Heap`, `Impl_Heap`, and `Abs_Heapmap` green as unrooted leaves (3/4 heap families; 4/5 P5.C families); `Impl_Heapmap` next** |
-| multisets & list sets: `List_Mset`, `List_MsetO`, `List_SetO`, `List_Set` | AFP/Sepreftime (5.4 / 4.3 / 5.3 / 4.4 KB) | P5.A | sorting-class specs | P5.D |
+| multisets & list sets: `List_Mset`, `List_MsetO`, `List_SetO`, `List_Set` | AFP/Sepreftime (5.4 / 4.3 / 5.3 / 4.4 KB) | P5.A, **P4.5** | sorting-class specs | P5.D — **gated behind P4.5 (rev 5)**; must not add caller-owned boundaries |
 | ICF iterator discipline as library convention | consumed from P2.B | P2 | all containers | P5.D |
+| **re-seat landed P5.B/C leaves onto the P4.5 substrate** | no new source; statement strengthening + substrate substitution over landed files | P4.5 | every consumer that must *construct* a structure | **P5.E — new in rev 5.** First target `ArrayList`: delete `arrayListReadyRel` and restate append unconditionally, matching source `arl_append_hnr_aux` |
+| plain arrays: `larray` family (`larray1_rel`, `larray_assn`, `la_replicate`, `la_replicate_init`, `la_grow_init`, `la_length`, `la_is_empty`, `la_get`, `la_set`, `larray_swap`, `la_free`, `larray_boundD`) and `replicate_init`/`grow_init` | artifact `IICF_Array.thy:11–60,189–205,233–398` | P4.5 | general | **NEGATIVE SPACE — found 2026-08-02.** Present in zero files under `Refine/` and zero planning documents: not ported, not excluded, not backlogged. Assign at P4.5 review or record an argued exclusion (rule 4: exclusions carry the burden) |
 
 Acceptance: uniform source-shaped rule-consumption gates per implementation
 family with zero bespoke tactics, then the one source-native Kruskal
