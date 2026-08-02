@@ -897,6 +897,33 @@ proves a scheduled source declaration was mistranslated or omitted.
 
 ## Progress log
 
+- **2026-08-02 (later) — P4.5.B green, P5.E first re-seat green, the cost
+  story now reaches the machine.** Six commits `b226642..a06a59c`; tower
+  **3,281 jobs**, ND-MC 3,549, and `lax build --only proofs word-ram` at
+  **zero violations** for the first time in the campaign (ledger E32: the two
+  `GetElem?` splitters were `getElem!_def` fed to `simp` with a symbolic
+  scrutinee, not the `split at h` the record blamed). **P4.5.B** (`10cf501`,
+  E33) — element ownership with all four `lo_*` laws as equations, D-B1
+  resolved (the carrier falls out of `p ↦ₕ xs` by barely touching it), cost
+  one `aget`/one `aset` with no invented `ofs_ptr`. **P5.E first re-seat**
+  (`ef7a06c`, E34) — `arlAppendOp_refines` restated over `arrayListRel` with
+  precondition `fun _ => True`, `arrayListReadyRel` deleted, LIFO leak
+  bounded as a theorem at ≤ 4× the live set; E16 **amended, not closed**,
+  because growth's copy had no IR realization. **The blit** (`1f7a3b8`, E35)
+  — closed that gap, and confirmed `arlCopyCost` was understated (F11's
+  class, third occurrence; `arlCopyCost_zero = 0` was outright false).
+  **The exchange rate** (`a06a59c`, E36) — closes E35's open item: `dyn.*`
+  had no `timerefine` anywhere under `Refine/Iicf/`, so the amortized
+  headline had no machine content; `dynRate` now cashes it into `ir.*`,
+  forced branch by branch, with the amortized shape surviving as a closed
+  54-op term. **Leaf order deviated deliberately:** P4.5.C's source is
+  uncosted and out of the timed build closure (F6's dead directory,
+  confirmed against the built session listing), so it cannot fail
+  informatively, while the plan calls the P5.E re-seat the phase's
+  acceptance test — E30's information-ordering argument applied. **Next:**
+  the cursor-setup block (last step to end-to-end append synthesis), then
+  P4.5.C, the E29 space-budget probe, and P4.6.
+
 - **2026-08-02 — Rev 6 (Fable review session): P4.5.A recorded, probe
   re-slotted, space-budget law, mechanized gates, plan superseded in
   place.** Landed after the session-close entry below and recorded here:

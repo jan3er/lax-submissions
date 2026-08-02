@@ -4131,3 +4131,105 @@ next session; not staged, not reverted.
 **Open on the tower, not blocking C0:** P4.5.B (element ownership), P4.5.C
 (the IICF bridge), P5.E (re-seat `ArrayList`/`DArray_List` off the
 caller-owned boundary, deleting `arrayListReadyRel`/`daReadyRel`).
+
+---
+
+## 2026-08-02 (later) — P4.5.B, the P5.E re-seat, and a cost story that now reaches the machine
+
+Six commits, `b226642..a06a59c`, all on warm `main`, one leaf at a time, gate
+replayed by the supervisor rather than taken from the worker's report. Green
+at close: **tower 3,281 jobs**, ND-MC **3,549**, and — for the first time in
+the campaign — **`lax build --only proofs word-ram` at zero violations**.
+
+**The splitter chore was not what the record said it was.** Two
+`GetElem?.match_1.splitter` violations had been carried twice as
+"pre-existing, small, local", located at the `split at h` in each of two
+files. Both the location and the mechanism were wrong. The generator is
+`LawfulGetElem.getElem!_def`, which states `c[i]!` as a `match` on `c[i]?`:
+handing it to `simp` with a **symbolic scrutinee** forces
+`Match.getEquationsFor`, which materializes the core matcher's `.splitter` as
+a private declaration *in our module*. The audit strips `_private.<mod>.0.`
+and correctly objects. The rule is about *which matcher* gets split, not
+about `split`. Repair is three lines
+(`getElem!_def` → `List.getElem!_eq_getElem?_getD`). My own first attempt —
+retargeting the `split at h` to `by_cases` — was green and cleared nothing,
+because `split` on an `ite` takes the `Decidable` path and never materializes
+a match splitter. Ledger E32.
+
+**P4.5.B (`10cf501`) landed element ownership with all four `lo_*` laws as
+equations.** D-B1 resolved smaller than the question: the carrier falls out
+of `p ↦ₕ xs` by *barely touching it* — the laws are laws of the element
+list, so the range enters exactly once, and `ptoH_append`/`ptoH_focus` are
+not used in the file at all. Cost is one `aget`/one `aset` with no invented
+`ofs_ptr`, because A.1's triples take the absolute address `p + j`; what
+collapsed is the source's two-instruction *sequence*, not a charge, and
+`addrExtractCost` pins that the arithmetic is still paid. Recorded rather
+than glossed: `eoCellAssn A a x ⊢ junkCell x` is **false** at a heap-owning
+`A` — taking that entailment was the easy route and would have silently
+discarded the element. Ledger E33.
+
+**Leaf order deviated from the plan, deliberately.** P4.5.C's source,
+`Proto_IICF_EOArray.thy`, sits in the IICF directory F6 established is out of
+the timed build closure and superseded; I confirmed it is absent from the
+built session listing while `Proto_EOArray` and `Hnr_Primitives_Experiment`
+are both present, and it is uncosted. So C is presentation-only and cannot
+fail informatively, while the plan itself calls the P5.E re-seat "the
+acceptance test for P4.5". Ran the test that could still refute first —
+E30's own information-ordering argument.
+
+**The re-seat (`ef7a06c`) collected E16, the campaign's first weakened public
+guarantee.** `arlAppendOp_refines` is now over `arrayListRel` with
+precondition `fun _ => True`; `arrayListReadyRel` and `arrayListReadyAssn`
+are gone. The control that makes it checkable rather than assertable:
+`arlAppend_succeeds_at_full_buffer` instantiates the refinement at exactly
+the state the deleted relation excluded, supplying only `arrayListRel`
+membership. The LIFO leak is **bounded, not mentioned** —
+`arlAllocatedMany_live_bounded` proves total heap ever allocated across a
+run, every leaked block included, is ≤ 4× the final live set, discharging
+E29 as a theorem instead of inheriting it as a permission. E16 is **amended,
+not closed**: growth's copy had no IR realization, so append was not
+synthesizable — but it was not synthesizable before either, and there is no
+registered `sepref_fr_rules` append rule at all, so the conditionality did
+**not** migrate to the `hnr` layer. That distinction is why it counts as
+progress. Ledger E34.
+
+**The blit (`1f7a3b8`) closed that gap and confirmed a supervisor
+prediction.** I predicted `arlCopyCost n = n • (aget + aset)` was understated
+against `ArrayFill`'s landed convention of one `ir.while` per guard
+evaluation. It was: no `ir.while`, no `ir.add`, and `arlCopyCost_zero :
+arlCopyCost 0 = 0` was **outright false** — an empty copy still pays its one
+failed guard. Real price `(n+1)·ir.while + n·ir.aget + n·ir.aset + 2n·ir.add`;
+`arlCopyCost` is now *defined as* `blitCost` so it cannot drift. F11's class,
+third occurrence. Ledger E35.
+
+**And the blit exposed the session's largest finding.** The worker reported
+no blast radius into `ArrayList.lean` because `arlCopyCost` is in `ir.*`
+while the amortized theorems are in `PushCost`'s `dyn.*`. True — but the
+reason was the problem: `dyn.*` occurred in **no file but its own
+definition**, and **nothing under `Refine/Iicf/` used `timerefine` at all**.
+The amortized-O(1) headline was internally consistent with **no machine
+content**, and I had approvingly recorded it one commit earlier. E34 amended.
+
+**`a06a59c` cashed it.** `dynRate` is forced branch by branch rather than
+chosen — `ite`/`copy`/`const`/`4·skip` by the in-place branch, `mul` by
+doubling, `while` by growth's trailing guard, `2·copy` by growth needing five
+`ir.copy` against four control units; `dyn.add` is exactly tight; `dyn.copy`
+buys literally one iteration of the emitted loop. It is the real mechanism,
+not a parallel account: `arlIrAppendCost_eq_timerefine` proves the vector
+**is** `timerefineA dynRate` of the abstract cost. E35's named hazard — the
+trailing `+1` guard not decomposing per element — is resolved symbolically,
+not at a point (`dominates_growth_no_while`). The cashed headline is a closed
+term, 54 machine ops with no length and no capacity in it, so the amortized
+shape survives. First **over**-estimate found in this campaign: growth's
+`dyn.control = 4` is sound but not tight (three suffice). Not lowered —
+`arlAdvertisedCostN` is source-shaped. Ledger E36.
+
+**Next.** The cursor-setup block — five straight-line instructions plus the
+`hnr_seq` chain — is the last step to end-to-end append synthesis, and its
+price is already budgeted in the exchange rate as `arlBlitSetupN`, which
+makes it a prediction to check rather than a spec to satisfy. Then P4.5.C
+(presentation-only, source is uncosted and out of the timed build closure),
+the E29 space-budget probe, and P4.6's `orderCom` synthesis probe. The
+`DArrayList` twin re-seat and `ImplHeap`'s conditional insert are separate
+gated leaves; `ImplHeap` now carries the relocated readiness relation as its
+own recorded deviation.
