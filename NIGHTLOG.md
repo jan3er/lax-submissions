@@ -4038,3 +4038,96 @@ in the process: the `True` loop invariants were correct, not vacuous, because a
 failed `irWhileIT` invariant equals `NRest.fail`, the top of the order, so
 strengthening one weakens every rule beneath it. `larray` resolved as argued
 exclusion X17. Next: P4.5.A, the costed allocator, sequentially on warm main.
+
+---
+
+## 2026-08-02 — P4.5.A complete; ND-MC word bound repaired; C0 blocked on a cubic floor
+
+Nineteen commits, `41485a5..78052ae`. Green at close: **tower 3,277 jobs**,
+**ND-MC 3,549 jobs**, `lax build` OK on both (tower carries the two known
+pre-existing `GetElem?` splitter violations). Zero `sorry`/`admit`/
+`native_decide` anywhere touched.
+
+**Tower P4.5.A landed in three leaves.** A.1 (`7b9ed53`) gives arrays the
+source's ownership granularity: `ptoH p xs` owns `[p, p+xs.length)` and
+splits, joins and focuses as **equations**. `AState` widened in place — a
+first attempt built a parallel logic (`HState`, `liftA = FST`) which was green
+and wrong, because `hnRefine` is over `irSTATE`, so nothing built on it could
+ever be `sepref_synth`-reachable. `acells` sends the heap name to `Tsa.zero`;
+that is soundness, not hygiene, and it is why the `ptoArr` interface lemmas
+kept byte-identical statements (they are vacuous at the heap name). A.2
+(`64a0498`): `alloc` is `p := hp; hp := hp + n`, cost two `irUnit`s,
+`n`-independent, with unallocated space carried as a **resource** so the
+operation stays unconditional and no-reuse follows from linearity. A.3
+(`65d7af1`): two availability flavours, `avail ⊢ availRaw` and
+`¬(availRaw ⊢ avail)` — that pair locates the O(1) boundary at *knowing* a
+region reads zero, which is where E23 had it wrong. **D3 was discharged by
+inheritance, verified by diff**: no `Ir.Com` constructor, `Syntax`/
+`Semantics`/`Codegen` untouched, because a heap access is `aget`/`aset` at a
+computed index.
+
+**ND-MC now compiles as a standing gate** (`dcdca31`). Its lakefile requires
+`Lax13Proofs`, so A.1's carrier change broke two of its modules at sixteen
+`AState` literals — and *our* gates could not see it, because no landed
+structure of ours constructs one. Full ND-MC build is 2m47s: per-leaf
+affordable. Compile gate only; a break is either a real interface break (fix
+the tower) or mechanical fallout (token edit).
+
+**The seam probe was worth its leaf** (`c7fd52d`). `Spec → ComputesInTime` was
+the last never-probed seam and both B7 gate findings had been boundary facts
+of that kind. It found a third: the driver could not cross the bridge at all,
+because `WordBound`'s literal `n*n` is jointly unsatisfiable with `FitsWords`
+at word lengths C0's own domain admits — proved at the **edgeless** graph.
+W1–W3 (`99bc9f4`, `ff0670a`, `aa2a702`) replaced it with `WordBoundK` at the
+root's existing degree parameter; `driverRoot_decides_sentence` differs in
+exactly one line.
+
+**Three supervisor errors, all caught by workers, all corrected in-tree.**
+(i) I retargeted E-mem at retiring the `n × n` arena; array lengths never
+reach the bridge at all (`Layout.span` sees the array *count*), and the repair
+is a value bound — I had quoted `span` myself hours earlier. (ii) I recorded
+B7 finding 2 as closed by finding 3; the word-bound work is about word length
+and never touches a cost (`9f343f0`). (iii) I recorded finding 3 as closed at
+the root; S1 shows the `hdeg` slot forces `Kmass ≥ n`, at which `WordBoundK`
+**is** the retired carrier bound. Workers rejecting a supervisor premise with
+the source in hand is the process working.
+
+**S1's slot sweep (`78052ae`) is the state a next session should start from.**
+24 of 30 root slots have producers; six block in three groups. Group 2
+(`hdeg`, `hB`) needs S3 to thread `exists_wreachDeg_of_orderP`. Group 3 is
+finding 2, **far sharper than recorded and never a width problem**:
+`level_cost_floor_cubic` derives `16·n³ ≤ Kl 0 n` from `hKs` and `hKl` alone,
+with `W` in neither hypothesis, conclusion nor proof — `descendCost`'s
+`16*(n*n)` paid by a turn processing an *empty* block, times `n` turns. With
+`hKo`+`hKc`, `128·n³`. `driverRoot_decides_sentence_floored` takes the root's
+hypothesis list verbatim and returns its unweakened `Spec` **and** the floor.
+
+**Next session, in order.** (1) B7 S2 — finding 4's cost-4 repair, `"lw"`
+beside `dedupCom`'s `"dq"`. (2) B7 S3 — `levelAtR`/`driverRootD`, which also
+closes finding 3 at the root and unblocks slots #6, #12, #26. (3) **The
+whole-phase synthesis retry on `orderCom`, before the cost residue** — Jan
+asked for it and the floor strengthens the case, since `hKo`'s size-blind
+`orderPhaseCost` is a floor driver and synthesis would replace it with a
+derived cost. Run as a measured probe with a wall-clock cap; it cannot run
+concurrently with an ND-MC wave (Lake lock). (4) The residue itself, now with
+a per-slot work-list: #20 → E4c, #22 → E-mem/E-order, #23 → E3b, #27 correct
+(repair its summands). Then C0, G4, P5. `hKd` is not responsible.
+
+**C0 is not reachable through the root as it stands.** Gate G4 has not passed,
+so JAN-FLAG 1 disposal of the hand-walked layer stays blocked.
+
+**Housekeeping.** Killed ~18 GB of stale processes: two `lean` runs stuck 68
+hours in a worktree git no longer lists, and nine idle lean-lsp processes on
+`word-ram` (four at 3.2–3.5 GB). Four registered worktrees remain
+(`agent-a1a321b18c2b75e0a`, `nd-mc-p2`, `ndmc-rebase-p0`, `refine-p0`) plus
+two outside the repo — likely leftovers from closed waves, not pruned because
+each needs a merged-check first. Also: `lake build 2>&1 | tail` reports
+`tail`'s exit code, so a failed build can look green — read the output.
+
+**Left uncommitted deliberately:** Fable's in-progress rewrite of
+`plans/word-ram/tower-expansion-plan.md` (49+/84−). Jan's call to review it
+next session; not staged, not reverted.
+
+**Open on the tower, not blocking C0:** P4.5.B (element ownership), P4.5.C
+(the IICF bridge), P5.E (re-seat `ArrayList`/`DArray_List` off the
+caller-owned boundary, deleting `arrayListReadyRel`/`daReadyRel`).
