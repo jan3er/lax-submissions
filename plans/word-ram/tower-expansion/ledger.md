@@ -762,11 +762,55 @@ and proved (`hnr_eoarray_free`, `:330–340`) under the precondition
    capability with no benefit; adding it *with* reuse forfeits E24 and every
    downstream cost claim that rests on it.
 
-*Consequence stated plainly, as rule 4 requires:* **peak memory equals total
-allocation.** Every structure built on this substrate holds its address range
+**AMENDED 2026-08-02, same day, after A.2 landed. Clause 2's second half is
+withdrawn; deallocation is no longer excluded.** The claim "adding `free`
+*with* reuse forfeits E24" was written before the allocator existed, and the
+allocator is what shows it false. E24's O(1) does not come from never
+reusing — it comes from the handed-out region being **known zero**, and that
+knowledge is carried in the assertion:
+
+```lean
+def avail (hp k : ℕ) : Assn := (hpName ↦ᵥ hp) ∗ (hp ↦ₕ List.replicate k 0)
+```
+
+Non-reuse is how zeroness is *established at entry* (`avail_of_entry`), not
+what the bound rests on. And `lo_init` (`Proto_EOArray.thy:114`) makes an
+all-`None` EO array own no element memory **whatever the concrete contents**,
+so EO arrays — leaf B's whole subject — do not need zeroed backing at all,
+which makes reuse free for them rather than O(n).
+
+*What survives.* Clause 1 is untouched: the `MK_FREE` **frame** rule stays
+unstated because the source declares it false. Clause 2's first half also
+survives — free without reuse buys nothing. And fidelity was never the
+obstacle: F12 established that the source supports and proves
+`mop_oarray_free`, so porting deallocation is fidelity-**positive**.
+
+*Replacement (P4.5.A.3, ledger E28).* Two availability flavours, one refining
+the other — zeroed (reads zero) and raw (owned, contents unspecified). Zeroed
+entails raw; the converse costs O(n) and gets no theorem, because it is false
+in O(1). Fresh memory arrives zeroed from `Imp.initEnv`; freed memory returns
+to raw. O(1) zeroed allocation is undisturbed, O(1) raw allocation and O(1)
+reuse become available, and the only unavailable thing — a zeroed block out
+of reused memory in O(1) — is genuinely unavailable.
+
+*The consequence this repeals.* "Peak memory equals total allocation" is
+**no longer** a standing constraint. It was the one hard constraint this
+campaign was exporting to ND-MC, whose recursive per-arena passes are exactly
+the small-live-set/large-total shape — which is the revisit trigger written
+into this entry below, fired one day after it was written rather than one
+campaign later.
+
+*Why the timing.* Nothing consumes `avail` yet. After leaves B and C and P5.E
+re-seat structures onto it, changing the availability discipline means
+touching every structure instead of one file.
+
+*Consequence stated plainly, as rule 4 requires — **repealed by the amendment
+above**, retained so the repeal is legible:* peak memory equals total
+allocation. Every structure built on this substrate holds its address range
 for the life of the program. Combined with E24's global exhaustion side
 condition, a program's total allocation across its whole run must fit in
-`2 ^ w`.
+`2 ^ w`. Under E28 only the *live* set must fit, plus whatever a LIFO
+discipline cannot reclaim.
 
 *Revisit trigger.* A consumer whose live set is small but whose total
 allocation over time is not — the shape where reuse actually pays. At that
