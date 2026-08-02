@@ -404,25 +404,29 @@ session, per-wave ledgers in the commit messages e5e0f91..10e6dc4):
   residue), **E-order** (no-escape theorem: any empty-arena carrier
   charge breaks the closed form; NO member list exists in driver state
   — R1.6 unbuilt).
-- **OPEN — the compiled residue** (all enumerated in
-  `Refine/G2CostProbe.lean` §7 + `Refine/OrderBlockProbe.lean` header):
-  E-mem (member-list threading; wave was launched and cancelled at
-  Jan's wrap order BEFORE any edit — re-issue its brief, recorded in
-  the session transcript, verbatim) → member-driven engine interiors
-  per family → E-order re-run (`g2_plug` shrinks) → E3b (cover
+- **OPEN — the compiled residue** (enumerated in `Refine/G2CostProbe.lean`
+  §7 + `Refine/OrderBlockProbe.lean` header, **retargeted 2026-08-02 by the
+  seam probe**): E-mem (member-list threading) → member-driven engine
+  interiors per family → E-order re-run (`g2_plug` shrinks) → E3b (cover
   composition + compactCom-before-coverSave reorder) → E4c (descendCom
   swap, `qd` layout, alive-mask hoist per cluster) → R1.8 (dead-sweep
-  discipline: charge a vertex's death-row write to the turn that
-  killed it — its block contains it) → B7 re-run (slot sweep first) →
-  P5. Honest estimate 1–2 sessions if nothing new surprises.
-- **Two supervisor recommendations left OPEN for Jan** (from the
-  step-back review): (1) probe the `Spec→ComputesInTime` bridge/
-  prologue seam EARLY next session — the last never-probed seam, and
-  both B7 gate findings were boundary facts of exactly this kind;
-  (2) optional provisional P5: draft-submit the citable core (locality
-  + splitter + covers + checkpoint all discharged) with C0 carried as
-  the open obligation, replaceable when C0 lands — decouples shipped
-  value from the remaining cost grind. Neither executed.
+  discipline: charge a vertex's death-row write to the turn that killed it —
+  its block contains it) → B7 re-run (slot sweep first) → P5.
+
+  **E-mem and the interiors are no longer only a cost repair — they are
+  mandatory for existence, and their target changed.** The `n × n` cluster
+  arena must become almost-linear, because it is what makes the root's
+  `WordBound` unsatisfiable at word lengths C0 itself admits (finding 3).
+  Doing E-mem on the old `n × n` memory would produce a theorem that still
+  cannot cross the bridge. Moving `n*n` changes the shape of the root
+  theorem's `hB` slot, so the B7 re-run's root restatement must carry a new
+  word-bound form. Estimate is no longer 1–2 sessions.
+- **Supervisor recommendation (1) — EXECUTED 2026-08-02, and it found a
+  third boundary fact.** `Refine/BridgeSeamProbe.lean` (632 lines, 45
+  declarations, compiled). See "Seam probe findings" below. Recommendation
+  (2) — optional provisional P5, draft-submitting the citable core with C0
+  carried as an open obligation — remains open and is now *more* attractive,
+  because finding 3 lengthens the road to C0.
 
 ## Progress log
 
@@ -923,3 +927,61 @@ session, per-wave ledgers in the commit messages e5e0f91..10e6dc4):
   is certain rework; the F-c-5 `hdeg` composition note stands unchanged
   for whoever re-runs B7 after the repair waves. C0's concept axiom
   stays an axiom; P5 is blocked behind the two repairs + a re-run B7.
+
+## Seam probe findings (2026-08-02) — `Refine/BridgeSeamProbe.lean`
+
+The `Spec → ComputesInTime` bridge was the last never-probed seam, and both
+B7 gate findings had been boundary facts of exactly that kind. It was probed
+before resuming the residue chain, under the standing rule that the accounting
+must be **compiled**. It was worth it: two of the four questions are blocked,
+and one of the blocks is unconditional.
+
+**Finding 3 — the layout does not fit in the words C0 hands it.
+`no_word_size_for_sparse`. Unconditional; no cost repair reaches it.**
+
+The driver addresses an `n × n` cluster arena (`xmem`, `xmmName j` in
+`LevelMem`/`DepthMem`), so the root theorem's own `hB : WordBound B n ns cap
+mb` pins `n*n + ns + 2*cap + 2 < B`. `computesInTime_of_spec` adds
+`L.FitsWords (B x) w`, whose `bound` field gives `B ≤ 2 ^ w`. But C0's domain
+is `{x | EncodesGraph x n G ∧ ∀ v ∈ x, c*(|x|+v+1) ≤ 2^w}` and the statement
+quantifies over **all** `w` — so the smallest admissible word length is in
+scope, where `2^w` is linear in `|x|`. Compiled: for every `c` and every `n`
+past the crossover `4c(n+2) ≤ n²`, at the edgeless graph there is a `w` where
+the word is in C0's domain and `FitsWords ∧ WordBound` are jointly
+unsatisfiable. `#guard`ed at `c = 10⁹`, `n = 10¹²`, with two negative controls
+(below the crossover the hypothesis fails; the two conditions are satisfiable
+on their own at a free word length).
+
+This is a **space** fact: no cost interface occurs in it, no width path, no
+`chainWidth`, `R = 0` throughout. Corollary `width_lt_two_pow` re-reads B7
+finding 2 from this side — `n + W + 1 < B ≤ 2^w` makes the `chainWidth ≤ W`
+pin *unaddressable* rather than merely cubic.
+
+**Finding 4 — the landed precondition is not `initEnv`-reachable.
+`rootPre_initEnv_iff_ns_zero`. Local, and the repair is cheap.**
+
+`solves_of_spec` demands the precondition be exactly `σ = initEnv ext x`, and
+`initEnv` zeroes every scalar. Seven of the eight conjuncts are
+lengths/zero/word clauses and transfer for free — the array half of the
+prologue costs nothing, since `ext` supplies it per input. The eighth is
+`OrderMem`'s `ns ≤ σ.vars "lw"`, which at `initEnv` reads `ns ≤ 0`: the landed
+`Spec` feeds `solves_of_spec` on edge-free words and nothing else.
+
+A prologue cannot repair it *in place*: the same precondition demands
+`σ.inp = x`, and `read_breaks_inp` shows one cell read already breaks that
+conjunct. But the value is `2·edgeCount x`, and G1's `dedupCom` already opens
+by computing the same number off the decode's own `m`. Repair: set `"lw"`
+beside `"dq"` and let the composed decode phase take `OrderMem B n 0 W` in and
+deliver `OrderMem B n ns W`. Cost `4` (`lwCom_spec`), not a floor. Lands with
+the `driverRootD` restatement in the B7 re-run.
+
+**Questions 2 and 4 close.** The prologue's *cost* is a non-issue —
+`Harness.lean`'s marshalling is bypassed entirely because the driver decodes
+the tape itself. The output side closes with a witness (`out_shape`): the root
+postcondition is already C0's `f x`, there is no epilogue to pay for, and
+`σ.out = []` comes from `initEnv` free.
+
+**Method note.** `PrologueBlind` (the array-length bisimulation) is stated as
+a named `Prop` and left unproved, never a `sorry`, with the reason recorded:
+nothing rests on it, because finding 3 is unconditional and finding 4's
+placement conclusion already follows from `read_breaks_inp`.
