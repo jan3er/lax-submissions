@@ -650,6 +650,8 @@ judgment:
 | Dynamic-table potential mathematics lives primarily in AFP `Dynamic_Tables`, not only `Amortized_Complexity`. | Both entries are pinned; the artifact dynamic array remains the currency-native primary source. |
 | Dependent `hfcomp` and the unfueled loop rule landed during the ND-MC readiness wave. | They enter `debt-register.md` as closed/verify items; P1 does not re-port them. P1 still ports the surrounding signature machinery. |
 | The scaling probe found the frame/entailment layer, not rule lookup, to be the wall. | P7 targets `fri`/`proveConjEq`; DiscrTree is explicitly not the first intervention. |
+| **2026-08-02.** The plan's P4.5 source table calls `FREE_eoarray_assn` "one `sorry`" in `Hnr_Primitives_Experiment.thy`. It is inside a comment block (`:316–326`) and the file has no live `sorry`; the author's note says the rule **does not hold**. | Declining to state a false theorem is not a deviation. The frame-rule half leaves the ledger; the decision to exclude deallocation *itself* moves to **E23**, which argues it on our own terms. The plan's source table and X17(c) are amended to cite E23. |
+| **2026-08-02.** The plan glosses our O(1) allocation as avoiding the source's fill loop. The source has no fill loop — `narrayo_new` never writes contents, and `lo_init` is why that is sound. | The conclusion (O(1) here, O(n) there) stands; the reason is the `malloc` currency versus a pre-existing zeroed address space. Recorded precisely in **E24** and in `p4.5-design.md` §2, so no worker looks for a loop that is not there. |
 
 ## 5. Ledger protocol for P1–P10
 
@@ -726,3 +728,109 @@ divergences are documented at `:551–552` and in the header above
 combinators, re-check whether the divergences narrow; the disequality
 `#guard`s will fail loudly if they close entirely, which is the desired
 signal rather than a regression.
+
+### E23 — deallocation is excluded by our decision, not by a source gap
+
+**Status: accepted (rule-5 class 3 — a capability we decline to provide).**
+Added 2026-08-02, opening P4.5. **Supersedes the stated basis of X17(c) and
+of the plan's P4.5 exclusion sentence.**
+
+*What the plan said.* Rev 5 recorded that deallocation is excluded "with the
+source's own evidence: the artifact's `MK_FREE` rule for `eoarray_assn` is
+its single `sorry`."
+
+*What the source actually says.* `Hnr_Primitives_Experiment.thy` carries **no
+live `sorry`**. The `FREE_eoarray_assn` attempt at `:318–325` sits inside a
+comment block opened at `:316` and closed at `:326`, headed by the author's
+own verdict: *"This rule does not hold! The elements must be de-allocated
+first! for explicit ownership management, free the array manually using
+`mop_oarray_free`!"* And `mop_oarray_free` itself (`:328`) **is** ported-ready
+and proved (`hnr_eoarray_free`, `:330–340`) under the precondition
+`set xs ⊆ {None}`.
+
+*Consequences, in both directions.*
+
+1. The excluded `MK_FREE (eoarray_assn A)` frame rule is not a deferred
+   obligation; it is **false**, and for a reason intrinsic to explicit
+   ownership — an automatic frame-level free would discard element ownership
+   the array does not hold. Declining to state a false theorem is not a
+   deviation, so this half leaves the ledger entirely and is recorded in §4.
+2. Excluding *deallocation itself* is therefore **our** decision and needs
+   our own argument, which is: a non-reusing bump allocator is precisely what
+   buys E24's O(1) allocation, and free plus O(1)-because-never-reused are
+   the same trade taken once. Adding `free` without reuse would be free
+   capability with no benefit; adding it *with* reuse forfeits E24 and every
+   downstream cost claim that rests on it.
+
+*Consequence stated plainly, as rule 4 requires:* **peak memory equals total
+allocation.** Every structure built on this substrate holds its address range
+for the life of the program. Combined with E24's global exhaustion side
+condition, a program's total allocation across its whole run must fit in
+`2 ^ w`.
+
+*Revisit trigger.* A consumer whose live set is small but whose total
+allocation over time is not — the shape where reuse actually pays. At that
+point the correct move is a second allocator with its own cost story, not a
+`free` bolted onto this one: E24's O(1) must not be quietly inherited by an
+allocator that can return a touched cell.
+
+### E24 — `alloc n` is O(1) here and O(n) in the source, because the substrates differ
+
+**Status: accepted (rule-5 class 1 — strictly stronger guarantee).**
+Added 2026-08-02, opening P4.5.A.
+
+*Source.* `Hnr_Primitives_Experiment.thy:202`
+
+```
+cost'_narray_new n = cost ''malloc'' n + cost ''free'' 1 + cost ''if'' 1
+                   + cost ''if'' 1 + cost ''icmp_eq'' 1 + cost ''ptrcmp_eq'' 1
+```
+
+*Ours.* A constant currency vector, independent of `n`.
+
+*Cause: substrate.* Not optimisation, and the distinction is load-bearing
+enough that the plan's own gloss is corrected here. The source's `n` is **not
+an initialisation loop** — `narrayo_new` is `narray_new`
+(`Proto_EOArray.thy:147`), which is a null-check plus a raw `array_new`
+(`LLVM_DS_NArray.thy:14–15`) and never writes the contents. It is sound to
+hand back garbage because `lo_init` (`Proto_EOArray.thy:114`) makes an
+all-`None` EO array own **no** element memory for *any* concrete contents.
+The `n` is charged to the `malloc` currency because a real LLVM `malloc` is
+honestly modelled as costing proportionally to the block it returns. On
+`Lax13/Ram.lean` there is no `malloc`: `2 ^ w` cells already exist and
+already hold zero, so allocation is reading a pointer cell, adding `n`, and
+writing it back. We are not performing the source's work faster; we are on a
+machine where that work does not exist.
+
+*The five trailing constants* (`free 1`, two `if`s, `icmp_eq`, `ptrcmp_eq`)
+are the source's null-check, its `llc_if`, and the deallocation it prepays
+through `narray_assn` (`LLVM_DS_NArray.thy:10`). Under E23 we do not
+deallocate, so the prepaid half has no counterpart; the branch half has one
+only if our allocator branches. Our constant is ours, and the correspondence
+is *shape* (constant overhead at allocation), not term-by-term.
+
+*Preconditions this bound rests on — both proved, neither assumed.*
+
+- **No reuse.** Fresh cells are zero only because the allocator never returns
+  a cell twice. Stated and enforced as an invariant, not a comment. If reuse
+  is ever added, this entry is void and every consumer cost claim resting on
+  it reverts to an O(n)-init story.
+- **Global exhaustion.** Total allocation ≤ `2 ^ w`, stated **once at program
+  level**, mirroring the source's standing "given `malloc` succeeds". Rule 5
+  forbids pushing it onto individual operations; that push is exactly what
+  produced the conditional `append` (E16) that P5.E exists to remove.
+
+*Why this is class 1 rather than a weakening.* The source's guarantee is
+"allocation yields an all-`None` EO array at cost `cost'_narray_new n`". Ours
+is the same postcondition at a strictly smaller cost under a side condition
+the source also carries. Nothing about the *interface* changes — which is
+what rule 5 protects.
+
+*Compiled controls (falsification clause 2 — this is authored, not mirrored).*
+Negative controls must compile: an allocator that could return an already-
+handed-out cell must be refutable, and the claim that fresh memory reads zero
+must fail if the no-reuse invariant is dropped.
+
+*Revisit trigger.* E23's, plus: if D3 codegen shows the pointer-cell update
+costs more than a constant on some path, the constant changes but the class
+does not.

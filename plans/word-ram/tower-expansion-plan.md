@@ -523,7 +523,7 @@ Source slice, all at `isabelle_llvm_time@42dd7f5`:
 
 | file | size | carries cost | note |
 |---|---|---|---|
-| `thys/sepref/Hnr_Primitives_Experiment.thy` | 985 L | **yes** (`acost`, `lift_acost`) | the real target: `mop_oarray_new/extract/upd/free`, `eoarray_assn`, registered `sepref_fr_rules`. Carries **one `sorry`**, at `FREE_eoarray_assn:318–325` (the `MK_FREE` deallocation frame rule) |
+| `thys/sepref/Hnr_Primitives_Experiment.thy` | 985 L | **yes** (`acost`, `lift_acost`) | the real target: `mop_oarray_new/extract/upd/free`, `eoarray_assn`, registered `sepref_fr_rules`. **Correction 2026-08-02 (F12):** carries **no live `sorry`** — the `FREE_eoarray_assn` attempt at `:318–325` is inside a comment block (`:316–326`) whose author's note says the rule *does not hold*. See ledger E23 |
 | `thys/ds/Proto_EOArray.thy` | 186 L | no | earlier no-cost prototype; shape reference |
 | `thys/sepref/IICF/Impl/Proto_IICF_EOArray.thy` | 298 L | no | the bridge from EO arrays back into IICF interfaces — the shape that satisfies Jan's "same interface, different internals" |
 
@@ -536,22 +536,32 @@ reading and advancing it, address the result through `ind`/`storeInd`.
 
 Two consequences to prove, not assume:
 
-- **`alloc n` is O(1), not O(n).** Because the machine starts zeroed and a
-  non-reusing bump allocator never returns a cell twice, fresh memory is
-  already zero — no fill loop. This is *stronger* than the source's
-  `cost'_narray_new n` and it dissolves the O(n)-init × n-arenas → n²
-  problem the campaign has been working around structure by structure. The
-  O(1) figure is contingent on never reusing: **no-reuse is a stated,
-  enforced invariant**, and if free/reuse is ever added the bound reverts.
+- **`alloc n` is O(1), not O(n).** *Reason corrected 2026-08-02 (ledger
+  E24) — the source has no fill loop either.* `narrayo_new` never writes the
+  contents, and that is sound because `lo_init` makes an all-`None` EO array
+  own no element memory for any concrete contents. The source's `n` is
+  charged to the **`malloc` currency**: a real LLVM `malloc` honestly costs
+  proportionally to the block it returns. `Lax13/Ram.lean` has no `malloc` —
+  `2 ^ w` zeroed cells already exist — so allocation is a pointer read, an
+  add, and a write back. The difference is substrate, not optimisation. It
+  still dissolves the O(n)-init × n-arenas → n² problem the campaign has
+  been working around structure by structure. The O(1) figure is contingent
+  on never reusing: **no-reuse is a stated, enforced invariant**, and if
+  free/reuse is ever added the bound reverts.
 - **Exhaustion is a global side condition.** Total allocation ≤ `2 ^ w`,
   stated once at program level, mirroring the source's "given `malloc`
   succeeds". Per rule 5 it must **not** be pushed down onto individual
   operations — that is precisely the move that produced the conditional
   append.
 
-Deallocation is **excluded**, with the source's own evidence: the artifact's
-`MK_FREE` rule for `eoarray_assn` is its single `sorry`. Ledger entry, with
-the consequence stated plainly — peak memory equals total allocation.
+Deallocation is **excluded** — **by our decision, not by a source gap
+(ledger E23, corrected 2026-08-02).** The source *does* support and prove
+deallocation (`mop_oarray_free` + `hnr_eoarray_free`, `:328–340`, under
+`set xs ⊆ {None}`); what it declares false is the automatic `MK_FREE` **frame
+rule**, which we therefore do not state at all. Our argument for excluding
+`free` itself is E23's: non-reuse is exactly what buys the O(1) allocation, so
+free-with-reuse forfeits it and free-without-reuse buys nothing. Consequence
+stated plainly — **peak memory equals total allocation.**
 
 Binding D3 applies: `Ir → IMP+ → RAM` codegen coverage with a proved cost
 before any structure depends on `alloc`.
