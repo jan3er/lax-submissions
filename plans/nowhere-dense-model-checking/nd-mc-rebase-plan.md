@@ -413,14 +413,15 @@ session, per-wave ledgers in the commit messages e5e0f91..10e6dc4):
   discipline: charge a vertex's death-row write to the turn that killed it —
   its block contains it) → B7 re-run (slot sweep first) → P5.
 
-  **E-mem and the interiors are no longer only a cost repair — they are
-  mandatory for existence, and their target changed.** The `n × n` cluster
-  arena must become almost-linear, because it is what makes the root's
-  `WordBound` unsatisfiable at word lengths C0 itself admits (finding 3).
-  Doing E-mem on the old `n × n` memory would produce a theorem that still
-  cannot cross the bridge. Moving `n*n` changes the shape of the root
-  theorem's `hB` slot, so the B7 re-run's root restatement must carry a new
-  word-bound form. Estimate is no longer 1–2 sessions.
+  **E-mem stays a cost repair.** A supervisor retarget on 2026-08-02 briefly
+  made it a prerequisite for existence as well; that was wrong and the
+  correction is recorded under "Arena width" below. Finding 3 is repaired by
+  a *value*-bound change (`ArenaWidth`, landed), not by changing the
+  membership representation, so E-mem is once again about cost only:
+  `RamCover.coverCost = 100n² + 50n·ns + …`, `coverSaveCost`'s `12(n*n)`,
+  the cluster load's `16(n*n)`, and the per-centre carrier walk in the
+  emission scan. The prerequisite now ahead of it is the `WordBoundK`
+  threading, W1–W3 below.
 - **Supervisor recommendation (1) — EXECUTED 2026-08-02, and it found a
   third boundary fact.** `Refine/BridgeSeamProbe.lean` (632 lines, 45
   declarations, compiled). See "Seam probe findings" below. Recommendation
@@ -985,3 +986,81 @@ postcondition is already C0's `f x`, there is no epilogue to pay for, and
 a named `Prop` and left unproved, never a `sorry`, with the reason recorded:
 nothing rests on it, because finding 3 is unconditional and finding 4's
 placement conclusion already follows from `read_breaks_inp`.
+
+## Arena width (2026-08-02) — `Refine/ArenaWidth.lean`, and a supervisor correction
+
+**The correction first.** After the seam probe, the supervisor retargeted
+E-mem at "retire the `n × n` block-membership arena so the `n*n` term leaves
+`WordBound`". That premise was wrong, and the wave rejected it with the
+landed source in hand.
+
+`LevelMem`/`DepthMem` **do not feed `WordBound`, and array lengths never
+reach the bridge at all.** `Compile.Layout.span = temps + scalars.length +
+arrays.length * B` — the word length sees the layout's array *count* and the
+value bound `B`, never the length of an IMP+ list. `Transfer.Solves.run`'s own
+docstring says it: "the declared array lengths are chosen per input … and the
+compiled program does not represent them at all". The supervisor had read and
+quoted `Layout.span` earlier the same day and still wrote the brief on the
+opposite premise.
+
+The single route from the arena to the word length is the **literal `n * n`
+inside `RamDriver.WordBound`**, and it is there because the passes form the
+arena *pointer as a value*, with `RamCover.CoverInv.ptr_le : xp ≤ c * n` as
+the only ceiling the pass carries. So this is a **value-bound repair and the
+`n × n` allocation stays exactly where it is** — far cheaper than changing the
+representation.
+
+**New slot shape.**
+
+```lean
+def WordBoundK (B n K ns cap mb : ℕ) : Prop :=
+  n * K + n + ns + 2 * cap + 2 < B  ∧  mb < B
+```
+
+`K` is the root theorem's *existing* `hdeg` parameter `Kmass`; `+ n` covers the
+block scan's `xp + n`. An exact generalization, not a weakening:
+`wordBoundK_pred_iff : WordBoundK B n (n-1) ns cap mb ↔ WordBound B n ns cap
+mb`, with all five projections the driver takes re-derived.
+
+**Finding 3 flipped, compiled at C0's own quantifier order** (`c` fixed before
+`n`, `w`, `x`): `word_size_for_encoded` / `exists_wordConst` give, for every
+layout with an array and every constant profile `(K, cap, mb)`, a `B` with
+`FitsWords B w ∧ WordBoundK …` at every word of C0's domain and every
+admissible `w`. Sharpest form — `flip_at_the_refuting_instance`: at the *same*
+`n`, word and `w` where `no_word_size_for_sparse` refutes `WordBound` for
+every `B`, a `B` exists for `WordBoundK`.
+
+**Three controls, all proved refutations rather than assertions.**
+`no_wordConst_at_square` (the identical statement is false for `WordBound`, so
+the width is what does the work); `no_wordConst_at_linear_degree` (false when
+the degree parameter grows with the instance); `no_wordConst_growing_layout`
+(false when the layout's array count grows with `n` — so the `span` conjunct
+is load-bearing and the flip rests on the driver's array count being constant
+in `n`).
+
+**The new mathematics.** `CoverInv.ptr_le_mass`: against the landed
+invariant's own clauses, with weak-`2r`-reachability degree bounded by `d`
+(the root's `hdeg` slot verbatim), the cover pass's write pointer is `≤ n * d`
+at every centre boundary — `MassMath`'s double count read over the *prefix* of
+blocks already built, so it is available *during* the pass, which
+`MassMath.mass_le` (exit-only) is not. `block_scan_lt` closes it to the slot.
+This replaces the trivial `xp ≤ c * n` that `n * n` was paying for.
+
+**Threading, three waves.**
+
+1. **W1 (hard, single owner)** — re-walk `RamCover.centreStep`/`coverCom` at
+   `CoverImplementsK`, and `RamDriverOrder`'s emission scan `hnnB : n*n < B`.
+   The `hxp₀ : xp₀ + n ≤ n*n` *allocation* clause is untouched.
+   `ptr_le_mass` is the replacement reading.
+2. **W2 (mechanical, wide)** — `WordBound` → `WordBoundK` through
+   `RamDriver` (20 sites), `RamDriverDescend` (18), `RamDriverCluster` (4),
+   `RamDriverFrames`, `RamDriverIO`, `RamDriverCompose`,
+   `Refine/{DeadSweep,OrderBridge,G2CostProbe}`. `LevelMem`/`DepthMem`/
+   `RamDriverBase` do **not** move.
+3. **W3** — root restatement `hB : WordBoundK B n Kmass ns cap mb`, carried
+   into the B7 re-run.
+
+One named `Prop`, no `sorry`: `CoverImplementsK`, with
+`coverImplementsK_of_implements` compiling that it is a generalization (the
+landed obligation gives it at `d = n`), so the slot change costs no landed
+capital.
