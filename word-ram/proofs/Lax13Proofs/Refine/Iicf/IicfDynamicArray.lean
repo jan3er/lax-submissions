@@ -490,6 +490,11 @@ private def irCostN (c : String) : Ir.Cost := ACost.cost c 1
 
 private def packCostN : Ir.Cost := 4 • irCostN Currency.skip
 
+private theorem packCostN_eq : packCostN = ACost.cost Currency.skip 4 := by
+  refine ACost.toFun_injective (funext fun k => ?_)
+  rw [packCostN, irCostN, ACost.toFun_nsmul, ACost.toFun_cost, ACost.toFun_cost]
+  split <;> simp
+
 private def successCostN : Ir.Cost :=
   irCostN Currency.aset + irCostN Currency.add + irCostN Currency.copy +
     irCostN Currency.const + packCostN
@@ -508,6 +513,37 @@ def boundedExecCostN (s : BoundedArray) : Ir.Cost :=
   else
     irCostN Currency.ite + irCostN (binopCurrency .mul) +
       irCostN Currency.ite + successCostN
+
+/-- **The in-place branch's emitted vector, currency by currency.**  One
+branch test, the element write, the length bump, the capacity copy, the
+success flag, and the four `skip`s that pack the observable tuple.  Exposed
+because the `dyn.*` → `ir.*` exchange rate is *derived* from it
+(`Iicf/Impl/ArrayListCash.lean`) rather than chosen. -/
+theorem boundedExecCostN_space (s : BoundedArray) (h : s.length < s.capacity) :
+    boundedExecCostN s =
+      ACost.cost Currency.ite 1 + ACost.cost Currency.aset 1 +
+        ACost.cost Currency.add 1 + ACost.cost Currency.copy 1 +
+        ACost.cost Currency.const 1 + ACost.cost Currency.skip 4 := by
+  simp only [boundedExecCostN, if_pos h, successCostN, irCostN, packCostN_eq]
+  abel
+
+/-- The logical-doubling branch: the same push, behind two branch tests and the
+`2 * capacity` multiplication. -/
+theorem boundedExecCostN_double (s : BoundedArray) (h₁ : ¬ s.length < s.capacity)
+    (h₂ : 2 * s.capacity ≤ s.buffer.length) :
+    boundedExecCostN s =
+      ACost.cost Currency.ite 2 + ACost.cost Currency.mul 1 +
+        ACost.cost Currency.aset 1 + ACost.cost Currency.add 1 +
+        ACost.cost Currency.copy 1 + ACost.cost Currency.const 1 +
+        ACost.cost Currency.skip 4 := by
+  have hne : ¬ (s.buffer.length < 2 * s.capacity) := by omega
+  have hite : (ACost.cost Currency.ite 2 : Ir.Cost)
+      = ACost.cost Currency.ite 1 + ACost.cost Currency.ite 1 := by
+    rw [ACost.cost_add_cost]
+  rw [hite]
+  simp only [boundedExecCostN, if_neg h₁, if_neg hne, successCostN, irCostN,
+    binopCurrency_mul, packCostN_eq]
+  abel
 
 noncomputable def boundedExecCost (s : BoundedArray) : ECost :=
   liftACost (boundedExecCostN s)

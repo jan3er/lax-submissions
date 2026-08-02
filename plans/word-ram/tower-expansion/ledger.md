@@ -1549,3 +1549,83 @@ diff, so `arlAppendOp_refines` is still `@[sepref_fref_thms]` over
 stays deleted. Zero `sorry`/`admit`/`native_decide`; axioms compiled for
 `blit_triple`, `hnr_mop_blit`, `blitCost_eq`, `arlGrowSpec_eq`,
 `arlGrowAlloc_hnr`, `arlGrowCopy_hnr`.
+
+### E36 — the dynamic-array headline is cashed: a `dyn.*` → `ir.*` rate that dominates
+
+**Status: landed; closes E35's open item.** New
+`Iicf/Impl/ArrayListCash.lean`; `Iicf/IicfDynamicArray.lean` gains three
+public bridge lemmas. Added 2026-08-02.
+
+*What E35 left open.* The array list's amortized-O(1) claim lived entirely in
+`PushCost`'s abstract `dyn.*` currencies, which occurred in no file but their
+own definition, with no `timerefine` anywhere under `Refine/Iicf/`. The
+headline had no machine content. It does now.
+
+*The rate*, `dynRate : String → ECost`, over the nine-currency vector
+`⟨ite, mul, while, copy, const, skip, aset, aget, add⟩`:
+
+| abstract | buys | what forces it |
+|---|---|---|
+| `dyn.control` | `⟨1,1,1,2,1,4,0,0,0⟩` | `ite`/`copy`/`const`/`4·skip` forced by the **in-place** branch; `mul` by the **doubling** branch; `while` by growth's trailing guard; `2·copy` by growth needing **five** `ir.copy` (alloc 1 + cursor block 3 + capacity copy 1) against four units |
+| `dyn.write` | one `ir.aset` | the element write |
+| `dyn.add` | `3·ir.add` | growth pays `2n+3`; `2n` ride with `dyn.copy`, leaving the length bump, the allocator's pointer bump, and `se ← sp + n`. **Exactly tight** |
+| `dyn.copy` | `blitPayload` | literally one iteration of the emitted loop (`dynCopyUnitN_toE : … = blitPayload`) |
+
+*It is the real mechanism, not a parallel account.* `dynRate_wf :
+NRest.wfR'' dynRate` is landed, and `arlIrAppendCost_eq_timerefine` /
+`arlIrAdvertisedCost_eq_timerefine` prove the executable vector **is**
+`NRest.timerefineA dynRate` of the abstract cost. The gates therefore bite on
+the object the tower's cost semantics consumes.
+
+*The trailing `+1` guard* (E35's named hazard) is folded into `dyn.control`:
+each push's control unit buys one `ir.while`, and growth's four buy four, of
+which the loop needs exactly one beyond the `n` supplied by `dyn.copy`. On
+the in-place branches those `while` credits are unspent slack — the stated
+price of pricing per push rather than per growth event.
+`dominates_growth_no_while` is a **symbolic-`n`** theorem: delete `ir.while`
+from the control unit and `n` credits face `n+1` for every `n`.
+
+*The cashed headline.* `arlIrAdvertisedCost = ⟨4,4,6,8,4,16,3,2,7⟩` — 54
+machine ops, a **closed term with no length and no capacity in it**, so the
+amortized shape survives exchange. `arlAppend_amortized_ir` is the exchanged
+inequality; `arlAppendMachine_amortized_ir` puts the **actual machine cost**
+on the left; `arlAppendMachineRaw_le_amortized` is the `NRest` statement in
+`arlAppendRaw_le_amortized`'s shape with every currency one the endorsed IR
+charges. `arlGrowth_covers_alloc_and_blit` proves, for all sizes, that
+growth's exchanged cost covers `dispatch + allocCost(2·cap) + setup +
+blitCost(len) + push`.
+
+*A finding in the opposite direction from the usual one.* Growth's
+`dyn.control = 4` is **sound but not tight**: three units already suffice
+(binding component `ir.copy`, 6 ≥ 5), compiled both ways
+(`#guard arlIrAmortizedStep arlGateGrow 9 ⟨3,1,1,2⟩` holds,
+`⟨2,1,1,2⟩` fails). Every previous cost defect in this campaign was an
+**under**-estimate (E20/E22 `implHeapSwimCost`, E35 `arlCopyCost`, F7's
+currency layer); this is the first over-estimate. It was **not** lowered:
+`arlAdvertisedCostN` is source-shaped, the abstract layer's own gate
+`¬ arlAmortizedStep … ⟨3,1,1,2⟩` still holds, and the slack appears only
+after exchange. Recorded rather than optimised away.
+
+*Falsification.* Fourteen compiled `#guard ¬ …` controls, each removing
+exactly one unit and each biting on a named branch — `ite`, `mul`, `while`,
+`copy`, `const`, `skip`, `dyn.write → 0`, `dyn.add → 2`, and `dyn.copy`
+minus each of its four components — plus a 20-point size sweep of the growth
+branch with two negatives failing at every size. Honest reporting: one
+candidate control (advertised `dyn.control = 3`) did **not** bite, and was
+recorded as the slack finding above rather than dressed as a refutation.
+
+*Structural note (supervisor accepted).* The packet suggested the rate live
+in `IicfDynamicArray.lean` and the cashed statement in `ArrayList.lean`, but
+`HeapCopy.lean` **imports** `ArrayList.lean`, so neither can see
+`blitCost`/`blitPayload`. The new module sits above `ArrayListGrow.lean`, the
+one existing file that already sees both. The `dyn.*` layer in
+`ArrayList.lean` is untouched and remains the source-shaped statement; this
+file is purely additive.
+
+*Closure artifact.* `.claude/leaf-gate.sh word-ram` → `LEAF GATE: mechanical
+checks PASS`: concepts 505, proofs 3,280 → **3,281**, `lax build: OK` with
+zero violations, consumer **3,549** unchanged. `ArrayList.lean` has a **zero
+diff**, and `arlAppendOp_refines_unchanged` re-checks the landed rule as a
+compiled term at `fref (fun _ : List ℕ => True) arrayListRel`;
+`arrayListReadyRel` stays absent. Zero `sorry`/`admit`/`native_decide`; eight
+`#print axioms` gates all `[propext, Classical.choice, Quot.sound]`.
