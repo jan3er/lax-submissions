@@ -4233,3 +4233,64 @@ the E29 space-budget probe, and P4.6's `orderCom` synthesis probe. The
 `DArrayList` twin re-seat and `ImplHeap`'s conditional insert are separate
 gated leaves; `ImplHeap` now carries the relocated readiness relation as its
 own recorded deviation.
+
+## 2026-08-03 — P4.5 closes: butlast composes, and the space budget is an iff
+
+Two leaves, `ed63696` and `2dcedfb`, both gated by supervisor replay rather
+than worker report: concepts 505, proofs 3,284 → **3,286**, `lax build` zero
+violations throughout, consumer 3,549 unchanged at every step.
+
+**Worker transport changed mid-session.** The `codex exec`/GPT-5.6-Sol path
+hit an OpenAI usage limit, and Jan's call was not to wait for it: "you spawn
+claude workers instead. codex is outdated." Proof workers are Claude
+subagents again; the plan's governance section is superseded in place. Both
+leaves below were executed that way, and the second needed a supervisor
+correction that the transport change had nothing to do with.
+
+**`ed63696` closed E39's open item.** `arlButlast?` shrinks the capacity, so
+a tight block stops being tight and append's exec rule stops applying —
+`butlast`-then-`append` could not be synthesized. Route (a) as recommended:
+the heap representation drops the logical shrink, `ArrayList.lean` keeps its
+own since its buffer is not sized by an allocator. Forced rather than cheap
+— neither version performs a heap operation, so occupancy is identical, and
+what the shrink costs is a space constant while what dropping it buys is
+`arlTight`. The price falls to `ir.sub + 2·ir.skip` and the saving is an
+equation. `butlast`-then-`append` is now one `Com`, one `hnRefine`, composed
+by `hnr_seq` and used by name, at a price free of length and capacity; the
+growth branch is provably unreachable after a `butlast`, so the composition
+never allocates. **The sharpest finding is a control that did *not* bite:**
+splicing the old shrinking `butlast` in leaves the heap, the length and the
+base bit-identical — only the capacity cell differs — so a heap-level control
+would have passed vacuously. That is the bug's real shape, and it is why E39
+was a composition gap rather than a wrong answer. Ledger E40.
+
+**`2dcedfb` is E29's space-budget probe, and it needed a correction to be
+worth having.** The methodological content is that a LIFO `free` *decreases*
+`hp`, so the final value is not the peak and a bound on it is vacuous as a
+space statement — it would pass on a skeleton that allocates `n^{1+ε}` and
+frees it all. The probe is therefore stated over `Mid`, an inductive
+intermediate-state relation mirroring the big-step rules, and
+`final_hp_is_not_peak` compiles the two forms **disagreeing on a concrete
+program** instead of asserting the distinction.
+
+The first submission proved only two extremes — reuse keeps one arena live,
+per-turn-fresh accumulates `turns·levels·aw` — and flagged the gap honestly.
+But the gap was the case the consumer actually is: a real driver **descends**,
+holding an arena live at each level while recursing, then unwinds. Peak
+`setup + levels·aw`, with `turns` absent, and that absence is the theorem's
+content. So the budget law came out as an **iff** — fits a linear word iff
+`levels·aw` is linear in `|x|` — meaning what ND-MC must maintain is not
+"free everything" but bounded recursion depth × per-level arena. It can fail:
+growing depth is refuted at every admissible word at a sub-quadratic total,
+bounded depth costs no word length at all, and that control has its own
+control. Touched-only is compiled *syntactically* (no `aset`, no `while`,
+`opCount` invariant in arena size), so a re-zeroing sweep — which would fix
+space by silently breaking time — is impossible rather than merely absent.
+Ledger E41.
+
+**P4.5's acceptance list is complete.** P4.5.C is presentation-only, its
+source uncosted and outside the timed build closure. **Next is P4.6**, the
+`orderCom` whole-phase synthesis probe — the gate that decides whether
+ND-MC's G2 is a re-derivation or a repair, and the reason not to spend
+sessions on P5 breadth first.
+
