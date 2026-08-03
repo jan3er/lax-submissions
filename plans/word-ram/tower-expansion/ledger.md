@@ -2034,3 +2034,109 @@ all zero diff.
 subagent** rather than GPT-5.6-Sol via `codex exec` (Jan, 2026-08-03: "you
 spawn claude workers instead. codex is outdated"). The plan's governance
 section is superseded in place.
+
+### E41 — the compiled space-budget probe: peak ≠ final, and the driver's shape is the third one
+
+**Status: landed; P4.5's acceptance list is complete** (leaf P4.5.D, new
+`Refine/Sepref/SpaceBudgetProbe.lean`, 2,019 L, 32 `#guard`s, 27 axiom
+gates). Added 2026-08-03.
+
+*What E29 asked for and what was built.* A driver-shaped skeleton over the
+landed allocator — setup allocation, then turns × levels of arena passes —
+compiled as real `Ir.Com`s from `allocProg`/`freeProg`, with `setup`, `aw`,
+`turns`, `levels` symbolic and C0-shaped numbers only in `#guard`s. The
+tower cannot import `Lax3Proofs`, so ND-MC's `no_word_size_for_sparse` is
+reproduced in **shape** over `hpName`, not cited.
+
+*The methodological content: a peak bound, not a final-state bound.* A LIFO
+`free` **decreases** `hp`, so the final value is not the peak and a theorem
+bounding it is vacuous as a space statement — it would pass on a skeleton
+that allocates `n^{1+ε}` and frees it all. `Mid : Com → State → State →
+Prop` is an inductive intermediate-state relation whose constructors mirror
+the IR's big-step rules one for one (start, completed run, either half of a
+seq, the taken branch, the loop body, a later turn); `PeakLe c p` quantifies
+over it, `NetLe` over `BigStep` only, and `net_of_peak` holds while the
+converse fails. **The two forms are compiled as disagreeing on a concrete
+program:** `final_hp_is_not_peak` shows `wastefulCom K` has final `hp` =
+entry `hp` for every `K` while `Mid` reaches `entry + K`. This is the defect
+the leaf existed to prevent, and it is now a theorem rather than a warning.
+
+*The loop rules.* `peak_while : NetLe c 0 → PeakLe c p → PeakLe (while b c)
+p`, by induction on the `Mid` derivation, so the iteration count never
+enters. The correction below forced its generalization
+`peak_while_pot`/`net_while_pot` by a potential `Φ : State → ℕ`, with the
+loop guard available in both hypotheses (required: the invariant is false
+past the depth bound); `peak_while` is the `Φ = 0` case.
+
+*Three shapes, separated, and the driver is the third.* This is the
+supervisor correction that the first submission needed and it is the leaf's
+real content — the original probe proved only the two extremes:
+
+| skeleton | peak | fits a linear word? |
+|---|---|---|
+| `reuseSkel` / `ownedSkel` (LIFO-reused, caller-owned) | `setup + aw` | yes |
+| **`nestedSkel`** (descend holding one arena live per level, then unwind) | **`setup + levels·aw`** | **iff `levels·aw = O(|x|)`** |
+| `freshSkel` (per-turn fresh, never returned) | `setup + turns·levels·aw` | no, at any admissible `w` |
+
+A real ND-MC-style driver is **none of the first three rows' extremes** —
+it descends, holding an arena live at each level while recursing, then
+unwinds. Expressible without IR recursion as a descent loop that allocates
+without freeing and an ascent loop that frees LIFO on the same depth cell.
+`peak_nestedSkel` is proved with `Φ = (levels - l)·aw`, the arenas still to
+carve; **`turns` does not occur in the bound, and that absence is the
+theorem's content**. `nested_peak_attained` reaches the bound at the bottom
+of the first descent, so it is the peak and not an over-estimate.
+
+*The budget law, as an iff rather than an assumption.* `nested_fits_iff`:
+the probe's layout fits at word length `w` **↔** `max (setup + levels·aw +
+9) 10 ≤ 2 ^ w`, `turns` on neither side; `→` is attainment (no word below
+the peak can work), `←` is the peak bound. Asymptotically: **fits a linear
+word iff `levels·aw` is linear in `|x|`** — derived, not assumed. So what
+the consumer must maintain is *not* "free everything" but **bounded
+recursion depth × per-level arena = O(|x|)**.
+
+*Controls, all four biting.* (a) Bounded depth costs no word length at all:
+at `c = 10⁹`, `n = 10²⁰`, depth 3, the peak sits below what C0's domain
+already grants (`nested_fits_at_admissible_word`, the fair comparison —
+fitting at a word the domain admits). (b) Growing depth is refuted at every
+admissible `w` (`no_word_size_for_nested`, hypothesis `4c(n+2) ≤ levels·aw`
+with `turns` absent, so it is a statement about depth alone), `#guard`ed at
+depth and arena both ≈ `n^{3/4}`, total `n^{3/2}` — sub-quadratic and still
+refuted. (c) B's own negative control: at bounded depth the crossover
+hypothesis fails at the *same* instance, so B does not blanket-refute the
+descending shape. (d) The three peaks are compiled as strictly increasing.
+Also carried from the first submission: `freshSkel` refuted at `c = 10⁹`,
+`n = 10²⁰`, `Σ|X_c| = n^{3/2}`; linear fresh allocation correctly **not**
+refuted; the fits condition satisfiable alone at a free word length;
+the refutation's hypotheses inhabited (`entryState`).
+
+*E27/E28 and the registration half of E29.* Availability flavour is pinned
+per skeleton against `alloc_free_roundtrip`/`free_allocRaw_reuse`. Reuse is
+`availRaw`, never `avail` — re-zeroing costs O(n) and has no theorem — so
+touched-only is compiled *syntactically*: `hasAset` and `hasWhile` false on
+every pass, and `opCount (reusePass 0) == opCount (reusePass 10⁶)`, making a
+re-zeroing sweep impossible rather than merely absent. Registration
+discipline: `mentions hpName` is false on `ownedSkel`'s loop interior and
+true on its setup, and the check is shown to bite. `mentions hpName
+(nestedTurnBody …) = true` is recorded as **honest**: a driver holding
+arenas live across a recursive call really does touch the allocator inside
+the turn.
+
+*Recorded limitations (accepted, not defects).* Per-pass work is a single
+scalar `copy`, so the probe says nothing about what a pass does inside an
+arena beyond "no `aset`, no loop"; `probeWord` reproduces C0's domain shape
+and is not an `EncodesGraph` witness. Both are stated in the file header.
+
+*Closure artifact.* `.claude/leaf-gate.sh word-ram` → PASS, replayed by the
+supervisor: concepts 505, proofs 3,285 → **3,286**, `lax build: OK` zero
+violations, consumer **3,549** unchanged. Zero
+`sorry`/`admit`/`native_decide` and no named unproved `Prop` was needed; 27
+`#print axioms` all `[propext, (Classical.choice,) Quot.sound]`. Only
+`Lax13Proofs.lean` (+1 import) besides the new file.
+
+**P4.5 acceptance is now complete**: `alloc` green with proved O(1) cost and
+verified codegen (A.1–A.3), the ownership layer green (B), a P5.B structure
+re-seated with its previously conditional operation restated
+unconditionally (E34/E39/E40), and the compiled space-budget probe (this
+entry). P4.5.C remains as presentation-only work whose source is uncosted
+and out of the timed build closure.

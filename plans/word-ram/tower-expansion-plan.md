@@ -898,6 +898,34 @@ proves a scheduled source declaration was mistranslated or omitted.
 
 ## Progress log
 
+- **2026-08-03 (later) — P4.5.D: the compiled space-budget probe, and P4.5's
+  acceptance list is complete.** Tower **3,286 jobs**, `lax build` zero
+  violations, consumer 3,549 unchanged (gate replayed by the supervisor).
+  E29's probe is built as real `Ir.Com`s over the landed allocator, symbolic
+  in setup/arena/turns/levels. **The methodological content is that it is a
+  *peak* bound:** a LIFO `free` decreases `hp`, so a final-state bound is
+  vacuous as a space statement — it would pass on a skeleton that allocates
+  `n^{1+ε}` and frees it all. `Mid` is an inductive intermediate-state
+  relation mirroring the big-step rules, and `final_hp_is_not_peak` compiles
+  the two forms *disagreeing on a concrete program* rather than asserting the
+  distinction. **The supervisor correction is the leaf's real content:** the
+  first submission proved only the two extremes (reuse: arenas never
+  accumulate; fresh: they accumulate as `turns·levels·aw`), but a real
+  ND-MC-style driver is neither — it descends holding one arena live per
+  level, then unwinds, for a peak of `setup + levels·aw` that is
+  **independent of `turns`**. `nested_fits_iff` states the budget law as an
+  **iff** — fits a linear word iff `levels·aw` is linear in `|x|` — so what
+  the consumer must maintain is not "free everything" but bounded recursion
+  depth × per-level arena. It can fail, and the control where depth grows
+  with `n` is refuted at every admissible word at a sub-quadratic total
+  (`n^{3/2}`), while bounded depth costs no word length at all. Touched-only
+  is compiled syntactically (`hasAset`/`hasWhile` false, `opCount` invariant
+  in arena size), so a re-zeroing sweep is impossible rather than merely
+  absent. Ledger E41. **P4.5 acceptance complete**; P4.5.C is
+  presentation-only (uncosted source, outside the timed build closure).
+  **Next: P4.6** — the `orderCom` whole-phase synthesis probe, the gate that
+  decides whether ND-MC's G2 is a re-derivation or a repair.
+
 - **2026-08-03 — P4.5.A.9: E39's open item closed; `butlast`-then-`append`
   composes, and the worker transport changes.** One commit; tower **3,285
   jobs**, `lax build` zero violations, consumer 3,549 unchanged (gate replayed

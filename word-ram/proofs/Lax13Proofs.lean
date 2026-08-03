@@ -144,3 +144,4 @@ import Lax13Proofs.Refine.Examples.BfsQBounded
 import Lax13Proofs.Refine.Sepref.IrOpsExtra
 import Lax13Proofs.Refine.Examples.T1Probe
 import Lax13Proofs.Refine.Sepref.Examples.BoundsProbe
+import Lax13Proofs.Refine.Sepref.SpaceBudgetProbe
