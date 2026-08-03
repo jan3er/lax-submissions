@@ -1936,3 +1936,101 @@ zero violations, consumer **3,549** unchanged. Zero
 `sorry`/`admit`/`native_decide`; `#print axioms` on every main theorem
 `[propext, Classical.choice, Quot.sound]` (`arlAppendTotal_tight`:
 `propext, Quot.sound`). `ArrayList.lean` and `ArrayListCash.lean` not edited.
+
+### E40 — the heap `butlast` drops the logical shrink, and `butlast`-then-`append` composes
+
+**Status: landed, E39's open item closed** (leaf P4.5.A.9,
+`ArrayListHeap.lean` edited, new `Iicf/Impl/ArrayListButlastAppend.lean`,
+609 L). Added 2026-08-03.
+
+*The decision.* E39 offered three routes and recommended (a): drop the
+logical shrink **in the heap representation only**. Taken. `arlHButlastRaw`
+is now `arlPred` plus the two `mopPair`s that pack the result triple; the
+emitted command is `sub len len one ; skip ; skip`. `arlHButlastExecState s
+= ⟨s.buffer, s.length - 1, s.capacity⟩`.
+
+*Why it is forced rather than cheap.* Neither the shrinking nor the
+non-shrinking command performs a single heap operation — both mention
+neither `heapName` nor `hpName`, compiled — so **occupancy is identical
+with or without the shrink**. A.3's LIFO `free` could not have returned the
+tail in any case (`free_nontop_false`), and the block staying at its
+geometric size is already bounded at ≤ 4× the live set by E34's
+`arlAllocatedMany_live_bounded`. What the shrink buys is a space
+**constant**, explicitly a non-issue (Jan, 2026-08-02). What dropping it
+buys is `arlTight`, which is what append's dispatch needs.
+
+*The price went down, and the saving is a theorem.* `arlHButlastCost =
+ir.sub + 2·ir.skip`, against the landed `arlButlastCost`'s `sub`, two `mul`,
+one-or-two `ite`, two `copy`, two `skip`. `arlHButlastCost_add_shrink`
+states the difference as an equation rather than a remark. F11's discipline
+at its **sixth** opportunity and it held both ways: `arlHButlastN_toE`
+against what the judgment pays, and a `#guard` running the emitted program
+through `evalFuel` at E39's own state `⟨replicate 100 0, 17, 100⟩` — full
+sixteen-currency `costVector` is `skip 2, sub 1`, all else zero, `len → 16`,
+**`cap` stays 100**, heap bit-identical. (`ir.sub` sits outside `IrVecN`'s
+nine currencies, the landed `arlHLastN` convention; the 16-currency guard is
+where it is actually checked.)
+
+*Registration (E29).* Exactly one registered heap `butlast` rule, and it is
+the non-shrinking one — `arlHButlast_exec_hnr` **replaced**, not joined.
+**No new hypothesis**: the rule's parameters are strings and naturals only.
+The dead `four`/`two`/`fourN`/`twoN`/`outCap` cells are gone rather than
+retained. `arlHButlastCom_eq` was *false* after the change and is deleted;
+its honest replacement is a compiled `≠` between the two commands plus the
+cost equation. `arlHButlastExecSpec` is now its own definition, still
+`irreducible`.
+
+*The composition, which is the leaf's acceptance test.*
+`arlHButlastAppendCom = arlHButlastCom ; arlHAppendCom`, one `hnRefine`
+(`arlHButlastAppend_exec_hnr`) composed by `hnr_seq` from the two landed
+rules, **not registered** (`mentions hpName = true`, compiled). Its
+hypotheses are `s.Wf` and `arlTight s` — exactly what append already
+required, so the composition adds no caller obligation. Price
+`⟨1,1,0,1,0,4,1,0,2⟩ + ir.sub`, free of `s.length` and `s.capacity`, checked
+both ways. `arlHButlast_lt` proves `s.length - 1 < s.capacity` at every `Wf`
+state, so **the growth branch is unreachable after a `butlast`** and the
+composition never allocates — the bump pointer is compiled untouched.
+
+*Bridges re-derived, not re-cited.* `arlHButlastExecState_refines` is proved
+directly (the shrinking `arlButlastExecState_refines` is no longer available
+at this state), reusing the landed list step through
+`arlHButlastExecState_active : rfl` — the two states differ only in capacity,
+so they have the same `active`. The two representations therefore compute
+**different concrete states for the same abstract list**, and agree exactly
+where it counts: both refine `op_list_butlast` through the same
+`arrayListRel`. `arlButlastOp_refines` is untouched by either, and
+`ArrayList.lean` keeps its shrink — its buffer is not sized by an allocator.
+
+*Falsification, and the control that did not bite.* Bit: the length
+decrement dropped; the composition without the `butlast`; append's block
+move dropped inside the composition; the **old shrinking `butlast` spliced
+into the composition**; eleven one-unit perturbations of the composed
+vector; the `ir.sub` perturbation; three perturbations of the `butlast`
+vector. All `isSome`-guarded so the mutilated programs run to completion.
+**Did not bite, and this is the substance of E39, compiled:** for the
+old-`butlast` splice the *heap*, the *length* and the *base* are all
+bit-identical to the correct run — only the `cap` cell differs (16 vs 33). A
+heap-level or length-level control would have passed vacuously. The shrink
+is not a wrong answer in one step; it is a state that stops being tight, so
+`arlHAppend_exec_hnr` stops applying and the dispatch model diverges from
+`arlAppendTotal` (`arlPushGrown ⟨replicate 33 0, 16, 16⟩ 5 ≠ arlAppendTotal
+…`, compiled).
+
+*One supervisor correction folded in.* `ArrayListHeap.lean`'s header still
+claimed "append is still not synthesizable end to end" — stale since A.8,
+which could not update it because the file was frozen for that leaf. Fixed
+here, in the leaf that reopens the file.
+
+*Closure artifact.* `.claude/leaf-gate.sh word-ram` → `LEAF GATE: mechanical
+checks PASS`, replayed by the supervisor rather than reported: concepts 505,
+proofs 3,284 → **3,285**, `lax build: OK` with zero violations, consumer
+**3,549** unchanged. Zero `sorry`/`admit`/`native_decide`; `#print axioms`
+at `[propext, Classical.choice, Quot.sound]` or a subset
+(`arlHButlast_tight`: no axioms). `ArrayList.lean`, `ArrayListCash.lean`,
+`ArrayListAppendSynth.lean`, `ArrayListGrow.lean`, `ArrayListGrowSynth.lean`
+all zero diff.
+
+*Worker transport.* First leaf of the campaign executed by a **Claude
+subagent** rather than GPT-5.6-Sol via `codex exec` (Jan, 2026-08-03: "you
+spawn claude workers instead. codex is outdated"). The plan's governance
+section is superseded in place.

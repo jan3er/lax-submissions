@@ -65,12 +65,51 @@ real cost difference between the two representations:
 | `get` | `aget` | `add ; aget` | `+ir.add` |
 | `last` | `sub ; aget` | `sub ; add ; aget` | `+ir.add` |
 | `set` | `aset ; skip ; skip` | `add ; aset ; skip ; skip` | `+ir.add` |
-| `butlast` | metadata only | *the same command* | — |
+| `butlast` | `sub ; mul ; mul ; copy ; ite[ ; ite] ; skip ; skip` | `sub ; skip ; skip` | `−2·ir.mul −ir.ite[−ir.ite] −2·ir.copy` |
 | `swap` | 2·`aget` 2·`aset` 2·`skip` | 2·`add` 2·`aget` 2·`aset` 2·`skip` | `+2·ir.add` |
 
 Every one of those costs is read off the *emitted* program by a `#guard` in
-§ 6 (ledger **F11**, whose failure class has now bitten four times), not
+§ 6 (ledger **F11**, whose failure class has now bitten five times), not
 assigned by fiat.
+
+## `butlast` is the one operation whose *program* the re-seat changes (ledger E39)
+
+Every other row above adds instructions; `butlast`'s row removes them, and it
+is the only row where the two representations compute a different concrete
+state for the same abstract list.  The named-array `butlast` applies the
+source's conditional **logical** capacity shrink (`arlShrinkCapacity`); the
+heap `butlast` carries the capacity through untouched, so the emitted command
+collapses to the length decrement and the two `skip`s that pack the result
+triple.
+
+That is not a liberty taken for cheapness — it is forced, and it is what
+makes `butlast` composable with `append`:
+
+* **It costs nothing physical.**  Neither version performs a single heap
+  operation: both commands mention neither `heapName` nor `hpName`, which is
+  compiled in § 6.  The shrink is metadata, so *occupancy is identical with or
+  without it*, and the block stays at its geometric size — which E34's
+  `arlAllocatedMany_live_bounded` already bounds at ≤ 4× the live set.  A.3's
+  LIFO allocator could not have returned the tail in any case
+  (`free_nontop_false`).  What the shrink costs is a space **constant**, which
+  is explicitly a non-issue.
+* **It buys the representation invariant back.**  A heap block owns exactly
+  what was allocated for it, `arlTight s : s.capacity = s.buffer.length`, and
+  the shrink is the one landed operation that breaks it: the tight state
+  `⟨replicate 100 0, 17, 100⟩` shrinks to capacity `32` in a buffer of length
+  `100`.  `ArrayListAppendSynth.lean`'s append dispatch carries `arlTight` in
+  `s.Wf`'s position, so with the shrink in place *a program that does `butlast`
+  then `append` could not be synthesized at all*.  Without it, `arlTight` is
+  preserved, and `ArrayListButlastAppend.lean` is the composed command.
+
+The named-array representation keeps its shrink: `ArrayList.lean` is untouched
+and its seven registered rules stay the right rules for a caller who owns a
+named array, whose buffer is not sized by an allocator.  The two
+representations therefore compute *different concrete states* for the same
+abstract list — and they agree exactly where it counts, both refining
+`op_list_butlast` through the same `arrayListRel`
+(`arlHButlastExecState_refines` against `arlButlastExecState_refines`).  The
+abstract guarantee `arlButlastOp_refines` is untouched by either.
 
 ## Registration, and why nothing competes (ledger E29)
 
@@ -85,10 +124,12 @@ answered, and it is answered operation by operation rather than waved at.
 * For `get`, `last`, `set` and `swap` the two abstract operations are
   genuinely different — `arlHGetExecSpec` costs an `ir.add` that
   `arlGetExecSpec` does not — so the rules are not interchangeable at all.
-* For `butlast` the program *and* the price are unchanged by the re-seat, so
-  its heap rule differs from the landed one only in the assertion it consumes.
-  `arlHButlastExecSpec` is therefore a distinct `irreducible` constant, which
-  makes the two keys syntactically distinct; and even without that, selection
+* For `butlast` the two abstract operations are genuinely different too, and
+  in both value and price: `arlHButlastExecSpec` leaves the capacity alone and
+  costs `ir.sub + 2·ir.skip`, where `arlButlastExecSpec` computes
+  `arlShrinkCapacity` and costs five to six instructions more.  It is
+  additionally kept a distinct `irreducible` constant, which makes the two
+  keys syntactically distinct; and even without that, selection
   is "the first entry that applies **and** whose side conditions close", with
   backtracking (`Translate.lean`'s `transOp`), so a context holding one
   representation cannot be served the other rule — the frame premise fails.
@@ -115,16 +156,17 @@ too, its growth branch is already heap-native (`arlGrowPushSynth_impl`) and
 only the in-place branch's `+ir.add` would need cashing; that is named here
 rather than pre-empted.
 
-**Append is still not synthesizable end to end**, and the remaining gap is no
-longer representational — it is `hnr_If` over the two branches at a *moving*
-base pointer.  The in-place branch keeps the block at `p`; the growth branch
-returns a block at a fresh base `p'`, so the two branches' postconditions are
+**Append synthesizes end to end** — in `ArrayListAppendSynth.lean` (A.8,
+ledger E39), one `Com` and one `hnRefine` with both branches live.  The gap
+this file's original header named was not representational but `hnr_If` over a
+*moving* base pointer: the in-place branch keeps the block at `p`, the growth
+branch returns a block at a fresh `p'`, so the two postconditions are
 `heapBlockAssnAt p` and `heapBlockAssnAt p'` and `MERGE` cannot identify them.
-The merged form has to be the packed `heapBlockAssn` — which is exactly the
-form D-B1d keeps out of the database.  So append's dispatch needs a rule
-stated at the packed assertion and used *by name*, never registered, in the
-idiom `ArrayListGrowSynth.lean` used for `arlGrowSynth`.  That is one further
-leaf; it is named precisely and nothing here pretends to have done it.
+It was closed the way that header predicted — the merged form is the packed
+`heapBlockAssn`, which D-B1d keeps out of the database, so append's dispatch is
+composed and used *by name*, never registered, in the idiom
+`ArrayListGrowSynth.lean` used for `arlGrowSynth`.  The base pointer
+disappears from the *result* assertion, not from `Γ`.
 -/
 
 namespace Lax13Proofs.Refine.Sepref.Iicf
@@ -394,10 +436,13 @@ theorem hnr_mop_haset (c idx v : String) (p a n : ℕ) (xs : List Val) :
 are representation-independent and are reused **verbatim** — the proof terms
 below are `ArrayList.lean`'s own theorems, not re-derivations, and they are
 deliberately not re-tagged (there is exactly one registered rule per
-operation).  `butlast` emits a command that never mentions the buffer cell, so
-only its *ownership threading* changes.  The remaining four —
-`get`, `last`, `set`, `swap` — gain the address instruction the header's table
-prices. -/
+operation).  `butlast` still emits a command that never mentions the buffer
+cell, but it is no longer the *same* command: the logical shrink is dropped, so
+what is left is the length decrement and the two `skip`s that pack the result
+triple, and `four`, `two`, `fourN`, `twoN`, `outCap` are gone from the rule
+rather than kept as dead parameters (header, ledger **E39**).  The remaining
+four — `get`, `last`, `set`, `swap` — gain the address instruction the header's
+table prices. -/
 
 theorem arlHLength_exec_hnr (len out : String) (n : ℕ) :
     hnRefine (hnCtxt natAssn n len ∗ junkCell out)
@@ -434,18 +479,18 @@ noncomputable def arlHSwapRaw (p : ℕ) (buffer : List ℕ) (n cap i j : ℕ) :
             NRest.bindT (mopHaset p buffer' aj xi) fun buffer'' =>
               NRest.bindT (mopPair n cap) fun md => mopPair buffer'' md
 
-/-- Logical shrink only, exactly as `arlButlastRaw`: the emitted command never
-touches the buffer, so the *program* is unchanged by the re-seat.  This is a
-separate definition rather than an alias so that the rule database keeps one
-rule per operation (ledger E29). -/
+/-- **The length decrement, and nothing else** (ledger E39).  Where
+`arlButlastRaw` evaluates `arlShrinkCapacity` — two multiplications, a copy,
+and one or two branches — a heap-backed block owns exactly its capacity, so the
+capacity cell is carried through untouched and the whole operation is
+`arlPred` followed by the two `mopPair`s that pack the result triple.  Neither
+this command nor the landed one performs a heap operation, so occupancy is
+identical; what the shrink would have bought is a space constant, and what
+dropping it buys is `arlTight` (header). -/
 noncomputable def arlHButlastRaw (buffer : List ℕ) (n cap : ℕ) :
     NRest (List ℕ × (ℕ × ℕ)) ECost :=
   NRest.bindT (arlPred n) fun n' =>
-    NRest.bindT (mopBinop .mul n' 4) fun fourN =>
-      NRest.bindT (mopBinop .mul n' 2) fun twoN =>
-        NRest.bindT (mopCopy cap) fun cap₀ =>
-          NRest.bindT (arlSelectCap cap₀ fourN twoN cap) fun cap' =>
-            NRest.bindT (mopPair n' cap') fun md => mopPair buffer md
+    NRest.bindT (mopPair n' cap) fun md => mopPair buffer md
 
 sepref_synth arlHGetSynth (bc idx adr out : String) (p : ℕ) (buffer : List ℕ) (i : ℕ) :
   hnRefine (hnCtxt (heapBlockAssnAt p) buffer bc ∗ hnCtxt natAssn i idx ∗
@@ -475,14 +520,11 @@ sepref_synth arlHSwapSynth (bc len cap I J AI AJ XI XJ : String)
     _ _ (bc, (len, cap)) (heapBlockAssnAt p ×ₐ natAssn ×ₐ natAssn)
     (arlHSwapRaw p buffer n c i j)
 
-set_option maxHeartbeats 800000 in
-sepref_synth arlHButlastSynth
-    (bc len cap one four two fourN twoN outCap : String)
+sepref_synth arlHButlastSynth (bc len cap one : String)
     (p : ℕ) (buffer : List ℕ) (n c : ℕ) :
   hnRefine (hnCtxt (heapBlockAssnAt p) buffer bc ∗ hnCtxt natAssn n len ∗
-      hnCtxt natAssn c cap ∗ hnCtxt natAssn 1 one ∗ hnCtxt natAssn 4 four ∗
-      hnCtxt natAssn 2 two ∗ junkCell fourN ∗ junkCell twoN ∗ junkCell outCap)
-    _ _ (bc, (len, outCap)) (heapBlockAssnAt p ×ₐ natAssn ×ₐ natAssn)
+      hnCtxt natAssn c cap ∗ hnCtxt natAssn 1 one)
+    _ _ (bc, (len, cap)) (heapBlockAssnAt p ×ₐ natAssn ×ₐ natAssn)
     (arlHButlastRaw buffer n c)
 
 /-! ### The prices, read off the commands above -/
@@ -582,19 +624,45 @@ theorem arlHSwapRaw_eq (p : ℕ) (buffer : List ℕ) (n cap i j : ℕ)
   congr 1
   abel
 
-/-- `butlast`'s price and value are exactly the landed ones — the shrink is
-metadata-only, so the re-seat cannot change either.  It is nevertheless given
-its own constant, and made `irreducible`, so that the rule database keeps one
-syntactically distinct key per operation. -/
-noncomputable def arlHButlastExecSpec (buffer : List ℕ) (n cap : ℕ) :
-    NRest (List ℕ × (ℕ × ℕ)) ECost := arlButlastExecSpec buffer n cap
+/-- `butlast`'s price, read off `arlHButlastRaw`: one `ir.sub` for the length
+decrement and the two `ir.skip`s that pack the result triple.  Unconditional —
+where `arlButlastCost` carries an `if` because the shrink's inner branch is
+only reached sometimes, there is no branch left to carry. -/
+noncomputable def arlHButlastCost : ECost :=
+  irUnit Currency.sub + 2 • irUnit Currency.skip
 
-theorem arlHButlastExecSpec_eq (buffer : List ℕ) (n cap : ℕ) :
-    arlHButlastExecSpec buffer n cap = arlButlastExecSpec buffer n cap := rfl
+/-- **The price goes down, and by exactly this** (ledger E39): the two
+multiplications, the capacity copy, the outer branch of `arlSelectCap`, its
+inner branch when taken, and the copy that branch performs.  Stated as an
+equation against the landed cost so that the saving is a theorem rather than a
+remark. -/
+theorem arlHButlastCost_add_shrink (n cap : ℕ) :
+    arlHButlastCost + (2 • irUnit Currency.mul + irUnit Currency.ite +
+        (if (n - 1) * 4 < cap then irUnit Currency.ite else 0) +
+        2 • irUnit Currency.copy) =
+      arlButlastCost n cap := by
+  rw [arlHButlastCost, arlButlastCost]
+  abel
+
+/-- `butlast`'s value: the length decremented, **the capacity carried
+through**.  Given its own constant, and made `irreducible`, so that the rule
+database keeps one syntactically distinct key per operation (ledger E29). -/
+noncomputable def arlHButlastExecSpec (buffer : List ℕ) (n cap : ℕ) :
+    NRest (List ℕ × (ℕ × ℕ)) ECost :=
+  NRest.consume (NRest.returnT (buffer, (n - 1, cap))) arlHButlastCost
+
+theorem arlHButlastExecSpec_def (buffer : List ℕ) (n cap : ℕ) :
+    arlHButlastExecSpec buffer n cap =
+      NRest.consume (NRest.returnT (buffer, (n - 1, cap))) arlHButlastCost := rfl
 
 theorem arlHButlastRaw_eq (buffer : List ℕ) (n cap : ℕ) :
-    arlHButlastRaw buffer n cap = arlHButlastExecSpec buffer n cap :=
-  arlButlastRaw_eq buffer n cap
+    arlHButlastRaw buffer n cap = arlHButlastExecSpec buffer n cap := by
+  rw [arlHButlastRaw, arlHButlastExecSpec, arlHButlastCost, arlPred, mopBinop_def,
+    Imp.Bop.apply_sub, binopCurrency_sub, Lax13Proofs.Refine.Iicf.bindT_unit,
+    mopPair_def, Lax13Proofs.Refine.Iicf.bindT_unit, mopPair_def,
+    NRest.consume_consume, NRest.consume_consume, two_nsmul]
+  congr 1
+  abel
 
 attribute [irreducible] arlHButlastExecSpec
 
@@ -617,17 +685,15 @@ def arlHSwapCom (bc _len _cap I J AI AJ XI XJ : String) : Com :=
           (.seq (.aset heapName AI XJ)
             (.seq (.aset heapName AJ XI) (.seq .skip .skip))))))
 
-/-- Identical to `arlButlastCom`: the shrink never touches the buffer. -/
-def arlHButlastCom (_bc len cap one four two fourN twoN outCap : String) : Com :=
-  .seq (.binop .sub len len one)
-    (.seq (.binop .mul fourN len four)
-      (.seq (.binop .mul twoN len two)
-        (.seq (.copy outCap cap)
-          (.seq (arlSelectCapCom fourN twoN cap outCap) (.seq .skip .skip)))))
-
-theorem arlHButlastCom_eq (bc len cap one four two fourN twoN outCap : String) :
-    arlHButlastCom bc len cap one four two fourN twoN outCap =
-      arlButlastCom bc len cap one four two fourN twoN outCap := rfl
+/-- **Not** `arlButlastCom`.  The landed command's `mul ; mul ; copy ;
+ite[ ; ite]` middle computes `arlShrinkCapacity` into a fresh cell; here the
+capacity cell is carried through, so the decrement and the two packing `skip`s
+are the whole program.  `arlHButlastCom_eq` — which said the two commands were
+equal — is gone with the shrink; the honest replacement is the strict
+inequality `arlHButlastCom_ne_arlButlastCom` compiled in § 6, together with the
+cost equation `arlHButlastCost_add_shrink` that says exactly what was dropped. -/
+def arlHButlastCom (_bc len _cap one : String) : Com :=
+  .seq (.binop .sub len len one) (.seq .skip .skip)
 
 /-! ### The registered executable rules -/
 
@@ -684,20 +750,21 @@ theorem arlHButlastCom_eq (bc len cap one four two fourN twoN outCap : String) :
   rw [← arlHSwapRaw_eq p buffer n c i j hi hj]
   exact arlHSwapSynth bc len cap I J AI AJ XI XJ p buffer n c i j
 
-@[sepref_fr_rules] theorem arlHButlast_exec_hnr
-    (bc len cap one four two fourN twoN outCap : String)
+/-- **The one registered heap `butlast` rule**, and it replaces the shrinking
+one rather than joining it (ledger E29: one rule per operation).  It acquires
+**no** hypothesis the landed rule did not have — `arlTight` is an invariant
+carried by the rules, never a precondition demanded of `butlast`'s caller. -/
+@[sepref_fr_rules] theorem arlHButlast_exec_hnr (bc len cap one : String)
     (p : ℕ) (buffer : List ℕ) (n c : ℕ) :
     hnRefine (hnCtxt (heapBlockAssnAt p) buffer bc ∗ hnCtxt natAssn n len ∗
-      hnCtxt natAssn c cap ∗ hnCtxt natAssn 1 one ∗ hnCtxt natAssn 4 four ∗
-      hnCtxt natAssn 2 two ∗ junkCell fourN ∗ junkCell twoN ∗ junkCell outCap)
-      (arlHButlastCom bc len cap one four two fourN twoN outCap)
-      (junkCell fourN ∗ junkCell twoN ∗ hnCtxt natAssn c cap ∗
-        hnCtxt natAssn 2 two ∗ hnCtxt natAssn 4 four ∗ hnCtxt natAssn 1 one)
-      (bc, (len, outCap))
+      hnCtxt natAssn c cap ∗ hnCtxt natAssn 1 one)
+      (arlHButlastCom bc len cap one)
+      (hnCtxt natAssn 1 one)
+      (bc, (len, cap))
       (heapBlockAssnAt p ×ₐ natAssn ×ₐ natAssn)
       (arlHButlastExecSpec buffer n c) := by
   rw [← arlHButlastRaw_eq buffer n c]
-  exact arlHButlastSynth bc len cap one four two fourN twoN outCap p buffer n c
+  exact arlHButlastSynth bc len cap one p buffer n c
 
 /-! ## 4. Bridges to the cost-silent list interface
 
@@ -749,17 +816,49 @@ theorem arlHSwapExecSpec_refines {s : ArrayList} {xs : List ℕ} {i j : ℕ}
       (arlSwapExecState s i j, listSwap xs i j) ∈ arrayListRel :=
   ⟨rfl, arlSwapExecState_refines h hi hj⟩
 
-/-- `butlast`'s bridge is `ArrayList.lean`'s, verbatim: same spec, same cost,
-same relation step.  Nothing about it is representation-dependent. -/
+/-! ### `butlast`'s bridge, the one that *is* re-derived (ledger E39)
+
+The heap `butlast` reaches a different concrete state than the named-array one
+— same buffer, same length, **different capacity** — so `ArrayList.lean`'s
+`arlButlastExecSpec_refines` is not available as a proof term here.  What is
+reused is the part that carries the content: the two states have the same
+`buffer` and the same `length`, hence *literally the same* `active`, so
+`arlButlastExecState_refines` still supplies the list step and only `Wf` has to
+be re-checked.  That is strictly easier than the shrinking case, whose three
+`Wf` clauses each needed an `arlShrinkCapacity` case split: here all three are
+inherited from `s`, because only the length goes down. -/
+
+/-- The concrete state a heap `butlast` reaches: **the capacity untouched**. -/
+def arlHButlastExecState (s : ArrayList) : ArrayList :=
+  ⟨s.buffer, s.length - 1, s.capacity⟩
+
+/-- The two representations' `butlast` states differ only in the capacity, so
+they have the same active prefix. -/
+theorem arlHButlastExecState_active (s : ArrayList) :
+    (arlHButlastExecState s).active = (arlButlastExecState s).active := rfl
+
+theorem arlHButlastExecState_refines {s : ArrayList} {xs : List ℕ}
+    (h : (s, xs) ∈ arrayListRel) (hne : s.length ≠ 0) :
+    (arlHButlastExecState s, listButlast xs) ∈ arrayListRel := by
+  have hxs : xs ≠ [] := (arrayListRel_nonempty h) ▸ hne
+  have hrel := arlButlastExecState_refines h hxs
+  change s.Wf ∧ s.active = xs at h
+  obtain ⟨⟨hpos, hlc, hcb⟩, -⟩ := h
+  refine ⟨⟨hpos, ?_, hcb⟩, ?_⟩
+  · show s.length - 1 ≤ s.capacity
+    omega
+  · rw [arlHButlastExecState_active]
+    exact hrel.2
+
 theorem arlHButlastExecSpec_refines {s : ArrayList} {xs : List ℕ}
     (h : (s, xs) ∈ arrayListRel) (hne : xs ≠ []) :
     arlHButlastExecSpec s.buffer s.length s.capacity = NRest.consume
-        (NRest.returnT ((arlButlastExecState s).buffer,
-          ((arlButlastExecState s).length, (arlButlastExecState s).capacity)))
-        (arlButlastCost s.length s.capacity) ∧
-      (arlButlastExecState s, listButlast xs) ∈ arrayListRel := by
-  rw [arlHButlastExecSpec_eq]
-  exact arlButlastExecSpec_refines h hne
+        (NRest.returnT ((arlHButlastExecState s).buffer,
+          ((arlHButlastExecState s).length, (arlHButlastExecState s).capacity)))
+        arlHButlastCost ∧
+      (arlHButlastExecState s, listButlast xs) ∈ arrayListRel :=
+  ⟨arlHButlastExecSpec_def s.buffer s.length s.capacity,
+    arlHButlastExecState_refines h ((arrayListRel_nonempty h).symm ▸ hne)⟩
 
 /-! ## 5. The prices, as nine-currency vectors
 
@@ -802,6 +901,18 @@ theorem arlHSetN_toE : arlHSetN.toE = arlHSetCost := by
 
 theorem arlHSwapN_toE : arlHSwapN.toE = arlHSwapCost := by
   rw [arlHSwapN, arlHSwapCost, IrVecN.toE]
+  simp only [Nat.cast_zero, Nat.cast_ofNat, ACost.cost_zero, irUnit,
+    two_nsmul, cost_two]
+  abel
+
+/-- `butlast`'s two packing `skip`s.  Its `ir.sub`, like `last`'s, is **not**
+one of the nine currencies `IrVecN` carries, so the vector cannot express it
+and `arlHButlastN_toE` states the price as the vector *plus* that `ir.sub`;
+§ 6 checks the `ir.sub` against the run's full sixteen-currency vector. -/
+def arlHButlastN : IrVecN := ⟨0, 0, 0, 0, 0, 2, 0, 0, 0⟩
+
+theorem arlHButlastN_toE : arlHButlastN.toE + irUnit Currency.sub = arlHButlastCost := by
+  rw [arlHButlastN, arlHButlastCost, IrVecN.toE]
   simp only [Nat.cast_zero, Nat.cast_ofNat, ACost.cost_zero, irUnit,
     two_nsmul, cost_two]
   abel
@@ -861,8 +972,12 @@ the same pins in literal, readable form. -/
           ((Com.aset "$heap" "AI" "XJ").seq
             ((Com.aset "$heap" "AJ" "XI").seq (Com.skip.seq Com.skip))))))
 
--- `butlast` emits the landed command unchanged — that is the pin.
-#guard arlHButlastCom "bc" "len" "cap" "one" "four" "two" "fourN" "twoN" "outCap" =
+#guard arlHButlastCom "bc" "len" "cap" "one" =
+  (Com.binop .sub "len" "len" "one").seq (Com.skip.seq Com.skip)
+
+-- **The two `butlast` commands are different programs** — this replaces the
+-- deleted `arlHButlastCom_eq`, which asserted they were equal (ledger E39).
+#guard arlHButlastCom "bc" "len" "cap" "one" ≠
   arlButlastCom "bc" "len" "cap" "one" "four" "two" "fourN" "twoN" "outCap"
 
 /-- The run's cost as one of `ArrayListCash.lean`'s nine-currency vectors. -/
@@ -1001,32 +1116,110 @@ def arrSwapOut : State × Cost :=
 
 /-! ### `butlast`
 
-The shrink is metadata-only, so what has to be checked here is that the
-re-seat did **not** turn it into a heap operation: the emitted command is the
-landed one and the heap is bit-identical after the run. -/
+Run at **ledger E39's own counterexample state**: the tight block
+`⟨replicate 100 0, 17, 100⟩`, where the landed shrink fires and takes the
+capacity to `32`.  Three things are checked here — the length drops, the
+capacity cell is *unchanged*, and the heap is bit-identical, i.e. the re-seat
+did not turn a metadata operation into a heap operation. -/
 
 def butlastState : State :=
   State.ofPairs
-    [("bc", 3), ("len", 17), ("cap", 100), ("one", 1), ("four", 4), ("two", 2),
-      ("fourN", 77), ("twoN", 78), ("outCap", 79)]
+    [("bc", 3), ("len", 17), ("cap", 100), ("one", 1)]
     [(heapName, gateHeap)]
 
 def butlastOut : State × Cost :=
-  (evalFuel 30 (arlHButlastCom "bc" "len" "cap" "one" "four" "two" "fourN" "twoN" "outCap")
-    butlastState).getD (butlastState, 0)
+  (evalFuel 30 (arlHButlastCom "bc" "len" "cap" "one") butlastState).getD (butlastState, 0)
 
 theorem butlastOut_evalFuel :
-    evalFuel 30 (arlHButlastCom "bc" "len" "cap" "one" "four" "two" "fourN" "twoN" "outCap")
-      butlastState = some butlastOut := rfl
+    evalFuel 30 (arlHButlastCom "bc" "len" "cap" "one") butlastState = some butlastOut := rfl
 
--- `len` drops to 16, `16 * 4 = 64 < 100`, `15 < 32`, so the capacity shrinks to 32 …
-#guard readVars butlastOut.1 ["len", "outCap", "fourN", "twoN", "cap", "bc"] =
-  [("len", some 16), ("outCap", some 32), ("fourN", some 64), ("twoN", some 32),
-   ("cap", some 100), ("bc", some 3)]
--- …which is `arlShrinkCapacity`'s answer, and the heap is untouched.
-#guard (readVars butlastOut.1 ["outCap"]).head?.map (fun r => r.2)
-  = some (some (arlShrinkCapacity ⟨List.replicate 100 0, 17, 100⟩ 16))
+theorem butlastOut_bigStep :
+    BigStep (arlHButlastCom "bc" "len" "cap" "one") butlastState butlastOut.1 butlastOut.2 :=
+  bigStep_of_evalFuel butlastOut_evalFuel
+
+-- `len` drops to 16 and `cap` stays at 100 …
+#guard readVars butlastOut.1 ["len", "cap", "bc", "one"] =
+  [("len", some 16), ("cap", some 100), ("bc", some 3), ("one", some 1)]
+-- …which is `arlHButlastExecState`'s answer, where the landed
+-- `arlButlastExecState` would have said `32`.
+#guard readVars butlastOut.1 ["len", "cap"] =
+  [("len", some (arlHButlastExecState ⟨List.replicate 100 0, 17, 100⟩).length),
+   ("cap", some (arlHButlastExecState ⟨List.replicate 100 0, 17, 100⟩).capacity)]
+#guard (arlButlastExecState ⟨List.replicate 100 0, 17, 100⟩).capacity = 32
+#guard readVars butlastOut.1 ["cap"] ≠
+  [("cap", some (arlButlastExecState ⟨List.replicate 100 0, 17, 100⟩).capacity)]
+-- The heap is untouched: `butlast` performs no heap operation in *either*
+-- version, so physical occupancy is identical and the E29 space budget is
+-- unaffected.  Compiled, not asserted.
 #guard readArrs butlastOut.1 [heapName] = [(heapName, some gateHeap)]
+
+/-- The space argument, compiled: neither `butlast` command mentions the heap
+array or the allocator's bump pointer, so neither can allocate, free, or move a
+byte.  Dropping the shrink is a metadata change and nothing else. -/
+private def condMentions (x : String) : Cond → Bool
+  | .eq u v => opMentions u || opMentions v
+  | .lt u v => opMentions u || opMentions v
+where
+  opMentions : Operand → Bool
+    | .cell y => y == x
+    | .lit _ => false
+
+private def mentions (x : String) : Com → Bool
+  | .skip => false
+  | .const y _ => y == x
+  | .copy y z => y == x || z == x
+  | .binop _ y z w => y == x || z == x || w == x
+  | .aget y a i => y == x || a == x || i == x
+  | .aset a i v => a == x || i == x || v == x
+  | .seq c d => mentions x c || mentions x d
+  | .ite b c d => condMentions x b || mentions x c || mentions x d
+  | .while b c => condMentions x b || mentions x c
+
+#guard mentions heapName (arlHButlastCom "bc" "len" "cap" "one") = false
+#guard mentions hpName (arlHButlastCom "bc" "len" "cap" "one") = false
+#guard mentions heapName
+  (arlButlastCom "bc" "len" "cap" "one" "four" "two" "fourN" "twoN" "outCap") = false
+#guard mentions hpName
+  (arlButlastCom "bc" "len" "cap" "one" "four" "two" "fourN" "twoN" "outCap") = false
+-- The negative half of the same check: `set` does mention the heap.
+#guard mentions heapName (arlHSetCom "bc" "len" "cap" "idx" "adr" "value") = true
+
+-- The price, both ways: the predicted vector against the run …
+#guard runVec butlastOut.2 = arlHButlastN
+-- … and the full sixteen-currency vector, which is where the `ir.sub` that
+-- `IrVecN` cannot carry is actually checked.
+#guard costVector butlastOut.2 =
+  [("ir.skip", 2), ("ir.const", 0), ("ir.copy", 0), ("ir.aget", 0), ("ir.aset", 0),
+   ("ir.ite", 0), ("ir.while", 0), ("ir.add", 0), ("ir.sub", 1), ("ir.mul", 0),
+   ("ir.div", 0), ("ir.and", 0), ("ir.or", 0), ("ir.xor", 0), ("ir.shiftl", 0),
+   ("ir.shiftr", 0)]
+
+/-! #### The differential against the landed named-array `butlast`
+
+Same state, the landed command: the same length, a **different** capacity, and
+four instructions more.  This is the contrast the leaf is about; it is compiled
+rather than described. -/
+
+def arrButlastState : State :=
+  State.ofPairs
+    [("A", 0), ("len", 17), ("cap", 100), ("one", 1), ("four", 4), ("two", 2),
+      ("fourN", 77), ("twoN", 78), ("outCap", 79)]
+    [(heapName, gateHeap)]
+
+def arrButlastOut : State × Cost :=
+  (evalFuel 30 (arlButlastCom "A" "len" "cap" "one" "four" "two" "fourN" "twoN" "outCap")
+    arrButlastState).getD (arrButlastState, 0)
+
+-- Same length …
+#guard readVars arrButlastOut.1 ["len"] = readVars butlastOut.1 ["len"]
+-- … a different capacity: `16 * 4 = 64 < 100` and `15 < 32`, so it shrinks,
+-- and `arlShrinkCapacity` is what it computes.
+#guard readVars arrButlastOut.1 ["outCap"] = [("outCap", some 32)]
+#guard (readVars arrButlastOut.1 ["outCap"]).head?.map (fun r => r.2)
+  = some (some (arlShrinkCapacity ⟨List.replicate 100 0, 17, 100⟩ 16))
+#guard readVars arrButlastOut.1 ["outCap"] ≠ readVars butlastOut.1 ["cap"]
+-- … at two `ir.mul`, two `ir.ite` and two `ir.copy` more, and nothing less.
+#guard runVec arrButlastOut.2 = runVec butlastOut.2 + ⟨2, 2, 0, 2, 0, 0, 0, 0, 0⟩
 
 /-! ### Negative controls, each flipped and confirmed to bite
 
@@ -1079,10 +1272,42 @@ def swapNoAJProg : Com :=
 #guard readArrs ((evalFuel 30 swapNoAJProg gateState).getD (gateState, 0)).1 [heapName]
   ≠ readArrs swapOut.1 [heapName]
 
-/-! **Control 6 — the cost claim itself.**  Dropping the `ir.add` from `get`'s
-predicted vector makes the prediction fail against the run.  This is the check
-that ledger F11's failure class is being tested for and not merely mentioned. -/
+/-- **Control 6 — `butlast` without the length decrement.**  Only the two
+packing `skip`s are left, so `len` keeps its input value `17`: the program runs
+to completion and answers the wrong length, and it is one `ir.sub` cheaper. -/
+def butlastNoPredProg : Com := .seq .skip .skip
+
+#guard (evalFuel 30 butlastNoPredProg butlastState).isSome
+#guard readVars ((evalFuel 30 butlastNoPredProg butlastState).getD (butlastState, 0)).1 ["len"]
+  ≠ readVars butlastOut.1 ["len"]
+#guard costVector ((evalFuel 30 butlastNoPredProg butlastState).getD (butlastState, 0)).2
+  ≠ costVector butlastOut.2
+
+/-- **Control 7 — the shrink put back**, i.e. the landed command spliced in
+where the new one belongs.  It runs to completion and hands back a capacity of
+`32` for a block of `100`; that is precisely the state `arlTight` rejects, and
+`ArrayListButlastAppend.lean` is where it is shown to break the append that
+follows. -/
+def butlastShrinkProg : Com :=
+  arlButlastCom "bc" "len" "cap" "one" "four" "two" "fourN" "twoN" "outCap"
+
+#guard (evalFuel 30 butlastShrinkProg arrButlastState).isSome
+#guard readVars ((evalFuel 30 butlastShrinkProg arrButlastState).getD
+    (arrButlastState, 0)).1 ["outCap"] ≠ readVars butlastOut.1 ["cap"]
+
+/-! **Control 8 — the cost claims themselves.**  One unit off the predicted
+vector fails against the run.  This is the check that ledger F11's failure
+class is being tested for and not merely mentioned. -/
 #guard runVec getOut.2 ≠ ⟨0, 0, 0, 0, 0, 0, 0, 1, 0⟩
+#guard runVec butlastOut.2 ≠ (⟨0, 0, 0, 0, 0, 1, 0, 0, 0⟩ : IrVecN)
+#guard runVec butlastOut.2 ≠ (⟨0, 0, 0, 0, 0, 3, 0, 0, 0⟩ : IrVecN)
+#guard runVec butlastOut.2 ≠ (⟨0, 0, 0, 1, 0, 2, 0, 0, 0⟩ : IrVecN)
+-- …and the `ir.sub` the nine-vector cannot carry, one unit off in the full one.
+#guard costVector butlastOut.2 ≠
+  [("ir.skip", 2), ("ir.const", 0), ("ir.copy", 0), ("ir.aget", 0), ("ir.aset", 0),
+   ("ir.ite", 0), ("ir.while", 0), ("ir.add", 0), ("ir.sub", 0), ("ir.mul", 0),
+   ("ir.div", 0), ("ir.and", 0), ("ir.or", 0), ("ir.xor", 0), ("ir.shiftl", 0),
+   ("ir.shiftr", 0)]
 
 end ArrayListHeapGate
 
@@ -1119,6 +1344,22 @@ end ArrayListHeapGate
 /-- info: 'Lax13Proofs.Refine.Sepref.Iicf.arlHButlast_exec_hnr' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms arlHButlast_exec_hnr
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.arlHButlastRaw_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms arlHButlastRaw_eq
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.arlHButlastExecState_refines' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms arlHButlastExecState_refines
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.arlHButlastCost_add_shrink' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms arlHButlastCost_add_shrink
+
+/-- info: 'Lax13Proofs.Refine.Sepref.Iicf.arlHButlastN_toE' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms arlHButlastN_toE
 
 /--
 info: 'Lax13Proofs.Refine.Sepref.Iicf.heapArrayListAssn_entails_packed' depends on axioms: [propext,

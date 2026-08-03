@@ -30,7 +30,8 @@ ledger E31: worker output in the record is consistently strong, while the
 recurring failure class is supervisor state-tracking and prose verdicts, and
 the mid-phase review that produced F6–F11 was the highest-leverage single
 session in the record — one boundary review is cheaper than the rework it
-prevents. Proof workers are GPT-5.6-Sol via `codex exec`. Where practical,
+prevents. Proof workers are **Claude subagents**, one coherent leaf each,
+spawned fresh with a compact brief (never forks). Where practical,
 one subagent owns a coherent phase or subphase; the supervisor audits its
 source map and diff, requests corrections, independently rebuilds, and
 commits. A worker's green report is not acceptance evidence until the
@@ -896,6 +897,35 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-03 — P4.5.A.9: E39's open item closed; `butlast`-then-`append`
+  composes, and the worker transport changes.** One commit; tower **3,285
+  jobs**, `lax build` zero violations, consumer 3,549 unchanged (gate replayed
+  by the supervisor, not reported). The heap `butlast` drops the source's
+  logical capacity shrink — forced, not cheap: neither version performs a heap
+  operation, so occupancy is identical and what the shrink costs is a space
+  constant, while what dropping it buys is `arlTight`, the invariant append's
+  dispatch carries in `s.Wf`'s position. `arlHButlastCost` falls to
+  `ir.sub + 2·ir.skip` and the saving is an equation (`arlHButlastCost_add_shrink`),
+  not a remark. **The acceptance test:** `arlHButlastAppendCom` is one `Com`,
+  one `hnRefine`, composed by `hnr_seq` from the two landed rules and used by
+  name (never registered — it allocates in one branch), at a price free of
+  length and capacity; `arlHButlast_lt` proves the growth branch is unreachable
+  after a `butlast`, so the composition never allocates and the bump pointer is
+  compiled untouched. F11's discipline held at its sixth opportunity, both ways.
+  The sharpest finding is a control that **did not** bite: splicing the old
+  shrinking `butlast` into the composition leaves the heap, the length and the
+  base bit-identical — only the `cap` cell differs — so a heap-level control
+  would have passed vacuously. That is exactly E39's point compiled: the shrink
+  is not a wrong answer in one step, it is a state that stops being tight. A
+  stale A.8-era header claim ("append is still not synthesizable end to end")
+  was corrected in the leaf that reopened the file. Ledger E40. **Worker
+  transport:** Jan, this session — "you spawn claude workers instead. codex is
+  outdated"; proof workers are Claude subagents and the governance section is
+  superseded in place. **Next:** the E29 compiled space-budget probe (P4.5's
+  remaining acceptance item), then P4.5.C, then P4.6's `orderCom` whole-phase
+  synthesis probe — which is the gate that decides whether ND-MC's G2 is a
+  re-derivation or a repair.
 
 - **2026-08-02 (later) — P4.5.B green, P5.E first re-seat green, the cost
   story now reaches the machine.** Six commits `b226642..a06a59c`; tower
