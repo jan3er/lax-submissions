@@ -516,15 +516,18 @@ read against a landed probe. -/
 /-- The encoding of the star on four leaves. -/
 def starTape : List ℕ := [5, 4, 0, 4, 5, 6, 7, 8, 1, 2, 3, 4, 0, 0, 0, 0]
 
-/-- A fresh machine for the decode: the four arrays `RamDriver.DecodeMem`
+/-- A fresh machine for the decode: the five arrays `RamDriver.DecodeMem`
 sizes, with `tgt` at the star's own eight slots followed by a chosen
-padding tail. -/
+padding tail. The fifth is the root member list (rebase E-mem): the
+decode ends by filling `RamDriver.memName 0` with the identity and
+`RamDriver.mnumName 0` with `n`, so the array has to be there. -/
 def decSt (tail : List ℕ) : PSt where
   vars := []
   arrs :=
     [("off", List.replicate 6 0), ("tgt", List.replicate 8 0 ++ tail),
      (RamDriver.alvName 0, List.replicate 5 0),
-     (RamDriver.gamName 0, List.replicate 5 0)]
+     (RamDriver.gamName 0, List.replicate 5 0),
+     (RamDriver.memName 0, List.replicate 5 0)]
   inp := starTape
 
 /-- **The decode, into a `tgt` twelve cells wider than the encoding**,

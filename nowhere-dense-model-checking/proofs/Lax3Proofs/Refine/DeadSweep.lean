@@ -266,6 +266,16 @@ theorem sweepImplements {n B q_top cap mb ns W ℓ jd : ℕ} {φ : Lax3.FirstOrd
           exact notMem_warrs_sweepCom hlocal
             (fun i => RamDriverBase.lit_ne_tabName (by decide) jd i)
             (RamDriverBot.not_ext_of_not_prefix (by decide)))
+      -- the member list and its count (rebase E-mem): the sweep writes the
+      -- tables and the names below its own output, neither of which is a
+      -- depth's `mem`/`mm`
+      (notMem_warrs_sweepCom hlocal
+        (fun i => RamDriverBot.ne_of_head_ne (RamDriverCompose.head_memName jd)
+          (RamDriverBot.head_tabName jd i) (by decide))
+        (RamDriverCompose.not_ext_bb_memName jd))
+      (notMem_wvars_sweepCom hlocal (by simp [mnumName, String.ext_iff])
+        (fun i => RamDriverBot.lit_ne_envName (RamDriverCompose.head_mnumName jd) (by decide) i)
+        (RamDriverCompose.not_ext_bb_mnumName jd))
   · exact hrun.out_eq (noWrite_sweepCom q_top cap mb jd φ)
   · exact fun a => hvar _ (by simp [ctrName, String.ext_iff])
       (hnev _ 'c' ⟨_, by rw [ctrName, String.toList_append]; rfl⟩ (by decide))

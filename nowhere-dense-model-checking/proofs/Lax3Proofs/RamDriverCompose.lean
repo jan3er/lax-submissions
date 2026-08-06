@@ -299,9 +299,11 @@ theorem levelPre_run {B n cap mb ns W j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ
     (hoff : "off" ∉ c.warrs) (htgt : "tgt" ∉ c.warrs)
     (halv : alvName j ∉ c.warrs) (hgam : gamName j ∉ c.warrs)
     (hcol : ∀ q : ℕ, colName j q ∉ c.warrs)
-    (hz : ∀ a ∈ zeroArrs, a ∉ c.warrs) :
+    (hz : ∀ a ∈ zeroArrs, a ∉ c.warrs)
+    (hmemA : memName j ∉ c.warrs) (hmmv : mnumName j ∉ c.wvars) :
     LevelPre B n cap mb ns W O T j M Gm C σ' := by
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15⟩ := h
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15,
+    Mem, mmj, hm1, hm2, hm3, hm4⟩ := h
   exact ⟨by rw [hr.frame_var "n" hn]; exact h1,
     by rw [hr.frame_arr "off" hoff]; exact h2,
     by rw [hr.frame_arr "tgt" htgt]; exact h3,
@@ -310,7 +312,9 @@ theorem levelPre_run {B n cap mb ns W j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ
     fun q hq => by rw [hr.frame_arr _ (hcol q)]; exact h6 q hq,
     h7, h8, h9, levelMem_run hr h10, h11.run hr,
     by rw [hr.frame_var "m" hm]; exact h12,
-    orderMem_run h13 hr hlw hz, h14, h15⟩
+    orderMem_run h13 hr hlw hz, h14, h15,
+    Mem, mmj, by rw [hr.frame_arr _ hmemA]; exact hm1,
+    by rw [hr.frame_var _ hmmv]; exact hm2, hm3, hm4⟩
 
 /-! ### The cover phase's own frames -/
 
@@ -353,6 +357,16 @@ theorem n_notMem_coverPhase (cap j : ℕ) : "n" ∉ (coverPhase cap j).wvars := 
 theorem lw_notMem_coverPhase (cap j : ℕ) : "lw" ∉ (coverPhase cap j).wvars := by
   rw [wvars_coverPhase]
   simp [xpName, cnumName, String.ext_iff]
+
+/-- The cover phase writes no depth's member list (rebase E-mem): the
+per-cluster member CSR it fills is `xmmName j`, a different structure. -/
+theorem memName_notMem_coverPhase (cap j a : ℕ) : memName a ∉ (coverPhase cap j).warrs := by
+  rw [warrs_coverPhase]
+  simp [memName, xofName, xmmName, asgName, cpsName, String.ext_iff]
+
+theorem mnumName_notMem_coverPhase (cap j a : ℕ) : mnumName a ∉ (coverPhase cap j).wvars := by
+  rw [wvars_coverPhase]
+  simp [mnumName, xpName, cnumName, String.ext_iff]
 
 theorem m_notMem_coverPhase (cap j : ℕ) : "m" ∉ (coverPhase cap j).wvars := by
   rw [wvars_coverPhase]
@@ -482,7 +496,8 @@ theorem coverOut_congr {Xmem' : ℕ → ℕ} (h : CoverOut G A₀ π ord r m Xof
   have hblk : ∀ c < n, ∀ p, p < Xoff (c + 1) → p < m := fun c hc p hp =>
     lt_of_lt_of_le hp (coverOut_off_le h (c + 1) (by omega))
   refine ⟨h.zero, h.last, h.mono, fun p hp => by rw [hX p hp]; exact h.mem_lt p hp,
-    fun c hc w => ?_, fun c hc p q hp₁ hp₂ hq₁ hq₂ he => ?_, h.asg_lt, h.asg_cover⟩
+    fun c hc w => ?_, fun c hc p q hp₁ hp₂ hq₁ hq₂ he => ?_,
+    fun c hc p q hp₁ hpq hq => ?_, h.asg_lt, h.asg_cover⟩
   · rw [← h.block c hc w]
     constructor
     · rintro ⟨p, hp1, hp2, hp3⟩
@@ -492,6 +507,8 @@ theorem coverOut_congr {Xmem' : ℕ → ℕ} (h : CoverOut G A₀ π ord r m Xof
   · refine h.block_inj c hc p q hp₁ hp₂ hq₁ hq₂ ?_
     rw [← hX p (hblk c hc p hp₂), ← hX q (hblk c hc q hq₂)]
     exact he
+  · rw [hX p (hblk c hc p (by omega)), hX q (hblk c hc q hq)]
+    exact h.block_mono c hc p q hp₁ hpq hq
 
 end CoverAnswer
 
@@ -981,7 +998,8 @@ theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin 
   refine ⟨levelPre_run hlev hrT (n_notMem_coverPhase cap j) (m_notMem_coverPhase cap j)
       (lw_notMem_coverPhase cap j) (off_notMem_coverPhase cap j) (tgt_notMem_coverPhase cap j)
       (alvName_notMem_coverPhase cap j j) (gamName_notMem_coverPhase cap j j)
-      (fun q => colName_notMem_coverPhase cap j j q) (zero_notMem_coverPhase cap j),
+      (fun q => colName_notMem_coverPhase cap j j q) (zero_notMem_coverPhase cap j)
+      (memName_notMem_coverPhase cap j j) (mnumName_notMem_coverPhase cap j j),
     hrT.out_eq (noWrite_coverPhase cap j),
     fun a => hrT.frame_var _ (ctrName_notMem_coverPhase cap j a),
     fun a => hrT.frame_arr _ (gamName_notMem_coverPhase cap j a),
@@ -1017,6 +1035,24 @@ of every table is local. -/
 theorem ext_b_of_ext_bb {a : String} (h : RamDriverBot.Ext "bb" a) :
     RamDriverBot.Ext "b" a :=
   (RamDriverBot.ext_of_prefix (by decide)).trans h
+
+/-! The two member names begin with `'m'` (rebase E-mem), which is all
+the base pass's frame needs: it writes `"rep"`, the tables and the
+names below its own output, none of which start there. -/
+
+theorem head_memName (a : ℕ) : ∃ t, (memName a).toList = 'm' :: t :=
+  ⟨_, by rw [memName, String.toList_append]; rfl⟩
+
+theorem head_mnumName (a : ℕ) : ∃ t, (mnumName a).toList = 'm' :: t :=
+  ⟨_, by rw [mnumName, String.toList_append]; rfl⟩
+
+theorem not_ext_bb_memName (a : ℕ) : ¬ RamDriverBot.Ext "bb" (memName a) := fun h =>
+  RamDriverBot.not_ext_b_of_cons (y := memName a)
+    (by rw [memName, String.toList_append]; rfl) (by decide) (ext_b_of_ext_bb h)
+
+theorem not_ext_bb_mnumName (a : ℕ) : ¬ RamDriverBot.Ext "bb" (mnumName a) := fun h =>
+  RamDriverBot.not_ext_b_of_cons (y := mnumName a)
+    (by rw [mnumName, String.toList_append]; rfl) (by decide) (ext_b_of_ext_bb h)
 
 /-- The three ways an array can escape the base pass's writes. -/
 theorem notMem_warrs_baseCom {q_top cap mb ℓ : ℕ} {φ : Lax3.FirstOrder.FO 0}
@@ -1082,7 +1118,15 @@ theorem baseImplements {n : ℕ} {B q_top cap mb ns W ℓ : ℕ} {φ : Lax3.Firs
         rcases ha with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
           exact notMem_warrs_baseCom hlocal (by decide)
             (fun i => RamDriverBase.lit_ne_tabName (by decide) ℓ i)
-            (RamDriverBot.not_ext_of_not_prefix (by decide))),
+            (RamDriverBot.not_ext_of_not_prefix (by decide)))
+      (notMem_warrs_baseCom hlocal
+        (RamDriverBot.ne_of_head_ne (head_memName ℓ) ⟨_, rfl⟩ (by decide))
+        (fun i => RamDriverBot.ne_of_head_ne (head_memName ℓ)
+          (RamDriverBot.head_tabName ℓ i) (by decide))
+        (not_ext_bb_memName ℓ))
+      (notMem_wvars_baseCom hlocal (by simp [mnumName, String.ext_iff])
+        (fun i => RamDriverBot.lit_ne_envName (head_mnumName ℓ) (by decide) i)
+        (not_ext_bb_mnumName ℓ)),
       hts.run hrun, ?_⟩,
     hrun.out_eq (RamDriverBot.noWrite_baseCom q_top cap mb ℓ φ)⟩
   intro i hi
@@ -1553,6 +1597,18 @@ theorem alvName_notMem_orderCom₀ : alvName j ∉ (orderCom 0 j).warrs := by
 theorem colName_notMem_orderCom₀ (c : ℕ) : colName j c ∉ (orderCom 0 j).warrs := by
   rw [warrs_orderCom₀]; simp [colName, ordName, String.ext_iff]
 
+/-- Nor any depth's member list (rebase E-mem): the phase writes the
+depth's ordering, and the member list is the descent's business. -/
+theorem memName_notMem_orderCom₀ (a : ℕ) : memName a ∉ (orderCom 0 j).warrs := by
+  rw [warrs_orderCom₀]; simp [memName, ordName, String.ext_iff]
+
+/-- Nor any depth's member count. -/
+theorem mnumName_notMem_orderCom₀ (a : ℕ) : mnumName a ∉ (orderCom 0 j).wvars := by
+  rw [wvars_orderCom₀]
+  intro h
+  have h' := mem_wvars_orderCom₀ _ h
+  simp [mnumName, String.ext_iff] at h'
+
 /-- The tail leaves the order array the inversion just wrote. -/
 theorem ordName_notMem_orderZeroCom : ordName j ∉ orderZeroCom.warrs := by
   rw [warrs_orderZeroCom]; simp [ordName, String.ext_iff]
@@ -1604,7 +1660,7 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
   intro d hB hcsr hWB _helim _haug
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hvn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCbit, hmem, hdep, hmv,
-    hordmem, hpad0, hTBW⟩ := id hσ
+    hordmem, hpad0, hTBW, hmemcl⟩ := id hσ
   obtain ⟨hnsW, hlwp, hosz, hzelm, hzbh, hzooff, -, -, -, -, -, hwitg, hwntg⟩ := id hordmem
   -- the runtime live width: the copies walk its prefix and nothing else
   obtain ⟨lw, hlw⟩ : ∃ lw, σ.vars "lw" = lw := ⟨_, rfl⟩
@@ -1866,7 +1922,13 @@ theorem orderImplements₀ {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin n)}
       hdep.run hrT, ?_,
       ⟨hnsW, by rw [hrT.frame_var "lw" (lw_notMem_orderCom₀ j), hlw]; exact ⟨hlwns, hlwW⟩,
         hosz.run hrT, z₁, z₂, z₃, z₄, z₅, z₆, z₇, z₈,
-        run_mem_arrs_lt hrT "itg" hwitg, run_mem_arrs_lt hrT "ntg" hwntg⟩, hpad0, hTBW⟩,
+        run_mem_arrs_lt hrT "itg" hwitg, run_mem_arrs_lt hrT "ntg" hwntg⟩, hpad0, hTBW,
+      -- the member clause crosses the phase: the ordering writes neither
+      -- the depth's member array nor its count (rebase E-mem)
+      (by
+        obtain ⟨Mem, mmj, hm1, hm2, hm3, hm4⟩ := hmemcl
+        exact ⟨Mem, mmj, by rw [hrT.frame_arr _ (memName_notMem_orderCom₀ j j)]; exact hm1,
+          by rw [hrT.frame_var _ (mnumName_notMem_orderCom₀ j j)]; exact hm2, hm3, hm4⟩)⟩,
     hrT.out_eq (noWrite_orderCom₀ j),
     fun a => hrT.frame_var _ (ctrName_notMem_orderCom₀ j a),
     fun a => hrT.frame_arr _ (gamName_notMem_orderCom₀ j a),
@@ -2314,6 +2376,20 @@ theorem colName_notMem_orderCom {R j : ℕ} (c : ℕ) : colName j c ∉ (orderCo
   · exact colName_notMem_orderCom₀ j c h
   · have := mem_warrs_augRoundCom _ h
     simp [colName, String.ext_iff] at this
+
+theorem memName_notMem_orderCom {R j : ℕ} (a : ℕ) : memName a ∉ (orderCom R j).warrs := by
+  intro h
+  rcases mem_warrs_orderCom h with h | h
+  · exact memName_notMem_orderCom₀ j a h
+  · have := mem_warrs_augRoundCom _ h
+    simp [memName, String.ext_iff] at this
+
+theorem mnumName_notMem_orderCom {R j : ℕ} (a : ℕ) : mnumName a ∉ (orderCom R j).wvars := by
+  intro h
+  rcases mem_wvars_orderCom h with h | h
+  · exact mnumName_notMem_orderCom₀ j a h
+  · have := mem_wvars_augRoundCom _ h
+    simp [mnumName, String.ext_iff] at this
 
 theorem noWrite_orderCom (R j : ℕ) : (orderCom R j).NoWrite := by
   refine ⟨show saveCsr.NoWrite by decide,
@@ -2925,7 +3001,7 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hσL, hWclw⟩ := hσ
   obtain ⟨hvn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCbit, hmem, hdep, hmv,
-    hordmem, hpad0, hTBW⟩ := id hσL
+    hordmem, hpad0, hTBW, hmemcl⟩ := id hσL
   obtain ⟨hnsW, hlwp, hosz, hzelm, hzbh, hzooff, hznoff, hzstf, hzsta, hzstd, hzste, hwitg,
     hwntg⟩ := id hordmem
   -- the runtime live width, with the chain's budget inside it
@@ -3294,7 +3370,11 @@ theorem orderImplementsR {B cap mb ns W j R d D₁ : ℕ} {G : SimpleGraph (Fin 
       hdep.run hrT, ?_,
       ⟨hnsW, by rw [hrT.frame_var "lw" lw_notMem_orderCom, hlw]; exact ⟨hlwns, hlwW⟩,
         hosz.run hrT, z₁, z₂, z₃, z₄, z₅, z₆, z₇, z₈,
-        run_mem_arrs_lt hrT "itg" hwitg, run_mem_arrs_lt hrT "ntg" hwntg⟩, hpad0, hTBW⟩,
+        run_mem_arrs_lt hrT "itg" hwitg, run_mem_arrs_lt hrT "ntg" hwntg⟩, hpad0, hTBW,
+      (by
+        obtain ⟨Mem, mmj, hm1, hm2, hm3, hm4⟩ := hmemcl
+        exact ⟨Mem, mmj, by rw [hrT.frame_arr _ (memName_notMem_orderCom j)]; exact hm1,
+          by rw [hrT.frame_var _ (mnumName_notMem_orderCom j)]; exact hm2, hm3, hm4⟩)⟩,
     hrT.out_eq (noWrite_orderCom R j),
     fun a => hrT.frame_var _ (ctrName_notMem_orderCom a),
     fun a => hrT.frame_arr _ (gamName_notMem_orderCom a),
