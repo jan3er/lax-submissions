@@ -21,10 +21,19 @@ satellite, never restate).
   vertices the two diverge, and §3.1 exhibits an instance on which the
   clock exceeds the budget — so that clause of `CompactInstalls` is
   false as stated. §3.2 names the true charge (`compactCostRaw`, at the
-  raw member-row sum) and §3.3 records the hypothesis under which the
-  two coincide.
+  raw member-row sum) and §3.3 identifies it with the arena's `csrW`
+  weight, which is what `MassWeight` keeps a second weight reading for.
+* §4 discharges `cixPass`, the compaction's first half — the *same*
+  member walk as the scatter, as `ElimCompact` §9(3) predicts. The nested
+  CSR construction `compactCsr` is the leaf that did not fit this
+  session.
+* §5 is the ledger: what is done, what is refuted, and the three
+  statement repairs the parent file owes — including one in the parent's
+  own assembly, where `RamElim.ElimPost` drops the rank bound the
+  scatter needs.
 
-Nothing here is `sorry`.
+Nothing here is `sorry`, and no theorem below assumes an unproved
+obligation.
 -/
 
 namespace Lax3Proofs.Refine.ElimCompactWalks
@@ -273,7 +282,7 @@ theorem scatBody_spec {B n mm : ℕ} {Mem R : ℕ → ℕ} {ρ : List ℕ}
       some (R (σ.vars "km")) := by
     refine evalB_get (k := σ.vars "km") (evalB_var ?_) ?_ (hRB _ hk)
     · simp only [vars_setVar, if_neg (by decide : ¬ ("km" = "ku"))]; omega
-    · simp only [arrs_setVar, hrnk, vars_setVar, if_neg (by decide : ¬ ("km" = "ku"))]
+    · simp only [arrs_setVar, hrnk]
       exact hρ _ hk
   have r₂ := Run.store (a := "ork") e₂ e₃
     (by simp only [arrs_setVar, hork, length_arrOf]; exact hMk)
@@ -444,6 +453,169 @@ theorem wsum_csrW_markSet {O : ℕ → ℕ} (hml : MemList n mm Mem (markSet n M
     fun _ => rfl
   rw [Finset.sum_congr rfl (fun i _ => h i), Finset.sum_add_distrib]
   simp
+
+/-! ## §4 The compaction walk's first half: the inverse numbering
+
+`compactPass = cixPass ; compactCsr`, and the two halves are of quite
+different sizes. `cixPass` is the *same* member walk as `scatterCom` — a
+`forRangeZero'` at `"km"` that stores one value at the member's arena
+cell, and `ElimCompact` §9(3) is right that this is shared plumbing:
+
+```
+cixPass    = memScatter "kix" (.var "km")
+scatterCom = memScatter "ork" (.get "rnk" (.var "km"))
+```
+
+for the same `memScatter`. So it is discharged here, in full, at the same
+tight charge; `compactCsr` — the nested CSR construction, whose
+postcondition is a `CsrSimple` of the member pullback — is the leaf that
+did not fit this session (§5).
+
+The numbering this leaves is exactly `cRow`'s reader: member `k` of the
+list becomes compact vertex `k`, written at the member's *arena*
+position, and the non-member cells are untouched. -/
+
+/-- **The inverse numbering's invariant.** -/
+def CixInv (n mm : ℕ) (Mem : ℕ → ℕ) (σ : Env) : Prop :=
+  σ.vars "mm" = mm ∧ σ.arrs "mem" = arrOf n Mem ∧ σ.vars "km" ≤ mm ∧
+    ∃ Kix, σ.arrs "kix" = arrOf n Kix ∧ ∀ j, j < σ.vars "km" → Kix (Mem j) = j
+
+/-- **One member numbered.** Ten ticks; the member list's sortedness is
+again what keeps an earlier member's cell from being overwritten. -/
+theorem cixBody_spec {B n mm : ℕ} {Mem : ℕ → ℕ}
+    (hnB : n < B) (hMlt : ∀ j, j < mm → Mem j < n)
+    (hsm : ∀ i j, i < j → j < mm → Mem i < Mem j) :
+    Spec B (fun σ => CixInv n mm Mem σ ∧ σ.vars "km" < mm)
+      (.seq (.assign "ku" (.get "mem" (.var "km")))
+        (.seq (.store "kix" (.var "ku") (.var "km"))
+          (.assign "km" (.add (.var "km") (.lit 1)))))
+      (fun σ σ' => CixInv n mm Mem σ' ∧ σ'.vars "km" = σ.vars "km" + 1) 10 := by
+  have hmn : mm ≤ n := card_le_of_smono hsm hMlt
+  refine Spec.of_exists fun σ hσ => ?_
+  obtain ⟨⟨hmm, hmem, -, Kix, hkix, hcell⟩, hk⟩ := hσ
+  have hkn : σ.vars "km" < n := lt_of_lt_of_le hk hmn
+  have hMk : Mem (σ.vars "km") < n := hMlt _ hk
+  have e₁ : (Expr.get "mem" (.var "km")).evalB B σ = some (Mem (σ.vars "km")) :=
+    evalB_get (evalB_var (by omega)) (by rw [hmem, getElem?_arrOf _ hkn]) (by omega)
+  have r₁ := Run.assign (x := "ku") e₁
+  have e₂ : (Expr.var "ku").evalB B (σ.setVar "ku" (Mem (σ.vars "km"))) =
+      some (Mem (σ.vars "km")) :=
+    evalB_var (by simp only [vars_setVar, if_true]; omega)
+  have e₃ : (Expr.var "km").evalB B (σ.setVar "ku" (Mem (σ.vars "km"))) =
+      some (σ.vars "km") := by
+    refine evalB_var ?_
+    simp only [vars_setVar, if_neg (by decide : ¬ ("km" = "ku"))]; omega
+  have r₂ := Run.store (a := "kix") e₂ e₃
+    (by simp only [arrs_setVar, hkix, length_arrOf]; exact hMk)
+  have hkmv : (((σ.setVar "ku" (Mem (σ.vars "km"))).setArr "kix" (Mem (σ.vars "km"))
+      (σ.vars "km"))).vars "km" = σ.vars "km" := by
+    simp only [vars_setArr, vars_setVar, if_neg (by decide : ¬ ("km" = "ku"))]
+  have e₄ : (Expr.bin .add (.var "km") (.lit 1)).evalB B
+      (((σ.setVar "ku" (Mem (σ.vars "km"))).setArr "kix" (Mem (σ.vars "km"))
+        (σ.vars "km"))) = some (σ.vars "km" + 1) := by
+    have h := evalB_bin (op := .add) (B := B)
+      (σ := ((σ.setVar "ku" (Mem (σ.vars "km"))).setArr "kix" (Mem (σ.vars "km"))
+        (σ.vars "km")))
+      (evalB_var (x := "km") (by rw [hkmv]; omega)) (evalB_lit (B := B) (n := 1) (by omega))
+      (by rw [Bop.apply_add, hkmv]; omega)
+    rwa [Bop.apply_add, hkmv] at h
+  have r₃ := Run.assign (x := "km") e₄
+  refine ⟨_, _, (r₁.seq (r₂.seq r₃)), by simp [Expr.size], ⟨?_, ?_, ?_, ?_⟩, by simp⟩
+  · simp only [vars_setVar, vars_setArr]; simpa using hmm
+  · simp only [arrs_setVar, arrs_setArr, if_neg (by decide : ¬ ("mem" = "kix"))]; exact hmem
+  · simp only [vars_setVar, if_true]; omega
+  · refine ⟨upd Kix (Mem (σ.vars "km")) (σ.vars "km"), ?_, ?_⟩
+    · simp only [arrs_setVar, arrs_setArr, if_true, hkix, set_arrOf_eq_upd]
+    · intro j hj
+      simp only [vars_setVar, if_true] at hj
+      rcases Nat.lt_or_ge j (σ.vars "km") with hlt | hge
+      · rw [upd_of_ne _ (Nat.ne_of_lt (hsm j _ hlt hk)), hcell j hlt]
+      · have hje : j = σ.vars "km" := by omega
+        rw [hje, upd_self]
+
+/-- **`cixPass`, discharged.** Member `k` becomes compact vertex `k`, at
+the member's arena cell, in `14·mm + 6` ticks — the member count and
+nothing else. The member list and the count come out untouched, which is
+what `compactCsr` reads next. -/
+theorem cixPass_run {B n mm : ℕ} {Mem : ℕ → ℕ} {σ : Env}
+    (hnB : n < B) (hmm : σ.vars "mm" = mm) (hmem : σ.arrs "mem" = arrOf n Mem)
+    (hMlt : ∀ j, j < mm → Mem j < n) (hsm : ∀ i j, i < j → j < mm → Mem i < Mem j)
+    (hkix : ∃ g, σ.arrs "kix" = arrOf n g) :
+    ∃ (σ' : Env) (Kix : ℕ → ℕ),
+      Run B Lax3Proofs.Refine.ElimCompact.cixPass σ σ' (14 * mm + 6) ∧
+        σ'.arrs "kix" = arrOf n Kix ∧ (∀ j, j < mm → Kix (Mem j) = j) ∧
+        σ'.vars "mm" = mm ∧ σ'.arrs "mem" = arrOf n Mem := by
+  have hmn : mm ≤ n := card_le_of_smono hsm hMlt
+  have hmB : mm < B := by omega
+  obtain ⟨g, hg⟩ := hkix
+  have hspec := (Lax3Proofs.RamDriverOrder.forRangeZero' (B := B) "km" (.var "mm")
+    (CixInv n mm Mem) mm 10 (by omega)
+    (fun τ hτ => lt_of_le_of_lt hτ.2.2.1 hmB)
+    (fun τ hτ => by rw [← hτ.1]; exact evalB_var (by rw [hτ.1]; exact hmB))
+    (fun τ hτ => hτ.2.2.1)
+    (cixBody_spec hnB hMlt hsm))
+  obtain ⟨σ', hrun, ⟨hmm', hmem', -, Kix, hKix, hKcell⟩, hkm⟩ :=
+    hspec.run (σ := σ) ⟨by simpa using hmm, hmem, by simp, g, hg, by simp⟩
+  refine ⟨σ', Kix, hrun.mono ?_, hKix, fun j hj => hKcell j (by rw [hkm]; exact hj),
+    hmm', hmem'⟩
+  show (10 + (Expr.var "mm").size + 3) * mm + (Expr.var "mm").size + 5 ≤ 14 * mm + 6
+  simp only [size_var]
+  omega
+
+/-! ## §5 What this satellite found, and what it leaves
+
+Three of the four things E2-sat was sent to do are here; the fourth is a
+statement defect in the parent, not a proof that was hard.
+
+**Done.** `arenaWeight_memGraph` (§1, the E5 tie), `scatterBacksW` (§2,
+the scatter walk in full), `cixPass_run` (§4, the compaction's first
+half), `wsum_csrW_markSet` (§3.3, the compaction's honest charge in
+`MassWeight`'s own vocabulary).
+
+**Refuted, and therefore NOT discharged.** Both obligation `Prop`s of
+`ElimCompact` §8 are false as frozen, and the two failures are of
+different kinds:
+
+1. `ScatterBacks` — `not_scatterBacks_of_repeat` (§2.1). The postcondition
+   is unsatisfiable at a member list that repeats an arena number. The
+   repair is `ScatterBacksW`: add `MemList.smono`, `n < B`,
+   `mm ≤ (σ.arrs "rnk").length` and `∀ j < mm, R j < B`. The conclusion
+   does not move, and `scatterBacksW` discharges it.
+2. `CompactInstalls` — §3.1. Its cost clause charges the compaction at
+   the *live* slot count `cs` while `cRow` crosses the member's **raw**
+   row: on the dead-row star the clock is `849` against a budget of
+   `200`. The repair is `compactCostRaw mm (memRowSum mm O Mem)`, which
+   is still carrier-blind and still arena-relative — `wsum_csrW_markSet`
+   identifies it with the arena's `csrW`-weight, which is why
+   `MassWeight` carries that second reading at all. Its correctness
+   content (a `CsrSimple` of the member pullback, installed) is
+   untouched by the finding and is the leaf that did not fit this
+   session: `cixPass` is §4, `compactCsr` is not.
+
+**A third defect, in the parent's own assembly.** Even with `ScatterBacks`
+repaired, `elimCompact_spec` cannot supply the rank bound
+`∀ j < mm, R j < B`: it reads the engine through `RamElim.ElimPost`,
+which drops the clause `∀ v < n, R v < n` that `RamElim.AfterLoopW` and
+`AfterOffW` both carry. `scatterCom` reads `rnk[km]` with an IMP+ `get`,
+so the bound is not decoration — without it there is no derivation. Two
+ways out, both cheap and both outside this satellite's ownership: give
+`ElimPost` the clause it already has upstream, or read the engine at
+`ElimMem`/`ElimCert` in `ElimCompact` §4. `elimCompact_spec` also needs
+`n < B` (it has only `mm + nt + 1 < B`), which every landed caller of the
+package holds anyway.
+
+Because of the second and third defects a composed corollary
+instantiating `elimCompact_spec` on real discharges is not available yet,
+and manufacturing one would have meant weakening a `Prop` to fit — which
+the wave was told not to do. -/
+
+/-! ## §6 Axioms -/
+
+#print axioms arenaWeight_memGraph
+#print axioms scatterBacksW
+#print axioms not_scatterBacks_of_repeat
+#print axioms cixPass_run
+#print axioms wsum_csrW_markSet
 
 end Lax3Proofs.Refine.ElimCompactWalks
 
