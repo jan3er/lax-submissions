@@ -4294,3 +4294,40 @@ source uncosted and outside the timed build closure. **Next is P4.6**, the
 ND-MC's G2 is a re-derivation or a repair, and the reason not to spend
 sessions on P5 breadth first.
 
+
+## 2026-08-06 — Session record: authority returns, P4.6 decides, and the road to C0 is re-derivation
+
+Fable resumed supervision at Jan's direction ("parents come home"), with
+a mandate to re-evaluate the Opus/codex week from first principles. Ten
+commits, `a949172..a8a78c1`, every one gate-replayed by the supervisor.
+
+**The boundary review's verdict on the week**: local hygiene impeccable
+and fully replayable; the one global failure was cross-document — P4.6's
+success branch was provably dead as written (the no-escape theorem kills
+carrier-blind synthesis of the landed text), which no single locally-
+consistent session could see. The probe was reshaped into S/M (E42), and
+that reshape is the session's hinge.
+
+**P4.6 executed to verdict in one day.** S: 18/19 non-engine passes
+synthesize; cost tracks program size; the "merge wall" self-corrected to
+a split-match determinism cliff (E43 as amended — the worker continued
+past its first report, a supervision gap now closed in the brief
+template). M: the member-driven phase synthesizes whole, clock
+`68·m + 12` with the carrier absent — **carrier-blind, compiled**, so
+**G2 is a re-derivation** (E44); the provisional-draft insurance is
+withdrawn.
+
+**The road then advanced four leaves in the same session**: S2/S3
+(`DriverRootD` — slots #6/#26/#12 dead at the restated root, three
+supervisor-brief recipes corrected compiled by the worker); `g2_exists`
+re-validated satisfiable at M-class costs with a two-way control (the
+surviving target is the `1600·n²` carrier term alone); E-elim.1 (the
+engine as one `Com`, entry-state-free spec leaf, twice-call compiled —
+E43 obstructions 2 and 3 dead); E-mem-design (the existential clause,
+radius collapsed, both cost directions compiled, four flags held open).
+
+**Next session starts at**: T1 of the E-mem thread (single owner), after
+supervisor dispositions on flags F-1..F-4 of `e-mem-design.md` §7. Then
+T2–T4, then the order/cover re-synthesis from M-shaped signatures — the
+step that kills the cost group — then B7 re-run, C0, draft. The
+`foo/` skeleton at the repo root still awaits Jan's disposition.
