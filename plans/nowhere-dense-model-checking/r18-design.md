@@ -261,6 +261,20 @@ T1 → T2 → (T3 ∥ T4), with T3 gated on the E4 scatter decision (F-1).
 
 ## §7 Unresolved design questions (flagged)
 
+Supervisor dispositions, 2026-08-06 (r18 thread waves dispatched on
+these): F-1 no bridging shim — T3 lands in ONE boundary with E4's
+block-driven scatter re-derivation, single owner; T1/T2/T4 proceed
+independently. F-2 T3 owner's audit obligation during the 17-file
+`LevelPre` radius sweep, expected empty; if a `Gm`-side dead-row
+consumer surfaces, the same kill/outside dichotomy applies (the ball is
+block-contained). F-3 the greedy-count split is the T3+E4 wave's FIRST
+obligation, refute-before-prove; the per-atom outside-bit fallback
+(same `O(1)`-per-level) is pre-authorized without a fresh supervisor
+round-trip. F-4 absorb the kill charge into `ct` (the probe's
+`ct = 284` closure), depth-indexing through `tablesAt (j+1)` accepted;
+it moves to its own `Ksc`-style slot only if the B7 root re-run demands
+a depth-free `ct` — the closure is indifferent, so no pre-emptive slot.
+
 - **F-1, the T3/E4 ordering.** The scatter pass is the one landed
   consumer of outside-class rows (§4). Weakening `TableInv` before the
   E4 scatter fold lands would strand `scatterCom`'s discharge. Options:
