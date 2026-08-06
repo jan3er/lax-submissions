@@ -94,16 +94,25 @@ semantic content moves. "Probe name" = the local def in
    new  `∀ j w, sweepCoeffA q_top cap mb j φ · (w + 1) ≤ Kd j w`
    probe `sweepCoeffA = RamDriverBot.turnCost … + 10` (the landed
    per-vertex turn cost, member-list-driven; honesty
-   `sweepCost_le_weight` is generic in `φ`). Program delta: the sweep's
-   loop header walks the member list (R1.8-style header change only).
+   `sweepCost_le_weight` is generic in `φ`). Program delta: NOT a
+   header change — compiled refutation (`DeadSweep.lean` §4b,
+   `no_memCoeff_pays_deadRows`, landed 2026-08-06): `DeadRows`
+   quantifies over the dead set, the complement of the member list.
+   The write moves to the turn that killed the vertex (its block
+   contains it) — the R1.8-design leaf, a program change in the turn.
 
 4. **`hKbase`** (`:658`)
 
    old  `∀ m, RamDriverBot.baseCost q_top cap mb ℓ n φ ≤ Kl ℓ m`
    new  `∀ w, baseCoeffA q_top cap mb ℓ φ · (w + 1) ≤ Kl ℓ w`
    probe `baseCoeffA = reprBodyCost + turnCost + 22`; honesty
-   `baseCost_le_weight`. Program delta: `reprCom`/table-fold loop
-   headers walk the member list (R1.8).
+   `baseCost_le_weight`. Program delta: NOT a header change — blocked
+   twice (compiled 2026-08-06): `BaseImplements` asks `TableInv` over
+   all `Fin n`, and `BotEval.sat_exU_bot_of_repr`'s `hW` ranges the
+   bottom formula's unrestricted quantifier over the carrier, so
+   `reprCom` owes a representative for every vertex, dead ones
+   included. Needs the R1.8-design leaf (a representative story for
+   dead vertices), independent of the dead-row question.
 
 5. **`hKs` / `turnCostSize`** (`RamDriverRoot.lean:192`) — the size
    slot is today **discarded** (`turnCostSize_eq` is `rfl` to the

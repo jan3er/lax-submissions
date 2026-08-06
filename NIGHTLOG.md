@@ -4386,3 +4386,20 @@ neither `n` nor `ns` in the charge; a compiled negative control shows the
 old length clause refuses the driver's layout. 3,568 jobs, kernel-three,
 no guard moved. Next: R1.8 member-list headers (dead sweep/base) and the
 E-order `hKo` discharge at `orderCostA`.
+
+**R1.8-as-headers is refuted, and the refutation is compiled
+(`d2d7245`).** The wave's stop condition fired on both halves: the
+sweep's entire output (`DeadRows`) quantifies over the dead set — the
+exact complement of the member list (`DeadSweep.lean` §4b:
+`memEnum_zero_of_allDead`, `notMem_markSet_of_dead`,
+`no_memCoeff_pays_deadRows` — for every coefficient a carrier where the
+count is 0 and the rows owed are `n`); and the base is blocked twice,
+once by `TableInv` over all `Fin n` and once — the new finding — by
+`BotEval.sat_exU_bot_of_repr`'s `hW`: the bottom formula's unrestricted
+quantifier ranges over the carrier, so `reprCom` owes every vertex a
+representative, dead ones included. Both g2 §7 slot texts and the e-mem
+§4 row superseded in place. The two obstructions plausibly share one
+answer — rows for dead vertices maintained incrementally at kill time
+(the killing turn's block contains the vertex), never re-walked by sweep
+or base — and that is the R1.8-design probe's question. Worker honesty
+exemplary: no charging scheme invented, additions only, no guard moved.
