@@ -4374,3 +4374,15 @@ grep-by-hand on touched files.
 order/cover re-synthesis from M-shaped signatures (kills the cost group),
 opening with F-2's `ArenaA` live-prefix re-statement; then B7 re-run, C0,
 draft.
+
+**F-2 lands same-session (`610b895`).** The seam moved exactly one
+conjunct (`ArenaA`'s member array to physical length `n`, prefix as the
+contract), `MemList`'s four clauses verbatim, radius exactly the three
+grep-predicted files. `ArenaSeam.lean` is the gate with teeth:
+`arenaA_of_levelPre` runs the entry copy at `memCopyK mm + 2`
+(carrier-free) and hands the engine its `MemList` from clause 16 through
+the twin; `scatBlock_of_levelPre` composes to a full block pass with
+neither `n` nor `ns` in the charge; a compiled negative control shows the
+old length clause refuses the driver's layout. 3,568 jobs, kernel-three,
+no guard moved. Next: R1.8 member-list headers (dead sweep/base) and the
+E-order `hKo` discharge at `orderCostA`.
