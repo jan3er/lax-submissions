@@ -105,3 +105,4 @@ import Lax3Proofs.Refine.MemThreadProbe
 import Lax3Proofs.Refine.MemThreadGate
 import Lax3Proofs.Refine.ArenaSeam
 import Lax3Proofs.Refine.OrderEngineProbe
+import Lax3Proofs.Refine.ElimCompact
