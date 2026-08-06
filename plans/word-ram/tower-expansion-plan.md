@@ -934,6 +934,23 @@ proves a scheduled source declaration was mistranslated or omitted.
 
 ## Progress log
 
+- **2026-08-06 — P4.6 wave S: 18 of 19 non-engine passes synthesize; the
+  verdict is structural, not wall-clock.** `OrderSigProbe.lean` lands
+  ND-MC-side (consumer 3,554 jobs, `lax build` OK from the repo root, 13
+  kernel-three checks, zero placeholders; supervisor-replayed). Three
+  name-parametric leaf rules (`sepref_synth` takes symbolic cell names)
+  replace 19 fixed-name re-syntheses, each anchored by a `*_landed`
+  theorem verbatim-equal to the landed export. Telemetry: 141 ops in
+  132 s direct / ≈181 s signature mode; interpolation at BfsQ's 92 ops
+  reproduces its 49 s, so cost tracks program size and the scaling
+  variable is ownership-context width. Three located obstructions:
+  `frameMatch` cannot merge conjuncts (folded into P6's `prodAssn` row);
+  the elimination engine has no single `Com` (2E/D-a) — whole-phase
+  synthesis of `orderPhase0` is unavailable at any engine until it does;
+  the engine leaf pins its entry state (reduces to D-a). Ledger E43.
+  **Next: wave M**, which needs neither blocker and carries the landing
+  criterion.
+
 - **2026-08-03 (later) — P4.5.D: the compiled space-budget probe, and P4.5's
   acceptance list is complete.** Tower **3,286 jobs**, `lax build` zero
   violations, consumer 3,549 unchanged (gate replayed by the supervisor).

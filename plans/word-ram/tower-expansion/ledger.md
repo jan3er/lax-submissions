@@ -2185,3 +2185,54 @@ the gate faster would have surfaced the dead branch sooner. (b) E16's
 behind P4.6. (c) An untracked `foo/` at the repo root (empty Lax19
 skeleton, "Untitled Submission") is not this campaign's and awaits Jan's
 disposition.
+
+### E43 — P4.6 wave S: the tool scales, the phase does not yet scale to the tool
+
+2026-08-06. `Lax3Proofs/Refine/OrderSigProbe.lean` (591 lines, ND-MC-side
+per E42), supervisor-replayed: consumer build **3,554 jobs**, `lax build`
+OK from the repo root (an initial FAIL was the recorded
+run-from-inside-proofs false-fail mode), zero placeholders, 13
+kernel-three axiom checks.
+
+*Result.* **18 of the 19 non-engine passes of `orderPhase0` synthesize**,
+both as a direct chain (`pre18Synth`) and from an `hfref` signature
+(`pre18FromSignature`), over a 29-conjunct ownership context. The
+enabling finding: `sepref_synth` accepts **symbolic cell names**, so
+`mopCopy`/`mopFill`/`mopOrd` are three name-parametric leaf rules rather
+than 19 fixed-name re-syntheses; each is anchored by a `*_landed` theorem
+whose statement is the landed `copySynth'`/`fillSynth'`/`ordSynth'`
+verbatim (diffed by the supervisor) and whose proof is the parametric
+rule instantiated — so the rules are provably neither weaker nor
+different.
+
+*Telemetry.* 44/76/106/141 ops at 5/9/13/18 passes → 16.4/33.1/57.2/132 s
+(signature mode ≈181 s at 18). Interpolating at BfsQ's 92 ops gives
+≈46 s against its measured 49 s — **cost tracks program size across a
+real difference in program shape**; leaf registration buys no asymptotic
+relief, only the ability to state the phase. The local exponent rises
+with ownership width (1.20 → 1.49 → 2.57); the campaign's 1.28–1.35 was
+measured at fixed width. P7 inherits this as its primary profile: the
+scaling variable is ownership-context width, not op count alone.
+
+*Three located obstructions — S's verdict is structural, not wall-clock.*
+(1) **`frameMatch` splits products but cannot merge two conjuncts into
+one** (compiled both ways: `mergeTestSplit` synthesizes, the split form
+is refused). Blocks exactly the one pass whose destination an earlier
+pass produced — and would block any such phase. Dual of the rule-side
+`prodAssn` splitting item P6 already names; folded into that P6 row as
+one symmetric tool wave, tower-side. (2) The elimination engine has no
+single synthesized `Com` (ND-MC 2E/D-a, unchanged) — until it does,
+whole-phase synthesis of `orderPhase0` is unavailable **at any engine**,
+independent of scaling. (3) `hnr_mop_elim` pins its 11-component entry
+state, so a phase calling the engine twice cannot match; a spec-shaped
+engine leaf reduces to (2). A house trap is recorded in the file (§3):
+the matcher consumes junk/value cells in written order and picked the
+next pass's index cell as a fill value — sound, but a naming-discipline
+hazard one layer up from 2E/D-d.
+
+*Routing.* S can neither confirm nor kill the re-derivation branch: the
+mechanism works at scale, the two blockers are bounded named waves, and
+the cost question was never S's to answer. **The decision now rests
+entirely on wave M** (the member-driven text and its compiled
+carrier-blindness), which needs neither the engine (parameterized out)
+nor the merge (its passes write into pre-owned arrays). M runs next.
