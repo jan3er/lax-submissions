@@ -62,7 +62,7 @@ merely to escape the old floors. This file is that gate.
   load-bearing, not decorative.
 * **§6** the root term: `decodeDLCost = decodeCost + dedupCost + 4` (the
   decode, the dedup `31n + 50ns + 29`, and `lwCom`'s `4`) is
-  weight-linear at coefficient `79`, and the restated root's cost text
+  weight-linear at coefficient `87`, and the restated root's cost text
   `Kdec + (Kl 0 (n + dedupNs x) + Ksent)` closes inside the same budget
   — read at the input weight `n + ns`, since `dedupNs x ≤ ns`.
 
@@ -231,7 +231,7 @@ sparse members, `|x| = 3·n + 3`, all constants chosen before `n`:
 `R = 0`, `D = 8`, `ℓ = 3`, `ct = 200` (`G2CostProbe.blockLeaves_le_weight`),
 `ksc = Cb = ksent = 10⁴` (the scatter leaf is NOT yet M-class — E4b's
 `ScatterBlock` is landed but unwired, `G2CostProbe.hbnd_gap` — so its
-coefficient is left at the landed probe's numeral), `kdec = 79` (§6). -/
+coefficient is left at the landed probe's numeral), `kdec = 87` (§6). -/
 
 /-- The witness's root budget at level count `ℓ`, base `Cb` and the
 M-class constant family: the closed form of `g2m_exists`, plus the
@@ -256,27 +256,27 @@ theorem mclass_c0_shape {c ε : ℝ} (hc : 0 ≤ c) (hε : 0 < ε) {ℓ : ℕ} (
   (1 + 0) * (68 + 12) + (((68 + 12) + (68 + 12)) + ((200 + 10 ^ 4 + 3) * 9 + 14))
 #guard g2M 68 12 68 12 68 12 0 200 (10 ^ 4) 8 = 92081
 
--- and the root budget it induces (`kdec = 79`, `ksent = Cb = 10⁴`)
-#guard rootBudgetM 3 (10 ^ 4) 68 12 68 12 68 12 0 200 (10 ^ 4) 8 79 (10 ^ 4) =
-  296322 * 729
+-- and the root budget it induces (`kdec = 87`, `ksent = Cb = 10⁴`)
+#guard rootBudgetM 3 (10 ^ 4) 68 12 68 12 68 12 0 200 (10 ^ 4) 8 87 (10 ^ 4) =
+  296330 * 729
 
 -- **ε = 1** (the guard `C0Probe`'s cubic floor LOST at `c = 10⁹`,
 -- `n = 10⁹`, on the star carrier `ns = 2·(n − 1)`): the M-class witness
 -- budget clears it with ten orders to spare
-#guard rootBudgetM 3 (10 ^ 4) 68 12 68 12 68 12 0 200 (10 ^ 4) 8 79 (10 ^ 4) *
+#guard rootBudgetM 3 (10 ^ 4) 68 12 68 12 68 12 0 200 (10 ^ 4) 8 87 (10 ^ 4) *
     (10 ^ 9 + 2 * (10 ^ 9 - 1) + 1)
   ≤ 10 ^ 9 * (3 * 10 ^ 9 + 4) ^ 2
 
 -- **ε = 1/2** (`C0Probe`'s second guard, squared form): at `n = 10⁸`
 -- the witness budget clears `c·(3n+4)^{3/2}` at `c = 10⁷`
-#guard (rootBudgetM 3 (10 ^ 4) 68 12 68 12 68 12 0 200 (10 ^ 4) 8 79 (10 ^ 4) *
+#guard (rootBudgetM 3 (10 ^ 4) 68 12 68 12 68 12 0 200 (10 ^ 4) 8 87 (10 ^ 4) *
     (10 ^ 8 + 2 * (10 ^ 8 - 1) + 1)) ^ 2
   ≤ (10 ^ 7) ^ 2 * (3 * 10 ^ 8 + 4) ^ 3
 
 -- **The rounds are affordable too**: at `R = 4` augment/relink rounds
 -- the same ε = 1 gate still clears — the M-class order phase's round
 -- factor is `(1 + R)` on a constant, not on the carrier
-#guard rootBudgetM 3 (10 ^ 4) 68 12 68 12 68 12 4 200 (10 ^ 4) 8 79 (10 ^ 4) *
+#guard rootBudgetM 3 (10 ^ 4) 68 12 68 12 68 12 4 200 (10 ^ 4) 8 87 (10 ^ 4) *
     (10 ^ 9 + 2 * (10 ^ 9 - 1) + 1)
   ≤ 10 ^ 9 * (3 * 10 ^ 9 + 4) ^ 2
 
@@ -461,7 +461,7 @@ theorem mclass_order_slot_load_bearing (W : ℕ) (Ksc : ℕ → ℕ) :
 
 -- and, side by side at the ε = 1 numerals of §3: the M-class witness
 -- budget is ten orders BELOW the floor the size-blind slot forces
-#guard rootBudgetM 3 (10 ^ 4) 68 12 68 12 68 12 0 200 (10 ^ 4) 8 79 (10 ^ 4) *
+#guard rootBudgetM 3 (10 ^ 4) 68 12 68 12 68 12 0 200 (10 ^ 4) 8 87 (10 ^ 4) *
     (10 ^ 9 + 2 * (10 ^ 9 - 1) + 1)
   < 1600 * (10 ^ 9) * (10 ^ 9)
 
@@ -471,59 +471,63 @@ The restated root (`Refine/DriverRootD.lean`, landed 2026-08-06) reads
 its cost as `Kdec + (Kl 0 (n + dedupNs x) + Ksent)`, with `hKdec`
 covering `decodeCost n ns + dedupCost n ns + 4` — the decode, the
 dedup, and the live-width scalar's `lwCom`. That whole `W`-term is
-weight-linear at coefficient `79`, so it disappears into the geometric
+weight-linear at coefficient `87`, so it disappears into the geometric
 factor. -/
 
 /-- `RamDriverDedup.dedupCost n ns = 31·n + 50·ns + 29`, cited. -/
 theorem dedupCost_eq (n ns : ℕ) :
     Lax3Proofs.RamDriverDedup.dedupCost n ns = 31 * n + 50 * ns + 29 := rfl
 
-/-- `RamDriverIO.decodeCost n ns = 34·n + 12·ns + 46`, cited. -/
+/-- `RamDriverIO.decodeCost n ns = 45·n + 12·ns + 54`, cited. The root's
+identity member list (rebase E-mem) is the `11·n + 8` of it. -/
 theorem decodeCost_eq (n ns : ℕ) :
-    RamDriverIO.decodeCost n ns = 34 * n + 12 * ns + 46 := by
+    RamDriverIO.decodeCost n ns = 45 * n + 12 * ns + 54 := by
   simp only [RamDriverIO.decodeCost]; ring
 
-/-- **The root `W`-term is weight-linear at `79`**: the composed
+/-- **The root `W`-term is weight-linear at `87`**: the composed
 decode + dedup + `lwCom` charge that `hKdec` must cover
-(`Refine.DriverRootD.decodeDLCost`) fits `79·(n + ns + 1)` — this is what
-makes the `79` of `rootD_close` below a real coefficient and not a
-choice. -/
+(`Refine.DriverRootD.decodeDLCost`) fits `87·(n + ns + 1)` — this is what
+makes the `87` of `rootD_close` below a real coefficient and not a
+choice. Rebase E-mem: the root member list moved the coefficient from
+`79` to `87`, weight-linearly — the root arena IS the carrier. -/
 theorem decodeDLCost_le_weight (n ns : ℕ) :
-    Lax3Proofs.Refine.DriverRootD.decodeDLCost n ns ≤ 79 * (n + ns + 1) := by
+    Lax3Proofs.Refine.DriverRootD.decodeDLCost n ns ≤ 87 * (n + ns + 1) := by
   simp only [Lax3Proofs.Refine.DriverRootD.decodeDLCost, RamDriverIO.decodeCost,
     Lax3Proofs.RamDriverDedup.dedupCost]
   omega
 
--- `79` is not slack: at `ns = 0` the term is `65·n + 79`, and `64` fails
-#guard ¬ (Lax3Proofs.Refine.DriverRootD.decodeDLCost (10 ^ 6) 0 ≤ 64 * (10 ^ 6 + 0 + 1))
+-- `87` is not slack: the term is `76·n + 62·ns + 87`, so `75` loses on the
+-- carrier and `86` loses at the empty word — the constant is what forces `87`
+#guard ¬ (Lax3Proofs.Refine.DriverRootD.decodeDLCost (10 ^ 6) 0 ≤ 75 * (10 ^ 6 + 0 + 1))
+#guard ¬ (Lax3Proofs.Refine.DriverRootD.decodeDLCost 0 0 ≤ 86 * (0 + 0 + 1))
 
 /-- **The root closes inside the budget.** The restated root's cost text
 `Kdec + (Kl 0 (n + nsd) + Ksent)` — with the level budget read at the
 COMPACTED count `nsd = dedupNs x ≤ ns` and the decode charge at the
-input's own `ns` — sits inside `(79 + ksent + C)·(D+1)^ℓ·(n + ns + 1)`.
+input's own `ns` — sits inside `(87 + ksent + C)·(D+1)^ℓ·(n + ns + 1)`.
 The compaction is consumed through `hKmono`, which the `g2m_exists`
 witness supplies; `decodeDLCost_le_weight` is what an admissible `Kdec`
 (one satisfying the root's own `hKdec` slot tightly) reads. -/
 theorem rootD_close {Kdec Ksent : ℕ → ℕ → ℕ} {n ns nsd C D ℓ ksent : ℕ}
     {Kl : ℕ → ℕ → ℕ}
     (hns : nsd ≤ ns) (hmono : Monotone (Kl 0))
-    (hdecle : Kdec n ns ≤ 79 * (n + ns + 1))
+    (hdecle : Kdec n ns ≤ 87 * (n + ns + 1))
     (hsent : Ksent n ns ≤ ksent * (n + ns + 1))
     (hcl : ∀ w, Kl 0 w ≤ C * (D + 1) ^ ℓ * (w + 1)) :
     Kdec n ns + (Kl 0 (n + nsd) + Ksent n ns) ≤
-      (79 + ksent + C) * (D + 1) ^ ℓ * (n + ns + 1) := by
+      (87 + ksent + C) * (D + 1) ^ ℓ * (n + ns + 1) := by
   have hpow : 1 ≤ (D + 1) ^ ℓ := Nat.one_le_pow _ _ (by omega)
   have hKlw : Kl 0 (n + nsd) ≤ C * (D + 1) ^ ℓ * (n + ns + 1) :=
     le_trans (hmono (by omega : n + nsd ≤ n + ns)) (hcl (n + ns))
-  have h1 : 79 * (n + ns + 1) ≤ 79 * (D + 1) ^ ℓ * (n + ns + 1) := by nlinarith
+  have h1 : 87 * (n + ns + 1) ≤ 87 * (D + 1) ^ ℓ * (n + ns + 1) := by nlinarith
   have h2 : ksent * (n + ns + 1) ≤ ksent * (D + 1) ^ ℓ * (n + ns + 1) := by nlinarith
   calc Kdec n ns + (Kl 0 (n + nsd) + Ksent n ns)
-      ≤ 79 * (D + 1) ^ ℓ * (n + ns + 1) +
+      ≤ 87 * (D + 1) ^ ℓ * (n + ns + 1) +
           (C * (D + 1) ^ ℓ * (n + ns + 1) + ksent * (D + 1) ^ ℓ * (n + ns + 1)) := by
         have := le_trans hdecle h1
         have := le_trans hsent h2
         omega
-    _ = (79 + ksent + C) * (D + 1) ^ ℓ * (n + ns + 1) := by ring
+    _ = (87 + ksent + C) * (D + 1) ^ ℓ * (n + ns + 1) := by ring
 
 /-- **The two halves, composed**: the `g2m_exists` witness threaded
 through the restated root's cost text gives exactly `rootBudgetM`'s
@@ -532,12 +536,12 @@ closed form at the input weight — the shape §3's `#guard`s clear and
 theorem rootBudgetM_closes {Kdec Ksent : ℕ → ℕ → ℕ} {Kl : ℕ → ℕ → ℕ}
     {n ns nsd ℓ Cb ao bo ac bc ad bd R ct ksc D ksent : ℕ}
     (hns : nsd ≤ ns) (hmono : Monotone (Kl 0))
-    (hdecle : Kdec n ns ≤ 79 * (n + ns + 1))
+    (hdecle : Kdec n ns ≤ 87 * (n + ns + 1))
     (hsent : Ksent n ns ≤ ksent * (n + ns + 1))
     (hcl : ∀ w, Kl 0 w ≤
       (ℓ * g2M ao bo ac bc ad bd R ct ksc D + Cb) * (D + 1) ^ ℓ * (w + 1)) :
     Kdec n ns + (Kl 0 (n + nsd) + Ksent n ns) ≤
-      rootBudgetM ℓ Cb ao bo ac bc ad bd R ct ksc D 79 ksent * (n + ns + 1) := by
+      rootBudgetM ℓ Cb ao bo ac bc ad bd R ct ksc D 87 ksent * (n + ns + 1) := by
   have h := rootD_close (Kdec := Kdec) (Ksent := Ksent) (nsd := nsd) (ksent := ksent)
     (C := ℓ * g2M ao bo ac bc ad bd R ct ksc D + Cb) hns hmono hdecle hsent hcl
   simpa only [rootBudgetM] using h

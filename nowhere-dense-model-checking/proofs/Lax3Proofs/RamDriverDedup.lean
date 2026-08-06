@@ -505,6 +505,7 @@ def decSt (n W : ℕ) (x : List ℕ) : PSt where
     [("off", List.replicate (n + 1) 0), ("tgt", List.replicate W 0),
      (RamDriver.alvName 0, List.replicate n 0),
      (RamDriver.gamName 0, List.replicate n 0),
+     (RamDriver.memName 0, List.replicate n 0),
      ("dmk", List.replicate n 0)]
   inp := x
 
@@ -680,6 +681,7 @@ def dirtyMarkSt (n W : ℕ) (x : List ℕ) : PSt where
     [("off", List.replicate (n + 1) 0), ("tgt", List.replicate W 0),
      (RamDriver.alvName 0, List.replicate n 0),
      (RamDriver.gamName 0, List.replicate n 0),
+     (RamDriver.memName 0, List.replicate n 0),
      ("dmk", List.replicate n 1)]
   inp := x
 
@@ -1733,7 +1735,7 @@ theorem decodeImplementsD {B ns W K : ℕ} {T : ℕ → ℕ} {x : List ℕ}
   have hpass := dedup_spec (B := B) (T := padTarget x ns) hx hns hTlo hThi hnB hnsB hWB hnsW
   refine Spec.of_exists (fun σ hσ => ?_)
   obtain ⟨hmem, hord, hdmem, hinp, hout⟩ := hσ
-  obtain ⟨σ₁, r₁, ho₁, hcsr₁, hn₁, hoff₁, htgt₁, hm₁, hord₁, hM, hGm⟩ :=
+  obtain ⟨σ₁, r₁, ho₁, hcsr₁, hn₁, hoff₁, htgt₁, hm₁, hord₁, hM, hGm, hMem⟩ :=
     hdec σ ⟨hmem, hord, hinp, hout⟩
   have hfr₁ : σ₁.arrs "dmk" = σ.arrs "dmk" := r₁.frame_arr "dmk" (by decide)
   have hdmem₁ : DedupMem n σ₁ :=

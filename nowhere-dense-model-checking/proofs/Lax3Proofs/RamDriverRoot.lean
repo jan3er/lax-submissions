@@ -119,7 +119,7 @@ theorem turnFrozen_notMem_warrs_driverAt {a : String} (h : RamDriverFrames.TurnF
   refine RamDriverWrites.belowArr_notMem_warrs_driverAt ?_
   rcases h with hm | ⟨c, rfl⟩ | ⟨b, hb, rfl⟩
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
-    rcases hm with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+    rcases hm with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
       exact ⟨j, Nat.lt_succ_self j, by tauto⟩
   · exact ⟨j, Nat.lt_succ_self j, by tauto⟩
   · exact ⟨b, by omega, by tauto⟩
@@ -131,6 +131,13 @@ theorem ctrName_notMem_wvars_driverAt {a : ℕ} (h : a ≤ j) :
 theorem xpName_notMem_wvars_driverAt :
     xpName j ∉ (driverAt q_top cap mb 0 ℓ φ (j + 1)).wvars :=
   RamDriverWrites.belowVar_notMem_wvars_driverAt ⟨j, Nat.lt_succ_self j, by tauto⟩
+
+/-- The member count of any depth at or below `j` is not assigned by a
+level at depth `j + 1` (rebase E-mem): the descent writes its own
+child's count, which is depth `j + 2` or deeper. -/
+theorem mnumName_notMem_wvars_driverAt {a : ℕ} (h : a ≤ j) :
+    mnumName a ∉ (driverAt q_top cap mb 0 ℓ φ (j + 1)).wvars :=
+  RamDriverWrites.belowVar_notMem_wvars_driverAt ⟨a, by omega, by tauto⟩
 
 theorem curName_notMem_wvars_driverAt :
     curName j ∉ (driverAt q_top cap mb 0 ℓ φ (j + 1)).wvars :=
@@ -248,7 +255,8 @@ theorem clusterStepAt
     (fun hinner _ _ _ _ _ _ => RamDriverFrames.innerFrames hinner
       (fun _ ha => turnFrozen_notMem_warrs_driverAt ha)
       (fun _ ha => ctrName_notMem_wvars_driverAt ha)
-      xpName_notMem_wvars_driverAt curName_notMem_wvars_driverAt)
+      xpName_notMem_wvars_driverAt curName_notMem_wvars_driverAt
+      (fun _ ha => mnumName_notMem_wvars_driverAt ha))
     (fun _ _ _ _ _ _ =>
       RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
@@ -281,6 +289,7 @@ theorem clusterFramesAt
     (fun _ ha => turnFrozen_notMem_warrs_driverAt ha)
       (fun _ ha => ctrName_notMem_wvars_driverAt ha)
     xpName_notMem_wvars_driverAt curName_notMem_wvars_driverAt
+    (fun _ ha => mnumName_notMem_wvars_driverAt ha)
     (fun _ _ _ _ _ _ =>
       RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)

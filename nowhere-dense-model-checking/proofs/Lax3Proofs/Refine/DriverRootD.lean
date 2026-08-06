@@ -141,7 +141,8 @@ theorem wordBoundK_anti {B n K ns' ns cap mb : ℕ} (h : ns' ≤ ns)
 a tail zero from `0` is zero from anywhere. -/
 theorem decodeMem_of_zero {n ns W : ℕ} {σ : Env} (h : DecodeMem n 0 W σ) :
     DecodeMem n ns W σ :=
-  ⟨h.1, h.2.1, fun j _ hj => h.2.2.1 j (Nat.zero_le j) hj, h.2.2.2.1, h.2.2.2.2⟩
+  ⟨h.1, h.2.1, fun j _ hj => h.2.2.1 j (Nat.zero_le j) hj, h.2.2.2.1, h.2.2.2.2.1,
+    h.2.2.2.2.2⟩
 
 /-! ## §1 The decode at the free live width
 
@@ -168,11 +169,13 @@ theorem decode_spec_lw0 {B n ns W : ℕ} {G : SimpleGraph (Fin n)} {x : List ℕ
         σ'.arrs "tgt" = arrOf W (padTarget x ns) ∧
         σ'.vars "m" = edgeCount x ∧ OrderMem B n 0 W σ' ∧
         (∃ M, σ'.arrs (alvName 0) = arrOf n M ∧ ∀ v < n, M v = 1) ∧
-        (∃ Gm, σ'.arrs (gamName 0) = arrOf n Gm ∧ ∀ v < n, Gm v = 1))
+        (∃ Gm, σ'.arrs (gamName 0) = arrOf n Gm ∧ ∀ v < n, Gm v = 1) ∧
+        (∃ Mem, σ'.arrs (memName 0) = arrOf n Mem ∧ (∀ v < n, Mem v = v) ∧
+          σ'.vars (mnumName 0) = n))
       (decodeCost n ns) := by
   subst hns
   refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨⟨hoffL, htgtL, htgtZ, halvL, hgamL⟩,
+  obtain ⟨⟨hoffL, htgtL, htgtZ, halvL, hgamL, hmemL⟩,
     ⟨hOle, hOlw, hOsz, hz₁, hz₂, hz₃, hz₄, hz₅, hz₆, hz₇, hz₈, hw₁, hw₂⟩,
     hinp, hout⟩ := hσ
   -- the word: the two header entries, the offsets, the targets
@@ -288,46 +291,88 @@ theorem decode_spec_lw0 {B n ns W : ℕ} {G : SimpleGraph (Fin n)} {x : List ℕ
       ⟨by rw [hfa₇ _ (by decide), hall _ (by decide) (by decide)]; exact hgamL, hn₇⟩
   have hfa₈ : ∀ a, a ≠ RamDriver.gamName 0 → σ₈.arrs a = σ₇.arrs a := fun a ha =>
     r₈.frame_arr a (by rw [warrs_fillCom]; simpa using ha)
-  -- everything but the four arrays the phase writes comes back untouched
+  have hn₈ : σ₈.vars "n" = n := by
+    rw [r₈.frame_var "n" (by rw [wvars_fillCom]; decide)]; exact hn₇
+  -- the root's member list: the identity enumeration (rebase E-mem)
+  obtain ⟨σ₉, r₉, Mem, hmem₉, hMem₉⟩ :=
+    (RamDriverIO.fillIdent_spec (B := B) (n := n) (a := RamDriver.memName 0)
+      (by omega)).run (σ := σ₈)
+      ⟨(by rw [hfa₈ _ (by decide), hfa₇ _ (by decide),
+          hall _ (by decide) (by decide)]; exact hmemL), hn₈⟩
+  have hfa₉ : ∀ a, a ≠ RamDriver.memName 0 → σ₉.arrs a = σ₈.arrs a := fun a ha =>
+    r₉.frame_arr a (by rw [warrs_fillCom]; simpa using ha)
+  have hn₉ : σ₉.vars "n" = n := by
+    rw [r₉.frame_var "n" (by rw [wvars_fillCom]; decide)]; exact hn₈
+  -- and its count
+  set σ₁₀ := σ₉.setVar (RamDriver.mnumName 0) n with hσ₁₀
+  have r₁₀ : Run B (.assign (RamDriver.mnumName 0) (.var "n")) σ₉ σ₁₀ (1 + 1) := by
+    have h := Run.assign (B := B) (σ := σ₉) (x := RamDriver.mnumName 0) (e := .var "n")
+      (evalB_var (by rw [hn₉]; omega))
+    rw [hn₉] at h
+    simpa [Expr.size] using h
+  have hfa₁₀ : ∀ a, σ₁₀.arrs a = σ₉.arrs a := fun a => by rw [hσ₁₀, arrs_setVar]
+  have hfv₁₀ : ∀ y, y ≠ RamDriver.mnumName 0 → σ₁₀.vars y = σ₉.vars y := fun y hy => by
+    rw [hσ₁₀, vars_setVar, if_neg hy]
+  -- everything but the five arrays the phase writes comes back untouched
   have hall₈ : ∀ a, a ≠ "off" → a ≠ "tgt" → a ≠ RamDriver.alvName 0 →
-      a ≠ RamDriver.gamName 0 → σ₈.arrs a = σ.arrs a := by
-    intro a h1 h2 h3 h4
-    rw [hfa₈ a h4, hfa₇ a h3, hall a h1 h2]
-  have hm₈ : σ₈.vars "m" = edgeCount x := by
-    rw [r₈.frame_var "m" (by rw [wvars_fillCom]; decide),
+      a ≠ RamDriver.gamName 0 → a ≠ RamDriver.memName 0 → σ₁₀.arrs a = σ.arrs a := by
+    intro a h1 h2 h3 h4 h5
+    rw [hfa₁₀ a, hfa₉ a h5, hfa₈ a h4, hfa₇ a h3, hall a h1 h2]
+  have hm₈ : σ₁₀.vars "m" = edgeCount x := by
+    rw [hfv₁₀ "m" (by simp [RamDriver.mnumName, String.ext_iff]),
+      r₉.frame_var "m" (by rw [wvars_fillCom]; decide),
+      r₈.frame_var "m" (by rw [wvars_fillCom]; decide),
       r₇.frame_var "m" (by rw [wvars_fillCom]; decide),
       hfv₆ "m" (by decide) (by decide), hσ₅]
     simpa using hm₄
-  have rall : Run B RamDriver.decodeCom σ σ₈ _ :=
-    r₁.seq (r₂.seq (r₃.seq (r₄.seq (r₅.seq (r₆.seq (r₇.seq r₈))))))
-  refine ⟨σ₈, _, rall, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  have rall : Run B RamDriver.decodeCom σ σ₁₀ _ :=
+    r₁.seq (r₂.seq (r₃.seq (r₄.seq (r₅.seq (r₆.seq (r₇.seq (r₈.seq (r₉.seq r₁₀))))))))
+  refine ⟨σ₁₀, _, rall, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [decodeCost]; omega
-  · rw [r₈.out_eq (noWrite_fillCom ..), r₇.out_eq (noWrite_fillCom ..)]; exact ho₆
+  · rw [hσ₁₀, out_setVar, r₉.out_eq (noWrite_fillCom ..), r₈.out_eq (noWrite_fillCom ..),
+      r₇.out_eq (noWrite_fillCom ..)]
+    exact ho₆
   · exact csrGraph_of_encodesGraph hx (fun _ _ => rfl)
       (fun j hj => Lax3Proofs.RamDriverDedup.padTarget_lt hj)
-  · rw [r₈.frame_var "n" (by rw [wvars_fillCom]; decide)]; exact hn₇
-  · rw [hfa₈ _ (by decide), hfa₇ _ (by decide), hfa₆ _ (by decide), hσ₅]
+  · rw [hfv₁₀ "n" (by simp [RamDriver.mnumName, String.ext_iff])]; exact hn₉
+  · rw [hfa₁₀ _, hfa₉ _ (by simp [RamDriver.memName, String.ext_iff]), hfa₈ _ (by decide),
+      hfa₇ _ (by decide), hfa₆ _ (by decide), hσ₅]
     simp only [arrs_setVar]
     rw [hoff₄]
     exact arrOf_congr fun i hi => by rw [hO₄ i hi, hyd i hi]
-  · rw [hfa₈ _ (by decide), hfa₇ _ (by decide), htgt₆]
+  · rw [hfa₁₀ _, hfa₉ _ (by simp [RamDriver.memName, String.ext_iff]), hfa₈ _ (by decide),
+      hfa₇ _ (by decide), htgt₆]
     refine arrOf_congr fun j hj => ?_
     rcases lt_or_ge j (2 * edgeCount x) with hjs | hjs
     · rw [hT₆ j hjs, hzd j hjs, Lax3Proofs.RamDriverDedup.padTarget_lt hjs]
     · rw [hT₆pad j hjs hj, Lax3Proofs.RamDriverDedup.padTarget_ge hjs]
   · exact hm₈
   · exact ⟨Nat.zero_le _, by rw [rall.frame_var "lw" (by decide)]; exact hOlw, hOsz.run rall,
-      by rw [hall₈ "elm" (by decide) (by decide) (by decide) (by decide)]; exact hz₁,
-      by rw [hall₈ "bh" (by decide) (by decide) (by decide) (by decide)]; exact hz₂,
-      by rw [hall₈ "ooff" (by decide) (by decide) (by decide) (by decide)]; exact hz₃,
-      by rw [hall₈ "noff" (by decide) (by decide) (by decide) (by decide)]; exact hz₄,
-      by rw [hall₈ "stf" (by decide) (by decide) (by decide) (by decide)]; exact hz₅,
-      by rw [hall₈ "sta" (by decide) (by decide) (by decide) (by decide)]; exact hz₆,
-      by rw [hall₈ "std" (by decide) (by decide) (by decide) (by decide)]; exact hz₇,
-      by rw [hall₈ "ste" (by decide) (by decide) (by decide) (by decide)]; exact hz₈,
+      by rw [hall₈ "elm" (by decide) (by decide) (by decide) (by decide)
+        (by simp [RamDriver.memName, String.ext_iff])]; exact hz₁,
+      by rw [hall₈ "bh" (by decide) (by decide) (by decide) (by decide)
+        (by simp [RamDriver.memName, String.ext_iff])]; exact hz₂,
+      by rw [hall₈ "ooff" (by decide) (by decide) (by decide) (by decide)
+        (by simp [RamDriver.memName, String.ext_iff])]; exact hz₃,
+      by rw [hall₈ "noff" (by decide) (by decide) (by decide) (by decide)
+        (by simp [RamDriver.memName, String.ext_iff])]; exact hz₄,
+      by rw [hall₈ "stf" (by decide) (by decide) (by decide) (by decide)
+        (by simp [RamDriver.memName, String.ext_iff])]; exact hz₅,
+      by rw [hall₈ "sta" (by decide) (by decide) (by decide) (by decide)
+        (by simp [RamDriver.memName, String.ext_iff])]; exact hz₆,
+      by rw [hall₈ "std" (by decide) (by decide) (by decide) (by decide)
+        (by simp [RamDriver.memName, String.ext_iff])]; exact hz₇,
+      by rw [hall₈ "ste" (by decide) (by decide) (by decide) (by decide)
+        (by simp [RamDriver.memName, String.ext_iff])]; exact hz₈,
       run_mem_arrs_lt rall "itg" hw₁, run_mem_arrs_lt rall "ntg" hw₂⟩
-  · exact ⟨M, by rw [hfa₈ _ (by decide)]; exact halv₇, hM₇⟩
-  · exact ⟨Gm, hgam₈, hGm₈⟩
+  · exact ⟨M, (by rw [hfa₁₀ _,
+      hfa₉ _ (by simp [RamDriver.memName, RamDriver.alvName, String.ext_iff]),
+      hfa₈ _ (by decide)]; exact halv₇), hM₇⟩
+  · refine ⟨Gm, ?_, hGm₈⟩
+    rw [hfa₁₀ _, hfa₉ _ (by simp [RamDriver.memName, RamDriver.gamName, String.ext_iff])]
+    exact hgam₈
+  · exact ⟨Mem, (by rw [hfa₁₀ _]; exact hmem₉), hMem₉,
+      by rw [hσ₁₀, vars_setVar, if_pos rfl]⟩
 
 /-! ## §2 The composed decode: `decodeCom ; lwCom ; dedupCom` -/
 
@@ -377,7 +422,9 @@ def DecodeImplementsDL (B : ℕ) (x : List ℕ) {n : ℕ} (G : SimpleGraph (Fin 
         OrderMem B n (dedupNs x) W σ' ∧
         DedupMem n σ' ∧
         (∃ M, σ'.arrs (alvName 0) = arrOf n M ∧ ∀ v < n, M v = 1) ∧
-        (∃ Gm, σ'.arrs (gamName 0) = arrOf n Gm ∧ ∀ v < n, Gm v = 1)) K
+        (∃ Gm, σ'.arrs (gamName 0) = arrOf n Gm ∧ ∀ v < n, Gm v = 1) ∧
+        (∃ Mem, σ'.arrs (memName 0) = arrOf n Mem ∧ (∀ v < n, Mem v = v) ∧
+          σ'.vars (mnumName 0) = n)) K
 
 set_option maxHeartbeats 1000000 in
 /-- **The composed obligation, discharged**: the replayed decode
@@ -407,7 +454,7 @@ theorem decodeImplementsDL {B n ns W K : ℕ} {G : SimpleGraph (Fin n)} {x : Lis
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hmem, hord, hdmem, hinp, hout⟩ := hσ
   -- the decode, from the fresh-satisfiable entry
-  obtain ⟨σ₁, r₁, ho₁, hcsr₁, hn₁, hoff₁, htgt₁, hm₁, hord₁, hM, hGm⟩ :=
+  obtain ⟨σ₁, r₁, ho₁, hcsr₁, hn₁, hoff₁, htgt₁, hm₁, hord₁, hM, hGm, hMem⟩ :=
     hdec.run (σ := σ) ⟨hmem, hord, hinp, hout⟩
   -- the repair: one assignment, and the live width is the slot count
   obtain ⟨σ₂, r₂, hord₂⟩ :=
@@ -430,7 +477,7 @@ theorem decodeImplementsDL {B n ns W K : ℕ} {G : SimpleGraph (Fin n)} {x : Lis
     Lax3Proofs.RamDriverDedup.csrSimple_dedup hx, hnsle,
     fun z hz _ => Lax3Proofs.RamDriverDedup.dedupTarget_eq_zero hz,
     hn₃, hoff₃, htgt₃, hm₃,
-    Lax3Proofs.RamDriverDedup.orderMem_dedup hord₂ r₃ hnsle, hdmem₃, ?_, ?_⟩
+    Lax3Proofs.RamDriverDedup.orderMem_dedup hord₂ r₃ hnsle, hdmem₃, ?_, ?_, ?_⟩
   · rw [r₃.out_eq Lax3Proofs.RamDriverDedup.noWrite_dedupCom, r₂.out_eq noWrite_lwCom]
     exact ho₁
   · obtain ⟨M, hMa, hMv⟩ := hM
@@ -443,6 +490,25 @@ theorem decodeImplementsDL {B n ns W K : ℕ} {G : SimpleGraph (Fin n)} {x : Lis
     rw [Lax3Proofs.RamDriverDedup.frame_arr_dedupCom r₃ (RamDriver.gamName 0)
       (by decide) (by decide) (by decide), hfa₂]
     exact hGa
+  · obtain ⟨Mem, hMa, hMv, hMc⟩ := hMem
+    refine ⟨Mem, ?_, hMv, ?_⟩
+    · rw [Lax3Proofs.RamDriverDedup.frame_arr_dedupCom r₃ (RamDriver.memName 0)
+        (by simp [RamDriver.memName, String.ext_iff])
+        (by simp [RamDriver.memName, String.ext_iff])
+        (by simp [RamDriver.memName, String.ext_iff]), hfa₂]
+      exact hMa
+    · rw [Lax3Proofs.RamDriverDedup.frame_var_dedupCom r₃ (RamDriver.mnumName 0)
+        (by simp [RamDriver.mnumName, String.ext_iff])
+        (by simp [RamDriver.mnumName, String.ext_iff])
+        (by simp [RamDriver.mnumName, String.ext_iff])
+        (by simp [RamDriver.mnumName, String.ext_iff])
+        (by simp [RamDriver.mnumName, String.ext_iff])
+        (by simp [RamDriver.mnumName, String.ext_iff])
+        (by simp [RamDriver.mnumName, String.ext_iff])
+        (by simp [RamDriver.mnumName, String.ext_iff])
+        (by simp [RamDriver.mnumName, String.ext_iff]),
+        hfv₂ _ (by simp [RamDriver.mnumName, String.ext_iff])]
+      exact hMc
 
 /-! ## §3 The restated precondition, and the `initEnv` anti-witness
 
@@ -524,7 +590,8 @@ def RFrames (q_top cap mb R ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) : Prop :=
     (∀ i, tabName j i ∉ (driverAt q_top cap mb R ℓ φ (j + 1)).warrs) ∧
     cpsName j ∉ (driverAt q_top cap mb R ℓ φ (j + 1)).warrs ∧
     cnumName j ∉ (driverAt q_top cap mb R ℓ φ (j + 1)).wvars ∧
-    cixName j ∉ (driverAt q_top cap mb R ℓ φ (j + 1)).wvars
+    cixName j ∉ (driverAt q_top cap mb R ℓ φ (j + 1)).wvars ∧
+    (∀ a, a ≤ j → mnumName a ∉ (driverAt q_top cap mb R ℓ φ (j + 1)).wvars)
 
 /-- The plug check: at `R = 0` the residual is the landed capital. -/
 theorem rFrames_zero (q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) :
@@ -536,7 +603,8 @@ theorem rFrames_zero (q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) :
     fun i => Lax3Proofs.RamDriverRoot.tabName_notMem_warrs_driverAt i,
     Lax3Proofs.RamDriverRoot.cpsName_notMem_warrs_driverAt,
     Lax3Proofs.RamDriverRoot.cnumName_notMem_wvars_driverAt,
-    Lax3Proofs.RamDriverRoot.cixName_notMem_wvars_driverAt⟩
+    Lax3Proofs.RamDriverRoot.cixName_notMem_wvars_driverAt,
+    fun _ ha => Lax3Proofs.RamDriverRoot.mnumName_notMem_wvars_driverAt ha⟩
 
 /-- The arena is a subgraph of the level's graph. -/
 theorem masked_le {n : ℕ} (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) : masked G M ≤ G := by
@@ -616,7 +684,8 @@ theorem clusterStepAtR (hfr : RFrames q_top cap mb R ℓ φ)
     (fun hinner _ _ _ _ _ _ => RamDriverFrames.innerFrames hinner
       (fun _ ha => (hfr j).1 _ ha)
       (fun _ ha => (hfr j).2.1 _ ha)
-      (hfr j).2.2.1 (hfr j).2.2.2.1)
+      (hfr j).2.2.1 (hfr j).2.2.2.1
+      (fun _ ha => (hfr j).2.2.2.2.2.2.2.2 _ ha))
     (fun _ _ _ _ _ _ =>
       RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
@@ -650,6 +719,7 @@ theorem clusterFramesAtR (hfr : RFrames q_top cap mb R ℓ φ)
     (fun _ ha => (hfr j).1 _ ha)
     (fun _ ha => (hfr j).2.1 _ ha)
     (hfr j).2.2.1 (hfr j).2.2.2.1
+    (fun _ ha => (hfr j).2.2.2.2.2.2.2.2 _ ha)
     (fun _ _ _ _ _ _ =>
       RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
@@ -670,7 +740,7 @@ theorem loopFramesR (hfr : RFrames q_top cap mb R ℓ φ) :
         (driverAt q_top cap mb R ℓ φ (j + 1))).wvars :=
   ⟨RamDriverWrites.cpsName_notMem_warrs_clusterCom q_top cap mb j φ (hfr j).2.2.2.2.2.1,
     RamDriverWrites.cnumName_notMem_wvars_clusterCom q_top cap mb j φ (hfr j).2.2.2.2.2.2.1,
-    RamDriverWrites.cixName_notMem_wvars_clusterCom q_top cap mb j φ (hfr j).2.2.2.2.2.2.2⟩
+    RamDriverWrites.cixName_notMem_wvars_clusterCom q_top cap mb j φ (hfr j).2.2.2.2.2.2.2.1⟩
 
 open Lax3Proofs.Refine.MassWeight (arenaWeight blockWeight) in
 open Classical in
@@ -866,7 +936,7 @@ theorem driverD_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
   obtain ⟨hdm, hmem, hdep, hord0, hdmem, htsz, hbarr, hinp, hout⟩ := hσ
   -- the composed decode
   obtain ⟨σ₁, hrun₁, hout₁, hcsrD, hsimpD, hnsle, hpadD, hn₁, hoff₁, htgt₁, hm₁, hordmem₁,
-      hdmem₁, ⟨M, hM₁, hMone⟩, ⟨Gm, hGm₁, hGmone⟩⟩ :=
+      hdmem₁, ⟨M, hM₁, hMone⟩, ⟨Gm, hGm₁, hGmone⟩, ⟨Mem, hMem₁, hMemid, hMnum₁⟩⟩ :=
     (hdec hxB hB.succ_lt hB.ns_lt hWB hnsW).run ⟨hdm, hord0, hdmem, hinp, hout⟩
   have hBD : WordBoundK B n Kmass (dedupNs x) cap mb := wordBoundK_anti hnsle hB
   -- the level's word clause on the compacted targets
@@ -898,10 +968,19 @@ theorem driverD_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
   have hplay₀ : PlayRec B cap G 0 M Gm σ₁ := playRec_zero cap G hMG hGmG
   have hpadD' : ∀ z, dedupNs x ≤ z → z < W → dedupTarget x z = 0 :=
     fun z hz _ => Lax3Proofs.RamDriverDedup.dedupTarget_eq_zero hz
+  -- the root's member clause: the identity enumeration of the all-alive mask
+  have hmemcl₀ : ∃ Mem' mmj, σ₁.arrs (memName 0) = arrOf n Mem' ∧
+      σ₁.vars (mnumName 0) = mmj ∧ MemEnum n mmj Mem' M ∧ ∀ z < mmj, Mem' z < B := by
+    refine ⟨Mem, n, hMem₁, hMnum₁, ⟨fun k hk => by rw [hMemid k hk]; exact hk,
+      fun i k hik hk => by
+        rw [hMemid i (by omega), hMemid k hk]; exact hik,
+      fun k hk => by rw [hMemid k hk]; exact hMpos k hk,
+      fun a ha _ => ⟨a, ha, hMemid a ha⟩⟩, fun z hz => by
+        rw [hMemid z hz]; exact lt_trans hz hB.n_lt⟩
   obtain ⟨σ₂, hrun₂, ⟨hpre₂, -, htab₂⟩, hout₂⟩ :=
     (hlev M Gm (fun _ _ => 0) hMpos hcolbit).run
       (σ := σ₁) ⟨⟨hn₁, hoff₁, htgt₁, hM₁, hGm₁, hcolempty, hMB, hGmB, hcolbit, hmem₁, hdep₁,
-        hm₁, hordmem₁, hpadD', hTB⟩, htsz₁, hbarr₁, hplay₀⟩
+        hm₁, hordmem₁, hpadD', hTB, hmemcl₀⟩, htsz₁, hbarr₁, hplay₀⟩
   -- the sentence readback
   obtain ⟨σ₃, hrun₃, hcond, hout₃⟩ :=
     (hsent M Gm (fun _ _ => 0) hBD hMpos).run (σ := σ₂)

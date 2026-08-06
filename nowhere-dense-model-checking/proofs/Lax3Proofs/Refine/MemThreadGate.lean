@@ -90,7 +90,7 @@ a proof — it is `And.intro` and one destructuring, which is the point
 theorem levelPreMLive_of_levelPre {B n cap mb ns W j : ℕ} {O T M Gm : ℕ → ℕ}
     {C : ℕ → ℕ → ℕ} {σ : Env} (h : LevelPre B n cap mb ns W O T j M Gm C σ) :
     LevelPreMLive B n cap mb ns W O T j M Gm C σ := by
-  obtain ⟨-, -, -, -, -, -, -, -, -, -, hdep, -, -, -, -, Mem, mmj, hA, hV, hE, hB⟩ := h
+  obtain ⟨-, -, -, -, -, -, -, -, -, -, hdep, -, -, -, -, Mem, mmj, hA, hV, hE, hB⟩ := id h
   exact ⟨h, fun k => hdep.get (p := (memName k, n)) k (by simp),
     Mem, mmj, hA, hV, memList_of_memEnum hE, hB⟩
 

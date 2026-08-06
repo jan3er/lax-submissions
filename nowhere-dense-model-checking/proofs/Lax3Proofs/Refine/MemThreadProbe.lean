@@ -295,7 +295,7 @@ theorem depthMem_rootEnv : DepthMem 2 0 0 rootEnv := by
   intro j
   refine ⟨fun p hp => ?_, fun c _ => exists_arrOf ((rootEnv_length _).trans (len2_colName j c))⟩
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
-  rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
   · exact exists_arrOf ((rootEnv_length _).trans (len2_alvName j))
   · exact exists_arrOf ((rootEnv_length _).trans (len2_gamName j))
   · exact exists_arrOf ((rootEnv_length _).trans (len2_cluName j))
@@ -308,6 +308,7 @@ theorem depthMem_rootEnv : DepthMem 2 0 0 rootEnv := by
   · exact exists_arrOf ((rootEnv_length _).trans (len2_xmmName j))
   · exact exists_arrOf ((rootEnv_length _).trans (len2_asgName j))
   · exact exists_arrOf ((rootEnv_length _).trans (len2_cpsName j))
+  · exact exists_arrOf ((rootEnv_length _).trans (len2_memName j))
 
 /-- **The `DepthMem` delta, at the witness**: the member array of every
 depth is there at length `n` — the 13th `Sized` entry costs the
@@ -345,7 +346,12 @@ theorem levelPre_rootEnv :
     fun _ _ => (by norm_num : (1 : ℕ) < 4), fun _ _ _ _ => Nat.zero_le 1,
     levelMem_rootEnv, depthMem_rootEnv, by decide,
     orderMem_rootEnv, fun z _ hz => absurd hz (Nat.not_lt_zero z),
-    fun z hz => absurd hz (Nat.not_lt_zero z)⟩
+    fun z hz => absurd hz (Nat.not_lt_zero z),
+    -- clause 16 (rebase E-mem): the identity list of the all-alive root mask
+    fun z => z, 2, by decide, by decide,
+    ⟨fun k hk => hk, fun i k hik _ => hik, fun k _ => one_ne_zero,
+      fun a ha _ => ⟨a, ha, rfl⟩⟩,
+    fun z hz => show z < 4 by omega⟩
 
 /-- **Existence, root shape.** A driver-shaped machine memory — the
 whole of `LevelPre` at depth 0 — carries the member clause: the
@@ -429,7 +435,24 @@ theorem levelPre_childEnv :
     fun _ _ => (by norm_num : (1 : ℕ) < 4), fun _ _ _ _ => Nat.zero_le 1,
     levelMem_childEnv, depthMem_childEnv, by decide, orderMem_childEnv,
     fun z _ hz => absurd hz (Nat.not_lt_zero z),
-    fun z hz => absurd hz (Nat.not_lt_zero z)⟩
+    fun z hz => absurd hz (Nat.not_lt_zero z),
+    -- clause 16 (rebase E-mem): the block list filtered by the child mask
+    fun z => if z = 0 then 1 else 0, 1, by decide, by decide,
+    ⟨fun k hk => by show (if k = 0 then 1 else 0) < 2; split <;> omega,
+      fun i k _ hk => by omega,
+      fun k hk => by
+        have hk0 : k = 0 := by omega
+        subst hk0
+        show (if (0 : ℕ) = 0 then 1 else 0) ≠ 0
+        norm_num,
+      fun a ha hMa => by
+        have ha0 : a ≠ 0 := hMa
+        have ha1 : a = 1 := by omega
+        exact ⟨0, by omega, by simp [ha1]⟩⟩,
+    fun z hz => by
+      have hz0 : z = 0 := by omega
+      subst hz0
+      norm_num⟩
 
 /-- **Existence, child shape.** The descend-like update hands depth 1 a
 full `LevelPreM`: the child mask kills vertex 0, and the child member
@@ -465,10 +488,23 @@ per-turn carrier walk BlockLeaves' composed clear+load replaces (E4,
 `blockLoadK`); the DELTA the emission adds must not, and does not,
 read the carrier at all. -/
 
+/-- **The pre-thread `clusterLoad`**, written out: the text the landed
+one had before the E-mem thread put the emission inside its scan. The
+landed `RamDriver.clusterLoad` *is* `clusterLoadM` now, so the delta the
+design measured has to be measured against this baseline — otherwise the
+`8·bs + 2` claim would silently read `0`. -/
+def clusterLoadOld (j : ℕ) : Com :=
+  .seq (fillCom (cluName j) (.lit 0))
+    (.seq (Csr.loadRow (xofName j) (curName j) "p" "pend")
+      (Csr.scan "p" "pend"
+        (.seq (.store (cluName j) (.get (xmmName j) (.var "p")) (.lit 1))
+          (.assign "p" (.add (.var "p") (.lit 1))))))
+
 /-- `RamDriver.clusterLoad`, with the member-emission add-on: one store
 and one counter bump inside the existing block scan. The raw block
 list lands in the child's member array in emission order — the block
-row's order — and `"bq"` counts it. -/
+row's order — and `"bq"` counts it. Since the thread landed this is the
+landed text itself (`clusterLoadM_eq`). -/
 def clusterLoadM (j : ℕ) : Com :=
   .seq (fillCom (cluName j) (.lit 0))
     (.seq (.assign "bq" (.lit 0))
@@ -491,25 +527,29 @@ def cluSt (n bs : ℕ) : PSt :=
 /-- The clock of a load variant on the scan context. -/
 def cluClock (c : Com) (n bs : ℕ) : ℕ := (execC pB pF c (cluSt n bs)).2
 
+/-- The add-on is what landed: the probe's proposed text and the driver's
+are the same program (rebase E-mem, wave T1). -/
+theorem clusterLoadM_eq (j : ℕ) : clusterLoadM j = clusterLoad j := rfl
+
 -- both variants complete on every instance
-#guard (execC pB pF (clusterLoad 0) (cluSt 100 3)).1.isOk
+#guard (execC pB pF (clusterLoadOld 0) (cluSt 100 3)).1.isOk
 #guard (execC pB pF (clusterLoadM 0) (cluSt 100 3)).1.isOk
 #guard (execC pB pF (clusterLoadM 0) (cluSt 200 3)).1.isOk
 
 -- **the emission delta is carrier-blind**: the add-on's extra clock is
 -- the same at carriers 100 and 200, at every block size
-#guard cluClock (clusterLoadM 0) 100 0 - cluClock (clusterLoad 0) 100 0 =
-  cluClock (clusterLoadM 0) 200 0 - cluClock (clusterLoad 0) 200 0
-#guard cluClock (clusterLoadM 0) 100 2 - cluClock (clusterLoad 0) 100 2 =
-  cluClock (clusterLoadM 0) 200 2 - cluClock (clusterLoad 0) 200 2
-#guard cluClock (clusterLoadM 0) 100 3 - cluClock (clusterLoad 0) 100 3 =
-  cluClock (clusterLoadM 0) 200 3 - cluClock (clusterLoad 0) 200 3
+#guard cluClock (clusterLoadM 0) 100 0 - cluClock (clusterLoadOld 0) 100 0 =
+  cluClock (clusterLoadM 0) 200 0 - cluClock (clusterLoadOld 0) 200 0
+#guard cluClock (clusterLoadM 0) 100 2 - cluClock (clusterLoadOld 0) 100 2 =
+  cluClock (clusterLoadM 0) 200 2 - cluClock (clusterLoadOld 0) 200 2
+#guard cluClock (clusterLoadM 0) 100 3 - cluClock (clusterLoadOld 0) 100 3 =
+  cluClock (clusterLoadM 0) 200 3 - cluClock (clusterLoadOld 0) 200 3
 
 -- **and linear in the block**: `8` per member plus the counter init's
 -- `2` — the `≤ c·(block size)` law, pinned at three block sizes
-#guard cluClock (clusterLoadM 0) 100 0 - cluClock (clusterLoad 0) 100 0 = 2
-#guard cluClock (clusterLoadM 0) 100 2 - cluClock (clusterLoad 0) 100 2 = 8 * 2 + 2
-#guard cluClock (clusterLoadM 0) 100 3 - cluClock (clusterLoad 0) 100 3 = 8 * 3 + 2
+#guard cluClock (clusterLoadM 0) 100 0 - cluClock (clusterLoadOld 0) 100 0 = 2
+#guard cluClock (clusterLoadM 0) 100 2 - cluClock (clusterLoadOld 0) 100 2 = 8 * 2 + 2
+#guard cluClock (clusterLoadM 0) 100 3 - cluClock (clusterLoadOld 0) 100 3 = 8 * 3 + 2
 
 -- the emission really is the block list, in row order
 #guard (List.range 3).map ((execC pB pF (clusterLoadM 0) (cluSt 100 3)).1.cell (memName 1)) =

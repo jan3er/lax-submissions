@@ -316,7 +316,7 @@ The instance family of `C0Probe`'s `#guard`s — sparse members,
 `|x| = 3·n + 3`, constants chosen before `n`. Numerals: `R = 1`,
 `d = D₁ = 2` (so `budget = 14`, `bsq = 225`), `D = 8`, `ℓ = 3`,
 `kc = kd = ct = ksc = Cb = 10⁴`, root coefficients
-`kdec = 46` (decode honesty below), `ksent = 10⁴`,
+`kdec = 54` (decode honesty below), `ksent = 10⁴`,
 `kpro = 70·bsq` (prologue/allocation at `W = chainWidthE`). The star
 carrier: `ns = 2·(n − 1)`, weight `w = n + ns`. -/
 
@@ -529,9 +529,12 @@ theorem baseCost_le_weight (q_top cap mb ℓ n ns : ℕ) (φ : Lax3.FirstOrder.F
   nlinarith [Nat.zero_le (RamDriverBot.reprBodyCost ℓ (FormulaTables.sigL cap mb ℓ)),
     Nat.zero_le (RamDriverBot.turnCost q_top cap mb ℓ φ)]
 
-/-- **Decode honest** (root read): `kdec = 46`. -/
+/-- **Decode honest** (root read): `kdec = 54`. The root's identity
+member list (rebase E-mem) is one more `O(n)` fill inside `Kdec`, so the
+coefficient moves from `46` to `54` and the *shape* — weight-linear at
+the root, where the arena is the carrier — is unchanged. -/
 theorem decodeCost_le_weight (n ns : ℕ) :
-    RamDriverIO.decodeCost n ns ≤ 46 * (n + ns + 1) := by
+    RamDriverIO.decodeCost n ns ≤ 54 * (n + ns + 1) := by
   simp only [RamDriverIO.decodeCost]
   omega
 
