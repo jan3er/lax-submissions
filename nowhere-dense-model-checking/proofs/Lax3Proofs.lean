@@ -73,6 +73,7 @@ import Lax3Proofs.Refine.MassAlive
 import Lax3Proofs.Refine.ArenaBlock
 import Lax3Proofs.Refine.DeadRow
 import Lax3Proofs.Refine.DeadSweep
+import Lax3Proofs.Refine.DeadRowProbe
 import Lax3Proofs.Refine.OrderBridge
 import Lax3Proofs.Refine.BlockLeaves
 import Lax3Proofs.RamDriverDedup
