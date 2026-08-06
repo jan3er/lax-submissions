@@ -1141,18 +1141,26 @@ plus the allocation clause.
    (`level_interface_floor_cubic`). **C0 is unreachable through the root as it
    stands, and the repair is the cost residue, not B7.**
 
-3. **The `orderCom` synthesis probe runs first, tower-side.** The retry is
-   now the tower campaign's phase **P4.6**, immediately after its P4.5
-   (tower ledger E30); an earlier note scheduling it "at Gate G4, after C0"
-   was self-contradictory (G4 requires C0, C0 requires the residue) and is
-   superseded. The floor strengthens the early slot: `hKo`'s size-blind
-   `orderPhaseCost` is the floor's main driver and is exactly what a
-   synthesized order phase replaces with a derived cost rather than a
-   hand-written constant. "Lands" means **carrier-blind, compiled** (the
-   empty-arena charge is O(1)); a synthesis that completes at the size-blind
-   cost routes as a miss. On a landing, the order/cover phases are
-   re-derived rather than repaired and most of the residue chain above
-   stops existing.
+3. **The order-phase synthesis probe runs first, tower-side, in two
+   halves (tower ledger E42).** The retry is the tower campaign's phase
+   **P4.6**, immediately after its P4.5 (tower ledger E30); an earlier note
+   scheduling it "at Gate G4, after C0" was self-contradictory (G4 requires
+   C0, C0 requires the residue) and is superseded. This campaign's own
+   no-escape theorem (`OrderBlockProbe` §1/§2) proves the **landed** order
+   text cannot synthesize to a carrier-blind cost — the member-list
+   interior is the only route — so the probe's halves carry different
+   questions: **S** (whole-phase synthesis of the landed `orderPhase0`
+   from an `hfref` signature) answers tractability and yields the phase as
+   one `Com` plus the P7 profile; **M** (a standalone member-driven
+   `orderPhaseM` with an explicit member-list argument, the E-mem shape
+   without `LevelPre` threading) carries the landing criterion:
+   **carrier-blind, compiled** — empty-arena charge O(1), clock invariant
+   in `n` at fixed members. On M landing, E-mem threads member lists into
+   `LevelPre` and the order/cover phases are re-derived from M-shaped
+   signatures rather than repaired; most of the residue chain above stops
+   existing. On an M miss, the no-escape verdict generalizes and the
+   residue proceeds by hand after item 4, with the provisional-P5 draft
+   recommendation going to Jan.
 
 4. **`g2_exists` re-validation before any residue wave.** The residue's
    arithmetic — `g2_exists` and the E-mem budget chain — was compiled

@@ -635,7 +635,7 @@ same skeleton on per-turn fresh zeroed allocation provably does not (the
 `no_word_size_for_sparse` shape aimed at the heap pointer); zero `sorry`;
 gate law satisfied.
 
-### P4.6 — orderCom whole-phase synthesis probe · budget ≤ 1 session
+### P4.6 — order-phase synthesis probe, two halves · budget ≤ 1 session (two capped waves)
 
 The retry Jan ordered on 2026-08-02 ("ahead of the ND-MC cost residue"),
 slotted at the earliest point its dependencies allow (ledger E30): it needs
@@ -645,30 +645,62 @@ and every session spent there before the probe risks being on the branch
 the probe kills. It runs right after P4.5's acceptance re-seat and before
 P5.D/E breadth.
 
-The "whole-phase synthesis over 15 arrays is intractable" verdict is stale
-for checkable reasons: the recorded cause was hand-holed `sepref_synth`
-goals (`Refine/OrderBridge.lean:36`, `Sepref/Definition.lean:24`), assigned
-to and landed in P1; `transComb` stable-partitioning `hnr_seq` behind
-`hnr_bind` killed the 2^depth retranslation blowup (>9 min → 49 s on one
-real program — exactly what a whole phase would hit hardest); and P4.5
-gives a closed IR program somewhere to get its structures from. Nobody has
-retested since. At the measured exponent 1.28–1.35, a phase 8× BFS's op
-count extrapolates to ~12–15 minutes: slow, and affordable once.
+**The probe has two halves, because its two questions have different
+witnesses (ledger E42).** The no-escape theorem
+(`OrderBlockProbe.nested_emptyCharge_floor`, §1/§2) proves every pass of
+the *landed* order text is carrier-bounded and the member-list interior is
+the only route to a carrier-blind cost — so synthesizing the landed
+`orderPhase0` can never exhibit the carrier-blind landing; only a
+member-driven abstract text can. A probe aimed solely at the landed text
+would have a dead success branch.
 
-**Run it as a measured probe, not an open-ended attempt:** count
-`orderCom`'s ops, full rule DB, wall-clock cap, record where the time goes
-against BfsQ's 49 s. Outcome routing:
+**S — scale (tractability).** Whole-phase `sepref_synth` of the landed
+`orderPhase0` (`OrderSynth.lean:822`, 21 passes over 15 arrays + engine)
+from an `hfref` signature, `BfsQSignature`/`SignaturePrep` idiom. Prereq,
+recorded by the source file itself as mechanical (2E/E2): promote
+`copyPass`/`fillPass`/`ordPass` to registered mop leaves per the `mopElim`
+idiom — today 19 of 21 pass instances have no rule the matcher can fire.
+Measured: wall-clock cap, time distribution against BfsQ's 49 s (per-pass
+telemetry: copy/fill/ord ≈ 2 s, elim leaf ≈ 7 s; measured exponent
+1.28–1.35 extrapolates the phase to ~12–15 min). The stale-verdict causes
+are gone for checkable reasons: hand-holed goals retired by P1.B
+(`Sepref/Definition.lean:24`), the 2^depth retranslation blowup killed by
+`transComb`. S's product is one `Com` with a signature theorem — retiring
+the B1/F-a "the program half is missing at every pass" seam — plus P7's
+profile. Its cost is size-blind by construction; S alone decides nothing
+about the floor.
 
-- **Lands, carrier-blind** — the criterion is P9's, checked here: the
-  empty-arena charge is O(1), compiled. A synthesis that completes but
-  reproduces `hKo`'s size-blind cost kills no floor and routes as a miss.
-  On a landing, the order/cover phases are re-derived rather than repaired,
-  most of the ND-MC cost residue stops existing, and the remaining
+**M — member-driven (the landing criterion).** A probe-scale member-driven
+variant `orderPhaseM` taking an explicit member-list argument — the E-mem
+shape, standalone, with **no** `LevelPre`/driver-state threading: fills
+become touched-only member walks, interior work is driven by the list, and
+genuinely setup-scale carrier walks are parameterized out. Synthesized
+whole-phase from its signature. Acceptance is P9's criterion, compiled
+here: empty-arena charge O(1), and a `clearMem`-style control — clock at
+`n = 100` equals clock at `n = 200` at fixed members.
+
+Outcome routing:
+
+- **S and M green** — G2 is a re-derivation: ND-MC's E-mem threads member
+  lists into `LevelPre`, then order/cover phases re-synthesize from
+  M-shaped signatures; most of the ND-MC cost residue stops existing.
   P5.D/P6 content is re-reviewed against what the synthesis actually
   consumed before those phases run at breadth.
-- **Misses the cap** — P7 gets its target profile from a real phase
-  instead of P0's synthetic 3–5× program, and the ND-MC residue proceeds
-  as planned. Worth having either way.
+- **S misses its cap, M green per-pass** — the composition route: per-pass
+  synthesis plus `hnr_seq` chaining (proved out at small scale by E39/E40)
+  replaces single-shot synthesis; S's telemetry becomes P7's primary
+  profile, and P9's "zero hand frame clauses" acceptance is re-examined
+  against what `hnr_seq` chaining actually costs in hand text.
+- **M cannot be made carrier-blind even standalone** — the no-escape
+  theorem generalizes past the landed text; the ND-MC residue proceeds by
+  hand repair after its `g2_exists` re-validation, and the provisional-P5
+  draft recommendation goes to Jan with this evidence attached.
+
+Probe files live ND-MC-side (`Lax3Proofs/Refine/OrderSigProbe*.lean`) —
+the import direction requires it (`hfref` needs
+`Lax13Proofs.Refine.Sepref.Register`, which ND-MC does not yet import) —
+but they are probe artifacts under this campaign's ownership: no
+frozen-surface edits, no driver-state edits, promoted or deleted by G2.
 
 Also favoring the early slot: `hKo`'s size-blind `orderPhaseCost n ns W` is
 the compiled interface floor's main driver

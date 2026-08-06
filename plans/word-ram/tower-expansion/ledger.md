@@ -2140,3 +2140,48 @@ re-seated with its previously conditional operation restated
 unconditionally (E34/E39/E40), and the compiled space-budget probe (this
 entry). P4.5.C remains as presentation-only work whose source is uncosted
 and out of the timed build closure.
+
+### E42 — P4.6's success branch was dead as written; the probe splits into S and M
+
+2026-08-06, Fable boundary review (Jan: re-evaluate the Opus/codex-era
+decisions from first principles). The review found the campaign's local
+hygiene fully replayable — builds at the recorded job counts, leaf gate
+PASS, zero placeholders — and one global joint failure between documents
+that no single session could see from inside:
+
+*The defect.* P4.6 as written targeted whole-phase synthesis of the
+**landed** `orderCom`/`orderPhase0`, with "lands, carrier-blind" as its
+success branch. But ND-MC's own compiled no-escape theorem
+(`OrderBlockProbe.nested_emptyCharge_floor`; §1's on-data floor: clock
+affine in the carrier at fixed arena, `650·n + c` at `R = 0`) proves every
+pass of that text is carrier-bounded and "the member-list interior is the
+only route" to an O(1) empty-arena charge. Synthesis reproduces the
+abstract text's charge shape — `hnRefine` makes the abstract account pay
+for the concrete ops — so the landed text can only synthesize to the
+size-blind cost, which the plan itself routes as a miss. Both plans
+scheduled the probe; both carried the theorem that kills its success
+branch; neither cited the other. Locally consistent, globally dead.
+
+*The reshape (plan superseded in place).* The probe's two questions get
+separate witnesses. **S** answers tractability on the landed text
+(prereq: promote `copyPass`/`fillPass`/`ordPass` to registered mop leaves
+per the `mopElim` idiom — `OrderSynth.lean` 2E/E2 records this as
+mechanical, 19 of 21 pass instances currently unregistered) and produces
+the phase as one `Com` plus P7's profile. **M** answers the floor: a
+standalone member-driven `orderPhaseM` with an explicit member-list
+argument — the E-mem shape without `LevelPre` threading — synthesized
+whole-phase, with compiled carrier-blindness (`clearMem`-style control:
+clock invariant in `n` at fixed members; empty-arena charge O(1)) as the
+landing criterion. Routing per the plan text.
+
+*Also recorded at this review.* (a) The E36–E40 dynamic-array polish ran
+after the P4.6 gate was reachable; each leaf was locally justified
+(acceptance-list items, E30 information-ordering), but the pattern —
+closing local todos ahead of the decision gate that could moot them — is
+the one to watch, and the S/M reshape exists precisely because reaching
+the gate faster would have surfaced the dead branch sooner. (b) E16's
+`DArrayList` half is still open (`daReadyRel` live at
+`DArrayList.lean:174,196`) — scheduled with P5.E breadth, correctly gated
+behind P4.6. (c) An untracked `foo/` at the repo root (empty Lax19
+skeleton, "Untitled Submission") is not this campaign's and awaits Jan's
+disposition.
