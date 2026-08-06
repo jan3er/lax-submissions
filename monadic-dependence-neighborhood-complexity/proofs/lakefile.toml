@@ -15,15 +15,21 @@ name = "Lax5"
 path = "../concepts"
 
 # sparsity lectures: the quasi-wideness and neighborhood-complexity
-# statements of submission Lax12
+# statements of submission Lax12,
+# pinned to its archive commit (chain workflow)
 [[require]]
 name = "Lax12"
-path = "../../sparsity-lectures/concepts"
+git = "https://github.com/lax-archive/lax-submissions"
+rev = "7567bb4ed5a67705fe11f4958bb5d62aded02616"
+subDir = "sparsity-lectures/concepts"
 
-# finite Ramsey theorems: the Ramsey statements of submission Lax14
+# finite Ramsey theorems: the Ramsey statements of submission Lax14,
+# pinned to its archive commit (chain workflow)
 [[require]]
 name = "Lax14"
-path = "../../finite-ramsey/concepts"
+git = "https://github.com/lax-archive/lax-submissions"
+rev = "311ae7cf15e1bde644721958e05203bb6791d04b"
+subDir = "finite-ramsey/concepts"
 
 [[lean_lib]]
 name = "Lax5Proofs"

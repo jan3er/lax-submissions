@@ -10,16 +10,22 @@ name = "mathlib"
 git = "https://github.com/leanprover-community/mathlib4"
 rev = "c5ea00351c28e24afc9f0f84379aa41082b1188f"
 
-# the word RAM: the machine and timed computation of submission Lax13
+# the word RAM: the machine and timed computation of submission Lax13,
+# pinned to its archive commit (chain workflow)
 [[require]]
 name = "Lax13"
-path = "../../word-ram/concepts"
+git = "https://github.com/lax-archive/lax-submissions"
+rev = "311ae7cf15e1bde644721958e05203bb6791d04b"
+subDir = "word-ram/concepts"
 
 # the graph encoding and the instance format of submission Lax11, whose
-# 2^k statement this one improves on
+# 2^k statement this one improves on,
+# pinned to its archive commit (chain workflow)
 [[require]]
 name = "Lax11"
-path = "../../ram-linear-time/concepts"
+git = "https://github.com/lax-archive/lax-submissions"
+rev = "7567bb4ed5a67705fe11f4958bb5d62aded02616"
+subDir = "ram-linear-time/concepts"
 
 [[lean_lib]]
 name = "Lax15"
