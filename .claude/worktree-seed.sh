@@ -9,10 +9,12 @@
 #      submissions — sibling path requires mean one submission's build can
 #      reach into another's tree). Lake's content-hash traces rebuild whatever
 #      differs, so a stale copy costs nothing but the rebuild it saves.
-#   2. `lax build --only proofs` each named submission: hardlink-seeds its
-#      `.lake/packages` from the machine-wide warm store (~/.lax/warm, no
-#      extra disk) and writes the gitignored `lake-manifest.json`, without
-#      which plain `lake build` would re-resolve and re-clone mathlib.
+#   2. `lax build --only proofs` each named submission: writes the gitignored
+#      `lake-manifest.json` and `.lake/package-overrides.json`, which resolve
+#      mathlib and friends to the machine-wide read-only warm store
+#      (~/.lax/warm) in place — no clone, no hardlinks, no `.lake/packages`
+#      tree in the submission at all. Without them plain `lake build` would
+#      re-resolve and re-clone mathlib.
 set -euo pipefail
 
 top=$(git rev-parse --show-toplevel)
