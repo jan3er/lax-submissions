@@ -102,3 +102,4 @@ import Lax3Proofs.Refine.DriverRootD
 import Lax3Proofs.Refine.G2ExistsRevalidation
 import Lax3Proofs.Refine.MemThreadProbe
 import Lax3Proofs.Refine.MemThreadGate
+import Lax3Proofs.Refine.ArenaSeam
