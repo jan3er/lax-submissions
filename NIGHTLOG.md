@@ -4403,3 +4403,31 @@ answer — rows for dead vertices maintained incrementally at kill time
 (the killing turn's block contains the vertex), never re-walked by sweep
 or base — and that is the R1.8-design probe's question. Worker honesty
 exemplary: no charging scheme invented, additions only, no guard moved.
+
+**R1.8-design lands (`256f542`), and the session closes on its verdict.**
+The dead set at depth j+1 splits at the turn's cluster, and the two
+halves pay differently: the **kill set** (in-cluster, batch-killed)
+confirms the recorded intent compiled — every dead row the readback
+consults is a kill of its own turn (`readback_dead_read_is_kill`), the
+write rides `clusterCom` between `colourCom` and `inner` (forced both
+ways), `killTurnCom` pinned `(3·t+20)·kills + 6` carrier-blind; the
+**outside class** needs ZERO writes — it is colour-uniform
+(`stepColoringP_subset`: child-palette slots die outside the cluster),
+one shared empty row, one representative for the base, and any
+per-vertex payment is compiled dead (`no_coeff_pays_outsideRows`).
+Interface closes at `ct = 284` (`deadRow_interface_closes` via
+`g2m_exists`). Two bonus findings: `reprCom` is VESTIGIAL (every tabled
+formula is local, the exU reader is unreachable — the `hKbase_gap`
+floor guards dead code and the pass drops), and `dead_stays_dead`
+supersedes finding B8/1 (derivable from DescendStep's cluster-inclusion
+clause). Four flags open (F-1 T3/E4 ordering, F-2 Gm-side kills, F-3
+greedy-count split, F-4 kill-charge slot).
+
+**Next session starts at**: supervisor dispositions on
+`r18-design.md` §7 F-1..F-4, then its §6 thread waves (the kill pass
+into `clusterCom`, the TableInv split restatement, `reprCom` removal),
+with the E-order `hKo` discharge brief prepared against
+`OrderSigProbeM` alongside. Then E3b/E4c, B7 re-run, C0, P5 draft.
+Session total: workflow reworked (worktree default, pure-copy seed),
+E-mem thread landed, F-2 seam landed, R1.8-as-headers refuted compiled,
+R1.8-design decided — five boundaries, all pushed.
