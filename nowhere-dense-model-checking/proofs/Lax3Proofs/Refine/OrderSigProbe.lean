@@ -29,6 +29,7 @@ synthesis' own wall clock. `ops` is `comSize` of the synthesized `Com`
 | `pre18Synth` | 18 | 7 copy, 10 fill, 1 ord | 141 | 132.0 s |
 | `pre5FromSignature` (`hfref`) | 5 | 5 copy | 44 | 27.3 s |
 | `pre18FromSignature` (`hfref`) | 18 | 7 copy, 10 fill, 1 ord | 141 | ≈ 181 s |
+| `pass39Synth` (§7, split rule) | 2 | 1 copy, 1 fill | 15 | not staged |
 
 Figures are single runs on a warm machine and carry about ±10 %; the
 direct-mode column is one staging sweep, the two signature rows another.
@@ -72,18 +73,20 @@ twenty-one:
   15, 16, 17, 18, 19, 20, 21 in the §0 table's numbering. `pre18Synth`
   is exactly these, in the phase's own order, and `pre18FromSignature`
   is the same from an `hfref` signature.
-* **pass 9 stalls** — `fillPass n 1 (mk.1, 0)`, the mask reopened before
-  the second elimination. §4 locates it: the pass rule wants its
-  destination as one `arrayAssn ×ₐ natAssn` conjunct, and after pass 3
-  the mask is owned as a bare `hnCtxt arrayAssn mk.1 "alv"` with the
-  index in a separate cell. `frameMatch` **splits** a product into its
-  components (T1/D-b) but does not **merge** two components into a
-  product. `mergeTestSplit` is the same two-pass shape with the product
-  supplied whole and it synthesizes; the `example` beside it is the tool
-  refusing the split form. Every other destination of the phase is
-  either an input array (which can enter as a product) or an engine
-  output; pass 9 is the only pass whose destination is a value an
-  earlier pass produced, so it is the only one blocked.
+* **pass 9 is a cost cliff, not a wall** — `fillPass n 1 (mk.1, 0)`, the
+  mask reopened before the second elimination, is the only pass whose
+  destination array is a value an earlier pass produced, so it is owned
+  as a bare `hnCtxt arrayAssn` and the product-form rules cannot consume
+  it (§4's `example` is the refusal). §7 shows the restatement that
+  *does* consume it — the split-destination rules, which are the same
+  theorems one `sepConj_assoc` away — and `pass39Synth` compiles pass 3
+  followed by pass 9. But §7 also measures what registering them costs
+  across the phase: `pre9Synth` goes from 33.1 s to over four million
+  heartbeats, because the product conjunct is what binds an array to its
+  index cell in one choice and the split form lets the matcher choose
+  them independently. So nineteen-of-nineteen is reachable and is not
+  affordable, and the tool item it names is determinism of the split
+  match, not a merge in `frameMatch`.
 * **passes 4 and 12 — the two engine calls — cannot be run at any
   engine instantiation that exists today.** Three routes, all closed:
   * `E := fun _ _ _ => ElimSynth6.elimProgram …`, the only witness of
@@ -105,9 +108,9 @@ twenty-one:
 So the probe's answer is: **the tool scales to the phase, the phase does
 not yet scale to the tool.** Eighteen of nineteen non-engine passes go
 through in 132 s at a twenty-nine-conjunct ownership context; the
-remaining three obstructions are one missing frame-matcher capability
-(product merge) and one unpaid 2B′ debt (the engine as a program), and
-neither is a cost or a semantics problem.
+remaining obstructions are one matcher-determinism cost cliff (§7) and
+one unpaid 2B′ debt (the engine as a program), and neither is a cost or a
+semantics problem of the *phase*.
 
 ## 2. WHAT THIS FILE DOES *NOT* CLAIM
 
@@ -225,7 +228,7 @@ def comSize : Com → ℕ
 #guard comSize Lax3Proofs.Refine.ElimSynth3.elimSynth_impl = 205
 #guard comSize elimOrdSynth_impl = 214
 
-/-! ## 4. The merge wall -/
+/-! ## 4. The split destination, both ways -/
 
 noncomputable def mergeTest (n : ℕ) (off gof : List ℕ) : NRest FS ECost :=
   bindT (copyPass (n + 1) off (gof, 0)) fun sv1 => copyPass (n + 1) sv1.1 (off, 0)
@@ -570,7 +573,123 @@ sepref_synth pre18FromSignature :
 
 #guard pre18FromSignature_impl () = (("ste", "i21"), pre18Synth_impl)
 
-/-! ## 7. Axioms
+/-! ## 7. Pass 9, and why the split rule does not pay
+
+Pass 9 (`fillPass n 1 (mk.1, 0)`, the mask reopened before the second
+elimination) is the phase's only pass whose destination array is a value
+an *earlier pass produced*. It is therefore owned as a bare
+`hnCtxt arrayAssn mk.1 "alv"` with the index in a separate cell, and the
+product-form rules of §1 cannot consume it — §4's `example` is the tool
+refusing exactly that shape.
+
+`frameMatch` has no merge. But it does not need one: `prodAssn` and
+`hnCtxt` are both definitional (`Sepref/Basic.lean` :189, :144), so the
+product-form rule can be **restated** with its destination split into two
+conjuncts, and the restatement is the same theorem — one
+`sepConj_assoc` away, because the goal's ownership is presented as a flat
+right-nested chain and the product form nests one level deeper. The three
+restatements below are the whole content of that observation, and
+`pass39Synth` is pass 3 followed by pass 9, synthesized.
+
+**And it does not scale.** Registering the split forms across the phase
+was measured, twice:
+
+| rule set | `pre5Synth` | `pre9Synth` |
+|---|---|---|
+| product forms only (§1) | 16.4 s | 33.1 s |
+| product + split, split tried first | 41 s | > 4 000 000 heartbeats (killed at 1 025 s) |
+| split forms only | ≈ 50 s | > 4 000 000 heartbeats (killed at 1 220 s) |
+
+The reason is not rule count — dropping the product forms made it worse.
+It is that **the product form is what makes the match deterministic.**
+One `hnCtxt (arrayAssn ×ₐ natAssn) (A₀, i₀) (d, i)` conjunct binds the
+array *and* its index cell together, so a wide context offers one
+candidate per owned pair. Split into two conjuncts with both cell names
+schematic, the array and the index are chosen independently, and at
+nineteen arrays and twenty zero-valued cells the candidate space is their
+product. The split rule is affordable at two passes and not at ten.
+
+So pass 9's obstruction is a **cost cliff, not a missing capability**, and
+the tool-side item it names is not "teach `frameMatch` to merge" but
+"make a split destination match deterministically" — the destination cell
+pair of an intermediate bind is schematic, and nothing in the rule pins
+the index cell to the array. `mopFillSplit` is registered here only
+inside this section, so the prefixes above are synthesized against §1's
+rules alone and the §0 table is not contaminated. -/
+
+section SplitRules
+
+theorem mopCopySplit (d i s cnt one u : String) (N : ℕ) (src A₀ : List ℕ) (i₀ : ℕ) :
+    hnRefine (hnCtxt arrayAssn A₀ d ∗ hnCtxt natAssn i₀ i ∗
+        hnCtxt arrayAssn src s ∗ hnCtxt natAssn N cnt ∗ hnCtxt natAssn 1 one ∗
+        junkCell u)
+      (Com.while (Cond.lt (Operand.cell i) (Operand.cell cnt))
+        ((Com.aget u s i).seq
+          ((Com.aset d i u).seq
+            ((Com.binop Lax13Proofs.Imp.Bop.add i i one).seq Com.skip))))
+      (hnCtxt arrayAssn src s ∗ hnCtxt natAssn N cnt ∗ hnCtxt natAssn 1 one ∗
+        junkCell u)
+      (d, i) (arrayAssn ×ₐ natAssn) (copyPass N src (A₀, i₀)) := by
+  rw [← Lax13Proofs.Refine.Ir.sepConj_assoc]
+  exact mopCopy d i s cnt one u N src A₀ i₀
+
+theorem mopFillSplit (a i v cnt one : String) (N w : ℕ) (A₀ : List ℕ) (i₀ : ℕ) :
+    hnRefine (hnCtxt arrayAssn A₀ a ∗ hnCtxt natAssn i₀ i ∗
+        hnCtxt natAssn w v ∗ hnCtxt natAssn N cnt ∗ hnCtxt natAssn 1 one)
+      (Com.while (Cond.lt (Operand.cell i) (Operand.cell cnt))
+        ((Com.aset a i v).seq
+          ((Com.binop Lax13Proofs.Imp.Bop.add i i one).seq Com.skip)))
+      (hnCtxt natAssn w v ∗ hnCtxt natAssn N cnt ∗ hnCtxt natAssn 1 one)
+      (a, i) (arrayAssn ×ₐ natAssn) (fillPass N w (A₀, i₀)) := by
+  rw [← Lax13Proofs.Refine.Ir.sepConj_assoc]
+  exact mopFill a i v cnt one N w A₀ i₀
+
+theorem mopOrdSplit (a z r cnt one u : String) (N : ℕ) (rnk A₀ : List ℕ) (z₀ : ℕ) :
+    hnRefine (hnCtxt arrayAssn A₀ a ∗ hnCtxt natAssn z₀ z ∗
+        hnCtxt arrayAssn rnk r ∗ hnCtxt natAssn N cnt ∗ hnCtxt natAssn 1 one ∗
+        junkCell u)
+      (Com.while (Cond.lt (Operand.cell z) (Operand.cell cnt))
+        ((Com.aget u r z).seq
+          ((Com.aset a u z).seq
+            ((Com.binop Lax13Proofs.Imp.Bop.add z z one).seq Com.skip))))
+      (hnCtxt arrayAssn rnk r ∗ hnCtxt natAssn N cnt ∗ hnCtxt natAssn 1 one ∗
+        junkCell u)
+      (a, z) (arrayAssn ×ₐ natAssn) (ordPass N rnk (A₀, z₀)) := by
+  rw [← Lax13Proofs.Refine.Ir.sepConj_assoc]
+  exact mopOrd a z r cnt one u N rnk A₀ z₀
+
+attribute [local sepref_fr_rules] mopFillSplit
+
+/-- Pass 3 then pass 9: the mask copied in from `alvj`, then reopened at
+`1`. This is the composition §4's `example` refuses under §1's rules. -/
+noncomputable def pass39 (n : ℕ) (alvj alv : List ℕ) : NRest FS ECost :=
+  bindT (copyPass n alvj (alv, 0)) fun mk => fillPass n 1 (mk.1, 0)
+
+set_option maxHeartbeats 1000000 in
+set_option linter.unusedVariables false in
+sepref_synth pass39Synth (n : ℕ) (alvj alv : List ℕ) :
+  hnRefine (hnCtxt (arrayAssn ×ₐ natAssn) (alv, 0) ("alv", "i3") ∗
+      hnCtxt arrayAssn alvj "alvj" ∗ hnCtxt natAssn 0 "i9" ∗
+      hnCtxt natAssn n "bn" ∗ hnCtxt natAssn 1 "one" ∗ hnCtxt natAssn 1 "onev" ∗
+      junkCell "u1")
+    _ _ ("alv", "i9") (arrayAssn ×ₐ natAssn)
+    (pass39 n alvj alv)
+
+-- The fill takes its value from `"one"` and its increment from `"onev"`:
+-- a fill at a nonzero literal needs **two** cells at that literal, which
+-- is why one `hnCtxt natAssn 1 _` in the context is not enough.
+#guard pass39Synth_impl =
+  (Com.while (Cond.lt (Operand.cell "i3") (Operand.cell "bn"))
+      ((Com.aget "u1" "alvj" "i3").seq
+        ((Com.aset "alv" "i3" "u1").seq
+          ((Com.binop Lax13Proofs.Imp.Bop.add "i3" "i3" "one").seq Com.skip)))).seq
+    (Com.while (Cond.lt (Operand.cell "i9") (Operand.cell "bn"))
+      ((Com.aset "alv" "i9" "one").seq
+        ((Com.binop Lax13Proofs.Imp.Bop.add "i9" "i9" "onev").seq Com.skip)))
+
+end SplitRules
+
+/-! ## 8. Axioms
 
 Every principal declaration of this file, at the kernel three. -/
 
@@ -587,5 +706,9 @@ Every principal declaration of this file, at the kernel three. -/
 #print axioms pre18Synth
 #print axioms pre5FromSignature
 #print axioms pre18FromSignature
+#print axioms mopCopySplit
+#print axioms mopFillSplit
+#print axioms mopOrdSplit
+#print axioms pass39Synth
 
 end Lax3Proofs.Refine.OrderSigProbe
