@@ -1469,3 +1469,41 @@ Carried, named: a pass-13-shaped matcher stall after the two calls
 member wave); debts E1/E2/E3 untouched. **Next: E-mem** — member lists
 into `LevelPre` (successor-brief item (1)), then the member-driven
 engine interiors consume this leaf's assembly.
+
+## E-mem-design (2026-08-06) — `e-mem-design.md` + `Refine/MemThreadProbe.lean`: the clause is existential, and the blast radius collapses
+
+The road's last design gate, G2-design style: no frozen-surface edits,
+accounting compiled both directions. `lake build` **3,566 jobs**, root
+`lax build` OK, zero placeholders, kernel-three on all seven principals;
+supervisor replayed.
+
+**Settled**: `LevelPre` gains ONE appended existential clause —
+`∃ Mem mmj, arrs (memName j) = arrOf n Mem ∧ vars (mnumName j) = mmj ∧
+MemList n mmj Mem (markSet n M) ∧ word bound` — names on the
+`cps`/`alv` precedent, fixed length `n` + count scalar (E29-inherits
+the allocation story). **The `∃`-packaging is lossless by compiled
+uniqueness** (`memList_unique`) and leaves `LevelPre`'s signature
+unchanged, collapsing the 17-file radius to destructuring repairs + two
+frame side conditions. No tail-content conjunct (n = 0 control, the
+F-c-4 lesson). `DepthMem` gains one `Sized` entry.
+
+**Compiled**: existence at root and child shapes; producer add-on on
+the `clusterLoad` shape `8·bs+2` + filter `21·bs+8`, carrier-blind
+pinned; mask-only build `Ω(n)` (OrderBlockProbe's prose claim now a
+guard); `unsorted_emission_refuted` (BFS-order emission kills
+`smono`); consumer wiring at clock 66 both carriers; floor-death —
+`memPhase_escapes_floor` at the arena weight where the landed text is
+refuted, and `memPhase_interface_closes` = `g2m_exists` instantiated,
+cited not re-derived.
+
+**Thread decomposition** (doc §6): T1 spine owner (names + clause +
+`levelPre_run` + `descendCom` text + stale 13-clause docstring), T2
+producer walks (`clusterLoad_spec`/`CluScan`, `DescendStep` export,
+root list), T3 destructuring satellites (pinned list; IO:817 is a
+silent-absorb site), T4 frame sweep (~16 files), T5 consumer re-wire
+explicitly OUT (the re-synthesis openings). `ElimSynth7`'s `arrOf` pin
+carried until E2. **Four flags open** (doc §7, deliberately): F-1
+sortedness under E3's discovery-order emit, F-2 `ArenaA` length seam,
+F-3 root-list placement vs G1, F-4 `BatchData` vs bare-∃ export —
+supervisor dispositions at the T1 briefing, not silently in the thread.
+**Next: T1, single owner, after flag dispositions.**
