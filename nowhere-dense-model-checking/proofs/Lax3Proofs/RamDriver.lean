@@ -2001,17 +2001,76 @@ noncomputable def readbackCom (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) (
         (.assign "z" (.add (.var "z") (.lit 1)))))
 
 open Classical in
+/-- **The kill pass** (rebase R1.8, design §2.3): the rows of the
+vertices *this turn kills*, written at kill time.
+
+A vertex dead at depth `j + 1` is dead for one of two reasons, and only
+one of them is a turn's business. Either it lies in the turn's cluster —
+then it was alive at depth `j` (`Refine.MassAlive.inCluster_alive_iff`)
+and the batch killed it, so its block contains it and the write is
+charged at the block — or it lies outside the cluster, and then no
+per-vertex work is affordable and none is needed: every colour class of
+the child palette lives inside the cluster
+(`Refine.DeadRowProbe.stepColoringP_subset`), so the whole outside class
+shares the empty row and one bit per formula answers for all of it
+(`sat_outside_uniform`). This pass is the first half.
+
+The walk is the padded batch buffer `"wa"` — `mb` entries, the turn's
+own, never the carrier — and at each entry that is **alive at depth `j`
+and in the cluster** it runs the depth-`(j+1)` row body: the straight
+line of `botCom` fragments of `tablesAt … (j + 1)`, one store apiece,
+which is `RamDriverBot.base_turn_spec`'s body at the entry instead of at
+a carrier counter. The guard is the kill test: an entry of the buffer is
+in the batch, so `M v ≠ 0` and `v ∈ X` is exactly `Alv' v = 0` with
+`v` in the cluster — the pointwise clause of
+`RamDriverCluster.BatchData` (wave R1.8-T1) is what reads the guard as
+the kill set, and the graph equation alone cannot
+(`Refine.DeadRow.descent_mask_not_pointwise_monotone`).
+
+**The position is forced from both sides.** After `colourCom`, because
+the row content is the edgeless reading at the **child** palette
+(`Refine.DeadRow.sat_bot_of_dead` at `colName (j + 1)`) and writing the
+parent's rows would be a silent semantic error; before `inner`, because
+`"wa"` does not survive the nested call — a nested level pads a batch of
+its own — so no clause about the buffer may cross the recursion
+(`RamDriverCluster.ClusterWa` is that seam, and it now closes over
+`enumBatch`, `colourCom` and this pass, still strictly before `inner`).
+
+The padding repeats the buffer's first entry, and re-killing a vertex
+writes the same row, so the repetition is harmless: the guard is
+idempotent because the row content is a function of the vertex alone. -/
+noncomputable def killCom (q_top cap mb j : ℕ) (φ : Lax3.FirstOrder.FO 0) : Com :=
+  .seq (.assign "kk" (.lit 0))
+    (.while (.lt (.var "kk") (.lit mb))
+      (.seq (.assign "kv" (.get "wa" (.var "kk")))
+        (.seq (.ite (.lt (.lit 0)
+                (.mul (.get (alvName j) (.var "kv")) (.get (cluName j) (.var "kv"))))
+                (.seq (.assign (envName 0) (.var "kv"))
+                  (foldIdx (fun i β =>
+                      .seq (botCom (j + 1) β "bb")
+                        (.store (tabName (j + 1) i) (.var "kv") (.var "bb"))) 0
+                    (tablesAt q_top cap mb φ (j + 1))))
+                .skip)
+          (.assign "kk" (.add (.var "kk") (.lit 1))))))
+
+open Classical in
 /-- **One cluster.** The descent, the padded enumeration, the colouring,
-the nested driver, the scatter atoms and the readback. -/
+the kill pass, the nested driver, the scatter atoms and the readback.
+
+**Rebase R1.8-T2.** `killCom` sits between the colouring and the nested
+call, and its position is forced from both sides — see its own
+docstring. It is the only pass of the turn that writes at the *child*
+depth before the child runs. -/
 noncomputable def clusterCom (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) (j : ℕ)
     (inner : Com) : Com :=
   .seq (descendCom cap j)
     (.seq (enumBatch (batName j) mb)
       (.seq (colourCom cap mb j)
-        (.seq inner
-          (.seq (foldIdx (fun i β => scatterCom q_top cap mb φ j i β) 0
-              (tablesAt q_top cap mb φ j))
-            (readbackCom q_top cap mb φ j)))))
+        (.seq (killCom q_top cap mb j φ)
+          (.seq inner
+            (.seq (foldIdx (fun i β => scatterCom q_top cap mb φ j i β) 0
+                (tablesAt q_top cap mb φ j))
+              (readbackCom q_top cap mb φ j))))))
 
 /-! ### The level, and the recursion
 

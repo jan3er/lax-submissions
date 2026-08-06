@@ -922,6 +922,144 @@ theorem belowVar_notMem_wvars_baseCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrd
   · exact belowVar_ne_envName h i hq
   · exact not_ext_bb_of_belowVar h hq
 
+/-! ### The kill pass (wave R1.8-T2)
+
+`RamDriver.killCom` is the base case's row body run at a *buffer entry*
+instead of at a carrier counter, so its write set is
+`RamDriverBot.warrs_baseFold`'s — the depth's tables and the generated
+evaluator's scratch — with two scalars of its own, the buffer index
+`"kk"` and the entry `"kv"`. Neither carries a digit, so neither is a
+per-depth name; and the tables it writes are the **child**'s, which is
+why a `BelowArr d` name survives it at the successor depth. -/
+
+/-- The row body of the kill pass, as a write set: it is
+`RamDriverBot.warrs_baseFold` at the store index `"kv"`. The two folds
+differ only in that expression, which `Com.warrs` does not read, but they
+are different terms, so the induction is run again here. -/
+theorem warrs_killFold {L : ℕ} (jd : ℕ) : ∀ (l : List (DistFO L 1)) (p : ℕ),
+    (∀ β ∈ l, IsLocal β) → ∀ a ∈ (foldIdx (fun i β =>
+      Com.seq (botCom jd β "bb") (.store (tabName jd i) (.var "kv") (.var "bb"))) p l).warrs,
+      (∃ i, a = tabName jd i) ∨ RamDriverBot.Ext "bb" a := by
+  intro l
+  induction l with
+  | nil => intro p _ a ha; exact absurd ha List.not_mem_nil
+  | cons β l ih =>
+    intro p hloc a ha
+    have he : (foldIdx (fun i β =>
+        Com.seq (botCom jd β "bb") (.store (tabName jd i) (.var "kv") (.var "bb"))) p (β :: l))
+        = .seq (.seq (botCom jd β "bb") (.store (tabName jd p) (.var "kv") (.var "bb")))
+            (foldIdx (fun i β =>
+              Com.seq (botCom jd β "bb") (.store (tabName jd i) (.var "kv") (.var "bb")))
+              (p + 1) l) := rfl
+    rw [he, Com.warrs, Com.warrs] at ha
+    rcases List.mem_append.mp ha with h | h
+    · rcases List.mem_append.mp h with h' | h'
+      · exact Or.inr (RamDriverBot.warrs_botCom β (hloc β List.mem_cons_self) "bb" a h')
+      · rw [Com.warrs, List.mem_singleton] at h'
+        exact Or.inl ⟨p, h'⟩
+    · exact ih (p + 1) (fun γ hγ => hloc γ (List.mem_cons_of_mem _ hγ)) a h
+
+theorem wvars_killFold {L : ℕ} (jd : ℕ) : ∀ (l : List (DistFO L 1)) (p : ℕ),
+    (∀ β ∈ l, IsLocal β) → ∀ y ∈ (foldIdx (fun i β =>
+      Com.seq (botCom jd β "bb") (.store (tabName jd i) (.var "kv") (.var "bb"))) p l).wvars,
+      RamDriverBot.Ext "bb" y ∨ ∃ i, 1 ≤ i ∧ y = envName i := by
+  intro l
+  induction l with
+  | nil => intro p _ y hy; exact absurd hy List.not_mem_nil
+  | cons β l ih =>
+    intro p hloc y hy
+    have he : (foldIdx (fun i β =>
+        Com.seq (botCom jd β "bb") (.store (tabName jd i) (.var "kv") (.var "bb"))) p (β :: l))
+        = .seq (.seq (botCom jd β "bb") (.store (tabName jd p) (.var "kv") (.var "bb")))
+            (foldIdx (fun i β =>
+              Com.seq (botCom jd β "bb") (.store (tabName jd i) (.var "kv") (.var "bb")))
+              (p + 1) l) := rfl
+    rw [he, Com.wvars, Com.wvars] at hy
+    rcases List.mem_append.mp hy with h | h
+    · rcases List.mem_append.mp h with h' | h'
+      · exact RamDriverBot.wvars_botCom β (hloc β List.mem_cons_self) "bb" y h'
+      · exact absurd h' (by rw [Com.wvars]; simp)
+    · exact ih (p + 1) (fun γ hγ => hloc γ (List.mem_cons_of_mem _ hγ)) y h
+
+/-- **What the kill pass writes**: the child depth's tables, and the
+evaluator's scratch. -/
+theorem warrs_killCom {q_top cap mb d : ℕ} {φ : Lax3.FirstOrder.FO 0}
+    (hlocal : ∀ β ∈ tablesAt q_top cap mb φ (d + 1), IsLocal β) :
+    ∀ a ∈ (killCom q_top cap mb d φ).warrs,
+      (∃ i, a = tabName (d + 1) i) ∨ RamDriverBot.Ext "bb" a := by
+  intro a ha
+  rw [show (killCom q_top cap mb d φ).warrs =
+    [] ++ ([] ++ ((([] ++ (foldIdx (fun i β => Com.seq (botCom (d + 1) β "bb")
+      (.store (tabName (d + 1) i) (.var "kv") (.var "bb"))) 0
+      (tablesAt q_top cap mb φ (d + 1))).warrs) ++ []) ++ [])) from rfl] at ha
+  simp only [List.append_nil, List.nil_append] at ha
+  exact warrs_killFold (d + 1) _ 0 hlocal a ha
+
+/-- **And which scalars it assigns**: its own two, the environment slots,
+and the evaluator's own. -/
+theorem wvars_killCom {q_top cap mb d : ℕ} {φ : Lax3.FirstOrder.FO 0}
+    (hlocal : ∀ β ∈ tablesAt q_top cap mb φ (d + 1), IsLocal β) :
+    ∀ y ∈ (killCom q_top cap mb d φ).wvars,
+      y = "kk" ∨ y = "kv" ∨ (∃ i, y = envName i) ∨ RamDriverBot.Ext "bb" y := by
+  intro y hy
+  rw [show (killCom q_top cap mb d φ).wvars =
+    ["kk"] ++ (["kv"] ++ ((([envName 0] ++ (foldIdx (fun i β =>
+      Com.seq (botCom (d + 1) β "bb")
+        (.store (tabName (d + 1) i) (.var "kv") (.var "bb"))) 0
+      (tablesAt q_top cap mb φ (d + 1))).wvars) ++ []) ++ ["kk"])) from rfl] at hy
+  simp only [List.append_nil, List.mem_append, List.mem_singleton] at hy
+  rcases hy with h | h | (h | h) | h
+  · exact Or.inl h
+  · exact Or.inr (Or.inl h)
+  · exact Or.inr (Or.inr (Or.inl ⟨0, h⟩))
+  · rcases wvars_killFold (d + 1) _ 0 hlocal y h with h' | ⟨i, -, h'⟩
+    · exact Or.inr (Or.inr (Or.inr h'))
+    · exact Or.inr (Or.inr (Or.inl ⟨i, h'⟩))
+  · exact Or.inl h
+
+theorem noWrite_killFold {L : ℕ} (jd : ℕ) : ∀ (l : List (DistFO L 1)) (p : ℕ),
+    (foldIdx (fun i β =>
+      Com.seq (botCom jd β "bb")
+        (.store (tabName jd i) (.var "kv") (.var "bb"))) p l).NoWrite := by
+  intro l
+  induction l with
+  | nil => exact fun p => Com.noWrite_skip
+  | cons β l ih =>
+    intro p
+    have he : (foldIdx (fun i β =>
+        Com.seq (botCom jd β "bb") (.store (tabName jd i) (.var "kv") (.var "bb"))) p (β :: l))
+        = .seq (.seq (botCom jd β "bb") (.store (tabName jd p) (.var "kv") (.var "bb")))
+            (foldIdx (fun i β =>
+              Com.seq (botCom jd β "bb") (.store (tabName jd i) (.var "kv") (.var "bb")))
+              (p + 1) l) := rfl
+    rw [he]
+    exact ⟨⟨RamDriverBot.noWrite_botCom β "bb", trivial⟩, ih (p + 1)⟩
+
+/-- The kill pass does not touch the output tape. -/
+theorem noWrite_killCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0) :
+    (killCom q_top cap mb d φ).NoWrite :=
+  ⟨trivial, trivial, ⟨⟨⟨trivial, noWrite_killFold (d + 1) _ 0⟩, trivial⟩, trivial⟩⟩
+
+theorem belowArr_notMem_warrs_killCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
+    {a : String} (h : BelowArr d a) : a ∉ (killCom q_top cap mb d φ).warrs := by
+  intro hm
+  have hlocal : ∀ β ∈ tablesAt q_top cap mb φ (d + 1), IsLocal β :=
+    fun β hβ => (tableRank_of_mem_tablesAt (d + 1) β hβ).1
+  rcases warrs_killCom hlocal a hm with ⟨i, hq⟩ | hq
+  · exact belowArr_ne h (Nat.le_succ d) (by tauto) hq
+  · exact not_ext_bb_of_belowArr h hq
+
+theorem belowVar_notMem_wvars_killCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
+    {y : String} (h : BelowVar d y) : y ∉ (killCom q_top cap mb d φ).wvars := by
+  intro hm
+  have hlocal : ∀ β ∈ tablesAt q_top cap mb φ (d + 1), IsLocal β :=
+    fun β hβ => (tableRank_of_mem_tablesAt (d + 1) β hβ).1
+  rcases wvars_killCom hlocal y hm with hq | hq | ⟨i, hq⟩ | hq
+  · exact absurd (hq ▸ hasDigit_of_belowVar h) (by decide)
+  · exact absurd (hq ▸ hasDigit_of_belowVar h) (by decide)
+  · exact belowVar_ne_envName h i hq
+  · exact not_ext_bb_of_belowVar h hq
+
 /-! ### The recursion
 
 One induction on the fuel. Every phase of a level writes only fixed
@@ -966,6 +1104,10 @@ theorem belowArr_notMem_warrs_driverAux (q_top cap mb ℓ : ℕ) (φ : Lax3.Firs
         · exact belowArr_notMem_warrs_enumBatch (batName d) mb h hr
         rcases mem_warrs_seq hr with hr | hr
         · exact belowArr_notMem_warrs_colourCom cap mb d h hr
+        rcases mem_warrs_seq hr with hr | hr
+        · -- the kill pass (wave R1.8-T2): the child depth's tables and the
+          -- evaluator's scratch, so a name of a depth below `d` survives it
+          exact belowArr_notMem_warrs_killCom q_top cap mb d φ h hr
         rcases mem_warrs_seq hr with hr | hr
         · exact ih (d + 1) (h.mono (Nat.le_succ d)) hr
         rcases mem_warrs_seq hr with hr | hr
@@ -1012,6 +1154,8 @@ theorem belowVar_notMem_wvars_driverAux (q_top cap mb ℓ : ℕ) (φ : Lax3.Firs
         · exact belowVar_notMem_wvars_enumBatch (batName d) mb h hr
         rcases mem_wvars_seq hr with hr | hr
         · exact belowVar_notMem_wvars_colourCom cap mb d h hr
+        rcases mem_wvars_seq hr with hr | hr
+        · exact belowVar_notMem_wvars_killCom q_top cap mb d φ h hr
         rcases mem_wvars_seq hr with hr | hr
         · exact ih (d + 1) (h.mono (Nat.le_succ d)) hr
         rcases mem_wvars_seq hr with hr | hr
@@ -1062,6 +1206,13 @@ theorem cpsName_notMem_warrs_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstO
   · obtain ⟨c, hc⟩ := RamDriverFrames.mem_warrs_colourCom cap mb d hr
     exact absurd hc (by simp [cpsName, colName, String.ext_iff])
   rcases mem_warrs_seq hr with hr | hr
+  · -- the kill pass writes the child's tables and the evaluator's scratch
+    have hlocal : ∀ β ∈ tablesAt q_top cap mb φ (d + 1), IsLocal β :=
+      fun β hβ => (tableRank_of_mem_tablesAt (d + 1) β hβ).1
+    rcases warrs_killCom hlocal _ hr with ⟨i, hc⟩ | hc
+    · exact absurd hc (by simp [cpsName, tabName, String.ext_iff])
+    · exact absurd hc (by rw [cpsName]; exact not_ext_bb_append (by decide) (by decide) _)
+  rcases mem_warrs_seq hr with hr | hr
   · exact hin hr
   rcases mem_warrs_seq hr with hr | hr
   · exact (by decide : ∀ q ∈ scratchArrs, ¬ HasDigit q) _
@@ -1075,7 +1226,9 @@ turn**, given that it is not the depth's connector — which is the one
 per-depth scalar the descent assigns. -/
 theorem perDepthVar_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
     {inner : Com} {y : String} (hy : HasDigit y) (hyctr : y ≠ ctrName d)
-    (hymm : y ≠ mnumName (d + 1)) (hyus : '_' ∉ y.toList) (hin : y ∉ inner.wvars) :
+    (hymm : y ≠ mnumName (d + 1)) (hyus : '_' ∉ y.toList)
+    (hyenv : ∀ i, y ≠ envName i) (hybb : ¬ RamDriverBot.Ext "bb" y)
+    (hin : y ∉ inner.wvars) :
     y ∉ (clusterCom q_top cap mb φ d inner).wvars := by
   rw [clusterCom]
   intro hq
@@ -1086,6 +1239,16 @@ theorem perDepthVar_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.Fi
     exact notHasDigit_mem (l := (enumBatch "" 0).wvars) (by decide) hr hy
   rcases mem_wvars_seq hr with hr | hr
   · exact notHasDigit_wvars_colourCom cap mb d y hr hy
+  rcases mem_wvars_seq hr with hr | hr
+  · -- the kill pass: its own two scalars carry no digit, and the rest is the
+    -- evaluator's own
+    have hlocal : ∀ β ∈ tablesAt q_top cap mb φ (d + 1), IsLocal β :=
+      fun β hβ => (tableRank_of_mem_tablesAt (d + 1) β hβ).1
+    rcases wvars_killCom hlocal y hr with hc | hc | ⟨i, hc⟩ | hc
+    · exact absurd (hc ▸ hy) (by decide)
+    · exact absurd (hc ▸ hy) (by decide)
+    · exact hyenv i hc
+    · exact hybb hc
   rcases mem_wvars_seq hr with hr | hr
   · exact hin hr
   rcases mem_wvars_seq hr with hr | hr
@@ -1106,7 +1269,10 @@ theorem cnumName_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.First
   perDepthVar_notMem_wvars_clusterCom q_top cap mb d φ (hasDigit_cnumName d)
     (by simp [cnumName, ctrName, String.ext_iff])
     (by simp [cnumName, mnumName, String.ext_iff])
-    (by rw [cnumName]; exact underscore_notMem_prefixed (by decide) d) hin
+    (by rw [cnumName]; exact underscore_notMem_prefixed (by decide) d)
+    (fun i => RamDriverBot.lit_ne_envName (q := cnumName d) (c := 'c')
+      ⟨_, by rw [cnumName, String.toList_append]; rfl⟩ (by decide) i)
+    (by rw [cnumName]; exact not_ext_bb_append (by decide) (by decide) _) hin
 
 open Classical in
 theorem cixName_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
@@ -1115,7 +1281,10 @@ theorem cixName_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstO
   perDepthVar_notMem_wvars_clusterCom q_top cap mb d φ (hasDigit_cixName d)
     (by simp [cixName, ctrName, String.ext_iff])
     (by simp [cixName, mnumName, String.ext_iff])
-    (by rw [cixName]; exact underscore_notMem_prefixed (by decide) d) hin
+    (by rw [cixName]; exact underscore_notMem_prefixed (by decide) d)
+    (fun i => RamDriverBot.lit_ne_envName (q := cixName d) (c := 'c')
+      ⟨_, by rw [cixName, String.toList_append]; rfl⟩ (by decide) i)
+    (by rw [cixName]; exact not_ext_bb_append (by decide) (by decide) _) hin
 
 /-! ### Two names that are **not** frames of the recursion
 

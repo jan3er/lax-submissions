@@ -875,6 +875,16 @@ theorem mem_warrs_colourCom (cap mb j : ℕ) {a : String}
     · obtain ⟨b, -, rfl⟩ := mem_warrs_chainCom _ _ _ hm
       exact ⟨puIdx cap mb j c (b + 1), rfl⟩
 
+/-- **The colouring does not touch the padding buffer** (wave R1.8-T2).
+The `ClusterWa` seam now has a third consumer — the kill pass, which
+walks the buffer at the *child* palette, so it must run after the
+colouring — and this is why the clause crosses it: the colouring writes
+the child palette's arrays and nothing else. -/
+theorem wa_notMem_warrs_colourCom (cap mb j : ℕ) : "wa" ∉ (colourCom cap mb j).warrs := by
+  intro h
+  obtain ⟨c, hc⟩ := mem_warrs_colourCom cap mb j h
+  exact absurd hc (by simp [colName, String.ext_iff])
+
 /-- **No phase of the turn but the readback writes a table.** -/
 theorem tabName_notMem_warrs_turn (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) (j d i : ℕ) :
     tabName d i ∉ (descendCom cap j).warrs ∧
@@ -1016,7 +1026,7 @@ syntactic side, and the semantic side comes from `hinner`. -/
 open Classical in
 /-- **What one cluster leaves alone, discharged.** -/
 theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {inner : Com} {Kin : ℕ → ℕ}
-    {Kd Ke Kc Ks Kr K : ℕ}
+    {Kd Ke Kc Kk Ks Kr K : ℕ}
     (hcsr : CsrGraph G ns O T)
     {d : ℕ} (hB : WordBoundK B n d ns cap mb)
     (hdes : DescendStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m Kd)
@@ -1024,6 +1034,10 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
       EnumStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' Ke)
     (hcol : ∀ X W w Alv' Gam',
       ColourStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W w Alv' Gam' Kc)
+    (hkill : ∀ X W w Alv' Gam' C',
+      RamDriverCluster.KillStep B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asg m
+        X W w Alv' Gam' C' Kk)
+    (hkilltab : ∀ i, tabName j i ∉ (killCom q_top cap mb j φ).warrs)
     (hA : ∀ a : String, TurnFrozen j a → a ∉ inner.warrs)
     (hVctr : ∀ a ≤ j, ctrName a ∉ inner.wvars) (hVxp : xpName j ∉ inner.wvars)
     (hVcur : curName j ∉ inner.wvars) (hVmm : ∀ a ≤ j, mnumName a ∉ inner.wvars)
@@ -1040,7 +1054,7 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
       (∀ v : Fin n, Alv' (v : ℕ) ≠ 0 →
         v ∈ Refine.MassMath.clusterAt G M π ord cap k) →
       wA Alv' ≤ wBk)
-    (hK : Kd + (Ke + (Kc + (Kin wBk + (Ks + Kr)))) ≤ K) :
+    (hK : Kd + (Ke + (Kc + (Kk + (Kin wBk + (Ks + Kr))))) ≤ K) :
     RamDriverCluster.ClusterFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord
       Xoff Xmem asg m k wA inner Kin K := by
   classical
@@ -1063,38 +1077,48 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
     (henum X W Alv' Gam').run ⟨hturn₁, hbat₁, hplay₁, hWne, hWcard, hwa₁⟩
   obtain ⟨σ₃, hr₃, hturn₃, hdat₃, hplay₃, hout₃, hc₃, C', hcolarr₃, hcolbit₃, hcolread₃⟩ :=
     (hcol X W w Alv' Gam' hcsr hB).run ⟨hturn₂, hdat₂, hwa₂, hplay₂⟩
-  have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σ₃ := by
+  have htsz₃ : TablesSized q_top cap mb φ n σ₃ := (htsz.run hr₁).run hr₂ |>.run hr₃
+  have hbarr₃ : BaseArrs B q_top cap mb ℓ φ σ₃ := ((hbarr.run hr₁).run hr₂).run hr₃
+  -- the kill pass (wave R1.8-T2), on the buffer the colouring left alone
+  have hwa₃ : RamDriverCluster.ClusterWa mb w σ₃ := by
+    show σ₃.arrs "wa" = _
+    rw [hr₃.frame_arr "wa" (wa_notMem_warrs_colourCom cap mb j)]; exact hwa₂
+  obtain ⟨σₖ, hrₖ, hturnₖ, hdatₖ, hcolarrₖ, hplayₖ, houtₖ, hcₖ, -⟩ :=
+    (hkill X W w Alv' Gam' C' hB).run (σ := σ₃)
+      ⟨hturn₃, hdat₃, hwa₃, hcolarr₃, hcolbit₃, hcolread₃, hplay₃, htsz₃, hbarr₃⟩
+  have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σₖ := by
     -- the depth-`j` member conjunct is NOT passed through: the clause is
     -- depth-indexed through `memName`, exactly like the two mask clauses, and the
     -- child's list is the one the descent filtered (rebase E-mem)
     obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, -, hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, -⟩ :=
-      hturn₃.1
-    obtain ⟨-, -, -, halv₃, hAlvB, -, -, hgam₃, hGamB, hmemin₃⟩ := hdat₃.1
-    exact ⟨hn₃, hoff₃, htgt₃, halv₃, hgam₃, hcolarr₃, hAlvB, hGamB, hcolbit₃,
+      hturnₖ.1
+    obtain ⟨-, -, -, halv₃, hAlvB, -, -, hgam₃, hGamB, hmemin₃⟩ := hdatₖ.1
+    exact ⟨hn₃, hoff₃, htgt₃, halv₃, hgam₃, hcolarrₖ, hAlvB, hGamB, hcolbit₃,
       hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, hmemin₃⟩
-  have htsz₃ : TablesSized q_top cap mb φ n σ₃ := (htsz.run hr₁).run hr₂ |>.run hr₃
-  have hbarr₃ : BaseArrs B q_top cap mb ℓ φ σ₃ := ((hbarr.run hr₁).run hr₂).run hr₃
+  have htszₖ : TablesSized q_top cap mb φ n σₖ := htsz₃.run hrₖ
+  have hbarrₖ : BaseArrs B q_top cap mb ℓ φ σₖ := hbarr₃.run hrₖ
   obtain ⟨σ₄, hr₄, ⟨⟨-, -, htab₄⟩, hout₄⟩, hturn₄, hdat₄, hcolarr₄, hc₄⟩ :=
     (RamDriverCluster.spec_conj ((hinner Alv' Gam' C' hcolbit₃).pre
         (fun _ h => ⟨h.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2⟩))
-      (hfr X W w Alv' Gam' C')).run (σ := σ₃)
-      ⟨hlevin, hturn₃, hdat₃, htsz₃, hbarr₃, hplay₃⟩
-  have htsz₄ : TablesSized q_top cap mb φ n σ₄ := htsz₃.run hr₄
+      (hfr X W w Alv' Gam' C')).run (σ := σₖ)
+      ⟨hlevin, hturnₖ, hdatₖ, htszₖ, hbarrₖ, hplayₖ⟩
+  have htsz₄ : TablesSized q_top cap mb φ n σ₄ := htszₖ.run hr₄
   obtain ⟨σ₅, hr₅, hturn₅, hdat₅, hcolarr₅, htab₅, hout₅, hc₅, hflag₅⟩ :=
     (hscat X W w Alv' Gam' C').run (σ := σ₄)
       ⟨hturn₄, hdat₄, hcolarr₄, hcolbit₃, hcolread₃, htab₄⟩
   have htsz₅ : TablesSized q_top cap mb φ n σ₅ := htsz₄.run hr₅
-  have hc₅₀ : σ₅.vars (curName j) = σ.vars (curName j) := by rw [hc₅, hc₄, hc₃, hc₂, hc₁]
+  have hc₅₀ : σ₅.vars (curName j) = σ.vars (curName j) := by
+    rw [hc₅, hc₄, hcₖ, hc₃, hc₂, hc₁]
   obtain ⟨σ₆, hr₆, hturn₆, hout₆, hc₆, hrb₆⟩ :=
     (hread X W w Alv' Gam' C').run (σ := σ₅)
       ⟨hturn₅, hdat₅, hcolarr₅, hcolbit₃, hcolread₃, htab₅, htsz₅,
         by rw [hc₅₀]; exact hcnlt, hflag₅⟩
-  refine ⟨σ₆, _, hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq (hr₅.seq hr₆)))), by omega, hturn₆.2.2,
-    fun i hi Tb Tb₀ harr harr₀ v hv => ?_⟩
+  refine ⟨σ₆, _, hr₁.seq (hr₂.seq (hr₃.seq (hrₖ.seq (hr₄.seq (hr₅.seq hr₆))))), by omega,
+    hturn₆.2.2, fun i hi Tb Tb₀ harr harr₀ v hv => ?_⟩
   obtain ⟨hfd, hfe, hfc, hfs⟩ := tabName_notMem_warrs_turn q_top cap mb φ j j i
   have hframe : σ₅.arrs (tabName j i) = σ.arrs (tabName j i) := by
-    rw [hr₅.frame_arr _ hfs, hr₄.frame_arr _ (hinnerTab i), hr₃.frame_arr _ hfc,
-      hr₂.frame_arr _ hfe, hr₁.frame_arr _ hfd]
+    rw [hr₅.frame_arr _ hfs, hr₄.frame_arr _ (hinnerTab i), hrₖ.frame_arr _ (hkilltab i),
+      hr₃.frame_arr _ hfc, hr₂.frame_arr _ hfe, hr₁.frame_arr _ hfd]
   obtain ⟨Tb', Tb₀', harr', harr₀', hunch, -⟩ := hrb₆ i hi
   have h₁ : Tb (v : ℕ) = Tb' (v : ℕ) := eq_of_arrOf_eq (harr.symm.trans harr') v.isLt
   have h₂ : Tb₀' (v : ℕ) = Tb₀ (v : ℕ) :=

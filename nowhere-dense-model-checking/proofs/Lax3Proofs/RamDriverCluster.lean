@@ -44,16 +44,17 @@ symbolic execution between them.
 # What enters as a hypothesis, and why
 
 The driver's own obligation `ClusterStepImplements` is a single `Prop`
-about a program with six phases, of which one — the nested driver — is
-the obligation's own hypothesis. The other five enter as named `Prop`s
-of this file — `DescendStep`, `EnumStep`, `ColourStep`, `ScatterStep`
+about a program with seven phases (wave R1.8-T2 added the kill pass), of
+which one — the nested driver — is the obligation's own hypothesis. The
+other six enter as named `Prop`s of this file — `DescendStep`,
+`EnumStep`, `ColourStep`, `KillStep`, `ScatterStep`
 and `ReadbackStep` — in the manner of the driver's own obligations: each
 is a self-contained Hoare triple over the program text, and each names
 in its docstring the specification that discharges it.
 
 `clusterStepImplements` composes them with the driver's `masked_step`,
 `stepArenaP_eq`, `exists_pad_enum` and `sat_iff_eval_step`, and *all* of
-the mathematics of the cluster step is here: what the five are left
+the mathematics of the cluster step is here: what the six are left
 owing is what their arrays hold, never what it means. `ReadbackStep` is
 `RamDriver.ReadbackImplements` with its valuation indexed by the vertex
 the readback stands on, which that obligation's is not — a local atom's
@@ -511,11 +512,11 @@ def atomVal {L : ℕ} (A : SimpleGraph (Fin n)) (col : Coloring n L) (v : Fin n)
     DistFO L 1 ⊕ ScatterSentence L → Prop :=
   Sum.elim (fun γ => Sat A col (fun _ => v) γ) (ScatVal A col)
 
-/-! ### The five sub-walks of one cluster
+/-! ### The six sub-walks of one cluster
 
-`RamDriver.ClusterStepImplements`'s docstring splits the turn into six
+`RamDriver.ClusterStepImplements`'s docstring splits the turn into seven
 passes, of which one — the nested driver — is the obligation's own
-hypothesis. The other five are the `Prop`s of this section, each a
+hypothesis. The other six are the `Prop`s of this section, each a
 self-contained Hoare triple over the program text and each naming, in
 its docstring, what discharges it. Nothing of the *mathematics* of the
 cluster step is in them: what they say their arrays hold is stated in
@@ -720,6 +721,69 @@ def ColourStep (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : �
         colRead n C' (sigL cap mb (j + 1)) =
           stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w) K
 
+/-- **The kill rows of one turn** (wave R1.8-T2, design §2.3): the table
+rows the turn owes at the vertices *it* killed.
+
+The kill set is `X ∩ {alive at j} ∩ W` — in the cluster, alive at the
+parent depth, in the batch — and by `BatchData`'s pointwise clause (wave
+R1.8-T1) that is exactly the half of the child depth's dead set this
+turn is responsible for: there `Alv' v = 0`, so the row's content is the
+*edgeless* reading (`Refine.DeadRow.sat_bot_of_dead₁`), and the clause
+below states it in the child arena, which is the form
+`RamDriver.TableInv` at depth `j + 1` reads. The other half of the child
+depth's dead set is the outside class, which no per-vertex pass can
+afford (`Refine.DeadRowProbe.no_coeff_pays_outsideRows`) and none needs
+(`stepColoringP_subset`: it carries one row, the empty one).
+
+Note the domain is stated at the *turn's own* data — the parent mask, the
+cluster and the batch — and not at `Alv'`: the kill set is what this
+pass can see, and the child mask alone cannot tell a kill from a vertex
+that was dead already. -/
+def KillRowsAt (q_top cap mb j : ℕ) (φ : Lax3.FirstOrder.FO 0) (G : SimpleGraph (Fin n))
+    (M Alv' : ℕ → ℕ) (X W : Set (Fin n)) (C' : ℕ → ℕ → ℕ) (σ : Env) : Prop :=
+  ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ (j + 1)).length) (Tb : ℕ → ℕ),
+    σ.arrs (tabName (j + 1) i) = arrOf n Tb →
+    ∀ v : Fin n, M (v : ℕ) ≠ 0 → v ∈ X → v ∈ W →
+      Tb (v : ℕ) ≤ 1 ∧
+      (Tb (v : ℕ) ≠ 0 ↔ Sat (masked G Alv') (colRead n C' (sigL cap mb (j + 1)))
+        (fun _ => v) (tablesAt q_top cap mb φ (j + 1))[i])
+
+/-- **The kill pass.** That `RamDriver.killCom` writes the child-depth
+row of every vertex this turn killed, and nothing else of what the turn
+holds.
+
+The walk is the padded batch buffer, `mb` entries, so the precondition
+carries `ClusterWa` — the pass is the third and last consumer of the
+seam, and it still stands strictly before the nested call. The row body
+is the depth-`(j+1)` straight line of `RamDriver.botCom` fragments, so
+the precondition also carries the child palette (the arrays, their bit
+clause and the equation `ColourStep` left), the depth's table lengths
+`RamDriver.TablesSized` and the evaluator's scratch
+`RamDriver.BaseArrs`. What discharges it is
+`Refine.KillPass.killStep`; the mathematics is one rewrite, the edgeless
+reading into the child arena's at a killed vertex
+(`Refine.DeadRow.sat_bot_of_dead₁`), and everything else is names. -/
+def KillStep (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
+    (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
+    (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (X W : Set (Fin n)) (w : Fin mb → Fin n)
+    (Alv' Gam' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
+  ∀ {d : ℕ}, WordBoundK B n d ns cap mb →
+  Spec B (fun σ => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ ∧
+      ClusterData n mb j B G M X W w Alv' Gam' σ ∧ ClusterWa mb w σ ∧
+      (∀ c < sigL cap mb (j + 1), σ.arrs (colName (j + 1) c) = arrOf n (C' c)) ∧
+      (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) ∧
+      colRead n C' (sigL cap mb (j + 1)) =
+        stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w ∧
+      PlayRec B cap G (j + 1) Alv' Gam' σ ∧ TablesSized q_top cap mb φ n σ ∧
+      BaseArrs B q_top cap mb ℓ φ σ)
+    (killCom q_top cap mb j φ)
+    (fun σ σ' => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
+      ClusterData n mb j B G M X W w Alv' Gam' σ' ∧
+      (∀ c < sigL cap mb (j + 1), σ'.arrs (colName (j + 1) c) = arrOf n (C' c)) ∧
+      PlayRec B cap G (j + 1) Alv' Gam' σ' ∧
+      σ'.out = σ.out ∧ σ'.vars (curName j) = σ.vars (curName j) ∧
+      KillRowsAt q_top cap mb j φ G M Alv' X W C' σ') K
+
 /-- **The scatter atoms.** That the fold of `RamDriver.scatterCom` over
 the depth's table decides every scatter atom of every tabled formula.
 
@@ -865,7 +929,7 @@ def InnerFrames (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
 
 /-! ### One cluster
 
-The composition. Every step of it is one of the five specifications
+The composition. Every step of it is one of the six specifications
 above or the obligation's own hypothesis; the one thing that is not
 composition is the last line, where the boolean combination the readback
 wrote turns into satisfaction at the depth's own arena by
@@ -876,7 +940,7 @@ open Classical in
 /-- **One cluster, discharged.** The turn of the loop over the centres
 leaves the table of every vertex the centre was assigned correct.
 
-The five walks compose into a run of `RamDriver.clusterCom`, and what
+The six walks compose into a run of `RamDriver.clusterCom`, and what
 the run leaves is turned into the obligation's postcondition by
 `RamDriver.sat_iff_eval_step` — a tabled formula holds at a vertex of
 the depth's arena exactly when its own boolean combination evaluates to
@@ -885,19 +949,36 @@ step's arena, which is what the readback wrote there. The hypothesis
 that lemma needs of the cluster — that it contains the `cap`-ball of the
 vertex — is the descent's postcondition, which is
 `RamCover.CoverOut.asg_cover` at the centre being processed; the batch
-is the program's own and nothing is asked of it. -/
+is the program's own and nothing is asked of it.
+
+**Wave R1.8-T2: the kill pass, and the seam it needs.** `hkill` is the
+sixth walk, run between the colouring and the nested call, and its
+postcondition — `KillRowsAt` at the turn's own kill set — is the capital
+wave R1.8-T3 consumes when it weakens `RamDriver.TableInv` to
+`alive ∪ kills`. It is *not* threaded into this obligation's own
+postcondition: the nested level still runs `RamDriver.sweepCom` and still
+hands back the carrier-wide `TableInv`, so the turn owes nothing new. The
+one thing the composition needs is `hwafr` — that the colouring leaves
+the padding buffer alone — which is what carries `ClusterWa` across
+`colourCom` and makes the kill pass the third and last consumer of the
+seam, still strictly before the recursion
+(`RamDriverFrames.wa_notMem_warrs_colourCom`). -/
 theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.FirstOrder.FO 0}
     {G : SimpleGraph (Fin n)}
     {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
     {ord Xoff Xmem asgf : ℕ → ℕ} {mm k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ}
     {inner : Com} {Kin : ℕ → ℕ}
-    {Kd Ke Kc Ks Kr K : ℕ}
+    {Kd Ke Kc Kk Ks Kr K : ℕ}
     (hcap : cap = rhoMinus 0 q_top)
     (hdes : DescendStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asgf mm Kd)
     (henum : ∀ X W Alv' Gam',
       EnumStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asgf mm X W Alv' Gam' Ke)
     (hcol : ∀ X W w Alv' Gam',
       ColourStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asgf mm X W w Alv' Gam' Kc)
+    (hwafr : "wa" ∉ (colourCom cap mb j).warrs)
+    (hkill : ∀ X W w Alv' Gam' C',
+      KillStep B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asgf mm X W w
+        Alv' Gam' C' Kk)
     (hfr : InnerAvail B q_top cap mb ns Ws ℓ j φ G O T wA inner Kin → ∀ X W w Alv' Gam' C',
       InnerFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asgf mm X W w
         Alv' Gam' C' inner (Kin (wA Alv')))
@@ -912,7 +993,7 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
       RamCover.CoverOut G M π ord cap mm Xoff Xmem asgf →
       (∀ v : Fin n, Alv' (v : ℕ) ≠ 0 → v ∈ clusterAt G M π ord cap k) →
       wA Alv' ≤ wBk)
-    (hK : Kd + (Ke + (Kc + (Kin wBk + (Ks + Kr)))) ≤ K) :
+    (hK : Kd + (Ke + (Kc + (Kk + (Kin wBk + (Ks + Kr))))) ≤ K) :
     ClusterStepImplements B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asgf mm k
       wA inner Kin K := by
   classical
@@ -938,41 +1019,53 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
   -- the colouring of the next depth
   obtain ⟨σ₃, hr₃, hturn₃, hdat₃, hplay₃, hout₃, hc₃, C', hcolarr₃, hcolbit₃, hcolread₃⟩ :=
     (hcol X W w Alv' Gam' hcsr hB).run ⟨hturn₂, hdat₂, hwa₂, hplay₂⟩
-  have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σ₃ := by
+  have htsz₃ : TablesSized q_top cap mb φ n σ₃ := (htsz.run hr₁).run hr₂ |>.run hr₃
+  have hbarr₃ : BaseArrs B q_top cap mb ℓ φ σ₃ := ((hbarr.run hr₁).run hr₂).run hr₃
+  -- **the kill pass** (wave R1.8-T2). The padded buffer is still live: the
+  -- colouring reads it and writes only the child palette, which is the last link
+  -- of the `ClusterWa` seam — the nested call is where it ends
+  have hwa₃ : ClusterWa mb w σ₃ := by
+    show σ₃.arrs "wa" = _
+    rw [hr₃.frame_arr "wa" hwafr]; exact hwa₂
+  obtain ⟨σₖ, hrₖ, hturnₖ, hdatₖ, hcolarrₖ, hplayₖ, houtₖ, hcₖ, hkillₖ⟩ :=
+    (hkill X W w Alv' Gam' C' hB).run (σ := σ₃)
+      ⟨hturn₃, hdat₃, hwa₃, hcolarr₃, hcolbit₃, hcolread₃, hplay₃, htsz₃, hbarr₃⟩
+  have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σₖ := by
     -- the depth-`j` member conjunct is NOT passed through: the clause is
     -- depth-indexed through `memName`, exactly like the two mask clauses, and the
     -- child's list is the one the descent filtered (rebase E-mem)
     obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, -, hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, -⟩ :=
-      hturn₃.1
-    obtain ⟨-, -, -, halv₃, hAlvB, -, -, hgam₃, hGamB, hmemin₃⟩ := hdat₃.1
-    exact ⟨hn₃, hoff₃, htgt₃, halv₃, hgam₃, hcolarr₃,
+      hturnₖ.1
+    obtain ⟨-, -, -, halv₃, hAlvB, -, -, hgam₃, hGamB, hmemin₃⟩ := hdatₖ.1
+    exact ⟨hn₃, hoff₃, htgt₃, halv₃, hgam₃, hcolarrₖ,
       fun z hz => hAlvB z hz, fun z hz => hGamB z hz, hcolbit₃,
       hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, hmemin₃⟩
-  have htsz₃ : TablesSized q_top cap mb φ n σ₃ := (htsz.run hr₁).run hr₂ |>.run hr₃
-  have hbarr₃ : BaseArrs B q_top cap mb ℓ φ σ₃ := ((hbarr.run hr₁).run hr₂).run hr₃
+  have htszₖ : TablesSized q_top cap mb φ n σₖ := htsz₃.run hrₖ
+  have hbarrₖ : BaseArrs B q_top cap mb ℓ φ σₖ := hbarr₃.run hrₖ
   -- the nested driver, with the frame of the depth it was called from
   obtain ⟨σ₄, hr₄, ⟨⟨-, -, htab₄⟩, hout₄⟩, hturn₄, hdat₄, hcolarr₄, hc₄⟩ :=
     (spec_conj ((hinner Alv' Gam' C' hcolbit₃).pre
         (fun _ h => ⟨h.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2⟩))
       (hfr hinner X W w Alv' Gam' C')).run
-      (σ := σ₃) ⟨hlevin, hturn₃, hdat₃, htsz₃, hbarr₃, hplay₃⟩
-  have htsz₄ : TablesSized q_top cap mb φ n σ₄ := htsz₃.run hr₄
+      (σ := σₖ) ⟨hlevin, hturnₖ, hdatₖ, htszₖ, hbarrₖ, hplayₖ⟩
+  have htsz₄ : TablesSized q_top cap mb φ n σ₄ := htszₖ.run hr₄
   -- the scatter atoms
   obtain ⟨σ₅, hr₅, hturn₅, hdat₅, hcolarr₅, htab₅, hout₅, hc₅, hflag₅⟩ :=
     (hscat X W w Alv' Gam' C').run (σ := σ₄)
       ⟨hturn₄, hdat₄, hcolarr₄, hcolbit₃, hcolread₃, htab₄⟩
   have htsz₅ : TablesSized q_top cap mb φ n σ₅ := htsz₄.run hr₅
-  have hc₅₀ : σ₅.vars (curName j) = σ.vars (curName j) := by rw [hc₅, hc₄, hc₃, hc₂, hc₁]
+  have hc₅₀ : σ₅.vars (curName j) = σ.vars (curName j) := by
+    rw [hc₅, hc₄, hcₖ, hc₃, hc₂, hc₁]
   -- the readback
   obtain ⟨σ₆, hr₆, hturn₆, hout₆, hc₆, hrb₆⟩ :=
     (hread X W w Alv' Gam' C').run (σ := σ₅)
       ⟨hturn₅, hdat₅, hcolarr₅, hcolbit₃, hcolread₃, htab₅, htsz₅,
         by rw [hc₅₀]; exact hcnlt, hflag₅⟩
-  have hrun := hr₁.seq (hr₂.seq (hr₃.seq (hr₄.seq (hr₅.seq hr₆))))
-  refine ⟨σ₆, _, hrun, by omega, hturn₆.1, htsz₅.run hr₆, hbarr₃.run (hr₄.seq (hr₅.seq hr₆)),
+  have hrun := hr₁.seq (hr₂.seq (hr₃.seq (hrₖ.seq (hr₄.seq (hr₅.seq hr₆)))))
+  refine ⟨σ₆, _, hrun, by omega, hturn₆.1, htsz₅.run hr₆, hbarrₖ.run (hr₄.seq (hr₅.seq hr₆)),
     hturn₆.2.1,
-    by rw [hout₆, hout₅, hout₄, hout₃, hout₂, hout₁],
-    by rw [hc₆, hc₅, hc₄, hc₃, hc₂, hc₁], fun i hi => ?_⟩
+    by rw [hout₆, hout₅, hout₄, houtₖ, hout₃, hout₂, hout₁],
+    by rw [hc₆, hc₅, hc₄, hcₖ, hc₃, hc₂, hc₁], fun i hi => ?_⟩
   obtain ⟨Tb, Tb₀, harr, -, -, hval⟩ := hrb₆ i hi
   refine ⟨Tb, harr, fun v hasgv => ?_⟩
   -- the assignment array is the cover's, so the vertex is one of this centre's
