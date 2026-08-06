@@ -439,4 +439,297 @@ theorem killTurn_spec {B q_top cap mb j : ℕ} {C' : ℕ → ℕ → ℕ} {φ : 
           exact hkill (Nat.pos_of_ne_zero (Nat.mul_ne_zero hM hX))
       exact hval₀ p hplt hM hX
 
+/-- **The kill pass, walked.** Every entry of the padded buffer the
+guard accepts — every vertex this turn kills — has the edgeless reading
+of every child-depth formula in its row. -/
+theorem killCom_spec {B q_top cap mb j : ℕ} {C' : ℕ → ℕ → ℕ} {φ : Lax3.FirstOrder.FO 0}
+    {M Xa : ℕ → ℕ} {w : Fin mb → Fin n}
+    (hB : 1 < B) (hn : n < B) (hmbB : mb < B)
+    (hbit : ∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1)
+    (hlocal : ∀ β ∈ tablesAt q_top cap mb φ (j + 1), IsLocal β)
+    (hMB : ∀ z < n, M z < B) (hXa1 : ∀ z < n, Xa z ≤ 1) :
+    Spec B (fun σ => BaseBase B n q_top cap mb (j + 1) C' φ σ ∧
+        σ.arrs "wa" = arrOf mb (waCell mb w) ∧
+        σ.arrs (alvName j) = arrOf n M ∧ σ.arrs (cluName j) = arrOf n Xa ∧
+        ∀ (i : ℕ), i < (tablesAt q_top cap mb φ (j + 1)).length →
+          ∃ Tb : ℕ → ℕ, σ.arrs (tabName (j + 1) i) = arrOf n Tb)
+      (killCom q_top cap mb j φ)
+      (fun _ σ' => ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ (j + 1)).length),
+        ∃ Tb : ℕ → ℕ, σ'.arrs (tabName (j + 1) i) = arrOf n Tb ∧
+          ∀ p : Fin mb, M (w p : ℕ) ≠ 0 → Xa (w p : ℕ) ≠ 0 →
+            Tb (w p : ℕ) ≤ 1 ∧ (Tb (w p : ℕ) ≠ 0 ↔
+              Sat (⊥ : SimpleGraph (Fin n)) (colRead n C' (sigL cap mb (j + 1)))
+                (fun _ => w p) (tablesAt q_top cap mb φ (j + 1))[i]))
+      (killCost q_top cap mb (j + 1) φ) := by
+  refine Spec.of_exists fun σ hσ => ?_
+  obtain ⟨⟨hvn, hcol, hmem⟩, hwa, halv, hclu, htab⟩ := hσ
+  have hr₁ := Run.assign (B := B) (x := "kk") (σ := σ) (evalB_lit (show 0 < B by omega))
+  set σ₁ := σ.setVar "kk" 0 with hσ₁
+  have hI₁ : KillInv B q_top cap mb j φ C' M Xa w σ₁ := by
+    refine ⟨⟨by rw [hσ₁, vars_setVar, if_neg (by decide)]; exact hvn,
+      fun c hc => by rw [hσ₁, arrs_setVar]; exact hcol c hc,
+      fun i hi => botMem_of_length (fun a => by rw [hσ₁, arrs_setVar]) _ "bb" (hmem i hi)⟩,
+      by rw [hσ₁, arrs_setVar]; exact hwa, by rw [hσ₁, arrs_setVar]; exact halv,
+      by rw [hσ₁, arrs_setVar]; exact hclu,
+      by rw [hσ₁, vars_setVar, if_pos rfl]; omega, fun i hi => ?_⟩
+    obtain ⟨Tb, hTb⟩ := htab i hi
+    exact ⟨Tb, by rw [hσ₁, arrs_setVar]; exact hTb, fun p hp => by
+      rw [hσ₁, vars_setVar, if_pos rfl] at hp; omega⟩
+  obtain ⟨σ₂, hr₂, hI₂, hfalse⟩ :=
+    (Spec.while_count (B := B) (P := KillInv B q_top cap mb j φ C' M Xa w)
+      (K := (killTurnCost q_top cap mb (j + 1) φ + 4) * mb + 4)
+      (KillInv B q_top cap mb j φ C' M Xa w) (fun τ => mb - τ.vars "kk")
+      (killTurnCost q_top cap mb (j + 1) φ)
+      (fun τ hτ => evalB_condLt_var_lit (by have := hτ.2.2.2.2.1; omega) hmbB)
+      (killTurn_spec hB hn hmbB hbit hlocal hMB hXa1) (fun _ hτ => hτ)
+      (fun τ _ => by
+        simp only [size_condLt, size_var, size_lit]
+        rw [show 1 + (1 + 1 + 1) + killTurnCost q_top cap mb (j + 1) φ
+            = killTurnCost q_top cap mb (j + 1) φ + 4 from by omega]
+        have := Nat.mul_le_mul_left (killTurnCost q_top cap mb (j + 1) φ + 4)
+          (Nat.sub_le mb (τ.vars "kk"))
+        omega)).run hI₁
+  obtain ⟨-, -, -, -, hkkle, htab₂⟩ := hI₂
+  have hkk₂ : σ₂.vars "kk" = mb := by
+    have hkkB : σ₂.vars "kk" < B := by omega
+    rw [evalB_condLt (evalB_var hkkB) (evalB_lit hmbB)] at hfalse
+    simp only [Option.some.injEq, decide_eq_false_iff_not, not_lt] at hfalse
+    omega
+  refine ⟨σ₂, _, hr₁.seq hr₂, ?_, fun i hi => ?_⟩
+  · rw [killCost]; simp only [size_lit]; omega
+  obtain ⟨Tb, hTb, hval⟩ := htab₂ i hi
+  exact ⟨Tb, hTb, fun p => hval p (by rw [hkk₂]; exact p.isLt)⟩
+
+/-! ### §3 The frames, and the obligation
+
+The write set of the whole pass is `RamDriverWrites.warrs_killCom` /
+`wvars_killCom`: the child's tables, the evaluator's scratch, and the two
+literals `"kk"`/`"kv"`. Every name a turn holds fails all four tests, so
+the frame is character arithmetic — the same argument
+`Refine.DeadSweep.sweepImplements` makes for the sweep. -/
+
+theorem notMem_warrs_killCom {q_top cap mb j : ℕ} {φ : Lax3.FirstOrder.FO 0}
+    (hlocal : ∀ β ∈ tablesAt q_top cap mb φ (j + 1), IsLocal β) {a : String}
+    (htab : ∀ i, a ≠ tabName (j + 1) i) (hext : ¬ Ext "bb" a) :
+    a ∉ (killCom q_top cap mb j φ).warrs := by
+  intro h
+  rcases RamDriverWrites.warrs_killCom hlocal a h with ⟨i, hi⟩ | h'
+  · exact htab i hi
+  · exact hext h'
+
+theorem notMem_wvars_killCom {q_top cap mb j : ℕ} {φ : Lax3.FirstOrder.FO 0}
+    (hlocal : ∀ β ∈ tablesAt q_top cap mb φ (j + 1), IsLocal β) {y : String}
+    (hkk : y ≠ "kk") (hkv : y ≠ "kv") (hev : ∀ i, y ≠ envName i) (hext : ¬ Ext "bb" y) :
+    y ∉ (killCom q_top cap mb j φ).wvars := by
+  intro h
+  rcases RamDriverWrites.wvars_killCom hlocal y h with h' | h' | ⟨i, hi⟩ | h'
+  · exact hkk h'
+  · exact hkv h'
+  · exact hev i hi
+  · exact hext h'
+
+/-- **A name beginning `'b'` but not `"bb"`** — the batch indicator is
+the one array of the turn whose first character collides with the
+evaluator's scratch, and its second does not. -/
+theorem not_ext_bb_of_cons₂ {y : String} {c : Char} {t : List Char}
+    (h : y.toList = 'b' :: c :: t) (hc : c ≠ 'b') : ¬ Ext "bb" y := by
+  rintro ⟨u, hu⟩
+  rw [h, show "bb".toList = ['b', 'b'] from rfl, List.cons_append, List.cons_append,
+    List.nil_append] at hu
+  exact hc (List.cons.inj (List.cons.inj hu).2).1.symm
+
+/-- The descent's data, transported across a pass that leaves the seven
+names it speaks about alone. -/
+theorem batchData_congr {j B : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ}
+    {X W : Set (Fin n)} {Alv' Gam' : ℕ → ℕ} {σ σ' : Env}
+    (h : BatchData n j B G M X W Alv' Gam' σ)
+    (hclu : σ'.arrs (cluName j) = σ.arrs (cluName j))
+    (hbat : σ'.arrs (batName j) = σ.arrs (batName j))
+    (hres : σ'.arrs (resName j) = σ.arrs (resName j))
+    (halv : σ'.arrs (alvName (j + 1)) = σ.arrs (alvName (j + 1)))
+    (hgam : σ'.arrs (gamName (j + 1)) = σ.arrs (gamName (j + 1)))
+    (hmem : σ'.arrs (memName (j + 1)) = σ.arrs (memName (j + 1)))
+    (hmm : σ'.vars (mnumName (j + 1)) = σ.vars (mnumName (j + 1))) :
+    BatchData n j B G M X W Alv' Gam' σ' := by
+  obtain ⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩,
+    halv₀, hAlvB, hmask, hmaskpt, hgam₀, hGamB, Mem', mm', hmemA, hmemV, hmemE, hmemBd⟩ := h
+  exact ⟨⟨Xa, by rw [hclu]; exact hXa, hXaS, hXaB⟩,
+    ⟨Wa, by rw [hbat]; exact hWa, hWaS, hWaB⟩,
+    ⟨Ra, by rw [hres]; exact hRa, hRaS, hRaB⟩,
+    by rw [halv]; exact halv₀, hAlvB, hmask, hmaskpt,
+    by rw [hgam]; exact hgam₀, hGamB,
+    Mem', mm', by rw [hmem]; exact hmemA, by rw [hmm]; exact hmemV, hmemE, hmemBd⟩
+
+/-- The cover's answers, likewise. -/
+theorem coverHeld_congr {B j cap m : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ}
+    {π : Equiv.Perm (Fin n)} {ord Xoff Xmem asg : ℕ → ℕ} {σ σ' : Env}
+    (h : CoverHeld B n j G M π ord cap Xoff Xmem asg m σ)
+    (hord : σ'.arrs (ordName j) = σ.arrs (ordName j))
+    (hxof : σ'.arrs (xofName j) = σ.arrs (xofName j))
+    (hxmm : σ'.arrs (xmmName j) = σ.arrs (xmmName j))
+    (hasg : σ'.arrs (asgName j) = σ.arrs (asgName j))
+    (hxp : σ'.vars (xpName j) = σ.vars (xpName j)) :
+    CoverHeld B n j G M π ord cap Xoff Xmem asg m σ' :=
+  ⟨by rw [hord]; exact h.1, by rw [hxof]; exact h.2.1, by rw [hxmm]; exact h.2.2.1,
+    by rw [hasg]; exact h.2.2.2.1, by rw [hxp]; exact h.2.2.2.2.1,
+    h.2.2.2.2.2.1, h.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2⟩
+
+set_option maxHeartbeats 1000000 in
+open Classical in
+/-- **The kill pass at the surface the turn consumes it at.**
+`RamDriverCluster.KillStep`, from `killCom_spec` and the frame.
+
+The mathematics is one rewrite: the pass leaves the *edgeless* reading,
+and at a vertex the child mask kills that is the reading in the child
+arena (`Refine.DeadRow.sat_bot_of_dead₁`). Which vertices those are is
+`BatchData`'s pointwise clause, wave R1.8-T1's export: an entry of the
+buffer lies in the batch, so the guard's `M v ≠ 0 ∧ v ∈ X` gives
+`Alv' v = 0`. Everything else is names. -/
+theorem killStep {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.FirstOrder.FO 0}
+    {G : SimpleGraph (Fin n)} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
+    {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ} {X W : Set (Fin n)} {w : Fin mb → Fin n}
+    {Alv' Gam' : ℕ → ℕ} {C' : ℕ → ℕ → ℕ} :
+    KillStep B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+      Alv' Gam' C' (killCost q_top cap mb (j + 1) φ) := by
+  intro d hB
+  have hlocal : ∀ β ∈ tablesAt q_top cap mb φ (j + 1), IsLocal β :=
+    fun β hβ => (tableRank_of_mem_tablesAt (j + 1) β hβ).1
+  refine Spec.of_exists fun σ hσ => ?_
+  obtain ⟨hturn, hdat, hwa, hcolarr, hcolbit, hcolread, hplay, htsz, hbarr⟩ := hσ
+  obtain ⟨Xa, hXa, hXaS, hXaB⟩ := hdat.1.1
+  -- the pass
+  obtain ⟨σ', hrun, hrows⟩ :=
+    (killCom_spec (M := M) (Xa := Xa) (w := w) hB.one_lt hB.n_lt hB.mb_lt hcolbit hlocal
+      (fun z hz => hturn.1.2.2.2.2.2.2.1 z hz) hXaB).run (σ := σ)
+      ⟨⟨hturn.1.1, fun c hc => hcolarr c hc, hbarr.2 (j + 1)⟩,
+        clusterWa_eq hwa, hturn.1.2.2.2.1, hXa,
+        fun i hi => htsz.get (j + 1) hi⟩
+  -- the frame, once
+  have harr : ∀ (a : String), (∀ i, a ≠ tabName (j + 1) i) → ¬ Ext "bb" a →
+      σ'.arrs a = σ.arrs a :=
+    fun a htb hext => hrun.frame_arr a (notMem_warrs_killCom hlocal htb hext)
+  have hvar : ∀ (y : String), y ≠ "kk" → y ≠ "kv" → (∀ i, y ≠ envName i) → ¬ Ext "bb" y →
+      σ'.vars y = σ.vars y :=
+    fun y hkk hkv hev hext => hrun.frame_var y (notMem_wvars_killCom hlocal hkk hkv hev hext)
+  have hnev : ∀ (p : String) (c : Char), (∃ t, p.toList = c :: t) → c ≠ 'e' →
+      ∀ i, p ≠ envName i := fun p c hp hc i => ne_of_head_ne hp (head_envName i) hc
+  -- the four name shapes every clause below is an instance of
+  have harrDepth : ∀ b : ℕ, σ'.arrs (alvName b) = σ.arrs (alvName b) := fun b =>
+    harr (alvName b) (fun i => alvName_ne_tabName b (j + 1) i)
+      (fun h => not_ext_b_alvName b (RamDriverCompose.ext_b_of_ext_bb h))
+  have harrGam : ∀ b : ℕ, σ'.arrs (gamName b) = σ.arrs (gamName b) := fun b =>
+    harr (gamName b) (fun i => gamName_ne_tabName b (j + 1) i)
+      (fun h => not_ext_b_gamName b (RamDriverCompose.ext_b_of_ext_bb h))
+  have harrCol : ∀ b q : ℕ, σ'.arrs (colName b q) = σ.arrs (colName b q) := fun b q =>
+    harr (colName b q) (fun i => colName_ne_tabName b q (j + 1) i)
+      (fun h => not_ext_b_colName b q (RamDriverCompose.ext_b_of_ext_bb h))
+  have harrMem : ∀ b : ℕ, σ'.arrs (memName b) = σ.arrs (memName b) := fun b =>
+    harr (memName b) (fun i => ne_of_head_ne (RamDriverCompose.head_memName b)
+      (head_tabName (j + 1) i) (by decide)) (RamDriverCompose.not_ext_bb_memName b)
+  have hvarMm : ∀ b : ℕ, σ'.vars (mnumName b) = σ.vars (mnumName b) := fun b =>
+    hvar (mnumName b) (by simp [mnumName, String.ext_iff]) (by simp [mnumName, String.ext_iff])
+      (hnev (mnumName b) 'm' ⟨_, by rw [mnumName, String.toList_append]; rfl⟩ (by decide))
+      (RamDriverCompose.not_ext_bb_mnumName b)
+  -- the level's own precondition
+  have hlev' : LevelPre B n cap mb ns Ws O T j M Gm C σ' :=
+    RamDriverCompose.levelPre_run hturn.1 hrun
+      (notMem_wvars_killCom hlocal (by decide) (by decide)
+        (fun i => lit_ne_envName ⟨_, rfl⟩ (by decide) i)
+        (not_ext_of_not_prefix (by decide)))
+      (notMem_wvars_killCom hlocal (by decide) (by decide)
+        (fun i => lit_ne_envName ⟨_, rfl⟩ (by decide) i)
+        (not_ext_of_not_prefix (by decide)))
+      (notMem_wvars_killCom hlocal (by decide) (by decide)
+        (fun i => lit_ne_envName ⟨_, rfl⟩ (by decide) i)
+        (not_ext_of_not_prefix (by decide)))
+      (notMem_warrs_killCom hlocal (fun i => RamDriverBase.lit_ne_tabName (by decide) (j + 1) i)
+        (not_ext_of_not_prefix (by decide)))
+      (notMem_warrs_killCom hlocal (fun i => RamDriverBase.lit_ne_tabName (by decide) (j + 1) i)
+        (not_ext_of_not_prefix (by decide)))
+      (notMem_warrs_killCom hlocal (fun i => alvName_ne_tabName j (j + 1) i)
+        (fun h => not_ext_b_alvName j (RamDriverCompose.ext_b_of_ext_bb h)))
+      (notMem_warrs_killCom hlocal (fun i => gamName_ne_tabName j (j + 1) i)
+        (fun h => not_ext_b_gamName j (RamDriverCompose.ext_b_of_ext_bb h)))
+      (fun q => notMem_warrs_killCom hlocal (fun i => colName_ne_tabName j q (j + 1) i)
+        (fun h => not_ext_b_colName j q (RamDriverCompose.ext_b_of_ext_bb h)))
+      (fun a ha => by
+        simp only [RamDriverCompose.zeroArrs, List.mem_cons, List.not_mem_nil, or_false] at ha
+        rcases ha with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+          exact notMem_warrs_killCom hlocal
+            (fun i => RamDriverBase.lit_ne_tabName (by decide) (j + 1) i)
+            (not_ext_of_not_prefix (by decide)))
+      (notMem_warrs_killCom hlocal
+        (fun i => ne_of_head_ne (RamDriverCompose.head_memName j) (head_tabName (j + 1) i)
+          (by decide))
+        (RamDriverCompose.not_ext_bb_memName j))
+      (notMem_wvars_killCom hlocal (by simp [mnumName, String.ext_iff])
+        (by simp [mnumName, String.ext_iff])
+        (hnev _ 'm' ⟨_, by rw [mnumName, String.toList_append]; rfl⟩ (by decide))
+        (RamDriverCompose.not_ext_bb_mnumName j))
+  refine ⟨σ', _, hrun, le_rfl, ⟨hlev', ?_, ?_⟩, ⟨?_, hdat.2⟩, fun c hc => ?_, ?_, ?_, ?_,
+    fun i hi Tb harrTb v hMv hvX hvW => ?_⟩
+  · -- the recorded play of the turn's own depth
+    exact hturn.2.1.congr
+      (fun a _ => hvar (ctrName a) (by simp [ctrName, String.ext_iff])
+        (by simp [ctrName, String.ext_iff])
+        (hnev (ctrName a) 'c' ⟨_, by rw [ctrName, String.toList_append]; rfl⟩ (by decide))
+        (DeadSweep.not_ext_bb_ctrName a))
+      (fun a _ => harrGam a)
+  · -- the cover's answers
+    exact coverHeld_congr hturn.2.2
+      (harr (ordName j) (fun i => by simp [ordName, tabName, String.ext_iff])
+        (DeadSweep.not_ext_bb_ordName j))
+      (harr (xofName j) (fun i => by simp [xofName, tabName, String.ext_iff])
+        (DeadSweep.not_ext_bb_xofName j))
+      (harr (xmmName j) (fun i => by simp [xmmName, tabName, String.ext_iff])
+        (DeadSweep.not_ext_bb_xmmName j))
+      (harr (asgName j) (fun i => by simp [asgName, tabName, String.ext_iff])
+        (DeadSweep.not_ext_bb_asgName j))
+      (hvar (xpName j) (by simp [xpName, String.ext_iff]) (by simp [xpName, String.ext_iff])
+        (hnev (xpName j) 'x' ⟨_, by rw [xpName, String.toList_append]; rfl⟩ (by decide))
+        (DeadSweep.not_ext_bb_xpName j))
+  · -- the descent's data
+    exact batchData_congr hdat.1
+      (harr (cluName j) (fun i => by simp [cluName, tabName, String.ext_iff])
+        (by rw [cluName]; exact DeadSweep.not_ext_bb_append (p := "clu") rfl (by decide) _))
+      (harr (batName j) (fun i => by simp [batName, tabName, String.ext_iff])
+        (not_ext_bb_of_cons₂ (y := batName j)
+          (by rw [batName, String.toList_append]; rfl) (by decide)))
+      (harr (resName j) (fun i => by simp [resName, tabName, String.ext_iff])
+        (by rw [resName]; exact DeadSweep.not_ext_bb_append (p := "res") rfl (by decide) _))
+      (harrDepth (j + 1)) (harrGam (j + 1)) (harrMem (j + 1)) (hvarMm (j + 1))
+  · rw [harrCol (j + 1) c]; exact hcolarr c hc
+  · -- and the child depth's, which the descent recorded
+    exact hplay.congr
+      (fun a _ => hvar (ctrName a) (by simp [ctrName, String.ext_iff])
+        (by simp [ctrName, String.ext_iff])
+        (hnev (ctrName a) 'c' ⟨_, by rw [ctrName, String.toList_append]; rfl⟩ (by decide))
+        (DeadSweep.not_ext_bb_ctrName a))
+      (fun a _ => harrGam a)
+  · exact hrun.out_eq (RamDriverWrites.noWrite_killCom q_top cap mb j φ)
+  · exact hvar (curName j) (by simp [curName, String.ext_iff])
+      (by simp [curName, String.ext_iff])
+      (hnev (curName j) 'c' ⟨_, by rw [curName, String.toList_append]; rfl⟩ (by decide))
+      (by rw [curName]; exact DeadSweep.not_ext_bb_append (p := "cu") rfl (by decide) _)
+  · -- **the kill rows.** The buffer enumerates the batch, so a kill is an entry;
+    -- and at a kill the edgeless reading is the reading in the child arena
+    obtain ⟨p, hp⟩ : ∃ p : Fin mb, w p = v := by
+      have : v ∈ Set.range w := by rw [hdat.2]; exact hvW
+      exact this
+    obtain ⟨Tb', hTb', hval'⟩ := hrows i hi
+    have hcell : Tb (v : ℕ) = Tb' (v : ℕ) :=
+      eq_of_arrOf_eq (harrTb.symm.trans hTb') v.isLt
+    have hXav : Xa (v : ℕ) ≠ 0 := by
+      rw [← hXaS] at hvX
+      exact hvX
+    obtain ⟨hb1, hbiff⟩ := hval' p (by rw [hp]; exact hMv) (by rw [hp]; exact hXav)
+    rw [hp] at hb1 hbiff
+    -- the child mask kills it: it is in the batch
+    have hdead : Alv' (v : ℕ) = 0 := by
+      by_contra hc
+      exact absurd ((hdat.1.2.2.2.2.2.2.1 v).mp hc).2.2 (by simp [hvW])
+    refine ⟨by rw [hcell]; exact hb1, ?_⟩
+    rw [hcell, hbiff]
+    exact (DeadRow.sat_bot_of_dead₁ (G := G) hdead (hlocal _ (List.getElem_mem hi))).symm
+
 end Lax3Proofs.Refine.KillPass
