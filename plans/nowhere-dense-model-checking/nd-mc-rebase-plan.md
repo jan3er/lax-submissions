@@ -1425,3 +1425,47 @@ not allocation width; and the scatter leaf has no measured M-class
 constant yet (`atomCostA` landed but unwired — `hbnd_gap`), so the
 engine family should produce one. **Next: the member-driven engine
 family (elim first).**
+
+## E-elim.1 (2026-08-06) — `Refine/ElimSynth7.lean`: the engine is one Com, and the leaf's entry state is free
+
+Tower-ledger E43 obstructions (2) and (3) die. `lake build` **3,565
+jobs**, root `lax build` OK, zero placeholders, kernel-three on all five
+principals; supervisor replayed. Jan stopped and resumed the worker
+mid-wave (the `twiceElim` unfolding fix); first report after resume ends
+the wave.
+
+- **2B/D-a closed on the way**: `degPassSynth` — the degree pass's outer
+  loop, recorded since 2B′ as "one invocation away" — synthesizes
+  post-T1 (~15 s), pinned with a negative control.
+- **`elimEngineCom`** (comSize 333): the five passes as one `Com`, ONE
+  `hnRefine` against `ElimSynth6.elimProgram`'s exact NRest text,
+  composed by `hnr_seq` + a new guard-carrying `hnr_map` — never a
+  whole-engine re-synthesis, so wave S's determinism cliff never fires.
+  Offset/fill re-synthesized at fresh index cells (the landed `"i"`
+  exits the bucket pass at `n`; no abstract op pays a reset).
+- **`hnr_mop_elim_spec`**: abstract program literally
+  `NRest.spec (ElimPost n W) …` — no entry-state tuple. Six pure-scratch
+  arrays enter AND leave as `junkArrayOfLen`; the five output arrays'
+  length premises are exactly `ElimPost`'s clauses, discharged at call 2
+  from call 1. **The semantic finding: entry freedom REQUIRES the
+  scratch-building inside the `Com`** — a spec leaf over the bare five
+  passes would be unsound — so `elimSpecK = 384n + 168ns + 126` honestly
+  exceeds `engineK5` by the leaf's own setup (`#guard`-pinned, incl.
+  `¬ ≤` and `≤ 2·engineK5`). This is "how the re-zeroing defect dies"
+  made machine-real: the engine produces the zeros its loops enter at;
+  `elimRezeroCom` has no counterpart because nothing outside the engine
+  needs re-zeroing.
+- **Twice-call test LANDED**: `twiceElimSynth` synthesizes the two-call
+  shape through the new leaf, impl `#guard`-pinned as the same `Com`
+  twice; negative control compiles the pinned `hnr_mop_elim`'s refusal
+  on the identical shape.
+- Reusable kit (own namespace): `hnr_map`, `hnRefine_frame_fri` (frame
+  via `fri`'s FRAME mode — what made 5-seam hand composition cheap),
+  `hnr_scr1–5`, `returnT_le_spec_iff`.
+
+Carried, named: a pass-13-shaped matcher stall after the two calls
+(parked for the member wave, `sepref_dbg` tracing); the leaf pins
+`off/tgt/alv` at `arrOf` values (same class as split-determinism;
+member wave); debts E1/E2/E3 untouched. **Next: E-mem** — member lists
+into `LevelPre` (successor-brief item (1)), then the member-driven
+engine interiors consume this leaf's assembly.
