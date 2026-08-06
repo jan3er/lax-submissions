@@ -723,4 +723,291 @@ theorem elimCompact_engine {B mm n ns nt W : ℕ} {H : SimpleGraph (Fin mm)} {O 
     RamElim.elim_specW RamElim.implementsW hcsr hB hMB hW hnt _ (elimPreW_cutArrs hpre)
   exact ⟨τ, run_of_run_cutArrs _ hrun, hpost⟩
 
+/-! ## §5 The contract at the arena's live vertices
+
+`OrderEngineProbe` §5 compiled that the *phase*'s postcondition is
+carrier-sized and that no engine repair can change that — the consumer
+has to move. This section is the engine's own half of that move: the
+elimination's contract, restated so that **nothing in it ranges over the
+carrier**. Its subject is the compacted arena, and the compacted arena
+is a graph on `Fin mm`: the level's masked graph pulled back along the
+member list. -/
+
+open Lax3Proofs.Augmentation (Orientation BackDegLE DegeneracyLE LowDegreeVertices)
+open Lax3Proofs.RamElim (InCsr CsrSimple)
+open Lax3Proofs.RamDriverCluster (markSet)
+
+/-- **The member embedding**: compact vertex `k` is the arena vertex
+`mem[k]`. -/
+def memEmb {n mm : ℕ} {Mem : ℕ → ℕ} {X : Set (Fin n)} (hml : MemList n mm Mem X)
+    (i : Fin mm) : Fin n := ⟨Mem (i : ℕ), hml.lt i i.isLt⟩
+
+theorem memEmb_injective {n mm : ℕ} {Mem : ℕ → ℕ} {X : Set (Fin n)}
+    (hml : MemList n mm Mem X) : Function.Injective (memEmb hml) := by
+  intro i j hij
+  have h : Mem (i : ℕ) = Mem (j : ℕ) := congrArg Fin.val hij
+  by_contra hne
+  rcases Nat.lt_or_ge (i : ℕ) (j : ℕ) with hlt | hge
+  · exact absurd h (Nat.ne_of_lt (hml.smono _ _ hlt j.isLt))
+  · have hlt : (j : ℕ) < (i : ℕ) :=
+      Nat.lt_of_le_of_ne hge fun he => hne (Fin.ext he.symm)
+    exact absurd h.symm (Nat.ne_of_lt (hml.smono _ _ hlt i.isLt))
+
+/-- **The compacted arena**: the level's arena, renumbered by the member
+list. Adjacency is the arena's, read at the members' arena numbers —
+which is exactly what `cRow` walks. -/
+def memGraph {n mm : ℕ} (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) {Mem : ℕ → ℕ}
+    {X : Set (Fin n)} (hml : MemList n mm Mem X) : SimpleGraph (Fin mm) :=
+  SimpleGraph.comap (memEmb hml) (masked G M)
+
+theorem memGraph_adj {n mm : ℕ} {G : SimpleGraph (Fin n)} {M Mem : ℕ → ℕ}
+    {X : Set (Fin n)} {hml : MemList n mm Mem X} {i j : Fin mm} :
+    (memGraph G M hml).Adj i j ↔ (masked G M).Adj (memEmb hml i) (memEmb hml j) := Iff.rfl
+
+/-- **Compaction makes the mask a constant.** The dead vertices are not
+renumbered, so the compacted arena has no dead vertex and its mask is
+all ones — `RamElim`'s `masked` of it is itself. This is why
+`OrderEngineProbe` §4's read-seam has nothing to read: the engine's
+mask pass reads `alv` at every vertex of *its* carrier, and every one of
+them is alive by construction. -/
+theorem masked_of_all_alive {mm : ℕ} (H : SimpleGraph (Fin mm)) {M' : ℕ → ℕ}
+    (h : ∀ v < mm, M' v ≠ 0) : masked H M' = H := by
+  ext u v
+  rw [Lax3Proofs.RamBfs.masked_adj]
+  exact ⟨fun h' => h'.1, fun h' => ⟨h', h _ u.isLt, h _ v.isLt⟩⟩
+
+/-- **The elimination's contract, at the arena's live vertices.**
+
+Clause for clause `RamElim.ElimPost`, with three deliberate moves:
+
+* the graph is `memGraph` — the arena renumbered — so every
+  quantifier ranges over `Fin mm` and **no clause mentions the
+  carrier**;
+* the ranks are read at the members' *arena* cells, `ork[mem j]`, which
+  is what `scatterCom` writes: a member reading, not a carrier array;
+* the in-lists stay in the **compact** numbering (`ioff` over `mm + 1`
+  cells, `itg`), because their consumer — the augmentation engine, wave
+  E2-aug — is compacted too. Re-numbering them back would be a second
+  scatter nobody reads.
+
+Nothing here is a `∀ v < n`. That is the whole point: the hazard the
+wave was warned about is that the carrier walks back in through the
+statement. -/
+def ElimMemPost {n mm : ℕ} (G : SimpleGraph (Fin n)) (M Mem : ℕ → ℕ)
+    {X : Set (Fin n)} (hml : MemList n mm Mem X) (ns W : ℕ) (σ' : Env) : Prop :=
+  ∃ (R IO IT : ℕ → ℕ) (k m : ℕ) (E : Orientation mm),
+    (∀ j, j < mm → (σ'.arrs "ork").getD (Mem j) 0 = R j) ∧
+    σ'.vars "kmax" = k ∧
+    (∀ i, i ≤ mm → (σ'.arrs "ioff").getD i 0 = IO i) ∧
+    σ'.arrs "itg" = arrOf W IT ∧ m ≤ ns ∧
+    Function.Injective (fun i : Fin mm => R (i : ℕ)) ∧
+    E.Orients (memGraph G M hml) ∧ E.InDegLE k ∧
+    (∀ u w : Fin mm, u ∈ E.inN w ↔ (memGraph G M hml).Adj u w ∧ R (u : ℕ) < R (w : ℕ)) ∧
+    E.toGraph = memGraph G M hml ∧
+    BackDegLE (memGraph G M hml) (fun i : Fin mm => R (i : ℕ)) k ∧
+    BackDegLE E.toGraph (fun i : Fin mm => R (i : ℕ)) k ∧
+    DegeneracyLE (memGraph G M hml) k ∧
+    (∀ k', LowDegreeVertices (memGraph G M hml) k' → k ≤ k') ∧
+    InCsr E m IO IT
+
+/-! ## §6 The cost: arena-affine, carrier-blind
+
+The composite's clock, and the two things that make it the wave's
+deliverable: the carrier does not occur in it, and the arena's own two
+numbers do. -/
+
+/-- **The composite's cost**: the landed engine's own `elimCost` at the
+compact carrier, plus the six member-driven passes (renumber, prefix
+save, install, scatter, prefix restore) at a generous constant. `mm` is
+the arena's live vertex count and `cs` its live slot count — **the
+carrier `n` does not appear**, which is the whole claim of the wave. -/
+def elimCompactCost (mm cs : ℕ) : ℕ := Lax3Proofs.RamElim.elimCost mm cs + 200 * mm + 200 * cs + 200
+
+/-- The cost, expanded: `800·mm + 800·cs + 300`. Affine in the arena's
+two numbers, and in nothing else. -/
+theorem elimCompactCost_eq (mm cs : ℕ) : elimCompactCost mm cs = 800 * mm + 800 * cs + 300 := by
+  simp only [elimCompactCost, Lax3Proofs.RamElim.elimCost]; ring
+
+#guard elimCompactCost 5 10 = 800 * 5 + 800 * 10 + 300
+#guard elimCompactCost 5 10 = 12300
+-- two-sided: the constant `800` is not slack for `801`, and the run
+-- below (`3407`) is inside `12300` while `mm`-only budgets are not
+#guard ¬ (elimCompactCost 5 10 = 801 * 5 + 801 * 10 + 300)
+
+/-- **The single weight**: the composite's cost is affine in the arena's
+weight and in nothing else. -/
+theorem elimCompactCost_le_weight {mm cs w : ℕ} (h : mm + cs ≤ w) :
+    elimCompactCost mm cs ≤ 800 * w + 300 := by
+  rw [elimCompactCost_eq]
+  have : 800 * mm + 800 * cs = 800 * (mm + cs) := by ring
+  omega
+
+/-- **…and the weight is the compacted arena's own.** `MassWeight`'s
+root reading at the compact graph: a `CsrSimple` of a graph all of whose
+vertices are alive has weight `mm + cs`, the vertex count plus the slot
+count. So the composite's clock is `800 · arenaWeight + 300` at the
+arena the engine actually ran on, with the carrier nowhere in sight. -/
+theorem elimCompactCost_le_arenaWeight {mm cs : ℕ} {H : SimpleGraph (Fin mm)} {O' T' : ℕ → ℕ}
+    (hcsr : CsrSimple H cs O' T') {M' : ℕ → ℕ} (halive : ∀ v < mm, M' v ≠ 0) :
+    elimCompactCost mm cs ≤ 800 * MassWeight.arenaWeight mm H M' + 300 :=
+  elimCompactCost_le_weight (le_of_eq (MassWeight.arenaWeight_root hcsr halive).symm)
+
+/-! ### §6.1 The clocks, compiled
+
+The control pattern of `OrderSigProbeM`/`killTurnCom`: the SAME arena
+inside two carriers differing by a factor of eight, and one clock. -/
+
+/-- The composite's clock on the `Demo` arena at carrier `n`. -/
+def compClock (n W : ℕ) : ℕ := (execC pB pF elimCompactCom (demoSt n W)).2
+
+-- **carrier-blindness**: one arena, four carriers, one clock
+#guard compClock 100 64 = 3407
+#guard compClock 200 64 = 3407
+#guard compClock 400 64 = 3407
+#guard compClock 800 64 = 3407
+-- and it fits the cost function at the arena's own two numbers
+#guard compClock 800 64 ≤ elimCompactCost 5 10
+
+-- **the honesty direction, on the clock**: the pin is exact — one tick
+-- less does not hold
+#guard ¬ (compClock 800 64 ≤ 3406)
+
+-- **the honesty direction, on the shape**: a slot-blind budget is
+-- refuted. The same five members, now pairwise adjacent (`K₅`, twenty
+-- slots instead of ten), clock strictly higher — so no `c·mm + c'`
+-- bound is uniform, and the `cs` term of `elimCompactCost` is
+-- load-bearing.
+def k5St (n W : ℕ) : PSt :=
+  cSt n W 5
+    ([0, 0, 4, 4, 8, 8, 12, 12, 16, 16] ++ List.replicate (n + 1 - 10) 20)
+    ([3, 5, 7, 9, 1, 5, 7, 9, 1, 3, 7, 9, 1, 3, 5, 9, 1, 3, 5, 7] ++
+      List.replicate (W - 20) 0)
+    (demoAlvL n) (demoMemL n)
+
+def k5Clock (n W : ℕ) : ℕ := (execC pB pF elimCompactCom (k5St n W)).2
+
+#guard (exec pB pF elimCompactCom (k5St 100 64)).isOk
+-- the denser arena's slot count is twice the sparse one's …
+#guard (exec pB pF compactPass (k5St 100 64)).scalar "ks" = 20
+-- … its clock is strictly higher …
+#guard compClock 100 64 < k5Clock 100 64
+-- … so the sparse arena's clock is NOT a bound for it: a budget read at
+-- `mm` alone is refuted on data
+#guard ¬ (k5Clock 100 64 ≤ compClock 100 64)
+-- … and it too is carrier-blind, and inside the cost at its own numbers
+#guard k5Clock 100 64 = k5Clock 800 64
+#guard k5Clock 800 64 ≤ elimCompactCost 5 20
+-- `K₅` has degeneracy four
+#guard (exec pB pF elimCompactCom (k5St 100 64)).scalar "kmax" = 4
+
+/-! ### §6.2 The floor of `OrderEngineProbe` §1, cleared
+
+The probe's §1 compiled the landed engine's own share of the order
+phase's clock at a fixed two-member arena: `elimShare n = 159·n + 276`,
+affine in the **carrier**, and at carrier `800` it exceeds
+`orderCostA (bsq 2 2 0) 0 4 = 103950` — the §2.1 budget read at the
+arena's weight. That is the floor the whole G2 interface stood behind.
+
+The same two-member arena, at the same carrier `800`, through this
+engine. -/
+
+/-- The probe's two-member arena — one edge `0—1`, everything else dead
+— with the member list, in a carrier of `n`. -/
+def twoSt (n W : ℕ) : PSt :=
+  cSt n W 2 ([0, 1, 2] ++ List.replicate (n + 1 - 3) 2)
+    ([1, 0] ++ List.replicate (W - 2) 0)
+    ([1, 1] ++ List.replicate (n - 2) 0) ([0, 1] ++ List.replicate (n - 2) 999)
+
+def twoClock (n W : ℕ) : ℕ := (execC pB pF elimCompactCom (twoSt n W)).2
+
+#guard (exec pB pF elimCompactCom (twoSt 800 8)).isOk
+-- the answers: two vertices, one edge, degeneracy one
+#guard (exec pB pF elimCompactCom (twoSt 800 8)).scalar "kmax" = 1
+#guard [(exec pB pF elimCompactCom (twoSt 800 8)).cell "ork" 0,
+        (exec pB pF elimCompactCom (twoSt 800 8)).cell "ork" 1] = [0, 1]
+
+-- **carrier-blind at the probe's own instance**
+#guard twoClock 100 8 = 1184
+#guard twoClock 800 8 = 1184
+
+-- **the floor is cleared.** The landed engine's share at carrier `800`
+-- overshoots the §2.1 budget; this engine's whole clock — compaction,
+-- save, install, engine, scatter, restore — fits inside it, at the same
+-- arena and the same carrier.
+#guard ¬ (OrderEngineProbe.elimShare 800 8 ≤
+  G2CostProbe.orderCostA (G2CostProbe.bsq 2 2 0) 0 4)
+#guard twoClock 800 8 ≤ G2CostProbe.orderCostA (G2CostProbe.bsq 2 2 0) 0 4
+-- by two orders of magnitude, and the gap grows with the carrier while
+-- this clock does not
+#guard OrderEngineProbe.elimShare 800 8 = 127476
+#guard twoClock 800 8 * 100 ≤ OrderEngineProbe.elimShare 800 8
+-- the honesty direction on the comparison: the landed share does NOT
+-- fit where this one does
+#guard ¬ (OrderEngineProbe.elimShare 800 8 ≤ twoClock 800 8 * 100)
+
+/-! ## §7 The bridge to the landed reading
+
+The wave's contract is a restatement, so it owes the statement that it
+*is* one: on the all-alive arena at the identity numbering — `mm = n`,
+`mem` the identity, every vertex live — `ElimMemPost` is
+`RamElim.ElimPost`, clause for clause. This is the compiled
+non-weakening check the campaign asks of every restated theorem. -/
+
+/-- The identity member list of an all-alive arena: every vertex is a
+member, in order. -/
+def idMemList {n : ℕ} {M : ℕ → ℕ} (h : ∀ v < n, M v ≠ 0) :
+    MemList n n id (markSet n M) where
+  lt := fun _ hj => hj
+  smono := fun _ _ hij _ => hij
+  sound := fun j hj => ⟨hj, h j hj⟩
+  complete := fun a ha => ⟨a, ha.lt, rfl⟩
+
+/-- At the identity numbering the compacted arena is the arena. -/
+theorem memGraph_id {n : ℕ} (G : SimpleGraph (Fin n)) {M : ℕ → ℕ}
+    (h : ∀ v < n, M v ≠ 0) : memGraph G M (idMemList h) = masked G M := by
+  ext u v
+  rw [memGraph_adj]
+  exact Iff.of_eq (by rw [show memEmb (idMemList h) u = u from Fin.ext rfl,
+    show memEmb (idMemList h) v = v from Fin.ext rfl])
+
+/-- **The bridge.** On the all-alive arena at the identity numbering,
+the wave's member contract holds of exactly the states the landed
+contract holds of — with `"ork"` reading `"rnk"`, which is what
+`scatterCom` degenerates to when `mem` is the identity. So the
+restatement of §5 weakens nothing: it is the landed `ElimPost` with the
+carrier replaced by the member list, and at `mm = n` the two coincide.
+-/
+theorem elimMemPost_of_elimPost {n ns W : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ}
+    (halive : ∀ v < n, M v ≠ 0) {σ σ' : Env}
+    (hpost : Lax3Proofs.RamElim.ElimPost G M ns W σ σ')
+    (hork : σ'.arrs "ork" = σ'.arrs "rnk") :
+    ElimMemPost G M id (idMemList halive) ns W σ' := by
+  obtain ⟨R, IO, IT, k, m, E, hrnk, hk, hioff, hitg, hm, hinj, horients, hindeg, hinN,
+    htoG, hbd, hbdE, hdeg, hlow, hcsr⟩ := hpost
+  rw [← memGraph_id G halive] at horients hinN htoG hbd hdeg hlow
+  refine ⟨R, IO, IT, k, m, E, ?_, hk, ?_, hitg, hm, hinj, horients, hindeg, hinN, htoG,
+    hbd, hbdE, hdeg, hlow, hcsr⟩
+  · intro j hj
+    rw [hork, hrnk]
+    simp only [id_eq]
+    exact getD_arrOf R hj
+  · intro i hi
+    rw [hioff, getD_arrOf _ (by omega)]
+
+/-- The converse reading, so the bridge is an equivalence and not a
+weakening in disguise: at the identity numbering the member clauses give
+the landed ones back for the three answers the phase consumes (the rank
+array's contract is `"ork"`'s, the bound is `kmax`, the in-lists are
+`ioff`/`itg`). -/
+theorem elimPost_answers_of_elimMemPost {n ns W : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ}
+    (halive : ∀ v < n, M v ≠ 0) {σ' : Env}
+    (h : ElimMemPost G M id (idMemList halive) ns W σ') :
+    ∃ (R : ℕ → ℕ) (k : ℕ), σ'.vars "kmax" = k ∧
+      (∀ v, v < n → (σ'.arrs "ork").getD v 0 = R v) ∧
+      DegeneracyLE (masked G M) k ∧
+      BackDegLE (masked G M) (fun v : Fin n => R (v : ℕ)) k := by
+  obtain ⟨R, IO, IT, k, m, E, hork, hk, -, -, -, -, -, -, -, -, hbd, -, hdeg, -, -⟩ := h
+  rw [memGraph_id G halive] at hbd hdeg
+  exact ⟨R, k, hk, fun v hv => hork v hv, hdeg, hbd⟩
+
 end Lax3Proofs.Refine.ElimCompact
