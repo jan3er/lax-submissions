@@ -155,6 +155,24 @@ def filterAllClock (n bq : ℕ) : ℕ := (execC pB pF (memFilterCom 1) (filterSt
 #guard (execC pB pF (memFilterCom 1) (MemThreadProbe.filterSt 100 3)).2 = 21 * 3 + 8
 #guard (execC pB pF (memFilterCom 1) (MemThreadProbe.filterSt 100 3)).2 ≤ 23 * 3 + 8
 
-/-! ### §4 Axioms -/
+/-! ### §4 Axioms
+
+The twin, the gate, and the two principals of the thread the gate exists
+to protect: the level frame that carries clause 16 and the descent that
+produces it. -/
+
+#print axioms memList_of_memEnum
+#print axioms memEnum_of_memList
+#print axioms levelPreMLive_of_levelPre
+#print axioms levelPreM_of_levelPre
+#print axioms RamDriverCompose.levelPre_run
+#print axioms RamDriverDescend.memFilter_spec
+#print axioms RamDriverDescend.clusterLoad_spec
+#print axioms RamDriverDescend.descendStep
+#print axioms RamDriverIO.decodeImplements
+#print axioms RamDriverCluster.clusterStepImplements
+#print axioms RamDriverRoot.levelAt
+#print axioms RamDriverRoot.driverRoot_decides_sentence
+#print axioms Lax3Proofs.Refine.DriverRootD.driverD_correct
 
 end Lax3Proofs.Refine.MemThreadGate
