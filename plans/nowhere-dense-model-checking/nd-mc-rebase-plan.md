@@ -1393,3 +1393,35 @@ residuals above. Next: the member-driven engine family (2E/D-a in
 member form), then `g2_exists` re-validation, then E-mem; the
 cluster-interface threading wave slots where the re-derivation
 re-states that interface anyway.
+
+## g2_exists re-validation (2026-08-06) — `Refine/G2ExistsRevalidation.lean`: the arithmetic holds at M-class costs
+
+Item 4 of "What remains before C0", run ahead of the engine family per
+the standing compiled-costs-both-directions rule. `lake build` **3,560
+jobs**, root `lax build` OK, zero placeholders, eight kernel-three
+checks; supervisor replayed. **Verdict: the existence witness is
+satisfiable at M-class phase costs; nothing weakened.**
+
+- `phaseM a b m = a·m + b` tied to P4.6's measurement by `rfl`
+  (`phaseClockK_eq_phaseM`); `g2m_exists` pays each phase slot at every
+  member count the weight admits and delivers the landed Σ-interface
+  shapes verbatim, closing to `(ℓ·g2M + Cb)·(D+1)^ℓ·(w+1)`.
+- C0 budget gates at the 68/12 numerals clear ε = 1 and ε = 1/2; an
+  `R = 4` gate also clears — the round factor multiplies a constant, not
+  the carrier.
+- Space: `mclass_driver_fits` consumes E41's `nested_fits_iff`;
+  `levels·aw` linear stays a separate named obligation.
+- **Negative control bites both ways**: with exactly one slot at the
+  landed size-blind `orderPhaseCost`, the same three-clause family is
+  satisfiable-without and **unsatisfiable-with** the closed form
+  (`mclass_order_slot_load_bearing`, `decide +kernel`, `W` universal).
+- Root term closes at the restated root's own cost text
+  (`rootBudgetM_closes`); `decodeDLCost ≤ 79·(n+ns+1)`, 79 tight.
+
+Two road facts: the surviving obstruction in the mixed control is the
+`1600·n²` **carrier** term alone (the width half is already dead at
+`width_step_dead`) — the re-derivation's target is the carrier walk,
+not allocation width; and the scatter leaf has no measured M-class
+constant yet (`atomCostA` landed but unwired — `hbnd_gap`), so the
+engine family should produce one. **Next: the member-driven engine
+family (elim first).**
