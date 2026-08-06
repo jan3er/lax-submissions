@@ -88,7 +88,17 @@ repairs are mechanical:
 | 13 | `OrderMem` | unchanged |
 | 14 | zero tail of `tgt` | unchanged |
 | 15 | word bound on `tgt` | unchanged |
-| **16** | — | **`∃ Mem mmj, σ.arrs (memName j) = arrOf n Mem ∧ σ.vars (mnumName j) = mmj ∧ MemList n mmj Mem (markSet n M) ∧ ∀ z < n, Mem z < B`** |
+| **16** | — | **`∃ Mem mmj, σ.arrs (memName j) = arrOf n Mem ∧ σ.vars (mnumName j) = mmj ∧ MemEnum n mmj Mem M ∧ ∀ z < mmj, Mem z < B`** |
+
+Two spellings in clause 16 are deliberate. `MemEnum` is the driver-side
+twin of `ScatterBlock.MemList … (markSet n M)` — `Refine.ScatterBlockProg`
+depends on `RamDriver`, so the clause cannot cite `MemList` directly; the
+equivalence (`memList_of_memEnum`) is compiled in the gate satellite so
+the twin cannot drift. And the word bound covers the LIVE PREFIX only
+(`z < mmj`, not `z < n`): the junk tail above the emitted prefix has no
+provenance — bounding it would demand exactly the carrier walk this
+design forbids, the same reason the clause carries no tail-zero conjunct —
+and consumers only ever read `z < mm` through the live-prefix copy.
 
 Probe name: `MemThreadProbe.MemClause` (the conjunct),
 `MemThreadProbe.LevelPreM` (the assembled shape). Appending at the END
@@ -272,6 +282,14 @@ T1 → T2 → (T3 ∥ T4); T3/T4 satellites are single-file-owned and
 mergeable in any order once T2's exports exist.
 
 ## §7 Unresolved design questions (flagged)
+
+Supervisor dispositions, 2026-08-06 (thread wave dispatched on these):
+F-1 defer to E3's brief, thread rides the landed `emitLoop` order with
+`CoverOut.block_mono`; F-2 defer to T5's engine waves, thread must not
+touch `ScatterBlock` arena `Prop`s; F-3 accept P-root after
+decode+dedup, re-confirm at the B7 re-run if dedup ever kills carrier
+vertices; F-4 T2 owner's call, preference `BatchData` extension,
+parallel conjunct pre-authorized if the `setArr` transports fight it.
 
 - **F-1, sortedness under E3.** The mainline supply chain (§3) rides
   the landed `emitLoop`'s index-order scan, recorded as

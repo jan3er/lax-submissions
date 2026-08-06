@@ -4331,3 +4331,46 @@ supervisor dispositions on flags F-1..F-4 of `e-mem-design.md` §7. Then
 T2–T4, then the order/cover re-synthesis from M-shaped signatures — the
 step that kills the cost group — then B7 re-run, C0, draft. The
 `foo/` skeleton at the repo root still awaits Jan's disposition.
+
+
+## 2026-08-06 — E-mem lands green, and the workflow that carried it is new
+
+**Workflow rework first (Jan, from first principles).** The sequential-on-
+main default was grounded in codex-era coordination failures and ten-minute
+worktree seeds; both causes are gone. New standing default (CLAUDE.md,
+commits c3b4b22 + 2d93940): worker writes in a cheap-seeded worktree per
+wave, workers commit checkpoints on their branch, supervisor reviews the
+branch diff and lands onto `main`; parallel width is the supervisor's
+on-the-fly call, DAG-bounded. The seed itself collapsed to a pure file
+copy — manifests and `package-overrides.json` are checkout-independent
+(the lax CLI's warm store replaced the hardlink farm) — measured 4 s, first
+build replays warm in ~3 min, verified in a scratch worktree.
+
+**The E-mem thread (T1–T4) landed at `3d72b60`**, 3,567 jobs green,
+kernel-three on every principal. Two workers: the first delivered the T1
+spine, the emission/cover halves, and P-root, and reported honestly
+incomplete (red at `descendStep`); the wave moved into the new worktree
+flow at that boundary and the continuation finished it — filter `Spec`,
+`descendStep` assembly, gate satellite, plus ten modules the first report
+had not seen broken. Two supervisor-accepted deviations, both recorded in
+the design doc §2.1: clause 16's word bound is LIVE-PREFIX only (the
+full-array bound was a design bug — bounding the junk tail is exactly the
+carrier walk the design forbids), and `MemEnum` is the driver-side twin of
+the probe's `MemList` (import direction), pinned by the compiled
+equivalence `memList_of_memEnum` in `MemThreadGate.lean`. Cost honesty:
+the filter's uniform bound is `23·bs + 8` with the probe's `21·bs + 8`
+re-derived as an instance, both `#guard`ed on the landed `Com`;
+`descendCost` `16n² + 75n + 51 → 24n² + 98n + 61` (no new slot, order
+unchanged); root/decode knock-ons re-measured with two-sided guards.
+
+**FLAG for Jan (submit-time, not this wave):** the updated lax CLI rejects
+cross-submission `path` requires outright — 8 static errors on untouched
+`main`, so `lax build` on ND-MC no longer runs and the namespace audit
+with it. Submission needs the chain workflow (git-pinned requires, one
+level at a time) or a lax-side decision. Until then the audit gate is
+grep-by-hand on touched files.
+
+**Next leaf**: the consumer side — member-driven engine interiors and the
+order/cover re-synthesis from M-shaped signatures (kills the cost group),
+opening with F-2's `ArenaA` live-prefix re-statement; then B7 re-run, C0,
+draft.
