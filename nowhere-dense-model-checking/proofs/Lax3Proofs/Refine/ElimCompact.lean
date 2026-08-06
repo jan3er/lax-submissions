@@ -421,4 +421,306 @@ def wedgeRun (n W : ℕ) : PRes := exec pB pF elimCompactCom (wedgeSt n W)
   ((exec pB pF elimCompactCore (wedgeSt 100 64)).cell "off") =
   [0, 0, 3, 3, 5, 5, 8, 8, 10, 10, 11])
 
+/-! ## §3 The length seam, closed in the semantics
+
+The obstruction the header names, and its repair. Nothing in this
+section is about the elimination: it is a fact about IMP+, and E2-aug
+and E2-sym consume it unchanged.
+
+The two observations that make it work:
+
+* **no expression of IMP+ reads a length.** `Expr.evalB`'s only
+  array clause is `((σ.arrs a)[k]?).bind (fit B)`, which is `some` only
+  when `k` is in range and then depends on the cell alone;
+* **the only length-sensitive rule is the store's** `hk : k <
+  (σ.arrs a).length`, and appending a tail only widens it.
+
+So appending tails to every array changes no derivation and no clock. -/
+
+/-- **Every array widened by a tail.** -/
+def padArrs (σ : Env) (tl : String → List ℕ) : Env :=
+  { σ with arrs := fun a => σ.arrs a ++ tl a }
+
+/-- **Every array cut to a schedule** — the *view* an engine at a
+smaller carrier runs in. -/
+def cutArrs (σ : Env) (len : String → ℕ) : Env :=
+  { σ with arrs := fun a => (σ.arrs a).take (len a) }
+
+/-- The tail a schedule leaves behind. -/
+def tailOf (σ : Env) (len : String → ℕ) : String → List ℕ :=
+  fun a => (σ.arrs a).drop (len a)
+
+/-- The view and its tail are the store. -/
+theorem padArrs_cutArrs (σ : Env) (len : String → ℕ) :
+    padArrs (cutArrs σ len) (tailOf σ len) = σ := by
+  have h : (fun a => (σ.arrs a).take (len a) ++ (σ.arrs a).drop (len a)) = σ.arrs := by
+    funext a; exact List.take_append_drop _ _
+  simp only [padArrs, cutArrs, tailOf, h]
+
+@[simp] theorem padArrs_vars (σ : Env) (tl : String → List ℕ) :
+    (padArrs σ tl).vars = σ.vars := rfl
+
+@[simp] theorem padArrs_inp (σ : Env) (tl : String → List ℕ) :
+    (padArrs σ tl).inp = σ.inp := rfl
+
+@[simp] theorem padArrs_arrs (σ : Env) (tl : String → List ℕ) (a : String) :
+    (padArrs σ tl).arrs a = σ.arrs a ++ tl a := rfl
+
+/-- **Widening preserves every expression's value.** -/
+theorem evalB_padArrs {B : ℕ} {tl : String → List ℕ} :
+    ∀ {e : Expr} {σ : Env} {v : ℕ}, e.evalB B σ = some v →
+      e.evalB B (padArrs σ tl) = some v := by
+  intro e
+  induction e with
+  | lit m => intro σ v h; exact h
+  | var x => intro σ v h; exact h
+  | get a i ih =>
+      intro σ v h
+      rw [Expr.evalB, Option.bind_eq_some_iff] at h
+      obtain ⟨k, hk, h⟩ := h
+      rw [Option.bind_eq_some_iff] at h
+      obtain ⟨u, hu, hfit⟩ := h
+      have hlt : k < (σ.arrs a).length := by
+        rcases List.getElem?_eq_some_iff.mp hu with ⟨hlt, -⟩; exact hlt
+      have hu' : ((padArrs σ tl).arrs a)[k]? = some u := by
+        rw [padArrs_arrs, List.getElem?_append_left hlt]; exact hu
+      rw [Expr.evalB, Option.bind_eq_some_iff]
+      exact ⟨k, ih hk, by rw [Option.bind_eq_some_iff]; exact ⟨u, hu', hfit⟩⟩
+  | bin op e f ihe ihf =>
+      intro σ v h
+      rw [Expr.evalB, Option.bind_eq_some_iff] at h
+      obtain ⟨m, hm, h⟩ := h
+      rw [Option.bind_eq_some_iff] at h
+      obtain ⟨q, hq, hfit⟩ := h
+      rw [Expr.evalB, Option.bind_eq_some_iff]
+      exact ⟨m, ihe hm, by rw [Option.bind_eq_some_iff]; exact ⟨q, ihf hq, hfit⟩⟩
+
+/-- …and every condition's. -/
+theorem evalC_padArrs {B : ℕ} {tl : String → List ℕ} {b : Cond} {σ : Env} {r : Bool}
+    (h : b.evalB B σ = some r) : b.evalB B (padArrs σ tl) = some r := by
+  cases b with
+  | eq e f =>
+      rw [Cond.evalB, Option.bind_eq_some_iff] at h
+      obtain ⟨m, hm, h⟩ := h
+      rw [Option.map_eq_some_iff] at h
+      obtain ⟨q, hq, rfl⟩ := h
+      rw [Cond.evalB, Option.bind_eq_some_iff]
+      exact ⟨m, evalB_padArrs hm, by rw [Option.map_eq_some_iff]; exact ⟨q, evalB_padArrs hq, rfl⟩⟩
+  | lt e f =>
+      rw [Cond.evalB, Option.bind_eq_some_iff] at h
+      obtain ⟨m, hm, h⟩ := h
+      rw [Option.map_eq_some_iff] at h
+      obtain ⟨q, hq, rfl⟩ := h
+      rw [Cond.evalB, Option.bind_eq_some_iff]
+      exact ⟨m, evalB_padArrs hm, by rw [Option.map_eq_some_iff]; exact ⟨q, evalB_padArrs hq, rfl⟩⟩
+
+theorem padArrs_setVar (σ : Env) (tl : String → List ℕ) (x : String) (v : ℕ) :
+    padArrs (σ.setVar x v) tl = (padArrs σ tl).setVar x v := rfl
+
+theorem padArrs_setArr {σ : Env} {tl : String → List ℕ} {a : String} {k v : ℕ}
+    (hk : k < (σ.arrs a).length) :
+    padArrs (σ.setArr a k v) tl = (padArrs σ tl).setArr a k v := by
+  have h : (fun b => (if b = a then (σ.arrs a).set k v else σ.arrs b) ++ tl b) =
+      fun b => if b = a then (σ.arrs a ++ tl a).set k v else σ.arrs b ++ tl b := by
+    funext b
+    by_cases hb : b = a
+    · subst hb; simp only [if_pos rfl]; exact (List.set_append_left k v hk).symm
+    · simp [hb]
+  simpa [padArrs, Env.setArr, padArrs_arrs] using congrArg
+    (fun f => ({ σ with arrs := f } : Env)) h
+
+/-- **The wave's key lemma: widening every array changes no run.**
+Induction on the derivation; the store's side condition is the only
+place a length is looked at, and `Nat.lt_of_lt_of_le` against
+`List.length_append` closes it. The clock is untouched, rule for
+rule — so a cost claim proved at the view is a cost claim at the
+store. -/
+theorem bigStepB_padArrs {B : ℕ} {c : Com} {σ σ' : Env} {k : ℕ} (tl : String → List ℕ)
+    (h : BigStepB B c σ σ' k) : BigStepB B c (padArrs σ tl) (padArrs σ' tl) k := by
+  induction h with
+  | skip => exact .skip
+  | @assign σ x e v he => rw [padArrs_setVar]; exact .assign (evalB_padArrs he)
+  | @store σ a i e k v hi he hk =>
+      rw [padArrs_setArr hk]
+      refine .store (evalB_padArrs hi) (evalB_padArrs he) ?_
+      rw [padArrs_arrs, List.length_append]
+      exact Nat.lt_of_lt_of_le hk (Nat.le_add_right _ _)
+  | seq _ _ ih₁ ih₂ => exact .seq ih₁ ih₂
+  | ite_true hb _ ih => exact .ite_true (evalC_padArrs hb) ih
+  | ite_false hb _ ih => exact .ite_false (evalC_padArrs hb) ih
+  | while_true hb _ _ ih₁ ih₂ => exact .while_true (evalC_padArrs hb) ih₁ ih₂
+  | while_false hb => exact .while_false (evalC_padArrs hb)
+  | @read σ x v rest hi =>
+      have : padArrs { σ.setVar x v with inp := rest } tl =
+          { (padArrs σ tl).setVar x v with inp := rest } := rfl
+      rw [this]; exact .read hi
+  | @write σ e v he =>
+      have : padArrs { σ with out := σ.out ++ [v] } tl =
+          { padArrs σ tl with out := (padArrs σ tl).out ++ [v] } := rfl
+      rw [this]; exact .write (evalB_padArrs he)
+
+/-- **The seam, in the form a caller uses it.** A run in the view is a
+run in the store, and the store it ends in is the view's answer over the
+tail it entered with — *per array*. That second half is the compiled
+statement of "the engine touches no carrier cell". -/
+theorem run_of_run_cutArrs {B : ℕ} {c : Com} {σ τ : Env} {K : ℕ} (len : String → ℕ)
+    (h : Run B c (cutArrs σ len) τ K) : Run B c σ (padArrs τ (tailOf σ len)) K := by
+  obtain ⟨k, hk, hbs⟩ := h
+  have hpad := bigStepB_padArrs (tailOf σ len) hbs
+  rw [padArrs_cutArrs σ len] at hpad
+  exact ⟨k, hk, hpad⟩
+
+/-- The cut of a `arrOf` is an `arrOf`, which is how the eleven length
+clauses of `RamElim.ElimPreW` are read off a live prefix. -/
+theorem take_arrOf {m k : ℕ} {f : ℕ → ℕ} (h : k ≤ m) : (arrOf m f).take k = arrOf k f := by
+  rw [arrOf, arrOf, ← List.map_take, List.take_range, Nat.min_eq_left h]
+
+/-- `arrOf` reads only the prefix it is asked for. -/
+theorem arrOf_congr {k : ℕ} {f g : ℕ → ℕ} (h : ∀ i < k, f i = g i) : arrOf k f = arrOf k g := by
+  rw [arrOf, arrOf]
+  exact List.map_congr_left fun i hi => h i (List.mem_range.mp hi)
+
+/-- **Lengths are invariant along a run.** No rule of IMP+ changes the
+length of an array — the store's `List.set` does not — which is what
+lets the exit state be read as "the view's answer over the entry
+tail". -/
+theorem bigStepB_length {B : ℕ} {c : Com} {σ σ' : Env} {k : ℕ}
+    (h : BigStepB B c σ σ' k) (a : String) : (σ'.arrs a).length = (σ.arrs a).length := by
+  induction h with
+  | skip => rfl
+  | assign _ => rfl
+  | @store σ b i e k v _ _ _ =>
+      by_cases hb : a = b
+      · subst hb; simp [Env.setArr]
+      · simp [Env.setArr, hb]
+  | seq _ _ ih₁ ih₂ => exact ih₂.trans ih₁
+  | ite_true _ _ ih => exact ih
+  | ite_false _ _ ih => exact ih
+  | while_true _ _ _ ih₁ ih₂ => exact ih₂.trans ih₁
+  | while_false _ => rfl
+  | read _ => rfl
+  | write _ => rfl
+
+theorem run_length {B : ℕ} {c : Com} {σ σ' : Env} {K : ℕ} (h : Run B c σ σ' K) (a : String) :
+    (σ'.arrs a).length = (σ.arrs a).length := by
+  obtain ⟨_, _, hbs⟩ := h
+  exact bigStepB_length hbs a
+
+@[simp] theorem cutArrs_arrs (σ : Env) (len : String → ℕ) (a : String) :
+    (cutArrs σ len).arrs a = (σ.arrs a).take (len a) := rfl
+
+@[simp] theorem cutArrs_vars (σ : Env) (len : String → ℕ) : (cutArrs σ len).vars = σ.vars := rfl
+
+/-- **The tail comes out as it went in**, array by array: a run in the
+view writes nothing at or above the schedule. This is the compiled §2.3
+claim, as a theorem. -/
+theorem tail_preserved {B : ℕ} {c : Com} {σ τ : Env} {K : ℕ} {len : String → ℕ}
+    (h : Run B c (cutArrs σ len) τ K) {a : String} (hle : len a ≤ (σ.arrs a).length) :
+    ((padArrs τ (tailOf σ len)).arrs a).drop (len a) = (σ.arrs a).drop (len a) := by
+  have hlen : (τ.arrs a).length = len a := by
+    rw [run_length h a, cutArrs_arrs, List.length_take, Nat.min_eq_left hle]
+  rw [padArrs_arrs, tailOf, ← hlen, List.drop_left]
+
+/-! ## §4 The engine at the arena's carrier
+
+The landed engine, its landed specification, and nothing new: the entry
+surface is `RamElim.ElimPreW`'s thirteen clauses with the **physical**
+lengths at the carrier `n` and the **contract** at the compact carrier
+`mm`, and §3 turns the one into the other. -/
+
+/-- **The length schedule of a compacted call.** Which prefix of each of
+the engine's arrays is the compact call's own array. Everything the
+engine never touches is cut to nothing and restored by the tail. -/
+def clen (mm nt W : ℕ) : String → ℕ := fun a =>
+  if a = "off" ∨ a = "bh" ∨ a = "ioff" then mm + 1
+  else if a = "alv" ∨ a = "deg" ∨ a = "elm" ∨ a = "rnk" ∨ a = "idg" ∨ a = "ifl" then mm
+  else if a = "bv" ∨ a = "bn" then mm + W + 1
+  else if a = "tgt" then nt
+  else if a = "itg" then W
+  else 0
+
+@[simp] theorem clen_off (mm nt W : ℕ) : clen mm nt W "off" = mm + 1 := by simp [clen]
+@[simp] theorem clen_bh (mm nt W : ℕ) : clen mm nt W "bh" = mm + 1 := by simp [clen]
+@[simp] theorem clen_ioff (mm nt W : ℕ) : clen mm nt W "ioff" = mm + 1 := by simp [clen]
+@[simp] theorem clen_alv (mm nt W : ℕ) : clen mm nt W "alv" = mm := by simp [clen]
+@[simp] theorem clen_deg (mm nt W : ℕ) : clen mm nt W "deg" = mm := by simp [clen]
+@[simp] theorem clen_elm (mm nt W : ℕ) : clen mm nt W "elm" = mm := by simp [clen]
+@[simp] theorem clen_rnk (mm nt W : ℕ) : clen mm nt W "rnk" = mm := by simp [clen]
+@[simp] theorem clen_idg (mm nt W : ℕ) : clen mm nt W "idg" = mm := by simp [clen]
+@[simp] theorem clen_ifl (mm nt W : ℕ) : clen mm nt W "ifl" = mm := by simp [clen]
+@[simp] theorem clen_bv (mm nt W : ℕ) : clen mm nt W "bv" = mm + W + 1 := by simp [clen]
+@[simp] theorem clen_bn (mm nt W : ℕ) : clen mm nt W "bn" = mm + W + 1 := by simp [clen]
+@[simp] theorem clen_tgt (mm nt W : ℕ) : clen mm nt W "tgt" = nt := by simp [clen]
+@[simp] theorem clen_itg (mm nt W : ℕ) : clen mm nt W "itg" = W := by simp [clen]
+
+/-- **The engine's entry surface at a live prefix.** Clause for clause
+`RamElim.ElimPreW`, with every physical length at the carrier `n` and
+every *contract* at the compact carrier `mm`. Note what is **not**
+here: no clause ranges over the carrier. The zeroed-scratch clauses ask
+for `mm` cells of `elm` and `mm + 1` of `bh` — which is why the
+re-zero between two calls is `fillUpto … (.var "mm")` and the
+`OrderEngineProbe` §2 zero-seam has nothing to catch. -/
+def ElimPreC (mm n nt W : ℕ) (O T M : ℕ → ℕ) (σ : Env) : Prop :=
+  σ.vars "n" = mm ∧ mm ≤ n ∧
+  (∃ g, σ.arrs "off" = arrOf (n + 1) g ∧ ∀ i ≤ mm, g i = O i) ∧
+  σ.arrs "tgt" = arrOf nt T ∧
+  (∃ g, σ.arrs "alv" = arrOf n g ∧ ∀ v < mm, g v = M v) ∧
+  (∃ g, σ.arrs "deg" = arrOf n g) ∧
+  (∃ g, σ.arrs "elm" = arrOf n g ∧ ∀ v < mm, g v = 0) ∧
+  (∃ g, σ.arrs "rnk" = arrOf n g) ∧ (∃ g, σ.arrs "idg" = arrOf n g) ∧
+  (∃ g, σ.arrs "bh" = arrOf (n + 1) g ∧ ∀ i ≤ mm, g i = 0) ∧
+  (∃ g, σ.arrs "bv" = arrOf (n + W + 1) g) ∧ (∃ g, σ.arrs "bn" = arrOf (n + W + 1) g) ∧
+  (∃ g, σ.arrs "ioff" = arrOf (n + 1) g) ∧ (∃ g, σ.arrs "ifl" = arrOf n g) ∧
+  (∃ g, σ.arrs "itg" = arrOf W g)
+
+/-- **The seam, closed at the elimination.** The live-prefix surface at
+the carrier's physical lengths *is* the landed surface at the compact
+carrier, read in the view. Every clause is one `take_arrOf` and one
+`arrOf_congr`; `RamElim` is not touched. -/
+theorem elimPreW_cutArrs {mm n nt W ns : ℕ} {O T M : ℕ → ℕ} {σ : Env}
+    (h : ElimPreC mm n nt W O T M σ) :
+    RamElim.ElimPreW mm ns nt W O T M (cutArrs σ (clen mm nt W)) := by
+  obtain ⟨hn, hmn, ⟨o, ho, hoP⟩, htgt, ⟨m, hm, hmP⟩, ⟨d, hd⟩, ⟨e, he, heP⟩, ⟨r, hr⟩,
+    ⟨g, hg⟩, ⟨bh, hbh, hbhP⟩, ⟨bv, hbv⟩, ⟨bn, hbn⟩, ⟨io, hio⟩, ⟨fl, hfl⟩, ⟨it, hit⟩⟩ := h
+  refine ⟨hn, ?_, ?_, ?_, ⟨d, ?_⟩, ⟨e, ?_, ?_⟩, ⟨r, ?_⟩, ⟨g, ?_⟩, ⟨bh, ?_, ?_⟩,
+    ⟨bv, ?_⟩, ⟨bn, ?_⟩, ⟨io, ?_⟩, ⟨fl, ?_⟩, ⟨it, ?_⟩⟩
+  · rw [cutArrs_arrs, clen_off, ho, take_arrOf (by omega)]
+    exact arrOf_congr fun i hi => hoP i (by omega)
+  · rw [cutArrs_arrs, clen_tgt, htgt, take_arrOf le_rfl]
+  · rw [cutArrs_arrs, clen_alv, hm, take_arrOf hmn]
+    exact arrOf_congr hmP
+  · rw [cutArrs_arrs, clen_deg, hd, take_arrOf hmn]
+  · rw [cutArrs_arrs, clen_elm, he, take_arrOf hmn]
+  · exact heP
+  · rw [cutArrs_arrs, clen_rnk, hr, take_arrOf hmn]
+  · rw [cutArrs_arrs, clen_idg, hg, take_arrOf hmn]
+  · rw [cutArrs_arrs, clen_bh, hbh, take_arrOf (by omega)]
+  · exact hbhP
+  · rw [cutArrs_arrs, clen_bv, hbv, take_arrOf (by omega)]
+  · rw [cutArrs_arrs, clen_bn, hbn, take_arrOf (by omega)]
+  · rw [cutArrs_arrs, clen_ioff, hio, take_arrOf (by omega)]
+  · rw [cutArrs_arrs, clen_ifl, hfl, take_arrOf hmn]
+  · rw [cutArrs_arrs, clen_itg, hit, take_arrOf le_rfl]
+
+/-- **The compacted engine call.** `RamElim.elimCom`, unchanged, at the
+compact carrier `mm`, on a store whose arrays are the carrier's: it
+runs, at `RamElim.elimCost mm ns` — a cost in which **the carrier does
+not occur** — and leaves `RamElim.ElimPost`, the landed contract,
+verbatim, of the compact view. The exit store is the view's answer over
+the tail the call entered with.
+
+No re-synthesis and no restatement of `RamElim`: `elim_specW` is
+applied at `n := mm`, which is all "the engine runs at carrier `mm`"
+ever needed. -/
+theorem elimCompact_engine {B mm n ns nt W : ℕ} {H : SimpleGraph (Fin mm)} {O T M : ℕ → ℕ}
+    {σ : Env} (hcsr : RamElim.CsrSimple H ns O T) (hB : mm + ns + 1 < B)
+    (hMB : ∀ z < mm, M z < B) (hW : ns ≤ W) (hnt : ns ≤ nt)
+    (hpre : ElimPreC mm n nt W O T M σ) :
+    ∃ τ, Run B RamElim.elimCom σ (padArrs τ (tailOf σ (clen mm nt W)))
+          (RamElim.elimCost mm ns) ∧
+        RamElim.ElimPost H M ns W (cutArrs σ (clen mm nt W)) τ := by
+  obtain ⟨τ, hrun, hpost⟩ :=
+    RamElim.elim_specW RamElim.implementsW hcsr hB hMB hW hnt _ (elimPreW_cutArrs hpre)
+  exact ⟨τ, run_of_run_cutArrs _ hrun, hpost⟩
+
 end Lax3Proofs.Refine.ElimCompact
