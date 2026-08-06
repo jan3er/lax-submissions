@@ -2,6 +2,7 @@ import Lax3Proofs.RamDriverWrites
 import Lax3Proofs.RamDriverAugment
 import Lax3Proofs.Refine.ArenaPointer
 import Lax3Proofs.Refine.DeadSweep
+import Lax3Proofs.Refine.KillPass
 import Lax3Proofs.Refine.MassWeight
 
 /-!
@@ -195,12 +196,19 @@ variable {n : ℕ} {B q_top cap mb ns W ℓ j Kmass : ℕ} {φ : Lax3.FirstOrder
   {G : SimpleGraph (Fin n)} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
   {ord Xoff Xmem asg : ℕ → ℕ} {mm k : ℕ} {Kb Ki Ksc Ks : ℕ} {Kin : ℕ → ℕ}
 
-/-- The five walks of a turn, at the costs their own files charge. -/
+/-- The six walks of a turn, at the costs their own files charge.
+
+**Wave R1.8-T2.** The kill pass is the sixth, and its charge is absorbed
+here — inside the turn's own slot, which is design §7's disposition F-4.
+It is the one summand that mentions neither `n` nor `ns`:
+`Refine.KillPass.killCost` is `(blockCost + 21) · mb + 6`, carrier-blind,
+read at the child depth's table because that is the row it writes. -/
 noncomputable def turnCost (n ns cap mb q_top j : ℕ) (φ : Lax3.FirstOrder.FO 0) (Ksc Kin : ℕ) : ℕ :=
   RamDriverDescend.descendCost n ns cap j +
     ((20 * n + 12 * mb + 30) +
       (RamDriverDescend.colourCost n ns cap mb (sigL cap mb j) +
-        (Kin + (Ksc + RamDriverBase.rbCost q_top cap mb φ j n))))
+        (Refine.KillPass.killCost q_top cap mb (j + 1) φ +
+          (Kin + (Ksc + RamDriverBase.rbCost q_top cap mb φ j n)))))
 
 /-- **The turn cost, size-indexed** (`integration-design.md` §5.7). The
 new slot `s` is the number of members of the block the turn processes,
@@ -252,6 +260,8 @@ theorem clusterStepAt
     (RamDriverDescend.descendStep hmb hjl le_rfl)
     (fun _ _ _ _ => RamDriverDescend.enumStep hB le_rfl)
     (fun _ _ _ _ _ => RamDriverDescend.colourStep le_rfl)
+    (RamDriverFrames.wa_notMem_warrs_colourCom cap mb j)
+    (fun _ _ _ _ _ _ => Refine.KillPass.killStep)
     (fun hinner _ _ _ _ _ _ => RamDriverFrames.innerFrames hinner
       (fun _ ha => turnFrozen_notMem_warrs_driverAt ha)
       (fun _ ha => ctrName_notMem_wvars_driverAt ha)
@@ -286,6 +296,11 @@ theorem clusterFramesAt
     (RamDriverDescend.descendStep hmb hjl le_rfl)
     (fun _ _ _ _ => RamDriverDescend.enumStep hB le_rfl)
     (fun _ _ _ _ _ => RamDriverDescend.colourStep le_rfl)
+    (fun _ _ _ _ _ _ => Refine.KillPass.killStep)
+    (fun i => Refine.KillPass.notMem_warrs_killCom
+      (fun β hβ => (tableRank_of_mem_tablesAt (j + 1) β hβ).1)
+      (fun i' => RamDriverBase.tabName_ne_succ j i i')
+      (fun hc => RamDriverBot.not_ext_b_tabName j i (RamDriverCompose.ext_b_of_ext_bb hc)))
     (fun _ ha => turnFrozen_notMem_warrs_driverAt ha)
       (fun _ ha => ctrName_notMem_wvars_driverAt ha)
     xpName_notMem_wvars_driverAt curName_notMem_wvars_driverAt

@@ -44,16 +44,17 @@ symbolic execution between them.
 # What enters as a hypothesis, and why
 
 The driver's own obligation `ClusterStepImplements` is a single `Prop`
-about a program with six phases, of which one — the nested driver — is
-the obligation's own hypothesis. The other five enter as named `Prop`s
-of this file — `DescendStep`, `EnumStep`, `ColourStep`, `ScatterStep`
+about a program with seven phases (wave R1.8-T2 added the kill pass), of
+which one — the nested driver — is the obligation's own hypothesis. The
+other six enter as named `Prop`s of this file — `DescendStep`,
+`EnumStep`, `ColourStep`, `KillStep`, `ScatterStep`
 and `ReadbackStep` — in the manner of the driver's own obligations: each
 is a self-contained Hoare triple over the program text, and each names
 in its docstring the specification that discharges it.
 
 `clusterStepImplements` composes them with the driver's `masked_step`,
 `stepArenaP_eq`, `exists_pad_enum` and `sat_iff_eval_step`, and *all* of
-the mathematics of the cluster step is here: what the five are left
+the mathematics of the cluster step is here: what the six are left
 owing is what their arrays hold, never what it means. `ReadbackStep` is
 `RamDriver.ReadbackImplements` with its valuation indexed by the vertex
 the readback stands on, which that obligation's is not — a local atom's
@@ -511,11 +512,11 @@ def atomVal {L : ℕ} (A : SimpleGraph (Fin n)) (col : Coloring n L) (v : Fin n)
     DistFO L 1 ⊕ ScatterSentence L → Prop :=
   Sum.elim (fun γ => Sat A col (fun _ => v) γ) (ScatVal A col)
 
-/-! ### The five sub-walks of one cluster
+/-! ### The six sub-walks of one cluster
 
-`RamDriver.ClusterStepImplements`'s docstring splits the turn into six
+`RamDriver.ClusterStepImplements`'s docstring splits the turn into seven
 passes, of which one — the nested driver — is the obligation's own
-hypothesis. The other five are the `Prop`s of this section, each a
+hypothesis. The other six are the `Prop`s of this section, each a
 self-contained Hoare triple over the program text and each naming, in
 its docstring, what discharges it. Nothing of the *mathematics* of the
 cluster step is in them: what they say their arrays hold is stated in
@@ -928,7 +929,7 @@ def InnerFrames (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
 
 /-! ### One cluster
 
-The composition. Every step of it is one of the five specifications
+The composition. Every step of it is one of the six specifications
 above or the obligation's own hypothesis; the one thing that is not
 composition is the last line, where the boolean combination the readback
 wrote turns into satisfaction at the depth's own arena by
@@ -939,7 +940,7 @@ open Classical in
 /-- **One cluster, discharged.** The turn of the loop over the centres
 leaves the table of every vertex the centre was assigned correct.
 
-The five walks compose into a run of `RamDriver.clusterCom`, and what
+The six walks compose into a run of `RamDriver.clusterCom`, and what
 the run leaves is turned into the obligation's postcondition by
 `RamDriver.sat_iff_eval_step` — a tabled formula holds at a vertex of
 the depth's arena exactly when its own boolean combination evaluates to
@@ -948,7 +949,20 @@ step's arena, which is what the readback wrote there. The hypothesis
 that lemma needs of the cluster — that it contains the `cap`-ball of the
 vertex — is the descent's postcondition, which is
 `RamCover.CoverOut.asg_cover` at the centre being processed; the batch
-is the program's own and nothing is asked of it. -/
+is the program's own and nothing is asked of it.
+
+**Wave R1.8-T2: the kill pass, and the seam it needs.** `hkill` is the
+sixth walk, run between the colouring and the nested call, and its
+postcondition — `KillRowsAt` at the turn's own kill set — is the capital
+wave R1.8-T3 consumes when it weakens `RamDriver.TableInv` to
+`alive ∪ kills`. It is *not* threaded into this obligation's own
+postcondition: the nested level still runs `RamDriver.sweepCom` and still
+hands back the carrier-wide `TableInv`, so the turn owes nothing new. The
+one thing the composition needs is `hwafr` — that the colouring leaves
+the padding buffer alone — which is what carries `ClusterWa` across
+`colourCom` and makes the kill pass the third and last consumer of the
+seam, still strictly before the recursion
+(`RamDriverFrames.wa_notMem_warrs_colourCom`). -/
 theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.FirstOrder.FO 0}
     {G : SimpleGraph (Fin n)}
     {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}

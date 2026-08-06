@@ -732,4 +732,127 @@ theorem killStep {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.FirstOrder.FO 0}
     rw [hcell, hbiff]
     exact (DeadRow.sat_bot_of_dead₁ (G := G) hdead (hlocal _ (List.getElem_mem hi))).symm
 
+/-! ### §4 The bridge the level induction consumes
+
+`Refine.DeadRowProbe.readback_dead_read_is_kill` compiles that every
+dead vertex the readback consults is a kill of the turn that is
+consulting it. Here that observation is closed against the rows the pass
+actually wrote: the readback's whole input at depth `j + 1` is the alive
+half — what the nested level establishes — plus the kill rows — what the
+enclosing turn wrote before the call. This is the statement wave R1.8-T3
+re-domains `RamDriver.TableInv` against; nothing above consumes it yet,
+which is why it is stated and not threaded. -/
+
+theorem readback_row_of_alive_or_kill {q_top cap mb j : ℕ} {φ : Lax3.FirstOrder.FO 0}
+    {G : SimpleGraph (Fin n)} {M Alv' : ℕ → ℕ} {X W : Set (Fin n)} {C' : ℕ → ℕ → ℕ}
+    {π : Equiv.Perm (Fin n)} {ord Xoff Xmem asg : ℕ → ℕ} {r m k : ℕ} {σ : Env}
+    (hcov : RamCover.CoverOut G M π ord r m Xoff Xmem asg) (hcen : M (ord k) ≠ 0)
+    (hX : Refine.MassMath.clusterAt G M π ord r k ⊆ X)
+    (hpt : ∀ v : Fin n, Alv' (v : ℕ) ≠ 0 ↔ (M (v : ℕ) ≠ 0 ∧ v ∈ X ∧ v ∉ W))
+    (halive : ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ (j + 1)).length) (Tb : ℕ → ℕ),
+      σ.arrs (tabName (j + 1) i) = arrOf n Tb →
+      ∀ v : Fin n, Alv' (v : ℕ) ≠ 0 →
+        Tb (v : ℕ) ≤ 1 ∧ (Tb (v : ℕ) ≠ 0 ↔
+          Sat (masked G Alv') (colRead n C' (sigL cap mb (j + 1))) (fun _ => v)
+            (tablesAt q_top cap mb φ (j + 1))[i]))
+    (hkill : KillRowsAt q_top cap mb j φ G M Alv' X W C' σ) :
+    ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ (j + 1)).length) (Tb : ℕ → ℕ),
+      σ.arrs (tabName (j + 1) i) = arrOf n Tb →
+      ∀ v : Fin n, asg (v : ℕ) = k →
+        Tb (v : ℕ) ≤ 1 ∧ (Tb (v : ℕ) ≠ 0 ↔
+          Sat (masked G Alv') (colRead n C' (sigL cap mb (j + 1))) (fun _ => v)
+            (tablesAt q_top cap mb φ (j + 1))[i]) := by
+  intro i hi Tb harr v hasgv
+  -- the vertex lies in its own turn's cluster, hence in `X`, and is alive at `j`
+  have hclu : v ∈ Refine.MassMath.clusterAt G M π ord r k := by
+    have h := hcov.asg_cover (v : ℕ) v.isLt (WalkDistance.mem_ball_self _ _ _)
+    rwa [hasgv] at h
+  have hvX : v ∈ X := hX hclu
+  have hMv : M (v : ℕ) ≠ 0 := Refine.MassAlive.clusterAt_subset_alive hcen hclu
+  by_cases hav : Alv' (v : ℕ) ≠ 0
+  · exact halive i hi Tb harr v hav
+  · -- dead at the child depth, alive at the parent, in the cluster: a kill of this turn
+    have hvW : v ∈ W := by
+      by_contra hc
+      exact hav ((hpt v).mpr ⟨hMv, hvX, hc⟩)
+    exact hkill i hi Tb harr v hMv hvX hvW
+
+/-! ### §5 The cost, both directions
+
+`killCost` is `(blockCost + 21) · mb + 6`. It is **carrier-blind** by
+construction — `n` is not among its arguments, which is the compiled form
+of `Refine.DeadRowProbe.killTurnCom`'s measured invariance at carriers
+100 and 200 — and the checks below pin the rest of the law in both
+directions: linear in the buffer's width, linear in the row's own size
+class, and **not** coverable by a smaller per-entry coefficient. The last
+pair is the absorption of design §7's disposition F-4: the turn
+coefficient `ct = 284` covers BlockLeaves' measured `200` plus this
+pass's charge at the probe's instance, and `274` does not. -/
+
+theorem killCost_eq (q_top cap mb jd : ℕ) (φ : Lax3.FirstOrder.FO 0) :
+    killCost q_top cap mb jd φ = (blockCost (tablesAt q_top cap mb φ jd) + 21) * mb + 6 := by
+  rw [killCost, killTurnCost]
+
+section Falsification
+
+/-- The law, as arithmetic: a row of block cost `bc`, a buffer of `mb`
+entries. -/
+private def kc (bc mb : ℕ) : ℕ := (bc + 21) * mb + 6
+
+-- the three widths, and exact linearity in the buffer
+#guard kc 2 0 = 6
+#guard kc 2 3 = 75
+#guard kc 2 6 = 144
+#guard kc 2 6 - kc 2 3 = kc 2 3 - kc 2 0
+
+-- linear in the row's own size class, at three entries
+#guard kc 5 3 - kc 2 3 = 3 * 3
+
+-- **negative**: no `20`-per-entry coefficient covers it, at any row
+#guard ¬ (kc 2 3 ≤ 20 * 3 + 6)
+#guard ¬ (kc 0 3 ≤ 20 * 3 + 6)
+
+-- **negative**: the charge is not a constant — it grows with the buffer
+#guard kc 2 3 ≠ kc 2 4
+
+-- **the absorption into `ct`** (design §7, F-4): the landed leaf
+-- coefficient plus this pass's charge fit the turn slot at `ct = 284`,
+-- and do not fit a genuinely smaller one
+#guard 200 + kc 2 3 ≤ 284 * (0 + 1)
+#guard ¬ (200 + kc 2 3 ≤ 274 * (0 + 1))
+
+end Falsification
+
+/-! ### §6 Axioms -/
+
+/-- info: 'Lax3Proofs.Refine.KillPass.killFold_spec' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms killFold_spec
+
+/-- info: 'Lax3Proofs.Refine.KillPass.killTurn_spec' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms killTurn_spec
+
+/-- info: 'Lax3Proofs.Refine.KillPass.killCom_spec' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms killCom_spec
+
+/-- info: 'Lax3Proofs.Refine.KillPass.killStep' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms killStep
+
+/-- info: 'Lax3Proofs.Refine.KillPass.readback_row_of_alive_or_kill' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms readback_row_of_alive_or_kill
+
 end Lax3Proofs.Refine.KillPass
