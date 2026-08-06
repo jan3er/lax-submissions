@@ -104,6 +104,46 @@ theorem MemList.mono (h : MemList n mm Mem X) {i j : ℕ} (hij : i ≤ j) (hj : 
   · exact le_rfl
   · exact le_of_lt (h.smono i j hlt hj)
 
+/-! ### §1b The member count is a carrier count
+
+A strictly increasing list of vertices is no longer than the carrier.
+This is what lets every word bound the walks need be read off `n < B`,
+and — since the member array is carried at the *carrier's* physical
+length with a live prefix of `mm` cells — it is also what turns a
+prefix index into an index of the array. -/
+
+theorem MemList.le_of_lt (h : MemList n mm Mem X) {j : ℕ} (hj : j < mm) : j ≤ Mem j := by
+  induction j with
+  | zero => exact Nat.zero_le _
+  | succ k ih =>
+      have hk : k < mm := by omega
+      have h₁ := h.smono k (k + 1) (by omega) hj
+      have h₂ := ih hk
+      omega
+
+/-- **There are no more members than vertices.** -/
+theorem MemList.card_le (h : MemList n mm Mem X) : mm ≤ n := by
+  rcases Nat.eq_zero_or_pos mm with rfl | hpos
+  · exact Nat.zero_le _
+  · have h1 : mm - 1 < mm := by omega
+    have h₂ := h.le_of_lt h1
+    have h₃ := h.lt (mm - 1) h1
+    omega
+
+/-- **The contract reads the live prefix only.** Two functions that
+agree below the count are the same member list — the junk above the
+live prefix is not part of the contract, and this is what lets a
+live-prefix copy into a longer physical array carry the list. -/
+theorem MemList.congr_prefix {Mem' : ℕ → ℕ} (h : MemList n mm Mem X)
+    (hpre : ∀ k, k < mm → Mem' k = Mem k) : MemList n mm Mem' X where
+  lt := fun j hj => by rw [hpre j hj]; exact h.lt j hj
+  smono := fun i j hij hj => by
+    rw [hpre i (by omega), hpre j hj]; exact h.smono i j hij hj
+  sound := fun j hj => by rw [hpre j hj]; exact h.sound j hj
+  complete := fun a ha => by
+    obtain ⟨j, hj, hMj⟩ := h.complete a ha
+    exact ⟨j, hj, by rw [hpre j hj]; exact hMj⟩
+
 /-- **Where the scan stands after `j` members**: at the `j`-th member if
 there is one, and at the end of the carrier once the list is spent. This
 is the carrier position at which the landed invariant is read. -/

@@ -52,42 +52,34 @@ open Lax3Proofs.WalkDistance Lax3Proofs.RamBfs Lax3Proofs.RamScatter
 variable {n ns nt mm r t : ℕ} {G : SimpleGraph (Fin n)} {M O T Mem : ℕ → ℕ}
   {X : Set (Fin n)}
 
-/-! ### §1 The member count is a carrier count
-
-A strictly increasing list of vertices is no longer than the carrier.
-This is what lets every word bound the walk needs be read off `n < B`. -/
-
-theorem MemList.le_of_lt (h : MemList n mm Mem X) {j : ℕ} (hj : j < mm) : j ≤ Mem j := by
-  induction j with
-  | zero => exact Nat.zero_le _
-  | succ k ih =>
-      have hk : k < mm := by omega
-      have h₁ := h.smono k (k + 1) (by omega) hj
-      have h₂ := ih hk
-      omega
-
-/-- **There are no more members than vertices.** -/
-theorem MemList.card_le (h : MemList n mm Mem X) : mm ≤ n := by
-  rcases Nat.eq_zero_or_pos mm with rfl | hpos
-  · exact Nat.zero_le _
-  · have h1 : mm - 1 < mm := by omega
-    have h₂ := h.le_of_lt h1
-    have h₃ := h.lt (mm - 1) h1
-    omega
-
-/-! ### §2 The arena the active pass carries
+/-! ### §1 The arena the active pass carries
 
 Three differences from `RamScatter.Arena`: the member count and the
 member list are in it, the table array is not, and the distance array is
 required *clean*. The last is `BfsBlock`'s clean-in/clean-out contract
 lifted to the pass — the pass is handed a clean `dist`, every pick
-returns it clean, and the pass hands it back clean. -/
+returns it clean, and the pass hands it back clean.
+
+**The member array is at the carrier's physical length** (rebase F-2,
+the length seam). The driver pre-allocates one member array per depth at
+`n` cells and fills a live prefix of `mnumName j` of them
+(`RamDriver.LevelPre`'s sixteenth clause; the engine entry copies that
+prefix into `"mem"` at `CoverBlock.memCopyK mm = 12·mm + 6`). So the
+arena pins `σ.arrs "mem" = arrOf n Mem` and not `arrOf mm Mem`: the
+physical length is the carrier's, the *contract* is `MemList`'s, and
+`MemList` speaks only of `k < mm`. Nothing above the live prefix is
+claimed, read, or cleared — a tail clause here would be exactly the
+carrier walk the whole variant exists to remove. The walks below index
+the array only through `Mem k` for `k < mm`, so every read is in range
+by `MemList.card_le`, and no proof of this file needs the tail.
+`Refine/ArenaSeam.lean` is the driver-side discharge of the two member
+clauses. -/
 
 /-- The part of the machine the active scan carries unchanged. -/
 def ArenaA (n nt mm r : ℕ) (O T M Mem : ℕ → ℕ) (σ : Env) : Prop :=
   σ.vars "n" = n ∧ σ.vars "mm" = mm ∧
     σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf nt T ∧
-    σ.arrs "alv" = arrOf n M ∧ σ.arrs "mem" = arrOf mm Mem ∧
+    σ.arrs "alv" = arrOf n M ∧ σ.arrs "mem" = arrOf n Mem ∧
     σ.arrs "dist" = arrOf n (fun _ => r + 1) ∧
     (∃ g, σ.arrs "q" = arrOf n g) ∧ (∃ g, σ.arrs "qd" = arrOf n g)
 
@@ -114,7 +106,7 @@ def BallBudget (n r : ℕ) (G : SimpleGraph (Fin n)) (M O : ℕ → ℕ) (bw nb 
   ∀ s, s < n → ∃ A : Finset ℕ, (∀ v, v < n → M v ≠ 0 → WD G M r s v → v ∈ A) ∧
     (∑ v ∈ A, Csr.rowLen O v) ≤ bw ∧ A.card ≤ nb
 
-/-! ### §3 Frames
+/-! ### §2 Frames
 
 The block search and the marking walk both leave the scan's own scalars,
 the block structure, the mask and the member list alone. Each is one
@@ -133,7 +125,7 @@ theorem notMem_bfsBlock_warrs (d : ℕ) (a : String)
     simp [BfsBlock.bfsBlockCom, BfsBlock.unwind, BfsBlock.unwindSlot, seedSrc, bfsDrain,
       expandRow, scanSlot, Fill.put, Csr.loadRow, Csr.scan, Queue.drain, Com.warrs]
 
-/-! ### §4 What the mark decides
+/-! ### §3 What the mark decides
 
 The landed marking sweep reads the distance array and excludes every
 vertex it finds within `r`. The ball walk marks the queue segment and
@@ -158,7 +150,7 @@ theorem marked_iff_wd {s w : ℕ} (hs : s < n) (hw : w < n) {tf : ℕ} {Q : ℕ 
     · exact Or.inr hws
     · exact Or.inl ((hseg w hw).2 ⟨BfsBlock.alive_of_wd hwd (Ne.symm hws), hwd⟩)
 
-/-! ### §5 One turn of the member scan
+/-! ### §4 One turn of the member scan
 
 The three control-flow paths a turn has: the count is already enough; an
 earlier pick excluded this member; or the member is selected, and then
@@ -190,7 +182,8 @@ theorem step_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns <
   -- the read that opens every turn
   have hread : (Expr.get "mem" (.var "sj")).evalB B σ = some s := by
     refine evalB_get (evalB_var (by rw [hmmv] at *; omega)) ?_ hsB
-    rw [hmem, getElem?_arrOf Mem hsj]
+    -- the read is in range because the live prefix is inside the physical array
+    rw [hmem, getElem?_arrOf Mem (show σ.vars "sj" < n by omega)]
   obtain ⟨τ₀, hτ₀⟩ : ∃ τ, τ = σ.setVar "mv" s := ⟨_, rfl⟩
   have run₀ : Run B (.assign "mv" (.get "mem" (.var "sj"))) σ τ₀ 3 := by
     rw [hτ₀]; exact (Run.assign (v := s) hread).mono (by simp [Expr.size])
@@ -384,7 +377,7 @@ theorem step_run {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns <
       Or.inl ⟨by simp [hcnt₀], by simp [Cond.size, Expr.size]⟩⟩
     exact Or.inl ⟨by simp [hB.1], hB.2⟩
 
-/-! ### §6 The scan
+/-! ### §5 The scan
 
 The loop rule is the kit's `Spec.while_potential`: a turn that picks
 draws on the first term of the potential and a turn that does not draws
@@ -456,7 +449,7 @@ theorem loop_spec {B : ℕ} (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns 
   have := hI'.2.2
   rwa [hsjmm, memPos_end hml] at this
 
-/-! ### §7 The pass
+/-! ### §6 The pass
 
 Clear, scan, report. The reporting limb is the landed one and the answer
 it reports is the landed answer. -/
