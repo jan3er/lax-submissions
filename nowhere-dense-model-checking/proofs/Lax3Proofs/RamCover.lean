@@ -484,6 +484,16 @@ structure CoverInv {n : ℕ} (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ)
   stands on (rebase B6/D1). -/
   block_inj : ∀ c' < c, ∀ p q, Xoff c' ≤ p → p < Xoff (c' + 1) → Xoff c' ≤ q →
     q < Xoff (c' + 1) → Xmem p = Xmem q → p = q
+  /-- **And in increasing order** (rebase E-mem). The emission scan
+  walks the carrier upwards and appends, so a block is a *sorted* list
+  of vertices and not merely a repetition-free one. Injectivity is the
+  projection (`RamDriverOrder.inj_of_strictMono`); the order itself is
+  what the driver's per-depth member list needs, since a child list is
+  the block row filtered by the child's mask and a stable filter
+  inherits the order it was given. Without it the member contract's
+  `smono` has no supply — `Refine.MemThreadProbe.unsorted_emission_refuted`
+  is that refutation, compiled. -/
+  block_mono : ∀ c' < c, ∀ p q, Xoff c' ≤ p → p < q → q < Xoff (c' + 1) → Xmem p < Xmem q
   /-- The mask kills the ambient dead vertices and the centres already
   processed, and nothing else. -/
   mask : ∀ u < n, (M u = 0 ↔ (A₀ u = 0 ∨ rk n π u < c))
@@ -522,6 +532,7 @@ theorem init (hA : ∀ u < n, M u = A₀ u) (hoff : Xoff 0 = 0) (hasg : ∀ w < 
   mem_lt := fun _ h => absurd h (by omega)
   block := fun _ h => absurd h (by omega)
   block_inj := fun _ h => absurd h (by omega)
+  block_mono := fun _ h => absurd h (by omega)
   mask := fun u hu => by rw [hA u hu]; constructor
                          · exact fun h => Or.inl h
                          · rintro (h | h); · exact h
@@ -573,6 +584,7 @@ theorem CoverInv.step (hord : OrdersBy n π ord)
     (hblock : ∀ w, (∃ p, xp ≤ p ∧ p < xp' ∧ Xmem' p = w) ↔ (w < n ∧ D w ≤ 2 * r))
     (hxp : xp ≤ xp') (hxpn : xp' ≤ xp + n)
     (hbinj : ∀ p q, xp ≤ p → p < xp' → xp ≤ q → q < xp' → Xmem' p = Xmem' q → p = q)
+    (hbmono : ∀ p q, xp ≤ p → p < q → q < xp' → Xmem' p < Xmem' q)
     (hasg : ∀ w < n, asg' w = if asg w < n then asg w else if D w ≤ r then c else n)
     (hM : ∀ u < n, M' u = if u = ord c then 0 else M u) :
     CoverInv G A₀ π ord r (c + 1) xp' Xoff' Xmem' asg' M' := by
@@ -588,7 +600,7 @@ theorem CoverInv.step (hord : OrdersBy n π ord)
     intro w hw
     rw [hD ⟨w, hw⟩ r (by omega), hmg, ← mem_wreach_iff_withinDist_pred, catches_iff hv hw]
   have hoffc : Xoff' c = xp := by rw [hoff c le_rfl, hI.ptr]
-  refine ⟨by omega, ?_, ?_, hoff', ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨by omega, ?_, ?_, hoff', ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [hoff 0 (by omega)]; exact hI.zero
   · intro c' hc'
     rcases Nat.lt_or_ge c' c with hlt | hge
@@ -635,6 +647,24 @@ theorem CoverInv.step (hord : OrdersBy n π ord)
       rw [hoffc] at hp₁ hq₁
       rw [hoff'] at hp₂ hq₂
       exact hbinj p q hp₁ hp₂ hq₁ hq₂ he
+  · -- and in increasing order: same split, at the strict form the emission
+    -- scan carries (rebase E-mem)
+    intro c' hc' p q hp₁ hpq hq₂
+    rcases Nat.lt_or_ge c' c with hlt | hge
+    · have hbnd : ∀ p, p < Xoff (c' + 1) → p < xp := by
+        intro p hp
+        have h₁ := hI.mono' (i := c' + 1) (j := c) (by omega) le_rfl
+        have h₂ := hI.ptr
+        omega
+      rw [hoff c' (by omega)] at hp₁
+      rw [hoff (c' + 1) (by omega)] at hq₂
+      rw [hkeep p (hbnd p (by omega)), hkeep q (hbnd q hq₂)]
+      exact hI.block_mono c' hlt p q hp₁ hpq hq₂
+    · have hce : c' = c := by omega
+      subst hce
+      rw [hoffc] at hp₁
+      rw [hoff'] at hq₂
+      exact hbmono p q hp₁ hpq hq₂
   · intro u hu
     rw [hM u hu]
     by_cases hue : u = ord c
@@ -708,6 +738,10 @@ structure CoverOut {n : ℕ} (G : SimpleGraph (Fin n)) (A₀ : ℕ → ℕ)
   arena's length *counts* the fibres (rebase B6/D1). -/
   block_inj : ∀ c < n, ∀ p q, Xoff c ≤ p → p < Xoff (c + 1) → Xoff c ≤ q →
     q < Xoff (c + 1) → Xmem p = Xmem q → p = q
+  /-- **And in increasing order** (rebase E-mem): a block is a sorted
+  list of vertices, which is where the driver's per-depth member list
+  gets its `smono` from. See `CoverInv.block_mono`. -/
+  block_mono : ∀ c < n, ∀ p q, Xoff c ≤ p → p < q → q < Xoff (c + 1) → Xmem p < Xmem q
   /-- Every vertex has been assigned a centre position. -/
   asg_lt : ∀ w < n, asg w < n
   /-- **And the cluster of that centre holds the vertex's whole
@@ -729,7 +763,8 @@ theorem CoverInv.out (hord : OrdersBy n π ord)
     · exact h
     · exact absurd (hI.asg_unset w hw h w (catches_self _ _ _ hw)) (by
         have := rk_lt (π := π) hw; omega)
-  refine ⟨hI.zero, hI.ptr, hI.mono, hI.mem_lt, hI.block, hI.block_inj, hlt, fun w hw => ?_⟩
+  refine ⟨hI.zero, hI.ptr, hI.mono, hI.mem_lt, hI.block, hI.block_inj, hI.block_mono, hlt,
+    fun w hw => ?_⟩
   obtain ⟨-, hcat, hmin⟩ := hI.asg_set w hw (hlt w hw)
   have hu : ord (asg w) < n := hord.lt (hlt w hw)
   have hrku : rk n π (ord (asg w)) = asg w := hord.rk_ord (hlt w hw)

@@ -101,6 +101,9 @@ theorem underscore_notMem_prefixed {p : String} (hp : '_' ∉ p.toList) (k : ℕ
 theorem alvName_notMem_scratchArrs (j : ℕ) : alvName j ∉ scratchArrs := by
   simp [scratchArrs, alvName, String.ext_iff]
 
+theorem memName_notMem_scratchArrs (j : ℕ) : memName j ∉ scratchArrs := by
+  simp [scratchArrs, memName, String.ext_iff]
+
 theorem gamName_notMem_scratchArrs (j : ℕ) : gamName j ∉ scratchArrs := by
   simp [scratchArrs, gamName, String.ext_iff]
 
@@ -180,7 +183,8 @@ theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
       Alv' Gam' C' σ)
     (hrun : Run B c σ σ' K) (hA : ∀ a ∈ c.warrs, a ∈ scratchArrs)
     (hV : ∀ y ∈ ["n", "m", "lw"], y ∉ c.wvars)
-    (hVctr : ∀ a : ℕ, ctrName a ∉ c.wvars) (hVxp : xpName j ∉ c.wvars) :
+    (hVctr : ∀ a : ℕ, ctrName a ∉ c.wvars) (hVxp : xpName j ∉ c.wvars)
+    (hVmm : ∀ a : ℕ, mnumName a ∉ c.wvars) :
     ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' σ' := by
   have hfa : ∀ a : String, a ∉ scratchArrs → σ'.arrs a = σ.arrs a :=
@@ -189,20 +193,25 @@ theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
     fun y hy => hrun.frame_var y hy
   obtain ⟨⟨⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCB, hlmem, hdep, hmvar,
     ⟨hnsW, hlwv, hosz, helm, hbh, hooff, hnoff, hstf, hsta, hstd, hste, hitg, hntg⟩,
-    hpad0, hTB⟩, hplayrec,
+    hpad0, hTB, Mem, mmj, hmemA, hmemV, hmemE, hmemBd⟩, hplayrec,
     hord, hxoff, hxmem, hasg, hxp, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, halv', hAlvB, hmask,
-      hgam', hGamB⟩, hwrange⟩, hcol', hcolbit', hcolread', htab'⟩ := h
+      hgam', hGamB, Mem', mm', hmemA', hmemV', hmemE', hmemBd'⟩, hwrange⟩,
+    hcol', hcolbit', hcolread', htab'⟩ := h
   refine ⟨⟨⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCB, levelMem_run hrun hlmem,
       hdep.run hrun, ?_,
       ⟨hnsW, by rw [hrun.frame_var "lw" (hV "lw" (by simp))]; exact hlwv,
         hosz.run hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-        run_mem_arrs_lt hrun "itg" hitg, run_mem_arrs_lt hrun "ntg" hntg⟩, hpad0, hTB⟩,
+        run_mem_arrs_lt hrun "itg" hitg, run_mem_arrs_lt hrun "ntg" hntg⟩, hpad0, hTB,
+      Mem, mmj, (by rw [hfa _ (memName_notMem_scratchArrs j)]; exact hmemA),
+      (by rw [hfv _ (hVmm j)]; exact hmemV), hmemE, hmemBd⟩,
     hplayrec.congr (fun a _ => hfv (ctrName a) (hVctr a))
       (fun a _ => hfa (gamName a) (gamName_notMem_scratchArrs a)),
     ?_, ?_, ?_, ?_, ?_, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, ?_, hXaS, hXaB⟩, ⟨Wa, ?_, hWaS, hWaB⟩, ⟨Ra, ?_, hRaS, hRaB⟩, ?_, hAlvB, hmask,
-      ?_, hGamB⟩, hwrange⟩, ?_, hcolbit', hcolread', ?_⟩
+      ?_, hGamB, Mem', mm', (by rw [hfa _ (memName_notMem_scratchArrs (j + 1))]; exact hmemA'),
+      (by rw [hfv _ (hVmm (j + 1))]; exact hmemV'), hmemE', hmemBd'⟩, hwrange⟩,
+    ?_, hcolbit', hcolread', ?_⟩
   · rw [hrun.frame_var "n" (hV "n" (by simp))]; exact hn
   · rw [hfa "off" (by decide)]; exact hoff
   · rw [hfa "tgt" (by decide)]; exact htgt
@@ -445,7 +454,8 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1B 
         (RamScatter.scatterCost n ns σs.t + (1 + (Expr.var "flag").size)))) :=
     r₁.seq (r₂.seq (r₃.seq r₄))
   refine ⟨_, _, rall, by rw [RamDriverIO.atomCost] at hKb; simp only [Expr.size]; omega,
-    hpre.run rall (warrs_atomCom_sub q_top cap mb φ j i k σs) ?_ ?_ ?_, ?_, ?_, ?_, ?_, ?_⟩
+    hpre.run rall (warrs_atomCom_sub q_top cap mb φ j i k σs) ?_ ?_ ?_ ?_,
+      ?_, ?_, ?_, ?_, ?_⟩
   · intro y hy
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hy
     rcases hy with rfl | rfl | rfl <;>
@@ -457,6 +467,11 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1B 
   · exact notMem_wvars_atomCom (by rw [xpName]; exact underscore_notMem_prefixed (by decide) j)
       (by simp [xpName, String.ext_iff])
       (RamDriverIO.notMem_of_append (p := "xq") (s := toString j) (by decide))
+  · intro a
+    exact notMem_wvars_atomCom
+      (by rw [mnumName]; exact underscore_notMem_prefixed (by decide) a)
+      (by simp [mnumName, String.ext_iff])
+      (RamDriverIO.notMem_of_append (p := "mm") (s := toString a) (by decide))
   · rw [out_setVar, r₃.out_eq (RamDriverIO.noWrite_scatterCom ..),
       r₂.out_eq (by rw [RamDriverIO.copyCom_eq]; exact RamDriverIO.noWrite_fillCom ..),
       r₁.out_eq (by rw [RamDriverIO.copyCom_eq]; exact RamDriverIO.noWrite_fillCom ..)]
@@ -740,7 +755,14 @@ theorem warrs_andCom (a b dst : String) : (andCom a b dst).warrs = [dst] := rfl
 
 theorem warrs_subCom (a b dst : String) : (subCom a b dst).warrs = [dst] := rfl
 
-theorem warrs_clusterLoad (j : ℕ) : (clusterLoad j).warrs = [cluName j, cluName j] := rfl
+theorem warrs_clusterLoad (j : ℕ) :
+    (clusterLoad j).warrs = [cluName j, cluName j, memName (j + 1)] := rfl
+
+/-- The child's filter writes the child's own member array. -/
+theorem warrs_memFilterCom (j : ℕ) : (memFilterCom j).warrs = [memName j] := rfl
+
+theorem wvars_memFilterCom (j : ℕ) :
+    (memFilterCom j).wvars = ["mk", mnumName j, "mv", mnumName j, "mk"] := rfl
 
 theorem warrs_markPath (bat : String) : (markPath bat).warrs = [bat] := rfl
 
@@ -777,6 +799,8 @@ theorem underscore_notMem_warrs_descendCom (cap j : ℕ) :
     rw [alvName]; exact underscore_notMem_prefixed (by decide) d
   have hgam : ∀ d : ℕ, '_' ∉ (gamName d).toList := fun d => by
     rw [gamName]; exact underscore_notMem_prefixed (by decide) d
+  have hmem : ∀ d : ℕ, '_' ∉ (memName d).toList := fun d => by
+    rw [memName]; exact underscore_notMem_prefixed (by decide) d
   have hstage : ∀ b : ℕ, '_' ∉ (ballStage j b).toList := by
     intro b
     rw [ballStage]
@@ -804,10 +828,11 @@ theorem underscore_notMem_warrs_descendCom (cap j : ℕ) :
   intro a ha
   simp only [descendCom, Com.warrs, List.mem_append, List.mem_cons, List.not_mem_nil,
     or_false, false_or, warrs_clusterLoad, warrs_andCom, warrs_subCom,
-    RamDriverIO.warrs_fillCom] at ha
-  rcases ha with (rfl | rfl) | rfl | (rfl | rfl | h) | h | rfl | rfl | rfl
+    warrs_memFilterCom, RamDriverIO.warrs_fillCom] at ha
+  rcases ha with (rfl | rfl | rfl) | rfl | (rfl | rfl | h) | h | rfl | rfl | rfl | rfl
   · exact hclu
   · exact hclu
+  · exact hmem (j + 1)
   · exact hres
   · exact hbal
   · exact hbal
@@ -816,6 +841,7 @@ theorem underscore_notMem_warrs_descendCom (cap j : ℕ) :
   · exact halv (j + 1)
   · exact hgam (j + 1)
   · exact hgam (j + 1)
+  · exact hmem (j + 1)
 
 /-- The padding writes one array. -/
 theorem warrs_enumBatch (bat : String) (mb : ℕ) : (enumBatch bat mb).warrs = ["wa", "wa"] := rfl
@@ -908,7 +934,7 @@ game masks of the depths below — every one of them a name of a depth at
 or below `j`, hence one the level at depth `j + 1` does not write. -/
 def TurnFrozen (j : ℕ) (a : String) : Prop :=
   a ∈ [alvName j, cluName j, resName j, batName j,
-      ordName j, xofName j, xmmName j, asgName j] ∨
+      ordName j, xofName j, xmmName j, asgName j, memName j] ∨
     (∃ c, a = colName j c) ∨ (∃ b ≤ j, a = gamName b)
 
 /-- **The frame of the nested driver, discharged from its syntax.** -/
@@ -916,7 +942,7 @@ theorem innerFrames {ℓ : ℕ} {wA : (ℕ → ℕ) → ℕ} {inner : Com} {Kin 
     (hinner : RamDriverCluster.InnerAvail B q_top cap mb ns Ws ℓ j φ G O T wA inner Kin)
     (hA : ∀ a : String, TurnFrozen j a → a ∉ inner.warrs)
     (hVctr : ∀ a ≤ j, ctrName a ∉ inner.wvars) (hVxp : xpName j ∉ inner.wvars)
-    (hVcur : curName j ∉ inner.wvars) :
+    (hVcur : curName j ∉ inner.wvars) (hVmm : ∀ a ≤ j, mnumName a ∉ inner.wvars) :
     RamDriverCluster.InnerFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord
       Xoff Xmem asg m X W w Alv' Gam' C' inner (Kin (wA Alv')) := by
   intro σ hσ
@@ -928,19 +954,22 @@ theorem innerFrames {ℓ : ℕ} {wA : (ℕ → ℕ) → ℕ} {inner : Com} {Kin 
   have hfv : ∀ y : String, y ∉ inner.wvars → σ'.vars y = σ.vars y :=
     fun y hy => hrun.frame_var y hy
   obtain ⟨hn', hoff', htgt', halv'', hgam'', hcol'', hAlvB', hGamB', hCB', hlmem', hdep',
-    hmvar', hordmem', hpad0', hTB'⟩ := hlevin
+    hmvar', hordmem', hpad0', hTB', Mem'', mm'', hmemA'', hmemV'', hmemE'', hmemBd''⟩ := hlevin
   obtain ⟨-,
-    ⟨⟨-, -, -, halvj, hgamj, hcolj, hMB, hGmB, hCB, -, -, -, -, -, -⟩, hplayrec,
+    ⟨⟨-, -, -, halvj, hgamj, hcolj, hMB, hGmB, hCB, -, -, -, -, -, -,
+        Mem, mmj, hmemA, hmemV, hmemE, hmemBd⟩, hplayrec,
       hord, hxoff, hxmem, hasg, hxp, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, -, hAlvB, hmask,
-      -, hGamB⟩, hwrange⟩, -, -⟩ := hσ
+      -, hGamB, -⟩, hwrange⟩, -, -⟩ := hσ
   refine ⟨σ', hrun, ⟨⟨hn', hoff', htgt', ?_, ?_, ?_, hMB, hGmB, hCB, hlmem', hdep', hmvar',
-      hordmem', hpad0', hTB'⟩,
+      hordmem', hpad0', hTB',
+      Mem, mmj, (by rw [hfa _ (_root_.Or.inl (by simp [TurnFrozen]))]; exact hmemA),
+      (by rw [hfv _ (hVmm j le_rfl)]; exact hmemV), hmemE, hmemBd⟩,
     hplayrec.congr (fun a ha => hfv (ctrName a) (hVctr a (by omega)))
       (fun a ha => hfa (gamName a) (_root_.Or.inr (_root_.Or.inr ⟨a, by omega, rfl⟩))),
     ?_, ?_, ?_, ?_, ?_, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, ?_, hXaS, hXaB⟩, ⟨Wa, ?_, hWaS, hWaB⟩, ⟨Ra, ?_, hRaS, hRaB⟩, halv'', hAlvB, hmask,
-      hgam'', hGamB⟩, hwrange⟩, hcol'', ?_⟩
+      hgam'', hGamB, Mem'', mm'', hmemA'', hmemV'', hmemE'', hmemBd''⟩, hwrange⟩, hcol'', ?_⟩
   · rw [hfa _ (_root_.Or.inl (by simp))]; exact halvj
   · rw [hfa _ (_root_.Or.inr (_root_.Or.inr ⟨j, le_rfl, rfl⟩))]; exact hgamj
   · intro cc hcc
@@ -995,7 +1024,7 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
       ColourStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W w Alv' Gam' Kc)
     (hA : ∀ a : String, TurnFrozen j a → a ∉ inner.warrs)
     (hVctr : ∀ a ≤ j, ctrName a ∉ inner.wvars) (hVxp : xpName j ∉ inner.wvars)
-    (hVcur : curName j ∉ inner.wvars)
+    (hVcur : curName j ∉ inner.wvars) (hVmm : ∀ a ≤ j, mnumName a ∉ inner.wvars)
     (hscat : ∀ X W w Alv' Gam' C',
       ScatterStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
         Alv' Gam' C' Ks)
@@ -1017,7 +1046,7 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
   have hfr : ∀ X W w Alv' Gam' C',
       RamDriverCluster.InnerFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord
         Xoff Xmem asg m X W w Alv' Gam' C' inner (Kin (wA Alv')) :=
-    fun _ _ _ _ _ _ => innerFrames hinner hA hVctr hVxp hVcur
+    fun _ _ _ _ _ _ => innerFrames hinner hA hVctr hVxp hVcur hVmm
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hlev, htsz, hbarr, hplay, hcov, hcn⟩ := hσ
   have hcnlt : σ.vars (curName j) < n := by rw [hcn]; exact hkn
@@ -1033,10 +1062,14 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
   obtain ⟨σ₃, hr₃, hturn₃, hdat₃, hplay₃, hout₃, hc₃, C', hcolarr₃, hcolbit₃, hcolread₃⟩ :=
     (hcol X W w Alv' Gam' hcsr hB).run ⟨hturn₂, hdat₂, hwa₂, hplay₂⟩
   have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σ₃ := by
-    obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, -, hmem₃, hdep₃, hm₃, hom₃⟩ := hturn₃.1
-    obtain ⟨-, -, -, halv₃, hAlvB, -, hgam₃, hGamB⟩ := hdat₃.1
+    -- the depth-`j` member conjunct is NOT passed through: the clause is
+    -- depth-indexed through `memName`, exactly like the two mask clauses, and the
+    -- child's list is the one the descent filtered (rebase E-mem)
+    obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, -, hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, -⟩ :=
+      hturn₃.1
+    obtain ⟨-, -, -, halv₃, hAlvB, -, hgam₃, hGamB, hmemin₃⟩ := hdat₃.1
     exact ⟨hn₃, hoff₃, htgt₃, halv₃, hgam₃, hcolarr₃, hAlvB, hGamB, hcolbit₃,
-      hmem₃, hdep₃, hm₃, hom₃⟩
+      hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, hmemin₃⟩
   have htsz₃ : TablesSized q_top cap mb φ n σ₃ := (htsz.run hr₁).run hr₂ |>.run hr₃
   have hbarr₃ : BaseArrs B q_top cap mb ℓ φ σ₃ := ((hbarr.run hr₁).run hr₂).run hr₃
   obtain ⟨σ₄, hr₄, ⟨⟨-, -, htab₄⟩, hout₄⟩, hturn₄, hdat₄, hcolarr₄, hc₄⟩ :=

@@ -650,7 +650,7 @@ theorem centreStep_specWB {B nt : ℕ} (hcsr : CsrGraph G ns O T) (hord : Orders
     (xp' := σ₃.vars "xp") hord hI hc hDspec
     (fun c' hc' => upd_of_ne _ (by omega)) (upd_self _ _ _) hkeep₃
     (by rw [hz₃] at hblock₃; exact hblock₃) hxpa₃ (by rw [hz₃] at hxpb₃; exact hxpb₃)
-    (inj_of_strictMono hmono₃)
+    (inj_of_strictMono hmono₃) hmono₃
     (fun w hw => by rw [hrule₃ w hw, hz₃, if_pos hw, emitCell])
     (fun u _ => upd_apply _ _ _ _)
   -- the state the turn leaves

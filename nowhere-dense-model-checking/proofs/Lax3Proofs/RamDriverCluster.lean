@@ -537,7 +537,9 @@ def BatchData (n j B : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ)
       masked G Ra = deleteVerts (masked G M) Xᶜ ∧ ∀ k, k < n → Ra k < B) ∧
     σ.arrs (alvName (j + 1)) = arrOf n Alv' ∧ (∀ k, k < n → Alv' k < B) ∧
     masked G Alv' = deleteVerts (deleteVerts (masked G M) Xᶜ) W ∧
-    σ.arrs (gamName (j + 1)) = arrOf n Gam' ∧ (∀ k, k < n → Gam' k < B)
+    σ.arrs (gamName (j + 1)) = arrOf n Gam' ∧ (∀ k, k < n → Gam' k < B) ∧
+    (∃ (Mem' : ℕ → ℕ) (mm' : ℕ), σ.arrs (memName (j + 1)) = arrOf n Mem' ∧
+      σ.vars (mnumName (j + 1)) = mm' ∧ MemEnum n mm' Mem' Alv' ∧ ∀ z < mm', Mem' z < B)
 
 /-- The same with the padded enumeration the batch was read into.
 
@@ -919,11 +921,15 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
   obtain ⟨σ₃, hr₃, hturn₃, hdat₃, hplay₃, hout₃, hc₃, C', hcolarr₃, hcolbit₃, hcolread₃⟩ :=
     (hcol X W w Alv' Gam' hcsr hB).run ⟨hturn₂, hdat₂, hwa₂, hplay₂⟩
   have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σ₃ := by
-    obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, -, hmem₃, hdep₃, hm₃, hom₃⟩ := hturn₃.1
-    obtain ⟨-, -, -, halv₃, hAlvB, -, hgam₃, hGamB⟩ := hdat₃.1
+    -- the depth-`j` member conjunct is NOT passed through: the clause is
+    -- depth-indexed through `memName`, exactly like the two mask clauses, and the
+    -- child's list is the one the descent filtered (rebase E-mem)
+    obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, -, hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, -⟩ :=
+      hturn₃.1
+    obtain ⟨-, -, -, halv₃, hAlvB, -, hgam₃, hGamB, hmemin₃⟩ := hdat₃.1
     exact ⟨hn₃, hoff₃, htgt₃, halv₃, hgam₃, hcolarr₃,
       fun z hz => hAlvB z hz, fun z hz => hGamB z hz, hcolbit₃,
-      hmem₃, hdep₃, hm₃, hom₃⟩
+      hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, hmemin₃⟩
   have htsz₃ : TablesSized q_top cap mb φ n σ₃ := (htsz.run hr₁).run hr₂ |>.run hr₃
   have hbarr₃ : BaseArrs B q_top cap mb ℓ φ σ₃ := ((hbarr.run hr₁).run hr₂).run hr₃
   -- the nested driver, with the frame of the depth it was called from
@@ -993,28 +999,34 @@ theorem run_seq_assoc {B : ℕ} {c d e : Com} {σ τ ρ : Env} {K K' : ℕ}
 variable {B cap mb ns Ws j : ℕ} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {σ : Env}
 
 /-- The depth's state does not see the cursor: no clause of it is about
-a scalar other than the carrier's size and the edge count. -/
+a scalar other than the carrier's size, the edge count, the live width
+and the depth's own member count. -/
 theorem levelPre_setVar (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (x : String)
-    (hxn : x ≠ "n") (hxm : x ≠ "m") (hxlw : x ≠ "lw") (k : ℕ) :
+    (hxn : x ≠ "n") (hxm : x ≠ "m") (hxlw : x ≠ "lw") (hxmm : x ≠ mnumName j) (k : ℕ) :
     LevelPre B n cap mb ns Ws O T j M Gm C (σ.setVar x k) := by
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, ⟨hsz, hd, hq⟩, hdep, hm, hle, hosz, hz⟩ := h
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, ⟨hsz, hd, hq⟩, hdep, hm, hle, hosz, hz,
+    Mem, mmj, hma, hmv, hme, hmB⟩ := h
   have _ := hxlw
   refine ⟨?_, by simpa using h2, by simpa using h3, by simpa using h4,
     by simpa using h5, by simpa using h6, h7, h8, h9,
     ⟨fun p hp => by simpa using hsz p hp, by simpa using hd, by simpa using hq⟩,
     fun a => ⟨fun p hp => by simpa using (hdep a).1 p hp,
       fun c hc => by simpa using (hdep a).2 c hc⟩,
-    ?_, hle.setVar x hxlw k, fun p hp => by simpa using hosz p hp, by simpa using hz⟩
+    ?_, hle.setVar x hxlw k, fun p hp => by simpa using hosz p hp, hz,
+    Mem, mmj, by simpa using hma, ?_, hme, hmB⟩
   · rw [vars_setVar, if_neg (Ne.symm hxn)]; exact h1
   · rw [vars_setVar, if_neg (Ne.symm hxm)]; exact hm
+  · rw [vars_setVar, if_neg (Ne.symm hxmm)]; exact hmv
 
 theorem levelPre_setVar_c (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (k : ℕ) :
     LevelPre B n cap mb ns Ws O T j M Gm C (σ.setVar (curName j) k) :=
-  levelPre_setVar h _ (curName_ne_n j) (curName_ne_m j) (curName_ne_lw j) k
+  levelPre_setVar h _ (curName_ne_n j) (curName_ne_m j) (curName_ne_lw j)
+    (by simp [curName, mnumName, String.ext_iff]) k
 
 theorem levelPre_setVar_ci (h : LevelPre B n cap mb ns Ws O T j M Gm C σ) (k : ℕ) :
     LevelPre B n cap mb ns Ws O T j M Gm C (σ.setVar (cixName j) k) :=
-  levelPre_setVar h _ (cixName_ne_n j) (cixName_ne_m j) (cixName_ne_lw j) k
+  levelPre_setVar h _ (cixName_ne_n j) (cixName_ne_m j) (cixName_ne_lw j)
+    (by simp [cixName, mnumName, String.ext_iff]) k
 
 /-- Nor does the table clause. -/
 theorem tablesSized_setVar_c {q_top : ℕ} {φ : Lax3.FirstOrder.FO 0}

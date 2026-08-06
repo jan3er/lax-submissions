@@ -841,6 +841,75 @@ theorem cnumName_ne_curName (j a : ℕ) : cnumName j ≠ curName a := by
 theorem curName_ne_cpsName (j a : ℕ) : cpsName j ≠ ordName a := by
   simp [cpsName, ordName, String.ext_iff]
 
+/-! ### The member list of a depth
+
+**Rebase E-mem.** Every depth carries, beside its two masks, the
+*enumeration* of the vertices its work mask leaves alive: an array of
+the carrier's fixed length whose first `mnumName j` cells list the alive
+vertices in strictly increasing order, the tail being junk. The names
+follow the `cpsName`/`cnumName` precedent — the fixed engine name plus
+the depth's numeral — and the array joins `DepthMem`'s `Sized` list, so
+it is allocated once with the rest of the depth's memory and never
+re-allocated.
+
+What it is for: every member-driven engine of the block family reads a
+level's arena through a member list, and building one from the mask is
+itself a carrier scan (`Refine.MemThreadProbe.memFromMaskCom`, compiled
+`Ω(n)`). The list is therefore *threaded*: the root emits the identity
+enumeration of its all-alive mask, and each descent hands its children
+the block row it already walks, filtered by the child's own mask
+(`Refine.MemThreadProbe`, §4). -/
+
+/-- The member list of the arena at depth `j`: the alive vertices of
+`alvName j`, in strictly increasing order, in the first `mnumName j`
+cells; the tail is junk. Fixed physical length `n`. -/
+def memName (j : ℕ) : String := "mem" ++ toString j
+
+/-- The member count of depth `j`: the length of the live prefix. -/
+def mnumName (j : ℕ) : String := "mm" ++ toString j
+
+theorem memName_ne_mem (j : ℕ) : memName j ≠ "mem" := by
+  simp [memName, String.ext_iff]
+
+theorem mnumName_ne_mm (j : ℕ) : mnumName j ≠ "mm" := by
+  simp [mnumName, String.ext_iff]
+
+/-- **The contract on a member list**, spelled at the driver's arrays.
+This is `Refine.ScatterBlock.MemList n mm Mem (RamDriverCluster.markSet
+n M)` written out — that file is downstream of this one, so the clause
+`LevelPre` carries cannot name it; `Refine.MemThreadGate.memList_of_memEnum`
+is the identification, and the gate example there is what pins the two
+readings together.
+
+Four clauses: every listed entry is a vertex, the list is strictly
+increasing (hence repetition-free), everything listed is alive, and
+every alive vertex is listed. A strictly increasing sound-and-complete
+enumeration of a determined set is unique
+(`Refine.MemThreadProbe.memList_unique`), which is why the list may ride
+inside `LevelPre` existentially. -/
+def MemEnum (n mm : ℕ) (Mem M : ℕ → ℕ) : Prop :=
+  (∀ k, k < mm → Mem k < n) ∧ (∀ i k, i < k → k < mm → Mem i < Mem k) ∧
+    (∀ k, k < mm → M (Mem k) ≠ 0) ∧
+    (∀ a, a < n → M a ≠ 0 → ∃ k, k < mm ∧ Mem k = a)
+
+/-- **There are no more members than vertices** — a strictly increasing
+list of vertices is shorter than the carrier. -/
+theorem MemEnum.card_le {n mm : ℕ} {Mem M : ℕ → ℕ} (h : MemEnum n mm Mem M) : mm ≤ n := by
+  rcases Nat.eq_zero_or_pos mm with rfl | hpos
+  · exact Nat.zero_le _
+  · have key : ∀ k, k < mm → k ≤ Mem k := by
+      intro k
+      induction k with
+      | zero => exact fun _ => Nat.zero_le _
+      | succ i ih =>
+          intro hi
+          have := h.2.1 i (i + 1) (by omega) hi
+          have := ih (by omega)
+          omega
+    have h₁ := key (mm - 1) (by omega)
+    have h₂ := h.1 (mm - 1) (by omega)
+    omega
+
 /-! ### The size vocabulary of the Σ-shaped cost interface
 
 `integration-design.md` §5. Every cost of the driver is read at a
@@ -1160,7 +1229,8 @@ and the clause would be unsatisfiable. -/
 def DecodeMem (n ns W : ℕ) (σ : Env) : Prop :=
   (σ.arrs "off").length = n + 1 ∧ (σ.arrs "tgt").length = W ∧
     (∀ j, ns ≤ j → j < W → (σ.arrs "tgt").getD j 0 = 0) ∧
-    (σ.arrs (alvName 0)).length = n ∧ (σ.arrs (gamName 0)).length = n
+    (σ.arrs (alvName 0)).length = n ∧ (σ.arrs (gamName 0)).length = n ∧
+    (σ.arrs (memName 0)).length = n
 
 /-! ### Plumbing
 
@@ -1822,16 +1892,52 @@ theorem ballStage_ne (j a : ℕ) : ballStage j a ≠ ballStage j (a + 1) := by
     exact fun hc => hne hc.symm
 
 /-- Materialize the indicator of the cluster at position `c` out of the
-compressed-row cluster arena the cover pass left. -/
+compressed-row cluster arena the cover pass left.
+
+**Rebase E-mem**: the same scan also *emits* the block row into the
+child's member array — one store and one counter bump per member,
+inside the loop that was already there. The emission is the raw block
+list, in the row's own order, and `"bq"` counts it; the child's mask
+cuts it down afterwards (`memFilterCom`). The add-on reads nothing but
+the row, so it is charged at the block and not at the carrier
+(`Refine.MemThreadProbe.clusterLoadM`, delta `8·bs + 2` compiled
+carrier-blind). -/
 def clusterLoad (j : ℕ) : Com :=
   .seq (fillCom (cluName j) (.lit 0))
-    (.seq (Csr.loadRow (xofName j) (curName j) "p" "pend")
-      (Csr.scan "p" "pend"
-        (.seq (.store (cluName j) (.get (xmmName j) (.var "p")) (.lit 1))
-          (.assign "p" (.add (.var "p") (.lit 1))))))
+    (.seq (.assign "bq" (.lit 0))
+      (.seq (Csr.loadRow (xofName j) (curName j) "p" "pend")
+        (Csr.scan "p" "pend"
+          (.seq (.store (cluName j) (.get (xmmName j) (.var "p")) (.lit 1))
+            (.seq (.store (memName (j + 1)) (.var "bq") (.get (xmmName j) (.var "p")))
+              (.seq (.assign "bq" (.add (.var "bq") (.lit 1)))
+                (.assign "p" (.add (.var "p") (.lit 1)))))))))
+
+/-- **The child's member list** (rebase E-mem): the raw block list
+`clusterLoad` emitted, filtered by the depth's own work mask and
+compacted in place, the surviving count into `mnumName j`.
+
+The pass walks `"bq"` cells — the block, never the carrier — and is
+*stable*, so the child list inherits the block row's order: sortedness
+is a supply chain whose first link is the cover's emission scan
+(`RamCover.CoverOut.block_mono`) and whose refutation, if that link
+breaks, is `Refine.MemThreadProbe.unsorted_emission_refuted`. It is run
+at depth `j` on the array `clusterLoad` filled at depth `j`, i.e. with
+`j` the *child*'s depth. -/
+def memFilterCom (j : ℕ) : Com :=
+  .seq (.assign "mk" (.lit 0))
+    (.seq (.assign (mnumName j) (.lit 0))
+      (.while (.lt (.var "mk") (.var "bq"))
+        (.seq (.assign "mv" (.get (memName j) (.var "mk")))
+          (.seq (.ite (.lt (.lit 0) (.get (alvName j) (.var "mv")))
+              (.seq (.store (memName j) (.var (mnumName j)) (.var "mv"))
+                (.assign (mnumName j) (.add (.var (mnumName j)) (.lit 1))))
+              .skip)
+            (.assign "mk" (.add (.var "mk") (.lit 1)))))))
 
 /-- The state of the next depth: the ball of the round in the game
-arena, the batch, and the two masks the cluster step produces. -/
+arena, the batch, the two masks the cluster step produces — and the
+child's member list, filtered out of the block row the cluster load
+emitted. -/
 def descendCom (cap j : ℕ) : Com :=
   .seq (.assign (ctrName j) (.get (ordName j) (.var (curName j))))
     (.seq (clusterLoad j)
@@ -1842,7 +1948,8 @@ def descendCom (cap j : ℕ) : Com :=
           (.seq (batchCom cap j)
             (.seq (subCom (resName j) (batName j) (alvName (j + 1)))
               (.seq (andCom (gamName j) (balName j) (gamName (j + 1)))
-                (subCom (gamName (j + 1)) (batName j) (gamName (j + 1)))))))))
+                (.seq (subCom (gamName (j + 1)) (batName j) (gamName (j + 1)))
+                  (memFilterCom (j + 1)))))))))
 
 open Classical in
 /-- The scatter atoms of one tabled formula, decided over the
@@ -2051,8 +2158,17 @@ def readLoop (a lim : String) : Com :=
         (.seq (.store a (.var "i") (.var "t"))
           (.assign "i" (.add (.var "i") (.lit 1))))))
 
-/-- **The decode.** Read the encoding into `off` and `tgt`, and open the
-root arena with everything alive. -/
+/-- **The decode.** Read the encoding into `off` and `tgt`, open the
+root arena with everything alive — and list it.
+
+**Rebase E-mem**: the root's member list is the identity enumeration
+`mem0[i] := i`, of length `n`, which is exactly the enumeration of the
+all-ones mask the two fills just opened. This is the one producer of a
+member list that walks the carrier, and it may: the root arena *is* the
+carrier, so `O(n)` here is weight-linear, and it runs once. Every other
+depth's list is handed down by its parent's descent, which is why the
+list is threaded and not recomputed (the mask-only route is compiled
+`Ω(n)` per level in `Refine.MemThreadProbe.memFromMaskCom`). -/
 def decodeCom : Com :=
   .seq (.read "n")
     (.seq (.read "m")
@@ -2060,7 +2176,10 @@ def decodeCom : Com :=
         (.seq (readLoop "off" "len")
           (.seq (.assign "len" (.add (.var "m") (.var "m")))
             (.seq (readLoop "tgt" "len")
-              (.seq (fillCom (alvName 0) (.lit 1)) (fillCom (gamName 0) (.lit 1))))))))
+              (.seq (fillCom (alvName 0) (.lit 1))
+                (.seq (fillCom (gamName 0) (.lit 1))
+                  (.seq (fillCom (memName 0) (.var "i"))
+                    (.assign (mnumName 0) (.var "n"))))))))))
 
 open Classical in
 /-- The scatter atoms of the top sentence, decided over the depth-zero
@@ -2175,7 +2294,7 @@ def DepthMem (n cap mb : ℕ) (σ : Env) : Prop :=
   ∀ j : ℕ, Sized [(alvName j, n), (gamName j, n), (cluName j, n), (resName j, n),
       (balName j, n), (balAltName j, n), (batName j, n),
       (ordName j, n), (xofName j, n + 1), (xmmName j, n * n), (asgName j, n),
-      (cpsName j, n)] σ ∧
+      (cpsName j, n), (memName j, n)] σ ∧
     (∀ c < sigL cap mb j, ∃ g : ℕ → ℕ, σ.arrs (colName j c) = arrOf n g)
 
 /-- One array of one depth, out of the clause. -/
@@ -2183,7 +2302,7 @@ theorem DepthMem.get {n cap mb : ℕ} {σ : Env} (h : DepthMem n cap mb σ) (j :
     {p : String × ℕ} (hp : p ∈ [(alvName j, n), (gamName j, n), (cluName j, n), (resName j, n),
       (balName j, n), (balAltName j, n), (batName j, n),
       (ordName j, n), (xofName j, n + 1), (xmmName j, n * n), (asgName j, n),
-      (cpsName j, n)]) :
+      (cpsName j, n), (memName j, n)]) :
     ∃ g : ℕ → ℕ, σ.arrs p.1 = arrOf p.2 g := (h j).1 p hp
 
 /-- One colour array of one depth. -/
@@ -2341,7 +2460,21 @@ cell at or above the word bound has no bounded evaluation, so without it
 the phase has no run. Below `ns` it is data of the input word; above it
 is the zero tail, so the two clauses overlap and neither is redundant —
 the tail says *which* value, the word clause covers the head.
- -/
+
+**The member clause is the sixteenth and last** (rebase E-mem). The
+depth's member list enumerates the depth's own mask, and it rides
+*existentially*: `LevelPre` gains no parameter, because a strictly
+increasing sound-and-complete enumeration of a determined set is unique
+(`Refine.MemThreadProbe.memList_unique`), so two consumers that open the
+`∃` at two program points always extract the same list. The clause
+carries **no tail-content conjunct**: a zero-tail obligation would force
+every producer to clear the junk above the live prefix, which is a
+carrier walk, and the whole point of the list is to stop walking the
+carrier. Its word bound is the live prefix's — the cells a consumer
+reads — for the same reason: nothing about the junk can be established
+by a producer that does not touch it, and
+`Refine.MemThreadProbe.memClause_zero_carrier` is the `n = 0` control
+that the clause stays satisfiable. -/
 def LevelPre (B n : ℕ) (cap mb : ℕ) (ns W : ℕ) (O T : ℕ → ℕ) (j : ℕ) (M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (σ : Env) : Prop :=
   σ.vars "n" = n ∧ σ.arrs "off" = arrOf (n + 1) O ∧ σ.arrs "tgt" = arrOf W T ∧
@@ -2351,7 +2484,9 @@ def LevelPre (B n : ℕ) (cap mb : ℕ) (ns W : ℕ) (O T : ℕ → ℕ) (j : �
     (∀ c < sigL cap mb j, ∀ z < n, C c z ≤ 1) ∧
     LevelMem B n cap mb σ ∧ DepthMem n cap mb σ ∧
     σ.vars "m" + σ.vars "m" = ns ∧ OrderMem B n ns W σ ∧
-    (∀ z, ns ≤ z → z < W → T z = 0) ∧ (∀ z < W, T z < B)
+    (∀ z, ns ≤ z → z < W → T z = 0) ∧ (∀ z < W, T z < B) ∧
+    (∃ (Mem : ℕ → ℕ) (mmj : ℕ), σ.arrs (memName j) = arrOf n Mem ∧
+      σ.vars (mnumName j) = mmj ∧ MemEnum n mmj Mem M ∧ ∀ z < mmj, Mem z < B)
 
 /-- **The padding slots hold vertices wherever a turn runs.** The zero
 tail of `LevelPre`, read as `RamCover.cover_specW`'s `hpad`. The
@@ -2689,7 +2824,9 @@ def DecodeImplements (x : List ℕ) (G : SimpleGraph (Fin n)) (ns W : ℕ)
         σ'.vars "n" = n ∧ σ'.arrs "off" = arrOf (n + 1) O ∧ σ'.arrs "tgt" = arrOf W T ∧
         σ'.vars "m" + σ'.vars "m" = ns ∧ OrderMem B n ns W σ' ∧
         (∃ M, σ'.arrs (alvName 0) = arrOf n M ∧ ∀ v < n, M v = 1) ∧
-        (∃ Gm, σ'.arrs (gamName 0) = arrOf n Gm ∧ ∀ v < n, Gm v = 1)) K
+        (∃ Gm, σ'.arrs (gamName 0) = arrOf n Gm ∧ ∀ v < n, Gm v = 1) ∧
+        (∃ Mem, σ'.arrs (memName 0) = arrOf n Mem ∧ (∀ v < n, Mem v = v) ∧
+          σ'.vars (mnumName 0) = n)) K
 
 /-- **The ordering pass.** That `orderCom R j` leaves in `ord` the
 order array of an ordering of the depth's arena along which the cover
@@ -3289,7 +3426,7 @@ theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
   obtain ⟨hdm, hmem, hdep, hordmem, htsz, hbarr, hinp, hout⟩ := hσ
   -- the decode
   obtain ⟨σ₁, hrun₁, hout₁, hcsr, hn₁, hoff₁, htgt₁, hm₁, hordmem₁,
-      ⟨M, hM₁, hMone⟩, ⟨Gm, hGm₁, hGmone⟩⟩ :=
+      ⟨M, hM₁, hMone⟩, ⟨Gm, hGm₁, hGmone⟩, ⟨Mem, hMem₁, hMemid, hmm₁⟩⟩ :=
     (hdec hxB hB.succ_lt hB.ns_lt hWB hordmem.1 hpad0).run ⟨hdm, hordmem, hinp, hout⟩
   -- the level's word clause on the targets: a vertex below `ns`, the zero
   -- pad above it
@@ -3318,10 +3455,19 @@ theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
   have hGmG : masked G Gm = G :=
     RamElim.masked_of_all_alive G (fun v hv => by rw [hGmone v hv]; omega)
   have hplay₀ : PlayRec B cap G 0 M Gm σ₁ := playRec_zero cap G hMG hGmG
+  -- the root's member list: the identity enumeration of the all-alive mask
+  have hmemE : MemEnum n n Mem M := by
+    refine ⟨fun k hk => by rw [hMemid k hk]; exact hk,
+      fun i k hik hk => by rw [hMemid i (by omega), hMemid k hk]; exact hik,
+      fun k hk => by rw [hMemid k hk, hMone k hk]; omega,
+      fun a ha _ => ⟨a, ha, hMemid a ha⟩⟩
   obtain ⟨σ₂, hrun₂, ⟨hpre₂, -, htab₂⟩, hout₂⟩ :=
     (hlev M Gm (fun _ _ => 0) hMpos hcolbit).run
       (σ := σ₁) ⟨⟨hn₁, hoff₁, htgt₁, hM₁, hGm₁, hcolempty, hMB, hGmB, hcolbit, hmem₁, hdep₁, hm₁,
-        hordmem₁, hpad0, hTB⟩, htsz₁, hbarr₁, hplay₀⟩
+        hordmem₁, hpad0, hTB,
+        Mem, n, hMem₁, hmm₁, hmemE,
+        fun z hz => by rw [hMemid z hz]; exact lt_trans hz hB.n_lt⟩,
+        htsz₁, hbarr₁, hplay₀⟩
   -- the sentence readback
   obtain ⟨σ₃, hrun₃, hcond, hout₃⟩ :=
     -- the readback takes the value bound at a degree parameter (rebase
