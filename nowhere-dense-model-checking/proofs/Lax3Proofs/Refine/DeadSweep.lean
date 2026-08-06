@@ -341,10 +341,94 @@ private def phase (Ko Kc Kd S : ℕ) : ℕ := Ko + (Kc + (Kd + (S + 6)))
 
 end Falsification
 
+/-! ### §4b The member-list header, refuted (finding R1.8/1)
+
+Wave R1.8 asked for this pass's loop header — and the base case's, since
+`RamDriverBot.baseCom` is `reprCom` followed by *this* `Com` at depth
+`ℓ` — to walk the depth's member list `RamDriver.memName j` instead of
+the carrier, so that the charge becomes
+`Refine.G2CostProbe.sweepCoeffA · (w + 1)` at the arena's weight. **The
+header cannot move, and the obstruction is not a cost accident: it is
+this pass's entire purpose.**
+
+`RamDriver.MemEnum` (`LevelPre`'s sixteenth clause) enumerates
+`{a < n | M a ≠ 0}` — the **alive** set. `RamDriver.DeadRows` — the
+whole of `SweepImplements`' output clause, discharged above — is
+quantified over `M v = 0`, the **dead** set. The two index sets are
+exact complements (`notMem_markSet_of_dead`), so a member-list header
+visits precisely the vertices whose rows this pass is *not* responsible
+for (their own turns overwrite them, §1) and none of the vertices whose
+rows it is. The same stop covers the base half twice over:
+
+* `RamDriver.BaseImplements` asks for `RamDriver.TableInv` at depth `ℓ`,
+  which is quantified over **all** of `Fin n`, dead vertices included;
+* `BotEval.sat_exU_bot_of_repr`'s hypothesis `hW` — what `reprCom` is
+  built to supply — asks for a same-row representative of every
+  `v : Fin n` off the tuple, again dead ones included, because the
+  bottom formula's *unrestricted* quantifier ranges over the carrier and
+  not over the arena.
+
+The witness below is the extreme case and the negative control: at the
+all-dead mask the member list is **empty** at every carrier size, while
+the pass owes a row at every one of the `n` vertices. No coefficient
+read at the member count pays that walk — `no_memCoeff_pays_deadRows` —
+which is `Refine.G2CostProbe.hKd_gap` again, but located at the
+*obligation* rather than at the landed cost function, and therefore not
+repairable by re-deriving a charge.
+
+Re-charging the dead rows is consequently a **program** change and not
+a header change. The recorded design intent is that a vertex's
+death-row write charges to the turn that killed it — its block contains
+it — which moves the write out of this pass and into the centre loop's
+turn; that is the turn re-thread's wave, and no charging scheme is
+invented here. -/
+
+section HeaderStop
+
+/-- **The all-dead mask has an empty member list**, at every carrier
+size and whatever junk the array holds: `MemEnum`'s completeness clause
+is vacuous because no vertex is alive. -/
+theorem memEnum_zero_of_allDead (n : ℕ) (Mem : ℕ → ℕ) :
+    MemEnum n 0 Mem (fun _ => 0) :=
+  ⟨fun k hk => absurd hk (Nat.not_lt_zero k),
+    fun _ k _ hk => absurd hk (Nat.not_lt_zero k),
+    fun k hk => absurd hk (Nat.not_lt_zero k),
+    fun _ _ ha => absurd rfl ha⟩
+
+/-- **The two index sets are complements.** A vertex this pass owes a
+row for is never on the member list — so a member-list header meets
+none of its obligation. -/
+theorem notMem_markSet_of_dead {n : ℕ} {M : ℕ → ℕ} {v : Fin n} (hv : M (v : ℕ) = 0) :
+    v ∉ RamDriverCluster.markSet n M := fun h => RamDriverCluster.mem_markSet.mp h hv
+
+/-- …and at the all-dead mask the obligation is the whole carrier. -/
+theorem allDead_owes_every_row (n : ℕ) (v : Fin n) : (fun _ => (0 : ℕ)) (v : ℕ) = 0 := rfl
+
+/-- **The negative control.** However the coefficient is chosen, a
+budget read at the member count does not pay the rows this pass owes:
+at the all-dead mask the count is `0` and the rows are `n`. -/
+theorem no_memCoeff_pays_deadRows (coeff : ℕ) :
+    ∃ n : ℕ, MemEnum n 0 (fun _ => 0) (fun _ => 0) ∧ coeff * (0 + 1) < n :=
+  ⟨coeff + 1, memEnum_zero_of_allDead _ _, by omega⟩
+
+end HeaderStop
+
 /-! ### §5 Axioms -/
 
 /-- info: 'Lax3Proofs.Refine.DeadSweep.sweepImplements' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms sweepImplements
+
+/-- info: 'Lax3Proofs.Refine.DeadSweep.memEnum_zero_of_allDead' does not depend on any axioms -/
+#guard_msgs in
+#print axioms memEnum_zero_of_allDead
+
+/-- info: 'Lax3Proofs.Refine.DeadSweep.notMem_markSet_of_dead' does not depend on any axioms -/
+#guard_msgs in
+#print axioms notMem_markSet_of_dead
+
+/-- info: 'Lax3Proofs.Refine.DeadSweep.no_memCoeff_pays_deadRows' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms no_memCoeff_pays_deadRows
 
 end Lax3Proofs.Refine.DeadSweep
