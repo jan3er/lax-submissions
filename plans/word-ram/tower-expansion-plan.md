@@ -1,16 +1,19 @@
 # Tower expansion plan — aggressive porting of the remaining refinement stack
 
-Rev 6, 2026-08-02. **Status: OPEN — next is the leaf-gate script, then
-P4.5.B (element-level ownership).**
+Rev 7, 2026-08-06. **Status: OPEN — the live phase is P4.6, the two-half
+order-phase synthesis probe (wave S in flight, wave M next).**
 
-Position: P0–P4 complete. P5.A complete and final — the eight interface
+Position: P0–P4.5 complete. P5.A complete and final — the eight interface
 families are the battle-tested surface rule 5 protects; never reopened.
 P5.B/C landed all twelve implementation families, to be re-seated by P5.E,
-not re-derived. P4.5.A.1–A.3 are landed (range ownership, the costed O(1)
-allocator, LIFO deallocation on two availability flavours — ledger E25–E28);
-P4.5.B/C and the first P5.E re-seat close the phase. P5.D and `Impl_Heapmap`
-are gated behind P4.5. The new **P4.6 synthesis probe** runs immediately
-after P4.5 and before P5.D/E breadth.
+not re-derived. P4.5 closed 2026-08-03: allocator and ownership layers
+(ledger E25–E28, E33), the first P5.E re-seat with append unconditional
+(E34–E37), the array list on the heap (E38–E40), and the compiled
+space-budget probe (E41); P4.5.C resolved presentation-only. E16's
+`DArrayList` half remains open under P5.E breadth (`daReadyRel` live).
+P5.D, P5.E breadth, and `Impl_Heapmap` are gated behind **P4.6's outcome**,
+which reprioritizes them; after P4.6 the campaign drives the ND-MC road it
+selects before any tower breadth (boundary decision, E42).
 
 Revision history, superseded decisions, and the reasoning behind each live
 in `tower-expansion/ledger.md` (E31 indexes the plan's own revisions); this
@@ -21,17 +24,18 @@ need an owner decision first.
 
 ## Governance and working model
 
-Supervision is cost-tiered (Jan, 2026-08-02). **Opus supervises day to
-day**: sequencing, briefs, independent build replay, acceptance of clause-1
-(source-mirroring) work, commits. **Fable reviews at phase boundaries** and
-owns the acceptance calls on clause-2 (authored) surfaces — cost layers,
-invented relations, substrate architecture. The evidence for the split is in
-ledger E31: worker output in the record is consistently strong, while the
-recurring failure class is supervisor state-tracking and prose verdicts, and
-the mid-phase review that produced F6–F11 was the highest-leverage single
-session in the record — one boundary review is cheaper than the rework it
-prevents. Proof workers are **Claude subagents**, one coherent leaf each,
-spawned fresh with a compact brief (never forks). Where practical,
+**Fable supervises** (Jan, 2026-08-06, returning authority after the
+Opus/codex-supervised week): sequencing, briefs, independent build replay,
+acceptance calls on both clause-1 and clause-2 surfaces, commits. The
+lesson that survives from the cost-tiered experiment (ledger E31, E42):
+worker output in the record is consistently strong; the recurring failure
+classes are supervisor state-tracking, prose verdicts, and — the week's
+addition — cross-document blindness, each document locally consistent
+while their joint consequence goes unseen. Boundary-review depth is
+therefore applied at every phase boundary, not delegated. Proof workers
+are **Claude subagents**, one coherent leaf each, spawned fresh with a
+compact brief (never forks) — Opus-class for template-shaped waves,
+Fable-class for authored/clause-2-heavy waves. Where practical,
 one subagent owns a coherent phase or subphase; the supervisor audits its
 source map and diff, requests corrections, independently rebuilds, and
 commits. A worker's green report is not acceptance evidence until the

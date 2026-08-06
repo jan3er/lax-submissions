@@ -1,8 +1,13 @@
 # ND-MC rebase plan — the driver stack re-derived through the refinement tower
 
-Rev 2, 2026-07-30. **Status: OPEN — direction approved by Jan
-2026-07-30 (conversation): fastest path to the tower-based ND-MC;
-the old-style cost wave is frozen, not executed.** JAN-FLAGs 1–3
+Rev 2, 2026-07-30. **Status 2026-08-06: PAUSED for the tower campaign's
+P4.6 order-phase synthesis probe (tower ledger E42) — C0 is
+compiled-unreachable through the root as it stands (slot sweep: six
+blocking slots, `128·n³` cost floor), and P4.6's M half decides whether
+the repair is re-derivation or the hand residue. Resume at items 3/4 of
+"What remains before C0"; S2/S3 are worth landing on either branch.
+Direction approved by Jan 2026-07-30 (conversation): fastest path to the
+tower-based ND-MC; the old-style cost wave is frozen, not executed.** JAN-FLAGs 1–3
 resolved 2026-07-30 under Jan's delegated supervisor authority
 ("full authority, may resolve the jan-flags"): all three at their
 documented defaults — (1) superseded layer deleted in P5 after G4,

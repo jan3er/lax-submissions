@@ -11,8 +11,8 @@ and brief files here, not at the root.
 | plan | what |
 |------|------|
 | `nowhere-dense-model-checking/nd-mc-plan.md` | FO model checking is FPT on nowhere dense classes (GKS), rebuilt on the Dreier–Toruńczyk rank-preserving locality theorem (arXiv 2606.23180) instead of the broken GKS locality; splitter game + sparse covers on top of Lax12, RAM realization on Lax13/Lax11. Math core P0–P4 complete; P5/P6 done; P7 correctness half done 2026-07-29 (`driverRoot_decides_sentence`, kernel-three). The P7 cost wave is **frozen as fallback** — superseded 2026-07-30 by the rebase plan below; only C0 + P8 remain, and they land there. |
-| `nowhere-dense-model-checking/nd-mc-rebase-plan.md` | the ND-MC RAM program layer re-derived through the refinement tower against the frozen correctness-half spec surface; C0 discharged on tower-computed costs (touched-only via trail arrays), then draft submission. Rev 1 OPEN 2026-07-30, direction approved by Jan (fastest-to-rebased, no eval gates); P0 = tower readiness (dependent `hfcomp`, `wordAssn` spike, `RECT` fuel-stability, trail-array acceptance) with a hard fallback checkpoint; FLAGs 1–3 open, none blocking. Since 2026-07-31 the C0 residue resumes on the tower-expansion campaign's P1–P4 exports (see below). |
-| `word-ram/tower-expansion-plan.md` | aggressive porting of the remaining Lammich/Haslbeck refinement stack, under Jan's 2026-07-31 mandate (infrastructure is an order of magnitude cheaper than hand-coding a submission; when in doubt, port more). Ten phases: `hfref`/`FCOMP` signature machinery, cost-carrying FOREACH, currency discipline + `norm_cost`/`sc_solve`, Zhan–Haslbeck amortization credits, IICF breadth, thaw-queue closure, frame-layer performance, executable gates (`#slot_sweep`/`#cost_probe`), then the ND-MC order-phase synthesis as the consumer gate. Rev 3 OPEN — P0 + P1.A + P1.B complete 2026-07-31; signature-only BFS and eight-array gates green; P1.C next. |
+| `nowhere-dense-model-checking/nd-mc-rebase-plan.md` | the ND-MC RAM program layer re-derived through the refinement tower against the frozen correctness-half spec surface; C0 discharged on tower-computed costs, then draft submission. G1 + G2 engine layer complete; the slot sweep proved C0 compiled-unreachable through the root as it stands (six blocking slots, `128·n³` cost floor). PAUSED 2026-08-06 for the tower campaign's P4.6 probe, whose M half decides re-derivation vs the hand residue; resume points in "What remains before C0". |
+| `word-ram/tower-expansion-plan.md` | aggressive porting of the remaining Lammich/Haslbeck refinement stack, under Jan's 2026-07-31 mandate (infrastructure is an order of magnitude cheaper than hand-coding a submission; when in doubt, port more). Rev 7 OPEN 2026-08-06 — P0–P4.5 complete (signature machinery, FOREACH, currencies + asymptotics, credits, IICF interfaces + twelve implementation families, ownership substrate with O(1) allocator and compiled space-budget law). Live phase: **P4.6**, the two-half order-phase synthesis probe (S tractability / M member-driven, ledger E42); P5.D/E breadth, P6–P8, and the P9 consumer gate follow its outcome. |
 
 **Proposed campaigns**
 
@@ -27,8 +27,9 @@ adoption resolved 2026-07-30 by the ND-MC rebase decision).
 
 Cross-cutting process files live at this directory's root:
 `submission-polish.md` (closed), `subagent-retro-2026-07.md` (July worker
-retrospective), and `worker-brief-template.md` (LIVE — instantiate for
-every proof-worker subagent brief).
+retrospective), and `worker-brief-template.md` (CONDITIONAL — default sequential workers get
+the compact task packet defined at its top; the full template only for an
+explicitly requested parallel/isolated wave or a recorded handoff risk).
 
 The live cross-campaign log stays at the root (`NIGHTLOG.md`) and cites
 these files by their original root-level names. The map:
