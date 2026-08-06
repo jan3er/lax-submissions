@@ -1333,3 +1333,63 @@ and not the constants).
 **C0 is not reachable through the root as it stands.** Blocker is the cost
 residue. S2 and S3 remain worth landing and are the next leaf. Gate G4 has not
 passed, so JAN-FLAG 1 disposal stays blocked.
+
+## S2/S3 (2026-08-06) — `Refine/DriverRootD.lean`: the restated root, and three brief-recipe corrections
+
+The re-derivation road's first leaf. `lake build` **3,556 jobs**, root
+`lax build` OK, zero placeholders, kernel-three; every landed plug check
+(SlotSweep, BridgeCrossing, BridgeSeamProbe) untouched and green.
+Supervisor replayed all gates.
+
+**All four compiled kills landed.** (1) #6 `hcsr`: `slot06_dead_at_D` —
+at the sweep's own witness word the landed triple's `CsrSimple` is
+refuted while the composed-decode triple's holds; `driverRootD_decides_sentence`
+has no `hcsr` slot at all (produced by `csrSimple_dedup` inside). (2)
+#26 `hdeg`: `slot26_dead_at_R` — `∃ Kmass` (= 3) **before** the instance
+satisfying the `OrderP`-conditional slot on the whole `starLast` family;
+mechanism compiled (`OrderP 0` forces back-degree 1 on a sub-star, wreach
+≤ 3); negative control: the sweep's refuting tuple carries no `OrderP`
+for `n ≥ 3` — the guard does the work. (3) #12 `hB`:
+`slot12_hB_nondegenerate` — at `Kmass = ⌈c·n^δ⌉₊`, `δ < 1`, the
+degeneration hypothesis `n ≤ Kmass` fails for all large `n`. (4) Finding
+4: `restated_pre_initEnv_where_landed_is_not` — at `0 < ns` the restated
+precondition is `initEnv`-satisfiable while the landed one is not, the
+exact converse of `rootPre_initEnv_iff_ns_zero`.
+
+**Slot diff from the landed root** (R = 0 form, fully discharged from
+landed capital): precondition `OrderMem` index `ns → 0` plus `DedupMem`;
+died — `hcsr`, `hO`, `hT`, `hpad0` (the data triple is
+`dedupNs/dedupOffset/dedupTarget` definitionally); changed — `hKdec`
+covers `decodeCost + dedupCost + 4`, cost reads `Kl 0 (n + dedupNs x)`;
+new — `hnsW : ns ≤ W` (the landed root read it off `OrderMem ns`, which
+no longer carries it); all remaining slots byte-identical in shape and
+order. The general-`R` sibling `driverRootD_decides_sentenceR` consumes
+`levelAtR`; `hdeg` is gone there — degree enters through the ordering
+slot's value.
+
+**Three supervisor-brief recipes were wrong, each corrected compiled —
+they route the next waves.** (1) "decodeImplementsD ∘ lwCom_spec" does
+not typecheck: both landed decode Specs demand `OrderMem ns` *before*
+the decode; the worker replayed the landed walk once at index 0
+(`decode_spec_lw0`) and composed `decodeCom ; lwCom ; dedupCom`
+(`decodeImplementsDL`). (2) `P := OrderP R G M` cannot inhabit
+`levelImplements`'s ordering slot — the frozen induction binds `P`
+before the mask `OrderP` names; the admissible value is the mask-uniform
+`DegOrder n G cap Kmass`, which is what `levelAtR` uses; and the RL
+width-guard bridge from bare `LevelPre` is vacuous
+(`ns_lt_chainWidthE`/`no_guard_instance` compiled beside the bridge).
+Closing either properly is a **landed-file wave: thread `P π ord` and
+the width guard through the cluster interface.** (3) General-`R`
+residuals: `RamDriverWrites` exists at `R = 0` only; `hptr`/`hexit` get
+`OrdersBy` alone. `levelAtR` carries three named residual hypothesis
+groups (`horder` at `DegOrder`, `hfr : RFrames` with `R = 0` plug
+`rFrames_zero`, `hptr`/`hexit`), each a theorem-shaped gap with its
+producer path documented in the file.
+
+**Road position.** Slots #6/#26/#12 and finding 4 are dead at the
+restated root; the remaining blockers are exactly the cost group —
+which the re-derivation (P4.6 verdict) replaces — plus the named
+residuals above. Next: the member-driven engine family (2E/D-a in
+member form), then `g2_exists` re-validation, then E-mem; the
+cluster-interface threading wave slots where the re-derivation
+re-states that interface anyway.
