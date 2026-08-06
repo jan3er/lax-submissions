@@ -28,11 +28,17 @@ Three clauses carry the work: the loop's own bound and pointer, the
 member list unchanged in `mem`, and an exclusion array which is zero at
 every member the walk has passed and untouched everywhere else. The
 "everywhere else" is stated at the *carrier*, not at the members: it is
-the clause that says the pass writes nowhere it was not asked to. -/
+the clause that says the pass writes nowhere it was not asked to.
+
+The member array is at the carrier's physical length `n` with a live
+prefix of `mm` cells (rebase F-2, the length seam — `ScatterBlock.ArenaA`
+§1). The walk reads `mem[mj]` for `mj < mm` only, so every read is in
+range by `mm ≤ n`, which is `MemList.card_le`; nothing here says
+anything about the junk above the prefix, and nothing needs to. -/
 
 /-- The invariant of the member-list clearing scan. -/
 def ClearInv (n mm : ℕ) (Mem E : ℕ → ℕ) (τ : Env) : Prop :=
-  τ.vars "mm" = mm ∧ τ.arrs "mem" = arrOf mm Mem ∧ τ.vars "mj" ≤ mm ∧
+  τ.vars "mm" = mm ∧ τ.arrs "mem" = arrOf n Mem ∧ τ.vars "mj" ≤ mm ∧
     ∃ E', τ.arrs "exc" = arrOf n E' ∧
       (∀ i, i < τ.vars "mj" → E' (Mem i) = 0) ∧
       (∀ w, w < n → (∀ i, i < τ.vars "mj" → Mem i ≠ w) → E' w = E w)
@@ -45,7 +51,7 @@ range because `MemList.lt` says a listed entry is a vertex. -/
 
 /-- **One entry of the member list, cleared.** -/
 theorem clearSlot_run {B n mm : ℕ} {Mem E : ℕ → ℕ} (hnB : n < B) (hmmB : mm < B)
-    (hml : ∀ j, j < mm → Mem j < n) {τ : Env} (hI : ClearInv n mm Mem E τ)
+    (hmn : mm ≤ n) (hml : ∀ j, j < mm → Mem j < n) {τ : Env} (hI : ClearInv n mm Mem E τ)
     (hj : τ.vars "mj" < mm) :
     ∃ τ' K, Run B clearSlot τ τ' K ∧ K ≤ 10 ∧ ClearInv n mm Mem E τ' ∧
       τ'.vars "mj" = τ.vars "mj" + 1 := by
@@ -53,11 +59,11 @@ theorem clearSlot_run {B n mm : ℕ} {Mem E : ℕ → ℕ} (hnB : n < B) (hmmB :
   have hmjn : Mem (τ.vars "mj") < n := hml _ hj
   -- the read at the member list
   have hrm : (τ.arrs "mem").getD (τ.vars "mj") 0 = Mem (τ.vars "mj") := by
-    rw [hmem, getD_arrOf Mem hj]
+    rw [hmem, getD_arrOf Mem (show τ.vars "mj" < n by omega)]
   have hrm' : (τ.arrs "mem")[τ.vars "mj"]?.getD 0 = Mem (τ.vars "mj") := by
     rw [← List.getD_eq_getElem?_getD]; exact hrm
   have hmemlen : τ.vars "mj" < (τ.arrs "mem").length := by
-    rw [hmem, length_arrOf]; exact hj
+    rw [hmem, length_arrOf]; omega
   have hvB : (τ.arrs "mem").getD (τ.vars "mj") 0 < B := by rw [hrm]; omega
   -- and the store at the exclusion array, in the environment that store runs in
   have hexclen : (τ.arrs "exc").length = n := by rw [hexc, length_arrOf]
@@ -92,7 +98,7 @@ for the test that let it run. -/
 
 /-- **The member list, walked.** -/
 theorem clearMem_scan_spec {B n mm : ℕ} {Mem E : ℕ → ℕ} (hnB : n < B) (hmmB : mm < B)
-    (hml : ∀ j, j < mm → Mem j < n) :
+    (hmn : mm ≤ n) (hml : ∀ j, j < mm → Mem j < n) :
     Spec B (fun τ => ClearInv n mm Mem E τ ∧ τ.vars "mj" = 0)
       (Csr.scan "mj" "mm" clearSlot)
       (fun _ τ' => ClearInv n mm Mem E τ' ∧ τ'.vars "mj" = mm)
@@ -100,7 +106,7 @@ theorem clearMem_scan_spec {B n mm : ℕ} {Mem E : ℕ → ℕ} (hnB : n < B) (h
   refine Csr.rowScan_spec B (14 * mm + 4) mm 10 "mj" "mm" clearSlot
     (ClearInv n mm Mem E) hmmB (fun σ hσ => ⟨hσ.1, hσ.2.2.1⟩) (fun σ hσ hlt => ?_)
     (fun _ hσ => hσ.1) (fun σ hσ => by rw [hσ.2]; omega)
-  obtain ⟨σ', K', hr, hK, hI', hj'⟩ := clearSlot_run hnB hmmB hml hσ hlt
+  obtain ⟨σ', K', hr, hK, hI', hj'⟩ := clearSlot_run hnB hmmB hmn hml hσ hlt
   exact ⟨σ', K', hr, hI', hj', hK⟩
 
 /-! ### §4 The pass
@@ -119,15 +125,15 @@ recorded here rather than spent. -/
 theorem clearMem_run_tight {B : ℕ} {n mm : ℕ} {Mem E : ℕ → ℕ} {X : Set (Fin n)} {τ : Env}
     (hnB : n < B) (hmmB : mm < B) (hml : MemList n mm Mem X)
     (hmm : τ.vars "mm" = mm)
-    (hmemarr : τ.arrs "mem" = arrOf mm Mem)
+    (hmemarr : τ.arrs "mem" = arrOf n Mem)
     (hexc : τ.arrs "exc" = arrOf n E) :
     ∃ τ' K, Run B clearMem τ τ' K ∧ K ≤ 14 * mm + 6 ∧
-      τ'.arrs "mem" = arrOf mm Mem ∧
+      τ'.arrs "mem" = arrOf n Mem ∧
       ∃ E', τ'.arrs "exc" = arrOf n E' ∧
         (∀ w, MemOf X w → E' w = 0) ∧
         (∀ w, w < n → ¬ MemOf X w → E' w = E w) := by
   have hscanSpec := clearMem_scan_spec (n := n) (mm := mm) (Mem := Mem) (E := E) (B := B)
-    hnB hmmB hml.lt
+    hnB hmmB hml.card_le hml.lt
   have hB0 : 0 < B := by omega
   run_vcg [hscanSpec]
   · -- what the loop left, read back through the member list
@@ -150,10 +156,10 @@ wires. -/
 theorem clearMem_run {B : ℕ} {n mm : ℕ} {Mem E : ℕ → ℕ} {X : Set (Fin n)} {τ : Env}
     (hnB : n < B) (hmmB : mm < B) (hml : MemList n mm Mem X)
     (hn : τ.vars "n" = n) (hmm : τ.vars "mm" = mm)
-    (hmemarr : τ.arrs "mem" = arrOf mm Mem)
+    (hmemarr : τ.arrs "mem" = arrOf n Mem)
     (hexc : τ.arrs "exc" = arrOf n E) :
     ∃ τ' K, Run B clearMem τ τ' K ∧ K ≤ clearMemK mm ∧
-      τ'.arrs "mem" = arrOf mm Mem ∧
+      τ'.arrs "mem" = arrOf n Mem ∧
       ∃ E', τ'.arrs "exc" = arrOf n E' ∧
         (∀ w, MemOf X w → E' w = 0) ∧
         (∀ w, w < n → ¬ MemOf X w → E' w = E w) := by
