@@ -196,7 +196,7 @@ theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
     hpad0, hTB, Mem, mmj, hmemA, hmemV, hmemE, hmemBd⟩, hplayrec,
     hord, hxoff, hxmem, hasg, hxp, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, halv', hAlvB, hmask,
-      hgam', hGamB, Mem', mm', hmemA', hmemV', hmemE', hmemBd'⟩, hwrange⟩,
+      hmaskpt, hgam', hGamB, Mem', mm', hmemA', hmemV', hmemE', hmemBd'⟩, hwrange⟩,
     hcol', hcolbit', hcolread', htab'⟩ := h
   refine ⟨⟨⟨?_, ?_, ?_, ?_, ?_, ?_, hMB, hGmB, hCB, levelMem_run hrun hlmem,
       hdep.run hrun, ?_,
@@ -209,7 +209,8 @@ theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
       (fun a _ => hfa (gamName a) (gamName_notMem_scratchArrs a)),
     ?_, ?_, ?_, ?_, ?_, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, ?_, hXaS, hXaB⟩, ⟨Wa, ?_, hWaS, hWaB⟩, ⟨Ra, ?_, hRaS, hRaB⟩, ?_, hAlvB, hmask,
-      ?_, hGamB, Mem', mm', (by rw [hfa _ (memName_notMem_scratchArrs (j + 1))]; exact hmemA'),
+      hmaskpt, ?_, hGamB, Mem', mm',
+      (by rw [hfa _ (memName_notMem_scratchArrs (j + 1))]; exact hmemA'),
       (by rw [hfv _ (hVmm (j + 1))]; exact hmemV'), hmemE', hmemBd'⟩, hwrange⟩,
     ?_, hcolbit', hcolread', ?_⟩
   · rw [hrun.frame_var "n" (hV "n" (by simp))]; exact hn
@@ -960,7 +961,7 @@ theorem innerFrames {ℓ : ℕ} {wA : (ℕ → ℕ) → ℕ} {inner : Com} {Kin 
         Mem, mmj, hmemA, hmemV, hmemE, hmemBd⟩, hplayrec,
       hord, hxoff, hxmem, hasg, hxp, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, -, hAlvB, hmask,
-      -, hGamB, -⟩, hwrange⟩, -, -⟩ := hσ
+      hmaskpt, -, hGamB, -⟩, hwrange⟩, -, -⟩ := hσ
   refine ⟨σ', hrun, ⟨⟨hn', hoff', htgt', ?_, ?_, ?_, hMB, hGmB, hCB, hlmem', hdep', hmvar',
       hordmem', hpad0', hTB',
       Mem, mmj, (by rw [hfa _ (_root_.Or.inl (by simp [TurnFrozen]))]; exact hmemA),
@@ -969,7 +970,8 @@ theorem innerFrames {ℓ : ℕ} {wA : (ℕ → ℕ) → ℕ} {inner : Com} {Kin 
       (fun a ha => hfa (gamName a) (_root_.Or.inr (_root_.Or.inr ⟨a, by omega, rfl⟩))),
     ?_, ?_, ?_, ?_, ?_, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, ?_, hXaS, hXaB⟩, ⟨Wa, ?_, hWaS, hWaB⟩, ⟨Ra, ?_, hRaS, hRaB⟩, halv'', hAlvB, hmask,
-      hgam'', hGamB, Mem'', mm'', hmemA'', hmemV'', hmemE'', hmemBd''⟩, hwrange⟩, hcol'', ?_⟩
+      hmaskpt, hgam'', hGamB, Mem'', mm'', hmemA'', hmemV'', hmemE'',
+      hmemBd''⟩, hwrange⟩, hcol'', ?_⟩
   · rw [hfa _ (_root_.Or.inl (by simp))]; exact halvj
   · rw [hfa _ (_root_.Or.inr (_root_.Or.inr ⟨j, le_rfl, rfl⟩))]; exact hgamj
   · intro cc hcc
@@ -1067,7 +1069,7 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
     -- child's list is the one the descent filtered (rebase E-mem)
     obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, -, hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, -⟩ :=
       hturn₃.1
-    obtain ⟨-, -, -, halv₃, hAlvB, -, hgam₃, hGamB, hmemin₃⟩ := hdat₃.1
+    obtain ⟨-, -, -, halv₃, hAlvB, -, -, hgam₃, hGamB, hmemin₃⟩ := hdat₃.1
     exact ⟨hn₃, hoff₃, htgt₃, halv₃, hgam₃, hcolarr₃, hAlvB, hGamB, hcolbit₃,
       hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, hmemin₃⟩
   have htsz₃ : TablesSized q_top cap mb φ n σ₃ := (htsz.run hr₁).run hr₂ |>.run hr₃

@@ -40,23 +40,31 @@ congruence for `SatWithin`; the direct induction needs neither, and
 `IsLocal` is already what `RamDriverBot` asks of every tabled formula
 (`FormulaTables.TableRank`).
 
-# §2 What the descent does *not* say (finding B8/1)
+# §2 What the *graph equation* does not say (finding B8/1)
 
 The natural cheaper design — *dead-ness only grows down the recursion,
 so a dead row written once stays valid and no level has to write one* —
-is **refuted at the level of the obligation**. The descent's postcondition
-(`RamDriverCluster.BatchData`) constrains the next depth's mask only
-through the *graph* it induces,
+is not derivable from the mask *graph* equation
 
     masked G Alv' = deleteVerts (deleteVerts (masked G M) Xᶜ) W
 
-and a graph equation is blind to the mask value at an isolated vertex.
-`descent_mask_not_pointwise_monotone` exhibits masks satisfying that
-equation with a vertex dead at depth `j` and **alive** at depth `j + 1`.
-So `∀ v, Alv' v ≠ 0 → M v ≠ 0` is not available to the level induction,
-however the program happens to behave; obtaining it would mean
-strengthening `BatchData` with a pointwise clause and re-proving
-`descendStep` — the descent wave's, not this one's.
+alone, because a graph equation is blind to the mask value at an isolated
+vertex. `descent_mask_not_pointwise_monotone` exhibits masks satisfying
+that equation with a vertex dead at depth `j` and **alive** at depth
+`j + 1`.
+
+**Consequence superseded, wave R1.8-T1.** When this file was written that
+equation was all `RamDriverCluster.BatchData` said about the child mask,
+so `∀ v, Alv' v ≠ 0 → M v ≠ 0` was unavailable to the level induction and
+the dead-vertex path had to run at every level. The strengthening the
+paragraph called for has since landed: `BatchData` carries the pointwise
+clause `Alv' v ≠ 0 ↔ (M v ≠ 0 ∧ v ∈ X ∧ v ∉ W)`, exported by
+`RamDriverDescend.descendStep` off the very cell arithmetic
+`RamDriver.masked_step` runs on (`RamDriverDescend.mask_cell_ne_zero`), so
+monotonicity is now available — off this clause directly, and off the
+cluster-inclusion clause as `Refine.DeadRowProbe.dead_stays_dead`. The
+refutation below keeps its exact content: it is a statement about the
+graph equation, and the graph equation is still blind.
 
 # §3 Falsification
 
@@ -214,19 +222,22 @@ theorem sat_bot_of_dead₁ {G : SimpleGraph (Fin n)} {M : ℕ → ℕ} {col : Co
 
 /-! ### §2 Finding B8/1: the descent's mask relation is not pointwise -/
 
-/-- **Dead-ness does not provably grow down the recursion.**
-`RamDriverCluster.BatchData`'s mask clause is the graph equation
-`masked G Alv' = deleteVerts (deleteVerts (masked G M) Xᶜ) W`, and a
-graph equation cannot see the mask value at a vertex with no edges. Here
-the whole arena is edgeless, every mask reading is therefore consistent
-with the equation, and the next depth's mask is **all alive** where the
-current depth's is all dead.
+/-- **Dead-ness does not grow down the recursion by the graph equation
+alone.** The equation
+`masked G Alv' = deleteVerts (deleteVerts (masked G M) Xᶜ) W` cannot see
+the mask value at a vertex with no edges. Here the whole arena is
+edgeless, every mask reading is therefore consistent with the equation,
+and the next depth's mask is **all alive** where the current depth's is
+all dead.
 
-So the design "write the dead rows once, high up, and inherit them" has
-no basis in the obligation the level induction is handed: a vertex dead
-at depth `j` may be alive at depth `j + 1` as far as `BatchData` is
-concerned, and its depth-`(j+1)` row is then a genuine row of a genuine
-turn. The dead-vertex path has to run at **every** level. -/
+When this was proved the equation was `RamDriverCluster.BatchData`'s only
+word about the child mask, and the conclusion drawn was that the
+dead-vertex path has to run at every level. That conclusion is
+**superseded by wave R1.8-T1** (see §2 of the file header): `BatchData`
+now also pins the child mask pointwise, so monotonicity is available. What
+this theorem says is untouched — the graph equation, taken by itself, is
+still blind, which is exactly why the pointwise clause had to be
+added. -/
 theorem deleteVerts_bot {m : ℕ} (S : Set (Fin m)) :
     Lax12.UniformQuasiWideness.deleteVerts (⊥ : SimpleGraph (Fin m)) S = ⊥ := by
   ext u w

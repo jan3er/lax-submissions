@@ -528,7 +528,24 @@ section Cluster
 
 /-- What the descent leaves: the cluster, the batch, the
 cluster-restricted mask and the two masks of the next depth, each named
-with what it is worth. -/
+with what it is worth.
+
+**The mask of the next depth is pinned pointwise** (wave R1.8-T1, design
+§2.4). The graph equation `masked G Alv' = deleteVerts (deleteVerts _ Xᶜ) W`
+is blind to the mask *value* at a vertex with no edges — that is finding
+B8/1 (`Refine.DeadRow.descent_mask_not_pointwise_monotone`) — so the
+clause after it says which cells the stored array holds nonzero: exactly
+the alive vertices of the cluster outside the batch. It is not a new
+obligation on the program but a reading of what it already computes: the
+array is the cell function `Alv' k = M k * Xa k * (1 - Wa k)` of
+`RamDriver.masked_step`, whose proof derives this very equivalence on the
+way to the graph equation (`RamDriverDescend.mask_cell_ne_zero` names it,
+and `RamDriverDescend.descendStep` exports it for the array it stored).
+Two consumers need the *set* and not the graph: the kill pass's
+postcondition, which writes a row for every vertex of `X ∩ alive ∩ Wᶜ`
+that the child mask kills, and the level induction's no-resurrection step
+(a vertex dead at depth `j` is dead at depth `j + 1`, which follows by
+`M v = 0` refuting the left conjunct). -/
 def BatchData (n j B : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ)
     (X W : Set (Fin n)) (Alv' Gam' : ℕ → ℕ) (σ : Env) : Prop :=
   (∃ Xa, σ.arrs (cluName j) = arrOf n Xa ∧ markSet n Xa = X ∧ ∀ k, k < n → Xa k ≤ 1) ∧
@@ -537,6 +554,7 @@ def BatchData (n j B : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ)
       masked G Ra = deleteVerts (masked G M) Xᶜ ∧ ∀ k, k < n → Ra k < B) ∧
     σ.arrs (alvName (j + 1)) = arrOf n Alv' ∧ (∀ k, k < n → Alv' k < B) ∧
     masked G Alv' = deleteVerts (deleteVerts (masked G M) Xᶜ) W ∧
+    (∀ v : Fin n, Alv' (v : ℕ) ≠ 0 ↔ (M (v : ℕ) ≠ 0 ∧ v ∈ X ∧ v ∉ W)) ∧
     σ.arrs (gamName (j + 1)) = arrOf n Gam' ∧ (∀ k, k < n → Gam' k < B) ∧
     (∃ (Mem' : ℕ → ℕ) (mm' : ℕ), σ.arrs (memName (j + 1)) = arrOf n Mem' ∧
       σ.vars (mnumName (j + 1)) = mm' ∧ MemEnum n mm' Mem' Alv' ∧ ∀ z < mm', Mem' z < B)
@@ -926,7 +944,7 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
     -- child's list is the one the descent filtered (rebase E-mem)
     obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, -, hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, -⟩ :=
       hturn₃.1
-    obtain ⟨-, -, -, halv₃, hAlvB, -, hgam₃, hGamB, hmemin₃⟩ := hdat₃.1
+    obtain ⟨-, -, -, halv₃, hAlvB, -, -, hgam₃, hGamB, hmemin₃⟩ := hdat₃.1
     exact ⟨hn₃, hoff₃, htgt₃, halv₃, hgam₃, hcolarr₃,
       fun z hz => hAlvB z hz, fun z hz => hGamB z hz, hcolbit₃,
       hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, hmemin₃⟩

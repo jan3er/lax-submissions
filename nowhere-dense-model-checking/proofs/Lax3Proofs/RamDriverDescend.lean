@@ -280,7 +280,28 @@ theorem coverHeld_congr (h : CoverHeld B n j G M π ord cap Xoff Xmem asg m σ)
 
 variable {X W : Set (Fin n)} {Alv' Gam' : ℕ → ℕ}
 
-/-- **The descent's data, across a pass.** -/
+/-- **The cell arithmetic of the child mask, pointwise** (wave R1.8-T1,
+design §2.4). The `hcell` step inside `RamDriver.masked_step`, named: the
+product the descent stores at `alvName (j + 1)` is nonzero exactly at the
+alive vertices of the cluster that the batch does not delete.
+`masked_step` turns this equivalence into the graph equation; the
+pointwise clause of `RamDriverCluster.BatchData` is the equivalence
+itself, which is why one walk of the descent exports both. -/
+theorem mask_cell_ne_zero (M Xa Wa : ℕ → ℕ) (a : ℕ) :
+    M a * Xa a * (1 - Wa a) ≠ 0 ↔ (M a ≠ 0 ∧ Xa a ≠ 0 ∧ Wa a = 0) := by
+  constructor
+  · intro h
+    refine ⟨fun hc => h (by rw [hc]; ring), fun hc => h (by rw [hc]; ring), ?_⟩
+    by_contra hc
+    obtain ⟨t, ht⟩ : ∃ t, Wa a = t + 1 := ⟨Wa a - 1, by omega⟩
+    exact h (by rw [ht, show 1 - (t + 1) = 0 by omega, Nat.mul_zero])
+  · rintro ⟨h1, h2, h3⟩
+    rw [h3]
+    simpa using Nat.mul_ne_zero h1 h2
+
+/-- **The descent's data, across a pass.** The pointwise mask clause
+crosses every pass for free: it speaks about `Alv'`, `M`, `X` and `W`
+alone and about no array of the state. -/
 theorem batchData_congr (h : BatchData n j B G M X W Alv' Gam' σ)
     (hclu : σ'.arrs (cluName j) = σ.arrs (cluName j))
     (hbat : σ'.arrs (batName j) = σ.arrs (batName j))
@@ -290,10 +311,10 @@ theorem batchData_congr (h : BatchData n j B G M X W Alv' Gam' σ)
     (hmemA : σ'.arrs (memName (j + 1)) = σ.arrs (memName (j + 1)))
     (hmm : σ'.vars (mnumName (j + 1)) = σ.vars (mnumName (j + 1))) :
     BatchData n j B G M X W Alv' Gam' σ' := by
-  obtain ⟨⟨Xa, hXa, hXs⟩, ⟨Wa, hWa, hWs⟩, ⟨Ra, hRa, hRm, hRB⟩, hA, hAB, hAm, hGa, hGB,
+  obtain ⟨⟨Xa, hXa, hXs⟩, ⟨Wa, hWa, hWs⟩, ⟨Ra, hRa, hRm, hRB⟩, hA, hAB, hAm, hApt, hGa, hGB,
     Mem', mm', hma, hmv, hme, hmB⟩ := h
   exact ⟨⟨Xa, by rw [hclu]; exact hXa, hXs⟩, ⟨Wa, by rw [hbat]; exact hWa, hWs⟩,
-    ⟨Ra, by rw [hres]; exact hRa, hRm, hRB⟩, by rw [halv]; exact hA, hAB, hAm,
+    ⟨Ra, by rw [hres]; exact hRa, hRm, hRB⟩, by rw [halv]; exact hA, hAB, hAm, hApt,
     by rw [hgam]; exact hGa, hGB,
     Mem', mm', by rw [hmemA]; exact hma, by rw [hmm]; exact hmv, hme, hmB⟩
 
@@ -4336,6 +4357,20 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
     rw [masked_congr (M := Alv') (M' := fun a => M a * Xa a * (1 - Wa a))
       (fun k hk => by rw [hAlvval k hk, hRaval k hk])]
     exact masked_step M Xa Wa hXiff hWiff
+  -- **the pointwise mask clause** (wave R1.8-T1, design §2.4): the same cell
+  -- arithmetic the graph equation above is derived from, kept as the equivalence
+  -- it is. It is a statement about the array the walk *stored* — `hAlvval` is
+  -- `subCom_spec`'s reading of `alvName (j + 1)`, `hRaval` is `andCom_spec`'s of
+  -- `resName j` — so no recomputation is involved.
+  have hAlvPt : ∀ v : Fin n, Alv' (v : ℕ) ≠ 0 ↔
+      (M (v : ℕ) ≠ 0 ∧ v ∈ markSet n Xa ∧ v ∉ markSet n Wa) := by
+    intro v
+    rw [hAlvval (v : ℕ) v.isLt, hRaval (v : ℕ) v.isLt, mask_cell_ne_zero M Xa Wa (v : ℕ)]
+    constructor
+    · rintro ⟨h1, h2, h3⟩
+      exact ⟨h1, h2, fun hc => hc h3⟩
+    · rintro ⟨h1, h2, h3⟩
+      exact ⟨h1, h2, by by_contra hc; exact h3 hc⟩
   have hGamEq : masked G Gam' =
       Lax12.UniformQuasiWideness.deleteVerts
         (Lax12.UniformQuasiWideness.deleteVerts (masked G Gm)
@@ -4413,7 +4448,7 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
     by rw [hfv (curName j) hcurne (by simp [curName, mnumName, String.ext_iff])
       (curName_notMem_descendScalars j)], ?_, markSet n Xa, markSet n Wa, Alv', Gam', ?_,
       ⟨vc, hvW⟩, ?_, ?_, ⟨⟨Xa, hclu₉, rfl, hXbit⟩, ⟨Wa, hbat₉, rfl, hWaB⟩, ⟨Ra, hres₉, hResEq, hRaB⟩,
-        halv₉, hAlvB, hAlvEq, hgam₉, hGamB', Mem', mm', hmemA₉, hmnum₉, hMemE, hMemB⟩, ?_⟩
+        halv₉, hAlvB, hAlvEq, hAlvPt, hgam₉, hGamB', Mem', mm', hmemA₉, hmnum₉, hMemE, hMemB⟩, ?_⟩
   · simp only [descendCost, ballCost, batchCost] at hK ⊢
     omega
   · exact exists_arrOf_run hrun (hmem.1.get (p := ("wa", mb)) (by simp))
