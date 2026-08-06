@@ -283,6 +283,17 @@ theorem belowArr_ne {d : ℕ} {a : String} (h : BelowArr d a) {b' : ℕ} (hb : d
       | simp [alvName, gamName, cluName, resName, balName, balAltName, batName, ordName,
           xofName, xmmName, asgName, cpsName, colName, tabName, String.ext_iff]
 
+/-- **A name of a depth below is not a member list** (rebase E-mem):
+`memName` is a fresh prefix, so the whole table is settled by the first
+letter. -/
+theorem belowArr_ne_memName {d : ℕ} {a : String} (h : BelowArr d a) (b' : ℕ) :
+    a ≠ memName b' := by
+  obtain ⟨b, -, hc⟩ := h
+  rcases hc with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | ⟨c, rfl⟩ |
+      ⟨i, rfl⟩ <;>
+    simp [alvName, gamName, cluName, resName, batName, ordName, xofName, xmmName, asgName,
+      cpsName, colName, tabName, memName, String.ext_iff]
+
 theorem belowVar_ne {d : ℕ} {y : String} (h : BelowVar d y) {b' : ℕ} (hb : d ≤ b')
     {y' : String} (h' : y' = ctrName b' ∨ y' = xpName b' ∨ y' = curName b' ∨
       y' = cnumName b' ∨ y' = cixName b') : y ≠ y' := by
@@ -675,7 +686,8 @@ theorem wvars_bfsParCom (r : ℕ) :
 
 theorem wvars_markPath (bat : String) : (markPath bat).wvars = ["i", "plen", "i"] := rfl
 
-theorem wvars_clusterLoad (j : ℕ) : (clusterLoad j).wvars = ["i", "i", "p", "pend", "p"] := rfl
+theorem wvars_clusterLoad (j : ℕ) :
+    (clusterLoad j).wvars = ["i", "i", "bq", "p", "pend", "bq", "p"] := rfl
 
 /-- **What one earlier round's contribution writes**: the batch, and
 literals. -/
@@ -749,7 +761,7 @@ next depth. -/
 theorem hasDigit_warrs_descendCom (cap j : ℕ) {x : String}
     (hx : x ∈ (descendCom cap j).warrs) (hd : HasDigit x) :
     x = cluName j ∨ x = resName j ∨ x = balName j ∨ x = balAltName j ∨ x = batName j ∨
-      x = alvName (j + 1) ∨ x = gamName (j + 1) := by
+      x = alvName (j + 1) ∨ x = gamName (j + 1) ∨ x = memName (j + 1) := by
   rw [descendCom] at hx
   rcases mem_warrs_seq hx with h | h
   · rw [warrs_assign] at h; exact absurd h List.not_mem_nil
@@ -757,7 +769,10 @@ theorem hasDigit_warrs_descendCom (cap j : ℕ) {x : String}
   · rw [RamDriverFrames.warrs_clusterLoad] at h
     rcases List.mem_cons.mp h with hq | hq
     · exact Or.inl hq
-    · exact Or.inl (List.eq_of_mem_singleton hq)
+    rcases List.mem_cons.mp hq with hq' | hq'
+    · exact Or.inl hq'
+    · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+        (List.eq_of_mem_singleton hq')))))))
   rcases mem_warrs_seq h with h | h
   · rw [andCom, RamDriverIO.warrs_fillCom] at h
     exact Or.inr (Or.inl (List.eq_of_mem_singleton h))
@@ -779,17 +794,24 @@ theorem hasDigit_warrs_descendCom (cap j : ℕ) {x : String}
     exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl (List.eq_of_mem_singleton h))))))
   rcases mem_warrs_seq h with h | h
   · rw [andCom, RamDriverIO.warrs_fillCom] at h
-    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (List.eq_of_mem_singleton h))))))
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (Or.inl (List.eq_of_mem_singleton h)))))))
+  rcases mem_warrs_seq h with h | h
   · rw [subCom, RamDriverIO.warrs_fillCom] at h
-    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (List.eq_of_mem_singleton h))))))
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (Or.inl (List.eq_of_mem_singleton h)))))))
+  · rw [RamDriverFrames.warrs_memFilterCom] at h
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+      (List.eq_of_mem_singleton h)))))))
 
-/-- **What the descent assigns**: the depth's own connector, and
-literals. -/
+/-- **What the descent assigns**: the depth's own connector, its child's
+member count, and literals. -/
 theorem hasDigit_wvars_descendCom (cap j : ℕ) {y : String}
-    (hy : y ∈ (descendCom cap j).wvars) (hd : HasDigit y) : y = ctrName j := by
+    (hy : y ∈ (descendCom cap j).wvars) (hd : HasDigit y) :
+    y = ctrName j ∨ y = mnumName (j + 1) := by
   rw [descendCom] at hy
   rcases mem_wvars_seq hy with h | h
-  · rw [wvars_assign] at h; exact List.eq_of_mem_singleton h
+  · rw [wvars_assign] at h; exact Or.inl (List.eq_of_mem_singleton h)
   rcases mem_wvars_seq h with h | h
   · rw [wvars_clusterLoad] at h; exact absurd hd (notHasDigit_mem (by decide) h)
   rcases mem_wvars_seq h with h | h
@@ -809,24 +831,42 @@ theorem hasDigit_wvars_descendCom (cap j : ℕ) {y : String}
   rcases mem_wvars_seq h with h | h
   · rw [andCom, RamDriverIO.wvars_fillCom] at h
     exact absurd hd (notHasDigit_mem (by decide) h)
+  rcases mem_wvars_seq h with h | h
   · rw [subCom, RamDriverIO.wvars_fillCom] at h
     exact absurd hd (notHasDigit_mem (by decide) h)
+  · rw [RamDriverFrames.wvars_memFilterCom] at h
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at h
+    rcases h with rfl | rfl | rfl | rfl | rfl
+    · exact absurd hd (by decide)
+    · exact Or.inr rfl
+    · exact absurd hd (by decide)
+    · exact Or.inr rfl
+    · exact absurd hd (by decide)
+
+theorem belowVar_ne_mnumName {d : ℕ} {y : String} (h : BelowVar d y) (b' : ℕ) :
+    y ≠ mnumName b' := by
+  obtain ⟨b, -, hc⟩ := h
+  rcases hc with rfl | rfl | rfl | rfl | rfl <;>
+    simp [ctrName, xpName, curName, cnumName, cixName, mnumName, String.ext_iff]
 
 theorem belowArr_notMem_warrs_descendCom (cap d : ℕ) {a : String} (h : BelowArr d a) :
     a ∉ (descendCom cap d).warrs := by
   intro hm
   rcases hasDigit_warrs_descendCom cap d hm (hasDigit_of_belowArr h) with
-    hq | hq | hq | hq | hq | hq | hq
+    hq | hq | hq | hq | hq | hq | hq | hq
   exacts [belowArr_ne h (le_refl d) (by tauto) hq, belowArr_ne h (le_refl d) (by tauto) hq,
     belowArr_ne h (le_refl d) (by tauto) hq, belowArr_ne h (le_refl d) (by tauto) hq,
     belowArr_ne h (le_refl d) (by tauto) hq,
     belowArr_ne h (Nat.le_succ d) (by tauto) hq,
-    belowArr_ne h (Nat.le_succ d) (by tauto) hq]
+    belowArr_ne h (Nat.le_succ d) (by tauto) hq,
+    belowArr_ne_memName h (d + 1) hq]
 
 theorem belowVar_notMem_wvars_descendCom (cap d : ℕ) {y : String} (h : BelowVar d y) :
-    y ∉ (descendCom cap d).wvars := fun hm =>
-  belowVar_ne h (le_refl d) (by tauto) (hasDigit_wvars_descendCom cap d hm
-    (hasDigit_of_belowVar h))
+    y ∉ (descendCom cap d).wvars := by
+  intro hm
+  rcases hasDigit_wvars_descendCom cap d hm (hasDigit_of_belowVar h) with hq | hq
+  · exact belowVar_ne h (le_refl d) (by tauto) hq
+  · exact belowVar_ne_mnumName h (d + 1) hq
 
 /-! ### The base case -/
 
@@ -990,9 +1030,9 @@ theorem cpsName_notMem_warrs_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstO
   intro hq
   rcases mem_warrs_seq hq with hr | hr
   · rcases hasDigit_warrs_descendCom cap d hr (hasDigit_cpsName d) with
-      hc | hc | hc | hc | hc | hc | hc <;>
+      hc | hc | hc | hc | hc | hc | hc | hc <;>
       exact absurd hc (by simp [cpsName, cluName, resName, balName, balAltName, batName,
-        alvName, gamName, String.ext_iff])
+        alvName, gamName, memName, String.ext_iff])
   rcases mem_warrs_seq hr with hr | hr
   · rw [RamDriverFrames.warrs_enumBatch] at hr
     exact notHasDigit_mem (by decide) hr (hasDigit_cpsName d)
@@ -1013,12 +1053,12 @@ turn**, given that it is not the depth's connector — which is the one
 per-depth scalar the descent assigns. -/
 theorem perDepthVar_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
     {inner : Com} {y : String} (hy : HasDigit y) (hyctr : y ≠ ctrName d)
-    (hyus : '_' ∉ y.toList) (hin : y ∉ inner.wvars) :
+    (hymm : y ≠ mnumName (d + 1)) (hyus : '_' ∉ y.toList) (hin : y ∉ inner.wvars) :
     y ∉ (clusterCom q_top cap mb φ d inner).wvars := by
   rw [clusterCom]
   intro hq
   rcases mem_wvars_seq hq with hr | hr
-  · exact hyctr (hasDigit_wvars_descendCom cap d hr hy)
+  · exact (hasDigit_wvars_descendCom cap d hr hy).elim hyctr hymm
   rcases mem_wvars_seq hr with hr | hr
   · rw [wvars_enumBatch_eq] at hr
     exact notHasDigit_mem (l := (enumBatch "" 0).wvars) (by decide) hr hy
@@ -1043,6 +1083,7 @@ theorem cnumName_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.First
     cnumName d ∉ (clusterCom q_top cap mb φ d inner).wvars :=
   perDepthVar_notMem_wvars_clusterCom q_top cap mb d φ (hasDigit_cnumName d)
     (by simp [cnumName, ctrName, String.ext_iff])
+    (by simp [cnumName, mnumName, String.ext_iff])
     (by rw [cnumName]; exact underscore_notMem_prefixed (by decide) d) hin
 
 open Classical in
@@ -1051,6 +1092,7 @@ theorem cixName_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstO
     cixName d ∉ (clusterCom q_top cap mb φ d inner).wvars :=
   perDepthVar_notMem_wvars_clusterCom q_top cap mb d φ (hasDigit_cixName d)
     (by simp [cixName, ctrName, String.ext_iff])
+    (by simp [cixName, mnumName, String.ext_iff])
     (by rw [cixName]; exact underscore_notMem_prefixed (by decide) d) hin
 
 /-! ### Two names that are **not** frames of the recursion
