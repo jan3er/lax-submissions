@@ -96,3 +96,4 @@ import Lax3Proofs.Refine.CoverWidth
 import Lax3Proofs.Refine.BridgeCrossing
 import Lax3Proofs.Refine.SlotSweep
 import Lax3Proofs.Refine.OrderSigProbe
+import Lax3Proofs.Refine.OrderSigProbeM

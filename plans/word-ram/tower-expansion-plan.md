@@ -1,7 +1,11 @@
 # Tower expansion plan — aggressive porting of the remaining refinement stack
 
-Rev 7, 2026-08-06. **Status: OPEN — the live phase is P4.6, the two-half
-order-phase synthesis probe (wave S in flight, wave M next).**
+Rev 7, 2026-08-06. **Status: OPEN — P4.6 COMPLETE same day (verdict
+E44): wave M landed carrier-blind, compiled, so ND-MC's G2 routes as a
+re-derivation. The campaign now drives the ND-MC road — S2/S3, the
+member-driven engine family, `g2_exists` re-validation, E-mem
+re-synthesis, B7, C0 — before any tower breadth; the split-match
+determinism tool wave (E43 as amended) runs when 19/19 is needed.**
 
 Position: P0–P4.5 complete. P5.A complete and final — the eight interface
 families are the battle-tested surface rule 5 protects; never reopened.
@@ -639,7 +643,12 @@ same skeleton on per-turn fresh zeroed allocation provably does not (the
 `no_word_size_for_sparse` shape aimed at the heap pointer); zero `sorry`;
 gate law satisfied.
 
-### P4.6 — order-phase synthesis probe, two halves · budget ≤ 1 session (two capped waves)
+### P4.6 — order-phase synthesis probe, two halves · COMPLETE 2026-08-06
+
+**Verdict (E43 as amended, E44): S partial with both obstructions named
+and bounded (split-match determinism; the engine as one `Com`), M landed
+carrier-blind compiled — the first routing branch below is taken: G2 is
+a re-derivation.** The section is retained as the record of what ran.
 
 The retry Jan ordered on 2026-08-02 ("ahead of the ND-MC cost residue"),
 slotted at the earliest point its dependencies allow (ledger E30): it needs
@@ -933,6 +942,23 @@ proves a scheduled source declaration was mistranslated or omitted.
    final evaluation.
 
 ## Progress log
+
+- **2026-08-06 (later) — P4.6 COMPLETE: wave M lands carrier-blind, and
+  wave S corrects itself.** Two commits. The S continuation (`99a0fbf`):
+  pass 9 was a determinism cost cliff, not a merge wall — split rules are
+  the product rules one `sepConj_assoc` away, `pass39Synth` compiles, but
+  phase-wide split registration explodes the match space (>4M heartbeats);
+  the tool item renames to "deterministic split-destination match" (E43
+  amended). Wave M: `orderPhaseM` — 12 member-driven passes over 17
+  arrays, no engine — synthesizes whole in both modes; clock law
+  `68·m + 12` with `n` absent, `#guard`-pinned at two carrier widths;
+  empty-member charge constant; the carrier-walking negative control
+  bites (401 → 801). Supervisor replay over both: **3,555 jobs**, root
+  `lax build` OK, kernel-three throughout. **Verdict E44: the first
+  routing branch is taken — ND-MC's G2 is a re-derivation.** The
+  provisional-P5 draft recommendation is withdrawn. **Next: ND-MC leaf
+  S2/S3** (`driverRootD`/`levelAtR`/the `"lw"` repair), then the
+  member-driven engine family, `g2_exists` re-validation, E-mem.
 
 - **2026-08-06 — P4.6 wave S: 18 of 19 non-engine passes synthesize; the
   verdict is structural, not wall-clock.** `OrderSigProbe.lean` lands

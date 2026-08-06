@@ -2215,12 +2215,9 @@ measured at fixed width. P7 inherits this as its primary profile: the
 scaling variable is ownership-context width, not op count alone.
 
 *Three located obstructions — S's verdict is structural, not wall-clock.*
-(1) **`frameMatch` splits products but cannot merge two conjuncts into
-one** (compiled both ways: `mergeTestSplit` synthesizes, the split form
-is refused). Blocks exactly the one pass whose destination an earlier
-pass produced — and would block any such phase. Dual of the rule-side
-`prodAssn` splitting item P6 already names; folded into that P6 row as
-one symmetric tool wave, tower-side. (2) The elimination engine has no
+(1) **[As first reported: `frameMatch` cannot merge two conjuncts into a
+product. Amended same day — see below: pass 9 is a determinism cost
+cliff, not a missing capability.]** (2) The elimination engine has no
 single synthesized `Com` (ND-MC 2E/D-a, unchanged) — until it does,
 whole-phase synthesis of `orderPhase0` is unavailable **at any engine**,
 independent of scaling. (3) `hnr_mop_elim` pins its 11-component entry
@@ -2236,3 +2233,71 @@ the cost question was never S's to answer. **The decision now rests
 entirely on wave M** (the member-driven text and its compiled
 carrier-blindness), which needs neither the engine (parameterized out)
 nor the merge (its passes write into pre-owned arrays). M runs next.
+
+**E43 amendment, 2026-08-06 (same day, wave S continuation — the worker
+continued past its first report and corrected its own finding; gates
+replayed by the supervisor at 3,555 jobs, root lax OK).** Pass 9 is
+reachable: `prodAssn`/`hnCtxt` are definitional, so the product-form
+rules restate as split-destination rules by one `sepConj_assoc` —
+`mopCopySplit`/`mopFillSplit`/`mopOrdSplit` are three-line theorems, and
+`pass39Synth` compiles pass 3 → pass 9 with the program `#guard`-pinned.
+**But the split forms do not scale, and the reason renames the tool
+item:** registering them across the phase sends `pre9Synth` from 33 s to
+>4M heartbeats (killed at ~1,000 s), *worse* with the product forms
+dropped — so it is not rule count. The product conjunct is what makes
+the frame match deterministic: it binds an array to its index cell in
+one choice, while the split form lets the matcher choose them
+independently over a ~19-array × ~20-cell candidate product. The tool
+item is therefore **"make a split destination match deterministically"**
+— nothing in a split rule pins the index cell to its array — not "teach
+`frameMatch` to merge" (unnecessary). `mopFillSplit` is registered
+`local` to its section, so the §0 telemetry stays uncontaminated. A
+second recorded convention: a fill at a nonzero literal needs two cells
+at that literal (value + increment). The engine obstruction (2) stands
+unchanged. Supervisor note for the process record: the continuation ran
+outside an assigned wave — its content is accepted on its compiled
+merits, but unrequested continuation by a reported-done worker is a
+supervision gap; future briefs state explicitly that the first report
+ends the wave.
+
+### E44 — P4.6 verdict: wave M lands carrier-blind, compiled; G2 routes as re-derivation
+
+2026-08-06. `Lax3Proofs/Refine/OrderSigProbeM.lean` (509 lines),
+supervisor-replayed with the S continuation in one build: **3,555 jobs**,
+root `lax build` OK, zero placeholders, five synthesis theorems
+kernel-three, three clock theorems `[propext]` only.
+
+*What landed.* `orderPhaseM` — twelve passes over seventeen arrays at
+wave S's names: seven member-driven copies (two of them restores), four
+touched-only fills, one member-driven rank inversion; engine and
+setup-scale work parameterized out per E43. It synthesizes whole through
+the tower in both modes — direct written-goal and `hfref` signature —
+with the signature `#guard`-pinned to the direct impl (123 ops). The
+member leaves are three new registered parametric rules in the S idiom.
+The frameMatch determinism cliff never fires: every destination is a
+pre-owned context product.
+
+*The landing criterion, compiled.* Clock law `phaseClockK m = 68·m + 12`
+with the carrier size `n` **absent** — `#guard`-pinned at
+m ∈ {0,2,3} × n ∈ {100,200} on `Ir.evalFuel` (the Ir-layer sibling of
+`TgtWidenProbe.execC`), theorem `probeClock_carrier_blind`. Empty-member
+charge is the constant 12 at both widths (`probeClock_empty_const`). The
+negative control bites: the landed carrier-walking `fillSynth_impl`
+clocks 401 at n = 100 and 801 at n = 200 (`fillClock_carrier_bound`).
+Touched-only is compiled on the machine: sentinel arrays move only at
+member-indexed cells; m = 0 moves nothing. Telemetry: ≈200 s direct /
+≈229 s signature at 8–16M heartbeats — ~1.7× S's curve at 123 ops (wider
+member frames), same exponent family, no new wall.
+
+*Verdict (E42's routing, first branch).* The no-escape theorem's "only
+route" now exists as a compiled artifact: a member-driven order-phase
+text synthesizes whole and is carrier-blind at the machine. **ND-MC's G2
+is a re-derivation, not a repair.** The road: S2/S3 (the root
+restatement, killing slots #6/#26/#12), the split-match determinism tool
+wave when 19/19 is needed, the member-driven engine family (2E/D-a in
+member form), `g2_exists` re-validation, then E-mem threads member lists
+into `LevelPre` and the order/cover phases re-synthesize from M-shaped
+signatures — most of the compiled residue chain stops existing. The
+provisional-P5 draft recommendation is withdrawn on this branch. P5.D/P6
+re-review against what the synthesis consumed happens before any tower
+breadth resumes.
