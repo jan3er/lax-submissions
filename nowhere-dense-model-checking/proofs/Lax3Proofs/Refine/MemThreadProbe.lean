@@ -75,7 +75,7 @@ namespace Lax3Proofs.Refine.MemThreadProbe
 
 open Lax13Proofs.Imp Lax13Proofs.Reasoning Lax13Proofs.Reasoning.Lib
 open Lax3Proofs.RamDriver (alvName gamName cluName resName balName balAltName batName
-  ordName xofName xmmName asgName cpsName colName curName exists_arrOf Sized DepthMem
+  ordName xofName xmmName asgName cpsName colName curName klName exists_arrOf Sized DepthMem
   LevelMem OrderMem LevelPre clusterLoad fillCom copyUpto)
 open Lax3Proofs.RamDriverCluster (markSet mem_markSet)
 open Lax3Proofs.Refine.ScatterBlock (MemList MemOf)
