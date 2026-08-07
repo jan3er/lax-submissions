@@ -55,31 +55,31 @@ carries the in-degree budget in the same guarded form
 D'.InDegLE (d + d*d + k')`). Nothing is re-scoped; §8's bridge proves the
 restatement is an equivalence at `mm = n`.
 
-**The width.** This is the one place where the family hits a residue, and
-§5 compiles it in both directions.
+**The width.** This is where the family hit a residue; wave E2-width
+closed it, and §5 compiles the closure in both directions.
 
 * The *carrier* has left the width and the cost: the round's demand moves
-  from `RamAugment.augWidth n d ≤ W` to `augWidth mm d ≤ W`, which is
-  strictly weaker (`augWidth_mono_left`), and its cost from
-  `augCost n W` to `augCost mm W`.
-* What is left inside `augWidth mm d = mm·(d+1)² + mm·mm + 1` is the
+  from `RamAugment.augWidth n d ≤ W` to the compact arena's own room, and
+  its cost from `augCost n W` to `augCost mm W`.
+* What was left inside `augWidth mm d = mm·(d+1)² + mm·mm + 1` was the
   `mm·mm` term, and it is **arena-quadratic**. `g2-cost-design` §3(a)'s
   repair is `augWidthE nv ks d := nv·(d+1)² + ks + 1`, which §5 defines,
   fits the fraternity graph into (`fratSlots_lt_augWidthE`), proves
   arena-affine (`augWidthE_le_weight`: `≤ (d+1)²·(w+1)`), and separates
   from `augWidth` on data by three orders of magnitude at a sparse arena.
   The capacity step the design flags — `m' ≤ ns` rather than `m' ≤ n²` —
-  is re-discharged here at the compact numbering from `arcs_le`
+  is re-discharged at the compact numbering from `arcs_le`
   (`arcs_le_compact`, `arcs_lt_augWidthE`), and `AugMemPost` carries that
   reading as a clause.
-* **The obstruction, precisely.** Substituting `augWidthE` for
-  `augWidth` inside the round's own precondition is an edit to
-  `RamAugment.augWidth` (a read-only definition of this wave) plus the
-  four consumer sites `g2-cost-design` §3(a) lists and the `m' ≤ n·n`
-  capacity step inside `RamDriverAugment.implementsW`. A satellite cannot
-  do it, and no restatement here can hide it: this wave therefore
-  delivers the arena-affine width and its fit lemmas, and stops at the
-  substitution. See §5.3.
+* **The substitution** (§4.0, §5.2). The round is not asked for a width
+  at all: it is asked for the four capacities the walk actually spends
+  (`AugRoom`), which `RamDriverAugment.implementsCore` had already been
+  factored around. `augRoom_of_augWidth` is the landed width's way in —
+  so nothing that compiled before stopped compiling — and
+  `augRoom_of_augWidthE` the arena-affine one, at the degree budget shape
+  `RamDriverCompose.fold_step` already discharges. §5.3.1 refutes both
+  directions of the implication between the two widths, which is why the
+  room takes a minimum and not one of them.
 
 ## What is *not* here
 
@@ -90,13 +90,14 @@ compact prefix. It is refuted-before-proved on data in §2.3.
 
 The scatter-back is **not** a new obligation: the round's per-vertex
 answer is a rank array, so `ElimCompact.scatterCom` and
-`ElimCompact.ScatterBacks` are reused unchanged — one obligation for two
+`ElimCompact.ScatterBacksW` are reused unchanged — one obligation for two
 families, exactly as the template's item 3 predicted, and the satellite
-discharging it discharges this one's too. The carrier install is
-`SymCompact.symSetCarrier` and is **walked**, not assumed.
+discharging it (`ElimCompactWalks.scatterBacksW`, unconditional) discharges
+this one's too. The carrier install is `SymCompact.symSetCarrier` and is
+**walked**, not assumed.
 
 Nothing here is `sorry`, and no theorem assumes `AugPreps` or
-`ScatterBacks` except `augCompact_spec`, which names them as hypotheses.
+`ScatterBacksW` except `augCompact_spec`, which names them as hypotheses.
 -/
 
 namespace Lax3Proofs.Refine.AugCompact
@@ -113,7 +114,7 @@ open Lax3Proofs.TgtWidenProbe (PSt PRes exec execC pB pF augSt star5doff star5dt
 open Lax3Proofs.Refine.ScatterBlock (MemList)
 open Lax3Proofs.Refine.ElimCompact (padArrs cutArrs tailOf padArrs_arrs cutArrs_arrs
   run_of_run_cutArrs tail_preserved take_arrOf memGraph getD_padArrs scatterCom scatterCost
-  ScatterBacks)
+  ScatterBacksW)
 open Lax3Proofs.Refine.SymCompact (symSetCarrier symSetCarrier_run)
 
 /-! ## §1 The program
@@ -491,9 +492,73 @@ theorem AugPreC.ntg {mm n nt W : ℕ} {DO DT : ℕ → ℕ} {σ : Env}
 
 /-! ## §4 The round at the arena's carrier
 
-The landed walk, transported. `RamAugment.augment_specW` is applied at
-`n := mm` with `RamDriverAugment.implementsW` — a theorem — supplying the
-Hoare triple. Nothing is restated and nothing is re-synthesized. -/
+The landed walk, transported. `RamDriverAugment.augment_specWRoom` — a
+theorem — is applied at `n := mm`. Nothing is restated and nothing is
+re-synthesized. -/
+
+/-! ### §4.0 The room the round spends
+
+`RamAugment.augWidth mm d ≤ W` is not what the walk uses: it is a
+*sufficient condition* that `RamDriverAugment.implementsW` immediately
+takes apart into four capacity facts. Three of them — the carrier fits,
+the input arcs' scan fits, the fraternity graph fits — live entirely in
+the `mm·(d+1)²` term. The fourth is the assembly's write capacity, and it
+is the **only** consumer of the arena-quadratic `mm·mm`.
+
+`AugRoom` is the four facts themselves, with the fourth stated at the
+sharper of the two bounds the assembly's own sum admits: the next block
+structure has at most `mm · min mm (2d² + d)` slots — `mm` per vertex
+generically (`RamDriverAugment.sum_augDeg_le`, the reading `mm·mm` pays
+for) and `2d² + d` per vertex through the in-degree budget
+(`sum_augDeg_le_deg`, `g2-cost-design` §3(a)'s degree-aware capacity,
+re-discharged from `arcs_le`).
+
+Asking the *room* rather than a named width is what lets **both** widths
+reach the round: `augRoom_of_augWidth` is the landed reading and §5.2's
+`augRoom_of_augWidthE`/`augRoom_of_augWidthE_slots` the arena-affine one.
+Neither width implies the other — §5.3 refutes the implication that would
+have made one of them redundant — so this is a genuine join and not a
+restatement. -/
+
+/-- **The four capacities one compacted round spends.** No carrier term,
+and no `mm·mm` unless the caller's own width has one. -/
+def AugRoom (mm d m W : ℕ) (D : Orientation mm) : Prop :=
+  mm < W ∧ d * m ≤ W ∧ fratSlots D < W ∧ mm * min mm (2 * (d * d) + d) ≤ W
+
+/-- **The assembly's write capacity**, from the room's fourth clause:
+both readings of the `augDeg` sum are available, so the minimum of the
+two is. This is the hypothesis `RamDriverAugment.implementsCoreR` asks
+for, and the only place the width is spent on the round's *output*. -/
+theorem AugRoom.cap {mm d m W : ℕ} {D : Orientation mm} (h : AugRoom mm d m W D)
+    (hd : D.InDegLE d) (ρ : Fin mm → ℕ) :
+    Lax3Proofs.RamElim.psum (Lax3Proofs.RamDriverAugment.augDeg D ρ) mm ≤ W := by
+  refine le_trans ?_ h.2.2.2
+  rcases Nat.le_total mm (2 * (d * d) + d) with hmin | hmin
+  · rw [min_eq_left hmin]
+    exact Lax3Proofs.RamDriverAugment.sum_augDeg_le D ρ
+  · rw [min_eq_right hmin]
+    exact Lax3Proofs.RamDriverAugment.sum_augDeg_le_deg ρ hd
+
+/-- **The landed width supplies the room** — so every caller that held
+`RamAugment.augWidth mm d ≤ W` still reaches the round, and
+`augCompact_engine` below is strictly stronger than the reading that
+asked for the width itself. The `mm·mm` term pays clause four and
+nothing else. -/
+theorem augRoom_of_augWidth {mm d m W : ℕ} {D : Orientation mm} {DO DT : ℕ → ℕ}
+    (hin : InCsr D m DO DT) (hd : D.InDegLE d) (hW : augWidth mm d ≤ W) :
+    AugRoom mm d m W D := by
+  have hAW : mm * (d + 1) ^ 2 + mm * mm + 1 ≤ W := hW
+  have h1 : mm * 1 ≤ mm * (d + 1) ^ 2 :=
+    Nat.mul_le_mul_left mm (Nat.one_le_pow 2 (d + 1) (by omega))
+  refine ⟨by omega, ?_, lt_of_lt_of_le (Lax3Proofs.RamAugment.fratSlots_lt_augWidth hd) hW, ?_⟩
+  · have h2 : d * m ≤ d * (mm * d) :=
+      Nat.mul_le_mul_left d (Lax3Proofs.RamDriverAugment.arcs_le hin hd)
+    have h3 : d * (mm * d) = mm * (d * d) := by ring
+    have h4 : mm * (d * d) ≤ mm * (d + 1) ^ 2 := Nat.mul_le_mul_left mm (by nlinarith)
+    omega
+  · have h5 : mm * min mm (2 * (d * d) + d) ≤ mm * mm :=
+      Nat.mul_le_mul_left mm (min_le_left _ _)
+    omega
 
 /-- **The compacted round.** `RamAugment.augCom`, unchanged, at the
 compact carrier `mm`, on a store whose arrays are the carrier's: it runs
@@ -501,20 +566,30 @@ at `RamAugment.augCost mm W` — a cost in which **the carrier does not
 occur** — and leaves `RamAugment.AugPost`, the landed contract, verbatim,
 of the compact view. The exit store is the view's answer over the tail the
 call entered with, so the level's own mask and offsets above the compact
-prefix come back untouched. -/
+prefix come back untouched.
+
+Two deltas of wave E2-width. The hypothesis is the *room* (§4.0), which
+`augRoom_of_augWidth` supplies from the width this theorem used to ask
+for and §5.2 supplies from the arena-affine one. And the conclusion
+carries `RamElim.RnkLt mm τ`: the round's ranks are vertex numbers of the
+compacted arena. `RamAugment.AugPost` drops that clause, and without it a
+caller that reads a rank cell with an IMP+ `get` — the member scatter
+does, `rnk[km]` — has **no derivation at all**, so the clause is not a
+convenience but the difference between usable and vacuous. -/
 theorem augCompact_engine {B mm n nt W d m : ℕ} {D : Orientation mm} {DO DT : ℕ → ℕ}
     {σ : Env} (hin : InCsr D m DO DT) (hd : D.InDegLE d) (hnt : fratSlots D ≤ nt)
-    (hm : m ≤ W) (hW : augWidth mm d ≤ W) (hB : mm + W + 1 < B)
+    (hm : m ≤ W) (hroom : AugRoom mm d m W D) (hB : mm + W + 1 < B)
     (hpre : AugPreC mm n nt W DO DT σ) :
     ∃ τ, Run B augCom σ (padArrs τ (tailOf σ (augClen mm nt W))) (augCost mm W) ∧
         AugPost mm W D (cutArrs σ (augClen mm nt W)) τ ∧
+        Lax3Proofs.RamElim.RnkLt mm τ ∧
         (∀ a, augClen mm nt W a ≤ (σ.arrs a).length →
           ((padArrs τ (tailOf σ (augClen mm nt W))).arrs a).drop (augClen mm nt W a) =
             (σ.arrs a).drop (augClen mm nt W a)) := by
-  obtain ⟨τ, hrun, hpost⟩ :=
-    (Lax3Proofs.RamAugment.augment_specW (n := mm) Lax3Proofs.RamDriverAugment.implementsW
-      hin hd hnt hm hW hB).run (augPreC_cutArrs hpre)
-  exact ⟨τ, run_of_run_cutArrs _ hrun, hpost, fun a ha => tail_preserved hrun ha⟩
+  obtain ⟨τ, hrun, hpost, hrnkLt, -⟩ :=
+    (Lax3Proofs.RamDriverAugment.augment_specWRoom (n := mm) hin hd hnt hm hB
+      hroom.1 hroom.2.1 hroom.2.2.1 (hroom.cap hd)).run (augPreC_cutArrs hpre)
+  exact ⟨τ, run_of_run_cutArrs _ hrun, hpost, hrnkLt, fun a ha => tail_preserved hrun ha⟩
 
 /-! ## §5 The width, and the one residue
 
@@ -597,7 +672,79 @@ theorem arcs_lt_augWidthE {mm m' d' ks d : ℕ} {D' : Orientation mm} {NO NT : �
   simp only [augWidthE]
   omega
 
-/-! ### §5.2 The separation, compiled
+/-! ### §5.2 The substitution: the arena-affine width supplies the room
+
+`g2-cost-design` §3(a)'s substitution, executed. The round asks §4.0's
+`AugRoom`, and these two lemmas are the arena-affine ways in — so a
+caller may allocate `augWidthE` and never `augWidth`, and the `mm·mm`
+term is gone from the round's demand and not merely from a reading of
+it.
+
+The two differ in where the assembly's `2d² + d` room comes from.
+
+* `augRoom_of_augWidthE` takes it from the **degree parameter of the
+  width**: the width is stated at a `db` that dominates `2d² + d`, and
+  the round runs at in-degree `d`. This is exactly the chain's shape —
+  `TgtCoupling.chainWidthE` is stated at the *last* round's budget while
+  round `i` runs at `budget i`, and `TgtCoupling.two_sq_add_le_budget_succ`
+  is the `hdb` this lemma asks for. It is the form
+  `RamDriverCompose.fold_step` already discharges, now at the compact
+  carrier.
+* `augRoom_of_augWidthE_slots` takes it from the **slot term** instead,
+  at a `ks` that already holds a fraternity graph (`mm · d²`, which is
+  `RamAugment.fratSlots_le`'s bound). This is the form a single round
+  gets when its allocation was sized for its own fraternity graph.
+
+Both keep `augWidthE`'s arena-affine reading (`augWidthE_le_weight`):
+the coefficient depends on the degree budget alone, never on `mm`. -/
+
+/-- **The room, from the degree-aware width at a dominating budget.** -/
+theorem augRoom_of_augWidthE {mm ks d db m W : ℕ} {D : Orientation mm} {DO DT : ℕ → ℕ}
+    (hin : InCsr D m DO DT) (hd : D.InDegLE d) (hdb : 2 * (d * d) + d ≤ db)
+    (hW : augWidthE mm ks db ≤ W) : AugRoom mm d m W D := by
+  have hAW : mm * (db + 1) ^ 2 + ks + 1 ≤ W := hW
+  have hddb : d ≤ db := le_trans (Nat.le_add_left d (2 * (d * d))) hdb
+  have h1 : mm * 1 ≤ mm * (db + 1) ^ 2 :=
+    Nat.mul_le_mul_left mm (Nat.one_le_pow 2 (db + 1) (by omega))
+  have hdd : mm * (d * d) ≤ mm * (db + 1) ^ 2 := Nat.mul_le_mul_left mm (by nlinarith)
+  refine ⟨by omega, ?_, ?_, ?_⟩
+  · have h2 : d * m ≤ d * (mm * d) :=
+      Nat.mul_le_mul_left d (Lax3Proofs.RamDriverAugment.arcs_le hin hd)
+    have h3 : d * (mm * d) = mm * (d * d) := by ring
+    omega
+  · have h4 : fratSlots D ≤ mm * (d * d) := Lax3Proofs.RamAugment.fratSlots_le hd
+    omega
+  · have h5 : mm * min mm (2 * (d * d) + d) ≤ mm * db :=
+      Nat.mul_le_mul_left mm (le_trans (min_le_right _ _) hdb)
+    have h6 : mm * db ≤ mm * (db + 1) ^ 2 := Nat.mul_le_mul_left mm (by nlinarith)
+    omega
+
+/-- **The room, from the degree-aware width whose slot term already holds
+a fraternity graph.** -/
+theorem augRoom_of_augWidthE_slots {mm ks d m W : ℕ} {D : Orientation mm} {DO DT : ℕ → ℕ}
+    (hin : InCsr D m DO DT) (hd : D.InDegLE d) (hks : mm * (d * d) ≤ ks)
+    (hW : augWidthE mm ks d ≤ W) : AugRoom mm d m W D := by
+  have hAW : mm * (d + 1) ^ 2 + ks + 1 ≤ W := hW
+  have h1 : mm * 1 ≤ mm * (d + 1) ^ 2 :=
+    Nat.mul_le_mul_left mm (Nat.one_le_pow 2 (d + 1) (by omega))
+  have hdd : mm * (d * d) ≤ mm * (d + 1) ^ 2 := Nat.mul_le_mul_left mm (by nlinarith)
+  refine ⟨by omega, ?_, ?_, ?_⟩
+  · have h2 : d * m ≤ d * (mm * d) :=
+      Nat.mul_le_mul_left d (Lax3Proofs.RamDriverAugment.arcs_le hin hd)
+    have h3 : d * (mm * d) = mm * (d * d) := by ring
+    omega
+  · have h4 : fratSlots D ≤ mm * (d * d) := Lax3Proofs.RamAugment.fratSlots_le hd
+    omega
+  · have h5 : mm * min mm (2 * (d * d) + d) ≤ mm * (2 * (d * d) + d) :=
+      Nat.mul_le_mul_left mm (min_le_right _ _)
+    have h6 : mm * (2 * (d * d) + d) ≤ mm * (d + 1) ^ 2 + mm * (d * d) := by
+      have : mm * (2 * (d * d) + d) ≤ mm * ((d + 1) ^ 2 + d * d) :=
+        Nat.mul_le_mul_left mm (by nlinarith)
+      calc mm * (2 * (d * d) + d) ≤ mm * ((d + 1) ^ 2 + d * d) := this
+        _ = mm * (d + 1) ^ 2 + mm * (d * d) := by ring
+    omega
+
+/-! ### §5.3 The separation, compiled
 
 The two widths at a sparse arena of a thousand members: the landed one is
 arena-*quadratic* and the repaired one arena-*affine*, three orders of
@@ -621,24 +768,61 @@ compacted arena. -/
 #guard augWidth 5 4 ≤ 200
 #guard ¬ (augWidth 5 4 ≤ 64)
 
-/-! ### §5.3 The residue, stated
+/-! ### §5.3.1 Why the room takes the *minimum* — both directions refuted
 
-What §5.1 delivers is a *reading*; substituting it is not this wave's
-edit. `RamAugment.ImplementsW` — the landed Hoare triple, discharged by
-`RamDriverAugment.implementsW` — asks its caller for
-`augWidth n d ≤ W` and derives its four internal capacity facts from the
-`n·n` room ("the `n · n` room pays the assembly's capacity via
-`sum_augDeg_le`", that theorem's own docstring). At `n := mm` that is
-`mm·mm`, and no restatement on this side can remove it: the term lives in
-a read-only definition and in the walk that consumes it.
+`AugRoom`'s fourth clause is `mm · min mm (2d² + d) ≤ W`, and neither
+half of the minimum can be dropped: the two widths supply *different*
+halves and neither implies the other. -/
 
-So the compacted round's width demand is `augWidth mm d ≤ W` and this
-wave states it as such — `augCompact_engine`'s `hW`. The substitution of
-`augWidthE` for `augWidth` is a `RamAugment`/`RamDriverAugment` edit,
-listed by `g2-cost-design` §3(a) with its four consumer sites, and it is
-E-width's, not E2-aug's. Everything E-width needs from this side is
-above: the width, its fit, its arena-affine reading, and the compact
-capacity step. -/
+-- **Refuted**: the landed width does not supply the degree-aware
+-- capacity. At two members and a degree budget of ten there is room for
+-- `mm·mm = 4` new slots per the `mm·mm` term but the assembly's
+-- degree-aware bound asks for `2·(2·100+10) = 420`.
+#guard ¬ (2 * (2 * (10 * 10) + 10) ≤ augWidth 2 10)
+-- **Refuted**: the degree-aware width does not supply the generic
+-- capacity. A million members, an arena of two million slots and the
+-- chain's budget `2·4² + 4 = 36`: the width is `1.371 · 10⁹` and
+-- `mm·mm` is `10¹²`.
+#guard ¬ (10 ^ 6 * 10 ^ 6 ≤ augWidthE (10 ^ 6) (2 * 10 ^ 6) 36)
+-- … and at that same allocation the *room* holds — clauses one and four,
+-- which are the two that see the width — while the landed width demand
+-- `augWidth mm d ≤ W` is false by three orders of magnitude. This is the
+-- substitution, on data: the round runs where `augWidth` said it could
+-- not be allocated.
+#guard 10 ^ 6 < augWidthE (10 ^ 6) (2 * 10 ^ 6) 36
+#guard 10 ^ 6 * min (10 ^ 6) (2 * (4 * 4) + 4) ≤ augWidthE (10 ^ 6) (2 * 10 ^ 6) 36
+#guard ¬ (augWidth (10 ^ 6) 4 ≤ augWidthE (10 ^ 6) (2 * 10 ^ 6) 36)
+#guard augWidth (10 ^ 6) 4 = 1000025000001
+#guard augWidthE (10 ^ 6) (2 * 10 ^ 6) 36 = 1371000001
+
+/-! ### §5.4 The residue, closed
+
+The wave that wrote §5.1–§5.3 delivered a *reading* and stopped at the
+substitution, because `RamAugment.ImplementsW` — the landed Hoare triple
+— asks its caller for `augWidth n d ≤ W` and derived its four internal
+capacity facts from the `n·n` room. Wave E2-width closed it, and the
+route was not to edit `RamAugment.augWidth` (still a read-only definition
+of this file, and `C0Probe`'s floor record is about it) but to stop
+asking for a *width* at all:
+
+* `RamDriverAugment.implementsCore` had already been factored out of
+  `implementsW` with the four capacities as explicit hypotheses — the
+  width never enters the walk. `augment_specWRoom` is that core read at
+  `RamAugment.AugPost`, and it is what §4 now calls.
+* §4.0's `AugRoom` names those four facts at the compact carrier.
+  `augRoom_of_augWidth` is the landed width's way in, so nothing that
+  compiled before stopped compiling; §5.2's two lemmas are the
+  arena-affine ways in, so `augWidthE` is now a width the round can
+  actually be run at.
+* The `m' ≤ n²` capacity step `g2-cost-design` §3(a) flags is
+  `RamDriverAugment.sum_augDeg_le`; its degree-aware replacement
+  `sum_augDeg_le_deg` re-discharges it from `arcs_le`, and `AugRoom.cap`
+  is the one place both are consumed.
+
+What is *not* closed here is the `nt` side: `augCompactCore` still runs
+in a target array of a width `nt` the caller allocated, and
+`augCompact_spec` still asks `kd ≤ W`. Those are slot counts, not
+carrier terms, and they are arena-affine already. -/
 
 /-! ## §6 The contract at the compacted arena
 
@@ -865,9 +1049,9 @@ theorem augPost_answers_of_augMemPost {n W : ℕ} {D : Orientation n} {σ' : Env
 /-! ## §9 The composite
 
 One named obligation of this family (`AugPreps`), one obligation shared
-with E2-elim (`ElimCompact.ScatterBacks` — the same program and the same
-walk), one walked pass (the carrier install), and §4's transported
-round. -/
+with E2-elim (`ElimCompact.ScatterBacksW` — the same program and the same
+walk, and *discharged*), one walked pass (the carrier install), and §4's
+transported round. -/
 
 /-! ### §9.0 What a discharger of `AugPreps` needs
 
@@ -930,19 +1114,56 @@ def AugPreps (B n mm nt W kd : ℕ) : Prop :=
       AugPreC mm n nt W IO DT σ' ∧
       σ'.arrs "mem" = σ.arrs "mem" ∧ (∃ g, σ'.arrs "ork" = arrOf n g)
 
+/-- **Why the member list must be repetition-free.** If two members carry
+the same arena number, the scatter's own conclusion asks one cell to hold
+two ranks. This is the two-member core of
+`ElimCompactWalks.not_scatterBacks_of_repeat`, at `AugMemPost`'s first
+clause, and it is why `augCompact_spec` below takes `hsm` and consumes
+`ElimCompact.ScatterBacksW` rather than the refuted `ScatterBacks`. -/
+theorem no_scatter_at_repeat {R Mem : ℕ → ℕ} {σ' : Env} (hM : Mem 0 = Mem 1)
+    (hR : R 0 ≠ R 1) : ¬ (∀ j, j < 2 → (σ'.arrs "ork").getD (Mem j) 0 = R j) := by
+  intro h
+  exact hR (by rw [← h 0 (by omega), ← h 1 (by omega), hM])
+
 /-- **The compacted round implements the arena contract.** The two
 obligations, the walked carrier install, §4's transported round, and
 nothing else. Read the cost: `augCompactCost mm kd W` — the arena's live
 vertex count, its compact slot count and the allocation width, and **no
 carrier term**. Read the last clause: the level's own mask above the
 compact prefix comes back exactly, which is `OrderEngineProbe` §4's
-read-seam dead. -/
+read-seam dead.
+
+Three hypotheses of wave E2-width, and one obligation swapped.
+
+* `h2` is `ElimCompact.ScatterBacksW`, not `ScatterBacks`. The latter is
+  **compiled-refuted** (`ElimCompactWalks.not_scatterBacks_of_repeat`), so
+  the earlier reading of this theorem stood on a `Prop` no caller could
+  ever discharge; the repaired obligation has the same conclusion and is
+  discharged unconditionally by `ElimCompactWalks.scatterBacksW`.
+* `hsm` — the member list is strictly increasing, hence repetition-free.
+  It is genuinely new: `hmlt` alone does not give it, and
+  `no_scatter_at_repeat` above is the compiled proof that without it the
+  conclusion's own first clause is unsatisfiable. Every landed caller
+  holds it as `ScatterBlock.MemList.smono`, which is how the elimination
+  side (`ElimCompact.elimCompact_spec`) supplies it.
+* `hroom` (§4.0) replaces the width demand `augWidth mm d ≤ W`. It is
+  strictly weaker — `augRoom_of_augWidth` derives it from that width —
+  and §5.2 derives it from the arena-affine `augWidthE`, so the round is
+  reachable at an allocation with no `mm·mm` term at all.
+
+The scatter's two remaining antecedents are *derived*, not assumed: the
+rank bound comes from §4's `RamElim.RnkLt` conjunct and the rank array's
+length from the round's own `rnk = arrOf mm R`. Both are word-bound
+facts, and without them `scatterCom`'s `get` on `rnk[km]` has no
+derivation — the obligation would be vacuously unusable rather than
+merely hard. -/
 theorem augCompact_spec {B n mm nt W kd d m : ℕ} {D : Orientation mm} {Mem IO IT : ℕ → ℕ}
-    {σ : Env} (h1 : AugPreps B n mm nt W kd) (h2 : ScatterBacks B n mm Mem)
+    {σ : Env} (h1 : AugPreps B n mm nt W kd) (h2 : ScatterBacksW B n mm Mem)
     (hin : InCsr D m IO IT) (hd : D.InDegLE d) (hmkd : m ≤ kd) (hkdW : kd ≤ W)
-    (hnt : fratSlots D ≤ nt) (hW : augWidth mm d ≤ W) (hB : mm + W + 1 < B) (hnB : n < B)
+    (hnt : fratSlots D ≤ nt) (hroom : AugRoom mm d m W D) (hB : mm + W + 1 < B) (hnB : n < B)
     (hmn : mm ≤ n) (hIOB : ∀ i ≤ mm, IO i < B) (hITB : ∀ j < kd, IT j < B)
     (hmem : σ.arrs "mem" = arrOf n Mem) (hmlt : ∀ j, j < mm → Mem j < n)
+    (hsm : ∀ i j, i < j → j < mm → Mem i < Mem j)
     (hent : AugEntryC n mm nt W kd IO IT σ) :
     ∃ σ'', Run B augCompactCore σ σ'' (augCompactCost mm kd W) ∧
       AugMemPost mm W Mem D σ'' ∧
@@ -962,8 +1183,8 @@ theorem augCompact_spec {B n mm nt W kd d m : ℕ} {D : Orientation mm} {Mem IO 
   have hin' : InCsr D m IO DT :=
     Lax3Proofs.RamDriverAugment.inCsr_congr_prefix hin fun j hj => hDT j (by omega)
   -- the round, at the arena's carrier
-  obtain ⟨τ, r3, hpost, htl⟩ :=
-    augCompact_engine (d := d) hin' hd hnt (hmkd.trans hkdW) hW hB hpre2
+  obtain ⟨τ, r3, hpost, hrnkLt, htl⟩ :=
+    augCompact_engine (d := d) hin' hd hnt (hmkd.trans hkdW) hroom hB hpre2
   set σ3 : Env := padArrs τ (tailOf σ2 (augClen mm nt W)) with hσ3
   obtain ⟨R, NO, NT, k, m', D', hrnk, hk, hnoff, hntg, hmn', hmW, hstep, hcsr, hlow,
     hgr, hbud⟩ := hpost
@@ -971,6 +1192,17 @@ theorem augCompact_spec {B n mm nt W kd d m : ℕ} {D : Orientation mm} {Mem IO 
   have hrnkP : ∀ j, j < mm → (σ3.arrs "rnk").getD j 0 = R j := by
     intro j hj
     rw [hσ3, getD_padArrs (by rw [hrnk]; simpa [arrOf] using hj), hrnk, getD_arrOf _ hj]
+  -- the rank bound the scatter's `get` needs: the round's ranks are
+  -- vertex numbers of the compacted arena, and `mm < B`
+  have hRB : ∀ j, j < mm → R j < B := by
+    intro j hj
+    have h := hrnkLt j hj
+    rw [hrnk, getD_arrOf _ hj] at h
+    omega
+  -- the rank array is long enough to be read at every member
+  have hρlen : mm ≤ (σ3.arrs "rnk").length := by
+    rw [hσ3, padArrs_arrs, List.length_append, hrnk, length_arrOf]
+    exact Nat.le_add_right _ _
   have hnoffP : ∀ i, i ≤ mm → (σ3.arrs "noff").getD i 0 = NO i := by
     intro i hi
     rw [hσ3, getD_padArrs (by rw [hnoff]; simpa [arrOf] using Nat.lt_succ_of_le hi),
@@ -989,7 +1221,8 @@ theorem augCompact_spec {B n mm nt W kd d m : ℕ} {D : Orientation mm} {Mem IO 
     obtain ⟨g, hg⟩ := hork2
     exact ⟨g, by rw [← hg]; exact r3.frame_arr "ork" (by decide)⟩
   -- the scatter
-  obtain ⟨σ4, r4, horkS, -, -, -⟩ := h2 R σ3 hmm3 hmem3 hmlt hrnkP hork3
+  obtain ⟨σ4, r4, horkS, -, -, -⟩ :=
+    h2 R σ3 hmm3 hmem3 hmlt hrnkP hork3 hsm hnB hRB hρlen
   refine ⟨σ4, (r1.seq (r2.seq (r3.seq r4))).mono ?_,
     ⟨R, NO, NT, k, m', D', horkS, ?_, ?_, ?_, ?_, hmW, hstep, hcsr, hlow, hgr, hbud,
       fun d' hd' => arcs_le_compact hcsr hd'⟩, ?_⟩
@@ -1010,5 +1243,14 @@ theorem augCompact_spec {B n mm nt W kd d m : ℕ} {D : Orientation mm} {Mem IO 
         (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
         (by decide)), harr1 "alv"]
     rw [r4.frame_arr "alv" (by decide), h, halv2]
+
+/-! ## §10 Axioms -/
+
+#print axioms augCompact_engine
+#print axioms augCompact_spec
+#print axioms augRoom_of_augWidth
+#print axioms augRoom_of_augWidthE
+#print axioms augRoom_of_augWidthE_slots
+#print axioms no_scatter_at_repeat
 
 end Lax3Proofs.Refine.AugCompact

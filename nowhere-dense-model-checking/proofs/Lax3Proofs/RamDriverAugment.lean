@@ -5023,16 +5023,31 @@ array has to be is *wide enough* for it (`hntf`). Everything the round
 addresses in `tgt` is still below `nf` — the blocks tile the prefix —
 so neither the postcondition nor the cost moves; what changes is that
 a caller who allocated the array once, at a width of its own choosing,
-can run the round in it, which an IMP+ run has no other way to do. -/
-theorem implementsCore {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ}
+can run the round in it, which an IMP+ run has no other way to do.
+
+**The third conjunct is the round's rank bound** (wave E2-width), and it
+is exactly `RamElim.RnkLt`'s situation one level up: the sub-elimination
+establishes `∀ v < n, R v < n` (`elimCert_specW`'s second answer, used
+already inside this walk as `hRn` to feed the assembly), and the
+assembly does not write `rnk` — but `RamAugment.AugMem` was written
+before the rank inversion existed and drops it, so `AugPost` drops it
+too. A caller that reads a rank **cell** with an IMP+ `get`
+(`Refine/ElimCompact.scatterCom` does: `rnk[km]`) has no derivation
+without the bound, so it cannot use the landed contract at all. It is
+threaded here, *beside* `AugMem` rather than inside it, so that the
+surface `RamAugment.ImplementsW` freezes does not move —
+`implementsCore` below is this conclusion weakened by one conjunct and
+is the proposition it always was. -/
+theorem implementsCoreR {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ}
     (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d)
     (hntW : RamAugment.fratSlots D ≤ nt) (hmW : m ≤ W) (hB : n + W + 1 < B)
     (hnW : n < W) (hdmW : d * m ≤ W) (hnfWs : RamAugment.fratSlots D < W)
     (hcap : ∀ ρ : Fin n → ℕ, RamElim.psum (augDeg D ρ) n ≤ W) :
     Spec B (RamAugment.AugPreW n nt W DO DT) RamAugment.augCom
       (fun σ σ' => RamAugment.AugMem n W D σ σ' ∧
-        ∀ z, RamAugment.fratSlots D ≤ z → z < nt →
-          (σ'.arrs "tgt").getD z 0 = (σ.arrs "tgt").getD z 0)
+        (∀ z, RamAugment.fratSlots D ≤ z → z < nt →
+          (σ'.arrs "tgt").getD z 0 = (σ.arrs "tgt").getD z 0) ∧
+        RamElim.RnkLt n σ')
       (RamAugment.augCost n W) := by
   classical
   obtain ⟨nf, hnf⟩ : ∃ nf, RamAugment.fratSlots D = nf := ⟨_, rfl⟩
@@ -5222,7 +5237,10 @@ theorem implementsCore {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ →
       rw [hfa₅ "tgt" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
         hr₄.frame_arr "tgt" (by decide), hfa₃ "tgt" (by decide), hFT,
         getD_arrOf FT hznt, hFTtl z hz' hznt,
-        hfa₁ "tgt" (by decide) (by decide) (by decide)]⟩
+        hfa₁ "tgt" (by decide) (by decide) (by decide)],
+    -- the rank bound: the sub-elimination's own, carried out of the
+    -- assembly, which does not write `rnk`
+    fun v hv => by rw [hrnk₅, getD_arrOf R hv]; exact hRn v hv⟩
   · have hcost : RamAugment.augCost n W = 8000 * (n + W + 1) := rfl
     have hec : elimCost n nf = 600 * n + 600 * nf + 100 := rfl
     have e1 : (80 * d + 92) * m = 80 * (d * m) + 92 * m := by ring
@@ -5230,6 +5248,43 @@ theorem implementsCore {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ →
   · rw [hfv₅ "kmax" (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide)]
     exact hkmax₄
+
+/-- **The core walk at the surface it always had** — `implementsCoreR`'s
+conclusion weakened by the rank conjunct, so that the three readings
+below destructure exactly the pair they always destructured. -/
+theorem implementsCore {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ}
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d)
+    (hntW : RamAugment.fratSlots D ≤ nt) (hmW : m ≤ W) (hB : n + W + 1 < B)
+    (hnW : n < W) (hdmW : d * m ≤ W) (hnfWs : RamAugment.fratSlots D < W)
+    (hcap : ∀ ρ : Fin n → ℕ, RamElim.psum (augDeg D ρ) n ≤ W) :
+    Spec B (RamAugment.AugPreW n nt W DO DT) RamAugment.augCom
+      (fun σ σ' => RamAugment.AugMem n W D σ σ' ∧
+        ∀ z, RamAugment.fratSlots D ≤ z → z < nt →
+          (σ'.arrs "tgt").getD z 0 = (σ.arrs "tgt").getD z 0)
+      (RamAugment.augCost n W) :=
+  (implementsCoreR hcsr hdeg hntW hmW hB hnW hdmW hnfWs hcap).post
+    fun _ _ _ h => ⟨h.1, h.2.1⟩
+
+/-- **One round, at the capacities the walk actually spends** (wave
+E2-width). The three consequences a compacted caller needs —
+`RamAugment.AugPost`, the rank bound `RamElim.RnkLt`, and the target
+array's tail — from the four room facts rather than from a named width,
+so that both `RamAugment.augWidth` and the degree-aware
+`Refine.AugCompact.augWidthE` reach it. Nothing is re-walked: this is
+`implementsCoreR` with `augPost_of_augMem` applied to its first
+conjunct. -/
+theorem augment_specWRoom {B n d nt W m : ℕ} {D : Orientation n} {DO DT : ℕ → ℕ}
+    (hcsr : InCsr D m DO DT) (hdeg : D.InDegLE d)
+    (hntW : RamAugment.fratSlots D ≤ nt) (hmW : m ≤ W) (hB : n + W + 1 < B)
+    (hnW : n < W) (hdmW : d * m ≤ W) (hnfWs : RamAugment.fratSlots D < W)
+    (hcap : ∀ ρ : Fin n → ℕ, RamElim.psum (augDeg D ρ) n ≤ W) :
+    Spec B (RamAugment.AugPreW n nt W DO DT) RamAugment.augCom
+      (fun σ σ' => RamAugment.AugPost n W D σ σ' ∧ RamElim.RnkLt n σ' ∧
+        ∀ z, RamAugment.fratSlots D ≤ z → z < nt →
+          (σ'.arrs "tgt").getD z 0 = (σ.arrs "tgt").getD z 0)
+      (RamAugment.augCost n W) :=
+  (implementsCoreR hcsr hdeg hntW hmW hB hnW hdmW hnfWs hcap).post
+    fun _ _ _ h => ⟨RamAugment.augPost_of_augMem h.1, h.2.2, h.2.1⟩
 
 /-- **The pinned widened interface, from the core** (rebase G2/E2: the
 walk is `implementsCore`, written once; this reading derives the four
