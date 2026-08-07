@@ -394,15 +394,6 @@ def cSlot : Com :=
             .skip)
       (.assign "kj" (.add (.var "kj") (.lit 1))))
 
-/-- `cRow`, with its row scan named as the kit's. -/
-theorem cRow_eq :
-    cRow = .seq (.assign "ku" (.get "mem" (.var "km")))
-      (.seq (.assign "kj" (.get "off" (.var "ku")))
-        (.seq (.assign "ke" (.get "off" (.add (.var "ku") (.lit 1))))
-          (.seq (Csr.scan "kj" "ke" cSlot)
-            (.seq (.assign "km" (.add (.var "km") (.lit 1)))
-              (.store "kof" (.var "km") (.var "ks")))))) := rfl
-
 /-! ### §2.1 The invariants -/
 
 /-- The arena arrays the compaction reads and never writes. -/
@@ -476,7 +467,6 @@ def CInner (n mm nt : ℕ) (O T M Mem Kix : ℕ → ℕ) (z : ℕ) (σ : Env) : 
 
 /-! ### §2.2 One slot -/
 
-set_option maxHeartbeats 1000000 in
 /-- **One slot of a member's row.** A dead target is passed over; a live
 one is renumbered through `kix` and appended at the write pointer.
 Twenty ticks, and the two directions of the block in progress grow by one
@@ -708,7 +698,6 @@ theorem cInner_exit {z : ℕ} {τ : Env} (hcsr : CsrSimple G nt O T)
   have := card_livePfx_le hcsr hml hKix hz hj₂
   omega
 
-set_option maxHeartbeats 1000000 in
 /-- **One member's row, compacted.** The arena row of `mem[km]` is read
 in the *level* CSR, scanned by the kit's row scan, and the member's block
 closed in `kof`. The charge is the member's **raw** row length — the
@@ -815,7 +804,6 @@ theorem cRow_run {z : ℕ} (hcsr : CsrSimple G nt O T)
 
 /-! ### §2.4 Every row, and the whole pass -/
 
-set_option maxHeartbeats 1000000 in
 /-- **Every member's row.** Amortized, not counted: a turn costs the
 member's raw row length, and the members' rows tile a part of the level's
 target array, so the potential is "so much per member left, so much per
@@ -886,7 +874,6 @@ theorem cOuter_entry {σ : Env} {g₁ g₂ : ℕ → ℕ}
   · (try simp only [vars_setVar, arrs_setVar, vars_setArr, arrs_setArr, ↓reduceIte,
       String.reduceEq, hg₁, hg₂, set_arrOf_eq_upd]) <;> (intro y hy; omega)
 
-set_option maxHeartbeats 1000000 in
 /-- **The compacted CSR, built.** The offsets in `kof` over `mm + 1`
 cells, the targets in `ktg` over the compact slot count, which the pass
 leaves in `ks`. -/
@@ -919,7 +906,6 @@ theorem notMem_compactCsr_warrs {a : String} (h₁ : a ≠ "kof") (h₂ : a ≠ 
     a ∉ compactCsr.warrs := by
   simp [compactCsr, cRow, Com.warrs, h₁, h₂]
 
-set_option maxHeartbeats 1000000 in
 /-- **The renumbering, both halves.** `ElimCompactWalks.cixPass_run` and
 §2.4, sequenced: the inverse numbering and the compacted CSR, at
 `40·mm + 24·rs + 17` ticks, and everything else in the store untouched. -/
@@ -1031,11 +1017,6 @@ theorem notMem_fillUpto_wvars {a y : String} {bnd e : Expr} (h : y ≠ "i") :
     y ∉ (fillUpto a bnd e).wvars := by
   simp [fillUpto, Fill.put, Com.wvars, h]
 
-theorem notMem_installCom_wvars {y : String} (h₁ : y ≠ "i") (h₂ : y ≠ "n") :
-    y ∉ installCom.wvars := by
-  simp [installCom, copyUpto, fillUpto, Fill.put, Com.wvars, h₁, h₂]
-
-set_option maxHeartbeats 1000000 in
 /-- **The engine's entry, installed.** The compact offsets over `mm + 1`
 cells, the compact targets over `cs`, the all-alive mask and the two
 zeroed scratch prefixes over the arena's carrier, and the carrier scalar
@@ -1182,7 +1163,6 @@ theorem installCom_run {O' T KOf KT : ℕ → ℕ} {cs : ℕ} {σ : Env}
 
 /-! ### §3.1 The obligation -/
 
-set_option maxHeartbeats 1000000 in
 /-- **`ElimCompact.CompactInstalls`, discharged.**
 
 `compactPass` renumbers (`ElimCompactWalks.cixPass_run` and §2.4) and

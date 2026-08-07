@@ -1143,7 +1143,25 @@ compiled findings of `ElimCompactWalks` rather than taste:
   `RamElim.elim_specW`'s `hMB : ∀ z < n, M z < B`, which the landed
   engine has carried all along; the compacted entry surface had lost it
   because `ArenaEntryC` replaced `ElimPre`'s clause list. The compiled
-  falsification is in `Refine/ElimCompactCsr.lean` §0. -/
+  falsification is in `Refine/ElimCompactCsr.lean` §0.
+
+**A seam in `T'`, for whoever reads it next.** The `CsrSimple` and the
+`ElimPreC` below are stated at the *same* `T'`, and that function is a
+**merge**, not the compact target array: `installCom` copies only the
+first `cs` cells of `"ktg"` into `"tgt"`, so `T'` is the compact targets
+below `cs = O' mm` and the **level's own targets** at and above it. An
+IMP+ run cannot re-allocate, so the tail cannot be cleared and this is
+not a defect — `CsrSimple (memGraph …) cs O' T'` holds because every one
+of its clauses reads `T'` only below `cs` (`target_lt` at `j < cs`,
+`adj_iff` and `nodup` inside rows of vertices below `mm`, whose blocks
+end at `O' mm = cs`). Nothing in `elimCompact_spec` or in
+`RamElim.elim_specWR` reads above `cs` today.
+
+The tripwire is for a *future* consumer: a pass that reads `T'` at a slot
+`≥ cs` expecting compact data will silently get level-numbered vertices,
+which are arena numbers and not member indices. If such a consumer
+appears, it must either be bounded by `cs` or be handed a `T'` whose tail
+was overwritten. -/
 def CompactInstalls (B n mm nt W : ℕ) (G : SimpleGraph (Fin n)) (M Mem : ℕ → ℕ) : Prop :=
   ∀ (O T : ℕ → ℕ) (σ : Env) (hml : MemList n mm Mem (markSet n M)),
     CsrSimple G nt O T → ArenaEntryC n mm nt W O T M Mem σ →
