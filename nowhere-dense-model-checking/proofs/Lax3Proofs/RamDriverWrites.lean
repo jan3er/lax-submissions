@@ -1017,6 +1017,78 @@ theorem wvars_killCom {q_top cap mb d : ℕ} {φ : Lax3.FirstOrder.FO 0}
     · exact Or.inr (Or.inr (Or.inl ⟨i, h'⟩))
   · exact Or.inl h
 
+/-! ### The kill list's write set
+
+**Wave R1.8-T3-flip (a2).** `RamDriver.killListCom` writes one array —
+the depth's own kill list — and five scalars: its count and the four
+fixed scratch names of the two loops. Both are one `simp` off the fixed
+syntax, and they live here beside their `killCom` twins because this is
+where a pass's write-set syntax facts belong. -/
+
+/-- **What the kill list pass writes**: the depth's kill list, and
+nothing else. -/
+theorem warrs_killListCom (mb j : ℕ) {a : String} (ha : a ∈ (killListCom mb j).warrs) :
+    a = klName j := by
+  simpa [killListCom, Com.warrs] using ha
+
+/-- **And which scalars it assigns**: its count, and its four scratch
+scalars — the buffer counter, the probed entry, the scan's flag and the
+scan's counter. -/
+theorem wvars_killListCom (mb j : ℕ) {y : String} (hy : y ∈ (killListCom mb j).wvars) :
+    y = kkName j ∨ y = "kk" ∨ y = "kv" ∨ y = "kf" ∨ y = "kt" := by
+  simp only [killListCom, Com.wvars, List.mem_append, List.mem_singleton,
+    List.mem_cons, List.not_mem_nil, or_false] at hy
+  tauto
+
+theorem notMem_warrs_killListCom {mb j : ℕ} {a : String} (ha : a ≠ klName j) :
+    a ∉ (killListCom mb j).warrs :=
+  fun h => ha (warrs_killListCom mb j h)
+
+theorem notMem_wvars_killListCom {mb j : ℕ} {y : String} (h₁ : y ≠ kkName j)
+    (h₂ : y ≠ "kk") (h₃ : y ≠ "kv") (h₄ : y ≠ "kf") (h₅ : y ≠ "kt") :
+    y ∉ (killListCom mb j).wvars := by
+  intro h
+  rcases wvars_killListCom mb j h with h | h | h | h | h
+  · exact h₁ h
+  · exact h₂ h
+  · exact h₃ h
+  · exact h₄ h
+  · exact h₅ h
+
+/-- The kill list pass does not touch the output tape. -/
+theorem noWrite_killListCom (mb j : ℕ) : (killListCom mb j).NoWrite := by
+  simp [killListCom, Com.NoWrite]
+
+/-- **No name of a depth below is the kill list of any depth** — `"kl"`
+is a fresh prefix, so the whole table is settled by the first two
+characters. -/
+theorem belowArr_ne_klName {d : ℕ} {a : String} (h : BelowArr d a) (b' : ℕ) :
+    a ≠ klName b' := by
+  obtain ⟨b, -, hc⟩ := h
+  rcases hc with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
+      ⟨c, rfl⟩ | ⟨i, rfl⟩ <;>
+    simp [alvName, gamName, cluName, resName, batName, ordName, xofName, xmmName,
+      asgName, cpsName, memName, colName, tabName, klName, String.ext_iff]
+
+/-- **Nor is any scalar of a depth below the kill count of any depth.** -/
+theorem belowVar_ne_kkName {d : ℕ} {y : String} (h : BelowVar d y) (b' : ℕ) :
+    y ≠ kkName b' := by
+  obtain ⟨b, -, hc⟩ := h
+  rcases hc with rfl | rfl | rfl | rfl | rfl | rfl <;>
+    simp [ctrName, xpName, curName, cnumName, cixName, mnumName, kkName, String.ext_iff]
+
+theorem belowArr_notMem_warrs_killListCom (mb d : ℕ) {a : String} (h : BelowArr d a) :
+    a ∉ (killListCom mb d).warrs :=
+  notMem_warrs_killListCom (belowArr_ne_klName h d)
+
+theorem belowVar_notMem_wvars_killListCom (mb d : ℕ) {y : String} (h : BelowVar d y) :
+    y ∉ (killListCom mb d).wvars :=
+  notMem_wvars_killListCom (belowVar_ne_kkName h d)
+    (fun hq => absurd (hq ▸ hasDigit_of_belowVar h) (by decide))
+    (fun hq => absurd (hq ▸ hasDigit_of_belowVar h) (by decide))
+    (fun hq => absurd (hq ▸ hasDigit_of_belowVar h) (by decide))
+    (fun hq => absurd (hq ▸ hasDigit_of_belowVar h) (by decide))
+
 theorem noWrite_killFold {L : ℕ} (jd : ℕ) : ∀ (l : List (DistFO L 1)) (p : ℕ),
     (foldIdx (fun i β =>
       Com.seq (botCom jd β "bb")
@@ -1110,6 +1182,9 @@ theorem belowArr_notMem_warrs_driverAux (q_top cap mb ℓ : ℕ) (φ : Lax3.Firs
           -- evaluator's scratch, so a name of a depth below `d` survives it
           exact belowArr_notMem_warrs_killCom q_top cap mb d φ h hr
         rcases mem_warrs_seq hr with hr | hr
+        · -- the kill list (wave R1.8-T3-flip): this depth's own list
+          exact belowArr_notMem_warrs_killListCom mb d h hr
+        rcases mem_warrs_seq hr with hr | hr
         · exact ih (d + 1) (h.mono (Nat.le_succ d)) hr
         rcases mem_warrs_seq hr with hr | hr
         · exact belowArr_notMem_warrs_scatterFold q_top cap mb d φ h hr
@@ -1158,6 +1233,10 @@ theorem belowVar_notMem_wvars_driverAux (q_top cap mb ℓ : ℕ) (φ : Lax3.Firs
         · exact belowVar_notMem_wvars_colourCom cap mb d h hr
         rcases mem_wvars_seq hr with hr | hr
         · exact belowVar_notMem_wvars_killCom q_top cap mb d φ h hr
+        rcases mem_wvars_seq hr with hr | hr
+        · -- the kill list (wave R1.8-T3-flip): its count is this depth's own,
+          -- and its four scratch scalars carry no digit
+          exact belowVar_notMem_wvars_killListCom mb d h hr
         rcases mem_wvars_seq hr with hr | hr
         · exact ih (d + 1) (h.mono (Nat.le_succ d)) hr
         rcases mem_wvars_seq hr with hr | hr
@@ -1215,6 +1294,10 @@ theorem cpsName_notMem_warrs_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstO
     · exact absurd hc (by simp [cpsName, tabName, String.ext_iff])
     · exact absurd hc (by rw [cpsName]; exact not_ext_bb_append (by decide) (by decide) _)
   rcases mem_warrs_seq hr with hr | hr
+  · -- the kill list writes the depth's own list, and nothing else
+    exact absurd (warrs_killListCom mb d hr)
+      (by simp [cpsName, klName, String.ext_iff])
+  rcases mem_warrs_seq hr with hr | hr
   · exact hin hr
   rcases mem_warrs_seq hr with hr | hr
   · exact (by decide : ∀ q ∈ scratchArrs, ¬ HasDigit q) _
@@ -1225,10 +1308,16 @@ theorem cpsName_notMem_warrs_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstO
 open Classical in
 /-- **A per-depth scalar of the depth's own loop header survives a
 turn**, given that it is not the depth's connector — which is the one
-per-depth scalar the descent assigns. -/
+per-depth scalar the descent assigns.
+
+**Wave R1.8-T3-flip (a2)** adds `hykk`, and it is not bookkeeping: the
+kill list's count `kkName d` is a *per-depth* scalar, so unlike the kill
+pass's `"kk"`/`"kv"` it carries a digit and `hy` alone cannot rule it
+out. The two callers below discharge it by the numeral's prefix, the
+same character arithmetic as `hyctr` and `hymm`. -/
 theorem perDepthVar_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
     {inner : Com} {y : String} (hy : HasDigit y) (hyctr : y ≠ ctrName d)
-    (hymm : y ≠ mnumName (d + 1)) (hyus : '_' ∉ y.toList)
+    (hymm : y ≠ mnumName (d + 1)) (hykk : y ≠ kkName d) (hyus : '_' ∉ y.toList)
     (hyenv : ∀ i, y ≠ envName i) (hybb : ¬ RamDriverBot.Ext "bb" y)
     (hin : y ∉ inner.wvars) :
     y ∉ (clusterCom q_top cap mb φ d inner).wvars := by
@@ -1252,6 +1341,15 @@ theorem perDepthVar_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.Fi
     · exact hyenv i hc
     · exact hybb hc
   rcases mem_wvars_seq hr with hr | hr
+  · -- the kill list: its count is the depth's own scalar `hykk` excludes, and
+    -- its four scratch scalars carry no digit
+    rcases wvars_killListCom mb d hr with hc | hc | hc | hc | hc
+    · exact hykk hc
+    · exact absurd (hc ▸ hy) (by decide)
+    · exact absurd (hc ▸ hy) (by decide)
+    · exact absurd (hc ▸ hy) (by decide)
+    · exact absurd (hc ▸ hy) (by decide)
+  rcases mem_wvars_seq hr with hr | hr
   · exact hin hr
   rcases mem_wvars_seq hr with hr | hr
   · have hy2 : y ≠ "i" := fun hq' => (by decide : ¬ HasDigit "i") (hq' ▸ hy)
@@ -1271,6 +1369,7 @@ theorem cnumName_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.First
   perDepthVar_notMem_wvars_clusterCom q_top cap mb d φ (hasDigit_cnumName d)
     (by simp [cnumName, ctrName, String.ext_iff])
     (by simp [cnumName, mnumName, String.ext_iff])
+    (by simp [cnumName, kkName, String.ext_iff])
     (by rw [cnumName]; exact underscore_notMem_prefixed (by decide) d)
     (fun i => RamDriverBot.lit_ne_envName (q := cnumName d) (c := 'c')
       ⟨_, by rw [cnumName, String.toList_append]; rfl⟩ (by decide) i)
@@ -1283,6 +1382,7 @@ theorem cixName_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstO
   perDepthVar_notMem_wvars_clusterCom q_top cap mb d φ (hasDigit_cixName d)
     (by simp [cixName, ctrName, String.ext_iff])
     (by simp [cixName, mnumName, String.ext_iff])
+    (by simp [cixName, kkName, String.ext_iff])
     (by rw [cixName]; exact underscore_notMem_prefixed (by decide) d)
     (fun i => RamDriverBot.lit_ne_envName (q := cixName d) (c := 'c')
       ⟨_, by rw [cixName, String.toList_append]; rfl⟩ (by decide) i)

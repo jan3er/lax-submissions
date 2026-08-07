@@ -3,6 +3,7 @@ import Lax3Proofs.RamDriverAugment
 import Lax3Proofs.Refine.ArenaPointer
 import Lax3Proofs.Refine.DeadSweep
 import Lax3Proofs.Refine.KillPass
+import Lax3Proofs.Refine.KillListWalk
 import Lax3Proofs.Refine.MassWeight
 
 /-!
@@ -57,6 +58,7 @@ No obligation `Prop` is a hypothesis. The chain, bottom up:
 | `InnerFrames` | `RamDriverFrames.innerFrames`, on this file's write sets |
 | `ScatterStep` | `RamDriverFrames.scatterStep` |
 | `ReadbackStep` | `RamDriverBase.readbackStep` |
+| `KillListStep` | `killListStep` below, on `Refine.KillListWalk` |
 | `ClusterStepImplements` | `RamDriverCluster.clusterStepImplements` |
 | `ClusterFrames` | `RamDriverFrames.clusterFrames` |
 | `OrderImplements` | `RamDriverCompose.orderImplements₀` (at `R = 0`) |
@@ -184,6 +186,160 @@ theorem loopFrames :
 
 end Frames
 
+/-! ### The kill list, at the surface the turn consumes it at
+
+**Wave R1.8-T3-flip (a2).** `Refine.KillListWalk` is the walk;
+`RamDriverCluster.KillListStep` is the surface, and this is the step
+between them. There is no mathematics: the pass writes one array — the
+depth's own kill list, a name no clause of a turn is about — and five
+scalars, so every "unchanged" conjunct of the postcondition is one frame
+lemma off `RamDriverWrites.warrs_killListCom` / `wvars_killListCom`, and
+the one new conjunct is the walk's own enumeration re-read at the turn's
+`X` and `W`.
+
+That re-reading is the only thing worth naming. The walk's guard is the
+two cells `alv[v]·clu[v]` at a *buffer entry*, and `KillListAt` speaks
+about the set `{v | M v ≠ 0 ∧ v ∈ X ∧ v ∈ W}` — which is exactly
+`RamDriverCluster.KillRowsAt`'s domain. The two are the same set because
+`ClusterData` says the buffer's range is the batch (`Set.range w = W`)
+and the cluster array marks the cluster (`markSet n Xa = X`); that is
+where the turn's data enters and nothing else does. -/
+
+section KillList
+
+/-- **The kill pass leaves the padding buffer alone**, so the `ClusterWa`
+seam runs one link further than it did in wave R1.8-T2: the kill pass
+writes the child depth's tables and the evaluator's scratch, and `"wa"`
+is neither. This is what makes the kill list the *fourth* consumer of the
+seam, still strictly before the nested call. -/
+theorem wa_notMem_warrs_killCom (q_top cap mb j : ℕ) (φ : Lax3.FirstOrder.FO 0) :
+    "wa" ∉ (killCom q_top cap mb j φ).warrs :=
+  Refine.KillPass.notMem_warrs_killCom
+    (fun β hβ => (tableRank_of_mem_tablesAt (j + 1) β hβ).1)
+    (fun i => RamDriverBase.lit_ne_tabName (by decide) (j + 1) i)
+    (RamDriverBot.not_ext_of_not_prefix (by decide))
+
+variable {n : ℕ} {B q_top cap mb ns Ws j : ℕ} {φ : Lax3.FirstOrder.FO 0}
+  {G : SimpleGraph (Fin n)} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
+  {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ} {X W : Set (Fin n)} {w : Fin mb → Fin n}
+  {Alv' Gam' : ℕ → ℕ} {C' : ℕ → ℕ → ℕ}
+
+open Lax3Proofs.RamDriverCluster (TurnPre ClusterData ClusterWa KillRowsAt KillListAt
+  KillListStep markSet)
+
+/-- **The kill list pass at the surface the turn consumes it at.**
+`RamDriverCluster.KillListStep`, from
+`Refine.KillListPass.killListCom_spec` and the frame. -/
+theorem killListStep :
+    KillListStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+      Alv' Gam' C' (Refine.KillListPass.killListCost mb) := by
+  intro d hB
+  refine Spec.of_exists fun σ hσ => ?_
+  obtain ⟨hturn, hdat, hwa, hcolarr, hplay, htsz, hkrows⟩ := hσ
+  obtain ⟨Xa, hXa, hXaS, hXaB⟩ := hdat.1.1
+  have hdep : DepthMem n cap mb σ := hturn.1.2.2.2.2.2.2.2.2.2.2.1
+  -- the walk
+  obtain ⟨σ', hrun, hlist⟩ :=
+    (Refine.KillListPass.killListCom_spec (M := M) (Xa := Xa) (w := w) (j := j)
+        hB.one_lt hB.n_lt hB.mb_lt (fun z hz => hturn.1.2.2.2.2.2.2.1 z hz) hXaB).run (σ := σ)
+      ⟨Refine.KillPass.clusterWa_eq hwa, hturn.1.2.2.2.1, hXa, hdep.kl j⟩
+  -- the frame, once: one array and five scalars
+  have harr : ∀ a : String, a ≠ klName j → σ'.arrs a = σ.arrs a :=
+    fun a ha => hrun.frame_arr a (RamDriverWrites.notMem_warrs_killListCom ha)
+  have hvar : ∀ y : String, y ≠ kkName j → y ≠ "kk" → y ≠ "kv" → y ≠ "kf" → y ≠ "kt" →
+      σ'.vars y = σ.vars y :=
+    fun y h₁ h₂ h₃ h₄ h₅ =>
+      hrun.frame_var y (RamDriverWrites.notMem_wvars_killListCom h₁ h₂ h₃ h₄ h₅)
+  -- the four name shapes every clause below is an instance of
+  have harrDepth : ∀ b : ℕ, σ'.arrs (alvName b) = σ.arrs (alvName b) := fun b =>
+    harr _ (by simp [alvName, klName, String.ext_iff])
+  have harrGam : ∀ b : ℕ, σ'.arrs (gamName b) = σ.arrs (gamName b) := fun b =>
+    harr _ (by simp [gamName, klName, String.ext_iff])
+  have harrCol : ∀ b q : ℕ, σ'.arrs (colName b q) = σ.arrs (colName b q) := fun b q =>
+    harr _ (by simp [colName, klName, String.ext_iff])
+  have harrMem : ∀ b : ℕ, σ'.arrs (memName b) = σ.arrs (memName b) := fun b =>
+    harr _ (by simp [memName, klName, String.ext_iff])
+  have hvarMm : ∀ b : ℕ, σ'.vars (mnumName b) = σ.vars (mnumName b) := fun b =>
+    hvar _ (by simp [mnumName, kkName, String.ext_iff]) (by simp [mnumName, String.ext_iff])
+      (by simp [mnumName, String.ext_iff]) (by simp [mnumName, String.ext_iff])
+      (by simp [mnumName, String.ext_iff])
+  -- the level's own precondition
+  have hlev' : LevelPre B n cap mb ns Ws O T j M Gm C σ' :=
+    RamDriverCompose.levelPre_run hturn.1 hrun
+      (RamDriverWrites.notMem_wvars_killListCom (by simp [kkName, String.ext_iff])
+        (by decide) (by decide) (by decide) (by decide))
+      (RamDriverWrites.notMem_wvars_killListCom (by simp [kkName, String.ext_iff])
+        (by decide) (by decide) (by decide) (by decide))
+      (RamDriverWrites.notMem_wvars_killListCom (by simp [kkName, String.ext_iff])
+        (by decide) (by decide) (by decide) (by decide))
+      (RamDriverWrites.notMem_warrs_killListCom (by simp [klName, String.ext_iff]))
+      (RamDriverWrites.notMem_warrs_killListCom (by simp [klName, String.ext_iff]))
+      (RamDriverWrites.notMem_warrs_killListCom (by simp [alvName, klName, String.ext_iff]))
+      (RamDriverWrites.notMem_warrs_killListCom (by simp [gamName, klName, String.ext_iff]))
+      (fun _ => RamDriverWrites.notMem_warrs_killListCom
+        (by simp [colName, klName, String.ext_iff]))
+      (fun a ha => by
+        simp only [RamDriverCompose.zeroArrs, List.mem_cons, List.not_mem_nil, or_false] at ha
+        rcases ha with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+          exact RamDriverWrites.notMem_warrs_killListCom (by simp [klName, String.ext_iff]))
+      (RamDriverWrites.notMem_warrs_killListCom (by simp [memName, klName, String.ext_iff]))
+      (RamDriverWrites.notMem_wvars_killListCom (by simp [mnumName, kkName, String.ext_iff])
+        (by simp [mnumName, String.ext_iff]) (by simp [mnumName, String.ext_iff])
+        (by simp [mnumName, String.ext_iff]) (by simp [mnumName, String.ext_iff]))
+  refine ⟨σ', _, hrun, le_rfl, ⟨hlev', ?_, ?_⟩, ⟨?_, hdat.2⟩, fun c hc => ?_, ?_, ?_, ?_,
+    ?_, ?_⟩
+  · -- the recorded play of the turn's own depth
+    exact hturn.2.1.congr
+      (fun a _ => hvar (ctrName a) (by simp [ctrName, kkName, String.ext_iff])
+        (by simp [ctrName, String.ext_iff]) (by simp [ctrName, String.ext_iff])
+        (by simp [ctrName, String.ext_iff]) (by simp [ctrName, String.ext_iff]))
+      (fun a _ => harrGam a)
+  · -- the cover's answers
+    exact Refine.KillPass.coverHeld_congr hturn.2.2
+      (harr (ordName j) (by simp [ordName, klName, String.ext_iff]))
+      (harr (xofName j) (by simp [xofName, klName, String.ext_iff]))
+      (harr (xmmName j) (by simp [xmmName, klName, String.ext_iff]))
+      (harr (asgName j) (by simp [asgName, klName, String.ext_iff]))
+      (hvar (xpName j) (by simp [xpName, kkName, String.ext_iff])
+        (by simp [xpName, String.ext_iff]) (by simp [xpName, String.ext_iff])
+        (by simp [xpName, String.ext_iff]) (by simp [xpName, String.ext_iff]))
+  · -- the descent's data
+    exact Refine.KillPass.batchData_congr hdat.1
+      (harr (cluName j) (by simp [cluName, klName, String.ext_iff]))
+      (harr (batName j) (by simp [batName, klName, String.ext_iff]))
+      (harr (resName j) (by simp [resName, klName, String.ext_iff]))
+      (harrDepth (j + 1)) (harrGam (j + 1)) (harrMem (j + 1)) (hvarMm (j + 1))
+  · rw [harrCol (j + 1) c]; exact hcolarr c hc
+  · -- and the child depth's recorded play
+    exact hplay.congr
+      (fun a _ => hvar (ctrName a) (by simp [ctrName, kkName, String.ext_iff])
+        (by simp [ctrName, String.ext_iff]) (by simp [ctrName, String.ext_iff])
+        (by simp [ctrName, String.ext_iff]) (by simp [ctrName, String.ext_iff]))
+      (fun a _ => harrGam a)
+  · exact hrun.out_eq (RamDriverWrites.noWrite_killListCom mb j)
+  · exact hvar (curName j) (by simp [curName, kkName, String.ext_iff])
+      (by simp [curName, String.ext_iff]) (by simp [curName, String.ext_iff])
+      (by simp [curName, String.ext_iff]) (by simp [curName, String.ext_iff])
+  · -- the kill pass's rows are about the child's tables, which this pass never names
+    intro i hi Tb hTb
+    exact hkrows i hi Tb (by rw [← harr (tabName (j + 1) i)
+      (by simp [tabName, klName, String.ext_iff])]; exact hTb)
+  · -- **the list, re-read at the turn's cluster and batch**
+    obtain ⟨kl, kq, hkl, hkq, hqle, hkln, hinj, hsound, hcomp⟩ := hlist
+    refine ⟨kl, kq, hkl, hkq, hqle, hkln, hinj, fun e he => ?_, fun v hMv hvX hvW => ?_⟩
+    · obtain ⟨hM, hXv, p, hp⟩ := hsound e he
+      refine ⟨w p, hp, by rw [hp]; exact hM, ?_, ?_⟩
+      · rw [← hXaS]; show Xa (w p : ℕ) ≠ 0; rw [hp]; exact hXv
+      · rw [← hdat.2]; exact Set.mem_range_self p
+    · obtain ⟨p, hp⟩ : ∃ p : Fin mb, w p = v := by
+        have : v ∈ Set.range w := by rw [hdat.2]; exact hvW
+        exact this
+      obtain ⟨e, he, hee⟩ := hcomp p (by rw [hp]; exact hMv)
+        (by rw [hp]; rw [← hXaS] at hvX; exact hvX)
+      exact ⟨e, he, by rw [hee, hp]⟩
+
+end KillList
+
 /-! ### One turn of the centre loop, and its frame
 
 The two obligations `RamDriverCluster.levelImplements` takes at every
@@ -196,19 +352,33 @@ variable {n : ℕ} {B q_top cap mb ns W ℓ j Kmass : ℕ} {φ : Lax3.FirstOrder
   {G : SimpleGraph (Fin n)} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
   {ord Xoff Xmem asg : ℕ → ℕ} {mm k : ℕ} {Kb Ki Ksc Ks : ℕ} {Kin : ℕ → ℕ}
 
-/-- The six walks of a turn, at the costs their own files charge.
+/-- The seven walks of a turn, at the costs their own files charge.
 
-**Wave R1.8-T2.** The kill pass is the sixth, and its charge is absorbed
+**Wave R1.8-T2.** The kill pass is the fourth, and its charge is absorbed
 here — inside the turn's own slot, which is design §7's disposition F-4.
-It is the one summand that mentions neither `n` nor `ns`:
+It is one of the two summands that mention neither `n` nor `ns`:
 `Refine.KillPass.killCost` is `(blockCost + 21) · mb + 6`, carrier-blind,
-read at the child depth's table because that is the row it writes. -/
+read at the child depth's table because that is the row it writes.
+
+**Wave R1.8-T3-flip (a2).** The kill list is the fifth, and its charge is
+absorbed the same way and for the same reason:
+`Refine.KillListPass.killListCost mb = (20·mb + 64)·mb + 8` is
+carrier-blind too — `n` does not occur — and quadratic in the *formula*
+sized `mb = ℓ·(2·cap+1)`, which is the design's accepted `O(mb²)` dedupe
+class (§6 (a)). The absorption is **not** free at the old constant: the
+probe's `ct = 284` was an exact fit, so `Refine.KillListPass.ctKL` moves
+it by exactly the measured instance and
+`Refine.KillListPass.killList_interface_closes` re-runs the Σ closure
+there — the closure is indifferent to the turn coefficient's value,
+which is F-4's disposition, so absorbing the list moves a number and no
+interface. -/
 noncomputable def turnCost (n ns cap mb q_top j : ℕ) (φ : Lax3.FirstOrder.FO 0) (Ksc Kin : ℕ) : ℕ :=
   RamDriverDescend.descendCost n ns cap j +
     ((20 * n + 12 * mb + 30) +
       (RamDriverDescend.colourCost n ns cap mb (sigL cap mb j) +
         (Refine.KillPass.killCost q_top cap mb (j + 1) φ +
-          (Kin + (Ksc + RamDriverBase.rbCost q_top cap mb φ j n)))))
+          (Refine.KillListPass.killListCost mb +
+            (Kin + (Ksc + RamDriverBase.rbCost q_top cap mb φ j n))))))
 
 /-- **The turn cost, size-indexed** (`integration-design.md` §5.7). The
 new slot `s` is the number of members of the block the turn processes,
@@ -262,6 +432,8 @@ theorem clusterStepAt
     (fun _ _ _ _ _ => RamDriverDescend.colourStep le_rfl)
     (RamDriverFrames.wa_notMem_warrs_colourCom cap mb j)
     (fun _ _ _ _ _ _ => Refine.KillPass.killStep)
+    (wa_notMem_warrs_killCom q_top cap mb j φ)
+    (fun _ _ _ _ _ _ => killListStep)
     (fun hinner _ _ _ _ _ _ => RamDriverFrames.innerFrames hinner
       (fun _ ha => turnFrozen_notMem_warrs_driverAt ha)
       (fun _ ha => ctrName_notMem_wvars_driverAt ha)
@@ -301,6 +473,10 @@ theorem clusterFramesAt
       (fun β hβ => (tableRank_of_mem_tablesAt (j + 1) β hβ).1)
       (fun i' => RamDriverBase.tabName_ne_succ j i i')
       (fun hc => RamDriverBot.not_ext_b_tabName j i (RamDriverCompose.ext_b_of_ext_bb hc)))
+    (wa_notMem_warrs_killCom q_top cap mb j φ)
+    (fun i => RamDriverWrites.notMem_warrs_killListCom
+      (by simp [tabName, klName, String.ext_iff]))
+    (fun _ _ _ _ _ _ => killListStep)
     (fun _ ha => turnFrozen_notMem_warrs_driverAt ha)
       (fun _ ha => ctrName_notMem_wvars_driverAt ha)
     xpName_notMem_wvars_driverAt curName_notMem_wvars_driverAt

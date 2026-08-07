@@ -205,15 +205,21 @@ memory, not a fragment. -/
 /-- The declared length of every array name in the witness world
 (`n = 2`, `W = 0`, `cap = 0`, `mb = 0`): the `xofName` family and the
 `n + 1` scratch at 3, the `xmmName` family and `"xmem"` at `n·n = 4`,
-`"path"` at `2·cap + 1 = 1`, the width-`W` and `"wa"` arrays at 0,
-everything else — including every per-depth family and the `memName`
-family — at `n = 2`. -/
+`"path"` at `2·cap + 1 = 1`, the width-`W` arrays, `"wa"` and the
+`klName` family at 0, everything else — including every per-depth family
+and the `memName` family — at `n = 2`.
+
+**Wave R1.8-T3-flip (a2).** The `klName` family joins `"wa"` in the
+width-`mb` bucket, not the carrier one: the kill list of a depth is a
+sub-list of the padded batch buffer's entries, so `DepthMem` sizes it at
+`mb` and the witness world has `mb = 0`. -/
 def len2 (a : String) : ℕ :=
   if a.toList.take 2 = ['x', 'f'] then 3
   else if a.toList.take 2 = ['x', 'm'] then 4
   else if a = "xoff" then 3
   else if a ∈ ["off", "doff", "ooff", "gof", "bh", "bv", "bn", "ioff", "noff"] then 3
   else if a = "path" then 1
+  else if a.toList.take 2 = ['k', 'l'] then 0
   else if a ∈ ["tgt", "dtg", "otg", "gtg", "itg", "ntg", "wa"] then 0
   else 2
 
@@ -272,6 +278,8 @@ theorem len2_colName : len2 (colName j c) = 2 := by
   simp [len2, colName, String.ext_iff, String.toList_append]
 theorem len2_memName : len2 (memName j) = 2 := by
   simp [len2, memName, String.ext_iff, String.toList_append]
+theorem len2_klName : len2 (klName j) = 0 := by
+  simp [len2, klName, String.ext_iff, String.toList_append]
 
 end FamilyLengths
 
@@ -289,13 +297,15 @@ theorem rootEnv_colName (j c : ℕ) : rootEnv.arrs (colName j c) = arrOf 2 (fun 
     len2_colName]
   decide
 
-/-- The landed `DepthMem`, at the witness: all twelve families of every
-depth, at their lengths. -/
+/-- The landed `DepthMem`, at the witness: all fourteen families of every
+depth, at their lengths — thirteen carrier-shaped ones and, since wave
+R1.8-T3-flip, the width-`mb` kill list. -/
 theorem depthMem_rootEnv : DepthMem 2 0 0 rootEnv := by
   intro j
   refine ⟨fun p hp => ?_, fun c _ => exists_arrOf ((rootEnv_length _).trans (len2_colName j c))⟩
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
-  rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
+    rfl
   · exact exists_arrOf ((rootEnv_length _).trans (len2_alvName j))
   · exact exists_arrOf ((rootEnv_length _).trans (len2_gamName j))
   · exact exists_arrOf ((rootEnv_length _).trans (len2_cluName j))
@@ -309,6 +319,7 @@ theorem depthMem_rootEnv : DepthMem 2 0 0 rootEnv := by
   · exact exists_arrOf ((rootEnv_length _).trans (len2_asgName j))
   · exact exists_arrOf ((rootEnv_length _).trans (len2_cpsName j))
   · exact exists_arrOf ((rootEnv_length _).trans (len2_memName j))
+  · exact exists_arrOf ((rootEnv_length _).trans (len2_klName j))
 
 /-- **The `DepthMem` delta, at the witness**: the member array of every
 depth is there at length `n` — the 13th `Sized` entry costs the

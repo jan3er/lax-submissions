@@ -784,6 +784,75 @@ def KillStep (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
       σ'.out = σ.out ∧ σ'.vars (curName j) = σ.vars (curName j) ∧
       KillRowsAt q_top cap mb j φ G M Alv' X W C' σ') K
 
+/-- **The kill set of one turn, listed once each** (wave R1.8-T3-flip,
+design §6 (a2)): what `RamDriver.killListCom` leaves in `klName j`, and
+what the atom pass's kill walk reads after the nested call returns.
+
+The set enumerated is exactly `KillRowsAt`'s domain — the vertices alive
+at the parent depth, in the cluster and in the batch — which is this
+turn's half of the child depth's dead set (`BatchData`'s pointwise
+clause, wave R1.8-T1). The four clauses are the four
+`Refine.ScatterDeadFold.sum_bit_eq_ncard_inter` consumes: the entries
+are vertices, the enumeration is repetition-free, everything listed is
+in the set, and everything in the set is listed.
+
+**Repetition-freeness is the whole point.** The buffer `"wa"` already
+enumerates the batch, but the padding repeats its first entry and
+`ClusterWa` pins only the buffer's *range*, so a bit sum over the buffer
+double-counts a kill — `Refine.KillListPass` §0 compiles that refutation
+against the scan-free walk. The dedupe is what makes the second clause
+below true, and the second clause is `sum_bit_eq_ncard_inter`'s `hinj`.
+
+The physical length is `mb`, not the carrier: the list is a sub-list of
+the buffer's entries, so the buffer's own width bounds it, which is why
+the clause rides `RamDriver.DepthMem` at `(klName j, mb)` and no carrier
+reading enters. -/
+def KillListAt {n : ℕ} (mb j : ℕ) (M : ℕ → ℕ) (X W : Set (Fin n)) (σ : Env) : Prop :=
+  ∃ (kl : ℕ → ℕ) (kq : ℕ), σ.arrs (klName j) = arrOf mb kl ∧
+    σ.vars (kkName j) = kq ∧ kq ≤ mb ∧
+    (∀ e, e < kq → kl e < n) ∧
+    (∀ e₁, e₁ < kq → ∀ e₂, e₂ < kq → kl e₁ = kl e₂ → e₁ = e₂) ∧
+    (∀ e, e < kq → ∃ v : Fin n, (v : ℕ) = kl e ∧ M (v : ℕ) ≠ 0 ∧ v ∈ X ∧ v ∈ W) ∧
+    (∀ v : Fin n, M (v : ℕ) ≠ 0 → v ∈ X → v ∈ W → ∃ e, e < kq ∧ kl e = (v : ℕ))
+
+/-- **The kill list pass.** That `RamDriver.killListCom` enumerates the
+turn's kill set into the depth's own list, and disturbs nothing the turn
+holds.
+
+Its position inside `RamDriver.clusterCom` is forced from both sides.
+The walk reads the padded buffer, so the precondition carries
+`ClusterWa` and the pass must stand strictly before the nested call,
+which repads it — the kill list is the *fourth* and last consumer of the
+seam. And its product is a per-depth name, so it is still there when the
+nested call returns, which is the only reason a list can serve the atom
+pass at all.
+
+The precondition is the kill pass's postcondition, plus the seam, plus
+the sizing `∃ g, arrs (klName j) = arrOf mb g` — which is
+`RamDriver.DepthMem.kl`, a clause of `TurnPre` already, so nothing new is
+asked of a caller. `RamDriverRoot.killListStep` is the discharge and
+`Refine.KillListPass.killListCom_spec` the walk; `KillRowsAt` rides
+through because the pass writes one array of a name no table has, so the
+kill pass's capital is not dropped at the seam. -/
+def KillListStep (B q_top cap mb ns Ws j : ℕ) (φ : Lax3.FirstOrder.FO 0)
+    (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
+    (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (X W : Set (Fin n)) (w : Fin mb → Fin n)
+    (Alv' Gam' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
+  ∀ {d : ℕ}, WordBoundK B n d ns cap mb →
+  Spec B (fun σ => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ ∧
+      ClusterData n mb j B G M X W w Alv' Gam' σ ∧ ClusterWa mb w σ ∧
+      (∀ c < sigL cap mb (j + 1), σ.arrs (colName (j + 1) c) = arrOf n (C' c)) ∧
+      PlayRec B cap G (j + 1) Alv' Gam' σ ∧ TablesSized q_top cap mb φ n σ ∧
+      KillRowsAt q_top cap mb j φ G M Alv' X W C' σ)
+    (killListCom mb j)
+    (fun σ σ' => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
+      ClusterData n mb j B G M X W w Alv' Gam' σ' ∧
+      (∀ c < sigL cap mb (j + 1), σ'.arrs (colName (j + 1) c) = arrOf n (C' c)) ∧
+      PlayRec B cap G (j + 1) Alv' Gam' σ' ∧
+      σ'.out = σ.out ∧ σ'.vars (curName j) = σ.vars (curName j) ∧
+      KillRowsAt q_top cap mb j φ G M Alv' X W C' σ' ∧
+      KillListAt mb j M X W σ') K
+
 /-- **The scatter atoms.** That the fold of `RamDriver.scatterCom` over
 the depth's table decides every scatter atom of every tabled formula.
 
@@ -960,15 +1029,27 @@ postcondition: the nested level still runs `RamDriver.sweepCom` and still
 hands back the carrier-wide `TableInv`, so the turn owes nothing new. The
 one thing the composition needs is `hwafr` — that the colouring leaves
 the padding buffer alone — which is what carries `ClusterWa` across
-`colourCom` and makes the kill pass the third and last consumer of the
+`colourCom` and makes the kill pass the third consumer of the
 seam, still strictly before the recursion
-(`RamDriverFrames.wa_notMem_warrs_colourCom`). -/
+(`RamDriverFrames.wa_notMem_warrs_colourCom`).
+
+**Wave R1.8-T3-flip (a2): the kill list.** `hklist` is the seventh walk,
+run between the kill pass and the nested call, and it is the *fourth*
+and last consumer of the `ClusterWa` seam — `hkill`'s own postcondition
+carries the buffer across the kill pass by the same `Run.frame_arr`
+argument `hwa₃` makes across the colouring. Its postcondition
+`KillListAt` — the turn's kill set, listed once each in the depth's own
+`klName j` — is the capital the atom pass of scope (b) consumes *after*
+the nested call, since the name is per-depth and the recursion leaves it
+alone. Like `hkill`'s, it is not threaded into this obligation's own
+postcondition: nothing above the turn owes it yet, and the list crosses
+`inner` only when (b) makes it. -/
 theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.FirstOrder.FO 0}
     {G : SimpleGraph (Fin n)}
     {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
     {ord Xoff Xmem asgf : ℕ → ℕ} {mm k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ}
     {inner : Com} {Kin : ℕ → ℕ}
-    {Kd Ke Kc Kk Ks Kr K : ℕ}
+    {Kd Ke Kc Kk Kkl Ks Kr K : ℕ}
     (hcap : cap = rhoMinus 0 q_top)
     (hdes : DescendStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asgf mm Kd)
     (henum : ∀ X W Alv' Gam',
@@ -979,6 +1060,10 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
     (hkill : ∀ X W w Alv' Gam' C',
       KillStep B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asgf mm X W w
         Alv' Gam' C' Kk)
+    (hwakfr : "wa" ∉ (killCom q_top cap mb j φ).warrs)
+    (hklist : ∀ X W w Alv' Gam' C',
+      KillListStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asgf mm X W w
+        Alv' Gam' C' Kkl)
     (hfr : InnerAvail B q_top cap mb ns Ws ℓ j φ G O T wA inner Kin → ∀ X W w Alv' Gam' C',
       InnerFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asgf mm X W w
         Alv' Gam' C' inner (Kin (wA Alv')))
@@ -993,7 +1078,7 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
       RamCover.CoverOut G M π ord cap mm Xoff Xmem asgf →
       (∀ v : Fin n, Alv' (v : ℕ) ≠ 0 → v ∈ clusterAt G M π ord cap k) →
       wA Alv' ≤ wBk)
-    (hK : Kd + (Ke + (Kc + (Kk + (Kin wBk + (Ks + Kr))))) ≤ K) :
+    (hK : Kd + (Ke + (Kc + (Kk + (Kkl + (Kin wBk + (Ks + Kr)))))) ≤ K) :
     ClusterStepImplements B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asgf mm k
       wA inner Kin K := by
   classical
@@ -1030,42 +1115,54 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
   obtain ⟨σₖ, hrₖ, hturnₖ, hdatₖ, hcolarrₖ, hplayₖ, houtₖ, hcₖ, hkillₖ⟩ :=
     (hkill X W w Alv' Gam' C' hB).run (σ := σ₃)
       ⟨hturn₃, hdat₃, hwa₃, hcolarr₃, hcolbit₃, hcolread₃, hplay₃, htsz₃, hbarr₃⟩
-  have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σₖ := by
+  have htszₖ : TablesSized q_top cap mb φ n σₖ := htsz₃.run hrₖ
+  have hbarrₖ : BaseArrs B q_top cap mb ℓ φ σₖ := hbarr₃.run hrₖ
+  -- **the kill list** (wave R1.8-T3-flip). The seam runs one link further: the
+  -- kill pass writes the child's tables and the evaluator's scratch, never the
+  -- buffer, so the padding is still live here — and this is where it ends, the
+  -- nested call being what repads it
+  have hwaₖ : ClusterWa mb w σₖ := by
+    show σₖ.arrs "wa" = _
+    rw [hrₖ.frame_arr "wa" hwakfr]; exact hwa₃
+  obtain ⟨σₗ, hrₗ, hturnₗ, hdatₗ, hcolarrₗ, hplayₗ, houtₗ, hcₗ, -, -⟩ :=
+    (hklist X W w Alv' Gam' C' hB).run (σ := σₖ)
+      ⟨hturnₖ, hdatₖ, hwaₖ, hcolarrₖ, hplayₖ, htszₖ, hkillₖ⟩
+  have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σₗ := by
     -- the depth-`j` member conjunct is NOT passed through: the clause is
     -- depth-indexed through `memName`, exactly like the two mask clauses, and the
     -- child's list is the one the descent filtered (rebase E-mem)
     obtain ⟨hn₃, hoff₃, htgt₃, -, -, -, -, -, -, hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, -⟩ :=
-      hturnₖ.1
-    obtain ⟨-, -, -, halv₃, hAlvB, -, -, hgam₃, hGamB, hmemin₃⟩ := hdatₖ.1
-    exact ⟨hn₃, hoff₃, htgt₃, halv₃, hgam₃, hcolarrₖ,
+      hturnₗ.1
+    obtain ⟨-, -, -, halv₃, hAlvB, -, -, hgam₃, hGamB, hmemin₃⟩ := hdatₗ.1
+    exact ⟨hn₃, hoff₃, htgt₃, halv₃, hgam₃, hcolarrₗ,
       fun z hz => hAlvB z hz, fun z hz => hGamB z hz, hcolbit₃,
       hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, hmemin₃⟩
-  have htszₖ : TablesSized q_top cap mb φ n σₖ := htsz₃.run hrₖ
-  have hbarrₖ : BaseArrs B q_top cap mb ℓ φ σₖ := hbarr₃.run hrₖ
+  have htszₗ : TablesSized q_top cap mb φ n σₗ := htszₖ.run hrₗ
+  have hbarrₗ : BaseArrs B q_top cap mb ℓ φ σₗ := hbarrₖ.run hrₗ
   -- the nested driver, with the frame of the depth it was called from
   obtain ⟨σ₄, hr₄, ⟨⟨-, -, htab₄⟩, hout₄⟩, hturn₄, hdat₄, hcolarr₄, hc₄⟩ :=
     (spec_conj ((hinner Alv' Gam' C' hcolbit₃).pre
         (fun _ h => ⟨h.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2⟩))
       (hfr hinner X W w Alv' Gam' C')).run
-      (σ := σₖ) ⟨hlevin, hturnₖ, hdatₖ, htszₖ, hbarrₖ, hplayₖ⟩
-  have htsz₄ : TablesSized q_top cap mb φ n σ₄ := htszₖ.run hr₄
+      (σ := σₗ) ⟨hlevin, hturnₗ, hdatₗ, htszₗ, hbarrₗ, hplayₗ⟩
+  have htsz₄ : TablesSized q_top cap mb φ n σ₄ := htszₗ.run hr₄
   -- the scatter atoms
   obtain ⟨σ₅, hr₅, hturn₅, hdat₅, hcolarr₅, htab₅, hout₅, hc₅, hflag₅⟩ :=
     (hscat X W w Alv' Gam' C').run (σ := σ₄)
       ⟨hturn₄, hdat₄, hcolarr₄, hcolbit₃, hcolread₃, htab₄⟩
   have htsz₅ : TablesSized q_top cap mb φ n σ₅ := htsz₄.run hr₅
   have hc₅₀ : σ₅.vars (curName j) = σ.vars (curName j) := by
-    rw [hc₅, hc₄, hcₖ, hc₃, hc₂, hc₁]
+    rw [hc₅, hc₄, hcₗ, hcₖ, hc₃, hc₂, hc₁]
   -- the readback
   obtain ⟨σ₆, hr₆, hturn₆, hout₆, hc₆, hrb₆⟩ :=
     (hread X W w Alv' Gam' C').run (σ := σ₅)
       ⟨hturn₅, hdat₅, hcolarr₅, hcolbit₃, hcolread₃, htab₅, htsz₅,
         by rw [hc₅₀]; exact hcnlt, hflag₅⟩
-  have hrun := hr₁.seq (hr₂.seq (hr₃.seq (hrₖ.seq (hr₄.seq (hr₅.seq hr₆)))))
-  refine ⟨σ₆, _, hrun, by omega, hturn₆.1, htsz₅.run hr₆, hbarrₖ.run (hr₄.seq (hr₅.seq hr₆)),
+  have hrun := hr₁.seq (hr₂.seq (hr₃.seq (hrₖ.seq (hrₗ.seq (hr₄.seq (hr₅.seq hr₆))))))
+  refine ⟨σ₆, _, hrun, by omega, hturn₆.1, htsz₅.run hr₆, hbarrₗ.run (hr₄.seq (hr₅.seq hr₆)),
     hturn₆.2.1,
-    by rw [hout₆, hout₅, hout₄, houtₖ, hout₃, hout₂, hout₁],
-    by rw [hc₆, hc₅, hc₄, hcₖ, hc₃, hc₂, hc₁], fun i hi => ?_⟩
+    by rw [hout₆, hout₅, hout₄, houtₗ, houtₖ, hout₃, hout₂, hout₁],
+    by rw [hc₆, hc₅, hc₄, hcₗ, hcₖ, hc₃, hc₂, hc₁], fun i hi => ?_⟩
   obtain ⟨Tb, Tb₀, harr, -, -, hval⟩ := hrb₆ i hi
   refine ⟨Tb, harr, fun v hasgv => ?_⟩
   -- the assignment array is the cover's, so the vertex is one of this centre's
