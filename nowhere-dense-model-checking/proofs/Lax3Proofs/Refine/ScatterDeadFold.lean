@@ -256,6 +256,47 @@ theorem ncard_dead_split (S Xa : Set (Fin n)) :
   conv_lhs => rw [← hu]
   exact Set.ncard_union_eq hd (Set.toFinite _) (Set.toFinite _)
 
+/-- **The kill bits sum to the kill term.** A repetition-free list
+enumerating a set `K`, read against a bit array whose bits decide
+membership in `S` at every listed vertex, sums to `|K ∩ S|` — the walk
+of the turn's kill list computes the fold's kill summand. The
+hypotheses are exactly what the kill-list pass leaves (the list) and
+what `DeadRowProbe.TableInvOn` at the kill domain says (the bits). -/
+theorem sum_bit_eq_ncard_inter {kk : ℕ} {kl : ℕ → ℕ} {K S : Set (Fin n)} {Tb : ℕ → ℕ}
+    (hlt : ∀ e, e < kk → kl e < n)
+    (hinj : ∀ e₁, e₁ < kk → ∀ e₂, e₂ < kk → kl e₁ = kl e₂ → e₁ = e₂)
+    (hsound : ∀ e, (he : e < kk) → (⟨kl e, hlt e he⟩ : Fin n) ∈ K)
+    (hcomp : ∀ v : Fin n, v ∈ K → ∃ e, e < kk ∧ kl e = (v : ℕ))
+    (hbit : ∀ v : Fin n, v ∈ K → Tb (v : ℕ) ≤ 1 ∧ (Tb (v : ℕ) ≠ 0 ↔ v ∈ S)) :
+    (∑ e ∈ Finset.range kk, Tb (kl e)) = (K ∩ S).ncard := by
+  classical
+  -- the sum counts the indices whose bit is set
+  have hsum : (∑ e ∈ Finset.range kk, Tb (kl e)) =
+      ({e ∈ Finset.range kk | Tb (kl e) ≠ 0}).card := by
+    rw [Finset.card_filter]
+    refine Finset.sum_congr rfl fun e he => ?_
+    have he' := Finset.mem_range.1 he
+    have hb : Tb (kl e) ≤ 1 := by simpa using (hbit _ (hsound e he')).1
+    by_cases h : Tb (kl e) ≠ 0
+    · rw [if_pos h]; omega
+    · rw [if_neg h]; omega
+  -- and those indices list the intersection without repetition
+  rw [hsum, Set.ncard_eq_toFinset_card']
+  refine Finset.card_bij
+    (fun e he => (⟨kl e, hlt e (Finset.mem_range.1 (Finset.mem_filter.1 he).1)⟩ : Fin n))
+    (fun e he => ?_) (fun e₁ he₁ e₂ he₂ hv => ?_) (fun v hv => ?_)
+  · obtain ⟨her, hbe⟩ := Finset.mem_filter.1 he
+    have he' := Finset.mem_range.1 her
+    have hK := hsound e he'
+    exact Set.mem_toFinset.2 ⟨hK, ((hbit _ hK).2).1 hbe⟩
+  · exact hinj e₁ (Finset.mem_range.1 (Finset.mem_filter.1 he₁).1) e₂
+      (Finset.mem_range.1 (Finset.mem_filter.1 he₂).1) (congrArg Fin.val hv)
+  · obtain ⟨hK, hS⟩ := Set.mem_toFinset.1 hv
+    obtain ⟨e, he, hke⟩ := hcomp v hK
+    refine ⟨e, Finset.mem_filter.2 ⟨Finset.mem_range.2 he, ?_⟩, ?_⟩
+    · rw [hke]; exact ((hbit v hK).2).2 hS
+    · exact Fin.ext hke
+
 /-- **The outside class is all or nothing.** If any two members of a set
 agree on membership in `X`, then `X` either swallows the set or misses
 it entirely — so its contribution to a count is `D.ncard` or `0`, one
@@ -550,6 +591,18 @@ Classical.choice,
 Quot.sound] -/
 #guard_msgs in
 #print axioms outside_ncard_eq
+
+/-- info: 'Lax3Proofs.Refine.ScatterDeadFold.sum_bit_eq_ncard_inter' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms sum_bit_eq_ncard_inter
+
+/-- info: 'Lax3Proofs.Refine.ScatterDeadFold.outside_ncard_of_probe' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms outside_ncard_of_probe
 
 /-- info: 'Lax3Proofs.Refine.ScatterDeadFold.row_survives_chain' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
