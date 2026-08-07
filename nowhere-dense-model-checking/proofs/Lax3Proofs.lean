@@ -118,3 +118,4 @@ import Lax3Proofs.Refine.ElimCompact
 import Lax3Proofs.Refine.SymCompact
 import Lax3Proofs.Refine.AugCompact
 import Lax3Proofs.Refine.CompactPreps
+import Lax3Proofs.Refine.ScatterDeadPass

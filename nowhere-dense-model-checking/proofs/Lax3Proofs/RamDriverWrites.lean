@@ -1059,6 +1059,120 @@ theorem notMem_wvars_killListCom {mb j : ℕ} {y : String} (h₁ : y ≠ kkName 
 theorem noWrite_killListCom (mb j : ℕ) : (killListCom mb j).NoWrite := by
   simp [killListCom, Com.NoWrite]
 
+/-! ### The dead-aware atom pass's write sets
+
+**Wave R1.8-T3-flip (b).** The four driver-side passes of the atom
+program (`RamDriver.atomMemCom`, `killSumCom`, `outProbeCom`,
+`outCntCom`, `atomFlagCom`) against the names the composite threads
+across them. Each is one `simp` off fixed syntax, and they live here
+beside their `killListCom` twins because this is where a pass's
+write-set syntax facts belong.
+
+The one that carries weight is the filter's: it writes the engine's
+`"mem"` and **not** the child's `memName (j + 1)`, which is the
+compiled content of `Refine.ScatterDeadPass.inplace_filter_refuted` —
+the child's list has to survive every atom of the turn. -/
+
+/-- **What the atom's filter writes**: the engine's member array, and
+nothing else — in particular not the child's own list. -/
+theorem warrs_atomMemCom (j ti : ℕ) {a : String} (ha : a ∈ (atomMemCom j ti).warrs) :
+    a = "mem" := by
+  simpa [atomMemCom, Com.warrs] using ha
+
+theorem notMem_warrs_atomMemCom {j ti : ℕ} {a : String} (ha : a ≠ "mem") :
+    a ∉ (atomMemCom j ti).warrs :=
+  fun h => ha (warrs_atomMemCom j ti h)
+
+/-- And which scalars it assigns: the engine's count and its two scratch
+scalars. -/
+theorem wvars_atomMemCom (j ti : ℕ) {y : String} (hy : y ∈ (atomMemCom j ti).wvars) :
+    y = "mm" ∨ y = "ak" ∨ y = "av" := by
+  simp only [atomMemCom, Com.wvars, List.mem_append, List.mem_singleton,
+    List.mem_cons, List.not_mem_nil, or_false] at hy
+  tauto
+
+theorem notMem_wvars_atomMemCom {j ti : ℕ} {y : String} (h₁ : y ≠ "mm") (h₂ : y ≠ "ak")
+    (h₃ : y ≠ "av") : y ∉ (atomMemCom j ti).wvars := by
+  intro h
+  rcases wvars_atomMemCom j ti h with h | h | h
+  · exact h₁ h
+  · exact h₂ h
+  · exact h₃ h
+
+theorem noWrite_atomMemCom (j ti : ℕ) : (atomMemCom j ti).NoWrite := by
+  simp [atomMemCom, Com.NoWrite]
+
+/-- **The kill walk writes no array at all** — it reads the depth's kill
+list and the child's table row and accumulates in a scalar. -/
+theorem warrs_killSumCom (j ti : ℕ) : (killSumCom j ti).warrs = [] := by
+  simp [killSumCom, Com.warrs]
+
+theorem notMem_warrs_killSumCom {j ti : ℕ} {a : String} : a ∉ (killSumCom j ti).warrs := by
+  simp [warrs_killSumCom]
+
+theorem wvars_killSumCom (j ti : ℕ) {y : String} (hy : y ∈ (killSumCom j ti).wvars) :
+    y = "kc" ∨ y = "ke" := by
+  simp only [killSumCom, Com.wvars, List.mem_append, List.mem_singleton,
+    List.mem_cons, List.not_mem_nil, or_false] at hy
+  tauto
+
+theorem notMem_wvars_killSumCom {j ti : ℕ} {y : String} (h₁ : y ≠ "kc") (h₂ : y ≠ "ke") :
+    y ∉ (killSumCom j ti).wvars := by
+  intro h
+  rcases wvars_killSumCom j ti h with h | h
+  · exact h₁ h
+  · exact h₂ h
+
+theorem noWrite_killSumCom (j ti : ℕ) : (killSumCom j ti).NoWrite := by
+  simp [killSumCom, Com.NoWrite]
+
+/-- **The outside probe writes no array either**: a flag, a register and
+a counter. -/
+theorem warrs_outProbeCom (j : ℕ) : (outProbeCom j).warrs = [] := by
+  simp [outProbeCom, Com.warrs]
+
+theorem notMem_warrs_outProbeCom {j : ℕ} {a : String} : a ∉ (outProbeCom j).warrs := by
+  simp [warrs_outProbeCom]
+
+theorem wvars_outProbeCom (j : ℕ) {y : String} (hy : y ∈ (outProbeCom j).wvars) :
+    y = "of" ∨ y = "oz" ∨ y = "oi" := by
+  simp only [outProbeCom, Com.wvars, List.mem_append, List.mem_singleton,
+    List.mem_cons, List.not_mem_nil, or_false] at hy
+  tauto
+
+theorem notMem_wvars_outProbeCom {j : ℕ} {y : String} (h₁ : y ≠ "of") (h₂ : y ≠ "oz")
+    (h₃ : y ≠ "oi") : y ∉ (outProbeCom j).wvars := by
+  intro h
+  rcases wvars_outProbeCom j h with h | h | h
+  · exact h₁ h
+  · exact h₂ h
+  · exact h₃ h
+
+theorem noWrite_outProbeCom (j : ℕ) : (outProbeCom j).NoWrite := by
+  simp [outProbeCom, Com.NoWrite]
+
+/-- The outside count and the verdict are straight-line assignments. -/
+theorem warrs_outCntCom (j : ℕ) : (outCntCom j).warrs = [] := by
+  simp [outCntCom, Com.warrs]
+
+theorem wvars_outCntCom (j : ℕ) : (outCntCom j).wvars = ["oc"] := by
+  simp [outCntCom, Com.wvars]
+
+theorem noWrite_outCntCom (j : ℕ) : (outCntCom j).NoWrite := by
+  simp [outCntCom, Com.NoWrite]
+
+theorem warrs_atomFlagCom (t : ℕ) : (atomFlagCom t).warrs = [] := by
+  simp [atomFlagCom, Com.warrs]
+
+theorem wvars_atomFlagCom (t : ℕ) {y : String} (hy : y ∈ (atomFlagCom t).wvars) :
+    y = "os" ∨ y = "flag" := by
+  simp only [atomFlagCom, Com.wvars, List.mem_append, List.mem_singleton,
+    List.mem_cons, List.not_mem_nil, or_false] at hy
+  tauto
+
+theorem noWrite_atomFlagCom (t : ℕ) : (atomFlagCom t).NoWrite := by
+  simp [atomFlagCom, Com.NoWrite]
+
 /-- **No name of a depth below is the kill list of any depth** — `"kl"`
 is a fresh prefix, so the whole table is settled by the first two
 characters. -/
