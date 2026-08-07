@@ -331,7 +331,7 @@ set_option maxHeartbeats 1000000 in
 theorem levelMem_rootEnv : LevelMem 4 2 0 0 rootEnv := by
   refine ⟨fun p hp => ?_, ?_, ?_⟩
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
-    rcases hp with rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl <;>
+    rcases hp with rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl <;>
       exact exists_arrOf ((rootEnv_length _).trans (by decide))
   · rw [rootEnv_arrs_of_ne (by decide) (by decide) (by decide)]; decide
   · rw [rootEnv_arrs_of_ne (by decide) (by decide) (by decide)]; decide
@@ -423,7 +423,7 @@ set_option maxHeartbeats 1000000 in
 theorem levelMem_childEnv : LevelMem 4 2 0 0 childEnv := by
   refine ⟨fun p hp => ?_, by decide, by decide⟩
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
-  rcases hp with rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl <;>
+  rcases hp with rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl <;>
     exact exists_arrOf ((childEnv_length _).trans (by decide))
 
 set_option maxHeartbeats 2000000 in

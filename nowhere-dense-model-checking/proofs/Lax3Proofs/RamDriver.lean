@@ -667,12 +667,24 @@ ask for in their own preconditions: `RamCover.CoverPre` names `alv`,
 names `alv`, `tab`, `dist`, `q` and `exc` — the last two of `dist` and
 `q` as `RamScatter.Words`, which is the word clause here.
 
+**Wave R1.8-T3-flip (c1d): the block engine's two arrays.**
+`Refine.ScatterBlock.ArenaA` — the calling convention of the active-set
+engine the dead-aware atom phase runs — pins `"mem"` and `"qd"` at the
+carrier's length beside the five above, and nothing in the package
+sized them: `Refine.ArenaSeam.arenaA_of_levelPre` took both as
+hypotheses and had no producer for either. They are scratch arrays of a
+sub-program exactly as `"exc"` is, so they belong in this list and
+nowhere else; adding them is what lets a turn enter the engine at all.
+The two are lengths, so `levelMem_run` is unchanged and the clause is
+still what a fresh machine memory satisfies
+(`Refine.BridgeSeamProbe.levelMem_initEnv`).
+
 Every clause of it is preserved by every run, which is why it can be
 asked of a level's exit as well as of its entry: `levelMem_run`. -/
 def LevelMem (B n cap mb : ℕ) (σ : Env) : Prop :=
   Sized [("alv", n), ("tab", n), ("dist", n), ("q", n), ("exc", n), ("asg", n),
       ("ord", n), ("xoff", n + 1), ("xmem", n * n),
-      ("par", n), ("path", 2 * cap + 1), ("wa", mb)] σ ∧
+      ("par", n), ("path", 2 * cap + 1), ("wa", mb), ("mem", n), ("qd", n)] σ ∧
     (∀ v ∈ σ.arrs "dist", v < B) ∧ (∀ v ∈ σ.arrs "q", v < B)
 
 /-- **The memory clause of a level survives any run.** The lengths
@@ -689,6 +701,17 @@ theorem LevelMem.words {B n cap mb : ℕ} {σ : Env} (h : LevelMem B n cap mb σ
     RamScatter.Words B n "dist" σ ∧ RamScatter.Words B n "q" σ :=
   ⟨words_of_length (h.1.length (p := ("dist", n)) (by simp)) h.2.1,
     words_of_length (h.1.length (p := ("q", n)) (by simp)) h.2.2⟩
+
+/-- **The active-set engine's member array** (wave R1.8-T3-flip (c1d)),
+out of the clause: the destination `Refine.ScatterBlock.ArenaA` reads
+the atom's filtered list from. -/
+theorem LevelMem.memArr {B n cap mb : ℕ} {σ : Env} (h : LevelMem B n cap mb σ) :
+    ∃ g : ℕ → ℕ, σ.arrs "mem" = arrOf n g := h.1 ("mem", n) (by simp)
+
+/-- **And its distance queue**, the second of the two arrays the block
+search addresses that no other pass of the driver does. -/
+theorem LevelMem.qdArr {B n cap mb : ℕ} {σ : Env} (h : LevelMem B n cap mb σ) :
+    ∃ g : ℕ → ℕ, σ.arrs "qd" = arrOf n g := h.1 ("qd", n) (by simp)
 
 /-! ### The names
 

@@ -85,13 +85,38 @@ the separator does not occur in a decimal representation, the second
 because the representation is injective. Both come off
 `RamDriverBase`'s kit. -/
 
-/-- The arrays the calling convention and the scatter pass write. -/
-def scratchArrs : List String := ["alv", "tab", "exc", "dist", "q"]
+/-- The arrays the calling convention and the scatter pass write.
+
+**Wave R1.8-T3-flip (c1d)**: `"mem"` and `"qd"` join the five, because
+the dead-aware atom phase runs `Refine.ScatterBlock.scatBlockCom`, whose
+working set they are. Both are fixed names of a sub-program, so no
+clause `ScatPre` pins is one of them — `RamDriver.memName_ne_mem` is the
+only near miss and it is a disequality. -/
+def scratchArrs : List String := ["alv", "tab", "exc", "dist", "q", "qd", "mem"]
+
+/-- **The generated evaluator's scratch, as this file can name it.**
+`RamDriverBot.Ext "bb"` unfolded — `RamDriverBot` sits beside this file
+in the import order, not below it, so the predicate is restated rather
+than imported. It is *definitionally* `RamDriverBot.Ext "bb"`, so a
+consumer above both may hand one for the other. -/
+def BbExt (a : String) : Prop := "bb".toList <+: a.toList
+
+/-- **A name whose first two characters are not `bb` is not the
+evaluator's.** The twin of `RamDriverBot.not_ext_b_of_cons` at the
+two-character prefix, so that every driver name below is one line. -/
+theorem not_bbExt_of_cons {y : String} {c₁ c₂ : Char} {t : List Char}
+    (h : y.toList = c₁ :: c₂ :: t) (hc : ¬ (c₁ = 'b' ∧ c₂ = 'b')) : ¬ BbExt y := by
+  intro hp
+  obtain ⟨u, hu⟩ := hp
+  rw [h] at hu
+  simp only [show "bb".toList = ['b', 'b'] from rfl, List.cons_append, List.nil_append,
+    List.cons.injEq] at hu
+  exact hc ⟨hu.1.symm, hu.2.1.symm⟩
 
 theorem notMem_scratchArrs_of_underscore {a : String} (h : '_' ∈ a.toList) :
     a ∉ scratchArrs := by
   simp only [scratchArrs, List.mem_cons, List.not_mem_nil, or_false]
-  rintro (rfl | rfl | rfl | rfl | rfl) <;> simp at h
+  rintro (rfl | rfl | rfl | rfl | rfl | rfl | rfl) <;> simp at h
 
 theorem underscore_notMem_prefixed {p : String} (hp : '_' ∉ p.toList) (k : ℕ) :
     '_' ∉ (p ++ toString k).toList := by
@@ -126,6 +151,65 @@ theorem colName_notMem_scratchArrs (j c : ℕ) : colName j c ∉ scratchArrs :=
 
 theorem tabName_notMem_scratchArrs (j i : ℕ) : tabName j i ∉ scratchArrs :=
   notMem_scratchArrs_of_underscore (RamDriverBase.underscore_mem_tabName j i)
+
+/-! **Nothing the scatter phase carries is the evaluator's scratch**
+(wave R1.8-T3-flip (c1d)). One line per array `ScatPre` pins, off the
+first two characters of its name — the four `b`-initial families of the
+driver are `bal`, `blt`, `bat` and `bh`, and none of them continues with
+a second `b`. -/
+
+theorem not_bbExt_lit {y : String} {c₁ c₂ : Char} {t : List Char}
+    (h : y.toList = c₁ :: c₂ :: t) (hc : ¬ (c₁ = 'b' ∧ c₂ = 'b')) : ¬ BbExt y :=
+  not_bbExt_of_cons h hc
+
+theorem not_bbExt_off : ¬ BbExt "off" := not_bbExt_of_cons rfl (by decide)
+theorem not_bbExt_tgt : ¬ BbExt "tgt" := not_bbExt_of_cons rfl (by decide)
+theorem not_bbExt_elm : ¬ BbExt "elm" := not_bbExt_of_cons rfl (by decide)
+theorem not_bbExt_bh : ¬ BbExt "bh" := not_bbExt_of_cons rfl (by decide)
+theorem not_bbExt_ooff : ¬ BbExt "ooff" := not_bbExt_of_cons rfl (by decide)
+theorem not_bbExt_noff : ¬ BbExt "noff" := not_bbExt_of_cons rfl (by decide)
+theorem not_bbExt_stf : ¬ BbExt "stf" := not_bbExt_of_cons rfl (by decide)
+theorem not_bbExt_sta : ¬ BbExt "sta" := not_bbExt_of_cons rfl (by decide)
+theorem not_bbExt_std : ¬ BbExt "std" := not_bbExt_of_cons rfl (by decide)
+theorem not_bbExt_ste : ¬ BbExt "ste" := not_bbExt_of_cons rfl (by decide)
+
+theorem not_bbExt_alvName (j : ℕ) : ¬ BbExt (alvName j) :=
+  not_bbExt_of_cons (by rw [alvName, String.toList_append]; rfl) (by decide)
+
+theorem not_bbExt_gamName (j : ℕ) : ¬ BbExt (gamName j) :=
+  not_bbExt_of_cons (by rw [gamName, String.toList_append]; rfl) (by decide)
+
+theorem not_bbExt_cluName (j : ℕ) : ¬ BbExt (cluName j) :=
+  not_bbExt_of_cons (by rw [cluName, String.toList_append]; rfl) (by decide)
+
+theorem not_bbExt_resName (j : ℕ) : ¬ BbExt (resName j) :=
+  not_bbExt_of_cons (by rw [resName, String.toList_append]; rfl) (by decide)
+
+theorem not_bbExt_batName (j : ℕ) : ¬ BbExt (batName j) :=
+  not_bbExt_of_cons (by rw [batName, String.toList_append]; rfl) (by decide)
+
+theorem not_bbExt_memName (j : ℕ) : ¬ BbExt (memName j) :=
+  not_bbExt_of_cons (by rw [memName, String.toList_append]; rfl) (by decide)
+
+theorem not_bbExt_ordName (j : ℕ) : ¬ BbExt (ordName j) :=
+  not_bbExt_of_cons (by rw [ordName, String.toList_append]; rfl) (by decide)
+
+theorem not_bbExt_xofName (j : ℕ) : ¬ BbExt (xofName j) :=
+  not_bbExt_of_cons (by rw [xofName, String.toList_append]; rfl) (by decide)
+
+theorem not_bbExt_xmmName (j : ℕ) : ¬ BbExt (xmmName j) :=
+  not_bbExt_of_cons (by rw [xmmName, String.toList_append]; rfl) (by decide)
+
+theorem not_bbExt_asgName (j : ℕ) : ¬ BbExt (asgName j) :=
+  not_bbExt_of_cons (by rw [asgName, String.toList_append]; rfl) (by decide)
+
+theorem not_bbExt_colName (j c : ℕ) : ¬ BbExt (colName j c) :=
+  not_bbExt_of_cons (by rw [colName, String.toList_append, String.toList_append,
+    String.toList_append]; rfl) (by decide)
+
+theorem not_bbExt_tabName (j i : ℕ) : ¬ BbExt (tabName j i) :=
+  not_bbExt_of_cons (by rw [tabName, String.toList_append, String.toList_append,
+    String.toList_append]; rfl) (by decide)
 
 theorem underscore_mem_flgName (j i k : ℕ) : '_' ∈ (flgName j i k).toList := by
   rw [flgName]
@@ -181,14 +265,14 @@ assigns. -/
 theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
     (h : ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' σ)
-    (hrun : Run B c σ σ' K) (hA : ∀ a ∈ c.warrs, a ∈ scratchArrs)
+    (hrun : Run B c σ σ' K) (hA : ∀ a ∈ c.warrs, a ∈ scratchArrs ∨ BbExt a)
     (hV : ∀ y ∈ ["n", "m", "lw"], y ∉ c.wvars)
     (hVctr : ∀ a : ℕ, ctrName a ∉ c.wvars) (hVxp : xpName j ∉ c.wvars)
     (hVmm : ∀ a : ℕ, mnumName a ∉ c.wvars) :
     ScatPre B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
       Alv' Gam' C' σ' := by
-  have hfa : ∀ a : String, a ∉ scratchArrs → σ'.arrs a = σ.arrs a :=
-    fun a ha => hrun.frame_arr a (fun hmem => ha (hA a hmem))
+  have hfa : ∀ a : String, a ∉ scratchArrs → ¬ BbExt a → σ'.arrs a = σ.arrs a :=
+    fun a ha hb => hrun.frame_arr a (fun hmem => (hA a hmem).elim ha hb)
   have hfv : ∀ y : String, y ∉ c.wvars → σ'.vars y = σ.vars y :=
     fun y hy => hrun.frame_var y hy
   obtain ⟨⟨⟨hn, hoff, htgt, halvj, hgamj, hcolj, hMB, hGmB, hCB, hlmem, hdep, hmvar,
@@ -203,45 +287,46 @@ theorem ScatPre.run {c : Com} {σ σ' : Env} {K : ℕ}
       ⟨hnsW, by rw [hrun.frame_var "lw" (hV "lw" (by simp))]; exact hlwv,
         hosz.run hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
         run_mem_arrs_lt hrun "itg" hitg, run_mem_arrs_lt hrun "ntg" hntg⟩, hpad0, hTB,
-      Mem, mmj, (by rw [hfa _ (memName_notMem_scratchArrs j)]; exact hmemA),
+      Mem, mmj, (by rw [hfa _ (memName_notMem_scratchArrs j) (not_bbExt_memName j)]; exact hmemA),
       (by rw [hfv _ (hVmm j)]; exact hmemV), hmemE, hmemBd⟩,
     hplayrec.congr (fun a _ => hfv (ctrName a) (hVctr a))
-      (fun a _ => hfa (gamName a) (gamName_notMem_scratchArrs a)),
+      (fun a _ => hfa (gamName a) (gamName_notMem_scratchArrs a) (not_bbExt_gamName a)),
     ?_, ?_, ?_, ?_, ?_, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, ?_, hXaS, hXaB⟩, ⟨Wa, ?_, hWaS, hWaB⟩, ⟨Ra, ?_, hRaS, hRaB⟩, ?_, hAlvB, hmask,
       hmaskpt, ?_, hGamB, Mem', mm',
-      (by rw [hfa _ (memName_notMem_scratchArrs (j + 1))]; exact hmemA'),
+      (by rw [hfa _ (memName_notMem_scratchArrs (j + 1)) (not_bbExt_memName (j + 1))]; exact hmemA'),
       (by rw [hfv _ (hVmm (j + 1))]; exact hmemV'), hmemE', hmemBd'⟩, hwrange⟩,
     ?_, hcolbit', hcolread', ?_⟩
   · rw [hrun.frame_var "n" (hV "n" (by simp))]; exact hn
-  · rw [hfa "off" (by decide)]; exact hoff
-  · rw [hfa "tgt" (by decide)]; exact htgt
-  · rw [hfa _ (alvName_notMem_scratchArrs j)]; exact halvj
-  · rw [hfa _ (gamName_notMem_scratchArrs j)]; exact hgamj
-  · intro cc hcc; rw [hfa _ (colName_notMem_scratchArrs j cc)]; exact hcolj cc hcc
+  · rw [hfa "off" (by decide) not_bbExt_off]; exact hoff
+  · rw [hfa "tgt" (by decide) not_bbExt_tgt]; exact htgt
+  · rw [hfa _ (alvName_notMem_scratchArrs j) (not_bbExt_alvName j)]; exact halvj
+  · rw [hfa _ (gamName_notMem_scratchArrs j) (not_bbExt_gamName j)]; exact hgamj
+  · intro cc hcc; rw [hfa _ (colName_notMem_scratchArrs j cc) (not_bbExt_colName j cc)]; exact hcolj cc hcc
   · rw [hrun.frame_var "m" (hV "m" (by simp))]; exact hmvar
-  · rw [hfa "elm" (by decide)]; exact helm
-  · rw [hfa "bh" (by decide)]; exact hbh
-  · rw [hfa "ooff" (by decide)]; exact hooff
-  · rw [hfa "noff" (by decide)]; exact hnoff
-  · rw [hfa "stf" (by decide)]; exact hstf
-  · rw [hfa "sta" (by decide)]; exact hsta
-  · rw [hfa "std" (by decide)]; exact hstd
-  · rw [hfa "ste" (by decide)]; exact hste
-  · rw [hfa _ (by simp [ordName, scratchArrs, String.ext_iff])]; exact hord
-  · rw [hfa _ (by simp [xofName, scratchArrs, String.ext_iff])]; exact hxoff
-  · rw [hfa _ (by simp [xmmName, scratchArrs, String.ext_iff])]; exact hxmem
-  · rw [hfa _ (by simp [asgName, scratchArrs, String.ext_iff])]; exact hasg
+  · rw [hfa "elm" (by decide) not_bbExt_elm]; exact helm
+  · rw [hfa "bh" (by decide) not_bbExt_bh]; exact hbh
+  · rw [hfa "ooff" (by decide) not_bbExt_ooff]; exact hooff
+  · rw [hfa "noff" (by decide) not_bbExt_noff]; exact hnoff
+  · rw [hfa "stf" (by decide) not_bbExt_stf]; exact hstf
+  · rw [hfa "sta" (by decide) not_bbExt_sta]; exact hsta
+  · rw [hfa "std" (by decide) not_bbExt_std]; exact hstd
+  · rw [hfa "ste" (by decide) not_bbExt_ste]; exact hste
+  · rw [hfa _ (by simp [ordName, scratchArrs, String.ext_iff]) (not_bbExt_ordName j)]; exact hord
+  · rw [hfa _ (by simp [xofName, scratchArrs, String.ext_iff]) (not_bbExt_xofName j)]; exact hxoff
+  · rw [hfa _ (by simp [xmmName, scratchArrs, String.ext_iff]) (not_bbExt_xmmName j)]; exact hxmem
+  · rw [hfa _ (by simp [asgName, scratchArrs, String.ext_iff]) (not_bbExt_asgName j)]; exact hasg
   · rw [hfv _ hVxp]; exact hxp
-  · rw [hfa _ (cluName_notMem_scratchArrs j)]; exact hXa
-  · rw [hfa _ (batName_notMem_scratchArrs j)]; exact hWa
-  · rw [hfa _ (resName_notMem_scratchArrs j)]; exact hRa
-  · rw [hfa _ (alvName_notMem_scratchArrs (j + 1))]; exact halv'
-  · rw [hfa _ (gamName_notMem_scratchArrs (j + 1))]; exact hgam'
-  · intro cc hcc; rw [hfa _ (colName_notMem_scratchArrs (j + 1) cc)]; exact hcol' cc hcc
+  · rw [hfa _ (cluName_notMem_scratchArrs j) (not_bbExt_cluName j)]; exact hXa
+  · rw [hfa _ (batName_notMem_scratchArrs j) (not_bbExt_batName j)]; exact hWa
+  · rw [hfa _ (resName_notMem_scratchArrs j) (not_bbExt_resName j)]; exact hRa
+  · rw [hfa _ (alvName_notMem_scratchArrs (j + 1)) (not_bbExt_alvName (j + 1))]; exact halv'
+  · rw [hfa _ (gamName_notMem_scratchArrs (j + 1)) (not_bbExt_gamName (j + 1))]; exact hgam'
+  · intro cc hcc; rw [hfa _ (colName_notMem_scratchArrs (j + 1) cc) (not_bbExt_colName (j + 1) cc)]; exact hcol' cc hcc
   · intro i hi
     obtain ⟨Tb, hTb, hTb1, hTbS⟩ := htab' i hi
-    exact ⟨Tb, by rw [hfa _ (tabName_notMem_scratchArrs (j + 1) i)]; exact hTb, hTb1, hTbS⟩
+    exact ⟨Tb, by rw [hfa _ (tabName_notMem_scratchArrs (j + 1) i) (not_bbExt_tabName (j + 1) i)]; exact hTb,
+      hTb1, hTbS⟩
 
 /-! ### One scatter atom -/
 
@@ -455,7 +540,8 @@ theorem atom_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1B 
         (RamScatter.scatterCost n ns σs.t + (1 + (Expr.var "flag").size)))) :=
     r₁.seq (r₂.seq (r₃.seq r₄))
   refine ⟨_, _, rall, by rw [RamDriverIO.atomCost] at hKb; simp only [Expr.size]; omega,
-    hpre.run rall (warrs_atomCom_sub q_top cap mb φ j i k σs) ?_ ?_ ?_ ?_,
+    hpre.run rall (fun a ha => Or.inl (warrs_atomCom_sub q_top cap mb φ j i k σs a ha))
+      ?_ ?_ ?_ ?_,
       ?_, ?_, ?_, ?_, ?_⟩
   · intro y hy
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hy
