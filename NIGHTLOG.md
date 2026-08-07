@@ -4490,3 +4490,66 @@ into `clusterCom`, write-sets, `KillListStep`, `turnCost` at `ctKL`),
 then (b) atom program, (c) the flip, (d) the BaseArrs rider; parallel:
 E2-width (augCompact_spec repair first), T4b, E4c, SymPreps/AugPreps
 discharge, E3b+contract, E-order re-run, B7, C0, P5 draft.
+
+## 2026-08-07 (evening) — the preps paid, and the kill list enters the turn
+
+Supervisor Opus; workers Opus throughout (Jan: no Fable this session).
+Three worktree waves launched in parallel off `1b72b9b`, DAG-disjoint by
+file ownership: the driver stack, the compacted-arena engines, and a
+satellite.
+
+**compact-preps (`e111ac9`, fast-forward).** `SymCompact.SymPreps` and
+`AugCompact.AugPreps` are both **discharged, and neither was defective** —
+the first two obligations of this family to survive falsification
+unchanged, against `ScatterBacks` and `CompactInstalls`×2 before them.
+`Refine/CompactPreps.lean` (523 lines) proves them at six explicit
+naturals with **no added antecedent**: the four word bounds each
+obligation already quantifies are exactly what a copy needs. Three and
+eleven applications of `RamDriverOrder.copyKeep_spec`/`fillKeep_spec` at
+one shared invariant `PrepQ`, the kit's own arithmetic confirmed —
+`27·mm + 12·kd + 49` and `121·mm + 12·kd + 142`, inside budget, **no
+carrier term**. §0 compiles what the parents' semantic probes do not
+pin: the postcondition cell by cell, and the cost clause — the one
+defective twice in this family — carrier-blind on data at `n = 100` vs
+`800` and strictly arena-affine at `mm = 20`. 3582 jobs, kernel-three on
+both. Consequence: `symCompact_spec` stands on walks alone, and
+`augCompact_spec`'s only remaining obligation is the refuted
+`ScatterBacks`.
+
+**R1.8-T3-flip a2 (merge `a447963`).** The kill list is in the turn.
+`killListCom mb j` sits in `clusterCom` between `killCom` and `inner`;
+sizing rides `DepthMem` as its **fourteenth** entry `(klName j, mb)` —
+the only one whose length is not the carrier, since the list is a
+sub-list of the padded buffer. `RamDriverCluster.KillListAt` states the
+enumeration at the *sets* `X`/`W`, i.e. exactly `KillRowsAt`'s guard, so
+the four clauses `sum_bit_eq_ncard_inter` consumes are available to the
+atom pass; `KillRowsAt` rides through `KillListStep` in both directions,
+so T2's capital is not dropped at the seam. `turnCost` pays
+`killListCost mb` at **`ctKL`**. 3583 jobs, kernel-three on
+`clusterStepImplements` and `killListStep`.
+
+*Structural finding, and the wave could not have run without it.* Scope
+(a) had landed the walk in `Refine/KillListPass.lean`, which imports
+`Refine.G2ExistsRevalidation` → `Refine.G2CostProbe` → **`RamDriverRoot`**:
+the walk sat *downstream of the driver*, so `RamDriverRoot` could neither
+name `killListCost` nor discharge `KillListStep`. Split on the T2
+precedent (walk above the driver, probes below): `Refine/KillListWalk.lean`
+holds §0b–§2 verbatim importing only `Refine.KillPass`;
+`Refine/KillListPass.lean` keeps the refutation, `klc`, `ctKL` and the Σ
+closure. One namespace, no proof rewritten, every name unchanged.
+
+Two hypotheses were added and both are **discharged at the root**, so
+nothing upward weakened: `hwakfr` (`"wa" ∉ (killCom …).warrs`, the seam's
+fourth link — the syntactic fact is unprovable in `RamDriverCluster`,
+which sits above `RamDriverWrites`, exactly as the landed `hwafr` for
+`colourCom`) and `hklisttab`, by `RamDriverRoot.wa_notMem_warrs_killCom`
+and `RamDriverRoot.killListStep`. `perDepthVar_notMem_wvars_clusterCom`
+gained `y ≠ kkName d` — `kkName` carries a digit, so the new case does
+not close from `HasDigit` alone. Forced fixups: `Refine/DriverRootD.lean`
+(the R-general mirrors, 6 lines) and `Refine/MemThreadProbe.lean`, the
+only concrete `DepthMem` witness — `klName` joins `"wa"` in the width-`mb`
+bucket, which is its right home and is `0` in that witness world.
+
+**In flight at this point:** T3-flip (b), the dead-aware atom program,
+scoped *additively* (`clusterCom` frozen) on the (a)/(a2) rhythm — the
+swap, `ScatterStep` and the frames ride with (c); and E2-width.
