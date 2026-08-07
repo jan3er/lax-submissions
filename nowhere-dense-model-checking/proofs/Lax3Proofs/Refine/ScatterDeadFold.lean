@@ -362,6 +362,31 @@ theorem outside_class_all_or_nothing {L mb cap : ℕ} {G A : SimpleGraph (Fin n)
       (deadSet n M' \ Xc) ∩ satSet G A M' col Xc w β = ∅ :=
   outside_all_or_nothing (outside_uniform hw hloc)
 
+open Classical in
+/-- **The outside term, as the pass computes it**: one probe vertex of
+the class answers for all of it. If `zo` is dead and out of the cluster,
+the class's contribution to the atom's count is its whole count when
+`zo` satisfies the atom and zero when it does not — uniformity collapses
+the intersection to an `if` on one bit. -/
+theorem outside_ncard_of_probe {L mb cap : ℕ} {G A : SimpleGraph (Fin n)} {M' : ℕ → ℕ}
+    {col : Coloring n L} {Xc : Set (Fin n)} {w : Fin mb → Fin n} (hw : ∀ i, w i ∈ Xc)
+    {β : DistFO (Lax3Proofs.Evaluator.isoPalette (L + 1) mb cap) 1} (hloc : IsLocal β)
+    {zo : Fin n} (hzo : zo ∈ deadSet n M' \ Xc) :
+    ((deadSet n M' \ Xc) ∩ satSet G A M' col Xc w β).ncard =
+      if zo ∈ satSet G A M' col Xc w β then (deadSet n M' \ Xc).ncard else 0 := by
+  have hall := outside_uniform (G := G) (A := A) (M' := M') (col := col) hw hloc
+  by_cases hs : zo ∈ satSet G A M' col Xc w β
+  · rw [if_pos hs, Set.inter_eq_self_of_subset_left
+      (fun v hv => (hall zo hzo v hv).1 hs)]
+  · have hemp : (deadSet n M' \ Xc) ∩ satSet G A M' col Xc w β = ∅ :=
+      Set.eq_empty_iff_forall_notMem.2 fun v hv => hs ((hall zo hzo v hv.1).2 hv.2)
+    rw [if_neg hs, hemp, Set.ncard_empty]
+
+/-- And when the class is empty — the probe found nothing — the term is
+zero with no bit at all. -/
+theorem outside_ncard_of_empty {D S : Set (Fin n)} (h : D = ∅) : (D ∩ S).ncard = 0 := by
+  rw [h, Set.empty_inter, Set.ncard_empty]
+
 /-- **The whole scatter contract, in the `ScatVal` vocabulary.** The
 atom's answer is a threshold against three terms: the alive process's
 count (a member-list walk), the kills' bits (`≤ mb` of them), and the
