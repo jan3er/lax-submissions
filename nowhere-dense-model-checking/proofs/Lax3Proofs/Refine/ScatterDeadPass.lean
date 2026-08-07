@@ -811,7 +811,12 @@ def ProbeInv (n j : ℕ) (Alv' Xa : ℕ → ℕ) (σ : Env) : Prop :=
     (σ.vars "of" = 0 → ∀ z, z < σ.vars "oi" → ¬ (Alv' z = 0 ∧ Xa z = 0)) ∧
     (σ.vars "of" ≠ 0 → σ.vars "oz" < n ∧ Alv' (σ.vars "oz") = 0 ∧ Xa (σ.vars "oz") = 0)
 
-/-- **The outside probe, walked.** -/
+/-- **The outside probe, walked.**
+
+**Wave R1.8-T3-flip (c1d): the found flag is a bit.** The clause was in
+`ProbeInv` all along and dropped at the interface; the composition needs
+it, because the bit pass reads `"of"` in a guard and `evalB_var`'s
+obligation is a word bound. Nothing else moves. -/
 theorem outProbeCom_spec {j : ℕ} {Alv' Xa : ℕ → ℕ}
     (hB : 1 < B) (hnB : n < B)
     (hAB : ∀ k, k < n → Alv' k < B) (hXB : ∀ k, k < n → Xa k < B) :
@@ -819,7 +824,7 @@ theorem outProbeCom_spec {j : ℕ} {Alv' Xa : ℕ → ℕ}
         σ.arrs (cluName j) = arrOf n Xa)
       (outProbeCom j)
       (fun _ σ' => σ'.vars "n" = n ∧ σ'.arrs (alvName (j + 1)) = arrOf n Alv' ∧
-        σ'.arrs (cluName j) = arrOf n Xa ∧
+        σ'.arrs (cluName j) = arrOf n Xa ∧ σ'.vars "of" ≤ 1 ∧
         (σ'.vars "of" = 0 → ∀ z, z < n → ¬ (Alv' z = 0 ∧ Xa z = 0)) ∧
         (σ'.vars "of" ≠ 0 → σ'.vars "oz" < n ∧ Alv' (σ'.vars "oz") = 0 ∧
           Xa (σ'.vars "oz") = 0))
@@ -984,7 +989,7 @@ theorem outProbeCom_spec {j : ℕ} {Alv' Xa : ℕ → ℕ}
     omega
   rw [hoin] at hno₄
   exact ⟨σ₄, _, hr₁.seq (hr₂.seq (hr₃.seq hr₄)), by rw [outProbeCost]; omega,
-    hn₄, halv₄, hclu₄, hno₄, hyes₄⟩
+    hn₄, halv₄, hclu₄, hof₄, hno₄, hyes₄⟩
 
 /-- The outside count's charge: one assignment over an expression of
 five nodes. **Wave R1.8-T3-flip (c1b) corrected this slot**: `scatDeadK`
