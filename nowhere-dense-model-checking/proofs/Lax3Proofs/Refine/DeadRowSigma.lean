@@ -44,10 +44,18 @@ namespace Lax3Proofs.Refine.DeadRowProbe
 * the DEAD slot `Kd` at the CONSTANT `12` — the per-level dead-sweep
   pass is GONE; what remains per level is `O(1)` bookkeeping (the
   outside count and default bit ride the turn);
-* the turn coefficient at `ct = 284 = 200 + 84`: BlockLeaves' measured
-  `200` plus the measured kill-time write at the probe's instance
-  (`killClock 2 · 3 = 84` — three kills, two tables), the kill charge
-  riding INSIDE the turn's size-read slot `turnCostSizeA`;
+* the turn coefficient at the constant this theorem is stated at,
+  `200 + 84`: BlockLeaves' measured `200` plus the measured kill-time
+  write at the probe's instance (`killClock 2 · 3 = 84` — three kills,
+  two tables), the kill charge riding INSIDE the turn's size-read slot
+  `turnCostSizeA`. **This is no longer the live constant.** Wave
+  R1.8-T3-flip (a2) absorbed the kill *list* into the same slot, and the
+  fit here was exact, so the live turn coefficient is
+  `Refine.KillListPass.ctKL` and the live closure is
+  `Refine.KillListPass.killList_interface_closes` — the same statement
+  re-run there. Cite `ctKL`, not a numeral: the closure is indifferent
+  to the coefficient's value (design §7, disposition F-4), which is why
+  absorbing a charge moves a number and no interface;
 * the base clause `Cb` generic — the base level is the member-list
   sweep plus the block-sized representative story (§3), both
   weight-linear; the `reprCost` floor that used to sit under

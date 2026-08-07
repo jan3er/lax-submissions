@@ -183,6 +183,56 @@ def ksSt : PSt :=
 
 end Probes
 
+/-! ### §0b The batch entry outside the cluster — the missing producer
+
+**Wave R1.8-T3-flip (c1b).** `Refine.DeadRowProbe.stepColoringP_subset`
+is what says the whole outside class carries the EMPTY child row, and
+that is the fact the outside term of `atomTerms_iff_scatVal` rides on
+(`Refine.ScatterDeadFold.outside_uniform` →
+`outside_ncard_of_probe`). It takes `hw : ∀ i, w i ∈ X`, and every
+consumer down to `atomTerms_iff_scatVal` carries `hw` verbatim.
+
+**The hypothesis is not removable**, and the refutation below is one
+line of the palette's own slot equation: the batch-profile slot of the
+entry `w i` at radius zero is `{x | WithinDist _ 0 x (w i)}`
+(`Evaluator.isoColoring_slotPd`), which contains `w i` whatever `X` is,
+and contains nothing else. So a batch entry outside the cluster is an
+out-of-cluster vertex whose child row is NOT the empty one, while its
+out-of-cluster neighbours' rows are — the class is not colour-uniform,
+and the one-bit-times-a-count reading of the outside term is false.
+
+**Nothing in the turn supplies `hw`.** `RamDriverCluster.ClusterData`
+pins `Set.range w = W` and no relation whatever between `W` and `X`;
+`RamDriverDescend.batchCom_spec` pins `W` inside the ball of the
+connector in the **game** arena `gamName j` (`markSet n Wa ⊆ markSet n
+Bal`, the ball `descendCom` builds by a chain over `gamName j`), and
+`RamDriver.PlayRec` puts the level arena *below* the game arena
+(`masked G M ≤ masked G Gm`), so the game ball is the larger of the
+two; and `RamCover.CoverOut.asg_cover` covers only the `cap`-ball in
+the level arena, at half the radius. So `W ⊆ X` is neither an export
+nor a corollary of anything landed.
+
+What the atom pass needs is a clause `Set.range w ⊆ X` on
+`RamDriverCluster.DescendStep`'s postcondition (equivalently `W ⊆ X`,
+carried forward by `EnumStep`), or — if that is false of the program —
+the split of `Refine.ScatterDeadFold` re-based at `X ∪ Set.range w`,
+whose "inside" half the kill list would then have to enumerate. Either
+is a change to a landed surface and neither is this wave's. -/
+theorem outside_class_not_uniform_refuted :
+    (1 : Fin 3) ∉ ({0} : Set (Fin 3)) ∧ (2 : Fin 3) ∉ ({0} : Set (Fin 3)) ∧
+      (1 : Fin 3) ∈ stepColoringP (n := 3) 0 (⊥ : SimpleGraph (Fin 3))
+        (fun c : Fin 0 => c.elim0) ({0} : Set (Fin 3)) (fun _ : Fin 1 => (1 : Fin 3))
+        (Lax3Proofs.Evaluator.slotPd 0 0) ∧
+      (2 : Fin 3) ∉ stepColoringP (n := 3) 0 (⊥ : SimpleGraph (Fin 3))
+        (fun c : Fin 0 => c.elim0) ({0} : Set (Fin 3)) (fun _ : Fin 1 => (1 : Fin 3))
+        (Lax3Proofs.Evaluator.slotPd 0 0) := by
+  refine ⟨by decide, by decide, ?_, ?_⟩
+  · rw [stepColoringP, Lax3Proofs.Evaluator.isoColoring_slotPd]
+    exact withinDist_refl _ 0 _
+  · rw [stepColoringP, Lax3Proofs.Evaluator.isoColoring_slotPd]
+    rintro ⟨p, hp⟩
+    exact absurd (SimpleGraph.Walk.eq_of_length_eq_zero (Nat.le_zero.mp hp)) (by decide)
+
 /-! ### §1 The atom's set, and the two readings of a table row
 
 The set a scatter atom of the child depth speaks about is
@@ -860,6 +910,50 @@ theorem outProbeCom_spec {j : ℕ} {Alv' Xa : ℕ → ℕ}
   exact ⟨σ₄, _, hr₁.seq (hr₂.seq (hr₃.seq hr₄)), by rw [outProbeCost]; omega,
     hn₄, halv₄, hclu₄, hno₄, hyes₄⟩
 
+/-- The outside count's charge: one assignment over an expression of
+five nodes. **Wave R1.8-T3-flip (c1b) corrected this slot**: `scatDeadK`
+carried `2` for this pass, which is `Run.assign`'s charge for a literal
+(`1 + (Expr.lit _).size`), and the pass's expression is
+`sub (sub (var "n") (var (mnumName (j+1)))) (var (kkName j))` — five
+nodes, so `1 + 5`. No walk could ever have been closed at the old
+number; the slot is the only summand of `scatDeadK` that had no proved
+leaf under it. -/
+def outCntCost : ℕ := 6
+
+/-- **The outside count, walked.** `Refine.ScatterDeadFold.outside_ncard_eq`
+is what the three scalars are worth — `|dead \ X| = n − |alive| − |kills|`
+— and the pass is the one assignment that forms them. Nothing is
+scanned. -/
+theorem outCntCom_spec {j mm1 kq : ℕ} (hB : 1 < B) (hnB : n < B)
+    (hmm1 : mm1 < B) (hkq : kq < B) :
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.vars (mnumName (j + 1)) = mm1 ∧
+        σ.vars (kkName j) = kq)
+      (outCntCom j)
+      (fun _ σ' => σ'.vars "oc" = n - mm1 - kq ∧ σ'.vars "n" = n ∧
+        σ'.vars (mnumName (j + 1)) = mm1 ∧ σ'.vars (kkName j) = kq)
+      outCntCost := by
+  refine Spec.of_exists (fun σ hσ => ?_)
+  obtain ⟨hn, hmv, hkv⟩ := hσ
+  have hin : (Expr.sub (Expr.var "n") (.var (mnumName (j + 1)))).evalB B σ =
+      some (n - mm1) := by
+    have h := evalB_bin (evalB_var (B := B) (x := "n") (σ := σ) (by rw [hn]; omega))
+      (evalB_var (B := B) (x := mnumName (j + 1)) (σ := σ) (by rw [hmv]; omega))
+      (show Bop.sub.apply (σ.vars "n") (σ.vars (mnumName (j + 1))) < B by
+        rw [Bop.apply_sub, hn, hmv]; omega)
+    rwa [Bop.apply_sub, hn, hmv] at h
+  have hout : (Expr.sub (Expr.sub (.var "n") (.var (mnumName (j + 1))))
+      (.var (kkName j))).evalB B σ = some (n - mm1 - kq) := by
+    have h := evalB_bin hin (evalB_var (B := B) (x := kkName j) (σ := σ) (by rw [hkv]; omega))
+      (show Bop.sub.apply (n - mm1) (σ.vars (kkName j)) < B by
+        rw [Bop.apply_sub, hkv]; omega)
+    rwa [Bop.apply_sub, hkv] at h
+  refine ⟨σ.setVar "oc" (n - mm1 - kq), _, Run.assign hout, ?_, ?_, ?_, ?_, ?_⟩
+  · rw [outCntCost]; simp only [Expr.size]; omega
+  · rw [vars_setVar, if_pos rfl]
+  · rw [vars_setVar, if_neg (by decide)]; exact hn
+  · rw [vars_setVar, if_neg (by simp [mnumName, String.ext_iff])]; exact hmv
+  · rw [vars_setVar, if_neg (by simp [kkName, String.ext_iff])]; exact hkv
+
 /-! ### §5 The verdict: the three registers decide the atom
 
 The semantic half of pass 6, machine-free. What the three walks leave —
@@ -1114,9 +1208,15 @@ carrier-width — the mask copy and the distance fill, the engine's own
 calling convention, at the parity `Refine.ArenaSeam.memEntry` is
 accepted at — and so is the probe's; the engine's own `scatBlockK`
 contains neither `n` nor `ns`, and the two new walks are charged at the
-child's member count and the turn's kill count. -/
+child's member count and the turn's kill count.
+
+**Wave R1.8-T3-flip (c1b): the outside count's slot is corrected**, from
+`2` to `outCntCost = 6`. It was the one summand with no proved leaf
+under it, and `2` is unachievable — `outCntCom_spec` above is the leaf,
+and the pass's expression has five nodes. Nothing else moves: the slot
+is a constant and the whole sum is still carrier-linear. -/
 noncomputable def scatDeadK {L : ℕ} (β : DistFO L 1) (n mm1 kq mm bw nb t : ℕ) : ℕ :=
-  killSumCost kq + outProbeCost n + atomBitCost β + 2 + atomMemCost mm1 +
+  killSumCost kq + outProbeCost n + atomBitCost β + outCntCost + atomMemCost mm1 +
     (12 * n + 6) + (11 * n + 6) + scatBlockK mm bw nb t + atomFlagCost
 
 /-! ### §5d The seam between the terms and the engine
