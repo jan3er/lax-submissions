@@ -273,23 +273,37 @@ outside count is `n − mm − kills` off landed scalars. No interaction.
   both directions pinned, Σ closure re-run at `ctKL` via `g2m_exists`
   (`killList_interface_closes`; F-4: closure indifferent). Successor
   `turnCost` edits must cite `ctKL`, not 284.**
-- **R1.8-T3-flip (a2) — the insertion and threading (successor).**
-  (1) Insert `killListCom mb j` into `clusterCom` between `killCom`
-  and `inner` (`RamDriver.lean:2135` area); supply the list's sizing —
-  add `(klName j, mb)` to `DepthMem`'s per-depth `Sized` list or
-  thread `∃ g, arrs (klName j) = arrOf mb g` through `TurnPre`.
-  (2) `RamDriverWrites.lean`: extend the `clusterCom` write-set lemmas
-  with the new pass's case, off the satellite's
-  `notMem_warrs/wvars_killListCom`. (3) `RamDriverCluster.lean`:
-  `KillListStep` Prop between `KillStep` and `inner` (post =
-  `killListCom_spec`'s enumeration at `X`/`W` via the pointwise
-  `BatchData` clause — the guard set `{M≠0 ∧ ∈X ∧ ∈W}` is
-  `KillRowsAt`'s domain); thread `hklist` into
-  `clusterStepImplements` (cost slot into `hK`'s sum). The list
-  crosses `inner` only in (b) — a2 need not extend `InnerFrames`.
-  (4) `RamDriverFrames.lean` (`clusterFrames`) and
-  `RamDriverRoot.lean` (`turnCost` gains `killListCost mb`; cite
-  `ctKL`).
+- **R1.8-T3-flip (a2) — the insertion and threading — LANDED
+  (`a447963`).** `killListCom mb j` sits in `clusterCom` between
+  `killCom` and `inner`. The sizing rides `DepthMem` as its
+  **fourteenth** entry `(klName j, mb)` — the only non-carrier length,
+  extracted by `DepthMem.kl`; the `TurnPre` alternative was not taken,
+  because `DepthMem` is quantified over all depths (the child writes its
+  own `klName (j+1)`) and every clause is a length, so
+  `setArr`/`setVar`/`run` and `BridgeSeamProbe.depthMem_initEnv` needed
+  no proof change. `RamDriverWrites.lean` carries
+  `warrs/wvars_killListCom` beside their `killCom` twins (a pass's syntax
+  facts live there, not in the satellite) and both `clusterCom` write-set
+  lemmas gained the new case — `perDepthVar_notMem_wvars_clusterCom`
+  needed a fresh `y ≠ kkName d`, since `kkName` carries a digit.
+  `RamDriverCluster.KillListAt`/`KillListStep` state the enumeration at
+  the *sets* `X`/`W`, i.e. exactly `KillRowsAt`'s guard, and
+  `KillRowsAt` rides through in both directions; `hklist` threads into
+  `clusterStepImplements` at slot `Kkl`. `RamDriverRoot.turnCost` pays
+  `killListCost mb` at **`ctKL`**. Two hypotheses were added and both are
+  discharged at the root — `hwakfr` (`"wa" ∉ (killCom …).warrs`, the
+  seam's fourth link, unprovable in `RamDriverCluster` which sits above
+  `RamDriverWrites`, exactly as the landed `hwafr` for `colourCom`) and
+  `hklisttab` — so nothing upward weakened.
+  **File split, forced.** Scope (a) had landed the walk in
+  `Refine/KillListPass.lean`, which imports `G2ExistsRevalidation` →
+  `G2CostProbe` → `RamDriverRoot`: the walk sat *downstream of the
+  driver*, so the root could neither name `killListCost` nor discharge
+  `KillListStep`. `Refine/KillListWalk.lean` (importing only
+  `Refine.KillPass`) now holds the walk and `Refine/KillListPass.lean`
+  the refutation, `klc`, `ctKL` and the Σ closure — the same above/below
+  split `Refine.KillPass` and `Refine.DeadRowProbe` have for the kill
+  pass. One namespace; no proof rewritten.
   (b) New atom program replacing `scatterCom`: filtered child member
   list (tab-bit test → `MemList` for satSet ∩ alive), `alv` copy +
   `dist` fill (carrier-charge parity with the landed engine this
