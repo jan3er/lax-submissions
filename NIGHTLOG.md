@@ -4553,3 +4553,53 @@ bucket, which is its right home and is `0` in that witness world.
 **In flight at this point:** T3-flip (b), the dead-aware atom program,
 scoped *additively* (`clusterCom` frozen) on the (a)/(a2) rhythm — the
 swap, `ScatterStep` and the frames ride with (c); and E2-width.
+
+**E2-width (merge `8fd8c32`).** Both items landed; the second was
+expected to be an obstruction and was not.
+
+*Item 1 — `augCompact_spec` is no longer dead capital.* It consumes
+`ElimCompact.ScatterBacksW`; the refuted `ScatterBacks` is gone from
+every hypothesis in the package. Three of the four extra antecedents are
+**derived, not assumed**. `hRB` was the same defect E2-fold found on the
+elim side, one level up: `elimCert_specW` already proves `∀ v < n,
+R v < n` *inside* the walk (it feeds the assembly as `hRn`) and `asmPass`
+does not write `rnk`, but `RamAugment.AugMem` predates the rank inversion
+and drops it, so `AugPost` drops it too — and a caller reading `rnk[km]`
+with an IMP+ `get` then has no derivation at all. Repaired by the landed
+precedent: `implementsCoreR` carries `RamElim.RnkLt` **beside** `AugMem`,
+and `implementsCore` is that conclusion weakened by one conjunct — its
+statement byte-identical, so `RamAugment.ImplementsW` and its three
+destructuring consumers do not move. The one genuinely new hypothesis is
+`hsm` (the member list is repetition-free), warranted by the compiled
+`no_scatter_at_repeat`: at `Mem 0 = Mem 1` with `R 0 ≠ R 1` the
+conclusion's own first clause is contradictory. Every landed caller holds
+it as `ScatterBlock.MemList.smono`.
+
+*Item 2 — the width, substituted by dropping it.* The design's `m' ≤ n²`
+capacity step was already landed (`sum_augDeg_le_deg` via `arcs_le`;
+`implementsCore` was already factored so no width enters the walk), and
+`§3(a)`'s `:5988/:6061` line references are stale. More importantly the
+two widths are **incomparable** — `augWidth` does not supply the
+degree-aware capacity (2 members at degree 10: needs 420, has 4) and
+`augWidthE` does not supply the generic one (10⁶ members: `mm·mm` is
+10¹²), both refuted by `#guard` in §5.3.1 — so a plain replacement would
+have weakened the theorem. The round therefore stops asking for a *width*
+and asks for `AugCompact.AugRoom mm d m W D`: the four capacities it
+actually spends, the fourth at `mm · min mm (2d²+d)`, the join of the two
+readings. `augRoom_of_augWidth` is the landed width's way in, so **no
+caller is stranded and `hW → hroom` is a strict weakening**;
+`augRoom_of_augWidthE`/`_slots` are the arena-affine ways in. Compiled
+payoff: at 10⁶ members the round runs at an allocation where `augWidth`
+demanded 1.00·10¹² and `augWidthE` supplies 1.37·10⁹ — no `mm·mm`, no
+carrier term. `RamAugment.augWidth` and `TgtCoupling.chainWidth` are
+untouched (`C0Probe`'s floor record is about them).
+
+New satellite `Refine/AugCompactScatter.lean`: `augCompact_specE` at the
+arena-affine width with `ScatterBacksW` *supplied* by
+`ElimCompactWalks.scatterBacksW` — the proof the capital is live. It
+leaves exactly one obligation, `AugPreps`, **which this session's
+compact-preps wave discharged**: on merged `main` the composition closes.
+
+Merged state green at **3584 jobs**, kernel-three on `augCompact_spec`,
+`augCompact_specE`, `clusterStepImplements`, `killListStep`, `symPreps`,
+`augPreps`. Only 8 modules rebuilt across the whole merge.
