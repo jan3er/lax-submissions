@@ -122,7 +122,7 @@ theorem turnFrozen_notMem_warrs_driverAt {a : String} (h : RamDriverFrames.TurnF
   refine RamDriverWrites.belowArr_notMem_warrs_driverAt ?_
   rcases h with hm | ⟨c, rfl⟩ | ⟨b, hb, rfl⟩
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
-    rcases hm with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+    rcases hm with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
       exact ⟨j, Nat.lt_succ_self j, by tauto⟩
   · exact ⟨j, Nat.lt_succ_self j, by tauto⟩
   · exact ⟨b, by omega, by tauto⟩
@@ -144,6 +144,15 @@ theorem mnumName_notMem_wvars_driverAt {a : ℕ} (h : a ≤ j) :
 
 theorem curName_notMem_wvars_driverAt :
     curName j ∉ (driverAt q_top cap mb 0 ℓ φ (j + 1)).wvars :=
+  RamDriverWrites.belowVar_notMem_wvars_driverAt ⟨j, Nat.lt_succ_self j, by tauto⟩
+
+/-- **The kill count of the enclosing turn survives the recursion**
+(wave R1.8-T3-flip (c1c)): the list and its count are per-depth names of
+depth `j`, and a level at depth `j + 1` writes no name of a depth below
+its own. This is what carries `RamDriverCluster.KillListAt` across the
+nested call, so the atom pass may read the turn's kills afterwards. -/
+theorem kkName_notMem_wvars_driverAt :
+    kkName j ∉ (driverAt q_top cap mb 0 ℓ φ (j + 1)).wvars :=
   RamDriverWrites.belowVar_notMem_wvars_driverAt ⟨j, Nat.lt_succ_self j, by tauto⟩
 
 theorem tabName_notMem_warrs_driverAt (i : ℕ) :
@@ -441,9 +450,11 @@ theorem clusterStepAt
       (fun _ ha => turnFrozen_notMem_warrs_driverAt ha)
       (fun _ ha => ctrName_notMem_wvars_driverAt ha)
       xpName_notMem_wvars_driverAt curName_notMem_wvars_driverAt
-      (fun _ ha => mnumName_notMem_wvars_driverAt ha))
+      (fun _ ha => mnumName_notMem_wvars_driverAt ha)
+      kkName_notMem_wvars_driverAt)
     (fun _ _ _ _ _ _ =>
       RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
+    (Refine.ScatterDeadPass.ballBudget_carrier hcsr)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
     hmono
     (fun _ hkn hout hsub =>
@@ -484,8 +495,10 @@ theorem clusterFramesAt
       (fun _ ha => ctrName_notMem_wvars_driverAt ha)
     xpName_notMem_wvars_driverAt curName_notMem_wvars_driverAt
     (fun _ ha => mnumName_notMem_wvars_driverAt ha)
+    kkName_notMem_wvars_driverAt
     (fun _ _ _ _ _ _ =>
       RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
+    (Refine.ScatterDeadPass.ballBudget_carrier hcsr)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
     (fun i => tabName_notMem_warrs_driverAt i)
     hmono

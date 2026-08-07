@@ -1,5 +1,6 @@
 import Lax3Proofs.RamDriver
 import Lax3Proofs.Refine.ArenaBlock
+import Lax3Proofs.Refine.ScatterBlock
 import Lax3Proofs.Refine.SigmaLoop
 
 /-!
@@ -692,6 +693,7 @@ def DescendStep (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n))
         (W ∩ X).Nonempty ∧ W.ncard ≤ mb ∧
         (∀ v : Fin n, Alv' (v : ℕ) ≠ 0 →
           v ∈ clusterAt G M π ord cap (σ.vars (curName j))) ∧
+        (∀ v : Fin n, v ∈ X → v ∈ clusterAt G M π ord cap (σ.vars (curName j))) ∧
         BatchData n j B G M X W Alv' Gam' σ' ∧
         PlayRec B cap G (j + 1) Alv' Gam' σ') K
 
@@ -901,18 +903,41 @@ that are the driver's calling convention: the depth-`(j+1)` mask into
 about — is `TableInv` at depth `j + 1`, read at the position
 `RamDriver.posOf` names, which is a position of the entry by
 `RamDriver.getElem_posOf` and
-`FormulaTables.mem_tablesAt_succ_of_mem_bcAtomsOf_right`. -/
+`FormulaTables.mem_tablesAt_succ_of_mem_bcAtomsOf_right`.
+
+**Wave R1.8-T3-flip (c1c): the two antecedents the dead-aware phase
+needs.** They sit here rather than inside the `Spec` because both are
+about the *turn's data* and neither is about a state.
+
+* `hXalive` — every vertex of the cluster is alive at the parent depth —
+  is `Refine.ScatterDeadPass.atomTerms_iff_scatVal`'s hypothesis of the
+  same name. Its producer is `DescendStep`'s cluster clause at an alive
+  centre (`Refine.MassAlive.clusterAt_subset_alive`), which is why
+  `RamDriver.ClusterStepImplements` carries `M (ord k) ≠ 0`.
+* `hbud` — a slot weight and a size for every ball of the child arena —
+  is `Refine.ScatterBlock.scatBlock_specW`'s `hbud`, quantified over the
+  radius because the radius is the atom's. It is a *parameter pair*
+  `(bw, nb)` and not a fixed reading so that E4c can narrow it without
+  re-threading anything: today the discharge is the carrier one,
+  `(ns, n)` at `A := Finset.range n`, which follows from
+  `RamBfs.CsrGraph` alone and is supplied in
+  `RamDriverRoot.clusterStepAt`.
+
+Both are vacuous for the landed `RamScatter.scatterCom` fold, which is
+why `RamDriverFrames.scatterStep` simply `intro`s and drops them. -/
 def ScatterStep (B q_top cap mb ns Ws j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
     (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (X W : Set (Fin n)) (w : Fin mb → Fin n)
-    (Alv' Gam' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
+    (Alv' Gam' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ) (bw nb K : ℕ) : Prop :=
+  (∀ v : Fin n, v ∈ X → M (v : ℕ) ≠ 0) →
+  (∀ r : ℕ, Refine.ScatterBlock.BallBudget n r G Alv' O bw nb) →
   Spec B (fun σ => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ ∧
       (∀ c < sigL cap mb (j + 1), σ.arrs (colName (j + 1) c) = arrOf n (C' c)) ∧
       (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) ∧
       colRead n C' (sigL cap mb (j + 1)) =
         stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w ∧
-      TableInv q_top cap mb φ G (j + 1) Alv' C' σ)
+      TableInv q_top cap mb φ G (j + 1) Alv' C' σ ∧ KillListAt mb j M X W σ)
     (foldIdx (fun i β => scatterCom q_top cap mb φ j i β) 0 (tablesAt q_top cap mb φ j))
     (fun σ σ' => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ' ∧
@@ -1026,12 +1051,12 @@ def InnerFrames (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
       TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ ∧
       TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
-      PlayRec B cap G (j + 1) Alv' Gam' σ)
+      PlayRec B cap G (j + 1) Alv' Gam' σ ∧ KillListAt mb j M X W σ)
     inner
     (fun σ σ' => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ' ∧
       (∀ c < sigL cap mb (j + 1), σ'.arrs (colName (j + 1) c) = arrOf n (C' c)) ∧
-      σ'.vars (curName j) = σ.vars (curName j)) Kin
+      σ'.vars (curName j) = σ.vars (curName j) ∧ KillListAt mb j M X W σ') Kin
 
 /-! ### One cluster
 
@@ -1086,6 +1111,7 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
     {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
     {ord Xoff Xmem asgf : ℕ → ℕ} {mm k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ}
     {inner : Com} {Kin : ℕ → ℕ}
+    {bw nb : ℕ}
     {Kd Ke Kc Kk Kkl Ks Kr K : ℕ}
     (hcap : cap = rhoMinus 0 q_top)
     (hdes : DescendStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asgf mm Kd)
@@ -1106,7 +1132,8 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
         Alv' Gam' C' inner (Kin (wA Alv')))
     (hscat : ∀ X W w Alv' Gam' C',
       ScatterStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asgf mm X W w
-        Alv' Gam' C' Ks)
+        Alv' Gam' C' bw nb Ks)
+    (hbud : ∀ (M' : ℕ → ℕ) (r : ℕ), Refine.ScatterBlock.BallBudget n r G M' O bw nb)
     (hread : ∀ X W w Alv' Gam' C',
       ReadbackStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asgf mm X W w
         Alv' Gam' C' Kr)
@@ -1119,7 +1146,7 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
     ClusterStepImplements B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asgf mm k
       wA inner Kin K := by
   classical
-  intro d hB hcsr hkn _ hinner
+  intro d hB hcsr hkn halive _ hinner
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hlev, htsz, hbarr, hplay, hheld, hcn⟩ := hσ
   have hcnlt : σ.vars (curName j) < n := by rw [hcn]; exact hkn
@@ -1127,12 +1154,19 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
     ⟨hlev, hplay, hheld⟩
   -- the descent: the cluster, the batch, the two masks of the next depth, and the round
   obtain ⟨σ₁, hr₁, hturn₁, hout₁, hc₁, hwa₁, X, W, Alv', Gam', hball, hWne, hWcard,
-      hsub₁, hbat₁, hplay₁⟩ :=
+      hsub₁, hXcl₁, hbat₁, hplay₁⟩ :=
     (hdes hcsr hB).run ⟨hturn, hcnlt⟩
   -- **the descend clause**: the nested arena is inside this turn's cluster, so any
   -- monotone measure of it — a number the turn's cost condition may mention — is
   -- bounded by the turn's own block reading
-  rw [hcn] at hsub₁
+  rw [hcn] at hsub₁ hXcl₁
+  -- **the cluster is alive** (wave R1.8-T3-flip (c1c)): the turn's centre is alive by
+  -- the compaction (`RamDriver.Compacted.alive`, the obligation's own antecedent) and a
+  -- cluster is alive-homogeneous, so every vertex the descent put in `X` is alive at
+  -- the parent depth. This is the atom pass's `hXalive`, and it is the only place it
+  -- can be made: `X` never leaves this proof.
+  have hXalive : ∀ v : Fin n, v ∈ X → M (v : ℕ) ≠ 0 :=
+    fun v hv => Refine.MassAlive.clusterAt_subset_alive halive (hXcl₁ v hv)
   have hinsize : Kin (wA Alv') ≤ Kin wBk :=
     hmono (hwAB Alv' hkn hheld.2.2.2.2.2.2.2.2 hsub₁)
   -- the padding
@@ -1161,7 +1195,7 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
   have hwaₖ : ClusterWa mb w σₖ := by
     show σₖ.arrs "wa" = _
     rw [hrₖ.frame_arr "wa" hwakfr]; exact hwa₃
-  obtain ⟨σₗ, hrₗ, hturnₗ, hdatₗ, hcolarrₗ, hplayₗ, houtₗ, hcₗ, -, -⟩ :=
+  obtain ⟨σₗ, hrₗ, hturnₗ, hdatₗ, hcolarrₗ, hplayₗ, houtₗ, hcₗ, -, hkllistₗ⟩ :=
     (hklist X W w Alv' Gam' C' hB).run (σ := σₖ)
       ⟨hturnₖ, hdatₖ, hwaₖ, hcolarrₖ, hplayₖ, htszₖ, hkillₖ⟩
   have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σₗ := by
@@ -1177,16 +1211,16 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
   have htszₗ : TablesSized q_top cap mb φ n σₗ := htszₖ.run hrₗ
   have hbarrₗ : BaseArrs B q_top cap mb ℓ φ σₗ := hbarrₖ.run hrₗ
   -- the nested driver, with the frame of the depth it was called from
-  obtain ⟨σ₄, hr₄, ⟨⟨-, -, htab₄⟩, hout₄⟩, hturn₄, hdat₄, hcolarr₄, hc₄⟩ :=
+  obtain ⟨σ₄, hr₄, ⟨⟨-, -, htab₄⟩, hout₄⟩, hturn₄, hdat₄, hcolarr₄, hc₄, hkllist₄⟩ :=
     (spec_conj ((hinner Alv' Gam' C' hcolbit₃).pre
-        (fun _ h => ⟨h.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2⟩))
+        (fun _ h => ⟨h.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1⟩))
       (hfr hinner X W w Alv' Gam' C')).run
-      (σ := σₗ) ⟨hlevin, hturnₗ, hdatₗ, htszₗ, hbarrₗ, hplayₗ⟩
+      (σ := σₗ) ⟨hlevin, hturnₗ, hdatₗ, htszₗ, hbarrₗ, hplayₗ, hkllistₗ⟩
   have htsz₄ : TablesSized q_top cap mb φ n σ₄ := htszₗ.run hr₄
   -- the scatter atoms
   obtain ⟨σ₅, hr₅, hturn₅, hdat₅, hcolarr₅, htab₅, hout₅, hc₅, hflag₅⟩ :=
-    (hscat X W w Alv' Gam' C').run (σ := σ₄)
-      ⟨hturn₄, hdat₄, hcolarr₄, hcolbit₃, hcolread₃, htab₄⟩
+    (hscat X W w Alv' Gam' C' hXalive (hbud Alv')).run (σ := σ₄)
+      ⟨hturn₄, hdat₄, hcolarr₄, hcolbit₃, hcolread₃, htab₄, hkllist₄⟩
   have htsz₅ : TablesSized q_top cap mb φ n σ₅ := htsz₄.run hr₅
   have hc₅₀ : σ₅.vars (curName j) = σ.vars (curName j) := by
     rw [hc₅, hc₄, hcₗ, hcₖ, hc₃, hc₂, hc₁]
@@ -1340,7 +1374,7 @@ def ClusterFrames (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
     (ord Xoff Xmem asg : ℕ → ℕ) (m k : ℕ) (wA : (ℕ → ℕ) → ℕ)
     (inner : Com) (Kin : ℕ → ℕ) (K : ℕ) : Prop :=
-  k < n →
+  k < n → M (ord k) ≠ 0 →
   (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ), (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
       Spec B (fun σ => LevelPre B n cap mb ns Ws O T (j + 1) M' Gm' C' σ ∧
           TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
@@ -1639,8 +1673,10 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
             (clusterCom q_top cap mb φ j (driverAt q_top cap mb R ℓ φ (j + 1))) _
             (Ks j (wB Xoff Xmem (cps kk))) :=
           spec_conj
-            (hstep j hjl M Gm C π ord Xoff Xmem asg mm (cps kk) hB hcsr.csr hpos hbit hinner)
-            (hframe j hjl M Gm C π ord Xoff Xmem asg mm (cps kk) hpos hinner)
+            (hstep j hjl M Gm C π ord Xoff Xmem asg mm (cps kk) hB hcsr.csr hpos
+              (hcomp₂.alive kk hkk) hbit hinner)
+            (hframe j hjl M Gm C π ord Xoff Xmem asg mm (cps kk) hpos
+              (hcomp₂.alive kk hkk) hinner)
         refine Spec.of_exists fun τ hτ => ?_
         obtain ⟨⟨hlevτ, htszτ, hbarrτ, hplayτ, hheldτ, hcpsτ, hcnumτ, houtτ, -, htabτ⟩,
           hcix⟩ := hτ

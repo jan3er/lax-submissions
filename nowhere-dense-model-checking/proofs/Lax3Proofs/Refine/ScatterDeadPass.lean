@@ -1370,6 +1370,42 @@ theorem notMem_wvars_scatBlockCom (r t : ℕ) (y : String)
       bfsDrain, expandRow, scanSlot, Fill.put, Csr.loadRow,
       Csr.scan, Queue.drain, Com.wvars]
 
+/-! ### §5d′ The engine's budget, at the carrier
+
+`Refine.ScatterBlock.scatBlock_specW` charges its scan at a *ball
+budget*: a slot weight `bw` and a size `nb` that every ball of the arena
+respects. The driver has no per-ball reading yet — that is E4c — so what
+this wave supplies is the trivial witness, the whole carrier: the arena's
+slot array is `ns` cells long and it has `n` vertices, and both numbers
+come out of `RamBfs.CsrGraph` alone.
+
+Two things make this the right shape to land now. The witness `A` does
+not mention the mask, so **one** lemma serves every depth's `Alv'` — and
+`Alv'` is existential inside `RamDriverCluster.clusterStepImplements`,
+so a mask-specific budget could not be threaded in at all. And `bw`/`nb`
+stay *parameters* of `RamDriverCluster.ScatterStep`, so narrowing them
+later moves this discharge and nothing else. -/
+
+/-- **Every ball fits in the carrier.** The witness is
+`Finset.range n`; its slot weight telescopes to `O n − O 0 = ns`
+(`RamBfs.CsrGraph.zero`, `.mono`, `.last`) and its size is `n`. -/
+theorem ballBudget_carrier {G : SimpleGraph (Fin n)} {ns : ℕ} {O T : ℕ → ℕ}
+    (hcsr : CsrGraph G ns O T) (M : ℕ → ℕ) (r : ℕ) : BallBudget n r G M O ns n := by
+  have htel : ∀ m, m ≤ n → (∑ v ∈ Finset.range m, Csr.rowLen O v) = O m - O 0 := by
+    intro m hm
+    induction m with
+    | zero => simp
+    | succ m ih =>
+        have hmn : m < n := by omega
+        rw [Finset.sum_range_succ, ih (by omega), Csr.rowLen]
+        have h₀ : O 0 ≤ O m := hcsr.mono' (Nat.zero_le m) (by omega)
+        have h₁ : O m ≤ O (m + 1) := hcsr.mono m hmn
+        omega
+  intro s _
+  refine ⟨Finset.range n, fun v hv _ _ => Finset.mem_range.2 hv, ?_, by simp⟩
+  rw [htel n le_rfl, hcsr.zero, hcsr.last]
+  omega
+
 /-! ### §5e The four driver passes, composed and run
 
 The compiled integration gate: the four passes of `scatDeadCom` that

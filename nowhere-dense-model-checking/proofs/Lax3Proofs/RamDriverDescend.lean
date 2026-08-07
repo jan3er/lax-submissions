@@ -4503,7 +4503,7 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
   refine ⟨σ₉, _, hrun, ?_, hturn₉, hrun.out_eq (noWrite_descendCom cap j),
     by rw [hfv (curName j) hcurne (by simp [curName, mnumName, String.ext_iff])
       (curName_notMem_descendScalars j)], ?_, markSet n Xa, markSet n Wa, Alv', Gam', ?_,
-      ⟨vc, hvW, hvX⟩, ?_, ?_, ⟨⟨Xa, hclu₉, rfl, hXbit⟩, ⟨Wa, hbat₉, rfl, hWaB⟩, ⟨Ra, hres₉, hResEq, hRaB⟩,
+      ⟨vc, hvW, hvX⟩, ?_, ?_, ?_, ⟨⟨Xa, hclu₉, rfl, hXbit⟩, ⟨Wa, hbat₉, rfl, hWaB⟩, ⟨Ra, hres₉, hResEq, hRaB⟩,
         halv₉, hAlvB, hAlvEq, hAlvPt, hgam₉, hGamB', Mem', mm', hmemA₉, hmnum₉, hMemE, hMemB⟩, ?_⟩
   · simp only [descendCost, ballCost, batchCost] at hK ⊢
     omega
@@ -4533,6 +4533,18 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
     have hvXa := hsub v hv
     rw [hXmark] at hvXa
     exact hvXa
+  · -- **the cluster clause** (wave R1.8-T3-flip (c1c)): the cluster indicator IS
+    -- the turn's cluster, which is what `clusterLoad` materialized — so the
+    -- inclusion is `hXmark` read forwards. The consumer is
+    -- `RamDriverCluster.clusterStepImplements`'s `hXalive`: at an alive centre a
+    -- cluster is alive-homogeneous (`Refine.MassAlive.clusterAt_subset_alive`),
+    -- and at a dead one the identity genuinely fails
+    -- (`Refine.MassAlive.clusterAt_dead`), which is why the alive antecedent
+    -- rides on `RamDriver.ClusterStepImplements` and not here.
+    rw [hcc]
+    intro v hv
+    rw [hXmark] at hv
+    exact hv
   · refine playRec_succ ⟨rounds, hrec, hle, hplayR⟩
       (fun a ha => hfv (ctrName a) (ctrName_ne (by omega))
         (by simp [ctrName, mnumName, String.ext_iff]) (ctrName_notMem_descendScalars a))

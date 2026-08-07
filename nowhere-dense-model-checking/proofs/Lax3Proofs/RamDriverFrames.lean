@@ -639,7 +639,7 @@ the depth-`(j+1)` table row of the atom's own formula — which
 `RamDriver.TableInv` says is the set the atom speaks about — preceded by
 the two copies the calling convention asks for and followed by the
 atom's flag. -/
-theorem scatterStep {Kb Ki K : ℕ}
+theorem scatterStep {Kb Ki bw nb K : ℕ}
     (hcsr : CsrGraph G ns O T) {d : ℕ} (hB : WordBoundK B n d ns cap mb)
     (hbnd : ∀ β ∈ tablesAt q_top cap mb φ j, ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
       σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n ns σs.t ≤ Kb)
@@ -647,9 +647,12 @@ theorem scatterStep {Kb Ki K : ℕ}
       Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki)
     (hK : Ki * (tablesAt q_top cap mb φ j).length + 1 ≤ K) :
     ScatterStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
-      Alv' Gam' C' K := by
+      Alv' Gam' C' bw nb K := by
+  -- the landed fold reads no dead row and runs no active-set engine, so neither the
+  -- alive-cluster clause nor the ball budget is used here (wave R1.8-T3-flip (c1c))
+  intro _ _
   refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨hturn, hdata, hcolarr, hcolbit, hcolread, htab⟩ := hσ
+  obtain ⟨hturn, hdata, hcolarr, hcolbit, hcolread, htab, -⟩ := hσ
   obtain ⟨σ', hrun, hpre', hout, hc, -, hval⟩ :=
     (blocks_spec hcsr hB.n_lt hB.ns_lt hB.one_lt hcolread
       (tablesAt q_top cap mb φ j) 0 (fun _ hβ => hβ) hbnd hcost).run
@@ -946,21 +949,32 @@ game masks of the depths below — every one of them a name of a depth at
 or below `j`, hence one the level at depth `j + 1` does not write. -/
 def TurnFrozen (j : ℕ) (a : String) : Prop :=
   a ∈ [alvName j, cluName j, resName j, batName j,
-      ordName j, xofName j, xmmName j, asgName j, memName j] ∨
+      ordName j, xofName j, xmmName j, asgName j, memName j, klName j] ∨
     (∃ c, a = colName j c) ∨ (∃ b ≤ j, a = gamName b)
 
-/-- **The frame of the nested driver, discharged from its syntax.** -/
+/-- **The frame of the nested driver, discharged from its syntax.**
+
+**Wave R1.8-T3-flip (c1c): the kill list crosses too.** The atom pass
+reads `klName j`/`kkName j` *after* the recursion returns — that is the
+whole reason `RamDriver.killListCom` writes a per-depth name — so
+`RamDriverCluster.KillListAt` is now a clause of `InnerFrames` on both
+sides. The array joins `TurnFrozen` above and the count takes the new
+scalar hypothesis `hVkk`; both are
+`RamDriverWrites.belowArr_notMem_warrs_driverAt` / `…belowVar…` at the
+recursion, which is why `RamDriverWrites.BelowArr`/`BelowVar` gained the
+two names in the same wave. -/
 theorem innerFrames {ℓ : ℕ} {wA : (ℕ → ℕ) → ℕ} {inner : Com} {Kin : ℕ → ℕ}
     (hinner : RamDriverCluster.InnerAvail B q_top cap mb ns Ws ℓ j φ G O T wA inner Kin)
     (hA : ∀ a : String, TurnFrozen j a → a ∉ inner.warrs)
     (hVctr : ∀ a ≤ j, ctrName a ∉ inner.wvars) (hVxp : xpName j ∉ inner.wvars)
-    (hVcur : curName j ∉ inner.wvars) (hVmm : ∀ a ≤ j, mnumName a ∉ inner.wvars) :
+    (hVcur : curName j ∉ inner.wvars) (hVmm : ∀ a ≤ j, mnumName a ∉ inner.wvars)
+    (hVkk : kkName j ∉ inner.wvars) :
     RamDriverCluster.InnerFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord
       Xoff Xmem asg m X W w Alv' Gam' C' inner (Kin (wA Alv')) := by
   intro σ hσ
   obtain ⟨σ', hrun, ⟨hlevin, -, -⟩, -⟩ :=
     (hinner Alv' Gam' C' hσ.1.2.2.2.2.2.2.2.2.1).run
-      ⟨hσ.1, hσ.2.2.2.1, hσ.2.2.2.2.1, hσ.2.2.2.2.2⟩
+      ⟨hσ.1, hσ.2.2.2.1, hσ.2.2.2.2.1, hσ.2.2.2.2.2.1⟩
   have hfa : ∀ a : String, TurnFrozen j a → σ'.arrs a = σ.arrs a :=
     fun a ha => hrun.frame_arr a (hA a ha)
   have hfv : ∀ y : String, y ∉ inner.wvars → σ'.vars y = σ.vars y :=
@@ -972,7 +986,8 @@ theorem innerFrames {ℓ : ℕ} {wA : (ℕ → ℕ) → ℕ} {inner : Com} {Kin 
         Mem, mmj, hmemA, hmemV, hmemE, hmemBd⟩, hplayrec,
       hord, hxoff, hxmem, hasg, hxp, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, hXa, hXaS, hXaB⟩, ⟨Wa, hWa, hWaS, hWaB⟩, ⟨Ra, hRa, hRaS, hRaB⟩, -, hAlvB, hmask,
-      hmaskpt, -, hGamB, -⟩, hwrange⟩, -, -⟩ := hσ
+      hmaskpt, -, hGamB, -⟩, hwrange⟩, -, -, -,
+    kl, kq, hklA, hkkV, hkqmb, hkllt, hklinj, hklsnd, hklcmp⟩ := hσ
   refine ⟨σ', hrun, ⟨⟨hn', hoff', htgt', ?_, ?_, ?_, hMB, hGmB, hCB, hlmem', hdep', hmvar',
       hordmem', hpad0', hTB',
       Mem, mmj, (by rw [hfa _ (_root_.Or.inl (by simp [TurnFrozen]))]; exact hmemA),
@@ -982,7 +997,8 @@ theorem innerFrames {ℓ : ℕ} {wA : (ℕ → ℕ) → ℕ} {inner : Com} {Kin 
     ?_, ?_, ?_, ?_, ?_, hmn, hordlt, hcout⟩,
     ⟨⟨⟨Xa, ?_, hXaS, hXaB⟩, ⟨Wa, ?_, hWaS, hWaB⟩, ⟨Ra, ?_, hRaS, hRaB⟩, halv'', hAlvB, hmask,
       hmaskpt, hgam'', hGamB, Mem'', mm'', hmemA'', hmemV'', hmemE'',
-      hmemBd''⟩, hwrange⟩, hcol'', ?_⟩
+      hmemBd''⟩, hwrange⟩, hcol'', ?_,
+    ⟨kl, kq, ?_, ?_, hkqmb, hkllt, hklinj, hklsnd, hklcmp⟩⟩
   · rw [hfa _ (_root_.Or.inl (by simp))]; exact halvj
   · rw [hfa _ (_root_.Or.inr (_root_.Or.inr ⟨j, le_rfl, rfl⟩))]; exact hgamj
   · intro cc hcc
@@ -997,6 +1013,8 @@ theorem innerFrames {ℓ : ℕ} {wA : (ℕ → ℕ) → ℕ} {inner : Com} {Kin 
   · rw [hfa _ (_root_.Or.inl (by simp))]; exact hWa
   · rw [hfa _ (_root_.Or.inl (by simp))]; exact hRa
   · exact hfv _ hVcur
+  · rw [hfa _ (_root_.Or.inl (by simp))]; exact hklA
+  · rw [hfv _ hVkk]; exact hkkV
 
 /-! ### What one turn leaves alone
 
@@ -1027,7 +1045,7 @@ syntactic side, and the semantic side comes from `hinner`. -/
 open Classical in
 /-- **What one cluster leaves alone, discharged.** -/
 theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {inner : Com} {Kin : ℕ → ℕ}
-    {Kd Ke Kc Kk Kkl Ks Kr K : ℕ}
+    {bw nb : ℕ} {Kd Ke Kc Kk Kkl Ks Kr K : ℕ}
     (hcsr : CsrGraph G ns O T)
     {d : ℕ} (hB : WordBoundK B n d ns cap mb)
     (hdes : DescendStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m Kd)
@@ -1047,9 +1065,11 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
     (hA : ∀ a : String, TurnFrozen j a → a ∉ inner.warrs)
     (hVctr : ∀ a ≤ j, ctrName a ∉ inner.wvars) (hVxp : xpName j ∉ inner.wvars)
     (hVcur : curName j ∉ inner.wvars) (hVmm : ∀ a ≤ j, mnumName a ∉ inner.wvars)
+    (hVkk : kkName j ∉ inner.wvars)
     (hscat : ∀ X W w Alv' Gam' C',
       ScatterStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
-        Alv' Gam' C' Ks)
+        Alv' Gam' C' bw nb Ks)
+    (hbud : ∀ (M' : ℕ → ℕ) (r : ℕ), Refine.ScatterBlock.BallBudget n r G M' O bw nb)
     (hread : ∀ X W w Alv' Gam' C',
       ReadbackStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
         Alv' Gam' C' Kr)
@@ -1064,19 +1084,21 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
     RamDriverCluster.ClusterFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord
       Xoff Xmem asg m k wA inner Kin K := by
   classical
-  intro hkn hinner
+  intro hkn halive hinner
   have hfr : ∀ X W w Alv' Gam' C',
       RamDriverCluster.InnerFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord
         Xoff Xmem asg m X W w Alv' Gam' C' inner (Kin (wA Alv')) :=
-    fun _ _ _ _ _ _ => innerFrames hinner hA hVctr hVxp hVcur hVmm
+    fun _ _ _ _ _ _ => innerFrames hinner hA hVctr hVxp hVcur hVmm hVkk
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hlev, htsz, hbarr, hplay, hcov, hcn⟩ := hσ
   have hcnlt : σ.vars (curName j) < n := by rw [hcn]; exact hkn
   have hturn : TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ :=
     ⟨hlev, hplay, hcov⟩
   obtain ⟨σ₁, hr₁, hturn₁, hout₁, hc₁, hwa₁, X, W, Alv', Gam', hball, hWne, hWcard,
-      hsub₁, hbat₁, hplay₁⟩ := (hdes hcsr hB).run ⟨hturn, hcnlt⟩
-  rw [hcn] at hsub₁
+      hsub₁, hXcl₁, hbat₁, hplay₁⟩ := (hdes hcsr hB).run ⟨hturn, hcnlt⟩
+  rw [hcn] at hsub₁ hXcl₁
+  have hXalive : ∀ v : Fin n, v ∈ X → M (v : ℕ) ≠ 0 :=
+    fun v hv => Refine.MassAlive.clusterAt_subset_alive halive (hXcl₁ v hv)
   have hinsize : Kin (wA Alv') ≤ Kin wBk :=
     hmono (hwAB Alv' hkn hcov.2.2.2.2.2.2.2.2 hsub₁)
   obtain ⟨σ₂, hr₂, hturn₂, hplay₂, hout₂, hc₂, w, hdat₂, hwa₂⟩ :=
@@ -1098,7 +1120,7 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
   have hwaₖ : RamDriverCluster.ClusterWa mb w σₖ := by
     show σₖ.arrs "wa" = _
     rw [hrₖ.frame_arr "wa" hwakfr]; exact hwa₃
-  obtain ⟨σₗ, hrₗ, hturnₗ, hdatₗ, hcolarrₗ, hplayₗ, houtₗ, hcₗ, -, -⟩ :=
+  obtain ⟨σₗ, hrₗ, hturnₗ, hdatₗ, hcolarrₗ, hplayₗ, houtₗ, hcₗ, -, hkllistₗ⟩ :=
     (hklist X W w Alv' Gam' C' hB).run (σ := σₖ)
       ⟨hturnₖ, hdatₖ, hwaₖ, hcolarrₖ, hplayₖ, htszₖ, hkillₖ⟩
   have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σₗ := by
@@ -1112,15 +1134,15 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
       hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, hmemin₃⟩
   have htszₗ : TablesSized q_top cap mb φ n σₗ := htszₖ.run hrₗ
   have hbarrₗ : BaseArrs B q_top cap mb ℓ φ σₗ := hbarrₖ.run hrₗ
-  obtain ⟨σ₄, hr₄, ⟨⟨-, -, htab₄⟩, hout₄⟩, hturn₄, hdat₄, hcolarr₄, hc₄⟩ :=
+  obtain ⟨σ₄, hr₄, ⟨⟨-, -, htab₄⟩, hout₄⟩, hturn₄, hdat₄, hcolarr₄, hc₄, hkllist₄⟩ :=
     (RamDriverCluster.spec_conj ((hinner Alv' Gam' C' hcolbit₃).pre
-        (fun _ h => ⟨h.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2⟩))
+        (fun _ h => ⟨h.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1⟩))
       (hfr X W w Alv' Gam' C')).run (σ := σₗ)
-      ⟨hlevin, hturnₗ, hdatₗ, htszₗ, hbarrₗ, hplayₗ⟩
+      ⟨hlevin, hturnₗ, hdatₗ, htszₗ, hbarrₗ, hplayₗ, hkllistₗ⟩
   have htsz₄ : TablesSized q_top cap mb φ n σ₄ := htszₗ.run hr₄
   obtain ⟨σ₅, hr₅, hturn₅, hdat₅, hcolarr₅, htab₅, hout₅, hc₅, hflag₅⟩ :=
-    (hscat X W w Alv' Gam' C').run (σ := σ₄)
-      ⟨hturn₄, hdat₄, hcolarr₄, hcolbit₃, hcolread₃, htab₄⟩
+    (hscat X W w Alv' Gam' C' hXalive (hbud Alv')).run (σ := σ₄)
+      ⟨hturn₄, hdat₄, hcolarr₄, hcolbit₃, hcolread₃, htab₄, hkllist₄⟩
   have htsz₅ : TablesSized q_top cap mb φ n σ₅ := htsz₄.run hr₅
   have hc₅₀ : σ₅.vars (curName j) = σ.vars (curName j) := by
     rw [hc₅, hc₄, hcₗ, hcₖ, hc₃, hc₂, hc₁]

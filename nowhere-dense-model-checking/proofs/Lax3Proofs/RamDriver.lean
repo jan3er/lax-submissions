@@ -3638,13 +3638,25 @@ order. The landed size reading is the instantiation `wA := arenaSize n`;
 the G2 interface instantiates the arena weight at the level's fixed
 graph. The §5.3 clause turned into the *inclusion* the descent actually
 proves (the next arena is inside the turn's cluster), so that any
-monotone measure of it can be read off downstream. -/
+monotone measure of it can be read off downstream.
+
+**Wave R1.8-T3-flip (c1c): the turn's centre is alive.** The antecedent
+`M (ord k) ≠ 0` is what turns `RamDriverCluster.DescendStep`'s cluster
+clause into `∀ v ∈ X, M v ≠ 0` — the hypothesis
+`Refine.ScatterDeadPass.atomTerms_iff_scatVal` asks for and nothing
+inside the turn can produce, since `X` is existential there. The
+inclusion alone will not do it: at a *dead* centre the cluster is the
+centre's own singleton (`Refine.MassAlive.clusterAt_dead`), so the
+implication genuinely fails there. The producer at the loop is
+`RamDriver.Compacted.alive` — the compaction lists live centres only,
+which is B8's disposition — read at the turn's own index in
+`RamDriverCluster.levelImplements`. -/
 def ClusterStepImplements (q_top cap mb ns W ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ)
     (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg : ℕ → ℕ) (m k : ℕ)
     (wA : (ℕ → ℕ) → ℕ) (inner : Com) (Kin : ℕ → ℕ) (K : ℕ) : Prop :=
-  ∀ {d : ℕ}, WordBoundK B n d ns cap mb → CsrGraph G ns O T → k < n →
+  ∀ {d : ℕ}, WordBoundK B n d ns cap mb → CsrGraph G ns O T → k < n → M (ord k) ≠ 0 →
   (∀ c < sigL cap mb j, ∀ v < n, C c v ≤ 1) →
   (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ), (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
       Spec B (fun σ => LevelPre B n cap mb ns W O T (j + 1) M' Gm' C' σ ∧

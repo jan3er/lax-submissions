@@ -591,7 +591,8 @@ def RFrames (q_top cap mb R ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) : Prop :=
     cpsName j ∉ (driverAt q_top cap mb R ℓ φ (j + 1)).warrs ∧
     cnumName j ∉ (driverAt q_top cap mb R ℓ φ (j + 1)).wvars ∧
     cixName j ∉ (driverAt q_top cap mb R ℓ φ (j + 1)).wvars ∧
-    (∀ a, a ≤ j → mnumName a ∉ (driverAt q_top cap mb R ℓ φ (j + 1)).wvars)
+    (∀ a, a ≤ j → mnumName a ∉ (driverAt q_top cap mb R ℓ φ (j + 1)).wvars) ∧
+    kkName j ∉ (driverAt q_top cap mb R ℓ φ (j + 1)).wvars
 
 /-- The plug check: at `R = 0` the residual is the landed capital. -/
 theorem rFrames_zero (q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) :
@@ -604,7 +605,8 @@ theorem rFrames_zero (q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) :
     Lax3Proofs.RamDriverRoot.cpsName_notMem_warrs_driverAt,
     Lax3Proofs.RamDriverRoot.cnumName_notMem_wvars_driverAt,
     Lax3Proofs.RamDriverRoot.cixName_notMem_wvars_driverAt,
-    fun _ ha => Lax3Proofs.RamDriverRoot.mnumName_notMem_wvars_driverAt ha⟩
+    fun _ ha => Lax3Proofs.RamDriverRoot.mnumName_notMem_wvars_driverAt ha,
+    Lax3Proofs.RamDriverRoot.kkName_notMem_wvars_driverAt⟩
 
 /-- The arena is a subgraph of the level's graph. -/
 theorem masked_le {n : ℕ} (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) : masked G M ≤ G := by
@@ -689,9 +691,11 @@ theorem clusterStepAtR (hfr : RFrames q_top cap mb R ℓ φ)
       (fun _ ha => (hfr j).1 _ ha)
       (fun _ ha => (hfr j).2.1 _ ha)
       (hfr j).2.2.1 (hfr j).2.2.2.1
-      (fun _ ha => (hfr j).2.2.2.2.2.2.2.2 _ ha))
+      (fun _ ha => (hfr j).2.2.2.2.2.2.2.2.1 _ ha)
+      (hfr j).2.2.2.2.2.2.2.2.2)
     (fun _ _ _ _ _ _ =>
       RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
+    (Refine.ScatterDeadPass.ballBudget_carrier hcsr)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
     hmono
     (fun _ hkn hout hsub =>
@@ -732,9 +736,11 @@ theorem clusterFramesAtR (hfr : RFrames q_top cap mb R ℓ φ)
     (fun _ ha => (hfr j).1 _ ha)
     (fun _ ha => (hfr j).2.1 _ ha)
     (hfr j).2.2.1 (hfr j).2.2.2.1
-    (fun _ ha => (hfr j).2.2.2.2.2.2.2.2 _ ha)
+    (fun _ ha => (hfr j).2.2.2.2.2.2.2.2.1 _ ha)
+    (hfr j).2.2.2.2.2.2.2.2.2
     (fun _ _ _ _ _ _ =>
       RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
+    (Refine.ScatterDeadPass.ballBudget_carrier hcsr)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
     (fun i => (hfr j).2.2.2.2.1 i)
     hmono
