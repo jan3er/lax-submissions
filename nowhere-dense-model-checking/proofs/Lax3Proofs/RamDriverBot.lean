@@ -5,14 +5,27 @@ The **base case of the driver**, walked: `Lax3Proofs.RamDriver.baseCom`
 against `Lax3Proofs.BotEval`.
 
 At depth `ℓ` the arena is edgeless and the tables are evaluated
-outright. The pass is the representative scan `RamDriver.reprCom`
-followed by a walk of the carrier that runs, at every vertex, the
-generated evaluator `RamDriver.botCom` of every formula of the bottom
-table and stores its bit.
+outright. The pass is a walk of the carrier that runs, at every vertex,
+the generated evaluator `RamDriver.botCom` of every formula of the
+bottom table and stores its bit.
+
+**R1.8-T4a — the representative scan is out of the program.**
+`RamDriver.baseCom` used to open with `RamDriver.reprCom`. Its product
+`"rep"` is read only by the `exU` case of `botCom`, and that case is
+generated for no tabled formula (they are all local — see *The
+unrestricted quantifier* below), so the scan guarded nothing and its
+cost — a carrier walk with a `2 ^ sigL cap mb ℓ`-wide inner loop,
+`reprCost` — charged the base's budget for dead code. `baseCost` sheds
+it, `base_spec` sheds the two hypotheses that were only the scan's
+(`2 ^ sigL cap mb ℓ < B` and *the `"rep"` table is sized*), and
+`rep_notMem_warrs_baseCom` records that nothing the base pass runs
+writes `"rep"`. The scan itself and its walk stay compiled below: they
+are the contingency's machine half (`Refine.DeadRowProbe`'s base story).
 
 # What is proved here
 
-* `repr_spec` — **the representative scan**. Its invariant is *the rep
+* `repr_spec` — **the representative scan**, no longer part of any
+  program (`RamDriver.reprCom`'s docstring). Its invariant is *the rep
   table holds one representative of every row realized below the
   counter, and its entries are pairwise row-distinct*; the second half
   is what bounds the table's length by `2 ^ sigL cap mb ℓ`
@@ -33,7 +46,8 @@ table and stores its bit.
   `RamDriver.TableInv`'s content on the edgeless arena.
 * the syntactic frames the obligation's own bookkeeping needs:
   `wvars_botCom`, `warrs_botCom`, `wvars_baseCom`, `warrs_baseCom`,
-  `noWrite_baseCom`.
+  `noWrite_baseCom`, and — since R1.8-T4a — `rep_notMem_warrs_baseCom`
+  and `rp_notMem_wvars_baseCom`.
 
 # The unrestricted quantifier
 
@@ -50,6 +64,14 @@ tabled formula is local, by
 `IsLocal` and discharges `exU` by `SyntaxLemmas.isLocal_exU`. Repairing
 `reprCom` would mean recording `k + 1` vertices per row; nothing above
 depends on that being done.
+
+Since R1.8-T4a the case is not only unreached but **unwritten-for**: the
+`"rep"` table it would read is produced by no pass of the driver. The
+generated text is unchanged — for a local formula `botCom` has no `exU`
+node, so no program the driver runs contains the read — and the two
+lemmas that say so are `bot_spec` (a fragment of a local formula runs
+and answers correctly at a state about whose `"rep"` nothing is
+assumed) and `rep_notMem_warrs_baseCom`.
 
 # What is left
 
@@ -171,7 +193,9 @@ def scanCost (jd L : ℕ) : ℕ :=
 /-- The cost of one turn of the representative scan. -/
 def reprBodyCost (jd L : ℕ) : ℕ := (scanCost jd L + 4) * 2 ^ L + 23
 
-/-- The cost of the representative pass. -/
+/-- The cost of the representative pass. Since R1.8-T4a it is the cost of
+no part of the driver: it is what `baseCost` **shed**, and the shed is
+recorded in `Refine.BaseShed`. -/
 def reprCost (jd L n : ℕ) : ℕ := (reprBodyCost jd L + 4) * n + 8
 
 /-- **One turn of the inner scan**: read the next recorded vertex, test
@@ -1637,9 +1661,17 @@ def BaseInv (B n q_top cap mb ℓ : ℕ) (C : ℕ → ℕ → ℕ) (φ : Lax3.Fi
 noncomputable def turnCost (q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) : ℕ :=
   blockCost (tablesAt q_top cap mb φ ℓ) + 6
 
-/-- The cost of the base pass. -/
+/-- The cost of the base pass: one carrier walk whose turn is the depth's
+own straight line of `botCom` fragments.
+
+**R1.8-T4a.** The summand `reprCost ℓ (sigL cap mb ℓ) n` is gone with the
+representative scan — a second carrier walk with a `2 ^ sigL cap mb ℓ`
+inner loop, paid for a case no tabled formula generates. What is left is
+literally the depth's sweep (`Refine.DeadSweep.sweepCost`, equal by
+`Refine.DeadSweep.baseCost_eq`); the shed is
+`Refine.BaseShed.baseCost_lt_old`. -/
 noncomputable def baseCost (q_top cap mb ℓ n : ℕ) (φ : Lax3.FirstOrder.FO 0) : ℕ :=
-  reprCost ℓ (sigL cap mb ℓ) n + ((turnCost q_top cap mb ℓ φ + 4) * n + 6)
+  (turnCost q_top cap mb ℓ φ + 4) * n + 6
 
 /-- **One vertex of the base pass.** -/
 theorem base_turn_spec {B n q_top cap mb ℓ : ℕ} {C : ℕ → ℕ → ℕ} {φ : Lax3.FirstOrder.FO 0}
@@ -1714,67 +1746,50 @@ theorem wvars_reprCom (jd L : ℕ) : (reprCom jd L).wvars =
 
 /-- **The base pass, walked.** After it, every table of the bottom depth
 holds, at every vertex, the truth value of its formula on the edgeless
-arena. -/
+arena.
+
+**R1.8-T4a.** Two hypotheses of the old statement were the
+representative scan's alone and are gone with it: `2 ^ sigL cap mb ℓ < B`
+(the scan's counter had to fit a word) and *the `"rep"` table is sized*
+(the scan's store had to have a cell). The base pass now asks for
+exactly what the depth's sweep asks for, and answers exactly what it
+answers. -/
 theorem base_spec {B n q_top cap mb ℓ : ℕ} {C : ℕ → ℕ → ℕ} {φ : Lax3.FirstOrder.FO 0}
-    (hB : 1 < B) (hn : n < B) (hL : 2 ^ sigL cap mb ℓ < B)
+    (hB : 1 < B) (hn : n < B)
     (hbit : ∀ c < sigL cap mb ℓ, ∀ v < n, C c v ≤ 1)
     (hlocal : ∀ β ∈ tablesAt q_top cap mb φ ℓ, IsLocal β) :
     Spec B
       (fun σ => σ.vars "n" = n ∧ BotEnv n (sigL cap mb ℓ) ℓ C σ ∧
         BaseMem B q_top cap mb ℓ φ σ ∧
-        (∃ g : ℕ → ℕ, σ.arrs "rep" = arrOf (2 ^ sigL cap mb ℓ) g) ∧
         ∀ (i : ℕ), i < (tablesAt q_top cap mb φ ℓ).length →
           ∃ Tb : ℕ → ℕ, σ.arrs (tabName ℓ i) = arrOf n Tb)
       (baseCom q_top cap mb ℓ φ)
       (fun _ σ' => BaseTabOk q_top cap mb ℓ n φ C (fun _ => n) σ')
       (baseCost q_top cap mb ℓ n φ) := by
   refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨hvn, hcol, hmem, hrep, htabs⟩ := hσ
-  -- the representative pass
-  obtain ⟨σ₁, hrun₁, -, hfv₁, hfa₁, -, -⟩ :=
-    (repr_spec (jd := ℓ) hB hn hL hbit).frame.run (σ := σ) ⟨hvn, hcol, hrep⟩
-  have hlen₁ : ∀ a, (σ₁.arrs a).length = (σ.arrs a).length := fun a => run_length_arrs hrun₁ a
-  have hvn₁ : σ₁.vars "n" = n := by
-    rw [hfv₁ "n" (by rw [wvars_reprCom]; decide)]; exact hvn
-  have hcol₁ : BotEnv n (sigL cap mb ℓ) ℓ C σ₁ := fun c hc => by
-    rw [hfa₁ (colName ℓ c) (by rw [warrs_reprCom, List.mem_singleton]; exact colName_ne_rep ℓ c)]
-    exact hcol c hc
-  have hmem₁ : BaseMem B q_top cap mb ℓ φ σ₁ :=
-    fun i hi => botMem_of_length hlen₁ _ "bb" (hmem i hi)
-  have hnotrep : ∀ i : ℕ, tabName ℓ i ∉ (reprCom ℓ (sigL cap mb ℓ)).warrs := by
-    intro i
-    rw [warrs_reprCom, List.mem_singleton]
-    exact tabName_ne_lit ℓ i (by decide)
-  have htabs₁ : ∀ (i : ℕ), i < (tablesAt q_top cap mb φ ℓ).length →
-      ∃ Tb : ℕ → ℕ, σ₁.arrs (tabName ℓ i) = arrOf n Tb := by
+  obtain ⟨hvn, hcol, hmem, htabs⟩ := hσ
+  have hstart : BaseTabOk q_top cap mb ℓ n φ C (fun _ => (σ.setVar "z" 0).vars "z")
+      (σ.setVar "z" 0) := by
     intro i hi
     obtain ⟨Tb, hTb⟩ := htabs i hi
-    refine ⟨Tb, ?_⟩
-    rw [hfa₁ (tabName ℓ i) (hnotrep i)]
-    exact hTb
-  have hstart : BaseTabOk q_top cap mb ℓ n φ C (fun _ => (σ₁.setVar "z" 0).vars "z")
-      (σ₁.setVar "z" 0) := by
-    intro i hi
-    obtain ⟨Tb, hTb⟩ := htabs₁ i hi
     refine ⟨Tb, by rw [arrs_setVar]; exact hTb, fun v hv => ?_⟩
     exfalso
-    replace hv : (v : ℕ) < (σ₁.setVar "z" 0).vars "z" := hv
+    replace hv : (v : ℕ) < (σ.setVar "z" 0).vars "z" := hv
     rw [vars_setVar, if_pos rfl] at hv
     omega
   -- the walk of the carrier
   obtain ⟨σ₂, hrun₂, ⟨-, -, htab₂⟩, hz₂⟩ :=
     (Spec.forRangeZero (B := B) "z" "n" (BaseInv B n q_top cap mb ℓ C φ) n
       (turnCost q_top cap mb ℓ φ) hn (fun τ hτ => hτ.2.1) (fun τ hτ => hτ.1.1)
-      (base_turn_spec hB hn hbit hlocal)).run (σ := σ₁)
-      ⟨⟨by rw [vars_setVar, if_neg (by decide)]; exact hvn₁,
-        fun c hc => by rw [arrs_setVar]; exact hcol₁ c hc,
-        fun i hi => botMem_of_length (fun a => by rw [arrs_setVar]) _ "bb" (hmem₁ i hi)⟩,
+      (base_turn_spec hB hn hbit hlocal)).run (σ := σ)
+      ⟨⟨by rw [vars_setVar, if_neg (by decide)]; exact hvn,
+        fun c hc => by rw [arrs_setVar]; exact hcol c hc,
+        fun i hi => botMem_of_length (fun a => by rw [arrs_setVar]) _ "bb" (hmem i hi)⟩,
         by rw [vars_setVar, if_pos rfl]; omega, hstart⟩
-  refine ⟨σ₂, _, hrun₁.seq hrun₂, ?_, ?_⟩
-  · rw [baseCost]
-  · intro i hi
-    obtain ⟨Tb, hTb, hTbval⟩ := htab₂ i hi
-    exact ⟨Tb, hTb, fun v hv => hTbval v (by rw [hz₂]; exact v.isLt)⟩
+  refine ⟨σ₂, _, hrun₂, by rw [baseCost], ?_⟩
+  intro i hi
+  obtain ⟨Tb, hTb, hTbval⟩ := htab₂ i hi
+  exact ⟨Tb, hTb, fun v hv => hTbval v (by rw [hz₂]; exact v.isLt)⟩
 
 /-! ### The obligation
 
@@ -1877,7 +1892,7 @@ theorem noWrite_reprCom (jd L : ℕ) : (reprCom jd L).NoWrite := by
 
 theorem noWrite_baseCom (q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) :
     (baseCom q_top cap mb ℓ φ).NoWrite :=
-  ⟨noWrite_reprCom ℓ _, trivial, trivial, noWrite_baseFold ℓ _ 0, trivial⟩
+  ⟨trivial, trivial, noWrite_baseFold ℓ _ 0, trivial⟩
 
 /-! #### What the base pass writes -/
 
@@ -1926,20 +1941,40 @@ theorem wvars_baseFold {L : ℕ} (ℓ : ℕ) : ∀ (l : List (DistFO L 1)) (p : 
       · exact absurd h' (by rw [Com.wvars]; simp)
     · exact ih (p + 1) (fun γ hγ => hloc γ (List.mem_cons_of_mem _ hγ)) y h
 
+/-- **What the base pass stores into.** The `"rep"` alternative is
+vacuous since R1.8-T4a — `rep_notMem_warrs_baseCom` below is the sharp
+statement — and is kept only because the obligation's frame consumes
+this shape at nine call sites (`RamDriverCompose.notMem_warrs_baseCom`);
+the member-header wave restates both. -/
 theorem warrs_baseCom {q_top cap mb ℓ : ℕ} {φ : Lax3.FirstOrder.FO 0}
     (hlocal : ∀ β ∈ tablesAt q_top cap mb φ ℓ, IsLocal β) :
     ∀ a ∈ (baseCom q_top cap mb ℓ φ).warrs,
       a = "rep" ∨ (∃ i, a = tabName ℓ i) ∨ Ext "bb" a := by
   intro a ha
   rw [show (baseCom q_top cap mb ℓ φ).warrs =
-    (reprCom ℓ (sigL cap mb ℓ)).warrs ++ ([] ++ ([] ++ ((foldIdx (fun i β =>
+    [] ++ ([] ++ ((foldIdx (fun i β =>
       Com.seq (botCom ℓ β "bb") (.store (tabName ℓ i) (.var "z") (.var "bb"))) 0
-      (tablesAt q_top cap mb φ ℓ)).warrs ++ []))) from rfl] at ha
-  simp only [List.append_nil, List.nil_append, List.mem_append] at ha
-  rcases ha with h | h
-  · rw [warrs_reprCom, List.mem_singleton] at h
-    exact Or.inl h
-  · exact Or.inr (warrs_baseFold ℓ _ 0 hlocal a h)
+      (tablesAt q_top cap mb φ ℓ)).warrs ++ [])) from rfl] at ha
+  simp only [List.append_nil, List.nil_append] at ha
+  exact Or.inr (warrs_baseFold ℓ _ 0 hlocal a ha)
+
+/-- **The base pass does not write `"rep"`** — R1.8-T4a, the sharp form
+of the vacuous alternative above. With the representative scan out of
+the program the array has no writer anywhere in the driver, and the only
+text that would read it (`envLoad`, inside `botCom`'s `exU` case) is
+generated for no tabled formula. -/
+theorem rep_notMem_warrs_baseCom {q_top cap mb ℓ : ℕ} {φ : Lax3.FirstOrder.FO 0}
+    (hlocal : ∀ β ∈ tablesAt q_top cap mb φ ℓ, IsLocal β) :
+    "rep" ∉ (baseCom q_top cap mb ℓ φ).warrs := by
+  intro ha
+  rw [show (baseCom q_top cap mb ℓ φ).warrs =
+    [] ++ ([] ++ ((foldIdx (fun i β =>
+      Com.seq (botCom ℓ β "bb") (.store (tabName ℓ i) (.var "z") (.var "bb"))) 0
+      (tablesAt q_top cap mb φ ℓ)).warrs ++ [])) from rfl] at ha
+  simp only [List.append_nil, List.nil_append] at ha
+  rcases warrs_baseFold ℓ _ 0 hlocal "rep" ha with ⟨i, hi⟩ | hi
+  · exact RamDriverBase.lit_ne_tabName (q := "rep") (by decide) ℓ i hi
+  · exact not_ext_of_not_prefix (by decide) hi
 
 theorem wvars_baseCom {q_top cap mb ℓ : ℕ} {φ : Lax3.FirstOrder.FO 0}
     (hlocal : ∀ β ∈ tablesAt q_top cap mb φ ℓ, IsLocal β) :
@@ -1947,20 +1982,36 @@ theorem wvars_baseCom {q_top cap mb ℓ : ℕ} {φ : Lax3.FirstOrder.FO 0}
       y ∈ ["rp", "z", "seen", "rw", "rv"] ∨ (∃ i, y = envName i) ∨ Ext "bb" y := by
   intro y hy
   rw [show (baseCom q_top cap mb ℓ φ).wvars =
-    (reprCom ℓ (sigL cap mb ℓ)).wvars ++ (["z"] ++ ([envName 0] ++ ((foldIdx (fun i β =>
+    ["z"] ++ ([envName 0] ++ ((foldIdx (fun i β =>
       Com.seq (botCom ℓ β "bb") (.store (tabName ℓ i) (.var "z") (.var "bb"))) 0
-      (tablesAt q_top cap mb φ ℓ)).wvars ++ ["z"]))) from rfl] at hy
+      (tablesAt q_top cap mb φ ℓ)).wvars ++ ["z"])) from rfl] at hy
   simp only [List.mem_append, List.mem_singleton] at hy
-  rcases hy with h | h | h | h | h
-  · rw [wvars_reprCom] at h
-    refine Or.inl ?_
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at h ⊢
-    tauto
+  rcases hy with h | h | h | h
   · exact Or.inl (by simp [h])
   · exact Or.inr (Or.inl ⟨0, h⟩)
   · rcases wvars_baseFold ℓ _ 0 hlocal y h with h' | ⟨i, -, h'⟩
     · exact Or.inr (Or.inr h')
     · exact Or.inr (Or.inl ⟨i, h'⟩)
   · exact Or.inl (by simp [h])
+
+/-- **The base pass does not assign the representative counter `"rp"`**,
+for the same reason: the counter is the scan's, and the scan is in no
+program. -/
+theorem rp_notMem_wvars_baseCom {q_top cap mb ℓ : ℕ} {φ : Lax3.FirstOrder.FO 0}
+    (hlocal : ∀ β ∈ tablesAt q_top cap mb φ ℓ, IsLocal β) :
+    "rp" ∉ (baseCom q_top cap mb ℓ φ).wvars := by
+  intro hy
+  rw [show (baseCom q_top cap mb ℓ φ).wvars =
+    ["z"] ++ ([envName 0] ++ ((foldIdx (fun i β =>
+      Com.seq (botCom ℓ β "bb") (.store (tabName ℓ i) (.var "z") (.var "bb"))) 0
+      (tablesAt q_top cap mb φ ℓ)).wvars ++ ["z"])) from rfl] at hy
+  simp only [List.mem_append, List.mem_singleton] at hy
+  rcases hy with h | h | h | h
+  · exact absurd h (by decide)
+  · exact lit_ne_envName (q := "rp") ⟨_, rfl⟩ (by decide) 0 h
+  · rcases wvars_baseFold ℓ _ 0 hlocal "rp" h with h' | ⟨i, -, h'⟩
+    · exact not_ext_of_not_prefix (by decide) h'
+    · exact lit_ne_envName (q := "rp") ⟨_, rfl⟩ (by decide) i h'
+  · exact absurd h (by decide)
 
 end Lax3Proofs.RamDriverBot

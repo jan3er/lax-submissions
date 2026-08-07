@@ -1487,7 +1487,22 @@ def rowEqExpr (j L : ℕ) (x y : String) : Expr :=
 recorded when it matches none of the rows already recorded. What
 `Lax3Proofs.BotEval.exists_offRepr` asks of the result is exactly that
 every vertex has a same-row companion among the records, which a scan
-that only skips matched vertices delivers. -/
+that only skips matched vertices delivers.
+
+**R1.8-T4a: this pass is in no program.** Its product `"rep"` is read
+only by the `exU` case of `botCom` (through `envLoad`), and that case is
+generated for no formula any table holds: every tabled formula is local
+(`FormulaTables.tableRank_of_mem_tablesAt`, read as
+`Refine.DeadRowProbe.tabled_isLocal`), and `botCom` on a local formula
+has no `exU` node at all. So `baseCom` below no longer runs it, its
+carrier scan no longer charges the base's budget
+(`RamDriverBot.baseCost`), and nothing in the driver writes `"rep"`
+(`RamDriverBot.rep_notMem_warrs_baseCom`). The pass and its walk
+(`RamDriverBot.repr_spec`) are kept as they are: they are the compiled
+half of the contingency `Refine.DeadRowProbe.sat_exU_bot_via_cluster`
+describes, and repairing the case — should a table ever hold a
+non-local formula — means recording `k + 1` vertices per row here rather
+than writing the scan again. -/
 def reprCom (j L : ℕ) : Com :=
   .seq (.assign "rp" (.lit 0))
     (.seq (.assign "z" (.lit 0))
@@ -1601,10 +1616,20 @@ noncomputable def sweepCom (q_top cap mb jd : ℕ) (φ : Lax3.FirstOrder.FO 0) :
             (tablesAt q_top cap mb φ jd))
           (.assign "z" (.add (.var "z") (.lit 1))))))
 
-/-- **The base case.** Build the representative system once, then walk
-the vertices, evaluating every formula of the depth's table at each. -/
+/-- **The base case.** Walk the vertices, evaluating every formula of the
+depth's table at each.
+
+**R1.8-T4a.** The pass used to open with `reprCom`, the representative
+scan, whose only consumer is the `exU` case of `botCom` — a case no
+tabled formula generates (`reprCom`'s own docstring; the walk carries
+`IsLocal` and discharges `exU` by `SyntaxLemmas.isLocal_exU`). The scan
+is dropped: the base case *is* the depth's sweep, the base's budget
+sheds `RamDriverBot.reprCost` — a carrier scan with a
+`2 ^ sigL cap mb ℓ`-wide inner loop — and the base pass no longer needs
+the `"rep"` table to exist at all (`RamDriverBot.base_spec`'s
+precondition is the sweep's). -/
 noncomputable def baseCom (q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) : Com :=
-  .seq (reprCom ℓ (sigL cap mb ℓ)) (sweepCom q_top cap mb ℓ φ)
+  sweepCom q_top cap mb ℓ φ
 
 /-! ### The ordering pass
 

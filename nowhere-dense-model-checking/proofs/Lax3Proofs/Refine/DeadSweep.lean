@@ -34,9 +34,10 @@ is not a `tabName`. So the whole frame is character arithmetic on names.
 
 # §3 Cost, and what it costs the recursion
 
-`sweepCost` is `RamDriverBot.baseCost` without the representative pass:
-one carrier-width walk whose turn is the depth's own straight line of
-`botCom` fragments. It joins `Ko` and `Kc` as a **phase constant of a
+`sweepCost` is one carrier-width walk whose turn is the depth's own
+straight line of `botCom` fragments — which since R1.8-T4a is
+`RamDriverBot.baseCost` on the nose (`baseCost_eq`), the base case having
+shed the representative pass. It joins `Ko` and `Kc` as a **phase constant of a
 level read at the arena's size**, which is the same debt the ordering
 and cover phases already carry (`RamDriverRoot.levelAt`'s `hKo`/`hKc`
 instantiate size-blind carrier-width constants at every size) and the
@@ -131,15 +132,17 @@ theorem wvars_sweepCom {q_top cap mb jd : ℕ} {φ : Lax3.FirstOrder.FO 0}
 
 /-! ### §2 The pass, walked -/
 
-/-- The cost of the sweep: `RamDriverBot.baseCost` without the
-representative pass. -/
+/-- The cost of the sweep: one carrier walk whose turn is the depth's own
+straight line of `botCom` fragments. -/
 noncomputable def sweepCost (q_top cap mb jd n : ℕ) (φ : Lax3.FirstOrder.FO 0) : ℕ :=
   (turnCost q_top cap mb jd φ + 4) * n + 6
 
-/-- The base case is the representative pass followed by the sweep, so
-`RamDriverBot.baseCost` is `reprCost` plus `sweepCost`. -/
+/-- **The base case IS the sweep at the bottom depth** (R1.8-T4a). It used
+to be the representative pass followed by the sweep, and `baseCost` used
+to be `reprCost` plus this; the scan is out of the program (`RamDriver.baseCom`),
+so the two costs coincide. The shed itself is `Refine.BaseShed`. -/
 theorem baseCost_eq (q_top cap mb ℓ n : ℕ) (φ : Lax3.FirstOrder.FO 0) :
-    baseCost q_top cap mb ℓ n φ = reprCost ℓ (sigL cap mb ℓ) n + sweepCost q_top cap mb ℓ n φ :=
+    baseCost q_top cap mb ℓ n φ = sweepCost q_top cap mb ℓ n φ :=
   rfl
 
 /-- **The sweep, walked.** Every cell of every table of the depth holds
@@ -344,8 +347,9 @@ end Falsification
 /-! ### §4b The member-list header, refuted (finding R1.8/1)
 
 Wave R1.8 asked for this pass's loop header — and the base case's, since
-`RamDriverBot.baseCom` is `reprCom` followed by *this* `Com` at depth
-`ℓ` — to walk the depth's member list `RamDriver.memName j` instead of
+`RamDriver.baseCom` *is* this `Com` at depth `ℓ` (R1.8-T4a; before it,
+`reprCom` followed by this `Com`) — to walk the depth's member list
+`RamDriver.memName j` instead of
 the carrier, so that the charge becomes
 `Refine.G2CostProbe.sweepCoeffA · (w + 1)` at the arena's weight. **The
 header cannot move, and the obstruction is not a cost accident: it is
@@ -362,11 +366,15 @@ rows it is. The same stop covers the base half twice over:
 
 * `RamDriver.BaseImplements` asks for `RamDriver.TableInv` at depth `ℓ`,
   which is quantified over **all** of `Fin n`, dead vertices included;
-* `BotEval.sat_exU_bot_of_repr`'s hypothesis `hW` — what `reprCom` is
+* `BotEval.sat_exU_bot_of_repr`'s hypothesis `hW` — what `reprCom` was
   built to supply — asks for a same-row representative of every
   `v : Fin n` off the tuple, again dead ones included, because the
   bottom formula's *unrestricted* quantifier ranges over the carrier and
-  not over the arena.
+  not over the arena. (R1.8-T4a: this second reading is now moot for the
+  landed surface — no tabled formula has an unrestricted quantifier
+  (`Refine.DeadRowProbe.tabled_isLocal`), so the scan and its `hW` story
+  left the program. The first reading, `TableInv` over all of `Fin n`,
+  is the one the R1.8 design answers, by re-domaining the obligation.)
 
 The witness below is the extreme case and the negative control: at the
 all-dead mask the member list is **empty** at every carrier size, while

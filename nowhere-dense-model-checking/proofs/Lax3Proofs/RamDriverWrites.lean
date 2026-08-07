@@ -1086,11 +1086,12 @@ theorem belowArr_notMem_warrs_driverAux (q_top cap mb ℓ : ℕ) (φ : Lax3.Firs
       rcases mem_warrs_seq hq with hq | hq
       · exact belowArr_notMem_warrs_coverPhase cap d h hq
       rcases mem_warrs_seq hq with hq | hq
-      · -- the dead-row sweep (rebase B8): a suffix of the base case's own text
+      · -- the dead-row sweep (rebase B8): the base case's own text, which
+        -- since R1.8-T4a is exactly this pass at the bottom depth
         refine belowArr_notMem_warrs_baseCom q_top cap mb d φ h ?_
         rw [show (baseCom q_top cap mb d φ).warrs
-            = (reprCom d (sigL cap mb d)).warrs ++ (sweepCom q_top cap mb d φ).warrs from rfl]
-        exact List.mem_append_right _ hq
+            = (sweepCom q_top cap mb d φ).warrs from rfl]
+        exact hq
       rcases mem_warrs_seq hq with hq | hq
       · rw [warrs_assign] at hq; exact absurd hq List.not_mem_nil
       rw [warrs_while] at hq
@@ -1134,11 +1135,12 @@ theorem belowVar_notMem_wvars_driverAux (q_top cap mb ℓ : ℕ) (φ : Lax3.Firs
       rcases mem_wvars_seq hq with hq | hq
       · exact belowVar_notMem_wvars_coverPhase cap d h hq
       rcases mem_wvars_seq hq with hq | hq
-      · -- the dead-row sweep (rebase B8): a suffix of the base case's own text
+      · -- the dead-row sweep (rebase B8): the base case's own text, which
+        -- since R1.8-T4a is exactly this pass at the bottom depth
         refine belowVar_notMem_wvars_baseCom q_top cap mb d φ h ?_
         rw [show (baseCom q_top cap mb d φ).wvars
-            = (reprCom d (sigL cap mb d)).wvars ++ (sweepCom q_top cap mb d φ).wvars from rfl]
-        exact List.mem_append_right _ hq
+            = (sweepCom q_top cap mb d φ).wvars from rfl]
+        exact hq
       rcases mem_wvars_seq hq with hq | hq
       · rw [wvars_assign] at hq
         exact belowVar_ne h (le_refl d) (by tauto) (List.eq_of_mem_singleton hq)

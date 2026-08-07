@@ -1020,9 +1020,11 @@ theorem coverImplements {n : ℕ} {B cap mb ns W j : ℕ} {G : SimpleGraph (Fin 
 `RamDriverBot.base_spec` is the walk; what is left is the translation
 into the surface. Two halves. The frame of `RamDriver.LevelPre` across
 the pass comes off the four syntactic lemmas of that file — the base
-pass writes the representative table, the depth's own tables and the
-generated evaluator's own names, and `LevelPre` speaks about none of
-them. And the postcondition `RamDriverBot.BaseTabOk … (fun _ => n)` is
+pass writes the depth's own tables and the generated evaluator's own
+names, and `LevelPre` speaks about neither. (Before R1.8-T4a it also
+wrote the representative table; the frame lemmas still carry that
+alternative, vacuously — `RamDriverBot.rep_notMem_warrs_baseCom`.) And
+the postcondition `RamDriverBot.BaseTabOk … (fun _ => n)` is
 `RamDriver.TableInv`'s content on the edgeless arena, which is the arena
 the obligation's hypothesis says this is.
 
@@ -1037,8 +1039,8 @@ theorem ext_b_of_ext_bb {a : String} (h : RamDriverBot.Ext "bb" a) :
   (RamDriverBot.ext_of_prefix (by decide)).trans h
 
 /-! The two member names begin with `'m'` (rebase E-mem), which is all
-the base pass's frame needs: it writes `"rep"`, the tables and the
-names below its own output, none of which start there. -/
+the base pass's frame needs: it writes the tables and the names below its
+own output, neither of which starts there. -/
 
 theorem head_memName (a : ℕ) : ∃ t, (memName a).toList = 'm' :: t :=
   ⟨_, by rw [memName, String.toList_append]; rfl⟩
@@ -1080,16 +1082,18 @@ theorem baseImplements {n : ℕ} {B q_top cap mb ns W ℓ : ℕ} {φ : Lax3.Firs
     {G : SimpleGraph (Fin n)} {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} :
     BaseImplements B q_top cap mb ns W ℓ φ G O T M Gm C
       (RamDriverBot.baseCost q_top cap mb ℓ n φ) := by
-  intro d hB hL hbot hbit
+  -- R1.8-T4a: the `2 ^ sigL cap mb ℓ < B` hypothesis of the obligation and
+  -- the `Sized [("rep", …)]` clause of `BaseArrs` are the representative
+  -- scan's, and the scan is out of the program — `base_spec` asks for
+  -- neither, so both go unused here.
+  intro d hB _ hbot hbit
   have hlocal : ∀ β ∈ tablesAt q_top cap mb φ ℓ, IsLocal β :=
     fun β hβ => (FormulaTables.tableRank_of_mem_tablesAt ℓ β hβ).1
   refine Spec.of_exists fun σ hσ => ?_
   obtain ⟨hlev, hts, hbarr⟩ := hσ
   obtain ⟨σ', hrun, htab⟩ :=
-    (RamDriverBot.base_spec hB.one_lt hB.n_lt hL hbit hlocal).run
-      ⟨hlev.1, hlev.2.2.2.2.2.1, hbarr.2 ℓ,
-        hbarr.1.get (p := ("rep", 2 ^ sigL cap mb ℓ)) (by simp),
-        fun i hi => hts.get ℓ hi⟩
+    (RamDriverBot.base_spec hB.one_lt hB.n_lt hbit hlocal).run
+      ⟨hlev.1, hlev.2.2.2.2.2.1, hbarr.2 ℓ, fun i hi => hts.get ℓ hi⟩
   refine ⟨σ', _, hrun, le_rfl,
     ⟨levelPre_run hlev hrun
       (notMem_wvars_baseCom hlocal (by decide) (fun i => RamDriverBot.lit_ne_envName
