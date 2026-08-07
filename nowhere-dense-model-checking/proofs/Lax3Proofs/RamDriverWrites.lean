@@ -1,5 +1,6 @@
 import Lax3Proofs.RamDriverCompose
 import Lax3Proofs.RamDriverDescend
+import Lax3Proofs.Refine.ScatterDeadPass
 
 /-!
 **What the driver writes, read off its text.**
@@ -1172,6 +1173,115 @@ theorem wvars_atomFlagCom (t : ℕ) {y : String} (hy : y ∈ (atomFlagCom t).wva
 
 theorem noWrite_atomFlagCom (t : ℕ) : (atomFlagCom t).NoWrite := by
   simp [atomFlagCom, Com.NoWrite]
+
+/-! ### The dead-aware atom program, and the phase it folds into
+
+**Wave R1.8-T3-flip (c1).** The composite `RamDriver.scatDeadCom` and
+the phase `RamDriver.scatterDeadCom` that replaces the fold of
+`scatterCom` in the turn, as write sets. The nine passes' own facts are
+above; what is added here is their union, read once so that the frame
+conditions of the turn — that the phase writes no table, and that the
+depth's own arrays and the driver's scalars survive it — can be
+discharged against it.
+
+Six fixed arrays and the generated evaluator's scratch is the whole of
+it. Five of the six are the engine's own calling convention and working
+set (`"alv"`, `"mem"`, `"dist"`, `"exc"`, `"q"`, `"qd"`), which
+`Refine.ScatterDeadPass.warrs_scatBlockCom` settles for the engine and
+which the two copies before it settle for the convention; the scratch is
+`RamDriverBot.Ext "bb"`, exactly as for the kill pass, since the outside
+class's bit is one `botCom` fragment. **No table row is written**, which
+is what a turn's frame needs, and no per-depth name at all — the atom
+program only ever *reads* the depth's arrays. -/
+
+/-- **What one dead-aware atom writes.** -/
+theorem warrs_scatDeadCom {L : ℕ} (j ti : ℕ) (β : DistFO L 1) (r t : ℕ) (hloc : IsLocal β)
+    {a : String} (ha : a ∈ (scatDeadCom j ti β r t).warrs) :
+    a ∈ ["mem", "alv", "dist", "exc", "q", "qd"] ∨ RamDriverBot.Ext "bb" a := by
+  rw [scatDeadCom, Com.warrs, Com.warrs, Com.warrs, Com.warrs, Com.warrs, Com.warrs,
+    Com.warrs, Com.warrs, warrs_killSumCom, warrs_outProbeCom, warrs_outCntCom,
+    warrs_atomFlagCom, atomBitCom, Com.warrs, Com.warrs, Com.warrs,
+    RamDriverIO.copyCom_eq, RamDriverIO.warrs_fillCom, RamDriverIO.warrs_fillCom] at ha
+  simp only [List.nil_append, List.append_nil, List.mem_append, List.mem_singleton] at ha
+  rcases ha with (hemp | hb) | ha | ha | ha | ha
+  · exact absurd hemp (by simp [Com.warrs])
+  · exact Or.inr (RamDriverBot.warrs_botCom β hloc "bb" a hb)
+  · exact Or.inl (by simp [warrs_atomMemCom j ti ha])
+  · exact Or.inl (by simp [ha])
+  · exact Or.inl (by simp [ha])
+  · rcases Refine.ScatterDeadPass.warrs_scatBlockCom r t ha with h | h | h | h <;>
+      exact Or.inl (by simp [h])
+
+/-- **The atom program writes no table row.** The row of the atom's own
+formula is *read*, at the child's member list and at the turn's kill
+list, and never written — which is the whole reason the phase can run
+after the nested call. -/
+theorem tabName_notMem_warrs_scatDeadCom {L : ℕ} {j ti d i : ℕ} {β : DistFO L 1} {r t : ℕ}
+    (hloc : IsLocal β) : tabName d i ∉ (scatDeadCom j ti β r t).warrs := by
+  intro ha
+  rcases warrs_scatDeadCom j ti β r t hloc ha with h | h
+  · revert h; simp [tabName, String.ext_iff]
+  · exact RamDriverBot.not_ext_b_tabName d i (RamDriverCompose.ext_b_of_ext_bb h)
+
+open Classical in
+/-- **What the scatter phase of one tabled formula writes**, over any
+list of atoms starting at any position. -/
+theorem warrs_scatterDeadFold {q_top cap mb : ℕ} {φ : Lax3.FirstOrder.FO 0} (j i : ℕ)
+    (hloc : ∀ γ ∈ tablesAt q_top cap mb φ (j + 1), IsLocal γ) :
+    ∀ (l : List (Lax3.ScatterSentences.ScatterSentence (sigL cap mb (j + 1)))) (k₀ : ℕ),
+      (∀ σs ∈ l, σs.β ∈ tablesAt q_top cap mb φ (j + 1)) →
+      ∀ a ∈ (foldIdx (fun k σs =>
+          Com.seq (scatDeadCom j (posOf σs.β (tablesAt q_top cap mb φ (j + 1))) σs.β σs.r σs.t)
+            (.assign (flgName j i k) (.var "flag"))) k₀ l).warrs,
+        a ∈ ["mem", "alv", "dist", "exc", "q", "qd"] ∨ RamDriverBot.Ext "bb" a := by
+  intro l
+  induction l with
+  | nil => intro k₀ _ a ha; exact absurd ha (by rw [foldIdx]; simp [Com.warrs])
+  | cons x xs ih =>
+      intro k₀ hmem a ha
+      rw [foldIdx, Com.warrs, Com.warrs, List.mem_append, List.mem_append] at ha
+      rcases ha with (h | h) | h
+      · exact warrs_scatDeadCom j _ x.β x.r x.t (hloc _ (hmem x List.mem_cons_self)) h
+      · exact absurd h (by simp [Com.warrs])
+      · exact ih (k₀ + 1) (fun s hs => hmem s (List.mem_cons_of_mem _ hs)) a h
+
+open Classical in
+/-- **And what the whole phase writes**, over any list of tabled
+formulas — the union is the same six arrays and the same scratch. -/
+theorem warrs_scatterDeadPhase {q_top cap mb : ℕ} {φ : Lax3.FirstOrder.FO 0} (j : ℕ)
+    (hloc : ∀ γ ∈ tablesAt q_top cap mb φ (j + 1), IsLocal γ) :
+    ∀ (l : List (DistFO (sigL cap mb j) 1)) (i₀ : ℕ),
+      (∀ β ∈ l, β ∈ tablesAt q_top cap mb φ j) →
+      ∀ a ∈ (foldIdx (fun i β => scatterDeadCom q_top cap mb φ j i β) i₀ l).warrs,
+        a ∈ ["mem", "alv", "dist", "exc", "q", "qd"] ∨ RamDriverBot.Ext "bb" a := by
+  intro l
+  induction l with
+  | nil => intro i₀ _ a ha; exact absurd ha (by rw [foldIdx]; simp [Com.warrs])
+  | cons x xs ih =>
+      intro i₀ hmem a ha
+      rw [foldIdx, Com.warrs, List.mem_append] at ha
+      rcases ha with h | h
+      · exact warrs_scatterDeadFold j i₀ hloc _ 0
+          (fun s hs => mem_tablesAt_succ_of_mem_bcAtomsOf_right (hmem x List.mem_cons_self) hs)
+          a (by rwa [scatterDeadCom] at h)
+      · exact ih (i₀ + 1) (fun β hβ => hmem β (List.mem_cons_of_mem _ hβ)) a h
+
+open Classical in
+/-- **The scatter phase leaves every table of every depth alone.** This
+is the phase's whole contribution to `RamDriverCluster.ClusterFrames`,
+and it is the clause the swap has to reproduce: the landed fold of
+`scatterCom` wrote `"tab"`, a *copy* of the row, and this one does not
+copy at all. -/
+theorem tabName_notMem_warrs_scatterDeadPhase {q_top cap mb : ℕ}
+    {φ : Lax3.FirstOrder.FO 0} (j d i : ℕ)
+    (hloc : ∀ γ ∈ tablesAt q_top cap mb φ (j + 1), IsLocal γ)
+    (l : List (DistFO (sigL cap mb j) 1)) (i₀ : ℕ)
+    (hmem : ∀ β ∈ l, β ∈ tablesAt q_top cap mb φ j) :
+    tabName d i ∉ (foldIdx (fun i β => scatterDeadCom q_top cap mb φ j i β) i₀ l).warrs := by
+  intro ha
+  rcases warrs_scatterDeadPhase j hloc l i₀ hmem _ ha with h | h
+  · revert h; simp [tabName, String.ext_iff]
+  · exact RamDriverBot.not_ext_b_tabName d i (RamDriverCompose.ext_b_of_ext_bb h)
 
 /-- **No name of a depth below is the kill list of any depth** — `"kl"`
 is a fresh prefix, so the whole table is settled by the first two

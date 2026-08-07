@@ -6,6 +6,7 @@ import Lax3Proofs.RamBfsPaths
 import Lax3Proofs.RamCover
 import Lax3Proofs.RamScatter
 import Lax3Proofs.Refine.MassMath
+import Lax3Proofs.Refine.ScatterBlockProg
 import Lax3Proofs.SplitterWinRec
 
 /-!
@@ -2288,6 +2289,59 @@ def atomFlagCom (t : ℕ) : Com :=
   .seq (.assign "os" (.add (.var "cnt") (.add (.var "kc") (.mul (.var "bb") (.var "oc")))))
     (.ite (.lt (.var "os") (.lit t)) (.assign "flag" (.lit 0)) (.assign "flag" (.lit 1)))
 
+/-- **The dead-aware atom program** (design §6 (b)): the kill walk, the
+outside probe and its bit, the outside count, the filtered member list,
+the block engine's calling convention, the active-set engine, and the
+verdict. This is what replaces one call of `RamScatter.scatterCom` in
+the turn.
+
+The three dead terms are computed **before** the engine, so nothing
+about the depth's own arrays has to cross the engine's own writes:
+after the engine only the four scalars `"cnt"`, `"kc"`, `"bb"` and
+`"oc"` are read, and the verdict reads nothing else. That the engine
+leaves the three it did not produce alone is
+`Refine.ScatterDeadPass.notMem_wvars_scatBlockCom`, and that it writes
+only `"exc"`, `"dist"`, `"q"` and `"qd"` — no name the driver or the
+atom program holds — is `warrs_scatBlockCom` next to it.
+
+**Wave R1.8-T3-flip (c1): where this may be written.**
+`Refine.ScatterBlock.scatBlockCom` is the landed active-set engine, and
+until this wave its file sat *below* this one in the import order, so
+the composite could not be named here at all and `clusterCom` could not
+run it. The cause was a single vestigial import
+(`Refine.ScatterBlockCost` pulled in `Refine.MassWeight`, and through it
+`Refine.ArenaBlock` and this file); dropping it puts both the engine's
+program text and its charge above the driver, which is where a program
+the driver runs belongs. The alternative — parameterising `clusterCom`
+by the atom family — would have travelled through `driverAt` and hence
+through `RamDriver.LevelImplements`, moving a signature the flip has no
+business moving. -/
+noncomputable def scatDeadCom (j ti : ℕ) {L : ℕ} (β : DistFO L 1) (r t : ℕ) : Com :=
+  .seq (killSumCom j ti)
+    (.seq (outProbeCom j)
+      (.seq (atomBitCom (j + 1) β)
+        (.seq (outCntCom j)
+          (.seq (atomMemCom j ti)
+            (.seq (copyCom (alvName (j + 1)) "alv")
+              (.seq (fillCom "dist" (.lit (r + 1)))
+                (.seq (Refine.ScatterBlock.scatBlockCom r t) (atomFlagCom t))))))))
+
+open Classical in
+/-- The dead-aware scatter atoms of one tabled formula, decided over the
+depth-`(j + 1)` tables in the cluster arena — the successor of
+`scatterCom`, atom for atom, with the same flag names.
+
+The atom's own table row enters by its *index* `RamDriver.posOf` rather
+than by a copy into `"tab"`: the new program reads the row at the
+child's member list and at the turn's kill list only, so there is no
+carrier-width copy to make and none is made. -/
+noncomputable def scatterDeadCom (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) (j i : ℕ)
+    (β : DistFO (sigL cap mb j) 1) : Com :=
+  foldIdx (fun k σs =>
+      .seq (scatDeadCom j (posOf σs.β (tablesAt q_top cap mb φ (j + 1))) σs.β σs.r σs.t)
+        (.assign (flgName j i k) (.var "flag")))
+    0 (bcAtomsOf q_top (stepFml cap mb j β)).2
+
 open Classical in
 /-- **One cluster.** The descent, the padded enumeration, the colouring,
 the kill pass, the nested driver, the scatter atoms and the readback.
@@ -2302,7 +2356,12 @@ and the nested call, and its position is forced from both sides too: it
 reads the padded buffer `"wa"`, which the nested call repads, so it must
 run before the recursion; and its product `klName j` is a *per-depth*
 name, which is what survives the recursion for the atom pass's kill walk
-to read afterwards. -/
+to read afterwards.
+
+**Rebase R1.8-T3-flip (c1).** The scatter phase is still the fold of
+`scatterCom`; the fold of `scatterDeadCom` that replaces it is written
+above and walked in `Refine.ScatterDeadTurn`, and the substitution here
+is the one remaining step of the swap. -/
 noncomputable def clusterCom (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) (j : ℕ)
     (inner : Com) : Com :=
   .seq (descendCom cap j)
