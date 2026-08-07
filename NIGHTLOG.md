@@ -4691,3 +4691,51 @@ split is deliberate: the new program is sound under the current
 carrier-wide `TableInv` a fortiori, so the large `RamDriverFrames`
 scatter discharge happens once against a stable invariant and (c2) then
 weakens a precondition on an already-re-derived proof.
+
+**R1.8-T3-flip (c1) — the import-order repair (merge `259f700`, 3586
+jobs). Partial by design: the swap is NOT done, and the stop was
+correct.**
+
+The wave was briefed to prefer parameterising `clusterCom` by the atom
+family. **It refuted that and took the other option, rightly.**
+`scatBlockCom` sitting below `RamDriver` is only half the defect: the
+*walks* were below `RamDriverRoot` **and** `Refine/DriverRootD.lean`, via
+`ScatterDeadFold → DeadRowProbe → G2ExistsRevalidation → DriverRootD →
+RamDriverRoot` (verified on the pre-repair tree). Parameterising moves
+only the program; the walk stays below the root, so `clusterStepAt`,
+`clusterFramesAt`, `DriverRootD.clusterStepAtR`/`clusterFramesAtR`/
+`levelAtR` and the three `driverRootD_decides_sentence*` would each have
+had to take the atom walk as a hypothesis — the top-level theorem
+weakened to "assume the scatter phase works". That is the failure mode
+the brief forbade, reached by following the brief.
+
+All three bad edges were vestigial or separable: `ScatterBlockCost`
+imported `MassWeight` for a **docstring only** (deleting it lifts both
+`scatBlockCom` and `scatBlockK` above `RamDriver` — the one frozen-file
+edit, a deleted unused import, no declaration moved);
+`DeadRowProbe` §6 was the sole consumer of `G2ExistsRevalidation` and is
+a statement about numbers, split into `Refine/DeadRowSigma.lean` **in the
+same namespace** so `deadRow_interface_closes`'s qualified name and its
+citations still resolve; `ScatterDeadPass` imported `ArenaSeam` for two
+docstrings. `Refine.ScatterDeadPass` now depends on none of
+`RamDriverIO`/`RamDriverFrames`/`RamDriverWrites`/`RamDriverRoot`/
+`DriverRootD` — **no signature above the turn has to move.** Also landed:
+`RamDriver.scatDeadCom`/`scatterDeadCom` in their final home, and the
+phase's write set (`warrs_scatDeadCom` + folds,
+`tabName_notMem_warrs_scatterDeadPhase` — the new phase writes no table
+row of any depth, which is the `ClusterFrames` leg).
+
+**Three threads the turn does not carry**, found and stated rather than
+worked around: (1) `hXalive` needs the *centre*'s aliveness —
+`RamDriverDescend.clusterLoad_spec` proves it and `DescendStep` drops it,
+`levelImplements` has it and `ClusterStepImplements` does not take it;
+(2) `KillListAt` must cross the nested call (`clusterStepImplements`
+discards both products of `hklist` today) — `KillRowsAt` is *not* needed,
+since under the un-flipped `TableInv` the bit clause follows a fortiori,
+which is exactly the (c1)/(c2) split; (3) `BallBudget` must become a
+`ScatterStep` hypothesis. Σ closure untouched and **not claimed** —
+nothing pays the new slot yet.
+
+Supervisor note: (1) sat behind a file-ownership boundary drawn too
+tightly (`RamDriverDescend.lean`, `Refine/DriverRootD.lean` were frozen).
+Corrected for the continuation wave (c1b), which owns them.
