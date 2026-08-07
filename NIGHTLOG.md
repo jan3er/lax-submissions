@@ -4868,3 +4868,55 @@ quality mechanism: a2 (the walk sat downstream of the driver), (b) (the
 have weakened `driverRoot_decides_sentence`), (c1b) (the swap itself, at
 `hw`), (c2a) (both offered routes). Briefs on this road should specify
 the *obligation* and let the source pick the mechanism.
+
+**R1.8-T3-flip (c1c) — the three threads, landed. The swap still not
+made.** Items 1, 2, 3 and 5 green; the composition (4) and the swap (6)
+untouched, and the wave stopped rather than leave a half-written file.
+
+**(1) `hXalive`.** `DescendStep` now exports
+`∀ v ∈ X, v ∈ clusterAt G M π ord cap (curName j)` (four lines in
+`descendStep`, read forwards off `hXmark`), and
+`ClusterStepImplements`/`ClusterFrames` gained the antecedent
+`M (ord k) ≠ 0`, whose producer at the call site is
+`RamDriver.Compacted.alive` at `levelImplements`' compacted loop.
+`MassAlive.clusterAt_subset_alive` turns the two into `hXalive` **inside
+`clusterStepImplements`, the only place it can be made** — `X` never
+leaves that proof.
+**(2) `KillListAt` crosses the recursion.** `BelowArr`/`BelowVar` gained
+`klName b`/`kkName b` (14 `rcases` sites re-run), `TurnFrozen` gained
+`klName j`, `InnerFrames` carries `KillListAt` on both sides, and
+`clusterStepImplements`/`clusterFrames` stop discarding it. *Correction
+to the brief*: it said `belowArr_ne_klName`/`belowVar_ne_kkName` were
+merely "the opposite direction" — true, but they also become **false**
+once the names join the family, so they had to move too, gaining the
+depth bound `d ≤ b'`.
+**(3) `BallBudget`, and the seventh overridden instruction.** The brief
+said thread it to `levelAt`/`driverRoot_decides_sentence`. The wave
+refused, rightly: `BallBudget n r G M O ns n` is **mask-independent**
+(the witness `Finset.range n` never mentions `M`), so it follows from
+`CsrGraph G ns O T` alone, and `hcsr` is already in scope at
+`clusterStepAt`. Threading further would have manufactured an obligation
+at the root that the root's own `CsrGraph` implies. New leaf
+`ScatterDeadPass.ballBudget_carrier`, slot weight telescoping
+`∑_{v<n} rowLen O v = O n − O 0 = ns`.
+
+**Σ closure: it closes**, and structurally rather than arithmetically —
+`levelAt`/`levelAt_of_sigma` keep `Kb`,`Ki`,`Ksc`,`Ks`,`Kt`,`Kl` free and
+`levelCost_of_sigma`/`uniform_recovers_level` never see the atom charge,
+only `Ks j m`. The swap changes exactly one expression, `hbnd`'s
+`RamDriverIO.atomCost n ns σs.t ≤ Kb`, into the `scatDeadK` shape — the
+same three-clause form as `ScatterBlockCost.HbndA`/`HcostA`/`HKscA`, and
+the same disposition `ctKL` used. `scatDeadK` is read at runtime
+quantities (`mm1`, `kq`, `mm`) and at `β`, so `hbnd` instantiates at
+their bounds (`≤ n`, `≤ mb`, `≤ n`) by monotonicity — a real step, not
+an interface move.
+
+**What the composition still needs**, with its seam landed: all nine
+leaf `Spec`s exist and 16 new write-set lemmas (`ScatterDeadPass` §5d)
+cover the eight non-engine passes, which with the landed engine pair
+confirm the order is sound — no product of an earlier pass is a write of
+a later one. Remaining: the ~40-step frame chain, `ArenaA` at `Alv'`
+before the engine, the `hout` branch split for `atomBitCom`, the two
+folds, and widening `ScatPre`'s `scratchArrs` with `"mem"`, `"qd"` and
+`RamDriverBot.Ext "bb"` — the last is not a list membership, so
+`ScatPre.run`'s `hA` changes shape.
