@@ -183,11 +183,12 @@ def ksSt : PSt :=
 
 end Probes
 
-/-! ### §0b The batch entry outside the cluster — the missing producer
+/-! ### §0b The batch entry outside the cluster — the producer, decided
 
-**Wave R1.8-T3-flip (c1b).** `Refine.DeadRowProbe.stepColoringP_subset`
-is what says the whole outside class carries the EMPTY child row, and
-that is the fact the outside term of `atomTerms_iff_scatVal` rides on
+**Wave R1.8-T3-flip (c1b), the refutation.**
+`Refine.DeadRowProbe.stepColoringP_subset` is what says the whole
+outside class carries the EMPTY child row, and that is the fact the
+outside term of `atomTerms_iff_scatVal` rides on
 (`Refine.ScatterDeadFold.outside_uniform` →
 `outside_ncard_of_probe`). It takes `hw : ∀ i, w i ∈ X`, and every
 consumer down to `atomTerms_iff_scatVal` carries `hw` verbatim.
@@ -201,23 +202,90 @@ out-of-cluster vertex whose child row is NOT the empty one, while its
 out-of-cluster neighbours' rows are — the class is not colour-uniform,
 and the one-bit-times-a-count reading of the outside term is false.
 
-**Nothing in the turn supplies `hw`.** `RamDriverCluster.ClusterData`
-pins `Set.range w = W` and no relation whatever between `W` and `X`;
-`RamDriverDescend.batchCom_spec` pins `W` inside the ball of the
-connector in the **game** arena `gamName j` (`markSet n Wa ⊆ markSet n
-Bal`, the ball `descendCom` builds by a chain over `gamName j`), and
-`RamDriver.PlayRec` puts the level arena *below* the game arena
-(`masked G M ≤ masked G Gm`), so the game ball is the larger of the
-two; and `RamCover.CoverOut.asg_cover` covers only the `cap`-ball in
-the level arena, at half the radius. So `W ⊆ X` is neither an export
-nor a corollary of anything landed.
+**Wave (c2a), the verdict.** Two routes were on the table and a third
+was the answer.
 
-What the atom pass needs is a clause `Set.range w ⊆ X` on
-`RamDriverCluster.DescendStep`'s postcondition (equivalently `W ⊆ X`,
-carried forward by `EnumStep`), or — if that is false of the program —
-the split of `Refine.ScatterDeadFold` re-based at `X ∪ Set.range w`,
-whose "inside" half the kill list would then have to enumerate. Either
-is a change to a landed surface and neither is this wave's. -/
+* *Narrow the batch* — one more `andCom` at the end of
+  `RamDriver.batchCom`. It is **refuted** by
+  `game_arena_sees_the_cluster_cut` below: `RamDriver.playRec_succ`'s
+  `hstep` cuts the *game* arena by the batch, and the game arena is not
+  cluster-restricted, so the same intersection that is invisible at the
+  child arena is visible there. The recorded round would move, and with
+  it `RamDriverDescend.batchCom_spec`'s walk-support clause, whose
+  conclusion would weaken from `support ∩ ball ⊆ W` to
+  `support ∩ ball ⊆ W ∩ X`.
+* *Re-base the dead fold at `X ∪ Set.range w`* — **refuted on cost** by
+  `dead_inter_union_batch` below: at the turn's own data the new inside
+  half is the WHOLE batch, so the kill list would have to enumerate
+  every batch entry and `RamDriverCluster.KillRowsAt` would owe a table
+  row at each of them, including the out-of-cluster ones — whose rows
+  are neither empty nor equal to one another, which is exactly what
+  `outside_class_not_uniform_refuted` compiles. That is a rewrite of
+  the kill pass and a re-run of `Refine.KillListPass.ctKL`.
+* *Narrow the **enumeration**, not the batch* — what landed. The batch
+  as a set is untouched, so `PlayRec`, `batchCom_spec`, `BatchData`,
+  `KillRowsAt` and the kill list all stand verbatim; only
+  `RamDriver.enumBatch`'s guard gains the cluster indicator. The child
+  arena cannot see the difference (`RamDriver.deleteVerts_inter_cluster`,
+  which `RamDriverCluster.masked_alv_eq` now runs through) and
+  `RamDriver.sat_iff_eval_step` — the isolation rewrite itself — asks
+  nothing whatever of `w`. The producer of `hw` is
+  `RamDriverCluster.ClusterData.mem_cluster`, and
+  `atomTerms_iff_scatVal_of_clusterData` at the end of §5 is the atom's
+  verdict with the turn's data in place of the hypothesis. -/
+
+/-- **The game arena is not blind to the cluster cut.** One edge, one
+endpoint in the batch and the other in the cluster: deleting `W` and
+deleting `W ∩ X` give different graphs. This is why narrowing the batch
+itself is a different change from narrowing its enumeration — the child
+arena has already had `Xᶜ` deleted from it and cannot tell the two
+apart (`RamDriver.deleteVerts_inter_cluster`), while `PlayRec`'s game
+arena has not. -/
+theorem game_arena_sees_the_cluster_cut :
+    ∃ (A : SimpleGraph (Fin 2)) (X W : Set (Fin 2)),
+      Lax12.UniformQuasiWideness.deleteVerts A (W ∩ X) ≠
+        Lax12.UniformQuasiWideness.deleteVerts A W := by
+  refine ⟨⊤, {1}, {0}, fun h => ?_⟩
+  have h0 : (Lax12.UniformQuasiWideness.deleteVerts (⊤ : SimpleGraph (Fin 2))
+      (({0} : Set (Fin 2)) ∩ ({1} : Set (Fin 2)))).Adj 0 1 := by
+    refine ⟨by decide, ?_, ?_⟩
+    · rintro ⟨-, hc⟩; exact absurd hc (by decide)
+    · rintro ⟨hc, -⟩; exact absurd hc (by decide)
+  rw [h] at h0
+  exact absurd h0.2.1 (by decide)
+
+/-- **Route 2's inside half is the whole batch.** Re-basing
+`Refine.ScatterDeadFold`'s split at `X ∪ W` does make the outside class
+colour-uniform, but at the turn's own data the half the kill list would
+then have to enumerate is `W` itself: a batch vertex is dead at the
+child by `RamDriverCluster.BatchData`'s pointwise clause whether or not
+it is in the cluster, and inside the cluster the dead ones are exactly
+the batch. So route 2 costs a kill row at every batch entry — and by
+`outside_class_not_uniform_refuted` the out-of-cluster entries do not
+share a row, so no default bit pays for them. -/
+theorem dead_inter_union_batch {M Alv' : ℕ → ℕ} {X W : Set (Fin n)}
+    (hpt : ∀ v : Fin n, Alv' (v : ℕ) ≠ 0 ↔ (M (v : ℕ) ≠ 0 ∧ v ∈ X ∧ v ∉ W))
+    (hXalive : ∀ v : Fin n, v ∈ X → M (v : ℕ) ≠ 0) :
+    ScatterDeadFold.deadSet n Alv' ∩ (X ∪ W) = W := by
+  ext v
+  constructor
+  · rintro ⟨hd, hX | hW⟩
+    · by_contra hW
+      exact absurd (ScatterDeadFold.mem_deadSet.1 hd) ((hpt v).2 ⟨hXalive v hX, hX, hW⟩)
+    · exact hW
+  · intro hW
+    refine ⟨?_, Or.inr hW⟩
+    show Alv' (v : ℕ) = 0
+    by_contra hc
+    exact ((hpt v).1 hc).2.2 hW
+
+/-- **The refutation itself** (wave (c1b)): at a three-vertex carrier
+with cluster `{0}`, empty graph and radius zero, the batch entry `1`
+lies outside the cluster and *in* its own radius-zero profile slot,
+while `2` — equally outside the cluster — does not. Two out-of-cluster
+vertices with different colour rows: without `hw` the outside class is
+not colour-uniform and the one-bit-times-a-count reading of the outside
+term is false. -/
 theorem outside_class_not_uniform_refuted :
     (1 : Fin 3) ∉ ({0} : Set (Fin 3)) ∧ (2 : Fin 3) ∉ ({0} : Set (Fin 3)) ∧
       (1 : Fin 3) ∈ stepColoringP (n := 3) 0 (⊥ : SimpleGraph (Fin 3))
@@ -1069,6 +1137,45 @@ theorem atomTerms_iff_scatVal {L mb cap : ℕ} {G A : SimpleGraph (Fin n)}
   exact ScatterDeadEngine.scatVal_of_cnt (G := G) (A := A) (M' := Alv') (col := col)
     (Xc := X) (w := w) σs hcnt hkcval houtval
 
+/-- **The atom's verdict at the turn's own data** (wave R1.8-T3-flip
+(c2a)). The same statement with `RamDriverCluster.ClusterData` in place
+of the two hypotheses the turn owns: `hw` is `ClusterData.mem_cluster`
+— the padded enumeration is the batch's cluster half, because
+`RamDriver.enumBatch` guards on the cluster indicator — and `hpt` is
+`RamDriverCluster.BatchData`'s pointwise mask clause (wave R1.8-T1).
+
+This is the discharge `outside_class_not_uniform_refuted` said was
+missing: nothing above the turn has to supply anything, and neither `X`
+nor `w` has to escape `clusterStepImplements`'s existential. -/
+theorem atomTerms_iff_scatVal_of_clusterData {L mb cap jd Bw : ℕ}
+    {G A : SimpleGraph (Fin n)}
+    {M Alv' Gam' Xa Tb kl : ℕ → ℕ} {col : Coloring n L} {w : Fin mb → Fin n}
+    {X W : Set (Fin n)} {mm1 kq cnt kc bb oc : ℕ} {σ : Env}
+    (σs : ScatterSentence (Lax3Proofs.Evaluator.isoPalette (L + 1) mb cap))
+    (hloc : IsLocal σs.β)
+    (hdat : RamDriverCluster.ClusterData n mb jd Bw G M X W w Alv' Gam' σ)
+    (hXset : markSet n Xa = X)
+    (hXalive : ∀ v : Fin n, v ∈ X → M (v : ℕ) ≠ 0)
+    (hmm1 : (markSet n Alv').ncard = mm1)
+    (hklt : ∀ e, e < kq → kl e < n)
+    (hkinj : ∀ e₁, e₁ < kq → ∀ e₂, e₂ < kq → kl e₁ = kl e₂ → e₁ = e₂)
+    (hksound : ∀ e, (he : e < kq) → (⟨kl e, hklt e he⟩ : Fin n) ∈ turnKills M X W)
+    (hkcomp : ∀ v : Fin n, v ∈ turnKills M X W → ∃ e, e < kq ∧ kl e = (v : ℕ))
+    (hkbit : ∀ v : Fin n, v ∈ turnKills M X W →
+      Tb (v : ℕ) ≤ 1 ∧ (Tb (v : ℕ) ≠ 0 ↔ v ∈ ScatterDeadFold.satSet G A Alv' col X w σs.β))
+    (hkc : kc = ∑ e ∈ Finset.range kq, Tb (kl e))
+    (hoc : oc = n - mm1 - kq)
+    (hout : ((∀ z, z < n → ¬ (Alv' z = 0 ∧ Xa z = 0)) ∧ bb = 0) ∨
+      (∃ zo : Fin n, Alv' (zo : ℕ) = 0 ∧ Xa (zo : ℕ) = 0 ∧ bb ≤ 1 ∧
+        (bb ≠ 0 ↔ zo ∈ ScatterDeadFold.satSet G A Alv' col X w σs.β)))
+    (hcnt : ∀ e : ℕ, (σs.t ≤ cnt + e ↔
+      σs.t ≤ (greedySet (masked G Alv') σs.r
+        (ScatterDeadFold.satSet G A Alv' col X w σs.β ∩ markSet n Alv')).ncard + e)) :
+    (RamDriverCluster.ScatVal (masked G Alv') (stepColoringP cap A col X w) σs ↔
+      σs.t ≤ cnt + (kc + bb * oc)) :=
+  atomTerms_iff_scatVal σs hloc hdat.mem_cluster hXset hdat.1.2.2.2.2.2.2.1 hXalive hmm1
+    hklt hkinj hksound hkcomp hkbit hkc hoc hout hcnt
+
 /-! ### §5b The two remaining leaves: the outside bit and the verdict
 
 The bit is one `botCom` fragment at the probe vertex, guarded by the
@@ -1331,8 +1438,26 @@ Quot.sound] -/
 #guard_msgs in
 #print axioms atomTerms_iff_scatVal
 
+/-- info: 'Lax3Proofs.Refine.ScatterDeadPass.atomTerms_iff_scatVal_of_clusterData' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#print axioms atomTerms_iff_scatVal_of_clusterData
+
 /-- info: 'Lax3Proofs.Refine.ScatterDeadPass.inplace_filter_refuted' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms inplace_filter_refuted
+
+/-- info: 'Lax3Proofs.Refine.ScatterDeadPass.game_arena_sees_the_cluster_cut' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#print axioms game_arena_sees_the_cluster_cut
+
+/-- info: 'Lax3Proofs.Refine.ScatterDeadPass.dead_inter_union_batch' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms dead_inter_union_batch
 
 end Lax3Proofs.Refine.ScatterDeadPass

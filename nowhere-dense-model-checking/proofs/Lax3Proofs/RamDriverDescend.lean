@@ -15,10 +15,13 @@ needs to hand a depth's state on.
 # What is proved
 
 * `enumBatch_spec`, the padding pass: the buffer ends holding exactly
-  `mb` entries, every one a marked vertex and every marked vertex among
-  them. Its content is a counting argument — `markedBelow` and
-  `count_lt_of_mark` — that the collecting loop never overruns the
-  buffer, and `PadInv` for the repetition that follows.
+  `mb` entries, every one a vertex BOTH the batch and the cluster mark,
+  and every such vertex among them (wave R1.8-T3-flip (c2a) — the
+  cluster guard; the verdict that put it there is
+  `Refine.ScatterDeadPass` §0b). Its content is a counting argument —
+  `markedBelow` and `count_lt_of_mark` at the product cell — that the
+  collecting loop never overruns the buffer, and `PadInv` for the
+  repetition that follows.
 * `enumStepW`, that pass at the surface `RamDriverCluster.EnumStep`
   states it at, and `enumStep_of_maskWords`, which turns it into the
   obligation itself from one clause about the batch indicator.
@@ -124,8 +127,10 @@ batch phase owes, of the set `W` the batch indicator marks:
   walk of length at most `2·cap` between them in that arena, intersected
   with the ball, lies in `W` — one turn of the fold, in the branch the
   guard takes;
-* `W.Nonempty` and `W.ncard ≤ mb` — the connector and one buffer of at
-  most `2·cap + 1` vertices per earlier round;
+* `(W ∩ X).Nonempty` and `W.ncard ≤ mb` — the connector, which is the
+  centre `clusterLoad` materialized the cluster of and so lies in it
+  (`RamCover.self_mem_wreach`, wave R1.8-T3-flip (c2a)), and one buffer
+  of at most `2·cap + 1` vertices per earlier round;
 * and the mask equations, which are `RamDriver.masked_step` and
   `masked_mul` as before, with `RamDriver.stepArena_le_nextArena` for the
   inequality between the two.

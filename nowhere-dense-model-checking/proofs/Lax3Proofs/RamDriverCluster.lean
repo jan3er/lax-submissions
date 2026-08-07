@@ -656,6 +656,13 @@ connector, and that for every earlier round the state records and the
 search reaches it holds the support of the walk the search found, where
 the ball keeps it.
 
+**The nonemptiness clause is at `W ∩ X`** (wave R1.8-T3-flip (c2a)):
+`RamDriver.enumBatch` reads the batch out through the cluster
+indicator, so what it needs nonempty is the batch's cluster half. The
+connector supplies it — the descent reads it out of the ordering at the
+position `clusterLoad` materialized the cluster of, and
+`RamCover.self_mem_wreach` is unconditional.
+
 **Rebase B2 (§5.3): the size clause — restated at the inclusion it
 came from (rebase G2/E6).** The postcondition carries one more line:
 every vertex the next depth's arena marks lies in the *cluster* of the
