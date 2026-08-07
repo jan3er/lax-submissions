@@ -677,4 +677,199 @@ theorem scatDead_spec {bw nb : ℕ}
       have := hkey₈ e
       rwa [ScatterDeadPass.bitSet_eq_inter (fun v _ => hbitS v)] at this
 
+/-! ### §5 The folds
+
+One atom's flag, then the fold over a formula's atoms, then the fold
+over a depth's table — the same three-step shape
+`RamDriverFrames.atom_spec`/`atoms_spec`/`blocks_spec` has for the
+landed `RamScatter.scatterCom` phase, at the same flag names and with
+the same postcondition. -/
+
+/-- The per-atom charge: the nine passes and the flag. -/
+noncomputable def deadAtomK {L : ℕ} (β : DistFO L 1) (n mm1 kq mm bw nb t : ℕ) : ℕ :=
+  ScatterDeadPass.scatDeadK β n mm1 kq mm bw nb t + 2
+
+open Classical in
+/-- **One atom and its flag.** -/
+theorem atomDead_spec {bw nb : ℕ}
+    (hcsr : CsrGraph G ns O T) {d : ℕ} (hB : WordBoundK B n d ns cap mb)
+    (hXalive : ∀ v : Fin n, v ∈ X → M (v : ℕ) ≠ 0)
+    (hbud : ∀ r : ℕ, BallBudget n r G Alv' O bw nb)
+    (i k : ℕ) {σs : ScatterSentence (sigL cap mb (j + 1))}
+    (hβ : σs.β ∈ tablesAt q_top cap mb φ (j + 1)) (hloc : IsLocal σs.β)
+    (hrB : σs.r + 1 < B) (htB : σs.t + n + mb < B)
+    {Kb : ℕ} (hKb : deadAtomK σs.β n n mb n bw nb σs.t ≤ Kb) :
+    Spec B (DeadPre B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asg m
+        X W w Alv' Gam' C')
+      (.seq (scatDeadCom j (posOf σs.β (tablesAt q_top cap mb φ (j + 1))) σs.β σs.r σs.t)
+        (.assign (flgName j i k) (.var "flag")))
+      (fun σ σ' => DeadPre B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asg m
+          X W w Alv' Gam' C' σ' ∧ σ'.out = σ.out ∧
+        σ'.vars (curName j) = σ.vars (curName j) ∧
+        (∀ i' k', ¬(i' = i ∧ k' = k) →
+          σ'.vars (flgName j i' k') = σ.vars (flgName j i' k')) ∧
+        σ'.vars (flgName j i k) ≤ 1 ∧
+        (σ'.vars (flgName j i k) ≠ 0 ↔ ScatVal (stepArenaP (masked G M) X w)
+          (stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w) σs))
+      Kb := by
+  classical
+  have hcur : curName j ≠ flgName j i k := fun h =>
+    RamDriverFrames.underscore_notMem_prefixed (p := "cu") (by decide) j
+      (h ▸ (RamDriverFrames.underscore_mem_flgName j i k :
+        '_' ∈ (flgName j i k).toList) : '_' ∈ (curName j).toList)
+  refine Spec.of_exists fun σ hσ => ?_
+  obtain ⟨τ, hrτ, hdead, hout, hcurτ, hflgfr, hfl1, hfliff⟩ :=
+    (scatDead_spec hcsr hB hXalive hbud hβ hloc hrB htB (le_refl _)).run hσ
+  have hflagB : τ.vars "flag" < B := lt_of_le_of_lt hfl1 hB.one_lt
+  have r₂ : Run B (.assign (flgName j i k) (.var "flag")) τ
+      (τ.setVar (flgName j i k) (τ.vars "flag")) (1 + (Expr.var "flag").size) :=
+    Run.assign (evalB_var hflagB)
+  refine ⟨_, _, hrτ.seq r₂, ?_, hdead.run_flag r₂, ?_, ?_, ?_, ?_, ?_⟩
+  · refine le_trans ?_ hKb
+    rw [deadAtomK]
+    simp only [Expr.size]
+    omega
+  · rw [out_setVar]; exact hout
+  · rw [vars_setVar, if_neg hcur]; exact hcurτ
+  · intro i' k' hik
+    rw [vars_setVar, if_neg (fun hc => hik (by
+      obtain ⟨-, hi, hk⟩ := RamDriverFrames.flgName_inj hc; exact ⟨hi, hk⟩))]
+    exact hflgfr i' k'
+  · rw [vars_setVar, if_pos rfl]; exact hfl1
+  · rw [vars_setVar, if_pos rfl]; exact hfliff
+
+open Classical in
+/-- **The dead-aware scatter block of one tabled formula**, over any list
+of atoms starting at any position. -/
+theorem atomsDead_spec {bw nb : ℕ}
+    (hcsr : CsrGraph G ns O T) {d : ℕ} (hB : WordBoundK B n d ns cap mb)
+    (hXalive : ∀ v : Fin n, v ∈ X → M (v : ℕ) ≠ 0)
+    (hbud : ∀ r : ℕ, BallBudget n r G Alv' O bw nb)
+    (i : ℕ) {Kb : ℕ} :
+    ∀ (l : List (ScatterSentence (sigL cap mb (j + 1)))) (k₀ : ℕ),
+      (∀ σs ∈ l, σs.β ∈ tablesAt q_top cap mb φ (j + 1) ∧ σs.r + 1 < B ∧
+        σs.t + n + mb < B ∧ deadAtomK σs.β n n mb n bw nb σs.t ≤ Kb) →
+      Spec B (DeadPre B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asg m
+          X W w Alv' Gam' C')
+        (foldIdx (fun k σs =>
+            Com.seq (scatDeadCom j (posOf σs.β (tablesAt q_top cap mb φ (j + 1)))
+              σs.β σs.r σs.t) (.assign (flgName j i k) (.var "flag"))) k₀ l)
+        (fun σ σ' => DeadPre B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asg m
+            X W w Alv' Gam' C' σ' ∧ σ'.out = σ.out ∧
+          σ'.vars (curName j) = σ.vars (curName j) ∧
+          (∀ i' k', (i' ≠ i ∨ ∀ p < l.length, k' ≠ k₀ + p) →
+            σ'.vars (flgName j i' k') = σ.vars (flgName j i' k')) ∧
+          ∀ p, ∀ _ : p < l.length,
+            σ'.vars (flgName j i (k₀ + p)) ≤ 1 ∧
+            (σ'.vars (flgName j i (k₀ + p)) ≠ 0 ↔
+              ScatVal (stepArenaP (masked G M) X w)
+                (stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w) l[p]))
+        (Kb * l.length + 1) := by
+  intro l
+  induction l with
+  | nil =>
+      intro k₀ _
+      refine (Spec.skip (B := B) (P := DeadPre B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord
+        Xoff Xmem asg m X W w Alv' Gam' C')).post ?_ |>.mono (by simp)
+      rintro σ σ' hσ rfl
+      exact ⟨hσ, rfl, rfl, fun _ _ _ => rfl, fun p hp => absurd hp (by simp)⟩
+  | cons x xs ih =>
+      intro k₀ hall
+      obtain ⟨hxβ, hxr, hxt, hxK⟩ := hall x (by simp)
+      refine ((atomDead_spec hcsr hB hXalive hbud i k₀ hxβ
+        (tableRank_of_mem_tablesAt (j + 1) _ hxβ).1 hxr hxt hxK).seq
+        (ih (k₀ + 1) (fun s hs => hall s (by simp [hs]))) (fun _ _ _ hq => hq.1) ?_).mono
+        (by simp [Nat.mul_succ]; omega)
+      rintro σ σ' σ'' - ⟨-, hout', hc', hfl', hle', hval'⟩ ⟨hpre'', hout'', hc'', hfl'', hval''⟩
+      refine ⟨hpre'', by rw [hout'', hout'], by rw [hc'', hc'], ?_, ?_⟩
+      · intro i' k' hik
+        rw [hfl'' i' k' ?_, hfl' i' k' ?_]
+        · rcases hik with h | h
+          · exact fun hc => h hc.1
+          · exact fun hc => h 0 (by simp) (by omega)
+        · rcases hik with h | h
+          · exact _root_.Or.inl h
+          · exact _root_.Or.inr fun p hp => by
+              have := h (p + 1) (by simp only [List.length_cons]; omega); omega
+      · intro p hp
+        match p with
+        | 0 =>
+            rw [Nat.add_zero, hfl'' i k₀ (_root_.Or.inr fun p _ => by omega)]
+            exact ⟨hle', hval'⟩
+        | q + 1 =>
+            rw [show k₀ + (q + 1) = k₀ + 1 + q from by omega]
+            simpa using hval'' q (by simpa using hp)
+
+set_option maxHeartbeats 1000000 in
+open Classical in
+/-- **The dead-aware scatter phase of a depth**, over any list of tabled
+formulas starting at any position. -/
+theorem blocksDead_spec {bw nb : ℕ}
+    (hcsr : CsrGraph G ns O T) {d : ℕ} (hB : WordBoundK B n d ns cap mb)
+    (hXalive : ∀ v : Fin n, v ∈ X → M (v : ℕ) ≠ 0)
+    (hbud : ∀ r : ℕ, BallBudget n r G Alv' O bw nb)
+    {Kb Ki : ℕ} :
+    ∀ (l : List (DistFO (sigL cap mb j) 1)) (i₀ : ℕ),
+      (∀ β ∈ l, β ∈ tablesAt q_top cap mb φ j) →
+      (∀ β ∈ l, ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
+        σs.r + 1 < B ∧ σs.t + n + mb < B ∧
+          deadAtomK σs.β n n mb n bw nb σs.t ≤ Kb) →
+      (∀ β ∈ l, Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki) →
+      Spec B (DeadPre B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asg m
+          X W w Alv' Gam' C')
+        (foldIdx (fun i β => scatterDeadCom q_top cap mb φ j i β) i₀ l)
+        (fun σ σ' => DeadPre B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asg m
+            X W w Alv' Gam' C' σ' ∧ σ'.out = σ.out ∧
+          σ'.vars (curName j) = σ.vars (curName j) ∧
+          (∀ i' k', (∀ p < l.length, i' ≠ i₀ + p) →
+            σ'.vars (flgName j i' k') = σ.vars (flgName j i' k')) ∧
+          ∀ p, ∀ hp : p < l.length,
+            ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j l[p])).2,
+              σ'.vars (flgName j (i₀ + p)
+                  (posOf σs (bcAtomsOf q_top (stepFml cap mb j l[p])).2)) ≤ 1 ∧
+              (σ'.vars (flgName j (i₀ + p)
+                  (posOf σs (bcAtomsOf q_top (stepFml cap mb j l[p])).2)) ≠ 0 ↔
+                ScatVal (stepArenaP (masked G M) X w)
+                  (stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w) σs))
+        (Ki * l.length + 1) := by
+  intro l
+  induction l with
+  | nil =>
+      intro i₀ _ _ _
+      refine (Spec.skip (B := B) (P := DeadPre B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord
+        Xoff Xmem asg m X W w Alv' Gam' C')).post ?_ |>.mono (by simp)
+      rintro σ σ' hσ rfl
+      exact ⟨hσ, rfl, rfl, fun _ _ _ => rfl, fun p hp => absurd hp (by simp)⟩
+  | cons x xs ih =>
+      intro i₀ hmem hbnd hcost
+      have hx : x ∈ tablesAt q_top cap mb φ j := hmem x (by simp)
+      refine (((atomsDead_spec hcsr hB hXalive hbud i₀
+          (bcAtomsOf q_top (stepFml cap mb j x)).2 0
+          (fun s hs => ⟨mem_tablesAt_succ_of_mem_bcAtomsOf_right hx hs,
+            (hbnd x (by simp) s hs).1, (hbnd x (by simp) s hs).2.1,
+            (hbnd x (by simp) s hs).2.2⟩)).mono (hcost x (by simp))).seq
+        (ih (i₀ + 1) (fun β hβ => hmem β (by simp [hβ]))
+          (fun β hβ => hbnd β (by simp [hβ])) (fun β hβ => hcost β (by simp [hβ])))
+        (fun _ _ _ hq => hq.1) ?_).mono (by simp [Nat.mul_succ]; omega)
+      rintro σ σ' σ'' - ⟨-, hout', hc', hfl', hval'⟩ ⟨hpre'', hout'', hc'', hfl'', hval''⟩
+      refine ⟨hpre'', by rw [hout'', hout'], by rw [hc'', hc'], ?_, ?_⟩
+      · intro i' k' hik
+        rw [hfl'' i' k' (fun p hp => by
+            have := hik (p + 1) (by simp only [List.length_cons]; omega); omega),
+          hfl' i' k' (_root_.Or.inl (by have := hik 0 (by simp); omega))]
+      · intro p hp
+        match p with
+        | 0 =>
+            intro σs hσs
+            simp only [List.getElem_cons_zero] at hσs ⊢
+            obtain ⟨hlt, hget⟩ := getElem_posOf hσs
+            have hb := hval' (posOf σs (bcAtomsOf q_top (stepFml cap mb j x)).2) hlt
+            rw [Nat.zero_add, hget] at hb
+            rw [Nat.add_zero, hfl'' i₀ _ (fun p _ => by omega)]
+            exact hb
+        | q + 1 =>
+            intro σs hσs
+            rw [show i₀ + (q + 1) = i₀ + 1 + q from by omega]
+            exact hval'' q (by simpa using hp) σs (by simpa using hσs)
+
 end Lax3Proofs.Refine.ScatterDeadTurn
