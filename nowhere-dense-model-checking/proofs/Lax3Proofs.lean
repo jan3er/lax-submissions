@@ -79,6 +79,7 @@ import Lax3Proofs.Refine.DeadSweep
 import Lax3Proofs.Refine.BaseShed
 import Lax3Proofs.Refine.DeadRowProbe
 import Lax3Proofs.Refine.KillPass
+import Lax3Proofs.Refine.KillListPass
 import Lax3Proofs.Refine.OrderBridge
 import Lax3Proofs.Refine.BlockLeaves
 import Lax3Proofs.RamDriverDedup

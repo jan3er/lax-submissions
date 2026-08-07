@@ -874,6 +874,21 @@ theorem memName_ne_mem (j : ℕ) : memName j ≠ "mem" := by
 theorem mnumName_ne_mm (j : ℕ) : mnumName j ≠ "mm" := by
   simp [mnumName, String.ext_iff]
 
+/-- **The kill list of depth `j`** (wave R1.8-T3-flip, design §6): the
+vertices THIS turn's batch killed, listed once each, in the first
+`kkName j` cells. Fixed physical length `mb` — the list is a subset of
+the padded batch buffer's entries, so the buffer's own width bounds it,
+and no clause about the carrier enters. Written by `killListCom` between
+the kill pass and the nested call; read by the atom pass's kill walk
+after the nested call returns (per-depth name, so the nested level
+leaves it alone — unlike `"wa"`, which is why the list exists at all:
+`sum_bit_eq_ncard_inter` needs a repetition-free enumeration, and
+`ClusterWa` pins only the *range* of the buffer). -/
+def klName (j : ℕ) : String := "kl" ++ toString j
+
+/-- The kill count of depth `j`: the length of the list's live prefix. -/
+def kkName (j : ℕ) : String := "kq" ++ toString j
+
 /-- **The contract on a member list**, spelled at the driver's arrays.
 This is `Refine.ScatterBlock.MemList n mm Mem (RamDriverCluster.markSet
 n M)` written out — that file is downstream of this one, so the clause
@@ -2077,6 +2092,51 @@ noncomputable def killCom (q_top cap mb j : ℕ) (φ : Lax3.FirstOrder.FO 0) : C
                     (tablesAt q_top cap mb φ (j + 1))))
                 .skip)
           (.assign "kk" (.add (.var "kk") (.lit 1))))))
+
+/-- **The kill list pass** (wave R1.8-T3-flip, design §6 (a)): the
+turn's kill set, enumerated **once each** into `klName j`, counted into
+`kkName j`.
+
+The kill pass above writes the killed vertices' rows; what the atom
+pass's kill walk needs after the nested call is the kill set as a
+*repetition-free list* — `Refine.ScatterDeadFold.sum_bit_eq_ncard_inter`
+sums table bits over an enumeration, and a repeated entry would count a
+kill twice. The buffer cannot serve directly: the padding repeats its
+first entry, and `EnumStep` pins only the buffer's *range*
+(`ClusterWa`), so nothing about repetitions may be assumed of `wa`.
+Strengthening the landed padding to emit distinct entries would move
+`EnumStep`'s postcondition; the design (§6 (a)) instead dedupes here, by
+a membership scan of the already-emitted prefix — `O(mb²)` per turn,
+and `mb` is the formula-sized `ℓ · (2·cap + 1)`, so the charge stays in
+the turn's own formula-sized class.
+
+The walk is the same guarded buffer walk as `killCom`: at each of the
+`mb` entries that is alive at depth `j` and in the cluster — the
+pointwise kill test, wave R1.8-T1's clause — the inner scan checks the
+emitted prefix (`kf` the found flag, `kt` the scan counter) and appends
+the entry exactly when it is new. Position: between `killCom` and
+`inner`, inside the `ClusterWa` seam — the pass reads `wa`, so it must
+run before the nested call repads the buffer — and its product is a
+per-depth name, which is what survives the recursion. -/
+def killListCom (mb j : ℕ) : Com :=
+  .seq (.assign (kkName j) (.lit 0))
+    (.seq (.assign "kk" (.lit 0))
+      (.while (.lt (.var "kk") (.lit mb))
+        (.seq (.assign "kv" (.get "wa" (.var "kk")))
+          (.seq (.ite (.lt (.lit 0)
+                  (.mul (.get (alvName j) (.var "kv")) (.get (cluName j) (.var "kv"))))
+                  (.seq (.assign "kf" (.lit 0))
+                    (.seq (.assign "kt" (.lit 0))
+                      (.seq (.while (.lt (.var "kt") (.var (kkName j)))
+                          (.seq (.ite (.eq (.get (klName j) (.var "kt")) (.var "kv"))
+                                  (.assign "kf" (.lit 1)) .skip)
+                            (.assign "kt" (.add (.var "kt") (.lit 1)))))
+                        (.ite (.eq (.var "kf") (.lit 0))
+                          (.seq (.store (klName j) (.var (kkName j)) (.var "kv"))
+                            (.assign (kkName j) (.add (.var (kkName j)) (.lit 1))))
+                          .skip))))
+                  .skip)
+            (.assign "kk" (.add (.var "kk") (.lit 1)))))))
 
 open Classical in
 /-- **One cluster.** The descent, the padded enumeration, the colouring,
