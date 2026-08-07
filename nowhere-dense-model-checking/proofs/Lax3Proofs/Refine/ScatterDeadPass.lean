@@ -1140,6 +1140,92 @@ noncomputable def scatDeadK {L : ℕ} (β : DistFO L 1) (n mm1 kq mm bw nb t : �
   killSumCost kq + outProbeCost n + atomBitCost β + 2 + atomMemCost mm1 +
     (12 * n + 6) + (11 * n + 6) + scatBlockK mm bw nb t + atomFlagCost
 
+/-! ### §5d The seam between the terms and the engine
+
+The one thing the order of §5c has to buy is that the engine leaves the
+three dead registers alone — it runs last, so nothing of the depth's own
+arrays crosses it, but `"kc"`, `"bb"` and `"oc"` do. Both facts are one
+`simp` off concrete program text (the block search's `d` occurs only in
+literals, so nothing recurses). -/
+
+/-- **The engine writes four arrays**, and none of them is a name the
+driver or the atom program holds: not the child's member list, not a
+table row, not the kill list, not a mask, not a colour array. -/
+theorem warrs_scatBlockCom (r t : ℕ) {a : String} (ha : a ∈ (scatBlockCom r t).warrs) :
+    a = "exc" ∨ a = "dist" ∨ a = "q" ∨ a = "qd" := by
+  simp only [scatBlockCom, ScatterBlock.clearMem, ScatterBlock.clearSlot,
+    ScatterBlock.scatBlockLoop, ScatterBlock.scatBlockStep, ScatterBlock.scatBlockBody,
+    ScatterBlock.pickBlock, ScatterBlock.markBall, ScatterBlock.markSlot,
+    BfsBlock.bfsBlockCom, BfsBlock.unwind, BfsBlock.unwindSlot, seedSrc,
+    bfsDrain, expandRow, scanSlot, Fill.put, Csr.loadRow,
+    Csr.scan, Queue.drain, Com.warrs, List.mem_append, List.mem_singleton, List.mem_cons,
+    List.not_mem_nil, or_false] at ha
+  tauto
+
+/-- **And the three dead registers survive it.** The kill sum, the
+outside bit and the outside count are computed before the engine and
+read after it; this is what says the order of `scatDeadCom` is
+sound. -/
+theorem notMem_wvars_scatBlockCom (r t : ℕ) (y : String)
+    (hy : y ∈ ["kc", "bb", "oc", "n", "mm"]) : y ∉ (scatBlockCom r t).wvars := by
+  fin_cases hy <;>
+    simp [scatBlockCom, ScatterBlock.clearMem, ScatterBlock.clearSlot,
+      ScatterBlock.scatBlockLoop, ScatterBlock.scatBlockStep, ScatterBlock.scatBlockBody,
+      ScatterBlock.pickBlock, ScatterBlock.markBall, ScatterBlock.markSlot,
+      BfsBlock.bfsBlockCom, BfsBlock.unwind, BfsBlock.unwindSlot, seedSrc,
+      bfsDrain, expandRow, scanSlot, Fill.put, Csr.loadRow,
+      Csr.scan, Queue.drain, Com.wvars]
+
+/-! ### §5e The four driver passes, composed and run
+
+The compiled integration gate: the four passes of `scatDeadCom` that
+this wave wrote, in the order the program runs them, on one arena. The
+engine and the `botCom` fragment are landed capital and are gated next
+door; what this checks is that the four new passes **compose** — no
+scratch name of one is a product of another, and the four registers the
+verdict reads all arrive together. -/
+
+section Integration
+
+open Lax3Proofs.TgtWidenProbe (execC pB pF PSt)
+
+/-- The four new passes, in program order (the engine's entry, the
+engine and the verdict are the landed half). -/
+def atomTermsCom (j ti : ℕ) : Com :=
+  .seq (killSumCom j ti) (.seq (outProbeCom j) (.seq (outCntCom j) (atomMemCom j ti)))
+
+/-- A ten-vertex turn: cluster `{0, 1, 2}`, the batch killing `0` and
+`1`, so the child's alive set is `{2}` and its member list is `[2]`; the
+atom's row marks `1` (a kill) and `2` (the alive member). The outside
+class is the seven vertices `3 .. 9`. -/
+def itSt : PSt :=
+  { vars := [("n", 10), (kkName 0, 2), (mnumName 1, 1)]
+    arrs := [(klName 0, [0, 1, 0]),
+             (tabName 1 0, [0, 1, 1, 0, 0, 0, 0, 0, 0, 0]),
+             (alvName 1, [0, 0, 1, 0, 0, 0, 0, 0, 0, 0]),
+             (cluName 0, [1, 1, 1, 0, 0, 0, 0, 0, 0, 0]),
+             (memName 1, [2, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+             ("mem", [9, 9, 9, 9, 9, 9, 9, 9, 9, 9])] }
+
+/-- **The four passes compose.** One of the two kills satisfies the
+atom, so the kill term is `1`; the first dead out-of-cluster vertex is
+`3`, so the probe reports it and the outside term will be one bit times
+`10 − 1 − 2 = 7`; and the filtered member list is the single alive
+member `2`. Every register the verdict reads is present at once, which
+is what the composition claims. -/
+theorem atomTerms_compose :
+    (execC pB pF (atomTermsCom 0 0) itSt).1.isOk = true ∧
+      (execC pB pF (atomTermsCom 0 0) itSt).1.scalar "kc" = 1 ∧
+      (execC pB pF (atomTermsCom 0 0) itSt).1.scalar "of" = 1 ∧
+      (execC pB pF (atomTermsCom 0 0) itSt).1.scalar "oz" = 3 ∧
+      (execC pB pF (atomTermsCom 0 0) itSt).1.scalar "oc" = 7 ∧
+      (execC pB pF (atomTermsCom 0 0) itSt).1.scalar "mm" = 1 ∧
+      (execC pB pF (atomTermsCom 0 0) itSt).1.cell "mem" 0 = 2 := by
+  refine ⟨by decide +kernel, by decide +kernel, by decide +kernel, by decide +kernel,
+    by decide +kernel, by decide +kernel, by decide +kernel⟩
+
+end Integration
+
 /-! ### §6 Axioms -/
 
 /-- info: 'Lax3Proofs.Refine.ScatterDeadPass.atomMemCom_spec' depends on axioms: [propext,
