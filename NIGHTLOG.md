@@ -4739,3 +4739,73 @@ nothing pays the new slot yet.
 Supervisor note: (1) sat behind a file-ownership boundary drawn too
 tightly (`RamDriverDescend.lean`, `Refine/DriverRootD.lean` were frozen).
 Corrected for the continuation wave (c1b), which owns them.
+
+**R1.8-T3-flip (c1b) — the swap REFUTED, and a correction to the (b)
+record.**
+
+The wave was told to build `ScatterStep` on
+`Refine.ScatterDeadPass.atomTerms_iff_scatVal`. It refused, and
+compiled why. That theorem carries `hw : ∀ i, w i ∈ X` — the batch is
+inside the cluster — and passes it down to `outside_ncard_of_probe` →
+`outside_uniform` → `DeadRowProbe.sat_outside_uniform` →
+`stepColoringP_subset`. **`hw` has no producer in the turn and it is not
+removable.**
+
+`outside_class_not_uniform_refuted` (`ScatterDeadPass.lean:221`) is the
+compiled instance: at `n = 3`, cluster `{0}`, empty graph, radius 0 and
+a batch entry `w 0 = 1` outside the cluster, vertex `1` lies in
+`stepColoringP … (slotPd 0 0)` — its own radius-zero profile slot, which
+contains it whatever `X` is — while vertex `2`, also outside the
+cluster, does not. Two out-of-cluster vertices, different colours: the
+outside class is **not** colour-uniform, so the one-bit-times-a-count
+reading of the outside term is false.
+
+And `W ⊆ X` is neither an export nor a corollary. `ClusterData` pins
+`Set.range w = W` and no relation between `W` and `X`; `BatchData` gives
+`masked G Alv' = deleteVerts (deleteVerts (masked G M) Xᶜ) W`, on which
+batch entries outside `X` are a no-op, so nothing ever needed the
+containment before. `RamDriverDescend.batchCom_spec` puts `W` inside the
+`2·cap` ball of the connector in the **game** arena, and `PlayRec` puts
+the level arena *below* the game arena, so that ball is the larger;
+`CoverOut.asg_cover` covers only the `cap` ball in the level arena, at
+half the radius. Verified against the source by the supervisor.
+
+**Correction to the (b) boundary record above.** `atomTerms_iff_scatVal`
+is true as stated and kernel-three, but it is **conditional capital, not
+usable capital**: the supervisor's review of (b) checked that `hXalive`
+was dischargeable and did **not** check `hw`. The honest reading of
+boundary (b) is that the flip's arithmetic is proved and its
+*applicability at the turn* is not, pending `W ⊆ X` — the same category
+as `augCompact_spec` standing on the refuted `ScatterBacks` until
+E2-width repaired it. No unsoundness anywhere; nothing above the turn
+ever depended on it.
+
+Repair routes, both changes to landed surfaces: (1) a clause
+`Set.range w ⊆ X` on `DescendStep`, which needs `batchCom` to intersect
+the batch with `cluName j` and `playRec_succ`'s walk-support clause to
+survive it — semantically the right shape, since the splitter game's
+batch is chosen inside the current arena, and the arena of a turn *is*
+its cluster; or (2) re-base `ScatterDeadFold`'s split at
+`X ∪ Set.range w`, whose inside half `killListCom`/`KillListAt` would
+then have to enumerate.
+
+**What did land (both sound, no signature moved).** A **real cost
+defect** in (b)'s capital: `scatDeadK`'s outside-count slot was `2`,
+`Run.assign`'s charge for a *literal*, while `outCntCom`'s expression
+`sub (sub (var "n") (var (mnumName (j+1)))) (var (kkName j))` has five
+nodes and so costs `1 + 5 = 6`. It was the only summand of `scatDeadK`
+with no proved leaf under it, and **no walk could ever have closed at
+the old number**; `outCntCom_spec` is now that leaf and `outCntCost = 6`
+the slot. Plus the `DeadRowSigma` docstring repointed off the numeral
+`284` onto `Refine.KillListPass.ctKL`.
+
+Also analysed and recorded for the repair wave: `hXalive` needs a new
+antecedent `M (ord k) ≠ 0` on `ClusterStepImplements`/`ClusterFrames`
+**and** a `DescendStep` export — `DescendStep` cannot carry it alone,
+because at a dead centre `clusterAt` is the centre's singleton
+(`MassAlive.clusterAt_dead`) and `turnKills ≠ deadSet ∩ X`, so the fact
+is genuinely false without an alive centre. `KillListAt` across `inner`
+needs `klName b`/`kkName b` added to `BelowArr`/`BelowVar`
+(`RamDriverWrites.lean:235,241`) — the brief's cited producers point the
+other way. `BallBudget n r G M O ns n` is discharged from `CsrGraph`
+alone at `A := Finset.range n` (the row lengths telescope to `ns`).
