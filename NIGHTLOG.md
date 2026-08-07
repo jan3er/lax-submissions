@@ -4431,3 +4431,62 @@ with the E-order `hKo` discharge brief prepared against
 Session total: workflow reworked (worktree default, pure-copy seed),
 E-mem thread landed, F-2 seam landed, R1.8-as-headers refuted compiled,
 R1.8-design decided — five boundaries, all pushed.
+
+## 2026-08-07 — four boundaries: the fold's semantics, the scan's exit, the E2 ledger paid, and the kill list
+
+Supervisor Fable, workers 2× Fable + 2× Opus (Jan's allocation), three
+parallel worktree waves resumed/launched after the overnight cut
+orphaned two.
+
+**T3+E4 semantic layer (`3af24e7`, Fable#1).** The orphaned wave's WIP
+finished and extended: `ScatterDeadFold.lean` (greedy-count split
+refuted-then-proved, outside-class collapse, kill-bit sum, rows survive
+the turn and the chain) and `ScatterDeadEngine.lean` —
+`scatBlockCnt_specW` exports the active-set engine's counter in the ∀e
+decision form, with `cnt = count` compiled-refuted at the threshold
+cap, and `scatVal_of_cnt` decides a scatter atom from counter + kill
+scalar + outside scalar, no read outside alive ∪ kills. F-2 audit
+empty. The worker stopped honestly before the statement flip and left
+a source-verified map, now in r18-design §6.
+
+**T4a (`6f4350f`, Opus).** `reprCom` is out of the driver; `base_spec`
+strictly stronger at strictly smaller cost; `Refine/BaseShed.lean`
+pins the shed two-sided (scan 125908 vs surviving pass 1406). Zero
+`RamDriverRoot` edits — `hKbase` is a hypothesis, so the smaller
+`baseCost` strengthens the root for free — and `hKbase_gap_any`
+(coefficient-free) keeps the gap ledger honest. Residue recorded: the
+vestigial `"rep"` Sized/`2^sigL < B` hypotheses (flip-wave rider).
+
+**E2-fold (`f77b657`, Opus + sub-worker).** All three ElimCompactWalks
+§5 ledger defects repaired, plus a FOURTH found refute-first:
+`CompactInstalls` never bounded the mask's values while `cRow` reads
+`alv` with a `get` — clause `∀ v < n, M v < B` landed inside the
+obligation, falsification compiled (`ElimCompactCsr` §0). Rank bound
+threaded BESIDE the frozen surfaces (`RnkLt`/`ElimMemR`/
+`implementsWR`/`elim_specWR`; `implementsW` derived by weakening — no
+downstream destructurer moves). `compactCsr` discharged (1289-line
+satellite; charge 89·mm+36·rs+80 in budget, slot-blind budget refuted
+so the raw-row term is load-bearing). Composed corollary
+`ElimCompactSpec.elimCompact_run`: NO obligation Prop in the type,
+clock = 900·csrW-weight + 400, no carrier term. Defect handed forward:
+`augCompact_spec` (AugCompact.lean:941) hypothesizes the refuted
+`ScatterBacks` — undischargeable dead capital; the fix needs a
+Mem-smono hypothesis and the round's rank word bound, queued as
+E2-width item 1. Process note: two lake builds against one
+`.lake/build` tree raced (worker + supervisor co-located) — explicit
+build baton when sharing a worktree.
+
+**T3-flip a1 (Fable#2, landed this wrap).** `killListCom` + the
+repetition-free dedupe walk (`KillListPass.lean`): refutation first
+(the scan-free walk counts the padding's duplicate), carrier-blind
+`#guard`ed, `killListCost mb = (20·mb+64)·mb+8`. Cost finding: the
+probe's `ct = 284` absorption was an EXACT fit — `ct` moves to
+`ctKL = 284 + klc`, closure re-run green (`killList_interface_closes`).
+Successor map (a2: insertion + threading, then (b)–(d)) in r18-design
+§6.
+
+**Next session starts at**: T3-flip a2 per r18-design §6 (insertion
+into `clusterCom`, write-sets, `KillListStep`, `turnCost` at `ctKL`),
+then (b) atom program, (c) the flip, (d) the BaseArrs rider; parallel:
+E2-width (augCompact_spec repair first), T4b, E4c, SymPreps/AugPreps
+discharge, E3b+contract, E-order re-run, B7, C0, P5 draft.

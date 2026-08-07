@@ -259,12 +259,37 @@ outside count is `n − mm − kills` off landed scalars. No interaction.
   `scatVal_of_cnt` — `ScatVal` decided by counter + kill scalar +
   outside scalar, no read outside `alive ∪ kills`. F-2 audit: empty
   (game mask feeds only ball/path machinery; no table indexed by it).
-- **R1.8-T3-flip — the statement flip (successor wave, ONE boundary).**
-  (a) `killListCom j` in `clusterCom` between `killCom` and `inner`
-  (ClusterWa seam extends over it): repetition-free kill list
-  `klName j` + count `kkName j`, dedupe by O(mb²) prefix membership
-  scan — avoids strengthening the landed `EnumStep` post (ClusterWa
-  pins only the range of `wa`). T2's `KillStep`/`KillPass` untouched.
+- **R1.8-T3-flip (a1) — LANDED.** `klName j`/`kkName j` +
+  `killListCom` (additive in `RamDriver.lean`, `clusterCom` untouched)
+  and `Refine/KillListPass.lean`: compiled refutation first (the
+  scan-free walk emits the padding's duplicate — count = guard hits,
+  not kills), carrier-blindness `#guard`ed at 100/200, the nested-loop
+  walk fully proven (`scanTurn_spec` → `scan_spec` → `klTurn_spec` →
+  `killListCom_spec`, post = exactly the four hypotheses
+  `sum_bit_eq_ncard_inter` consumes at the whole buffer),
+  `killListCost mb = (20·mb+64)·mb+8`. **Cost finding: `ct = 284` was
+  an EXACT fit — the kill-list charge cannot ride under it. `ct` moves
+  to `ctKL = 284 + klc` (klc = the 3-entry probe's measured clock),
+  both directions pinned, Σ closure re-run at `ctKL` via `g2m_exists`
+  (`killList_interface_closes`; F-4: closure indifferent). Successor
+  `turnCost` edits must cite `ctKL`, not 284.**
+- **R1.8-T3-flip (a2) — the insertion and threading (successor).**
+  (1) Insert `killListCom mb j` into `clusterCom` between `killCom`
+  and `inner` (`RamDriver.lean:2135` area); supply the list's sizing —
+  add `(klName j, mb)` to `DepthMem`'s per-depth `Sized` list or
+  thread `∃ g, arrs (klName j) = arrOf mb g` through `TurnPre`.
+  (2) `RamDriverWrites.lean`: extend the `clusterCom` write-set lemmas
+  with the new pass's case, off the satellite's
+  `notMem_warrs/wvars_killListCom`. (3) `RamDriverCluster.lean`:
+  `KillListStep` Prop between `KillStep` and `inner` (post =
+  `killListCom_spec`'s enumeration at `X`/`W` via the pointwise
+  `BatchData` clause — the guard set `{M≠0 ∧ ∈X ∧ ∈W}` is
+  `KillRowsAt`'s domain); thread `hklist` into
+  `clusterStepImplements` (cost slot into `hK`'s sum). The list
+  crosses `inner` only in (b) — a2 need not extend `InnerFrames`.
+  (4) `RamDriverFrames.lean` (`clusterFrames`) and
+  `RamDriverRoot.lean` (`turnCost` gains `killListCost mb`; cite
+  `ctKL`).
   (b) New atom program replacing `scatterCom`: filtered child member
   list (tab-bit test → `MemList` for satSet ∩ alive), `alv` copy +
   `dist` fill (carrier-charge parity with the landed engine this
