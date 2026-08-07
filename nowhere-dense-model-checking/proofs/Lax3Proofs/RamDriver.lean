@@ -2138,6 +2138,156 @@ def killListCom (mb j : ℕ) : Com :=
                   .skip)
             (.assign "kk" (.add (.var "kk") (.lit 1)))))))
 
+/-! ### The dead-aware atom pass (wave R1.8-T3-flip, design §6 (b))
+
+The four driver-side passes of the atom program that replaces
+`RamDriver.scatterCom`'s carrier walk. Each is stated here, beside the
+kill list, because each is plain driver text over the depth's own names;
+the *composite* — these four around `Refine.ScatterBlock.scatBlockCom`
+and one `botCom` fragment — is `Refine.ScatterDeadPass.scatDeadCom`,
+which cannot live in this file: the block engine's program text is
+downstream of the driver (`Refine.ScatterBlockProg` →
+`Refine.ScatterBlockCost` → `Refine.MassWeight` → `Refine.ArenaBlock` →
+this file).
+
+The mathematics they serve is `Refine.ScatterDeadEngine.scatVal_of_cnt`:
+a scatter atom's answer is a threshold against three terms — the greedy
+count of the atom's set *among the alive*, the atom's bits at the turn's
+kills, and one bit times the outside class's count — none of which reads
+a table row outside `alive ∪ kills`, which is what the R1.8 domain
+change leaves in existence. -/
+
+/-- **The atom's member list** (design §6 (b), pass 1): the child depth's
+member list `memName (j + 1)` filtered by the atom's own table row and
+compacted into the engine's array `"mem"`, with the surviving count in
+`"mm"`.
+
+The row `tabName (j + 1) ti` is the indicator of the set the atom speaks
+about (`RamDriver.TableInv` at depth `j + 1`), and the source list
+enumerates the child's alive vertices, so the product enumerates
+`satSet ∩ alive` — the one set
+`Refine.ScatterDeadEngine.scatVal_of_cnt`'s counter hypothesis
+quantifies over, and the set the landed active-set engine is handed as
+its `MemList`.
+
+The walk is *out of place*: `memFilterCom` compacts a list into itself,
+which the atom pass must not do — the child's list is read again by
+every later atom of the turn. The bound is the child's member count, so
+the pass is charged at the child's active set and not at the carrier;
+it is stable, so the filtered list inherits the source's strict
+ordering, which is `Refine.ScatterBlock.MemList`'s second clause. -/
+def atomMemCom (j ti : ℕ) : Com :=
+  .seq (.assign "mm" (.lit 0))
+    (.seq (.assign "ak" (.lit 0))
+      (.while (.lt (.var "ak") (.var (mnumName (j + 1))))
+        (.seq (.assign "av" (.get (memName (j + 1)) (.var "ak")))
+          (.seq (.ite (.lt (.lit 0) (.get (tabName (j + 1) ti) (.var "av")))
+                  (.seq (.store "mem" (.var "mm") (.var "av"))
+                    (.assign "mm" (.add (.var "mm") (.lit 1))))
+                  .skip)
+            (.assign "ak" (.add (.var "ak") (.lit 1)))))))
+
+/-- **The kill walk** (design §6 (b), pass 4): the atom's table bit
+summed over the turn's kill list, into `"kc"`.
+
+`Refine.ScatterDeadFold.sum_bit_eq_ncard_inter` is what the sum is
+worth: a repetition-free enumeration's bits sum to `|K ∩ S|`, and its
+four hypotheses are exactly `RamDriverCluster.KillListAt`'s four
+clauses — which is why the list is stated at the *sets* and why the
+dedupe of `killListCom` is load-bearing. The walk is `kkName j` steps,
+at most `mb`, so the charge is the turn's own formula-sized class and
+carrier-blind. -/
+def killSumCom (j ti : ℕ) : Com :=
+  .seq (.assign "kc" (.lit 0))
+    (.seq (.assign "ke" (.lit 0))
+      (.while (.lt (.var "ke") (.var (kkName j)))
+        (.seq (.assign "kc"
+            (.add (.var "kc") (.get (tabName (j + 1) ti) (.get (klName j) (.var "ke")))))
+          (.assign "ke" (.add (.var "ke") (.lit 1))))))
+
+/-- **The outside probe** (design §6 (b), pass 5): the first vertex that
+is dead at depth `j + 1` and outside the turn's cluster, into `"oz"`,
+with `"of"` the found flag.
+
+One vertex answers for the whole outside class: the class is
+colour-uniform (`Refine.DeadRowProbe.stepColoringP_subset` →
+`sat_outside_uniform`), so a single `botCom` fragment at the probe
+vertex decides the atom for all of it
+(`Refine.ScatterDeadFold.outside_ncard_of_probe`), and when the probe
+finds nothing the class is empty and the term is zero with no bit at all
+(`outside_ncard_of_empty`). That is the only escape from
+`Refine.DeadRowProbe.no_coeff_pays_outsideRows`, which prices every
+scheme that materializes the class's rows.
+
+The scan **stops at the first hit** — the found branch sets the counter
+to the carrier's end — so its runtime is the index of the first
+out-of-cluster vertex, at most the cluster's size plus one by the
+pigeonhole `Refine.DeadRowProbe.exists_outside_in_prefix`. The *proved*
+charge below is nevertheless carrier-width, the same parity the atom
+program's mask copy and distance fill are accepted at this boundary;
+reading the runtime bound off the pigeonhole is E4c's, not this
+wave's. -/
+def outProbeCom (j : ℕ) : Com :=
+  .seq (.assign "of" (.lit 0))
+    (.seq (.assign "oz" (.lit 0))
+      (.seq (.assign "oi" (.lit 0))
+        (.while (.lt (.var "oi") (.var "n"))
+          (.ite (.lt (.lit 0) (.get (alvName (j + 1)) (.var "oi")))
+            (.assign "oi" (.add (.var "oi") (.lit 1)))
+            (.ite (.lt (.lit 0) (.get (cluName j) (.var "oi")))
+              (.assign "oi" (.add (.var "oi") (.lit 1)))
+              (.seq (.assign "of" (.lit 1))
+                (.seq (.assign "oz" (.var "oi"))
+                  (.assign "oi" (.var "n")))))))))
+
+/-- **The outside count** (design §6 (b), pass 5, the count half): the
+size of the outside class, off three landed scalars and **no scan**.
+
+`Refine.ScatterDeadFold.outside_ncard_eq` is the arithmetic:
+`|dead \ X| = n − |alive| − |dead ∩ X|`, where the alive count is the
+child's member count `mnumName (j + 1)` and the kill count is the turn's
+own `kkName j`. Nothing here walks anything. -/
+def outCntCom (j : ℕ) : Com :=
+  .assign "oc" (.sub (.sub (.var "n") (.var (mnumName (j + 1)))) (.var (kkName j)))
+
+open Classical in
+/-- **The outside class's bit** (design §6 (b), pass 5, the bit half):
+one `botCom` fragment at the probe vertex, guarded by the probe's found
+flag.
+
+The class carries the EMPTY colour row at the child palette
+(`Refine.DeadRowProbe.stepColoringP_subset`), so the atom's truth there
+is its truth on the *edgeless* arena — which is what `botCom` evaluates,
+and the identification is `Refine.DeadRow.sat_bot_of_dead₁` at the probe
+vertex's own deadness. The row is not read from a table, and could not
+be: under the R1.8 domain change the outside class has no rows
+(`Refine.DeadRowProbe.no_coeff_pays_outsideRows` is what writing them
+would cost).
+
+The guard is load-bearing: with the class empty the probe's register
+still holds a vertex, and that vertex is *in* the cluster
+(`Refine.ScatterDeadPass.empty_class_probe_refuted`), so its bit would
+be the wrong answer. On that branch the bit is zeroed and the outside
+term vanishes, which is
+`Refine.ScatterDeadFold.outside_ncard_of_empty`. -/
+noncomputable def atomBitCom (jd : ℕ) {L : ℕ} (β : DistFO L 1) : Com :=
+  .ite (.lt (.lit 0) (.var "of"))
+    (.seq (.assign (envName 0) (.var "oz")) (botCom jd β "bb"))
+    (.assign "bb" (.lit 0))
+
+/-- **The atom's verdict** (design §6 (b), pass 6): the threshold against
+the three terms — the engine's counter, the kill bits, and the outside
+bit times the outside count.
+
+`Refine.ScatterDeadEngine.scatVal_of_cnt` is what the comparison is
+worth. Reading the counter as the greedy count would be wrong — the scan
+stops at the threshold, and `Refine.ScatterDeadEngine`'s two compiled
+gates refute it — so the composition goes through that theorem's `∀ e`
+clause and never through `cnt`'s value. -/
+def atomFlagCom (t : ℕ) : Com :=
+  .seq (.assign "os" (.add (.var "cnt") (.add (.var "kc") (.mul (.var "bb") (.var "oc")))))
+    (.ite (.lt (.var "os") (.lit t)) (.assign "flag" (.lit 0)) (.assign "flag" (.lit 1)))
+
 open Classical in
 /-- **One cluster.** The descent, the padded enumeration, the colouring,
 the kill pass, the nested driver, the scatter atoms and the readback.
