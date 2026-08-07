@@ -8,6 +8,7 @@ authors:
   - name: Édouard Bonnet
     github: EdouardBonnet
   - name: Claude Fable 5 (Anthropic)
+  - name: Codex (OpenAI)
 bibEntries:
   - |
     @article{BonnetDepres2023,
