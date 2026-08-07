@@ -16,4 +16,6 @@ name = "Lax49"
 # twin-width tower: the twin-width parameter of submission Lax48
 [[require]]
 name = "Lax48"
-path = "../../twin-width-treewidth-separation/concepts"
+git = "https://github.com/lax-archive/lax-submissions"
+rev = "489019c133a0720f5d26deeaf4603f6fbc6ecf92"
+subDir = "twin-width-treewidth-separation/concepts"
