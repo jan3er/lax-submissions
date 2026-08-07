@@ -1,5 +1,4 @@
 import Lax3Proofs.Refine.BfsBlock
-import Lax3Proofs.Refine.MassWeight
 import Lax3Proofs.Refine.ScatterSynth
 
 /-!

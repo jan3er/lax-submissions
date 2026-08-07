@@ -1,5 +1,4 @@
 import Lax3Proofs.Refine.ScatterDeadEngine
-import Lax3Proofs.Refine.ArenaSeam
 import Lax3Proofs.RamDriverBot
 import Lax3Proofs.TgtWidenProbe
 
