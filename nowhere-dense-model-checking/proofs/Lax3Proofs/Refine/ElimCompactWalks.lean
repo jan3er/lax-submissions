@@ -25,12 +25,10 @@ satellite, never restate).
   weight, which is what `MassWeight` keeps a second weight reading for.
 * §4 discharges `cixPass`, the compaction's first half — the *same*
   member walk as the scatter, as `ElimCompact` §9(3) predicts. The nested
-  CSR construction `compactCsr` is the leaf that did not fit this
-  session.
-* §5 is the ledger: what is done, what is refuted, and the three
-  statement repairs the parent file owes — including one in the parent's
-  own assembly, where `RamElim.ElimPost` drops the rank bound the
-  scatter needs.
+  CSR construction `compactCsr` is `Refine/ElimCompactCsr.lean`.
+* §5 is the ledger: what is done, what was refuted, and where each
+  repair landed — including the one in the engine's own landed export,
+  where `RamElim.ElimPost` dropped the rank bound the scatter needs.
 
 Nothing here is `sorry`, and no theorem below assumes an unproved
 obligation.
@@ -45,7 +43,7 @@ open Lax3Proofs.RamDriverCluster (markSet mem_markSet)
 open Lax3Proofs.Refine.ScatterBlock (MemList MemOf)
 open Lax3Proofs.Refine.MassWeight (wsum graphW vdeg arenaWeight csrW)
 open Lax3Proofs.Refine.ElimCompact (memEmb memEmb_injective memGraph memGraph_adj
-  scatterCom scatterCost ScatterBacks)
+  scatterCom scatterCost ScatterBacks ScatterBacksW memRowSum compactCostRaw)
 
 /-! ## §1 The weight tie
 
@@ -205,22 +203,13 @@ Four clauses are added and **nothing in the conclusion changes**: the
   The frozen `getD` clause gives neither (it is satisfied by the empty
   array at `R = 0`).
 
-`hsm` and `hnB` are the two the caller supplies for free; `hRB` is the
-one that has no supply yet — see §4. -/
+`hsm` and `hnB` are the two the caller supplies for free; `hRB` is
+`RamElim.RnkLt`, which E2-fold threaded back through the engine's
+landed export (§5).
 
-/-- **Obligation E2-c/2, repaired.** `ScatterBacks` plus the four
-clauses §2.1 and the semantics force. The conclusion is `ScatterBacks`'s,
-unchanged. -/
-def ScatterBacksW (B n mm : ℕ) (Mem : ℕ → ℕ) : Prop :=
-  ∀ (R : ℕ → ℕ) (σ : Env), σ.vars "mm" = mm → σ.arrs "mem" = arrOf n Mem →
-    (∀ j, j < mm → Mem j < n) → (∀ j, j < mm → (σ.arrs "rnk").getD j 0 = R j) →
-    (∃ g, σ.arrs "ork" = arrOf n g) →
-    (∀ i j, i < j → j < mm → Mem i < Mem j) → n < B →
-    (∀ j, j < mm → R j < B) → mm ≤ (σ.arrs "rnk").length →
-    ∃ σ', Run B scatterCom σ σ' (scatterCost mm) ∧
-      (∀ j, j < mm → (σ'.arrs "ork").getD (Mem j) 0 = R j) ∧
-      σ'.vars "kmax" = σ.vars "kmax" ∧
-      σ'.arrs "ioff" = σ.arrs "ioff" ∧ σ'.arrs "itg" = σ.arrs "itg"
+The repaired `Prop` itself lives in `ElimCompact` §8, next to the
+reading it supersedes, so that the two sibling compacted engines read one
+obligation; this section discharges it. -/
 
 /-! ### §2.3 The walk -/
 
@@ -379,12 +368,6 @@ The compact CSR is a single empty row: `cs = 0`. So the budget is
 `compactCost 1 0 = 200`, while the walk crosses the centre's forty raw
 slots. -/
 
-/-- **The honest compaction budget**: `compactCost`'s shape at the raw
-member-row sum instead of the live slot count. This is what
-`CompactInstalls`'s cost clause has to become; §3.1 is the compiled
-proof that `compactCost mm cs` cannot. -/
-def compactCostRaw (mm rs : ℕ) : ℕ := 100 * mm + 100 * rs + 100
-
 /-- The star's offsets: `0 ↦ {1 … 40}`, `k ↦ {0}` for `1 ≤ k ≤ 40`,
 everything above isolated. -/
 def deadOffL (n : ℕ) : List ℕ :=
@@ -426,14 +409,13 @@ def deadClock (n W : ℕ) : ℕ := (execC pB pF (.seq compactPass installCom) (d
 
 /-! ### §3.2 The honest charge
 
-The quantity the walk actually pays is the members' raw row-length sum.
-It is still **carrier-blind** and still arena-relative — it is the
-`csrW` reading of `MassWeight` §1, the machine's own weight, as against
-the `graphW` reading that `arenaWeight` uses. §3.3 is that identity. -/
-
-/-- **The members' raw row-length sum** — what `cRow`'s inner loop
-crosses, member by member. -/
-def memRowSum (mm : ℕ) (O Mem : ℕ → ℕ) : ℕ := ∑ j ∈ Finset.range mm, Csr.rowLen O (Mem j)
+The quantity the walk actually pays is the members' raw row-length sum,
+`ElimCompact.memRowSum`, and the budget is `ElimCompact.compactCostRaw`
+at it — `compactCost`'s shape with the live slot count replaced. It is
+still **carrier-blind** and still arena-relative: it is the `csrW`
+reading of `MassWeight` §1, the machine's own weight, as against the
+`graphW` reading that `arenaWeight` uses. §3.3 is that identity, and
+`ElimCompact.CompactInstalls` now states the charge this way. -/
 
 /-! ### §3.3 …and it is the arena's machine weight
 
@@ -562,52 +544,83 @@ theorem cixPass_run {B n mm : ℕ} {Mem : ℕ → ℕ} {σ : Env}
   simp only [size_var]
   omega
 
-/-! ## §5 What this satellite found, and what it leaves
+/-! ## §5 The ledger: what was found here, and where each repair landed
 
-Three of the four things E2-sat was sent to do are here; the fourth is a
-statement defect in the parent, not a proof that was hard.
+**Discharged here.** `arenaWeight_memGraph` (§1, the E5 tie),
+`scatterBacksW` (§2, the scatter walk in full), `wsum_csrW_markSet`
+(§3.3, the compaction's honest charge in `MassWeight`'s own vocabulary),
+`cixPass_run` (§4, the compaction's first half).
 
-**Done.** `arenaWeight_memGraph` (§1, the E5 tie), `scatterBacksW` (§2,
-the scatter walk in full), `cixPass_run` (§4, the compaction's first
-half), `wsum_csrW_markSet` (§3.3, the compaction's honest charge in
-`MassWeight`'s own vocabulary).
+**Refuted, and repaired in the parent.** Both obligation `Prop`s of
+`ElimCompact` §8 were false as first frozen, and the two failures are of
+different kinds.
 
-**Refuted, and therefore NOT discharged.** Both obligation `Prop`s of
-`ElimCompact` §8 are false as frozen, and the two failures are of
-different kinds:
-
-1. `ScatterBacks` — `not_scatterBacks_of_repeat` (§2.1). The postcondition
-   is unsatisfiable at a member list that repeats an arena number. The
-   repair is `ScatterBacksW`: add `MemList.smono`, `n < B`,
-   `mm ≤ (σ.arrs "rnk").length` and `∀ j < mm, R j < B`. The conclusion
-   does not move, and `scatterBacksW` discharges it.
-2. `CompactInstalls` — §3.1. Its cost clause charges the compaction at
+1. `ScatterBacks` — `not_scatterBacks_of_repeat` (§2.1). The
+   postcondition is unsatisfiable at a member list that repeats an arena
+   number: two members at one cell ask it to hold two ranks, and no
+   program can be blamed for that. The repair is
+   `ElimCompact.ScatterBacksW` — `MemList.smono`, `n < B`,
+   `mm ≤ (σ.arrs "rnk").length` and `∀ j < mm, R j < B` added, the
+   conclusion unmoved — and `scatterBacksW` above discharges it, with no
+   hypothesis on `B`, `n`, `mm` or `Mem` at all. `elimCompact_spec`
+   consumes the repaired form. The refuted reading is kept compiled,
+   because the refutation is stated against it and because
+   `Refine/AugCompact.lean` — a sibling wave's file — still names it
+   (see the open defect below).
+2. `CompactInstalls` — §3.1. Its cost clause charged the compaction at
    the *live* slot count `cs` while `cRow` crosses the member's **raw**
    row: on the dead-row star the clock is `849` against a budget of
-   `200`. The repair is `compactCostRaw mm (memRowSum mm O Mem)`, which
-   is still carrier-blind and still arena-relative — `wsum_csrW_markSet`
-   identifies it with the arena's `csrW`-weight, which is why
-   `MassWeight` carries that second reading at all. Its correctness
-   content (a `CsrSimple` of the member pullback, installed) is
-   untouched by the finding and is the leaf that did not fit this
-   session: `cixPass` is §4, `compactCsr` is not.
+   `200`. The repair is `ElimCompact.compactCostRaw mm
+   (ElimCompact.memRowSum mm O Mem)`, still carrier-blind and still
+   arena-relative — `wsum_csrW_markSet` identifies `mm + memRowSum` with
+   the arena's own `csrW`-weight, which is why `MassWeight` carries that
+   second reading at all. `ElimCompact.CompactInstalls` now states the
+   charge that way, adds the conclusion `cs ≤ memRowSum mm O Mem` that
+   ties the two readings together, and adds the word bounds a `Run`
+   needs (without them no derivation exists and the conclusion fails
+   vacuously — the same defect class as `ScatterBacks`'s missing
+   `n < B`). Its correctness content, untouched by the cost finding, is
+   discharged in `Refine/ElimCompactCsr.lean`.
+3. `CompactInstalls` a second time, on a clause found *while* it was
+   being discharged: `∀ v < n, M v < B`, the **mask's own magnitude**.
+   `ArenaEntryC` pins the mask's *length* (`alv = arrOf n M`) and says
+   nothing about the numbers in it, while `cRow` tests liveness with an
+   IMP+ `get` on `alv`, whose value must fit the word. The
+   counterexample is a store whose mask cell holds `100` at word bound
+   `B = 6`: the read returns `none`, so no run of `compactPass` exists
+   and the postcondition is unreachable however good the program is.
+   This is exactly `RamElim.elim_specW`'s long-standing `hMB`, lost when
+   `ArenaEntryC` replaced `ElimPre`'s clause list at the compacted entry
+   surface — the engine call inside `elimCompact_spec` would have needed
+   it even if the compaction had not. The clause now sits inside
+   `CompactInstalls`, and the compiled falsification that warrants it is
+   `Refine/ElimCompactCsr.lean` §0, with the same standing that
+   `not_scatterBacks_of_repeat` has for `ScatterBacksW`. `ScatterBacksW`
+   is unaffected: `scatterCom` never reads `alv`.
 
-**A third defect, in the parent's own assembly.** Even with `ScatterBacks`
-repaired, `elimCompact_spec` cannot supply the rank bound
-`∀ j < mm, R j < B`: it reads the engine through `RamElim.ElimPost`,
-which drops the clause `∀ v < n, R v < n` that `RamElim.AfterLoopW` and
-`AfterOffW` both carry. `scatterCom` reads `rnk[km]` with an IMP+ `get`,
-so the bound is not decoration — without it there is no derivation. Two
-ways out, both cheap and both outside this satellite's ownership: give
-`ElimPost` the clause it already has upstream, or read the engine at
-`ElimMem`/`ElimCert` in `ElimCompact` §4. `elimCompact_spec` also needs
-`n < B` (it has only `mm + nt + 1 < B`), which every landed caller of the
-package holds anyway.
+**The third defect, in the engine's landed export, is closed.**
+`RamElim.AfterLoopW` and `AfterOffW` both carry `∀ v < n, R v < n`, and
+`ElimMem` — written before the rank inversion existed — dropped it, so
+`ElimPost` dropped it too. That is a statement gap, not a proof gap:
+`scatterCom` reads `rnk[km]` with an IMP+ `get`, so without the bound
+there is no derivation and the landed contract cannot be used at all.
+`RamElim.ElimMem` could not simply be widened — `RamDriverCompose` and
+`RamDriverAugment` destructure it — so the clause is threaded *beside*
+it: `RamElim.RnkLt`, carried by `implementsWR`/`elim_specWR`, with the
+frozen `implementsW` derived from `implementsWR` by weakening. Every
+consumer sees the surface it always saw, and `ElimCompact.elimCompact_spec`
+gets the rank bound it needs. `elimCompact_spec` also gained `n < B`,
+which every landed caller of the package holds.
 
-Because of the second and third defects a composed corollary
-instantiating `elimCompact_spec` on real discharges is not available yet,
-and manufacturing one would have meant weakening a `Prop` to fit — which
-the wave was told not to do. -/
+**Open, and not this wave's to fix.** `Refine/AugCompact.lean:941`
+(`augCompact_spec`) still names the refuted `ScatterBacks` as a
+hypothesis, so it stands on a `Prop` that has no witness. The repair is
+one word — `ScatterBacksW`, whose statement was deliberately kept usable
+by both families — but the file belongs to the E2-aug wave.
+
+**The composed corollary** the E2-sat session could not produce — a
+compacted engine on real discharges, with no hypothesis manufactured by
+weakening — is `Refine/ElimCompactCsr.lean`'s. -/
 
 /-! ## §6 Axioms -/
 

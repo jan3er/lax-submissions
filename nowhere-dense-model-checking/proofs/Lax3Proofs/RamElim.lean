@@ -1159,6 +1159,28 @@ theorem elimPost_of_elimMem {σ σ' : Env} (h : ElimMem G M ns W σ σ') :
     hout.cert.backDegLE_toGraph, hout.cert.degeneracyLE,
     fun _ hk' => hout.cert.le_of_lowDegreeVertices hk', hout.arcs⟩
 
+/-- **The rank bound the elimination loop establishes.** The ranks are a
+permutation of `0 … n-1`, so every one of them is a vertex number;
+`AfterLoopW` and `AfterOffW` both carry the clause, and `fillPass` does
+not write `rnk`, so it holds at the exit too.
+
+`ElimMem` was written before the rank inversion existed and drops it,
+and so does `ElimPost` — which is a *statement* gap and not a proof gap:
+a caller that reads a rank **cell** with an IMP+ `get` has no derivation
+without it (`Refine/ElimCompact`'s member scatter reads `rnk[km]`), and
+so cannot use the landed contract at all. The clause is threaded here,
+next to `ElimMem` rather than inside it, so that the frozen surface the
+driver and the augmentation destructure does not move.
+
+It is stated on the *array* rather than on a rank function so that it
+composes with `ElimMem`'s own `R` — or with `ElimPost`'s — without a
+second reconciliation. -/
+def RnkLt (n : ℕ) (σ' : Env) : Prop := ∀ v < n, (σ'.arrs "rnk").getD v 0 < n
+
+/-- `ElimMem` with the rank bound above. -/
+def ElimMemR {n : ℕ} (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (ns W : ℕ) (σ σ' : Env) : Prop :=
+  ElimMem G M ns W σ σ' ∧ RnkLt n σ'
+
 /-- The running time: five passes over the block structure and the
 buckets, each linear. The constants are generous — the shape is what
 the campaign's budget is spent against, and the sharp charging is a
@@ -3617,8 +3639,9 @@ precondition on the nose and every array a phase does not write carried
 across it by `Spec.frame`. The certificate the elimination left and the
 block structure the fill left are `ElimMem`'s two halves, and the five
 costs sum to `293 n + 176 ns + 94`, inside `elimCost`. -/
-theorem implementsW {B nt : ℕ} : ImplementsW B n ns nt W G M O T := by
-  intro hcsr hB hMB _hW hnt
+theorem implementsWR {B nt : ℕ} (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B)
+    (hMB : ∀ z < n, M z < B) (_hW : ns ≤ W) (hnt : ns ≤ nt) :
+    Spec B (ElimPreW n ns nt W O T M) elimCom (ElimMemR G M ns W) (elimCost n ns) := by
   have hDlt : ∀ v < n, adeg G M v < n := fun v hv => by
     rw [adeg_eq hv]; exact card_nbrsIn_lt _ _
   have w1 : Spec B (ElimPreW n ns nt W O T M) initDeg
@@ -3712,7 +3735,7 @@ theorem implementsW {B nt : ℕ} : ImplementsW B n ns nt W G M O T := by
       by rw [hfa "rnk" (by decide)]; exact hrnk,
       hRlt, hcert, hIDc, hpsum, hio', hfl',
       ⟨tg, by rw [hfa "itg" (by decide)]; exact htg1⟩⟩
-  have w5 : Spec B (AfterOffW n ns nt W G O T M) fillPass (ElimMem G M ns W)
+  have w5 : Spec B (AfterOffW n ns nt W G O T M) fillPass (ElimMemR G M ns W)
       (32 * n + 32 * ns + 10) := by
     intro σ hσ
     obtain ⟨R, ID, k, hn, hk, hoff, htgt, halv, hrnk, hRlt, hcert, hIDc, hpsum, hioff,
@@ -3721,15 +3744,23 @@ theorem implementsW {B nt : ℕ} : ImplementsW B n ns nt W G M O T := by
     obtain ⟨σ', hrun, ⟨IT, hitg', harcs⟩, hfv, hfa, -, -⟩ :=
       (fillPass_specW B n ns nt W G O T M R ID hcsr hB _hW hnt hMB hRlt hIDc hpsum).frame σ
         ⟨hn, hoff, htgt, halv, hrnk, hifl, hitg⟩
-    exact ⟨σ', hrun, R, psum ID, IT, k, psum ID n,
-      by rw [hfa "rnk" (by decide)]; exact hrnk,
+    have hrnk' : σ'.arrs "rnk" = arrOf n R := by rw [hfa "rnk" (by decide)]; exact hrnk
+    exact ⟨σ', hrun, ⟨R, psum ID, IT, k, psum ID n, hrnk',
       by rw [hfv "kmax" (by decide)]; exact hk,
       by rw [hfa "ioff" (by decide), hioffg]
          exact arrOf_congr (fun j hj => hioffv j (by omega)),
-      hitg', by omega, ⟨hcert, harcs⟩⟩
-  show Spec B (ElimPreW n ns nt W O T M) elimCom (ElimMem G M ns W)
+      hitg', by omega, ⟨hcert, harcs⟩⟩,
+      fun v hv => by rw [hrnk', getD_arrOf R hv]; exact hRlt v hv⟩
+  show Spec B (ElimPreW n ns nt W O T M) elimCom (ElimMemR G M ns W)
     (600 * n + 600 * ns + 100)
   run_vcg [w1, w2, w3, w4, w5] <;> assumption
+
+/-- **The engine implements its widened specification** — the frozen
+export. `implementsWR`'s conclusion weakened by one conjunct, so that
+the surface the driver and the augmentation destructure is exactly the
+one they always destructured. -/
+theorem implementsW {B nt : ℕ} : ImplementsW B n ns nt W G M O T :=
+  fun hcsr hB hMB hW hnt => (implementsWR hcsr hB hMB hW hnt).post fun _ _ _ hq => hq.1
 
 /-- **The engine implements its pinned specification** — the frozen
 export, which is the widened walk at `nt = ns`. Nothing is re-proved:
@@ -3762,6 +3793,20 @@ theorem elim_specW {B nt : ℕ} (h : ImplementsW B n ns nt W G M O T)
     (hW : ns ≤ W) (hnt : ns ≤ nt) :
     Spec B (ElimPreW n ns nt W O T M) elimCom (ElimPost G M ns W) (elimCost n ns) :=
   (h hcsr hB hMB hW hnt).post fun _ _ _ hq => elimPost_of_elimMem hq
+
+/-- **The same, with the rank bound.** `ElimPost`'s clauses say what the
+ranks *mean* and never that they are vertex numbers, so a caller that
+reads a rank cell with an IMP+ `get` cannot use the contract at all —
+the read has no derivation. `RnkLt` is the missing clause; the engine's
+own loop establishes it (`AfterLoopW`) and `fillPass` does not write
+`rnk`, so it costs a conjunct and no work. The obligation surface stays
+`implementsW`'s, so this is not a second engine. -/
+theorem elim_specWR {B nt : ℕ} (hcsr : CsrSimple G ns O T) (hB : n + ns + 1 < B)
+    (hMB : ∀ z < n, M z < B) (hW : ns ≤ W) (hnt : ns ≤ nt) :
+    Spec B (ElimPreW n ns nt W O T M) elimCom
+      (fun σ σ' => ElimPost G M ns W σ σ' ∧ RnkLt n σ') (elimCost n ns) :=
+  (implementsWR hcsr hB hMB hW hnt).post
+    fun _ _ _ hq => ⟨elimPost_of_elimMem hq.1, hq.2⟩
 
 /-! ### The worked example
 

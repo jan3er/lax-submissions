@@ -64,6 +64,8 @@ import Lax3Proofs.Refine.OrderSynth
 import Lax3Proofs.Refine.ElimSynth6
 import Lax3Proofs.Refine.ElimSynth7
 import Lax3Proofs.Refine.ElimCompactWalks
+import Lax3Proofs.Refine.ElimCompactCsr
+import Lax3Proofs.Refine.ElimCompactSpec
 import Lax3Proofs.Refine.ReachedBridge
 import Lax3Proofs.Refine.ClusterSynth
 import Lax3Proofs.Refine.ExpandSynth

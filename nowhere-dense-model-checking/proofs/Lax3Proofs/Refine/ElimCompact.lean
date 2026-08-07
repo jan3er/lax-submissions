@@ -66,9 +66,10 @@ the view. Two consequences, both load-bearing:
 Two walks are isolated as named obligations in §8, in the campaign's
 obligation-Props discipline: `CompactInstalls` (the compaction pass
 leaves a `CsrSimple` block structure of the member pullback, installed at
-the engine's entry) and `ScatterBacks` (the scatter sends the compact
+the engine's entry) and `ScatterBacksW` (the scatter sends the compact
 ranks to the members' arena cells). Both are refuted-before-proved on
-data in §2, stated once, and discharged in their own satellites. Nothing
+data in §2, stated once, and discharged in their own satellites
+(`Refine/ElimCompactWalks.lean`, `Refine/ElimCompactCsr.lean`). Nothing
 here is `sorry`, and no theorem below assumes either of them except
 `elimCompact_spec`, which names them as hypotheses.
 
@@ -527,6 +528,8 @@ theorem padArrs_setArr {σ : Env} {tl : String → List ℕ} {a : String} {k v :
       fun b => if b = a then (σ.arrs a ++ tl a).set k v else σ.arrs b ++ tl b := by
     funext b
     by_cases hb : b = a
+    -- `if_pos rfl` is flagged as unused by the linter and is not: without it the
+    -- two `ite`s do not reduce and the `set`-append lemma does not apply.
     · subst hb; simp only [if_pos rfl]; exact (List.set_append_left k v hk).symm
     · simp [hb]
   simpa [padArrs, Env.setArr, padArrs_arrs] using congrArg
@@ -712,19 +715,27 @@ not occur** — and leaves `RamElim.ElimPost`, the landed contract,
 verbatim, of the compact view. The exit store is the view's answer over
 the tail the call entered with.
 
-No re-synthesis and no restatement of `RamElim`: `elim_specW` is
+No re-synthesis and no restatement of `RamElim`: `elim_specWR` is
 applied at `n := mm`, which is all "the engine runs at carrier `mm`"
-ever needed. -/
+ever needed.
+
+The second conjunct of the postcondition is `RamElim.RnkLt` — every
+rank is below the compact carrier. It is not decoration: the scatter
+reads `rnk[km]` with an IMP+ `get` and has no derivation without it
+(`ScatterBacksW`'s `hRB`). `ElimMem` — and so `ElimPost` — dropped the
+clause; E2-fold threaded it back beside them, `RamElim`'s frozen surface
+unmoved. -/
 theorem elimCompact_engine {B mm n ns nt W : ℕ} {H : SimpleGraph (Fin mm)} {O T M : ℕ → ℕ}
     {σ : Env} (hcsr : RamElim.CsrSimple H ns O T) (hB : mm + ns + 1 < B)
     (hMB : ∀ z < mm, M z < B) (hW : ns ≤ W) (hnt : ns ≤ nt)
     (hpre : ElimPreC mm n nt W O T M σ) :
     ∃ τ, Run B RamElim.elimCom σ (padArrs τ (tailOf σ (clen mm nt W)))
           (RamElim.elimCost mm ns) ∧
-        RamElim.ElimPost H M ns W (cutArrs σ (clen mm nt W)) τ := by
-  obtain ⟨τ, hrun, hpost⟩ :=
-    RamElim.elim_specW RamElim.implementsW hcsr hB hMB hW hnt _ (elimPreW_cutArrs hpre)
-  exact ⟨τ, run_of_run_cutArrs _ hrun, hpost⟩
+        RamElim.ElimPost H M ns W (cutArrs σ (clen mm nt W)) τ ∧
+        RamElim.RnkLt mm τ := by
+  obtain ⟨τ, hrun, hpost, hrnk⟩ :=
+    RamElim.elim_specWR hcsr hB hMB hW hnt _ (elimPreW_cutArrs hpre)
+  exact ⟨τ, run_of_run_cutArrs _ hrun, hpost, hrnk⟩
 
 /-! ## §5 The contract at the arena's live vertices
 
@@ -822,43 +833,79 @@ numbers do. -/
 /-- **The composite's cost**: the landed engine's own `elimCost` at the
 compact carrier, plus the six member-driven passes (renumber, prefix
 save, install, scatter, prefix restore) at a generous constant. `mm` is
-the arena's live vertex count and `cs` its live slot count — **the
-carrier `n` does not appear**, which is the whole claim of the wave. -/
-def elimCompactCost (mm cs : ℕ) : ℕ := Lax3Proofs.RamElim.elimCost mm cs + 200 * mm + 200 * cs + 200
+the arena's live vertex count and `w` its slot reading — **the carrier
+`n` does not appear**, which is the whole claim of the wave.
 
-/-- The renumbering-and-install budget: arena-affine, carrier-free. -/
+The second argument is read at the arena's **raw** member-row sum
+(`memRowSum`), not at the compact slot count: the compaction crosses the
+members' rows in the level CSR and pays for the dead targets it drops,
+which the live count does not see (§6.2, and the compiled instance in
+`ElimCompactWalks` §3.1). Both readings are carrier-blind and
+arena-relative, and `elimCost` is monotone in the second, so the same
+function serves. -/
+def elimCompactCost (mm w : ℕ) : ℕ := Lax3Proofs.RamElim.elimCost mm w + 300 * mm + 300 * w + 300
+
+/-- The renumbering-and-install budget read at the **live** slot count.
+This is the reading `ElimCompactWalks` §3.1 refutes — `cRow` crosses the
+member's *raw* row and the live count does not see the dead targets it
+drops — and it is kept because that refutation is compiled against it.
+The honest charge is `compactCostRaw`, below. -/
 def compactCost (mm cs : ℕ) : ℕ := 100 * mm + 100 * cs + 100
+
+/-- **The members' raw row-length sum** — what `cRow`'s inner loop
+crosses, member by member. Carrier-blind and arena-relative, like the
+live count and unlike the carrier: it is the `csrW` reading of
+`MassWeight` §1 (the machine's own weight) as against the `graphW`
+reading that `arenaWeight` uses, and `ElimCompactWalks.wsum_csrW_markSet`
+is that identity. -/
+def memRowSum (mm : ℕ) (O Mem : ℕ → ℕ) : ℕ := ∑ j ∈ Finset.range mm, Csr.rowLen O (Mem j)
+
+/-- **The renumbering-and-install budget.** `compactCost`'s shape at the
+raw member-row sum instead of the live slot count — the charge the walk
+actually pays. -/
+def compactCostRaw (mm rs : ℕ) : ℕ := 200 * mm + 100 * rs + 200
 
 /-- The scatter budget. -/
 def scatterCost (mm : ℕ) : ℕ := 100 * mm + 100
 
-/-- The cost, expanded: `800·mm + 800·cs + 300`. Affine in the arena's
+/-- The cost, expanded: `900·mm + 900·w + 400`. Affine in the arena's
 two numbers, and in nothing else. -/
-theorem elimCompactCost_eq (mm cs : ℕ) : elimCompactCost mm cs = 800 * mm + 800 * cs + 300 := by
+theorem elimCompactCost_eq (mm w : ℕ) : elimCompactCost mm w = 900 * mm + 900 * w + 400 := by
   simp only [elimCompactCost, Lax3Proofs.RamElim.elimCost]; ring
 
-#guard elimCompactCost 5 10 = 800 * 5 + 800 * 10 + 300
-#guard elimCompactCost 5 10 = 12300
--- two-sided: the constant `800` is not slack for `801`, and the run
--- below (`3407`) is inside `12300` while `mm`-only budgets are not
-#guard ¬ (elimCompactCost 5 10 = 801 * 5 + 801 * 10 + 300)
+#guard elimCompactCost 5 10 = 900 * 5 + 900 * 10 + 400
+#guard elimCompactCost 5 10 = 13900
+-- two-sided: the constant `900` is not slack for `901`, and the run
+-- below (`3407`) is inside `13900` while `mm`-only budgets are not
+#guard ¬ (elimCompactCost 5 10 = 901 * 5 + 901 * 10 + 400)
+
+/-- **The three budgets compose.** The compaction at the raw sum, the
+engine at the live slot count, and the scatter, all inside the
+composite's cost read at the raw sum. `elimCost` is monotone in its
+second argument, which is what lets one number carry both readings. -/
+theorem compose_cost_le {mm cs rs : ℕ} (h : cs ≤ rs) :
+    compactCostRaw mm rs + (Lax3Proofs.RamElim.elimCost mm cs + scatterCost mm)
+      ≤ elimCompactCost mm rs := by
+  simp only [compactCostRaw, scatterCost, elimCompactCost, Lax3Proofs.RamElim.elimCost]
+  have : 600 * cs ≤ 600 * rs := Nat.mul_le_mul_left _ h
+  omega
 
 /-- **The single weight**: the composite's cost is affine in the arena's
 weight and in nothing else. -/
 theorem elimCompactCost_le_weight {mm cs w : ℕ} (h : mm + cs ≤ w) :
-    elimCompactCost mm cs ≤ 800 * w + 300 := by
+    elimCompactCost mm cs ≤ 900 * w + 400 := by
   rw [elimCompactCost_eq]
-  have : 800 * mm + 800 * cs = 800 * (mm + cs) := by ring
+  have : 900 * mm + 900 * cs = 900 * (mm + cs) := by ring
   omega
 
 /-- **…and the weight is the compacted arena's own.** `MassWeight`'s
 root reading at the compact graph: a `CsrSimple` of a graph all of whose
 vertices are alive has weight `mm + cs`, the vertex count plus the slot
-count. So the composite's clock is `800 · arenaWeight + 300` at the
+count. So the composite's clock is `900 · arenaWeight + 400` at the
 arena the engine actually ran on, with the carrier nowhere in sight. -/
 theorem elimCompactCost_le_arenaWeight {mm cs : ℕ} {H : SimpleGraph (Fin mm)} {O' T' : ℕ → ℕ}
     (hcsr : CsrSimple H cs O' T') {M' : ℕ → ℕ} (halive : ∀ v < mm, M' v ≠ 0) :
-    elimCompactCost mm cs ≤ 800 * MassWeight.arenaWeight mm H M' + 300 :=
+    elimCompactCost mm cs ≤ 900 * MassWeight.arenaWeight mm H M' + 400 :=
   elimCompactCost_le_weight (le_of_eq (MassWeight.arenaWeight_root hcsr halive).symm)
 
 /-! ### §6.1 The clocks, compiled
@@ -1062,29 +1109,116 @@ def ArenaEntryC (n mm nt W : ℕ) (O T M Mem : ℕ → ℕ) (σ : Env) : Prop :=
 by `installCom` leaves the compacted engine's entry: a `CsrSimple` block
 structure of the member pullback at slot count `"ks"`, installed in the
 engine's own array names, with the all-alive mask and the two zeroed
-prefixes, at `compactCost`.
+prefixes, at `compactCostRaw`.
 
 Refutable, and refuted-before-proved on data in §2.1 (the compact CSR is
 `RamElim.Demo`'s at two carriers; the slot count is the *live* degree sum
-and not the raw one, separated on §2.4's wedge). -/
+and not the raw one, separated on §2.4's wedge).
+
+Two clauses of the statement are the E2-fold repair, and both are
+compiled findings of `ElimCompactWalks` rather than taste:
+
+* **the charge is `compactCostRaw mm (memRowSum mm O Mem)`.** The
+  earlier reading, `compactCost mm cs` at the live slot count, is false:
+  `cRow` walks the member's raw row in the level CSR and drops the dead
+  targets by an `ite` *inside* the loop, so it pays for them. On the
+  dead-row star the clock is `849` against a budget of `200`
+  (`ElimCompactWalks` §3.1). `cs ≤ memRowSum mm O Mem` comes with it —
+  the live slots are a subset of the raw ones — and is what lets the
+  composite's cost be read at one number.
+* **the three word bounds.** `Run B` is a *derivation*: without
+  `mm + nt + 1 < B` and `n < B` neither the loop tests nor the array
+  reads evaluate and no run exists at all, so the conclusion fails
+  vacuously. Every landed specification of the package carries a clause
+  of this shape (`RamElim.elim_specW`'s `hB`).
+
+  The third, `∀ v < n, M v < B`, is the **mask's own magnitude** and is
+  the one that is easy to miss: `ArenaEntryC` pins the mask's *length*
+  (`σ.arrs "alv" = arrOf n M`) and says nothing whatever about the
+  numbers in it, while `cRow` tests liveness with
+  `.lt (.lit 0) (.get "alv" (.var "kw"))` — an IMP+ `get`, whose value
+  must `fit B`. At a mask cell of `100` in a machine of word bound `6`
+  the read returns `none`, the derivation stops, and the conclusion is
+  unreachable however good the program is. This is exactly
+  `RamElim.elim_specW`'s `hMB : ∀ z < n, M z < B`, which the landed
+  engine has carried all along; the compacted entry surface had lost it
+  because `ArenaEntryC` replaced `ElimPre`'s clause list. The compiled
+  falsification is in `Refine/ElimCompactCsr.lean` §0.
+
+**A seam in `T'`, for whoever reads it next.** The `CsrSimple` and the
+`ElimPreC` below are stated at the *same* `T'`, and that function is a
+**merge**, not the compact target array: `installCom` copies only the
+first `cs` cells of `"ktg"` into `"tgt"`, so `T'` is the compact targets
+below `cs = O' mm` and the **level's own targets** at and above it. An
+IMP+ run cannot re-allocate, so the tail cannot be cleared and this is
+not a defect — `CsrSimple (memGraph …) cs O' T'` holds because every one
+of its clauses reads `T'` only below `cs` (`target_lt` at `j < cs`,
+`adj_iff` and `nodup` inside rows of vertices below `mm`, whose blocks
+end at `O' mm = cs`). Nothing in `elimCompact_spec` or in
+`RamElim.elim_specWR` reads above `cs` today.
+
+The tripwire is for a *future* consumer: a pass that reads `T'` at a slot
+`≥ cs` expecting compact data will silently get level-numbered vertices,
+which are arena numbers and not member indices. If such a consumer
+appears, it must either be bounded by `cs` or be handed a `T'` whose tail
+was overwritten. -/
 def CompactInstalls (B n mm nt W : ℕ) (G : SimpleGraph (Fin n)) (M Mem : ℕ → ℕ) : Prop :=
   ∀ (O T : ℕ → ℕ) (σ : Env) (hml : MemList n mm Mem (markSet n M)),
     CsrSimple G nt O T → ArenaEntryC n mm nt W O T M Mem σ →
+    mm + nt + 1 < B → n < B → (∀ v, v < n → M v < B) →
     ∃ (σ' : Env) (O' T' : ℕ → ℕ) (cs : ℕ),
-      Run B (.seq compactPass installCom) σ σ' (compactCost mm cs) ∧
-      CsrSimple (memGraph G M hml) cs O' T' ∧ cs ≤ nt ∧
+      Run B (.seq compactPass installCom) σ σ'
+        (compactCostRaw mm (memRowSum mm O Mem)) ∧
+      CsrSimple (memGraph G M hml) cs O' T' ∧ cs ≤ memRowSum mm O Mem ∧ cs ≤ nt ∧
       ElimPreC mm n nt W O' T' (fun _ => 1) σ' ∧
       σ'.arrs "mem" = arrOf n Mem ∧ σ'.vars "mm" = mm ∧
       (∃ g, σ'.arrs "ork" = arrOf n g)
 
-/-- **Obligation E2-c/2 — the scatter walk.** `scatterCom` sends the
-compact rank of member `j` to the arena cell `ork[mem j]`, touching
-nothing else. Refuted-before-proved in §2.2 (the scattered ranks at the
-odd placement) and §2.3 (nothing above the prefixes moves). -/
+/-- **The scatter walk, as first frozen — and refuted.**
+`ElimCompactWalks.not_scatterBacks_of_repeat` exhibits a member list that
+repeats an arena number, at which this postcondition asks one cell to
+hold two ranks and no state satisfies it. The `Prop` is kept because that
+refutation is compiled against it, and because `Refine/AugCompact.lean`
+— a file of a sibling wave — still names it; `ScatterBacksW` below is
+the repaired obligation, and it is what this file's assembly consumes. -/
 def ScatterBacks (B n mm : ℕ) (Mem : ℕ → ℕ) : Prop :=
   ∀ (R : ℕ → ℕ) (σ : Env), σ.vars "mm" = mm → σ.arrs "mem" = arrOf n Mem →
     (∀ j, j < mm → Mem j < n) → (∀ j, j < mm → (σ.arrs "rnk").getD j 0 = R j) →
     (∃ g, σ.arrs "ork" = arrOf n g) →
+    ∃ σ', Run B scatterCom σ σ' (scatterCost mm) ∧
+      (∀ j, j < mm → (σ'.arrs "ork").getD (Mem j) 0 = R j) ∧
+      σ'.vars "kmax" = σ.vars "kmax" ∧
+      σ'.arrs "ioff" = σ.arrs "ioff" ∧ σ'.arrs "itg" = σ.arrs "itg"
+
+/-- **Obligation E2-c/2 — the scatter walk.** `scatterCom` sends the
+compact rank of member `j` to the arena cell `ork[mem j]`, touching
+nothing else. Refuted-before-proved in §2.2 (the scattered ranks at the
+odd placement) and §2.3 (nothing above the prefixes moves).
+
+Four clauses more than the reading above, and **nothing in the
+conclusion changes**:
+
+* `hsm` — the member list is strictly increasing, hence repetition-free.
+  This is `MemList.smono`, which the assembly already holds;
+  `ElimCompactWalks.not_scatterBacks_of_repeat` is the compiled proof
+  that it cannot be dropped.
+* `hnB` — the carrier fits in a word. Without it neither the loop test
+  nor the `mem` read evaluates, and `Run` is a derivation.
+* `hRB`, `hρlen` — the ranks are readable: `scatterCom` reads `rnk[km]`
+  with an IMP+ `get`, which needs the cell to exist and to hold a word.
+  The `getD` clause gives neither (it is satisfied by the empty array at
+  `R = 0`). `hRB` is what `RamElim.RnkLt` supplies — the clause the
+  landed `ElimPost` dropped and E2-fold threaded back.
+
+One obligation for two families: `Refine/AugCompact.lean` runs the same
+`scatterCom` on the same member list, so its own assembly reads this
+`Prop` unchanged. -/
+def ScatterBacksW (B n mm : ℕ) (Mem : ℕ → ℕ) : Prop :=
+  ∀ (R : ℕ → ℕ) (σ : Env), σ.vars "mm" = mm → σ.arrs "mem" = arrOf n Mem →
+    (∀ j, j < mm → Mem j < n) → (∀ j, j < mm → (σ.arrs "rnk").getD j 0 = R j) →
+    (∃ g, σ.arrs "ork" = arrOf n g) →
+    (∀ i j, i < j → j < mm → Mem i < Mem j) → n < B →
+    (∀ j, j < mm → R j < B) → mm ≤ (σ.arrs "rnk").length →
     ∃ σ', Run B scatterCom σ σ' (scatterCost mm) ∧
       (∀ j, j < mm → (σ'.arrs "ork").getD (Mem j) 0 = R j) ∧
       σ'.vars "kmax" = σ.vars "kmax" ∧
@@ -1098,23 +1232,31 @@ theorem getD_padArrs {τ : Env} {tl : String → List ℕ} {a : String} {i : ℕ
 
 /-- **The compacted engine implements the arena contract.** The two
 obligations, §4's transported engine, and nothing else. Read the cost:
-`elimCompactCost mm cs` — the arena's live vertex count and its live slot
-count, and **no carrier term**. That is the wave. -/
+`elimCompactCost mm (memRowSum mm O Mem)` — the arena's live vertex count
+and its raw member-row sum, and **no carrier term**. That is the wave.
+
+`n < B` joins `mm + nt + 1 < B`: the member list is read at arena numbers
+(`mem[km]`, `ork[mem k]`), so the carrier has to be a word even though it
+occurs in no cost and in no clause of the conclusion. `hMB` joins them
+for the mask, which the compaction reads at every slot of every member
+row; it is `RamElim.elim_specW`'s own `hMB`, and the engine call below
+would need it even if the compaction did not. All three are held by every
+landed caller of the package. -/
 theorem elimCompact_spec {B n mm nt W : ℕ} {G : SimpleGraph (Fin n)} {O T M Mem : ℕ → ℕ}
     {σ : Env} (hml : MemList n mm Mem (markSet n M))
     (hcsr : CsrSimple G nt O T)
-    (h1 : CompactInstalls B n mm nt W G M Mem) (h2 : ScatterBacks B n mm Mem)
-    (hB : mm + nt + 1 < B) (hW : nt ≤ W)
+    (h1 : CompactInstalls B n mm nt W G M Mem) (h2 : ScatterBacksW B n mm Mem)
+    (hB : mm + nt + 1 < B) (hnB : n < B) (hMB : ∀ v, v < n → M v < B) (hW : nt ≤ W)
     (hent : ArenaEntryC n mm nt W O T M Mem σ) :
-    ∃ (σ'' : Env) (cs : ℕ), cs ≤ nt ∧
-      Run B elimCompactCore σ σ'' (elimCompactCost mm cs) ∧
+    ∃ (σ'' : Env) (cs : ℕ), cs ≤ nt ∧ cs ≤ memRowSum mm O Mem ∧
+      Run B elimCompactCore σ σ'' (elimCompactCost mm (memRowSum mm O Mem)) ∧
       ElimMemPost G M Mem hml cs W σ'' := by
   classical
-  obtain ⟨σ1, O', T', cs, r1, hcsr', hcs, hpre, hmem1, hmm1, hork1⟩ :=
-    h1 O T σ hml hcsr hent
+  obtain ⟨σ1, O', T', cs, r1, hcsr', hcsr_raw, hcs, hpre, hmem1, hmm1, hork1⟩ :=
+    h1 O T σ hml hcsr hent hB hnB hMB
   -- the engine, at the arena's carrier
   have hBc : mm + cs + 1 < B := by omega
-  obtain ⟨τ, r2, hpost⟩ :=
+  obtain ⟨τ, r2, hpost, hrnkLt⟩ :=
     elimCompact_engine hcsr' hBc (fun _ _ => show (1 : ℕ) < B by omega)
       (hcs.trans hW) hcs hpre
   set σ2 : Env := padArrs τ (tailOf σ1 (clen mm nt W)) with hσ2
@@ -1126,6 +1268,15 @@ theorem elimCompact_spec {B n mm nt W : ℕ} {G : SimpleGraph (Fin n)} {O T M Me
   have hrnkP : ∀ j, j < mm → (σ2.arrs "rnk").getD j 0 = R j := by
     intro j hj
     rw [hσ2, getD_padArrs (by rw [hrnk]; simpa [arrOf] using hj), hrnk, getD_arrOf _ hj]
+  -- the rank bound the scatter's `get` needs, transported to the padded store
+  have hRB : ∀ j, j < mm → R j < B := by
+    intro j hj
+    have h := hrnkLt j hj
+    rw [hrnk, getD_arrOf _ hj] at h
+    omega
+  have hρlen : mm ≤ (σ2.arrs "rnk").length := by
+    rw [hσ2, padArrs_arrs, List.length_append, hrnk, length_arrOf]
+    exact Nat.le_add_right _ _
   have hioffP : ∀ i, i ≤ mm → (σ2.arrs "ioff").getD i 0 = IO i := by
     intro i hi
     rw [hσ2, getD_padArrs (by rw [hioff]; simpa [arrOf] using Nat.lt_succ_of_le hi),
@@ -1148,10 +1299,11 @@ theorem elimCompact_spec {B n mm nt W : ℕ} {G : SimpleGraph (Fin n)} {O T M Me
   -- the scatter
   obtain ⟨σ3, r3, horkS, hkS, hioffS, hitgS⟩ :=
     h2 R σ2 hmm2 hmem2 (fun j hj => hml.lt j hj) hrnkP hork2
-  refine ⟨σ3, cs, hcs, (r1.seq (r2.seq r3)).mono ?_,
+      (fun i j hij hj => hml.smono i j hij hj) hnB hRB hρlen
+  refine ⟨σ3, cs, hcs, hcsr_raw, (r1.seq (r2.seq r3)).mono ?_,
     R, IO, IT, k, m, E, horkS, hkS.trans hkP, ?_, ?_, hm, hinj, horients, hindeg, hinN,
     htoG, hbd, hbdE, hdeg, hlow, hinc⟩
-  · rw [elimCompactCost, compactCost, scatterCost]; omega
+  · exact compose_cost_le hcsr_raw
   · intro i hi; rw [hioffS]; exact hioffP i hi
   · rw [hitgS]; exact hitgP
 
@@ -1197,7 +1349,9 @@ pieces above are reusable verbatim.
 
 The residual arithmetic tie, common to all three: `elimCompactCost` is
 bounded by the *compacted* arena's own weight (`§6`,
-`MassWeight.arenaWeight_root` at the compact graph). Tying that to the
+`MassWeight.arenaWeight_root` at the compact graph) — and, read at the
+raw member-row sum the compaction actually pays, by the level arena's
+`csrW` weight (`ElimCompactWalks.wsum_csrW_markSet`). Tying that to the
 level arena's weight — `arenaWeight mm (memGraph G M hml) 1 =
 arenaWeight n (masked G M) M`, a `wsum` transported along the injection
 `memEmb` whose image is the mark set — is a `MassWeight` lemma, not an
