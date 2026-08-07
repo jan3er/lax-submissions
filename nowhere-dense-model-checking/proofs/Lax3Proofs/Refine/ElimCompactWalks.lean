@@ -612,11 +612,17 @@ consumer sees the surface it always saw, and `ElimCompact.elimCompact_spec`
 gets the rank bound it needs. `elimCompact_spec` also gained `n < B`,
 which every landed caller of the package holds.
 
-**Open, and not this wave's to fix.** `Refine/AugCompact.lean:941`
-(`augCompact_spec`) still names the refuted `ScatterBacks` as a
-hypothesis, so it stands on a `Prop` that has no witness. The repair is
-one word — `ScatterBacksW`, whose statement was deliberately kept usable
-by both families — but the file belongs to the E2-aug wave.
+**Closed since wave E2-width.** `Refine/AugCompact.lean`'s
+`augCompact_spec` named the refuted `ScatterBacks` as a hypothesis and so
+stood on a `Prop` with no witness. It now consumes `ScatterBacksW`, with
+the member list's strict monotonicity added as a hypothesis (`hsm`, which
+`AugCompact.no_scatter_at_repeat` is the two-member compiled reason for)
+and the two word bounds *derived*: the rank bound from the augmentation
+round's own `RamElim.RnkLt`, threaded beside `RamAugment.AugMem` by
+`RamDriverAugment.implementsCoreR` exactly as this wave threaded it
+beside `RamElim.ElimMem`, and the array length from the round's
+`rnk = arrOf mm R`. `Refine/AugCompactScatter.lean` is that family's
+composed corollary, with `scatterBacksW` supplied.
 
 **The composed corollary** the E2-sat session could not produce — a
 compacted engine on real discharges, with no hypothesis manufactured by

@@ -1178,9 +1178,10 @@ def CompactInstalls (B n mm nt W : ℕ) (G : SimpleGraph (Fin n)) (M Mem : ℕ �
 `ElimCompactWalks.not_scatterBacks_of_repeat` exhibits a member list that
 repeats an arena number, at which this postcondition asks one cell to
 hold two ranks and no state satisfies it. The `Prop` is kept because that
-refutation is compiled against it, and because `Refine/AugCompact.lean`
-— a file of a sibling wave — still names it; `ScatterBacksW` below is
-the repaired obligation, and it is what this file's assembly consumes. -/
+refutation is compiled against it. `ScatterBacksW` below is the repaired
+obligation, and it is what this file's assembly consumes — and, since
+wave E2-width, `Refine/AugCompact.lean`'s too, so no theorem in the
+package now *assumes* the reading below. -/
 def ScatterBacks (B n mm : ℕ) (Mem : ℕ → ℕ) : Prop :=
   ∀ (R : ℕ → ℕ) (σ : Env), σ.vars "mm" = mm → σ.arrs "mem" = arrOf n Mem →
     (∀ j, j < mm → Mem j < n) → (∀ j, j < mm → (σ.arrs "rnk").getD j 0 = R j) →
