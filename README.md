@@ -18,7 +18,11 @@ Submission directories currently in this repository:
   number are functionally equivalent (five concepts: mixed minor number,
   the graph-parameter signature, one theorem-concept per direction, and
   the headline equivalence, concluded by a glue proof assuming the two
-  directions). Depends on the Lax1 draft.
+  directions). Depends on Lax1. Both ids were deleted from the archive on
+  2026-07-29 and hold no record, so this is the one pair whose requires
+  cannot be pinned: its two lakefiles still carry the forbidden sibling
+  `path` require, and neither submission can be built by `lax` or submitted
+  until the ids are allocated and Lax1 is submitted again.
 - `monadic-dependence-neighborhood-complexity/` — **Lax5**: monadically
   dependent graph classes have almost linear neighborhood complexity. Its
   seven concepts and three proofs also formalize the weakly sparse
@@ -134,10 +138,14 @@ Lakefiles are whitelisted: `name`, `defaultTargets`, `[leanOptions]` with
 `autoImplicit = false`, `[[require]]` entries, one `[[lean_lib]]`. Package
 and lib are both named `LaxN` (concepts) / `LaxNProofs` (proofs). Both
 packages require mathlib at the pin. The proof package requires its own
-concept package via `path = "../concepts"`. A dependency on another
-submission pins the **exact** repository, commit, and subfolder of that
-submission's current record — see `twin-width-mixed-minor-number/concepts/
-lakefile.toml` for a live example.
+concept package via `path = "../concepts"` — the only `path` require the
+spec allows. A dependency on another submission pins the **exact**
+repository, commit, and subfolder of that submission's current record — see
+`vertex-cover-ladder/concepts/lakefile.toml` for a live example. A sibling
+`path` require reaching another submission of this repository is rejected:
+rev-pinning every cross-submission edge is what makes a submission's commit
+pin its whole source closure. For the local build loop, redirect those pins
+back to the folder next door with `.claude/sibling-overrides.sh` (§6).
 
 Namespaces: everything a concept module `LaxN/Foo.lean` declares lives
 under `LaxN.Foo`; everything in the proof package under `LaxNProofs`.
@@ -318,9 +326,12 @@ baked-in defaults are the live server and database (`LAX_SERVER_URL` and
 `LAX_DB_URL` still override them if you ever need to).
 
 The archive website is at <http://167.233.125.220:8080>; the database (one
-folder per submission, `record.json` + `build-output.json`) is cloned to
-`~/.lax/db` by `lax pull-db` — use it to survey existing submissions and
-find prior work to build on. The server is a small friends-and-family box
+`lax-N` folder per submission, `record.json` + `build-output.json`) is
+cloned to `~/.lax/lax-database` by `lax pull-db` — the record's `source` is
+the triple every require of it must match. Use it to survey existing
+submissions and find prior work to build on. (An older CLI kept a second
+clone at `~/.lax/db` with `LaxN` folders; it is not refreshed and not what
+`lax build` reads.) The server is a small friends-and-family box
 behind plain HTTP — don't hammer it, and expect occasional restarts.
 
 ## 6. Workflow
@@ -349,6 +360,14 @@ Notes learned the hard way:
   dependency first, pin the exact submitted commit, and run `lax pull-db`
   before building the dependent — a re-draft of the dependency moves the
   triple and breaks downstream pins until they are updated.
+- Two submissions of this repository still under joint development would be
+  unworkable that way — every edit to the dependency would have to be
+  submitted before the dependent could see it. `.claude/sibling-overrides.sh`
+  closes the gap: it leaves the pins alone and writes a Lake package
+  override redirecting each one to the sibling folder, so `lake build` reads
+  the working tree while git keeps the honest commit. Rerun it after
+  `lax build` (which regenerates the overrides from the pins, and is the
+  build that actually decides whether the pins are right).
 - `lax submit` derives the triple from a clean worktree's HEAD. To submit a
   dependency at a pinned historical commit while the branch has moved on,
   submit from a temp clone checked out at that commit.

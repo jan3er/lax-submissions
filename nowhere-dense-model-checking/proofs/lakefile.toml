@@ -17,28 +17,38 @@ path = "../concepts"
 # sparsity: nowhere denseness, UQW, generalized coloring numbers (Lax12)
 [[require]]
 name = "Lax12"
-path = "../../sparsity-lectures/concepts"
+git = "https://github.com/lax-archive/lax-submissions"
+rev = "7567bb4ed5a67705fe11f4958bb5d62aded02616"
+subDir = "sparsity-lectures/concepts"
 
 # the word RAM: the machine and timed computation of submission Lax13
 [[require]]
 name = "Lax13"
-path = "../../word-ram/concepts"
+git = "https://github.com/lax-archive/lax-submissions"
+rev = "311ae7cf15e1bde644721958e05203bb6791d04b"
+subDir = "word-ram/concepts"
 
 # graph encodings (CSR) of submission Lax11
 [[require]]
 name = "Lax11"
-path = "../../ram-linear-time/concepts"
+git = "https://github.com/lax-archive/lax-submissions"
+rev = "7567bb4ed5a67705fe11f4958bb5d62aded02616"
+subDir = "ram-linear-time/concepts"
 
 # the IMP+ toolkit (Spec, run_vcg, Lib) of submission Lax13's proofs,
 # consumed the same way Lax11Proofs consumes it
 [[require]]
 name = "Lax13Proofs"
-path = "../../word-ram/proofs"
+git = "https://github.com/lax-archive/lax-submissions"
+rev = "311ae7cf15e1bde644721958e05203bb6791d04b"
+subDir = "word-ram/proofs"
 
 # the sparsity proof modules (Densification pattern and friends)
 [[require]]
 name = "Lax12Proofs"
-path = "../../sparsity-lectures/proofs"
+git = "https://github.com/lax-archive/lax-submissions"
+rev = "7567bb4ed5a67705fe11f4958bb5d62aded02616"
+subDir = "sparsity-lectures/proofs"
 
 [[lean_lib]]
 name = "Lax3Proofs"

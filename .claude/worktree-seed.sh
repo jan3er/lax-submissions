@@ -7,18 +7,19 @@
 #
 # For every package in the main checkout, copy into the worktree:
 #   - .lake/build                    the package's own compiled artifacts
-#     (all submissions: sibling path requires mean one submission's build
-#     reaches into another's tree);
+#     (all submissions: one submission's build reaches into another's tree
+#     through the sibling overrides);
 #   - lake-manifest.json             the locked dependency manifest;
-#   - .lake/package-overrides.json   the lax-written redirects that resolve
-#     mathlib and friends to the machine-wide read-only warm store
-#     (~/.lax/warm) in place — no clone, no .lake/packages tree at all.
+#   - .lake/package-overrides.json   the redirects that resolve mathlib and
+#     friends to the machine-wide read-only warm store (~/.lax/warm) in place
+#     — no clone, no .lake/packages tree at all — plus the cross-submission
+#     entries sibling-overrides.sh adds.
 #
-# All three are checkout-independent: overrides use absolute store paths,
-# cross-submission manifest entries are relative, and the worktree replicates
-# the repo layout. Lake's content-hash traces rebuild whatever differs, so a
-# stale copy costs nothing but the rebuild it saves. If a package in main has
-# no manifest/overrides yet (never built there), run
+# All three are checkout-independent: warm-store overrides use absolute store
+# paths, sibling overrides are relative, and the worktree replicates the repo
+# layout. Lake's content-hash traces rebuild whatever differs, so a stale copy
+# costs nothing but the rebuild it saves. If a package in main has no
+# manifest/overrides yet (never built there), run
 # `lax build --only proofs <submission>` once for it instead.
 set -euo pipefail
 
@@ -43,3 +44,7 @@ for pkg in "$main"/*/concepts "$main"/*/proofs; do
   done
 done
 echo "worktree-seed: builds, manifests, and overrides copied from $main"
+
+# Point the rev-pinned cross-submission requires at *this* worktree, in case
+# main was last left in `lax build` state (which drops those redirects).
+cd "$top" && .claude/sibling-overrides.sh
