@@ -4,8 +4,10 @@ leanVersion: "v4.30.0"
 mathlibVersion: "c5ea00351c28e24afc9f0f84379aa41082b1188f"
 title: Twin-Width Can Be Exponential in Treewidth
 authors:
+  - name: Jan Dreier
   - name: Édouard Bonnet
     github: EdouardBonnet
+  - name: Claude Fable 5 (Anthropic)
 bibEntries:
   - |
     @article{BonnetDepres2023,
