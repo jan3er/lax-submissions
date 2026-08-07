@@ -1370,6 +1370,88 @@ theorem notMem_wvars_scatBlockCom (r t : ℕ) (y : String)
       bfsDrain, expandRow, scanSlot, Fill.put, Csr.loadRow,
       Csr.scan, Queue.drain, Com.wvars]
 
+/-- **The other eight passes' write sets** (wave R1.8-T3-flip (c1c)).
+The engine's two facts above say what crosses *it*; the composition of
+`RamDriver.scatDeadCom` needs the same reading of every other pass, and
+the eight below are that reading, off concrete program text.
+
+Together they are exactly the non-interference the program order claims:
+the kill sum leaves `"kc"` and nothing else, the probe leaves `"of"`,
+`"oz"`, `"oi"`, the bit leaves an `Ext "bb"` array and the environment
+slots, the count leaves `"oc"`, the filter leaves `"mem"`/`"mm"`, the two
+calling-convention passes leave `"alv"`/`"dist"` and the loop counter,
+and the verdict leaves `"flag"`. No product of an earlier pass is a
+write of a later one, which is why the four registers the verdict reads
+all survive to it. -/
+theorem warrs_killSumCom (j ti : ℕ) : (killSumCom j ti).warrs = [] := by
+  simp [killSumCom, Com.warrs]
+
+theorem notMem_wvars_killSumCom (j ti : ℕ) {y : String} (h₁ : y ≠ "kc") (h₂ : y ≠ "ke") :
+    y ∉ (killSumCom j ti).wvars := by simp [killSumCom, Com.wvars, h₁, h₂]
+
+theorem warrs_outProbeCom (j : ℕ) : (outProbeCom j).warrs = [] := by
+  simp [outProbeCom, Com.warrs]
+
+theorem notMem_wvars_outProbeCom (j : ℕ) {y : String} (h₁ : y ≠ "of") (h₂ : y ≠ "oz")
+    (h₃ : y ≠ "oi") : y ∉ (outProbeCom j).wvars := by
+  simp [outProbeCom, Com.wvars, h₁, h₂, h₃]
+
+theorem warrs_outCntCom (j : ℕ) : (outCntCom j).warrs = [] := by simp [outCntCom, Com.warrs]
+
+theorem notMem_wvars_outCntCom (j : ℕ) {y : String} (h : y ≠ "oc") :
+    y ∉ (outCntCom j).wvars := by simp [outCntCom, Com.wvars, h]
+
+theorem warrs_atomMemCom (j ti : ℕ) : (atomMemCom j ti).warrs = ["mem"] := by
+  simp [atomMemCom, Com.warrs]
+
+theorem notMem_wvars_atomMemCom (j ti : ℕ) {y : String} (h₁ : y ≠ "mm") (h₂ : y ≠ "ak")
+    (h₃ : y ≠ "av") : y ∉ (atomMemCom j ti).wvars := by
+  simp [atomMemCom, Com.wvars, h₁, h₂, h₃]
+
+theorem warrs_atomFlagCom (t : ℕ) : (atomFlagCom t).warrs = [] := by
+  simp [atomFlagCom, Com.warrs]
+
+theorem notMem_wvars_atomFlagCom (t : ℕ) {y : String} (h₁ : y ≠ "os") (h₂ : y ≠ "flag") :
+    y ∉ (atomFlagCom t).wvars := by simp [atomFlagCom, Com.wvars, h₁, h₂]
+
+theorem warrs_copyCom (src dst : String) : (copyCom src dst).warrs = [dst] := by
+  simp [copyCom, copyUpto, fillUpto, Com.warrs]
+
+theorem notMem_wvars_copyCom (src dst : String) {y : String} (h : y ≠ "i") :
+    y ∉ (copyCom src dst).wvars := by simp [copyCom, copyUpto, fillUpto, Com.wvars, h]
+
+theorem warrs_fillCom (a : String) (e : Expr) : (fillCom a e).warrs = [a] := by
+  simp [fillCom, fillUpto, Com.warrs]
+
+theorem notMem_wvars_fillCom (a : String) (e : Expr) {y : String} (h : y ≠ "i") :
+    y ∉ (fillCom a e).wvars := by simp [fillCom, fillUpto, Com.wvars, h]
+
+open Classical in
+/-- **The bit writes only below `"bb"`.** The fragment is the generated
+evaluator's, so `RamDriverBot.warrs_botCom` settles it; the empty branch
+writes no array at all. -/
+theorem warrs_atomBitCom {jd L : ℕ} (β : DistFO L 1) (hloc : IsLocal β) {a : String}
+    (ha : a ∈ (atomBitCom jd β).warrs) : RamDriverBot.Ext "bb" a := by
+  rw [atomBitCom, Com.warrs, Com.warrs, Com.warrs, Com.warrs] at ha
+  simp only [List.append_nil, List.nil_append] at ha
+  exact RamDriverBot.warrs_botCom β hloc "bb" a ha
+
+open Classical in
+/-- **And it assigns only below `"bb"` and the environment slots.** The
+guard's `"of"` and the probe's `"oz"` are read, not written; `"bb"`
+itself is `Ext "bb"`, so the two branches fall into the same clause. -/
+theorem wvars_atomBitCom {jd L : ℕ} (β : DistFO L 1) (hloc : IsLocal β) {y : String}
+    (hy : y ∈ (atomBitCom jd β).wvars) :
+    RamDriverBot.Ext "bb" y ∨ ∃ i, y = envName i := by
+  rw [atomBitCom, Com.wvars, Com.wvars, Com.wvars, Com.wvars] at hy
+  simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hy
+  rcases hy with (h | h) | h
+  · exact Or.inr ⟨0, h⟩
+  · rcases RamDriverBot.wvars_botCom β hloc "bb" y h with h' | ⟨i, -, h'⟩
+    · exact Or.inl h'
+    · exact Or.inr ⟨i, h'⟩
+  · exact Or.inl (by rw [h]; exact List.prefix_rfl)
+
 /-! ### §5d′ The engine's budget, at the carrier
 
 `Refine.ScatterBlock.scatBlock_specW` charges its scan at a *ball
