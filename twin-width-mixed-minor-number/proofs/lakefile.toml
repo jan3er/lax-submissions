@@ -1,5 +1,5 @@
-name = "Lax2Proofs"
-defaultTargets = ["Lax2Proofs"]
+name = "Lax49Proofs"
+defaultTargets = ["Lax49Proofs"]
 
 [leanOptions]
 autoImplicit = false
@@ -11,13 +11,13 @@ git = "https://github.com/leanprover-community/mathlib4"
 rev = "c5ea00351c28e24afc9f0f84379aa41082b1188f"
 
 [[require]]
-name = "Lax2"
+name = "Lax49"
 path = "../concepts"
 
 [[lean_lib]]
-name = "Lax2Proofs"
+name = "Lax49Proofs"
 
-# twin-width tower: the twin-width parameter of submission Lax1
+# twin-width tower: the twin-width parameter of submission Lax48
 [[require]]
-name = "Lax1"
+name = "Lax48"
 path = "../../twin-width-treewidth-separation/concepts"

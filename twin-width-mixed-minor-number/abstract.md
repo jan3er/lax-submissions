@@ -9,7 +9,7 @@ structures and Prop-valued predicates and with the parameter an infimum of
 an explicit set of naturals; and the uniform signature of a graph parameter
 together with the functional equivalence relation over it. Three are claims:
 the two directional bounds, each stated on its own over the twin-width
-parameter of submission Lax1 and the mixed minor number, and the headline
+parameter of submission Lax48 and the mixed minor number, and the headline
 equivalence, which applies the equivalence relation to the two parameters
 directly. Each direction has its own literature proof and is independently
 usable; the equivalence follows from the two by definition.
