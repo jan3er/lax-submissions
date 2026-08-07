@@ -17,5 +17,5 @@ name = "Lax49"
 [[require]]
 name = "Lax48"
 git = "https://github.com/lax-archive/lax-submissions"
-rev = "489019c133a0720f5d26deeaf4603f6fbc6ecf92"
+rev = "46106eceb6677bfa91a8ccbf02b6cd9bf1d7c50d"
 subDir = "twin-width-treewidth-separation/concepts"
