@@ -393,51 +393,65 @@ theorem count_lt_of_mark {n mb : ℕ} {Wa : ℕ → ℕ} {z b : ℕ} (hz : z < n
   omega
 
 /-- What the collecting loop has done by the position `z`: the buffer's
-first `bc` cells are distinct marked vertices below `z`, and every
-marked vertex below `z` is one of them. -/
-def CollectAt (n mb : ℕ) (Wa : ℕ → ℕ) (bat : String) (z : ℕ) (σ : Env) : Prop :=
-  σ.arrs bat = arrOf n Wa ∧ σ.vars "bc" ≤ (markedBelow n Wa z).ncard ∧
+first `bc` cells are distinct vertices below `z` that BOTH masks mark,
+and every such vertex below `z` is one of them.
+
+**Two masks, not one** (wave R1.8-T3-flip (c2a)): the pass enumerates
+the batch cut down to the cluster, so the marker is the product cell
+`Wa v * Xa v` and the counting arithmetic above is read at it. -/
+def CollectAt (n mb : ℕ) (Wa Xa : ℕ → ℕ) (bat clu : String) (z : ℕ) (σ : Env) : Prop :=
+  σ.arrs bat = arrOf n Wa ∧ σ.arrs clu = arrOf n Xa ∧
+    σ.vars "bc" ≤ (markedBelow n (fun k => Wa k * Xa k) z).ncard ∧
     ∃ E : ℕ → ℕ, σ.arrs "wa" = arrOf mb E ∧
-      (∀ i, i < σ.vars "bc" → E i < z ∧ Wa (E i) ≠ 0) ∧
-      (∀ v, v < z → Wa v ≠ 0 → ∃ i, i < σ.vars "bc" ∧ E i = v)
+      (∀ i, i < σ.vars "bc" → E i < z ∧ Wa (E i) * Xa (E i) ≠ 0) ∧
+      (∀ v, v < z → Wa v * Xa v ≠ 0 → ∃ i, i < σ.vars "bc" ∧ E i = v)
 
 /-- The invariant of the collecting loop: its own counter, and what it
 has done by where the counter stands. -/
-def CollectInv (n mb : ℕ) (Wa : ℕ → ℕ) (bat : String) (σ : Env) : Prop :=
-  σ.vars "n" = n ∧ σ.vars "z" ≤ n ∧ CollectAt n mb Wa bat (σ.vars "z") σ
+def CollectInv (n mb : ℕ) (Wa Xa : ℕ → ℕ) (bat clu : String) (σ : Env) : Prop :=
+  σ.vars "n" = n ∧ σ.vars "z" ≤ n ∧ CollectAt n mb Wa Xa bat clu (σ.vars "z") σ
 
-/-- **One turn of the collecting loop.** A marked vertex is appended to
-the buffer and the counter moves on; an unmarked one is passed over. -/
-theorem collectBody_spec (B n mb : ℕ) (Wa : ℕ → ℕ) (bat : String) (hbat : bat ≠ "wa")
-    (hB : 1 < B) (hnB : n < B) (hmbB : mb < B) (hcard : (markSet n Wa).ncard ≤ mb)
-    (hWB : ∀ k, k < n → Wa k < B) :
-    Spec B (fun σ => CollectInv n mb Wa bat σ ∧ σ.vars "z" < n)
-      (.seq (.ite (.lt (.lit 0) (.get bat (.var "z")))
+/-- **One turn of the collecting loop.** A vertex both masks mark is
+appended to the buffer and the counter moves on; any other is passed
+over. -/
+theorem collectBody_spec (B n mb : ℕ) (Wa Xa : ℕ → ℕ) (bat clu : String) (hbat : bat ≠ "wa")
+    (hclu : clu ≠ "wa")
+    (hB : 1 < B) (hnB : n < B) (hmbB : mb < B)
+    (hcard : (markSet n (fun k => Wa k * Xa k)).ncard ≤ mb)
+    (hWB : ∀ k, k < n → Wa k < B) (hX1 : ∀ k, k < n → Xa k ≤ 1) :
+    Spec B (fun σ => CollectInv n mb Wa Xa bat clu σ ∧ σ.vars "z" < n)
+      (.seq (.ite (.lt (.lit 0) (.mul (.get bat (.var "z")) (.get clu (.var "z"))))
               (.seq (.store "wa" (.var "bc") (.var "z"))
                 (.assign "bc" (.add (.var "bc") (.lit 1))))
               .skip)
         (.assign "z" (.add (.var "z") (.lit 1))))
-      (fun σ σ' => CollectInv n mb Wa bat σ' ∧ σ'.vars "z" = σ.vars "z" + 1) 16 := by
+      (fun σ σ' => CollectInv n mb Wa Xa bat clu σ' ∧ σ'.vars "z" = σ.vars "z" + 1) 19 := by
   refine Spec.of_exists (fun σ hσ => ?_)
-  obtain ⟨⟨hn, hzn, hbatσ, hbc, E, hwa, hlt, hcov⟩, hz⟩ := hσ
+  obtain ⟨⟨hn, hzn, hbatσ, hcluσ, hbc, E, hwa, hlt, hcov⟩, hz⟩ := hσ
   have hzB : σ.vars "z" < B := by omega
   have hbcmb : σ.vars "bc" ≤ mb :=
-    le_trans hbc (le_trans (Set.ncard_le_ncard (markedBelow_subset n Wa _) (Set.toFinite _)) hcard)
+    le_trans hbc (le_trans (Set.ncard_le_ncard (markedBelow_subset n _ _) (Set.toFinite _)) hcard)
   have hWaB : Wa (σ.vars "z") < B := hWB _ hz
-  have hcond : (Cond.lt (.lit 0) (.get bat (.var "z"))).evalB B σ =
-      some (decide (0 < Wa (σ.vars "z"))) :=
-    evalB_condLt (evalB_lit (by omega))
-      (evalB_get (evalB_var hzB) (by rw [hbatσ, getElem?_arrOf Wa hz]) hWaB)
-  by_cases hm : Wa (σ.vars "z") = 0
+  have hXa1 : Xa (σ.vars "z") ≤ 1 := hX1 _ hz
+  have hprodB : Wa (σ.vars "z") * Xa (σ.vars "z") < B :=
+    lt_of_le_of_lt (le_trans (Nat.mul_le_mul_left _ hXa1) (by omega)) hWaB
+  have hcond : (Cond.lt (.lit 0)
+      (.mul (.get bat (.var "z")) (.get clu (.var "z")))).evalB B σ =
+      some (decide (0 < Wa (σ.vars "z") * Xa (σ.vars "z"))) := by
+    refine evalB_condLt (evalB_lit (by omega)) (evalB_bin ?_ ?_ ?_)
+    · exact evalB_get (evalB_var hzB) (by rw [hbatσ, getElem?_arrOf Wa hz]) hWaB
+    · exact evalB_get (evalB_var hzB) (by rw [hcluσ, getElem?_arrOf Xa hz]) (by omega)
+    · simpa only [Bop.apply_mul] using hprodB
+  by_cases hm : Wa (σ.vars "z") * Xa (σ.vars "z") = 0
   · -- an unmarked vertex: the buffer is untouched
     have hz' : (σ.setVar "z" (σ.vars "z" + 1)).vars "z" = σ.vars "z" + 1 := by simp
     have hbc' : (σ.setVar "z" (σ.vars "z" + 1)).vars "bc" = σ.vars "bc" := by simp
-    refine ⟨σ.setVar "z" (σ.vars "z" + 1), 10, ?_, by omega,
-      ⟨by simpa using hn, by rw [hz']; omega, by simpa using hbatσ, ?_, E,
+    refine ⟨σ.setVar "z" (σ.vars "z" + 1), 13, ?_, by omega,
+      ⟨by simpa using hn, by rw [hz']; omega, by simpa using hbatσ, by simpa using hcluσ, ?_, E,
         by simpa using hwa, ?_, ?_⟩, hz'⟩
     · exact (Run.ite_false (by rw [hcond, hm]; simp) Run.skip).seq
         (Run.assign (evalB_bin (evalB_var hzB) (evalB_lit (by omega)) (by simp; omega)))
-    · rw [hbc', hz', markedBelow_succ_of_unmarked hm]
+    · rw [hbc', hz', markedBelow_succ_of_unmarked (Wa := fun k => Wa k * Xa k) hm]
       exact hbc
     · intro i hi
       rw [hbc'] at hi
@@ -452,7 +466,8 @@ theorem collectBody_spec (B n mb : ℕ) (Wa : ℕ → ℕ) (bat : String) (hbat 
         · exact absurd hwv (by rw [show v = σ.vars "z" by omega, hm]; simp)
       exact hcov v hvz hwv
   · -- a marked vertex: it is appended
-    have hbclt : σ.vars "bc" < mb := count_lt_of_mark hz hm hbc hcard
+    have hbclt : σ.vars "bc" < mb :=
+      count_lt_of_mark (Wa := fun k => Wa k * Xa k) hz hm hbc hcard
     have hwalen : σ.vars "bc" < (σ.arrs "wa").length := by rw [hwa, length_arrOf]; exact hbclt
     set τ := ((σ.setArr "wa" (σ.vars "bc") (σ.vars "z")).setVar "bc"
       (σ.vars "bc" + 1)).setVar "z" (σ.vars "z" + 1) with hτ
@@ -466,16 +481,23 @@ theorem collectBody_spec (B n mb : ℕ) (Wa : ℕ → ℕ) (bat : String) (hbat 
       rw [hτ]
       simp only [arrs_setVar, arrs_setArr, if_neg hbat]
       exact hbatσ
-    refine ⟨τ, 16, ?_, le_rfl,
-      ⟨by rw [hn']; exact hn, by rw [hz']; omega, hbat', ?_,
+    have hclu' : τ.arrs clu = arrOf n Xa := by
+      rw [hτ]
+      simp only [arrs_setVar, arrs_setArr, if_neg hclu]
+      exact hcluσ
+    refine ⟨τ, 19, ?_, le_rfl,
+      ⟨by rw [hn']; exact hn, by rw [hz']; omega, hbat', hclu', ?_,
         upd E (σ.vars "bc") (σ.vars "z"), hwa', ?_, ?_⟩, hz'⟩
-    · refine (Run.ite_true (by rw [hcond]; simp; omega)
+    · refine (Run.ite_true (by
+        rw [hcond]
+        simp only [Option.some.injEq, decide_eq_true_eq]
+        exact Nat.pos_of_ne_zero hm)
         ((Run.store (evalB_var (by omega)) (evalB_var hzB) hwalen).seq
           (Run.assign (evalB_bin (evalB_var (by simp; omega)) (evalB_lit (by omega))
             (by simp; omega))))).seq
         (Run.assign (evalB_bin (evalB_var (by simp; omega)) (evalB_lit (by omega))
           (by simp; omega))) |>.mono (by simp)
-    · rw [hbc', hz', ncard_markedBelow_succ_of_mark hz hm]
+    · rw [hbc', hz', ncard_markedBelow_succ_of_mark (Wa := fun k => Wa k * Xa k) hz hm]
       omega
     · intro i hi
       rw [hbc'] at hi
@@ -545,19 +567,23 @@ theorem padBody_spec (B n mb : ℕ) (Wa : ℕ → ℕ) (bc v0 : ℕ) (hB : 1 < B
     exact ⟨i, hi, by rw [upd_of_ne _ (by omega), hEi]⟩
 
 /-- **The padding pass.** `RamDriver.enumBatch` leaves in `wa` exactly
-`mb` entries, every one of them a marked vertex, and every marked vertex
-among them. -/
-theorem enumBatch_spec (B n mb : ℕ) (Wa : ℕ → ℕ) (bat : String) (hbat : bat ≠ "wa")
-    (hB : 1 < B) (hnB : n < B) (hmbB : mb < B) (hcard : (markSet n Wa).ncard ≤ mb)
-    (hne : (markSet n Wa).Nonempty) (hWB : ∀ k, k < n → Wa k < B) :
-    Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs bat = arrOf n Wa ∧ (∃ g, σ.arrs "wa" = arrOf mb g))
-      (enumBatch bat mb)
+`mb` entries, every one of them a vertex both masks mark, and every such
+vertex among them. -/
+theorem enumBatch_spec (B n mb : ℕ) (Wa Xa : ℕ → ℕ) (bat clu : String) (hbat : bat ≠ "wa")
+    (hclu : clu ≠ "wa")
+    (hB : 1 < B) (hnB : n < B) (hmbB : mb < B)
+    (hcard : (markSet n (fun k => Wa k * Xa k)).ncard ≤ mb)
+    (hne : (markSet n (fun k => Wa k * Xa k)).Nonempty)
+    (hWB : ∀ k, k < n → Wa k < B) (hX1 : ∀ k, k < n → Xa k ≤ 1) :
+    Spec B (fun σ => σ.vars "n" = n ∧ σ.arrs bat = arrOf n Wa ∧ σ.arrs clu = arrOf n Xa ∧
+        (∃ g, σ.arrs "wa" = arrOf mb g))
+      (enumBatch bat clu mb)
       (fun _ σ' => ∃ E : ℕ → ℕ, σ'.arrs "wa" = arrOf mb E ∧
-        (∀ i, i < mb → E i < n ∧ Wa (E i) ≠ 0) ∧
-        (∀ v, v < n → Wa v ≠ 0 → ∃ i, i < mb ∧ E i = v))
-      (20 * n + 12 * mb + 30) := by
+        (∀ i, i < mb → E i < n ∧ Wa (E i) * Xa (E i) ≠ 0) ∧
+        (∀ v, v < n → Wa v * Xa v ≠ 0 → ∃ i, i < mb ∧ E i = v))
+      (23 * n + 12 * mb + 30) := by
   refine Spec.of_exists (fun σ hσ => ?_)
-  obtain ⟨hn, hbatσ, gwa, hwa⟩ := hσ
+  obtain ⟨hn, hbatσ, hcluσ, gwa, hwa⟩ := hσ
   -- the two counters, zeroed
   have hr₁ : Run B (.assign "bc" (.lit 0)) σ (σ.setVar "bc" 0) 2 :=
     (Run.assign (evalB_lit (by omega))).mono (by simp)
@@ -566,38 +592,40 @@ theorem enumBatch_spec (B n mb : ℕ) (Wa : ℕ → ℕ) (bat : String) (hbat : 
   set σ₂ := (σ.setVar "bc" 0).setVar "z" 0 with hσ₂
   have hz₂ : σ₂.vars "z" = 0 := by rw [hσ₂]; simp
   have hbc₂ : σ₂.vars "bc" = 0 := by rw [hσ₂]; simp
-  have hI₂ : CollectInv n mb Wa bat σ₂ := by
+  have hI₂ : CollectInv n mb Wa Xa bat clu σ₂ := by
     refine ⟨by rw [hσ₂]; simpa using hn, by rw [hz₂]; omega,
-      by rw [hσ₂]; simpa using hbatσ, ?_, gwa, by rw [hσ₂]; simpa using hwa, ?_, ?_⟩
+      by rw [hσ₂]; simpa using hbatσ, by rw [hσ₂]; simpa using hcluσ, ?_, gwa,
+      by rw [hσ₂]; simpa using hwa, ?_, ?_⟩
     · rw [hbc₂, hz₂, ncard_markedBelow_zero]
     · intro i hi; rw [hbc₂] at hi; omega
     · intro v hv hwv; rw [hz₂] at hv; omega
   -- the collecting loop
   obtain ⟨σ₃, hr₃, hI₃, hz₃⟩ :=
-    (Spec.forRange (B := B) (P := CollectInv n mb Wa bat) "z" "n"
-      (CollectInv n mb Wa bat) n 16 (20 * n + 4)
+    (Spec.forRange (B := B) (P := CollectInv n mb Wa Xa bat clu) "z" "n"
+      (CollectInv n mb Wa Xa bat clu) n 19 (23 * n + 4)
       (fun τ hτ => by have := hτ.2.1; omega) (fun τ hτ => by rw [hτ.1]; exact hnB)
       (fun τ hτ => hτ.1) (fun τ hτ => hτ.2.1)
-      (collectBody_spec B n mb Wa bat hbat hB hnB hmbB hcard hWB) (fun _ hτ => hτ)
+      (collectBody_spec B n mb Wa Xa bat clu hbat hclu hB hnB hmbB hcard hWB hX1)
+      (fun _ hτ => hτ)
       (fun τ _ => by
-        have : (16 + 4) * (n - τ.vars "z") ≤ 20 * n := by
-          have := Nat.mul_le_mul_left 20 (Nat.sub_le n (τ.vars "z"))
+        have : (19 + 4) * (n - τ.vars "z") ≤ 23 * n := by
+          have := Nat.mul_le_mul_left 23 (Nat.sub_le n (τ.vars "z"))
           omega
         omega)).run hI₂
-  obtain ⟨hn₃, -, hbat₃, hbc₃, E₃, hwa₃, hlt₃, hcov₃⟩ := hI₃
+  obtain ⟨hn₃, -, hbat₃, hclu₃, hbc₃, E₃, hwa₃, hlt₃, hcov₃⟩ := hI₃
   rw [hz₃] at hbc₃ hlt₃ hcov₃
-  -- the batch is not empty, so the buffer's first cell is a batch vertex
+  -- the batch's cluster half is not empty, so the buffer's first cell is one of it
   obtain ⟨v, hv⟩ := hne
   obtain ⟨i₀, hi₀, -⟩ := hcov₃ (v : ℕ) v.isLt hv
   have hbcpos : 1 ≤ σ₃.vars "bc" := by omega
   have hbcmb : σ₃.vars "bc" ≤ mb :=
-    le_trans hbc₃ (le_trans (Set.ncard_le_ncard (markedBelow_subset n Wa n) (Set.toFinite _)) hcard)
+    le_trans hbc₃ (le_trans (Set.ncard_le_ncard (markedBelow_subset n _ n) (Set.toFinite _)) hcard)
   -- k := bc
   have hr₄ : Run B (.assign "k" (.var "bc")) σ₃ (σ₃.setVar "k" (σ₃.vars "bc")) 2 :=
     (Run.assign (evalB_var (by omega))).mono (by simp)
   set σ₄ := σ₃.setVar "k" (σ₃.vars "bc") with hσ₄
   have hk₄ : σ₄.vars "k" = σ₃.vars "bc" := by rw [hσ₄]; simp
-  have hI₄ : PadInv n mb Wa (σ₃.vars "bc") (E₃ 0) σ₄ := by
+  have hI₄ : PadInv n mb (fun k => Wa k * Xa k) (σ₃.vars "bc") (E₃ 0) σ₄ := by
     refine ⟨by rw [hk₄], by rw [hk₄]; exact hbcmb, E₃, by rw [hσ₄]; simpa using hwa₃, rfl, ?_, ?_⟩
     · intro i hi
       rw [hk₄] at hi
@@ -605,10 +633,12 @@ theorem enumBatch_spec (B n mb : ℕ) (Wa : ℕ → ℕ) (bat : String) (hbat : 
     · exact hcov₃
   -- the padding loop
   obtain ⟨σ₅, hr₅, hI₅, hfalse⟩ :=
-    (Spec.while_count (B := B) (P := PadInv n mb Wa (σ₃.vars "bc") (E₃ 0)) (K := 12 * mb + 4)
-      (PadInv n mb Wa (σ₃.vars "bc") (E₃ 0)) (fun τ => mb - τ.vars "k") 8
+    (Spec.while_count (B := B)
+      (P := PadInv n mb (fun k => Wa k * Xa k) (σ₃.vars "bc") (E₃ 0)) (K := 12 * mb + 4)
+      (PadInv n mb (fun k => Wa k * Xa k) (σ₃.vars "bc") (E₃ 0)) (fun τ => mb - τ.vars "k") 8
       (fun τ hτ => evalB_condLt_var_lit (by have := hτ.2.1; omega) hmbB)
-      (padBody_spec B n mb Wa (σ₃.vars "bc") (E₃ 0) hB hnB hmbB hbcpos) (fun _ hτ => hτ)
+      (padBody_spec B n mb (fun k => Wa k * Xa k) (σ₃.vars "bc") (E₃ 0) hB hnB hmbB hbcpos)
+      (fun _ hτ => hτ)
       (fun τ _ => by
         have : (1 + 3 + 8) * (mb - τ.vars "k") ≤ 12 * mb := by
           have := Nat.mul_le_mul_left 12 (Nat.sub_le mb (τ.vars "k"))
@@ -647,9 +677,9 @@ def EnumStepW (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : ℕ
     (X W : Set (Fin n)) (Alv' Gam' : ℕ → ℕ) (K : ℕ) : Prop :=
   Spec B (fun σ => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ ∧
       BatchData n j B G M X W Alv' Gam' σ ∧ PlayRec B cap G (j + 1) Alv' Gam' σ ∧
-      W.Nonempty ∧ W.ncard ≤ mb ∧ (∃ g, σ.arrs "wa" = arrOf mb g) ∧
+      (W ∩ X).Nonempty ∧ W.ncard ≤ mb ∧ (∃ g, σ.arrs "wa" = arrOf mb g) ∧
       MaskWords B (batName j) σ)
-    (enumBatch (batName j) mb)
+    (enumBatch (batName j) (cluName j) mb)
     (fun σ σ' => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       PlayRec B cap G (j + 1) Alv' Gam' σ' ∧
       σ'.out = σ.out ∧ σ'.vars (curName j) = σ.vars (curName j) ∧
@@ -658,14 +688,14 @@ def EnumStepW (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : ℕ
 
 /-! The three frame readings of the pass, on its syntax. -/
 
-theorem not_mem_wvars_enumBatch {bat y : String} {mb : ℕ} (h1 : y ≠ "bc") (h2 : y ≠ "z")
-    (h3 : y ≠ "k") : y ∉ (enumBatch bat mb).wvars := by
+theorem not_mem_wvars_enumBatch {bat clu y : String} {mb : ℕ} (h1 : y ≠ "bc") (h2 : y ≠ "z")
+    (h3 : y ≠ "k") : y ∉ (enumBatch bat clu mb).wvars := by
   simp [enumBatch, Com.wvars, h1, h2, h3]
 
-theorem not_mem_warrs_enumBatch {bat a : String} {mb : ℕ} (h : a ≠ "wa") :
-    a ∉ (enumBatch bat mb).warrs := by simp [enumBatch, Com.warrs, h]
+theorem not_mem_warrs_enumBatch {bat clu a : String} {mb : ℕ} (h : a ≠ "wa") :
+    a ∉ (enumBatch bat clu mb).warrs := by simp [enumBatch, Com.warrs, h]
 
-theorem noWrite_enumBatch (bat : String) (mb : ℕ) : (enumBatch bat mb).NoWrite := by
+theorem noWrite_enumBatch (bat clu : String) (mb : ℕ) : (enumBatch bat clu mb).NoWrite := by
   simp [enumBatch, Com.NoWrite]
 
 /-- **The padding, discharged.** -/
@@ -673,17 +703,28 @@ theorem enumStepW {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)}
     {O T M Gm : ℕ → ℕ}
     {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)} {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ}
     {X W : Set (Fin n)} {Alv' Gam' : ℕ → ℕ}
-    {d : ℕ} (hB : WordBoundK B n d ns cap mb) (hK : 20 * n + 12 * mb + 30 ≤ K) :
+    {d : ℕ} (hB : WordBoundK B n d ns cap mb) (hK : 23 * n + 12 * mb + 30 ≤ K) :
     EnumStepW B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' K := by
   have hmbB : mb < B := hB.mb_lt
   intro σ hσ
   obtain ⟨⟨hlev, hplayrec, hheld⟩, hbat, hplay', hne, hcard, ⟨gwa, hwa⟩, hmw⟩ := hσ
+  obtain ⟨Xa, hXaarr, hXs, hXa1⟩ := hbat.1
   obtain ⟨Wa, hWaarr, hWs, -⟩ := hbat.2.1
   have hbatwa : batName j ≠ "wa" := by simp [batName, String.ext_iff]
+  have hcluwa : cluName j ≠ "wa" := by simp [cluName, String.ext_iff]
+  -- the product cell marks exactly the batch's cluster half
+  have hprod : markSet n (fun k => Wa k * Xa k) = W ∩ X := by
+    ext v
+    show Wa (v : ℕ) * Xa (v : ℕ) ≠ 0 ↔ _
+    rw [← hWs, ← hXs]
+    exact ⟨fun h => ⟨fun hc => h (by rw [hc]; ring), fun hc => h (by rw [hc]; ring)⟩,
+      fun h => Nat.mul_ne_zero h.1 h.2⟩
   obtain ⟨σ', hr, ⟨E, hwa', hltE, hcovE⟩, hfv, hfa, -, hout⟩ :=
-    ((enumBatch_spec B n mb Wa (batName j) hbatwa hB.one_lt hB.n_lt hmbB
-      (by rw [hWs]; exact hcard) (by rw [hWs]; exact hne)
-      (fun k hk => hmw.get hWaarr hk)).frame).run ⟨hlev.1, hWaarr, gwa, hwa⟩
+    ((enumBatch_spec B n mb Wa Xa (batName j) (cluName j) hbatwa hcluwa hB.one_lt hB.n_lt hmbB
+      (by rw [hprod]; exact le_trans (Set.ncard_le_ncard Set.inter_subset_left
+        (Set.toFinite _)) hcard)
+      (by rw [hprod]; exact hne)
+      (fun k hk => hmw.get hWaarr hk) hXa1).frame).run ⟨hlev.1, hWaarr, hXaarr, gwa, hwa⟩
   have hav : ∀ a : String, a ≠ "wa" → σ'.arrs a = σ.arrs a :=
     fun a ha => hfa a (not_mem_warrs_enumBatch ha)
   have hvv : ∀ y : String, y ≠ "bc" → y ≠ "z" → y ≠ "k" → σ'.vars y = σ.vars y :=
@@ -715,7 +756,7 @@ theorem enumStepW {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)}
       (fun a _ => hvv (ctrName a) (by simp [ctrName, String.ext_iff])
         (by simp [ctrName, String.ext_iff]) (by simp [ctrName, String.ext_iff]))
       (fun a _ => hav (gamName a) (by simp [gamName, String.ext_iff])),
-    hout (noWrite_enumBatch _ _),
+    hout (noWrite_enumBatch _ _ _),
     hvv _ (by simp [curName, String.ext_iff]) (by simp [curName, String.ext_iff])
       (by simp [curName, String.ext_iff]),
     fun i => ⟨E (i : ℕ), (hltE (i : ℕ) i.isLt).1⟩, ⟨?_, ?_⟩, ?_⟩
@@ -725,13 +766,13 @@ theorem enumStepW {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)}
       (hav _ (by simp [memName, String.ext_iff]))
       (hvv _ (by simp [mnumName, String.ext_iff]) (by simp [mnumName, String.ext_iff])
         (by simp [mnumName, String.ext_iff]))
-  · -- the range of the padded enumeration is the batch
+  · -- the range of the padded enumeration is the batch's cluster half
     apply Set.eq_of_subset_of_subset
     · rintro v ⟨i, rfl⟩
-      rw [← hWs]
+      rw [← hprod]
       exact (hltE (i : ℕ) i.isLt).2
     · intro v hv
-      rw [← hWs] at hv
+      rw [← hprod] at hv
       obtain ⟨i, hi, hEi⟩ := hcovE (v : ℕ) v.isLt hv
       exact ⟨⟨i, hi⟩, Fin.ext hEi⟩
   · rw [ClusterWa, hwa']
@@ -744,7 +785,7 @@ array `BatchData` names, so nothing is left over. -/
 theorem enumStep {B cap mb ns Ws j K : ℕ} {G : SimpleGraph (Fin n)}
         {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
     {ord Xoff Xmem asg : ℕ → ℕ} {m : ℕ} {X W : Set (Fin n)} {Alv' Gam' : ℕ → ℕ}
-    {d : ℕ} (hB : WordBoundK B n d ns cap mb) (hK : 20 * n + 12 * mb + 30 ≤ K) :
+    {d : ℕ} (hB : WordBoundK B n d ns cap mb) (hK : 23 * n + 12 * mb + 30 ≤ K) :
     EnumStep B cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m X W Alv' Gam' K :=
   (enumStepW hB hK).pre (fun _ hσ => by
     obtain ⟨hturn, hbat, hplay, hne, hcard, hwa⟩ := hσ
@@ -4378,6 +4419,16 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
     rw [masked_congr (M := Gam') (M' := fun a => Gm a * Bal a * (1 - Wa a))
       (fun k hk => by rw [hGamval k hk, hGtval k hk])]
     exact masked_step Gm Bal Wa hBiff hWiff
+  -- **the connector is in its own cluster** (wave R1.8-T3-flip (c2a)): the
+  -- descent reads it out of the ordering at the very position `clusterLoad`
+  -- materialized the cluster of, and `RamCover.self_mem_wreach` is
+  -- unconditional. This is what makes the batch's cluster half nonempty, and so
+  -- the padded enumeration `RamDriver.enumBatch` reads out of it well defined.
+  have hvX : vc ∈ markSet n Xa := by
+    rw [hXmark]
+    exact ⟨hordc, by rw [hvc]; exact hordc, by
+      simpa only [hvc] using RamCover.self_mem_wreach (masked G M) π (2 * cap)
+        (⟨ord cc, hordc⟩ : Fin n)⟩
   have hXball : markSet n Xa ⊆ ball (masked G M) (2 * cap) vc := by
     rw [hXmark]
     have h := RamCover.inCluster_subset_ball (masked G M) π (r := cap) hordc
@@ -4447,7 +4498,7 @@ theorem descendStep {B cap mb Ws ℓ j K : ℕ} {M Gm : ℕ → ℕ} {C : ℕ �
   refine ⟨σ₉, _, hrun, ?_, hturn₉, hrun.out_eq (noWrite_descendCom cap j),
     by rw [hfv (curName j) hcurne (by simp [curName, mnumName, String.ext_iff])
       (curName_notMem_descendScalars j)], ?_, markSet n Xa, markSet n Wa, Alv', Gam', ?_,
-      ⟨vc, hvW⟩, ?_, ?_, ⟨⟨Xa, hclu₉, rfl, hXbit⟩, ⟨Wa, hbat₉, rfl, hWaB⟩, ⟨Ra, hres₉, hResEq, hRaB⟩,
+      ⟨vc, hvW, hvX⟩, ?_, ?_, ⟨⟨Xa, hclu₉, rfl, hXbit⟩, ⟨Wa, hbat₉, rfl, hWaB⟩, ⟨Ra, hres₉, hResEq, hRaB⟩,
         halv₉, hAlvB, hAlvEq, hAlvPt, hgam₉, hGamB', Mem', mm', hmemA₉, hmnum₉, hMemE, hMemB⟩, ?_⟩
   · simp only [descendCost, ballCost, batchCost] at hK ⊢
     omega

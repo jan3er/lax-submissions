@@ -845,7 +845,8 @@ theorem underscore_notMem_warrs_descendCom (cap j : ℕ) :
   · exact hmem (j + 1)
 
 /-- The padding writes one array. -/
-theorem warrs_enumBatch (bat : String) (mb : ℕ) : (enumBatch bat mb).warrs = ["wa", "wa"] := rfl
+theorem warrs_enumBatch (bat clu : String) (mb : ℕ) :
+    (enumBatch bat clu mb).warrs = ["wa", "wa"] := rfl
 
 /-- Every array the colouring writes is a colour of the next depth. -/
 theorem mem_warrs_colourCom (cap mb j : ℕ) {a : String}
@@ -888,7 +889,7 @@ theorem wa_notMem_warrs_colourCom (cap mb j : ℕ) : "wa" ∉ (colourCom cap mb 
 /-- **No phase of the turn but the readback writes a table.** -/
 theorem tabName_notMem_warrs_turn (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) (j d i : ℕ) :
     tabName d i ∉ (descendCom cap j).warrs ∧
-      tabName d i ∉ (enumBatch (batName j) mb).warrs ∧
+      tabName d i ∉ (enumBatch (batName j) (cluName j) mb).warrs ∧
       tabName d i ∉ (colourCom cap mb j).warrs ∧
       tabName d i ∉ (foldIdx (fun i β => RamDriver.scatterCom q_top cap mb φ j i β) 0
         (tablesAt q_top cap mb φ j)).warrs := by

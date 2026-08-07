@@ -714,7 +714,9 @@ theorem killStep {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.FirstOrder.FO 0}
   · -- **the kill rows.** The buffer enumerates the batch, so a kill is an entry;
     -- and at a kill the edgeless reading is the reading in the child arena
     obtain ⟨p, hp⟩ : ∃ p : Fin mb, w p = v := by
-      have : v ∈ Set.range w := by rw [hdat.2]; exact hvW
+      -- wave R1.8-T3-flip (c2a): the buffer enumerates the batch's CLUSTER half,
+      -- and a kill row is asked at a vertex the domain already puts in the cluster
+      have : v ∈ Set.range w := by rw [hdat.2]; exact ⟨hvW, hvX⟩
       exact this
     obtain ⟨Tb', hTb', hval'⟩ := hrows i hi
     have hcell : Tb (v : ℕ) = Tb' (v : ℕ) :=

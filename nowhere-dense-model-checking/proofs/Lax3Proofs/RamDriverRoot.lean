@@ -201,9 +201,12 @@ That re-reading is the only thing worth naming. The walk's guard is the
 two cells `alv[v]·clu[v]` at a *buffer entry*, and `KillListAt` speaks
 about the set `{v | M v ≠ 0 ∧ v ∈ X ∧ v ∈ W}` — which is exactly
 `RamDriverCluster.KillRowsAt`'s domain. The two are the same set because
-`ClusterData` says the buffer's range is the batch (`Set.range w = W`)
-and the cluster array marks the cluster (`markSet n Xa = X`); that is
-where the turn's data enters and nothing else does. -/
+`ClusterData` says the buffer's range is the batch's cluster half
+(`Set.range w = W ∩ X`, wave R1.8-T3-flip (c2a)) and the cluster array
+marks the cluster (`markSet n Xa = X`); that is where the turn's data
+enters and nothing else does. The narrowing costs the re-reading
+nothing: the guard already tests `clu[v]`, so the entries it drops are
+exactly the ones the guard rejected. -/
 
 section KillList
 
@@ -330,9 +333,9 @@ theorem killListStep :
     · obtain ⟨hM, hXv, p, hp⟩ := hsound e he
       refine ⟨w p, hp, by rw [hp]; exact hM, ?_, ?_⟩
       · rw [← hXaS]; show Xa (w p : ℕ) ≠ 0; rw [hp]; exact hXv
-      · rw [← hdat.2]; exact Set.mem_range_self p
+      · exact hdat.mem_batch p
     · obtain ⟨p, hp⟩ : ∃ p : Fin mb, w p = v := by
-        have : v ∈ Set.range w := by rw [hdat.2]; exact hvW
+        have : v ∈ Set.range w := by rw [hdat.2]; exact ⟨hvW, hvX⟩
         exact this
       obtain ⟨e, he, hee⟩ := hcomp p (by rw [hp]; exact hMv)
         (by rw [hp]; rw [← hXaS] at hvX; exact hvX)
@@ -374,7 +377,7 @@ which is F-4's disposition, so absorbing the list moves a number and no
 interface. -/
 noncomputable def turnCost (n ns cap mb q_top j : ℕ) (φ : Lax3.FirstOrder.FO 0) (Ksc Kin : ℕ) : ℕ :=
   RamDriverDescend.descendCost n ns cap j +
-    ((20 * n + 12 * mb + 30) +
+    ((23 * n + 12 * mb + 30) +
       (RamDriverDescend.colourCost n ns cap mb (sigL cap mb j) +
         (Refine.KillPass.killCost q_top cap mb (j + 1) φ +
           (Refine.KillListPass.killListCost mb +

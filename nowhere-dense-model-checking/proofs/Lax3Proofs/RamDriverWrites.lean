@@ -568,20 +568,20 @@ theorem belowVar_notMem_wvars_coverPhase (cap d : ℕ) {y : String} (h : BelowVa
 
 /-! ### The padding, the colouring, the scatter phase and the readback -/
 
-theorem wvars_enumBatch_eq (bat : String) (mb : ℕ) :
-    (enumBatch bat mb).wvars = (enumBatch "" 0).wvars := rfl
+theorem wvars_enumBatch_eq (bat clu : String) (mb : ℕ) :
+    (enumBatch bat clu mb).wvars = (enumBatch "" "" 0).wvars := rfl
 
-theorem belowArr_notMem_warrs_enumBatch (bat : String) (mb : ℕ) {d : ℕ} {a : String}
-    (h : BelowArr d a) : a ∉ (enumBatch bat mb).warrs := by
+theorem belowArr_notMem_warrs_enumBatch (bat clu : String) (mb : ℕ) {d : ℕ} {a : String}
+    (h : BelowArr d a) : a ∉ (enumBatch bat clu mb).warrs := by
   rw [RamDriverFrames.warrs_enumBatch]
   intro hm
   exact notHasDigit_mem (by decide) hm (hasDigit_of_belowArr h)
 
-theorem belowVar_notMem_wvars_enumBatch (bat : String) (mb : ℕ) {d : ℕ} {y : String}
-    (h : BelowVar d y) : y ∉ (enumBatch bat mb).wvars := by
+theorem belowVar_notMem_wvars_enumBatch (bat clu : String) (mb : ℕ) {d : ℕ} {y : String}
+    (h : BelowVar d y) : y ∉ (enumBatch bat clu mb).wvars := by
   rw [wvars_enumBatch_eq]
   intro hm
-  exact notHasDigit_mem (l := (enumBatch "" 0).wvars) (by decide) hm (hasDigit_of_belowVar h)
+  exact notHasDigit_mem (l := (enumBatch "" "" 0).wvars) (by decide) hm (hasDigit_of_belowVar h)
 
 theorem belowArr_notMem_warrs_colourCom (cap mb d : ℕ) {a : String} (h : BelowArr d a) :
     a ∉ (colourCom cap mb d).warrs := by
@@ -1398,7 +1398,7 @@ theorem belowArr_notMem_warrs_driverAux (q_top cap mb ℓ : ℕ) (φ : Lax3.Firs
         rcases mem_warrs_seq hq with hr | hr
         · exact belowArr_notMem_warrs_descendCom cap d h hr
         rcases mem_warrs_seq hr with hr | hr
-        · exact belowArr_notMem_warrs_enumBatch (batName d) mb h hr
+        · exact belowArr_notMem_warrs_enumBatch (batName d) (cluName d) mb h hr
         rcases mem_warrs_seq hr with hr | hr
         · exact belowArr_notMem_warrs_colourCom cap mb d h hr
         rcases mem_warrs_seq hr with hr | hr
@@ -1452,7 +1452,7 @@ theorem belowVar_notMem_wvars_driverAux (q_top cap mb ℓ : ℕ) (φ : Lax3.Firs
         rcases mem_wvars_seq hq with hr | hr
         · exact belowVar_notMem_wvars_descendCom cap d h hr
         rcases mem_wvars_seq hr with hr | hr
-        · exact belowVar_notMem_wvars_enumBatch (batName d) mb h hr
+        · exact belowVar_notMem_wvars_enumBatch (batName d) (cluName d) mb h hr
         rcases mem_wvars_seq hr with hr | hr
         · exact belowVar_notMem_wvars_colourCom cap mb d h hr
         rcases mem_wvars_seq hr with hr | hr
@@ -1551,7 +1551,7 @@ theorem perDepthVar_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.Fi
   · exact (hasDigit_wvars_descendCom cap d hr hy).elim hyctr hymm
   rcases mem_wvars_seq hr with hr | hr
   · rw [wvars_enumBatch_eq] at hr
-    exact notHasDigit_mem (l := (enumBatch "" 0).wvars) (by decide) hr hy
+    exact notHasDigit_mem (l := (enumBatch "" "" 0).wvars) (by decide) hr hy
   rcases mem_wvars_seq hr with hr | hr
   · exact notHasDigit_wvars_colourCom cap mb d y hr hy
   rcases mem_wvars_seq hr with hr | hr

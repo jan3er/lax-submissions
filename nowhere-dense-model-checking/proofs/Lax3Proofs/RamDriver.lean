@@ -350,6 +350,42 @@ theorem stepArenaP_eq (A : SimpleGraph (Fin n)) (X : Set (Fin n)) {mb : ℕ}
     stepArenaP A X w = deleteVerts (deleteVerts A Xᶜ) W := by
   rw [stepArenaP, hw]
 
+/-- **The cluster step's arena is blind to the batch outside the
+cluster** (wave R1.8-T3-flip (c2a)). Removing a vertex outside `X` from
+an arena that has already been restricted to `X` is a no-op: every edge
+of `deleteVerts A Xᶜ` has both ends in `X`, so it meets `W` exactly
+where it meets `W ∩ X`.
+
+This is the verdict of (c2a). The atom pass needs
+`Refine.DeadRowProbe.stepColoringP_subset`'s `hw : ∀ i, w i ∈ X`, which
+`RamDriverCluster.ClusterData` did not supply, and the lemma says the
+narrowing that supplies it costs the *arena* nothing: the batch as a
+SET — which the game invariant, the child mask and the kill set are all
+stated at — may stay exactly what `batchCom` marked, and only the
+padded ENUMERATION `RamDriver.enumBatch` reads out of it is cut down to
+the cluster. Narrowing the batch itself is a different change and not
+this one: `RamDriver.playRec_succ`'s `hstep` cuts the *game* arena,
+which is not cluster-restricted, and there the same intersection is
+visible — `Refine.ScatterDeadPass.game_arena_sees_the_cluster_cut`. -/
+theorem deleteVerts_inter_cluster (A : SimpleGraph (Fin n)) (X W : Set (Fin n)) :
+    deleteVerts (deleteVerts A Xᶜ) (W ∩ X) = deleteVerts (deleteVerts A Xᶜ) W := by
+  ext u v
+  constructor
+  · rintro ⟨⟨hadj, huX, hvX⟩, huW, hvW⟩
+    exact ⟨⟨hadj, huX, hvX⟩, fun hc => huW ⟨hc, by simpa using huX⟩,
+      fun hc => hvW ⟨hc, by simpa using hvX⟩⟩
+  · rintro ⟨⟨hadj, huX, hvX⟩, huW, hvW⟩
+    exact ⟨⟨hadj, huX, hvX⟩, fun hc => huW hc.1, fun hc => hvW hc.1⟩
+
+/-- The same at `stepArenaP`: an enumeration of the batch cut down to
+the cluster describes the same cluster-step arena as one of the whole
+batch. What the narrowing does change is the *palette* — and there it
+changes it in the direction the atom pass needs. -/
+theorem stepArenaP_eq_inter (A : SimpleGraph (Fin n)) (X : Set (Fin n)) {mb : ℕ}
+    (w : Fin mb → Fin n) {W : Set (Fin n)} (hw : Set.range w = W ∩ X) :
+    stepArenaP A X w = deleteVerts (deleteVerts A Xᶜ) W := by
+  rw [stepArenaP, hw, deleteVerts_inter_cluster]
+
 /-- **The mask arithmetic of a cluster step.** The arena of the mask the
 driver writes — alive, in the cluster, out of the batch, which is what
 `andCom` followed by `subCom` computes — is the cluster step's arena.
@@ -1448,16 +1484,31 @@ def batchCom (cap j : ℕ) : Com :=
       (.seq (foldRange (fun a => ancestorStep cap j a) j)
         (andCom (batName j) (balName j) (batName j))))
 
-/-- The padded enumeration of the batch, as an array of exactly `mb`
-entries: the batch in vertex order, then the first entry repeated. The
-batch is never empty — it contains its own connector — so the repetition
-is well defined, and `FormulaTables.range_comp_of_surjective` is why it
-costs the isolation rewrite nothing. -/
-def enumBatch (bat : String) (mb : ℕ) : Com :=
+/-- The padded enumeration of the batch **inside the cluster**, as an
+array of exactly `mb` entries: the vertices the batch and the cluster
+both mark, in vertex order, then the first entry repeated. The
+intersection is never empty — it contains the round's connector, which
+is the centre of the very cluster the turn loaded — so the repetition is
+well defined, and `FormulaTables.range_comp_of_surjective` is why it
+costs the isolation rewrite nothing.
+
+**The cluster guard is wave R1.8-T3-flip (c2a).** The pass used to
+enumerate the whole batch, and the palette built off it then had a
+profile slot centred at an out-of-cluster batch entry — a class the
+child's colour rows could not be blind to, which is what
+`Refine.ScatterDeadPass.outside_class_not_uniform_refuted` compiles and
+what left `Refine.DeadRowProbe.stepColoringP_subset`'s `hw` without a
+producer. Cutting the *enumeration* by the cluster supplies it, and
+costs nothing anywhere else: the batch as a set — the game invariant's
+`W`, the child mask's, the kill set's — is untouched, and the cluster
+step's arena cannot see the difference
+(`RamDriver.deleteVerts_inter_cluster`). -/
+def enumBatch (bat clu : String) (mb : ℕ) : Com :=
   .seq (.assign "bc" (.lit 0))
     (.seq (.assign "z" (.lit 0))
       (.seq (.while (.lt (.var "z") (.var "n"))
-              (.seq (.ite (.lt (.lit 0) (.get bat (.var "z")))
+              (.seq (.ite (.lt (.lit 0)
+                      (.mul (.get bat (.var "z")) (.get clu (.var "z"))))
                       (.seq (.store "wa" (.var "bc") (.var "z"))
                         (.assign "bc" (.add (.var "bc") (.lit 1))))
                       .skip)
@@ -2365,7 +2416,7 @@ is the one remaining step of the swap. -/
 noncomputable def clusterCom (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) (j : ℕ)
     (inner : Com) : Com :=
   .seq (descendCom cap j)
-    (.seq (enumBatch (batName j) mb)
+    (.seq (enumBatch (batName j) (cluName j) mb)
       (.seq (colourCom cap mb j)
         (.seq (killCom q_top cap mb j φ)
           (.seq (killListCom mb j)

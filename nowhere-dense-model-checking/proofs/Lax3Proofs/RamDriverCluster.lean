@@ -571,10 +571,40 @@ and the colouring and nowhere else — the scatter phase and the readback
 read the depth-`(j+1)` tables and the cluster's masks, never the
 enumeration — so it is `ClusterWa` below, a conjunct of `EnumStep`'s
 postcondition and of `ColourStep`'s precondition, and of nothing that
-straddles the recursion. -/
+straddles the recursion.
+
+**The enumeration is the batch's CLUSTER half** (wave R1.8-T3-flip
+(c2a)). `RamDriver.enumBatch` guards on the cluster indicator as well as
+the batch's, so the buffer's range is `W ∩ X` and not `W`. The batch as
+a set is untouched — it is `BatchData`'s `W` above, and it is the game
+invariant's, the child mask's and the kill set's, all unchanged — and
+the cluster step's arena cannot tell the two apart
+(`RamDriver.deleteVerts_inter_cluster`, which is what `masked_alv_eq`
+below now runs through). What the narrowing buys is `mem_cluster`: every
+entry of the padded enumeration lies in the cluster, which is
+`Refine.DeadRowProbe.stepColoringP_subset`'s `hw` — the hypothesis the
+whole outside-class story of the atom pass rides on, and the one nothing
+in the turn used to supply
+(`Refine.ScatterDeadPass.outside_class_not_uniform_refuted`). -/
 def ClusterData (n mb j B : ℕ) (G : SimpleGraph (Fin n)) (M : ℕ → ℕ)
     (X W : Set (Fin n)) (w : Fin mb → Fin n) (Alv' Gam' : ℕ → ℕ) (σ : Env) : Prop :=
-  BatchData n j B G M X W Alv' Gam' σ ∧ Set.range w = W
+  BatchData n j B G M X W Alv' Gam' σ ∧ Set.range w = W ∩ X
+
+/-- **Every batch entry the palette records is in the cluster.** The
+producer of `Refine.DeadRowProbe.stepColoringP_subset`'s `hw`, and
+through it of `Refine.ScatterDeadFold.outside_uniform` and of the
+outside term of `Refine.ScatterDeadPass.atomTerms_iff_scatVal`. -/
+theorem ClusterData.mem_cluster {mb j B : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ}
+    {X W : Set (Fin n)} {w : Fin mb → Fin n} {Alv' Gam' : ℕ → ℕ} {σ : Env}
+    (h : ClusterData n mb j B G M X W w Alv' Gam' σ) (i : Fin mb) : w i ∈ X :=
+  (h.2 ▸ Set.mem_range_self i : w i ∈ W ∩ X).2
+
+/-- And every batch entry is still in the batch: the direction the kill
+rows and the kill list read the enumeration in. -/
+theorem ClusterData.mem_batch {mb j B : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ}
+    {X W : Set (Fin n)} {w : Fin mb → Fin n} {Alv' Gam' : ℕ → ℕ} {σ : Env}
+    (h : ClusterData n mb j B G M X W w Alv' Gam' σ) (i : Fin mb) : w i ∈ W :=
+  (h.2 ▸ Set.mem_range_self i : w i ∈ W ∩ X).1
 
 /-- **The padded enumeration, in the fixed buffer the colouring reads
 it from.** -/
@@ -589,7 +619,7 @@ theorem masked_alv_eq {mb j B : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ}
     {X W : Set (Fin n)} {w : Fin mb → Fin n} {Alv' Gam' : ℕ → ℕ} {σ : Env}
     (h : ClusterData n mb j B G M X W w Alv' Gam' σ) :
     masked G Alv' = stepArenaP (masked G M) X w := by
-  rw [stepArenaP_eq (masked G M) X w h.2]
+  rw [stepArenaP_eq_inter (masked G M) X w h.2]
   exact h.1.2.2.2.2.2.1
 
 /-- **The descent.** That `RamDriver.descendCom` writes the cluster
@@ -652,7 +682,7 @@ def DescendStep (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n))
       σ'.out = σ.out ∧ σ'.vars (curName j) = σ.vars (curName j) ∧ (∃ g, σ'.arrs "wa" = arrOf mb g) ∧
       ∃ (X W : Set (Fin n)) (Alv' Gam' : ℕ → ℕ),
         (∀ v : Fin n, asg (v : ℕ) = σ.vars (curName j) → ball (masked G M) cap v ⊆ X) ∧
-        W.Nonempty ∧ W.ncard ≤ mb ∧
+        (W ∩ X).Nonempty ∧ W.ncard ≤ mb ∧
         (∀ v : Fin n, Alv' (v : ℕ) ≠ 0 →
           v ∈ clusterAt G M π ord cap (σ.vars (curName j))) ∧
         BatchData n j B G M X W Alv' Gam' σ' ∧
@@ -674,8 +704,8 @@ def EnumStep (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : ℕ 
     (X W : Set (Fin n)) (Alv' Gam' : ℕ → ℕ) (K : ℕ) : Prop :=
   Spec B (fun σ => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ ∧
       BatchData n j B G M X W Alv' Gam' σ ∧ PlayRec B cap G (j + 1) Alv' Gam' σ ∧
-      W.Nonempty ∧ W.ncard ≤ mb ∧ (∃ g, σ.arrs "wa" = arrOf mb g))
-    (enumBatch (batName j) mb)
+      (W ∩ X).Nonempty ∧ W.ncard ≤ mb ∧ (∃ g, σ.arrs "wa" = arrOf mb g))
+    (enumBatch (batName j) (cluName j) mb)
     (fun σ σ' => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       PlayRec B cap G (j + 1) Alv' Gam' σ' ∧
       σ'.out = σ.out ∧ σ'.vars (curName j) = σ.vars (curName j) ∧
