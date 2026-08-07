@@ -243,21 +243,53 @@ outside count is `n − mm − kills` off landed scalars. No interaction.
   readback's dead reads discharged from it
   (`readback_dead_read_is_kill` is the template); `Ks`/`ct`
   re-derivation at the absorbed constant.
-- **R1.8-T3 — obligations re-domained (level owner).** `DeadRows` →
-  `KillRows` form, `TableInv` → `TableInvOn (alive ∪ kills)` in
-  `LevelPost`/`LevelInv`, `sweepCom` out of `driverAux`,
-  `levelImplements`' partition re-derived (probe splits are the
-  skeleton). Depends on T2.
-- **R1.8-T4 — the base (base owner).** Drop `reprCom`, member-list
-  header on the base sweep, `baseCost`/`hKbase` at the shed constant
-  (§2.5). Parallel to T3 after T2.
-- **R1.8-T5 — scatter fold (E4's wave, not this road's).** The
-  dead-contribution arithmetic (flag F-3) lands inside E4's
-  block-driven scatter engine; until then the landed carrier-wide
-  scatter keeps consuming carrier-wide rows, so T3 cannot land before
-  E4's scatter re-derivation or a bridging shim (flag F-1).
+- **R1.8-T3/E4 semantic layer — LANDED (`3af24e7`).**
+  `Refine/ScatterDeadFold.lean`: the F-3 greedy-count split
+  refuted-then-proved (`ncard_greedySet_fold`), the outside-class bit
+  (`outside_ncard_of_probe`/`outside_ncard_of_empty` — one probe vertex
+  found in ≤ bs+1 steps collapses the outside term to
+  `if bit then count else 0`), `sum_bit_eq_ncard_inter` (a
+  repetition-free kill list's bits sum to the kill term), and survival
+  (`row_survives_turn`/`row_survives_chain` off
+  `dead_vertex_has_no_alive_turn` + `Compacted.alive` +
+  `ClusterFrames`). `Refine/ScatterDeadEngine.lean`:
+  `scatBlockCnt_specW` — the active-set engine re-derived with its
+  counter exported in the `∀ e` decision form (the naive `cnt = count`
+  is compiled-refuted at the threshold cap), same charge `scatBlockK`;
+  `scatVal_of_cnt` — `ScatVal` decided by counter + kill scalar +
+  outside scalar, no read outside `alive ∪ kills`. F-2 audit: empty
+  (game mask feeds only ball/path machinery; no table indexed by it).
+- **R1.8-T3-flip — the statement flip (successor wave, ONE boundary).**
+  (a) `killListCom j` in `clusterCom` between `killCom` and `inner`
+  (ClusterWa seam extends over it): repetition-free kill list
+  `klName j` + count `kkName j`, dedupe by O(mb²) prefix membership
+  scan — avoids strengthening the landed `EnumStep` post (ClusterWa
+  pins only the range of `wa`). T2's `KillStep`/`KillPass` untouched.
+  (b) New atom program replacing `scatterCom`: filtered child member
+  list (tab-bit test → `MemList` for satSet ∩ alive), `alv` copy +
+  `dist` fill (carrier-charge parity with the landed engine this
+  boundary), `scatBlockCom σs.r σs.t`, kill walk
+  (`sum_bit_eq_ncard_inter`), outside probe (first `z` with
+  `alv'[z] = 0 ∧ clu[z] = 0`; `botCom (j+1) σs.β` at it = the class
+  bit), `flag := (σs.t ≤ cnt + kc + obit·oc)`. (c) The flip:
+  `LevelImplements`/`LevelPost` gain a pre-written-domain parameter
+  `D ⊆ dead` (pre `TableInvOn … D`, post `TableInvOn … ({alive} ∪ D)`);
+  turn instantiates `D' :=` its kill set off `KillRowsAt`; `sweepCom`
+  leaves `driverAux`/`driverAt_succ`; `LevelInv` table clause
+  `v ∈ D ∨ earlier-turn`; `levelImplements` partition re-derived (the
+  landed `hdeadne` block is already the survival argument);
+  `ScatterStep`/`ReadbackStep` preconditions to `TableInvOn`. Edits
+  beyond the T3 files: `RamDriverFrames.lean` (`scatterStep` discharge
+  — the large one), `RamDriverBase.lean` (`readbackStep` precondition
+  weakening), `RamDriverWrites.lean` (frames for `klName`/`kkName`),
+  `RamDriverRoot.lean` (`hKd` vestigial at `phaseMR 0 12` per
+  `deadRow_interface_closes`).
+- **R1.8-T4 — the base (base owner).** T4a: drop `reprCom` (§2.5(a)).
+  T4b: member-list header on the base sweep, `baseCost`/`hKbase` at
+  the shed constant (§2.5(b)). Parallel to T3 after T2.
 
-T1 → T2 → (T3 ∥ T4), with T3 gated on the E4 scatter decision (F-1).
+T1 → T2 → semantic layer → (T3-flip ∥ T4), flip after T4a lands (file
+overlap in the driver files).
 
 ## §7 Unresolved design questions (flagged)
 
