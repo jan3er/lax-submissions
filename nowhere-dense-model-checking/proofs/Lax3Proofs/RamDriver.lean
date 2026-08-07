@@ -2145,17 +2145,25 @@ the kill pass, the nested driver, the scatter atoms and the readback.
 **Rebase R1.8-T2.** `killCom` sits between the colouring and the nested
 call, and its position is forced from both sides — see its own
 docstring. It is the only pass of the turn that writes at the *child*
-depth before the child runs. -/
+depth before the child runs.
+
+**Rebase R1.8-T3-flip (a2).** `killListCom` sits between the kill pass
+and the nested call, and its position is forced from both sides too: it
+reads the padded buffer `"wa"`, which the nested call repads, so it must
+run before the recursion; and its product `klName j` is a *per-depth*
+name, which is what survives the recursion for the atom pass's kill walk
+to read afterwards. -/
 noncomputable def clusterCom (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) (j : ℕ)
     (inner : Com) : Com :=
   .seq (descendCom cap j)
     (.seq (enumBatch (batName j) mb)
       (.seq (colourCom cap mb j)
         (.seq (killCom q_top cap mb j φ)
-          (.seq inner
-            (.seq (foldIdx (fun i β => scatterCom q_top cap mb φ j i β) 0
-                (tablesAt q_top cap mb φ j))
-              (readbackCom q_top cap mb φ j))))))
+          (.seq (killListCom mb j)
+            (.seq inner
+              (.seq (foldIdx (fun i β => scatterCom q_top cap mb φ j i β) 0
+                  (tablesAt q_top cap mb φ j))
+                (readbackCom q_top cap mb φ j)))))))
 
 /-! ### The level, and the recursion
 
@@ -2433,12 +2441,21 @@ carried per depth, and for the same reason: a level runs the level below
 it, which stores into the arrays of *its* depth while the enclosing turn
 is still holding this clause, so a depth-indexed version would have to
 be handed down and handed back at every call. Every clause is a length,
-so the whole thing survives any run. -/
+so the whole thing survives any run.
+
+**Rebase R1.8-T3-flip (a2).** The kill list `klName j` is the fourteenth
+entry, and the only one whose length is **not** the carrier: the list is
+a sub-list of the padded batch buffer's entries, so the buffer's own
+width `mb` sizes it and no carrier clause enters. It rides here rather
+than in `RamDriverCluster.TurnPre` for the reason the other thirteen do
+— the turn at depth `j` runs the level at depth `j + 1`, which writes
+its *own* `klName (j + 1)`, so the clause has to hold at every depth at
+once. -/
 def DepthMem (n cap mb : ℕ) (σ : Env) : Prop :=
   ∀ j : ℕ, Sized [(alvName j, n), (gamName j, n), (cluName j, n), (resName j, n),
       (balName j, n), (balAltName j, n), (batName j, n),
       (ordName j, n), (xofName j, n + 1), (xmmName j, n * n), (asgName j, n),
-      (cpsName j, n), (memName j, n)] σ ∧
+      (cpsName j, n), (memName j, n), (klName j, mb)] σ ∧
     (∀ c < sigL cap mb j, ∃ g : ℕ → ℕ, σ.arrs (colName j c) = arrOf n g)
 
 /-- One array of one depth, out of the clause. -/
@@ -2446,8 +2463,14 @@ theorem DepthMem.get {n cap mb : ℕ} {σ : Env} (h : DepthMem n cap mb σ) (j :
     {p : String × ℕ} (hp : p ∈ [(alvName j, n), (gamName j, n), (cluName j, n), (resName j, n),
       (balName j, n), (balAltName j, n), (batName j, n),
       (ordName j, n), (xofName j, n + 1), (xmmName j, n * n), (asgName j, n),
-      (cpsName j, n), (memName j, n)]) :
+      (cpsName j, n), (memName j, n), (klName j, mb)]) :
     ∃ g : ℕ → ℕ, σ.arrs p.1 = arrOf p.2 g := (h j).1 p hp
+
+/-- **The kill list of one depth, out of the clause** — the sizing
+`Refine.KillListPass.killListCom_spec` asks of the array it writes. -/
+theorem DepthMem.kl {n cap mb : ℕ} {σ : Env} (h : DepthMem n cap mb σ) (j : ℕ) :
+    ∃ g : ℕ → ℕ, σ.arrs (klName j) = arrOf mb g :=
+  (h j).1 (klName j, mb) (by simp)
 
 /-- One colour array of one depth. -/
 theorem DepthMem.col {n cap mb : ℕ} {σ : Env} (h : DepthMem n cap mb σ) {j c : ℕ}
