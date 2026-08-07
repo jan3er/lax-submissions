@@ -1100,34 +1100,14 @@ theorem atomFlagCom_spec {t cnt kc bb oc : ℕ} (hB : 1 < B) (htB : t < B)
     · rw [vars_setVar, if_pos rfl]
       exact ⟨fun _ => by omega, fun _ => by omega⟩
 
-/-! ### §5c The program, assembled
+/-! ### §5c The program's charge
 
-All six passes in the order the turn runs them. The three dead terms are
-computed **before** the engine, so nothing about the depth's own arrays
-has to cross the engine's own writes: after the engine only the four
-scalars `"cnt"`, `"kc"`, `"bb"`, `"oc"` are read, and the verdict reads
-nothing else.
-
-`RamDriver.clusterCom` is untouched by this wave — the swap is scope
-(c), and it needs one structural move this file cannot make: the block
-engine's program text is downstream of `RamDriver.lean`
-(`Refine.ScatterBlockProg` → `ScatterBlockCost` → `MassWeight` →
-`ArenaBlock` → `RamDriver`), so either the engine's *text* moves above
-the driver or `clusterCom` takes the atom program as a parameter. -/
-
-/-- **The dead-aware atom program** (design §6 (b)): the kill walk, the
-outside probe and its bit, the outside count, the filtered member list,
-the engine's calling convention, the active-set engine, and the
-verdict. -/
-noncomputable def scatDeadCom (j ti : ℕ) {L : ℕ} (β : DistFO L 1) (r t : ℕ) : Com :=
-  .seq (killSumCom j ti)
-    (.seq (outProbeCom j)
-      (.seq (atomBitCom (j + 1) β)
-        (.seq (outCntCom j)
-          (.seq (atomMemCom j ti)
-            (.seq (copyCom (alvName (j + 1)) "alv")
-              (.seq (fillCom "dist" (.lit (r + 1)))
-                (.seq (scatBlockCom r t) (atomFlagCom t))))))))
+The program itself is `RamDriver.scatDeadCom`, and since wave (c1) it is
+what `RamDriver.clusterCom` runs. It is written *there* rather than here
+because the driver has to name it, and (c1) removed the vestigial import
+that used to force the block engine's text below the driver — see that
+definition's own docstring. What stays here is its charge and its
+walks. -/
 
 /-- The program's charge, pass by pass. Two of the nine summands are
 carrier-width — the mask copy and the distance fill, the engine's own
