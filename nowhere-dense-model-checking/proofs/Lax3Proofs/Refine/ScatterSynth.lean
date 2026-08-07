@@ -1441,7 +1441,11 @@ below does.
 text is a function of the formula.** What the brief's "BotEval" means as
 an engine is `RamDriver.baseCom = reprCom ; (per vertex: fold botCom
 over tablesAt)`, walked in `RamDriverBot.lean` and exported as
-`RamDriverBot.baseCost` / `RamDriverCompose.baseImplements`. Two of its
+`RamDriverBot.baseCost` / `RamDriverCompose.baseImplements`. (Wave
+R1.8-T4a dropped the `reprCom` half from the pass — see
+`Refine.BaseShed`; the survey's verdict on the remaining half stands
+verbatim, and the `reprCom` bullet below now reads as a statement about
+a compiled contingency rather than about the base case.) Two of its
 three parts are outside what `sepref_synth` can produce, and for the
 same reason:
 
@@ -1457,7 +1461,8 @@ same reason:
 * `reprCom j L` folds `rowEqExpr` over `List.range L`, so its program
   text depends on the palette size. In the IR that fold *must* become a
   third nested loop over colours (the IR has no expression layer), which
-  is an improvement — `reprCom` is the one part of the base case that is
+  is an improvement — `reprCom` is the one part of the *old* base case
+  (R1.8-T4a: it is now a compiled contingency, in no program) that is
   an ordinary loop program and is a genuine tower target, at three
   nested loops (`z < n`, `rw < rp`, `c < L`) and a `2 ^ L` bound on
   `rp` from `BotEval.ncard_le_of_injOn_rowOf`.

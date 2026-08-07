@@ -175,11 +175,20 @@ the landed per-vertex turn cost. -/
 noncomputable def sweepCoeffA (q_top cap mb jd : ℕ) (φ : Lax3.FirstOrder.FO 0) : ℕ :=
   RamDriverBot.turnCost q_top cap mb jd φ + 10
 
-/-- **PROPOSED** `hKbase` form coefficient: the base pass
-(representative scan + table fold) walks the member list. -/
+/-- **PROPOSED** `hKbase` form coefficient: the base pass (the depth's
+table fold) walks the member list.
+
+**R1.8-T4a.** The coefficient used to open with
+`RamDriverBot.reprBodyCost ℓ (sigL cap mb ℓ)` — the representative
+scan's per-vertex turn, an inner loop over the whole row space. The scan
+is out of the program (`RamDriver.baseCom`; the shed is
+`Refine.BaseShed`), so the term drops from the discharge and what is
+left is the fold's own per-vertex charge. The base pass's charge is now
+within `12` per member of the dead sweep's (`sweepCoeffA`), which is
+right: since the shed the two passes are the same `Com`
+(`Refine.DeadSweep.baseCost_eq`). -/
 noncomputable def baseCoeffA (q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) : ℕ :=
-  RamDriverBot.reprBodyCost ℓ (FormulaTables.sigL cap mb ℓ) +
-    RamDriverBot.turnCost q_top cap mb ℓ φ + 22
+  RamDriverBot.turnCost q_top cap mb ℓ φ + 22
 
 /-- **PROPOSED** replacement for `RamDriverRoot.turnCostSize`: the size
 slot is READ (today it is discarded — `turnCostSize_eq` is `rfl` to the
@@ -521,13 +530,13 @@ theorem sweepCost_le_weight (q_top cap mb jd n ns : ℕ) (φ : Lax3.FirstOrder.F
   nlinarith [Nat.zero_le (RamDriverBot.turnCost q_top cap mb jd φ)]
 
 /-- **Base pass honest**: the landed base cost at the proposed
-coefficient, generically in the formula and the depth. -/
+coefficient, generically in the formula and the depth. Since R1.8-T4a
+this is read at the **shed** coefficient — no `reprBodyCost` term. -/
 theorem baseCost_le_weight (q_top cap mb ℓ n ns : ℕ) (φ : Lax3.FirstOrder.FO 0) :
     RamDriverBot.baseCost q_top cap mb ℓ n φ ≤
       baseCoeffA q_top cap mb ℓ φ * (n + ns + 1) := by
-  simp only [RamDriverBot.baseCost, RamDriverBot.reprCost, baseCoeffA]
-  nlinarith [Nat.zero_le (RamDriverBot.reprBodyCost ℓ (FormulaTables.sigL cap mb ℓ)),
-    Nat.zero_le (RamDriverBot.turnCost q_top cap mb ℓ φ)]
+  simp only [RamDriverBot.baseCost, baseCoeffA]
+  nlinarith [Nat.zero_le (RamDriverBot.turnCost q_top cap mb ℓ φ)]
 
 /-- **Decode honest** (root read): `kdec = 54`. The root's identity
 member list (rebase E-mem) is one more `O(n)` fill inside `Kdec`, so the
@@ -664,7 +673,7 @@ The per-slot verdicts (E6's package survey, 2026-07-31):
 | `hKo` | `orderImplements₀` at `orderPhaseCost n ns W` | NO (`hKo_gap`) | member-list order phase (design §3(c); `OrderBridge`'s seam) |
 | `hKc` | `coverImplements` at `coverPhaseCost n ns` | NO (`hKc_gap`) | block-driven centre body + alive-prefix copy + R1.6 member threading (`CoverBlock` F-2/F-3) |
 | `hKd` | `sweepImplements`, loop over the carrier | NO (`hKd_gap`) | member/dead-list sweep (R1.8; caveat: the sweep's WORK is the dead set) |
-| `hKbase` | `baseImplements`, `reprCom` at the carrier | NO (`hKbase_gap`) | member-list base headers (R1.8) |
+| `hKbase` | `baseImplements`, the table fold at the carrier (R1.8-T4a: `reprCom` is gone from the pass — `Refine.BaseShed`) | NO (`hKbase_gap`) | member-list base headers (R1.8-T4b) |
 | `hKs` | `turnCostSize = turnCost` (descend `16·n²`, scatter `Θ(n·t)`) | NO (`hKs_gap`, `hbnd_gap`) | `BlockLeaves` Com-level swap into `descendCom` + `scatBlockCom` into the turn |
 -/
 
@@ -707,15 +716,36 @@ theorem hKd_gap (q_top cap mb jd : ℕ) (φ : Lax3.FirstOrder.FO 0) :
   simp only [Refine.DeadSweep.sweepCost, sweepCoeffA] at h
   nlinarith [Nat.zero_le (RamDriverBot.turnCost q_top cap mb jd φ)]
 
-/-- **`hKbase` gap, compiled**, generically in the formula. -/
+/-- **`hKbase` gap, compiled**, generically in the formula: the landed
+base pass walks the carrier, so `baseCoeffA · (w + 1)` cannot pay it on
+a light arena.
+
+**R1.8-T4a — the floor moved, the gap did not.** The refutation used to
+ride the representative scan's `reprBodyCost · n`, which guarded dead
+code: that is why the design calls the scan's removal free, and the
+removal (`Refine.BaseShed`) is why both sides of this statement are
+smaller than they were. What is left refuting is the fold's own
+`(turnCost + 4) · n` — real work at every carrier vertex, and the same
+carrier header `hKd_gap` refutes for the dead sweep, which since the
+shed is literally the same `Com` (`Refine.DeadSweep.baseCost_eq`). Only
+the member-list header (design §2.5(b), wave T4b) closes it. -/
 theorem hKbase_gap (q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) :
     ∃ n : ℕ, ¬ (RamDriverBot.baseCost q_top cap mb ℓ n φ ≤
       baseCoeffA q_top cap mb ℓ φ * (0 + 1)) := by
-  refine ⟨RamDriverBot.reprBodyCost ℓ (sigL cap mb ℓ) +
-    RamDriverBot.turnCost q_top cap mb ℓ φ + 23, fun h => ?_⟩
-  simp only [RamDriverBot.baseCost, RamDriverBot.reprCost, baseCoeffA] at h
-  nlinarith [Nat.zero_le (RamDriverBot.reprBodyCost ℓ (sigL cap mb ℓ)),
-    Nat.zero_le (RamDriverBot.turnCost q_top cap mb ℓ φ)]
+  refine ⟨RamDriverBot.turnCost q_top cap mb ℓ φ + 23, fun h => ?_⟩
+  simp only [RamDriverBot.baseCost, baseCoeffA] at h
+  nlinarith [Nat.zero_le (RamDriverBot.turnCost q_top cap mb ℓ φ)]
+
+/-- **The `hKbase` gap is not an artifact of the coefficient** — R1.8-T4a
+records it coefficient-free, so that shedding a summand from
+`baseCoeffA` cannot be mistaken for softening the refutation. For ANY
+constant, and every formula and depth, the landed base pass escapes it
+on a light arena: the pass's header is the carrier. -/
+theorem hKbase_gap_any (Cb q_top cap mb ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) :
+    ∃ n : ℕ, ¬ (RamDriverBot.baseCost q_top cap mb ℓ n φ ≤ Cb * (0 + 1)) := by
+  refine ⟨Cb + 1, fun h => ?_⟩
+  simp only [RamDriverBot.baseCost] at h
+  nlinarith [Nat.zero_le (RamDriverBot.turnCost q_top cap mb ℓ φ)]
 
 /-- **`hKs` gap, compiled.** The real turn cost carries
 `descendCost`'s `16·n²` (the six carrier fills), so no

@@ -55,8 +55,12 @@ dead set, and the other half needs no writes at all:
   (`tabled_isLocal`, off `FormulaTables.tableRank_of_mem_tablesAt`), so
   `botCom`'s `exU` case — the only reader of the representative table —
   is unreachable (`RamDriverBot` discharges it by `isLocal_exU`), and
-  the landed `reprCost`'s carrier scan (`hKbase_gap`'s floor) guards a
-  pass whose output is dead code. The dead-vertex representative story
+  the `reprCost` carrier scan the base pass then still ran guarded a
+  pass whose output is dead code. **Acted on by wave R1.8-T4a**: the
+  scan is out of `RamDriver.baseCom`, `RamDriverBot.baseCost` sheds
+  `reprCost` (`Refine.BaseShed`), and `hKbase_gap`'s floor is now the
+  fold's own carrier header, not the scan's. The dead-vertex
+  representative story
   compiled here is the contingency the `exU` case would need, and the
   uniformity germ the E4 scatter fold does need.
 
@@ -307,8 +311,9 @@ theorem exists_outside_in_prefix {n : ℕ} (X : Set (Fin n)) (hlt : X.ncard < n)
 
 /-- **Every tabled formula is local** — so `botCom`'s `exU` case, the
 only reader of `reprCom`'s table, is unreachable at every depth
-(`RamDriverBot` discharges it by `SyntaxLemmas.isLocal_exU`), and the
-base's landed `reprCost` carrier scan guards dead code. -/
+(`RamDriverBot` discharges it by `SyntaxLemmas.isLocal_exU`). This is
+the theorem wave R1.8-T4a acted on: the base pass no longer runs the
+scan at all (`RamDriver.baseCom`, `Refine.BaseShed`). -/
 theorem tabled_isLocal (q_top cap mb j : ℕ) (φ : Lax3.FirstOrder.FO 0) :
     ∀ β ∈ tablesAt q_top cap mb φ j, IsLocal β :=
   fun β hβ => (tableRank_of_mem_tablesAt j β hβ).1
@@ -620,8 +625,10 @@ theorem no_coeff_pays_outsideRows (coeff bs : ℕ) :
   riding INSIDE the turn's size-read slot `turnCostSizeA`;
 * the base clause `Cb` generic — the base level is the member-list
   sweep plus the block-sized representative story (§3), both
-  weight-linear; the landed `reprCost` floor (`hKbase_gap`) guards the
-  vestigial pass `tabled_isLocal` retires.
+  weight-linear; the `reprCost` floor that used to sit under
+  `hKbase_gap` guarded the vestigial pass `tabled_isLocal` retires, and
+  wave R1.8-T4a removed both (`Refine.BaseShed`), leaving the gap
+  standing on the fold's carrier header alone.
 
 The `#guard` pins the turn absorption at the empty block: the landed
 leaf coefficient plus the whole measured kill write fit the slot's
