@@ -4809,3 +4809,62 @@ needs `klName b`/`kkName b` added to `BelowArr`/`BelowVar`
 (`RamDriverWrites.lean:235,241`) — the brief's cited producers point the
 other way. `BallBudget n r G M O ns n` is discharged from `CsrGraph`
 alone at `A := Finset.range n` (the row lengths telescope to `ns`).
+
+**R1.8-T3-flip (c2a) — `hw` discharged. Both supervisor routes refuted;
+the answer was neither.**
+
+The brief offered two routes and the wave refuted both, then found the
+one that works: **narrow the enumeration, not the batch.** The fact
+neither route used is that *the cluster step's arena is blind to the
+batch outside the cluster* — `RamDriver.deleteVerts_inter_cluster`:
+every edge of `deleteVerts A Xᶜ` has both ends in `X`, so it meets `W`
+exactly where it meets `W ∩ X`. So the *set* `W` and the *enumeration*
+`w` decouple. `RamDriver.enumBatch` gains the cluster indicator as a
+second guard, `ClusterData`'s last clause becomes
+`Set.range w = W ∩ X`, and **`ClusterData.mem_cluster` is the producer
+of `hw`** — available exactly at `ScatterStep`, at the same `w`, so
+nothing escapes `clusterStepImplements`'s existential. The batch as a
+*set* is untouched: `BatchData`'s `W` is still the game invariant's, the
+child mask's and the kill set's. `RamDriver.sat_iff_eval_step` takes `w`
+with no hypothesis at all, so nothing upstream objects.
+
+The two refutations, compiled. **Route 1** (narrow the batch itself) —
+`game_arena_sees_the_cluster_cut`: `∃ A X W, deleteVerts A (W ∩ X) ≠
+deleteVerts A W`. `playRec_succ`'s `hstep` cuts the *game* arena, which
+is not cluster-restricted, so the recorded round moves and
+`batchCom_spec`'s walk-support clause weakens. Refuted as **not free**,
+rather than impossible — and the landed route never needs it settled,
+being correct either way; `playRec_succ` and `batchCom_spec` are
+byte-identical to `main`. **Route 2** (re-base the split at
+`X ∪ range w`) — `dead_inter_union_batch`: at the turn's own data
+`deadSet Alv' ∩ (X ∪ W) = W`, so the new inside half is the *whole
+batch*, every entry would owe a kill row (`KillRowsAt` widened,
+`Refine/KillPass.lean` rewritten, `killListCom`'s guard removed,
+`killListCost`/`ctKL` re-run) and by `outside_class_not_uniform_refuted`
+the out-of-cluster entries share no row, so no default bit pays for
+them. Refuted on cost.
+
+**Statements moved: exactly two.** `ClusterData`'s range clause, and
+`DescendStep`/`EnumStep`'s `W.Nonempty → (W ∩ X).Nonempty` — discharged
+in `descendStep`, because the connector is the centre whose cluster
+`clusterLoad` materialised (`RamCover.self_mem_wreach`, unconditional).
+`BatchData`, `PlayRec`, `batchCom_spec`, `KillRowsAt`, `KillListAt` and
+`killListCom` are **unchanged**; `Refine/KillListWalk.lean` and
+`KillListPass.lean` were never opened and `ctKL` is untouched. Cost:
+`enumBatch` `20·n+12·mb+30 → 23·n+12·mb+30` (the guard is three nodes
+wider) and `turnCost`'s enum slot bumped to match; `scatBlockK`
+untouched. One two-token widening in `Refine/KillPass.lean` (`v ∈ range
+w` now needs `⟨hvW, hvX⟩`, and `hvX` was already in scope).
+
+`TableInv`/`LevelPost`/`LevelImplements`/`LevelInv` verified
+byte-identical to `main` by extraction and compare. **The (b) capital is
+now usable**: `atomTerms_iff_scatVal_of_clusterData` is the atom's
+verdict with `ClusterData` in place of `hw` and `hpt`.
+
+**Sixth supervisor instruction overridden on this road, and the sixth
+time the worker was right.** The pattern is now the road's most reliable
+quality mechanism: a2 (the walk sat downstream of the driver), (b) (the
+`memFilterCom` filter shape), (c1) (parameterising `clusterCom` would
+have weakened `driverRoot_decides_sentence`), (c1b) (the swap itself, at
+`hw`), (c2a) (both offered routes). Briefs on this road should specify
+the *obligation* and let the source pick the mechanism.
