@@ -51,6 +51,7 @@ open Lax3Proofs.WalkDistance
 open Lax3Proofs.RamBfs (masked masked_adj)
 open Lax3Proofs.RamScatter (greedyMem_iff mem_greedySet)
 open Lax3Proofs.RamDriverCluster (markSet mem_markSet)
+open Lax3Proofs.RamDriver (stepColoringP)
 open Lax3Proofs.Refine.DeadRow (masked_isolated withinDist_isolated_iff)
 
 variable {n r : ℕ} {G : SimpleGraph (Fin n)} {M : ℕ → ℕ} {X : Set (Fin n)}
@@ -321,5 +322,212 @@ theorem ncard_greedySet_fold (G : SimpleGraph (Fin n)) (M : ℕ → ℕ) (r : �
   rw [h1]
   exact Set.ncard_union_eq (Set.disjoint_left.2 fun _ hv hv' => hv'.1.2 hv.1.2)
     (Set.toFinite _) (Set.toFinite _)
+
+/-! ## §6 The outside class's bit, from the compiled uniformity
+
+`DeadRowProbe.sat_outside_uniform` is the germ: two dead vertices
+outside the turn's cluster agree on every local formula at the child
+palette, because both carry the EMPTY colour row
+(`stepColoringP_subset`). Instantiated at the set a scatter atom speaks
+about, it is exactly `outside_all_or_nothing`'s hypothesis — so the
+class contributes `0` or its whole count, and never a per-vertex read.
+-/
+
+/-- The set a scatter atom of the child depth speaks about: the vertices
+where the atom's formula holds in the child arena at the child
+palette. -/
+def satSet {L mb cap : ℕ} (G A : SimpleGraph (Fin n)) (M' : ℕ → ℕ) (col : Coloring n L)
+    (Xc : Set (Fin n)) (w : Fin mb → Fin n)
+    (β : DistFO (Lax3Proofs.Evaluator.isoPalette (L + 1) mb cap) 1) : Set (Fin n) :=
+  {a : Fin n | Sat (masked G M') (stepColoringP cap A col Xc w) (fun _ => a) β}
+
+/-- **The outside class agrees with itself**, formula by formula —
+`DeadRowProbe.sat_outside_uniform` at the atom's set. -/
+theorem outside_uniform {L mb cap : ℕ} {G A : SimpleGraph (Fin n)} {M' : ℕ → ℕ}
+    {col : Coloring n L} {Xc : Set (Fin n)} {w : Fin mb → Fin n} (hw : ∀ i, w i ∈ Xc)
+    {β : DistFO (Lax3Proofs.Evaluator.isoPalette (L + 1) mb cap) 1} (hloc : IsLocal β) :
+    ∀ u ∈ deadSet n M' \ Xc, ∀ v ∈ deadSet n M' \ Xc,
+      (u ∈ satSet G A M' col Xc w β ↔ v ∈ satSet G A M' col Xc w β) :=
+  fun _ hu _ hv => DeadRowProbe.sat_outside_uniform hw hu.1 hv.1 hu.2 hv.2 hloc
+
+/-- **So the outside class costs one bit and one count.** Either every
+out-of-cluster dead vertex satisfies the atom, or none does — which is
+the whole reason the class needs no rows
+(`DeadRowProbe.no_coeff_pays_outsideRows` is what materializing them
+would cost). -/
+theorem outside_class_all_or_nothing {L mb cap : ℕ} {G A : SimpleGraph (Fin n)} {M' : ℕ → ℕ}
+    {col : Coloring n L} {Xc : Set (Fin n)} {w : Fin mb → Fin n} (hw : ∀ i, w i ∈ Xc)
+    {β : DistFO (Lax3Proofs.Evaluator.isoPalette (L + 1) mb cap) 1} (hloc : IsLocal β) :
+    (deadSet n M' \ Xc) ⊆ satSet G A M' col Xc w β ∨
+      (deadSet n M' \ Xc) ∩ satSet G A M' col Xc w β = ∅ :=
+  outside_all_or_nothing (outside_uniform hw hloc)
+
+/-- **The whole scatter contract, in the `ScatVal` vocabulary.** The
+atom's answer is a threshold against three terms: the alive process's
+count (a member-list walk), the kills' bits (`≤ mb` of them), and the
+outside class's bit times its count. No term reads a dead row outside
+the turn's own cluster. -/
+theorem scatVal_fold {L mb cap : ℕ} {G A : SimpleGraph (Fin n)} {M' : ℕ → ℕ}
+    {col : Coloring n L} {Xc : Set (Fin n)} {w : Fin mb → Fin n}
+    (σs : ScatterSentence (Lax3Proofs.Evaluator.isoPalette (L + 1) mb cap)) :
+    RamDriverCluster.ScatVal (masked G M') (stepColoringP cap A col Xc w) σs ↔
+      σs.t ≤
+        (greedySet (masked G M') σs.r
+            (satSet G A M' col Xc w σs.β ∩ markSet n M')).ncard +
+          ((deadSet n M' ∩ Xc ∩ satSet G A M' col Xc w σs.β).ncard +
+            ((deadSet n M' \ Xc) ∩ satSet G A M' col Xc w σs.β).ncard) := by
+  rw [RamDriverCluster.ScatVal]
+  show σs.t ≤ (greedySet (masked G M') σs.r (satSet G A M' col Xc w σs.β)).ncard ↔ _
+  rw [ncard_greedySet_fold G M' σs.r (satSet G A M' col Xc w σs.β) Xc]
+
+/-! ## §7 Survival: the pre-written rows are not overwritten
+
+The supply direction of the R1.8 design is inverted — the kill rows at
+depth `j + 1` are a PRECONDITION of the nested call, written by the
+enclosing turn — so what a level owes about them is that nothing below
+disturbs them. Two facts, and they are the same fact at two depths.
+
+A vertex the mask has killed lies in its assigned centre's cluster, a
+cluster is alive-homogeneous, so its centre is dead
+(`Refine.ArenaBlock.dead_vertex_has_no_alive_turn`) and the
+alive-filtered compaction never lists that position
+(`RamDriver.Compacted.alive`). So no turn of the level's loop is that
+vertex's turn, and the turn's own frame — the clause
+`RamDriverCluster.ClusterFrames` carries, that a cell whose assignment
+is not the running centre comes back — leaves its row alone. -/
+
+/-- **A dead vertex's position is never a listed centre.** The
+compaction lists alive centres only, and a dead vertex's centre is
+dead. -/
+theorem dead_not_listed {cap cnum m : ℕ} {G : SimpleGraph (Fin n)}
+    {M ord Xoff Xmem asg cps : ℕ → ℕ} {π : Equiv.Perm (Fin n)}
+    (hout : RamCover.CoverOut G M π ord cap m Xoff Xmem asg)
+    (hcomp : RamDriver.Compacted n cnum m M ord Xoff cps)
+    {v : Fin n} (hdv : M (v : ℕ) = 0) : ∀ k < cnum, asg (v : ℕ) ≠ cps k := by
+  intro k hk he
+  refine hcomp.alive k hk ?_
+  rw [← he]
+  exact Refine.ArenaBlock.dead_vertex_has_no_alive_turn hout v.isLt hdv
+
+/-- **The pre-written row of a dead vertex survives a turn** — the
+cell-granular no-overwrite fact wave R1.8-T2 left to T3. The hypothesis
+is the turn frame the level already holds: a cell whose assignment is
+not the running centre comes back unchanged. Nothing about the *content*
+of the row is used, so the same statement carries the kill rows of the
+enclosing turn and any other row the level was handed. -/
+theorem row_survives_turn {cap cnum m k cur : ℕ} {G : SimpleGraph (Fin n)}
+    {M ord Xoff Xmem asg cps Tb Tb₀ : ℕ → ℕ} {π : Equiv.Perm (Fin n)}
+    (hout : RamCover.CoverOut G M π ord cap m Xoff Xmem asg)
+    (hcomp : RamDriver.Compacted n cnum m M ord Xoff cps)
+    (hk : k < cnum) (hcur : cur = cps k)
+    (hfr : ∀ v : Fin n, asg (v : ℕ) ≠ cur → Tb (v : ℕ) = Tb₀ (v : ℕ))
+    {v : Fin n} (hdv : M (v : ℕ) = 0) : Tb (v : ℕ) = Tb₀ (v : ℕ) :=
+  hfr v (by rw [hcur]; exact dead_not_listed hout hcomp hdv k hk)
+
+/-- **And a row survives the whole loop**, by the same fact at every
+listed turn: if each turn of a finite chain leaves the cells whose
+assignment it is not, a dead vertex's cell is the same at the exit as at
+the entry. Stated over an arbitrary chain of cell functions so that the
+level's induction can consume it at its own loop. -/
+theorem row_survives_chain {cap cnum m : ℕ} {G : SimpleGraph (Fin n)}
+    {M ord Xoff Xmem asg cps : ℕ → ℕ} {π : Equiv.Perm (Fin n)}
+    (hout : RamCover.CoverOut G M π ord cap m Xoff Xmem asg)
+    (hcomp : RamDriver.Compacted n cnum m M ord Xoff cps)
+    (Tbs : ℕ → ℕ → ℕ)
+    (hstep : ∀ k < cnum, ∀ v : Fin n, asg (v : ℕ) ≠ cps k → Tbs (k + 1) (v : ℕ) = Tbs k (v : ℕ))
+    {v : Fin n} (hdv : M (v : ℕ) = 0) :
+    ∀ p ≤ cnum, Tbs p (v : ℕ) = Tbs 0 (v : ℕ) := by
+  intro p
+  induction p with
+  | zero => intro _; rfl
+  | succ p ih =>
+    intro hp
+    rw [hstep p (by omega) v (dead_not_listed hout hcomp hdv p (by omega)), ih (by omega)]
+
+/-! ## §8 The arithmetic at a concrete arena, both ways
+
+Four vertices, one alive, the turn's cluster `{0, 1}` — so one kill and
+two outside. The positive reading is `outside_ncard_eq`; the negative
+control is that dropping the kill term overshoots, which is the
+arithmetic form of "the kills are not free". -/
+
+section Concrete
+
+/-- One vertex of four alive. -/
+def mask4 : ℕ → ℕ := fun z => if z = 0 then 1 else 0
+
+/-- The turn's cluster: the first two vertices. -/
+def clu4 : Set (Fin 4) := {v | (v : ℕ) < 2}
+
+theorem markSet_mask4 : markSet 4 mask4 = {(0 : Fin 4)} := by
+  ext v; fin_cases v <;> simp [markSet, mask4]
+
+theorem deadSet_mask4 : deadSet 4 mask4 = {v : Fin 4 | (v : ℕ) ≠ 0} := by
+  ext v; fin_cases v <;> simp [deadSet, mask4]
+
+theorem ncard_markSet_mask4 : (markSet 4 mask4).ncard = 1 := by
+  rw [markSet_mask4, Set.ncard_singleton]
+
+theorem kills_mask4 : deadSet 4 mask4 ∩ clu4 = {(1 : Fin 4)} := by
+  ext v; fin_cases v <;> simp [deadSet, mask4, clu4]
+
+theorem ncard_kills_mask4 : (deadSet 4 mask4 ∩ clu4).ncard = 1 := by
+  rw [kills_mask4, Set.ncard_singleton]
+
+/-- **The positive reading**: `4 − 1 − 1 = 2` outside vertices, and the
+count agrees. -/
+theorem outside_mask4 : (deadSet 4 mask4 \ clu4).ncard = 2 := by
+  rw [outside_ncard_eq 4 mask4 clu4, ncard_markSet_mask4, ncard_kills_mask4]
+
+/-- **The negative control**: the naive "`n` minus the members" reading
+of the outside class — the one that forgets the turn's kills — is wrong
+here, and wrong by exactly the kill count. So the kill term of the fold
+is load-bearing and not bookkeeping. -/
+theorem outside_mask4_needs_kills :
+    (deadSet 4 mask4 \ clu4).ncard ≠ 4 - (markSet 4 mask4).ncard := by
+  rw [outside_mask4, ncard_markSet_mask4]
+  omega
+
+end Concrete
+
+/-! ## §9 Axioms -/
+
+/-- info: 'Lax3Proofs.Refine.ScatterDeadFold.split_needs_isolation' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms split_needs_isolation
+
+/-- info: 'Lax3Proofs.Refine.ScatterDeadFold.greedySet_split' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms greedySet_split
+
+/-- info: 'Lax3Proofs.Refine.ScatterDeadFold.ncard_greedySet_split' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms ncard_greedySet_split
+
+/-- info: 'Lax3Proofs.Refine.ScatterDeadFold.ncard_greedySet_fold' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms ncard_greedySet_fold
+
+/-- info: 'Lax3Proofs.Refine.ScatterDeadFold.outside_class_all_or_nothing' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#print axioms outside_class_all_or_nothing
+
+/-- info: 'Lax3Proofs.Refine.ScatterDeadFold.outside_ncard_eq' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms outside_ncard_eq
+
+/-- info: 'Lax3Proofs.Refine.ScatterDeadFold.row_survives_chain' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms row_survives_chain
 
 end Lax3Proofs.Refine.ScatterDeadFold
