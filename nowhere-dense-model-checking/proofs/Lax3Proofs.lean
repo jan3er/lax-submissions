@@ -116,3 +116,4 @@ import Lax3Proofs.Refine.OrderEngineProbe
 import Lax3Proofs.Refine.ElimCompact
 import Lax3Proofs.Refine.SymCompact
 import Lax3Proofs.Refine.AugCompact
+import Lax3Proofs.Refine.CompactPreps
