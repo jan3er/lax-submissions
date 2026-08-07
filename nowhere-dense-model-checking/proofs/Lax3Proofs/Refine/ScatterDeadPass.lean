@@ -206,14 +206,20 @@ and the one-bit-times-a-count reading of the outside term is false.
 was the answer.
 
 * *Narrow the batch* — one more `andCom` at the end of
-  `RamDriver.batchCom`. It is **refuted** by
-  `game_arena_sees_the_cluster_cut` below: `RamDriver.playRec_succ`'s
-  `hstep` cuts the *game* arena by the batch, and the game arena is not
-  cluster-restricted, so the same intersection that is invisible at the
-  child arena is visible there. The recorded round would move, and with
-  it `RamDriverDescend.batchCom_spec`'s walk-support clause, whose
-  conclusion would weaken from `support ∩ ball ⊆ W` to
-  `support ∩ ball ⊆ W ∩ X`.
+  `RamDriver.batchCom`. It is not free, and
+  `game_arena_sees_the_cluster_cut` below is why:
+  `RamDriver.playRec_succ`'s `hstep` cuts the *game* arena by the batch,
+  and the game arena is **not** cluster-restricted, so the same
+  intersection that is invisible at the child arena is visible there.
+  The recorded round moves, and with it
+  `RamDriverDescend.batchCom_spec`'s walk-support clause, whose
+  conclusion weakens from `support ∩ ball ⊆ W` to
+  `support ∩ ball ⊆ W ∩ X`. The escape would be a proof that `W ⊆ X`
+  already, which would make the cut vacuous — but that is an export of
+  nothing landed, and the geometry is against it: the batch is cut to
+  the `2·cap`-ball of the connector in the **game** arena, while `X` is
+  a `wreach`-cluster of the centre in the **work** arena, which
+  `RamDriver.PlayRec` puts strictly below it.
 * *Re-base the dead fold at `X ∪ Set.range w`* — **refuted on cost** by
   `dead_inter_union_batch` below: at the turn's own data the new inside
   half is the WHOLE batch, so the kill list would have to enumerate
@@ -229,7 +235,9 @@ was the answer.
   arena cannot see the difference (`RamDriver.deleteVerts_inter_cluster`,
   which `RamDriverCluster.masked_alv_eq` now runs through) and
   `RamDriver.sat_iff_eval_step` — the isolation rewrite itself — asks
-  nothing whatever of `w`. The producer of `hw` is
+  nothing whatever of `w`. It is correct whether or not `W ⊆ X` holds
+  of the driver's states, which is why it does not need that question
+  settled. The producer of `hw` is
   `RamDriverCluster.ClusterData.mem_cluster`, and
   `atomTerms_iff_scatVal_of_clusterData` at the end of §5 is the atom's
   verdict with the turn's data in place of the hypothesis. -/
