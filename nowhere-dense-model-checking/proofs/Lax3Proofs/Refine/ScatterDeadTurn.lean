@@ -73,30 +73,13 @@ engine's scalar set is a closed list of nineteen literals — the radius
 and the threshold occur only inside expressions, which `Com.wvars` does
 not look at — so every question about it is one `decide`. -/
 
-/-- The engine's scalars do not depend on its two parameters. -/
-theorem wvars_scatBlockCom_eq (r t : ℕ) :
-    (scatBlockCom r t).wvars = (scatBlockCom 0 0).wvars := rfl
-
-/-- **The nineteen.** The scan's own four, the block search's twelve,
-the marking walk's two and the flag. -/
-theorem wvars_scatBlockCom_sub (r t : ℕ) :
-    (scatBlockCom r t).wvars ⊆ ["cnt", "mj", "mv", "sj", "src", "tail", "head", "sc", "v",
-      "dv", "dn", "j", "jend", "w", "ri", "u", "du", "mw", "flag"] := by
-  rw [wvars_scatBlockCom_eq]
-  decide
-
+/-- The engine's scalar set, off `Lax3Proofs.RamDriverWrites` — where
+the recursion's own frame already needed it. -/
 theorem notMem_wvars_scatBlockCom_of {r t : ℕ} {y : String}
     (h : y ∉ ["cnt", "mj", "mv", "sj", "src", "tail", "head", "sc", "v",
       "dv", "dn", "j", "jend", "w", "ri", "u", "du", "mw", "flag"]) :
     y ∉ (scatBlockCom r t).wvars :=
-  fun hy => h (wvars_scatBlockCom_sub r t hy)
-
-/-- A prefixed driver name is none of them. -/
-theorem notMem_wvars_scatBlockCom_append {r t : ℕ} {p s : String}
-    (h : ∀ q ∈ ["cnt", "mj", "mv", "sj", "src", "tail", "head", "sc", "v",
-      "dv", "dn", "j", "jend", "w", "ri", "u", "du", "mw", "flag"],
-      q.toList.take p.toList.length ≠ p.toList) : p ++ s ∉ (scatBlockCom r t).wvars :=
-  notMem_wvars_scatBlockCom_of (RamDriverIO.notMem_of_append h)
+  RamDriverWrites.notMem_wvars_scatBlockCom_of h
 
 /-- **And the engine writes nothing to the tape**, which is what the
 phase's `out` clause needs of it. -/
@@ -167,37 +150,14 @@ and the depth's kill count. Each is settled pass by pass off the nine
 `wvars` lemmas of `Refine.ScatterDeadPass` §5d. -/
 
 open Classical in
-/-- **What one dead-aware atom assigns.** Every scalar of the nine
-passes, in one disjunction — the eight driver-side sets, the
-evaluator's, and the engine's nineteen. -/
+/-- **What one dead-aware atom assigns**, off `RamDriverWrites`. -/
 theorem wvars_scatDeadCom {L : ℕ} (j ti : ℕ) (β : DistFO L 1) (r t : ℕ) (hloc : IsLocal β)
     {y : String} (hy : y ∈ (scatDeadCom j ti β r t).wvars) :
     y ∈ ["kc", "ke", "of", "oz", "oi", "oc", "mm", "ak", "av", "i", "os", "flag"] ∨
       y ∈ ["cnt", "mj", "mv", "sj", "src", "tail", "head", "sc", "v",
         "dv", "dn", "j", "jend", "w", "ri", "u", "du", "mw", "flag"] ∨
-      RamDriverBot.Ext "bb" y ∨ ∃ q, y = envName q := by
-  by_cases h₁ : y ∈ ["kc", "ke", "of", "oz", "oi", "oc", "mm", "ak", "av", "i", "os", "flag"]
-  · exact Or.inl h₁
-  by_cases h₂ : y ∈ ["cnt", "mj", "mv", "sj", "src", "tail", "head", "sc", "v",
-      "dv", "dn", "j", "jend", "w", "ri", "u", "du", "mw", "flag"]
-  · exact Or.inr (Or.inl h₂)
-  refine Or.inr (Or.inr ?_)
-  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at h₁
-  obtain ⟨hkc, hke, hof, hoz, hoi, hoc, hmm, hak, hav, hi, hos, hflag⟩ := h₁
-  rw [scatDeadCom, Com.wvars, Com.wvars, Com.wvars, Com.wvars, Com.wvars, Com.wvars,
-    Com.wvars, Com.wvars, List.mem_append, List.mem_append, List.mem_append,
-    List.mem_append, List.mem_append, List.mem_append, List.mem_append,
-    List.mem_append] at hy
-  rcases hy with h | h | h | h | h | h | h | h | h
-  · exact absurd h (ScatterDeadPass.notMem_wvars_killSumCom j ti hkc hke)
-  · exact absurd h (ScatterDeadPass.notMem_wvars_outProbeCom j hof hoz hoi)
-  · exact ScatterDeadPass.wvars_atomBitCom β hloc h
-  · exact absurd h (ScatterDeadPass.notMem_wvars_outCntCom j hoc)
-  · exact absurd h (ScatterDeadPass.notMem_wvars_atomMemCom j ti hmm hak hav)
-  · exact absurd h (ScatterDeadPass.notMem_wvars_copyCom _ _ hi)
-  · exact absurd h (ScatterDeadPass.notMem_wvars_fillCom _ _ hi)
-  · exact absurd h (notMem_wvars_scatBlockCom_of h₂)
-  · exact absurd h (ScatterDeadPass.notMem_wvars_atomFlagCom t hos hflag)
+      RamDriverBot.Ext "bb" y ∨ ∃ q, y = envName q :=
+  RamDriverWrites.wvars_scatDeadCom j ti β r t hloc hy
 
 /-- The driver's own prefixed names cross the whole atom program. -/
 theorem notMem_wvars_scatDeadCom_append {L : ℕ} {j ti : ℕ} {β : DistFO L 1} {r t : ℕ}
@@ -871,5 +831,54 @@ theorem blocksDead_spec {bw nb : ℕ}
             intro σs hσs
             rw [show i₀ + (q + 1) = i₀ + 1 + q from by omega]
             exact hval'' q (by simpa using hp) σs (by simpa using hσs)
+
+/-! ### §6 The obligation
+
+`RamDriverCluster.ScatterStep`, at the fold of
+`RamDriver.scatterDeadCom` and with the postcondition it has always
+had. The two antecedents it carries are exactly the two the
+composition consumes — the alive-cluster clause and the ball budget —
+and `RamDriver.BaseArrs` is the one conjunct the precondition gained,
+for the outside class's `RamDriver.botCom` fragment. -/
+
+open Classical in
+/-- **The dead-aware scatter atoms of one cluster, discharged.** One
+`Refine.ScatterDeadEngine.scatBlockCnt_specW` per scatter atom of every
+tabled formula, at the atom's *filtered* member list — never at the
+carrier — with the turn's kill bits and the outside class's single bit
+supplying the two dead terms. The flag it leaves is the same one the
+landed fold left, and it is worth the same thing. -/
+theorem scatterDeadStep {bw nb Kb Ki K : ℕ}
+    (hcsr : CsrGraph G ns O T) {d : ℕ} (hB : WordBoundK B n d ns cap mb)
+    (hbnd : ∀ β ∈ tablesAt q_top cap mb φ j, ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
+      σs.r + 1 < B ∧ σs.t + n + mb < B ∧ deadAtomK σs.β n n mb n bw nb σs.t ≤ Kb)
+    (hcost : ∀ β ∈ tablesAt q_top cap mb φ j,
+      Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki)
+    (hK : Ki * (tablesAt q_top cap mb φ j).length + 1 ≤ K) :
+    RamDriverCluster.ScatterStep B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asg m
+      X W w Alv' Gam' C' bw nb K := by
+  intro hXalive hbud
+  refine Spec.of_exists fun σ hσ => ?_
+  obtain ⟨hturn, hdata, hcolarr, hcolbit, hcolread, htab, hklist, hbarr⟩ := hσ
+  obtain ⟨σ', hrun, hpre', hout, hc, -, hval⟩ :=
+    (blocksDead_spec hcsr hB hXalive hbud (tablesAt q_top cap mb φ j) 0
+      (fun _ hβ => hβ) hbnd hcost).run
+      ⟨⟨hturn, hdata, hcolarr, hcolbit, hcolread, htab⟩, hklist, hbarr⟩
+  exact ⟨σ', _, hrun, hK, hpre'.1.1, hpre'.1.2.1, hpre'.1.2.2.1, hpre'.1.2.2.2.2.2,
+    hout, hc, fun i hi σs hσs => by simpa using hval i hi σs hσs⟩
+
+/-! ### §7 Axioms -/
+
+/-- info: 'Lax3Proofs.Refine.ScatterDeadTurn.scatDead_spec' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms scatDead_spec
+
+/-- info: 'Lax3Proofs.Refine.ScatterDeadTurn.scatterDeadStep' depends on axioms: [propext,
+Classical.choice,
+Quot.sound] -/
+#guard_msgs in
+#print axioms scatterDeadStep
 
 end Lax3Proofs.Refine.ScatterDeadTurn

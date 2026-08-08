@@ -707,45 +707,19 @@ theorem blocks_spec (hcsr : CsrGraph G ns O T) (hnB : n < B) (hnsB : ns < B) (h1
             rw [show i₀ + (q + 1) = i₀ + 1 + q from by omega]
             exact hval'' q (by simpa using hp) σs (by simpa using hσs)
 
-/-! ### The obligation
+/-! ### What the landed phase was worth
 
-`RamDriverCluster.ScatterStep` as it stands, plus one hypothesis it does
-not carry. The postcondition reads every flag in the *cluster step's*
-arena and palette, and the precondition pins the palette only as the
-family `C'` the colour arrays hold; the equation between the two is
-`RamDriverCluster.ColourStep`'s last clause, which
-`RamDriverCluster.clusterStepImplements` obtains and then drops. It
-enters here as `hcolread`, exactly as it does in
-`RamDriverBase.readbackStep`, which owes it for the same reason. -/
+**Wave R1.8-T3-flip (c1d).** `RamDriverCluster.ScatterStep` is now
+stated at the fold of `RamDriver.scatterDeadCom`, so the discharge that
+used to stand here — one `RamScatter.scatter_spec` per atom at a
+carrier-width copy of the atom's table row — no longer proves it, and it
+is gone. `Refine.ScatterDeadTurn.scatterDeadStep` is the successor; it
+cannot live here, because the dead-aware passes' walks
+(`Refine.ScatterDeadPass`) import `Lax3Proofs.RamDriverCluster`.
 
-open Classical in
-/-- **The scatter atoms of one cluster, discharged.** One
-`RamScatter.scatter_spec` per scatter atom of every tabled formula, at
-the depth-`(j+1)` table row of the atom's own formula — which
-`RamDriver.TableInv` says is the set the atom speaks about — preceded by
-the two copies the calling convention asks for and followed by the
-atom's flag. -/
-theorem scatterStep {Kb Ki bw nb K : ℕ}
-    (hcsr : CsrGraph G ns O T) {d : ℕ} (hB : WordBoundK B n d ns cap mb)
-    (hbnd : ∀ β ∈ tablesAt q_top cap mb φ j, ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
-      σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n ns σs.t ≤ Kb)
-    (hcost : ∀ β ∈ tablesAt q_top cap mb φ j,
-      Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki)
-    (hK : Ki * (tablesAt q_top cap mb φ j).length + 1 ≤ K) :
-    ScatterStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
-      Alv' Gam' C' bw nb K := by
-  -- the landed fold reads no dead row and runs no active-set engine, so neither the
-  -- alive-cluster clause nor the ball budget is used here (wave R1.8-T3-flip (c1c))
-  intro _ _
-  refine Spec.of_exists fun σ hσ => ?_
-  obtain ⟨hturn, hdata, hcolarr, hcolbit, hcolread, htab, -⟩ := hσ
-  obtain ⟨σ', hrun, hpre', hout, hc, -, hval⟩ :=
-    (blocks_spec hcsr hB.n_lt hB.ns_lt hB.one_lt hcolread
-      (tablesAt q_top cap mb φ j) 0 (fun _ hβ => hβ) hbnd hcost).run
-      ⟨hturn, hdata, hcolarr, hcolbit, hcolread, htab⟩
-  exact ⟨σ', _, hrun, hK, hpre'.1, hpre'.2.1,
-    hpre'.2.2.1, hpre'.2.2.2.2.2, hout, hc,
-    fun i hi σs hσs => by simpa using hval i hi σs hσs⟩
+`blocks_spec` above is left standing: it is the landed reading of
+`RamDriver.scatterCom`'s fold, and `RamDriver.scatterCom` is still in
+the tree as the statement of what the flip replaced. -/
 
 /-! ### The scatter phase's own frame
 
@@ -1153,8 +1127,11 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
     (hVcur : curName j ∉ inner.wvars) (hVmm : ∀ a ≤ j, mnumName a ∉ inner.wvars)
     (hVkk : kkName j ∉ inner.wvars)
     (hscat : ∀ X W w Alv' Gam' C',
-      ScatterStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
+      ScatterStep B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asg m X W w
         Alv' Gam' C' bw nb Ks)
+    (hscattab : ∀ i, tabName j i ∉
+      (foldIdx (fun i β => RamDriver.scatterDeadCom q_top cap mb φ j i β) 0
+        (tablesAt q_top cap mb φ j)).warrs)
     (hbud : ∀ (M' : ℕ → ℕ) (r : ℕ), Refine.ScatterBlock.BallBudget n r G M' O bw nb)
     (hread : ∀ X W w Alv' Gam' C',
       ReadbackStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asg m X W w
@@ -1226,9 +1203,10 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
       (hfr X W w Alv' Gam' C')).run (σ := σₗ)
       ⟨hlevin, hturnₗ, hdatₗ, htszₗ, hbarrₗ, hplayₗ, hkllistₗ⟩
   have htsz₄ : TablesSized q_top cap mb φ n σ₄ := htszₗ.run hr₄
+  have hbarr₄ : BaseArrs B q_top cap mb ℓ φ σ₄ := hbarrₗ.run hr₄
   obtain ⟨σ₅, hr₅, hturn₅, hdat₅, hcolarr₅, htab₅, hout₅, hc₅, hflag₅⟩ :=
     (hscat X W w Alv' Gam' C' hXalive (hbud Alv')).run (σ := σ₄)
-      ⟨hturn₄, hdat₄, hcolarr₄, hcolbit₃, hcolread₃, htab₄, hkllist₄⟩
+      ⟨hturn₄, hdat₄, hcolarr₄, hcolbit₃, hcolread₃, htab₄, hkllist₄, hbarr₄⟩
   have htsz₅ : TablesSized q_top cap mb φ n σ₅ := htsz₄.run hr₅
   have hc₅₀ : σ₅.vars (curName j) = σ.vars (curName j) := by
     rw [hc₅, hc₄, hcₗ, hcₖ, hc₃, hc₂, hc₁]
@@ -1239,9 +1217,10 @@ theorem clusterFrames {ℓ k : ℕ} {wA : (ℕ → ℕ) → ℕ} {wBk : ℕ} {in
   refine ⟨σ₆, _,
     hr₁.seq (hr₂.seq (hr₃.seq (hrₖ.seq (hrₗ.seq (hr₄.seq (hr₅.seq hr₆)))))), by omega,
     hturn₆.2.2, fun i hi Tb Tb₀ harr harr₀ v hv => ?_⟩
-  obtain ⟨hfd, hfe, hfc, hfs⟩ := tabName_notMem_warrs_turn q_top cap mb φ j j i
+  obtain ⟨hfd, hfe, hfc, -⟩ := tabName_notMem_warrs_turn q_top cap mb φ j j i
   have hframe : σ₅.arrs (tabName j i) = σ.arrs (tabName j i) := by
-    rw [hr₅.frame_arr _ hfs, hr₄.frame_arr _ (hinnerTab i), hrₗ.frame_arr _ (hklisttab i),
+    rw [hr₅.frame_arr _ (hscattab i), hr₄.frame_arr _ (hinnerTab i),
+      hrₗ.frame_arr _ (hklisttab i),
       hrₖ.frame_arr _ (hkilltab i),
       hr₃.frame_arr _ hfc, hr₂.frame_arr _ hfe, hr₁.frame_arr _ hfd]
   obtain ⟨Tb', Tb₀', harr', harr₀', hunch, -⟩ := hrb₆ i hi

@@ -2432,10 +2432,11 @@ run before the recursion; and its product `klName j` is a *per-depth*
 name, which is what survives the recursion for the atom pass's kill walk
 to read afterwards.
 
-**Rebase R1.8-T3-flip (c1).** The scatter phase is still the fold of
-`scatterCom`; the fold of `scatterDeadCom` that replaces it is written
-above and walked in `Refine.ScatterDeadTurn`, and the substitution here
-is the one remaining step of the swap. -/
+**Rebase R1.8-T3-flip (c1d).** The scatter phase is the fold of
+`scatterDeadCom`: no carrier walk, no copy of a table row, and no read
+of a row outside `alive ∪ kills`. `Refine.ScatterDeadTurn` is the walk
+and `RamDriverCluster.ScatterStep` the obligation; the landed
+`scatterCom` stays in the file as the statement of what it replaces. -/
 noncomputable def clusterCom (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) (j : ℕ)
     (inner : Com) : Com :=
   .seq (descendCom cap j)
@@ -2444,7 +2445,7 @@ noncomputable def clusterCom (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) (j
         (.seq (killCom q_top cap mb j φ)
           (.seq (killListCom mb j)
             (.seq inner
-              (.seq (foldIdx (fun i β => scatterCom q_top cap mb φ j i β) 0
+              (.seq (foldIdx (fun i β => scatterDeadCom q_top cap mb φ j i β) 0
                   (tablesAt q_top cap mb φ j))
                 (readbackCom q_top cap mb φ j)))))))
 

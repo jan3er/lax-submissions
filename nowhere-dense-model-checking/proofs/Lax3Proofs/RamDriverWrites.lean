@@ -1314,6 +1314,160 @@ theorem tabName_notMem_warrs_scatterDeadPhase {q_top cap mb : ℕ}
   · revert h; simp [tabName, String.ext_iff]
   · exact RamDriverBot.not_ext_b_tabName d i (RamDriverCompose.ext_b_of_ext_bb h)
 
+/-! ### The dead-aware atom program's scalars
+
+**Wave R1.8-T3-flip (c1d).** The write-set half above is what a turn's
+table frame needs; the *scalar* half is what the recursion's frame needs,
+since `RamDriver.clusterCom` now runs this phase and
+`belowVar_notMem_wvars_driverAux` walks that text. The engine's scalar
+set is a closed list of nineteen literals — its radius and threshold
+occur only inside expressions, which `Com.wvars` does not look at. -/
+
+theorem wvars_scatBlockCom_eq (r t : ℕ) :
+    (Refine.ScatterBlock.scatBlockCom r t).wvars =
+      (Refine.ScatterBlock.scatBlockCom 0 0).wvars := rfl
+
+/-- The engine's nineteen: the scan's own four, the block search's
+twelve, the marking walk's two and the flag. -/
+theorem wvars_scatBlockCom_sub (r t : ℕ) :
+    (Refine.ScatterBlock.scatBlockCom r t).wvars ⊆
+      ["cnt", "mj", "mv", "sj", "src", "tail", "head", "sc", "v",
+        "dv", "dn", "j", "jend", "w", "ri", "u", "du", "mw", "flag"] := by
+  rw [wvars_scatBlockCom_eq]
+  decide
+
+theorem notMem_wvars_scatBlockCom_of {r t : ℕ} {y : String}
+    (h : y ∉ ["cnt", "mj", "mv", "sj", "src", "tail", "head", "sc", "v",
+      "dv", "dn", "j", "jend", "w", "ri", "u", "du", "mw", "flag"]) :
+    y ∉ (Refine.ScatterBlock.scatBlockCom r t).wvars :=
+  fun hy => h (wvars_scatBlockCom_sub r t hy)
+
+open Classical in
+/-- **What one dead-aware atom assigns**: the eight driver-side passes'
+scalars, the engine's nineteen, and the generated evaluator's. -/
+theorem wvars_scatDeadCom {L : ℕ} (j ti : ℕ) (β : DistFO L 1) (r t : ℕ) (hloc : IsLocal β)
+    {y : String} (hy : y ∈ (scatDeadCom j ti β r t).wvars) :
+    y ∈ ["kc", "ke", "of", "oz", "oi", "oc", "mm", "ak", "av", "i", "os", "flag"] ∨
+      y ∈ ["cnt", "mj", "mv", "sj", "src", "tail", "head", "sc", "v",
+        "dv", "dn", "j", "jend", "w", "ri", "u", "du", "mw", "flag"] ∨
+      RamDriverBot.Ext "bb" y ∨ ∃ q, y = envName q := by
+  by_cases h₁ : y ∈ ["kc", "ke", "of", "oz", "oi", "oc", "mm", "ak", "av", "i", "os", "flag"]
+  · exact Or.inl h₁
+  by_cases h₂ : y ∈ ["cnt", "mj", "mv", "sj", "src", "tail", "head", "sc", "v",
+      "dv", "dn", "j", "jend", "w", "ri", "u", "du", "mw", "flag"]
+  · exact Or.inr (Or.inl h₂)
+  refine Or.inr (Or.inr ?_)
+  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at h₁
+  obtain ⟨hkc, hke, hof, hoz, hoi, hoc, hmm, hak, hav, hi, hos, hflag⟩ := h₁
+  rw [scatDeadCom, Com.wvars, Com.wvars, Com.wvars, Com.wvars, Com.wvars, Com.wvars,
+    Com.wvars, Com.wvars, List.mem_append, List.mem_append, List.mem_append,
+    List.mem_append, List.mem_append, List.mem_append, List.mem_append,
+    List.mem_append] at hy
+  rcases hy with h | h | h | h | h | h | h | h | h
+  · exact absurd h (Refine.ScatterDeadPass.notMem_wvars_killSumCom j ti hkc hke)
+  · exact absurd h (Refine.ScatterDeadPass.notMem_wvars_outProbeCom j hof hoz hoi)
+  · exact Refine.ScatterDeadPass.wvars_atomBitCom β hloc h
+  · exact absurd h (Refine.ScatterDeadPass.notMem_wvars_outCntCom j hoc)
+  · exact absurd h (Refine.ScatterDeadPass.notMem_wvars_atomMemCom j ti hmm hak hav)
+  · exact absurd h (Refine.ScatterDeadPass.notMem_wvars_copyCom _ _ hi)
+  · exact absurd h (Refine.ScatterDeadPass.notMem_wvars_fillCom _ _ hi)
+  · exact absurd h (notMem_wvars_scatBlockCom_of h₂)
+  · exact absurd h (Refine.ScatterDeadPass.notMem_wvars_atomFlagCom t hos hflag)
+
+open Classical in
+/-- **What the phase of one tabled formula assigns**: the atom's scalars
+and the formula's own flags. -/
+theorem wvars_scatterDeadFold {q_top cap mb : ℕ} {φ : Lax3.FirstOrder.FO 0} (j i : ℕ)
+    (hloc : ∀ γ ∈ tablesAt q_top cap mb φ (j + 1), IsLocal γ) :
+    ∀ (l : List (Lax3.ScatterSentences.ScatterSentence (sigL cap mb (j + 1)))) (k₀ : ℕ),
+      (∀ σs ∈ l, σs.β ∈ tablesAt q_top cap mb φ (j + 1)) →
+      ∀ y ∈ (foldIdx (fun k σs =>
+          Com.seq (scatDeadCom j (posOf σs.β (tablesAt q_top cap mb φ (j + 1))) σs.β σs.r σs.t)
+            (.assign (flgName j i k) (.var "flag"))) k₀ l).wvars,
+        y ∈ ["kc", "ke", "of", "oz", "oi", "oc", "mm", "ak", "av", "i", "os", "flag"] ∨
+          y ∈ ["cnt", "mj", "mv", "sj", "src", "tail", "head", "sc", "v",
+            "dv", "dn", "j", "jend", "w", "ri", "u", "du", "mw", "flag"] ∨
+          RamDriverBot.Ext "bb" y ∨ (∃ q, y = envName q) ∨ ∃ k, y = flgName j i k := by
+  intro l
+  induction l with
+  | nil => intro k₀ _ y hy; exact absurd hy (by rw [foldIdx]; simp [Com.wvars])
+  | cons x xs ih =>
+      intro k₀ hmem y hy
+      rw [foldIdx, Com.wvars, Com.wvars, List.mem_append, List.mem_append] at hy
+      rcases hy with (h | h) | h
+      · rcases wvars_scatDeadCom j _ x.β x.r x.t (hloc _ (hmem x List.mem_cons_self)) h with
+          h' | h' | h' | h'
+        exacts [Or.inl h', Or.inr (Or.inl h'), Or.inr (Or.inr (Or.inl h')),
+          Or.inr (Or.inr (Or.inr (Or.inl h')))]
+      · refine Or.inr (Or.inr (Or.inr (Or.inr ⟨k₀, ?_⟩)))
+        rw [wvars_assign] at h
+        exact List.eq_of_mem_singleton h
+      · exact ih (k₀ + 1) (fun s hs => hmem s (List.mem_cons_of_mem _ hs)) y h
+
+open Classical in
+/-- **And what the whole phase assigns.** -/
+theorem wvars_scatterDeadPhase {q_top cap mb : ℕ} {φ : Lax3.FirstOrder.FO 0} (j : ℕ)
+    (hloc : ∀ γ ∈ tablesAt q_top cap mb φ (j + 1), IsLocal γ) :
+    ∀ (l : List (DistFO (sigL cap mb j) 1)) (i₀ : ℕ),
+      (∀ β ∈ l, β ∈ tablesAt q_top cap mb φ j) →
+      ∀ y ∈ (foldIdx (fun i β => scatterDeadCom q_top cap mb φ j i β) i₀ l).wvars,
+        y ∈ ["kc", "ke", "of", "oz", "oi", "oc", "mm", "ak", "av", "i", "os", "flag"] ∨
+          y ∈ ["cnt", "mj", "mv", "sj", "src", "tail", "head", "sc", "v",
+            "dv", "dn", "j", "jend", "w", "ri", "u", "du", "mw", "flag"] ∨
+          RamDriverBot.Ext "bb" y ∨ (∃ q, y = envName q) ∨ ∃ i k, y = flgName j i k := by
+  intro l
+  induction l with
+  | nil => intro i₀ _ y hy; exact absurd hy (by rw [foldIdx]; simp [Com.wvars])
+  | cons x xs ih =>
+      intro i₀ hmem y hy
+      rw [foldIdx, Com.wvars, List.mem_append] at hy
+      rcases hy with h | h
+      · rcases wvars_scatterDeadFold j i₀ hloc _ 0
+            (fun s hs => mem_tablesAt_succ_of_mem_bcAtomsOf_right
+              (hmem x List.mem_cons_self) hs) y (by rwa [scatterDeadCom] at h) with
+            h' | h' | h' | h' | ⟨k, hk⟩
+        exacts [Or.inl h', Or.inr (Or.inl h'), Or.inr (Or.inr (Or.inl h')),
+          Or.inr (Or.inr (Or.inr (Or.inl h'))),
+          Or.inr (Or.inr (Or.inr (Or.inr ⟨i₀, k, hk⟩)))]
+      · exact ih (i₀ + 1) (fun β hβ => hmem β (List.mem_cons_of_mem _ hβ)) y h
+
+open Classical in
+/-- **A name of a depth below survives the dead-aware phase** — the
+phase writes six fixed arrays and the evaluator's scratch, none of which
+carries a digit or begins `bb`. -/
+theorem belowArr_notMem_warrs_scatterDeadPhase (q_top cap mb d : ℕ)
+    (φ : Lax3.FirstOrder.FO 0) {a : String} (h : BelowArr d a) :
+    a ∉ (foldIdx (fun i β => scatterDeadCom q_top cap mb φ d i β) 0
+      (tablesAt q_top cap mb φ d)).warrs := by
+  intro hm
+  have hlocal : ∀ β ∈ tablesAt q_top cap mb φ (d + 1), IsLocal β :=
+    fun β hβ => (tableRank_of_mem_tablesAt (d + 1) β hβ).1
+  rcases warrs_scatterDeadPhase d hlocal _ 0 (fun _ hβ => hβ) a hm with hc | hc
+  · exact (by decide : ∀ q ∈ ["mem", "alv", "dist", "exc", "q", "qd"], ¬ HasDigit q) a hc
+      (hasDigit_of_belowArr h)
+  · exact not_ext_bb_of_belowArr h hc
+
+open Classical in
+/-- **And so does a scalar of one.** -/
+theorem belowVar_notMem_wvars_scatterDeadPhase (q_top cap mb d : ℕ)
+    (φ : Lax3.FirstOrder.FO 0) {y : String} (h : BelowVar d y) :
+    y ∉ (foldIdx (fun i β => scatterDeadCom q_top cap mb φ d i β) 0
+      (tablesAt q_top cap mb φ d)).wvars := by
+  intro hm
+  have hlocal : ∀ β ∈ tablesAt q_top cap mb φ (d + 1), IsLocal β :=
+    fun β hβ => (tableRank_of_mem_tablesAt (d + 1) β hβ).1
+  rcases wvars_scatterDeadPhase d hlocal _ 0 (fun _ hβ => hβ) y hm with
+      hc | hc | hc | ⟨q, hq⟩ | ⟨i, k, hq⟩
+  · exact (by decide : ∀ q ∈ ["kc", "ke", "of", "oz", "oi", "oc", "mm", "ak", "av", "i",
+      "os", "flag"], ¬ HasDigit q) y hc (hasDigit_of_belowVar h)
+  · exact (by decide : ∀ q ∈ ["cnt", "mj", "mv", "sj", "src", "tail", "head", "sc", "v",
+      "dv", "dn", "j", "jend", "w", "ri", "u", "du", "mw", "flag"], ¬ HasDigit q) y hc
+      (hasDigit_of_belowVar h)
+  · exact not_ext_bb_of_belowVar h hc
+  · exact belowVar_ne_envName h q hq
+  · exact belowVar_notMem_underscore h
+      (hq ▸ RamDriverFrames.underscore_mem_flgName d i k)
+
 /-- **No name of a depth below is the kill list of any depth** — `"kl"`
 is a fresh prefix, so the whole table is settled by the first two
 characters. -/
@@ -1447,7 +1601,7 @@ theorem belowArr_notMem_warrs_driverAux (q_top cap mb ℓ : ℕ) (φ : Lax3.Firs
         rcases mem_warrs_seq hr with hr | hr
         · exact ih (d + 1) (h.mono (Nat.le_succ d)) hr
         rcases mem_warrs_seq hr with hr | hr
-        · exact belowArr_notMem_warrs_scatterFold q_top cap mb d φ h hr
+        · exact belowArr_notMem_warrs_scatterDeadPhase q_top cap mb d φ h hr
         · exact belowArr_notMem_warrs_readbackCom q_top cap mb d φ h hr
       · rw [warrs_assign] at hq; exact absurd hq List.not_mem_nil
 
@@ -1500,7 +1654,7 @@ theorem belowVar_notMem_wvars_driverAux (q_top cap mb ℓ : ℕ) (φ : Lax3.Firs
         rcases mem_wvars_seq hr with hr | hr
         · exact ih (d + 1) (h.mono (Nat.le_succ d)) hr
         rcases mem_wvars_seq hr with hr | hr
-        · exact belowVar_notMem_wvars_scatterFold q_top cap mb d φ h hr
+        · exact belowVar_notMem_wvars_scatterDeadPhase q_top cap mb d φ h hr
         · exact belowVar_notMem_wvars_readbackCom q_top cap mb d φ h hr
       · rw [wvars_assign] at hq
         exact belowVar_ne h (le_refl d) (by tauto) (List.eq_of_mem_singleton hq)
@@ -1560,8 +1714,12 @@ theorem cpsName_notMem_warrs_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.FirstO
   rcases mem_warrs_seq hr with hr | hr
   · exact hin hr
   rcases mem_warrs_seq hr with hr | hr
-  · exact (by decide : ∀ q ∈ scratchArrs, ¬ HasDigit q) _
-      (RamDriverFrames.warrs_scatterFold q_top cap mb φ d _ 0 _ hr) (hasDigit_cpsName d)
+  · rcases warrs_scatterDeadPhase d
+        (fun β hβ => (tableRank_of_mem_tablesAt (d + 1) β hβ).1) _ 0 (fun _ hβ => hβ) _ hr with
+        hc | hc
+    · exact (by decide : ∀ q ∈ ["mem", "alv", "dist", "exc", "q", "qd"], ¬ HasDigit q) _ hc
+        (hasDigit_cpsName d)
+    · exact absurd hc (by rw [cpsName]; exact not_ext_bb_append (by decide) (by decide) _)
   · obtain ⟨i, hi⟩ := RamDriverBase.mem_warrs_readbackCom hr
     exact absurd hi (by simp [cpsName, tabName, String.ext_iff])
 
@@ -1612,13 +1770,18 @@ theorem perDepthVar_notMem_wvars_clusterCom (q_top cap mb d : ℕ) (φ : Lax3.Fi
   rcases mem_wvars_seq hr with hr | hr
   · exact hin hr
   rcases mem_wvars_seq hr with hr | hr
-  · have hy2 : y ≠ "i" := fun hq' => (by decide : ¬ HasDigit "i") (hq' ▸ hy)
-    have hy3 : y ∉ (RamScatter.scatterCom 0 0).wvars := fun hq' =>
-      (by decide : ∀ q ∈ (RamScatter.scatterCom 0 0).wvars, ¬ HasDigit q) _ hq' hy
-    obtain ⟨i, β, -, hm'⟩ := mem_wvars_foldIdx _ _ 0 hr
-    rw [RamDriverFrames.scatterCom_eq] at hm'
-    obtain ⟨k, σs, -, hm''⟩ := mem_wvars_foldIdx _ _ 0 hm'
-    exact RamDriverFrames.notMem_wvars_atomCom hyus hy2 hy3 hm''
+  · -- the dead-aware atom phase (wave R1.8-T3-flip (c1d)): its scalars are the
+    -- eight passes' own, the engine's nineteen, the evaluator's, and the flags
+    rcases wvars_scatterDeadPhase d
+        (fun β hβ => (tableRank_of_mem_tablesAt (d + 1) β hβ).1) _ 0 (fun _ hβ => hβ) y hr with
+        hc | hc | hc | ⟨q, hq⟩ | ⟨i, k, hq⟩
+    · exact (by decide : ∀ q ∈ ["kc", "ke", "of", "oz", "oi", "oc", "mm", "ak", "av", "i",
+        "os", "flag"], ¬ HasDigit q) y hc hy
+    · exact (by decide : ∀ q ∈ ["cnt", "mj", "mv", "sj", "src", "tail", "head", "sc", "v",
+        "dv", "dn", "j", "jend", "w", "ri", "u", "du", "mw", "flag"], ¬ HasDigit q) y hc hy
+    · exact hybb hc
+    · exact hyenv q hq
+    · exact hyus (hq ▸ RamDriverFrames.underscore_mem_flgName d i k)
   · exact RamDriverBase.not_mem_wvars_readbackCom
       (fun hq' => (by decide : ¬ HasDigit "z") (hq' ▸ hy)) hr
 

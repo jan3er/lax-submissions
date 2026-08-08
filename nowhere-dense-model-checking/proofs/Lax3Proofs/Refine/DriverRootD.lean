@@ -670,7 +670,8 @@ theorem clusterStepAtR (hfr : RFrames q_top cap mb R ℓ φ)
     (hB : WordBoundK B n Kmass ns cap mb) (hcsr : CsrGraph G ns O T)
     (hbnd : ∀ β ∈ tablesAt q_top cap mb φ j,
       ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
-        σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n ns σs.t ≤ Kb)
+        σs.r + 1 < B ∧ σs.t + n + mb < B ∧
+          Refine.ScatterDeadTurn.deadAtomK σs.β n n mb n ns n σs.t ≤ Kb)
     (hcostI : ∀ β ∈ tablesAt q_top cap mb φ j,
       Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki)
     (hKsc : Ki * (tablesAt q_top cap mb φ j).length + 1 ≤ Ksc)
@@ -694,7 +695,7 @@ theorem clusterStepAtR (hfr : RFrames q_top cap mb R ℓ φ)
       (fun _ ha => (hfr j).2.2.2.2.2.2.2.2.1 _ ha)
       (hfr j).2.2.2.2.2.2.2.2.2)
     (fun _ _ _ _ _ _ =>
-      RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
+      Refine.ScatterDeadTurn.scatterDeadStep hcsr hB hbnd hcostI hKsc)
     (Refine.ScatterDeadPass.ballBudget_carrier hcsr)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
     hmono
@@ -710,7 +711,8 @@ theorem clusterFramesAtR (hfr : RFrames q_top cap mb R ℓ φ)
     (hB : WordBoundK B n Kmass ns cap mb) (hcsr : CsrGraph G ns O T)
     (hbnd : ∀ β ∈ tablesAt q_top cap mb φ j,
       ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
-        σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n ns σs.t ≤ Kb)
+        σs.r + 1 < B ∧ σs.t + n + mb < B ∧
+          Refine.ScatterDeadTurn.deadAtomK σs.β n n mb n ns n σs.t ≤ Kb)
     (hcostI : ∀ β ∈ tablesAt q_top cap mb φ j,
       Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki)
     (hKsc : Ki * (tablesAt q_top cap mb φ j).length + 1 ≤ Ksc)
@@ -739,7 +741,9 @@ theorem clusterFramesAtR (hfr : RFrames q_top cap mb R ℓ φ)
     (fun _ ha => (hfr j).2.2.2.2.2.2.2.2.1 _ ha)
     (hfr j).2.2.2.2.2.2.2.2.2
     (fun _ _ _ _ _ _ =>
-      RamDriverFrames.scatterStep hcsr hB hbnd hcostI hKsc)
+      Refine.ScatterDeadTurn.scatterDeadStep hcsr hB hbnd hcostI hKsc)
+    (fun i => RamDriverWrites.tabName_notMem_warrs_scatterDeadPhase j j i
+      (fun β hβ => (tableRank_of_mem_tablesAt (j + 1) β hβ).1) _ 0 (fun _ hβ => hβ))
     (Refine.ScatterDeadPass.ballBudget_carrier hcsr)
     (fun _ _ _ _ _ _ => RamDriverBase.readbackStep hB.one_lt hB.n_lt le_rfl)
     (fun i => (hfr j).2.2.2.2.1 i)
@@ -804,7 +808,8 @@ theorem levelAtR {N : ℕ → ℕ} {s : ℕ} {Kb : ℕ} {Ki Ksc : ℕ → ℕ} {
         DistIndependent (deleteVerts G S) (2 * cap) Bd)
     (hbnd : ∀ j < ℓ, ∀ β ∈ tablesAt q_top cap mb φ j,
       ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
-        σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n ns σs.t ≤ Kb)
+        σs.r + 1 < B ∧ σs.t + n + mb < B ∧
+          Refine.ScatterDeadTurn.deadAtomK σs.β n n mb n ns n σs.t ≤ Kb)
     (hcostI : ∀ j < ℓ, ∀ β ∈ tablesAt q_top cap mb φ j,
       Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki j)
     (hKsc : ∀ j < ℓ, Ki j * (tablesAt q_top cap mb φ j).length + 1 ≤ Ksc j)
@@ -1055,7 +1060,8 @@ theorem driverRootD_decides_sentence
     -- the value bounds and the costs, at the compacted count
     (hbnd : ∀ j < ℓ, ∀ β ∈ tablesAt q_top cap mb φ j,
       ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
-        σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n (dedupNs x) σs.t ≤ Kb)
+        σs.r + 1 < B ∧ σs.t + n + mb < B ∧
+          Refine.ScatterDeadTurn.deadAtomK σs.β n n mb n (dedupNs x) n σs.t ≤ Kb)
     (hcostI : ∀ j < ℓ, ∀ β ∈ tablesAt q_top cap mb φ j,
       Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki j)
     (hKsc : ∀ j < ℓ, Ki j * (tablesAt q_top cap mb φ j).length + 1 ≤ Ksc j)
@@ -1129,7 +1135,8 @@ theorem driverRootD_decides_sentenceR
     -- the value bounds and the costs, at the compacted count
     (hbnd : ∀ j < ℓ, ∀ β ∈ tablesAt q_top cap mb φ j,
       ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
-        σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n (dedupNs x) σs.t ≤ Kb)
+        σs.r + 1 < B ∧ σs.t + n + mb < B ∧
+          Refine.ScatterDeadTurn.deadAtomK σs.β n n mb n (dedupNs x) n σs.t ≤ Kb)
     (hcostI : ∀ j < ℓ, ∀ β ∈ tablesAt q_top cap mb φ j,
       Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki j)
     (hKsc : ∀ j < ℓ, Ki j * (tablesAt q_top cap mb φ j).length + 1 ≤ Ksc j)
@@ -1200,7 +1207,8 @@ theorem driverRootD_decides_sentence_pre
         DistIndependent (deleteVerts G S) (2 * cap) Bd)
     (hbnd : ∀ j < ℓ, ∀ β ∈ tablesAt q_top cap mb φ j,
       ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j β)).2,
-        σs.r + 1 < B ∧ σs.t < B ∧ RamDriverIO.atomCost n (dedupNs x) σs.t ≤ Kb)
+        σs.r + 1 < B ∧ σs.t + n + mb < B ∧
+          Refine.ScatterDeadTurn.deadAtomK σs.β n n mb n (dedupNs x) n σs.t ≤ Kb)
     (hcostI : ∀ j < ℓ, ∀ β ∈ tablesAt q_top cap mb φ j,
       Kb * (bcAtomsOf q_top (stepFml cap mb j β)).2.length + 1 ≤ Ki j)
     (hKsc : ∀ j < ℓ, Ki j * (tablesAt q_top cap mb φ j).length + 1 ≤ Ksc j)

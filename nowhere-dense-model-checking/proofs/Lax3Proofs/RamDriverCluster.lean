@@ -923,9 +923,23 @@ about the *turn's data* and neither is about a state.
   `RamBfs.CsrGraph` alone and is supplied in
   `RamDriverRoot.clusterStepAt`.
 
-Both are vacuous for the landed `RamScatter.scatterCom` fold, which is
-why `RamDriverFrames.scatterStep` simply `intro`s and drops them. -/
-def ScatterStep (B q_top cap mb ns Ws j : ℕ) (φ : Lax3.FirstOrder.FO 0)
+**Wave R1.8-T3-flip (c1d): the phase IS the dead-aware one.** The
+command below is the fold of `RamDriver.scatterDeadCom`, not of
+`RamDriver.scatterCom`, and the two antecedents above are no longer
+vacuous — both are consumed by
+`Refine.ScatterDeadPass.atomTerms_iff_scatVal_of_clusterData` inside
+`Refine.ScatterDeadTurn.scatterDeadStep`, which is the discharge. The
+postcondition is **unchanged**, character for character: what the phase
+leaves is still every scatter atom's greedy value in the cluster step's
+arena, and no consumer of this obligation moves.
+
+The precondition gains `RamDriver.BaseArrs` (and with it the level's
+`ℓ`), because the outside class's bit is one `RamDriver.botCom`
+fragment and the generated evaluator's candidate arrays are a
+precondition of running one. `clusterStepImplements` already holds it at
+the point the phase runs — it is `hbarr` carried across the recursion —
+so nothing above the turn owes anything new. -/
+def ScatterStep (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
     (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (X W : Set (Fin n)) (w : Fin mb → Fin n)
     (Alv' Gam' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ) (bw nb K : ℕ) : Prop :=
@@ -937,8 +951,9 @@ def ScatterStep (B q_top cap mb ns Ws j : ℕ) (φ : Lax3.FirstOrder.FO 0)
       (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) ∧
       colRead n C' (sigL cap mb (j + 1)) =
         stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w ∧
-      TableInv q_top cap mb φ G (j + 1) Alv' C' σ ∧ KillListAt mb j M X W σ)
-    (foldIdx (fun i β => scatterCom q_top cap mb φ j i β) 0 (tablesAt q_top cap mb φ j))
+      TableInv q_top cap mb φ G (j + 1) Alv' C' σ ∧ KillListAt mb j M X W σ ∧
+      BaseArrs B q_top cap mb ℓ φ σ)
+    (foldIdx (fun i β => scatterDeadCom q_top cap mb φ j i β) 0 (tablesAt q_top cap mb φ j))
     (fun σ σ' => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ' ∧
       (∀ c < sigL cap mb (j + 1), σ'.arrs (colName (j + 1) c) = arrOf n (C' c)) ∧
@@ -1131,7 +1146,7 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
       InnerFrames B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asgf mm X W w
         Alv' Gam' C' inner (Kin (wA Alv')))
     (hscat : ∀ X W w Alv' Gam' C',
-      ScatterStep B q_top cap mb ns Ws j φ G O T M Gm C π ord Xoff Xmem asgf mm X W w
+      ScatterStep B q_top cap mb ns Ws ℓ j φ G O T M Gm C π ord Xoff Xmem asgf mm X W w
         Alv' Gam' C' bw nb Ks)
     (hbud : ∀ (M' : ℕ → ℕ) (r : ℕ), Refine.ScatterBlock.BallBudget n r G M' O bw nb)
     (hread : ∀ X W w Alv' Gam' C',
@@ -1217,10 +1232,11 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
       (hfr hinner X W w Alv' Gam' C')).run
       (σ := σₗ) ⟨hlevin, hturnₗ, hdatₗ, htszₗ, hbarrₗ, hplayₗ, hkllistₗ⟩
   have htsz₄ : TablesSized q_top cap mb φ n σ₄ := htszₗ.run hr₄
+  have hbarr₄ : BaseArrs B q_top cap mb ℓ φ σ₄ := hbarrₗ.run hr₄
   -- the scatter atoms
   obtain ⟨σ₅, hr₅, hturn₅, hdat₅, hcolarr₅, htab₅, hout₅, hc₅, hflag₅⟩ :=
     (hscat X W w Alv' Gam' C' hXalive (hbud Alv')).run (σ := σ₄)
-      ⟨hturn₄, hdat₄, hcolarr₄, hcolbit₃, hcolread₃, htab₄, hkllist₄⟩
+      ⟨hturn₄, hdat₄, hcolarr₄, hcolbit₃, hcolread₃, htab₄, hkllist₄, hbarr₄⟩
   have htsz₅ : TablesSized q_top cap mb φ n σ₅ := htsz₄.run hr₅
   have hc₅₀ : σ₅.vars (curName j) = σ.vars (curName j) := by
     rw [hc₅, hc₄, hcₗ, hcₖ, hc₃, hc₂, hc₁]
