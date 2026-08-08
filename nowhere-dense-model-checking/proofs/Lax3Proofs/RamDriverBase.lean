@@ -333,13 +333,23 @@ noncomputable def TabOk (q_top cap mb j : ℕ) {n : ℕ} (asg : ℕ → ℕ) (cc
 /-- Everything the readback reads and never writes: the level's own
 surface, the cover's assignment, the centre being processed, the output
 tape, and the values of the atoms of every tabled formula at every
-vertex. -/
+vertex **the turn was assigned**.
+
+**Wave R1.8-T3-flip (c2b): at the visited vertices only.** The loop
+evaluates an atom expression under the guard `asg[z] = cc` and nowhere
+else, so asking for the valuation off the guard asks for something the
+walk never uses — and something the caller can no longer supply, since a
+local atom reads the depth-`(j+1)` table row and a vertex outside
+`alive ∪ kills` has no row. The clause below is the walk's real
+precondition; `RamDriverCluster.ReadbackStep`'s own visited-vertex
+clause is what turns it back into a statement about the cluster. -/
 def RbBase (B q_top cap mb ns Ws j : ℕ) {n : ℕ} (φ : Lax3.FirstOrder.FO 0) (O T M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (asg : ℕ → ℕ) (cc : ℕ) (ou : List ℕ)
     (val : Fin n → ℕ → StepAtom cap mb j → Prop) (σ : Env) : Prop :=
   LevelPre B n cap mb ns Ws O T j M Gm C σ ∧ σ.arrs (asgName j) = arrOf n asg ∧
     (∀ v < n, asg v < B) ∧ σ.vars (curName j) = cc ∧ cc < B ∧ σ.out = ou ∧
-    ∀ (v : Fin n) (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length)
+    ∀ (v : Fin n), asg (v : ℕ) = cc → ∀ (i : ℕ)
+        (hi : i < (tablesAt q_top cap mb φ j).length)
         (h : ∃ q' : ℕ, q' + 1 ≤ q_top ∧
           DRank 1 q' (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])),
         ∀ a ∈ (bcOf q_top (stepFml cap mb j (tablesAt q_top cap mb φ j)[i]) h).atoms,
@@ -436,8 +446,8 @@ theorem rbBase_setArr_tab {B q_top cap mb ns Ws j : ℕ} {φ : Lax3.FirstOrder.F
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := h
   refine ⟨levelPre_setArr_tab h1 i idx v, ?_, h3, h4, h5, h6, ?_⟩
   · rw [arrs_setArr, if_neg (by simp [tabName, asgName, String.ext_iff])]; exact h2
-  · intro w p hp hr a ha
-    obtain ⟨u, hu1, hueval, huiff⟩ := h7 w p hp hr a ha
+  · intro w hw p hp hr a ha
+    obtain ⟨u, hu1, hueval, huiff⟩ := h7 w hw p hp hr a ha
     refine ⟨u, hu1, ?_, huiff⟩
     rw [setArr_setVar, evalB_atomExpr_setArr]
     exact hueval
@@ -451,8 +461,8 @@ theorem rbBase_setVar_z {B q_top cap mb ns Ws j : ℕ} {φ : Lax3.FirstOrder.FO 
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := h
   refine ⟨levelPre_setVar_z h1 k, h2, h3, ?_, h5, h6, ?_⟩
   · rw [vars_setVar, if_neg (by simp [curName, String.ext_iff])]; exact h4
-  · intro w p hp hr a ha
-    obtain ⟨u, hu1, hueval, huiff⟩ := h7 w p hp hr a ha
+  · intro w hw p hp hr a ha
+    obtain ⟨u, hu1, hueval, huiff⟩ := h7 w hw p hp hr a ha
     exact ⟨u, hu1, by rw [setVar_setVar_same]; exact hueval, huiff⟩
 
 /-- Setting a scalar to the value it already holds changes nothing. -/
@@ -511,7 +521,7 @@ theorem store_step_spec {B q_top cap mb ns Ws j : ℕ} {φ : Lax3.FirstOrder.FO 
       (atomExpr q_top cap mb φ j p (tablesAt q_top cap mb φ j)[p] a).evalB B σ = some u ∧
         (u ≠ 0 ↔ val ⟨z₀, hz₀⟩ p a) := by
     intro h a ha
-    obtain ⟨u, hu1, hueval, huiff⟩ := hbase.2.2.2.2.2.2 ⟨z₀, hz₀⟩ p hp h a ha
+    obtain ⟨u, hu1, hueval, huiff⟩ := hbase.2.2.2.2.2.2 ⟨z₀, hz₀⟩ hcc p hp h a ha
     exact ⟨u, hu1, by rwa [setVar_self hz] at hueval, huiff⟩
   obtain ⟨u, hu1, hueval, huiff⟩ := evalB_rbCell (i := p) hB hval
   -- the array being written is there, at the carrier's length
@@ -850,7 +860,7 @@ theorem readbackStep {B q_top cap mb ns Ws j : ℕ} {n : ℕ} {φ : Lax3.FirstOr
       Alv' Gam' C' K := by
   classical
   intro σ hσ
-  obtain ⟨hturn, hdata, hcolarr, hcolbit, hcolread, htabinv, htsz, hcn, hflag⟩ := hσ
+  obtain ⟨hturn, hdata, hcolarr, hcolbit, hcolread, htabinv, htsz, hcn, hvis, hflag⟩ := hσ
   have hcB : σ.vars (curName j) < B := lt_trans hcn hn
   -- the depth's own tables are there, and this names their cells
   set T₀ : ℕ → ℕ → ℕ := fun i v => (σ.arrs (tabName j i)).getD v 0 with hT₀def
@@ -864,8 +874,23 @@ theorem readbackStep {B q_top cap mb ns Ws j : ℕ} {n : ℕ} {φ : Lax3.FirstOr
     simp only [hg, getD_arrOf _ hv]
   obtain ⟨hlevel, hplayrec, hordA, hxoffA, hxmemA, hasgA, hxpA, hmn, hmB, hordlt, hcout⟩ := hturn
   have hasgB : ∀ v < n, asg v < B := fun v hv => lt_trans (hcout.asg_lt v hv) hn
-  -- the atoms of every tabled formula, at every vertex
-  have hatom : ∀ (v : Fin n) (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length)
+  -- **the atoms of every tabled formula, at every vertex the turn was assigned**
+  -- (wave R1.8-T3-flip (c2b)). A visited vertex is in the cluster and alive at the
+  -- parent depth (`hvis`), so it is either alive at the child depth or a vertex
+  -- THIS turn killed — `RamDriverCluster.BatchData`'s pointwise clause is the
+  -- dichotomy, and `Refine.DeadRowProbe.readback_dead_read_is_kill` is the design
+  -- reading of it. Either way its row exists, which is all the local atom needs.
+  have hrow : ∀ v : Fin n, asg (v : ℕ) = σ.vars (curName j) →
+      v ∈ RamDriverCluster.rowDom M Alv' X W := by
+    intro v hv
+    by_cases hal : Alv' (v : ℕ) = 0
+    · obtain ⟨hM, hX⟩ := hvis v hv
+      refine Or.inr ⟨hM, hX, ?_⟩
+      by_contra hW
+      exact absurd hal ((hdata.1.2.2.2.2.2.2.1 v).2 ⟨hM, hX, hW⟩)
+    · exact Or.inl hal
+  have hatom : ∀ (v : Fin n), asg (v : ℕ) = σ.vars (curName j) →
+      ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length)
       (h : ∃ q' : ℕ, q' + 1 ≤ q_top ∧
         DRank 1 q' (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])),
       ∀ a ∈ (bcOf q_top (stepFml cap mb j (tablesAt q_top cap mb φ j)[i]) h).atoms,
@@ -873,7 +898,7 @@ theorem readbackStep {B q_top cap mb ns Ws j : ℕ} {n : ℕ} {φ : Lax3.FirstOr
             (σ.setVar "z" (v : ℕ)) = some u ∧
           (u ≠ 0 ↔ atomVal (stepArenaP (masked G M) X w)
             (stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w) v a) := by
-    intro v i hi h a ha
+    intro v hvcur i hi h a ha
     have hzv : (σ.setVar "z" (v : ℕ)).vars "z" = (v : ℕ) := by rw [vars_setVar, if_pos rfl]
     cases a with
     | inl γ =>
@@ -881,14 +906,15 @@ theorem readbackStep {B q_top cap mb ns Ws j : ℕ} {n : ℕ} {φ : Lax3.FirstOr
         bcLocals_subset_tablesAt_succ (List.getElem_mem hi) ((mem_bcAtomsOf_left h).mpr ha)
       obtain ⟨hlt, heq⟩ := getElem_posOf hmemγ
       obtain ⟨Tc, hTc, hTc1, hTcval⟩ := htabinv _ hlt
-      refine ⟨Tc (v : ℕ), hTc1 _ v.isLt, ?_, ?_⟩
+      have hvd : v ∈ RamDriverCluster.rowDom M Alv' X W := hrow v hvcur
+      refine ⟨Tc (v : ℕ), hTc1 _ hvd, ?_, ?_⟩
       · show (Expr.get (tabName (j + 1) (posOf γ (tablesAt q_top cap mb φ (j + 1))))
           (.var "z")).evalB B _ = _
-        refine evalB_get (k := (v : ℕ)) ?_ ?_ (lt_of_le_of_lt (hTc1 _ v.isLt) hB)
+        refine evalB_get (k := (v : ℕ)) ?_ ?_ (lt_of_le_of_lt (hTc1 _ hvd) hB)
         · rw [evalB_var (by rw [hzv]; omega), hzv]
         · rw [arrs_setVar, hTc]
           exact getElem?_arrOf _ v.isLt
-      · rw [hTcval v, heq, masked_alv_eq hdata, hcolread]
+      · rw [hTcval v hvd, heq, masked_alv_eq hdata, hcolread]
         exact Iff.rfl
     | inr σs =>
       have hmem : σs ∈ (bcAtomsOf q_top (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2 :=

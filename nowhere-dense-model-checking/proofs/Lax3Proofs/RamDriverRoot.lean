@@ -161,6 +161,38 @@ theorem tabName_notMem_warrs_driverAt (i : ℕ) :
   RamDriverWrites.belowArr_notMem_warrs_driverAt
     ⟨j, Nat.lt_succ_self j, by tauto⟩
 
+/-- **Neither carrier phase of a level writes a table** (wave
+R1.8-T3-flip (c2b)). The level's precondition now carries the rows of
+the pre-written domain `D`, and the centre loop is not reached until the
+ordering and the cover have run; both write only their own scratch and
+the depth's ordering/cover answers, none of which is a `tabName`. This
+is `RamDriverCluster.levelImplements`' `hphfr`, and it is what replaced
+the dead-row sweep as the supplier of the dead half at loop entry. -/
+theorem tabName_notMem_warrs_phases {R : ℕ} (jd i : ℕ) :
+    tabName jd i ∉ (orderCom R jd).warrs ∧
+      tabName jd i ∉ (coverPhase cap jd).warrs := by
+  constructor
+  · intro hm
+    rcases RamDriverCompose.mem_warrs_orderCom hm with h | h
+    · rw [RamDriverCompose.warrs_orderCom₀] at h
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at h
+      rcases h with h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h |
+        h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h |
+        h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h | h |
+        h | h <;>
+      first
+        | exact RamDriverBase.tabName_ne_lit jd i (by decide) h
+        | exact absurd h (by simp [tabName, ordName, String.ext_iff])
+    · exact RamDriverBase.tabName_ne_lit jd i (q := "off") (by decide)
+        (by
+          have := RamDriverCompose.mem_warrs_augRoundCom _ h
+          simp only [List.mem_cons, List.not_mem_nil, or_false] at this
+          rcases this with h' | h' | h' | h' | h' | h' | h' | h' | h' | h' | h' | h' | h' |
+            h' | h' | h' | h' | h' | h' | h' | h' | h' | h' | h' | h' | h' <;>
+            exact absurd h' (by simp [tabName, String.ext_iff]))
+  · rw [RamDriverCompose.warrs_coverPhase]
+    simp [tabName, xofName, xmmName, asgName, cpsName, String.ext_iff]
+
 /-! **Rebase B3.** The three names the compacted centre loop header owns
 are frames of the whole turn: the nested level is a level at depth
 `j + 1`, and the five other phases write no per-depth name but the
@@ -600,7 +632,13 @@ theorem levelAt
   -- carries it there: `hB` goes down unchanged (rebase E-mem/W3). The cover
   -- phase's two arena slots are the mass readings, off this theorem's own
   -- `hdeg` at the ordering the loop produced.
-  RamDriverCluster.levelImplements hB hWB hcsr
+  --
+  -- **Wave R1.8-T3-flip (c2b).** The induction is now over a pre-written domain
+  -- and this theorem instantiates it at `∅`, which is what `LevelImplements`
+  -- names: the root writes no dead row and needs none. The sweep argument is
+  -- gone; `hKd` is a vestigial slot, kept so that the hypothesis list — and with
+  -- it `driverRoot_decides_sentence`'s — is unchanged.
+  fun j hj M Gm C => RamDriverCluster.levelImplements hB hWB hcsr
     (fun _ _ _ _ _ _ => RamElim.implements)
     (fun _ _ _ _ _ _ _ => RamDriverAugment.implements)
     (fun A₀ ord π => RamDriverOrder.coverTurnImplements B n ns G A₀ O T ord π cap)
@@ -623,13 +661,11 @@ theorem levelAt
       clusterFramesAt hmb hj hB hcsr.csr (hbnd j hj) (hcostI j hj) (hKsc j hj)
         (hKmono (j + 1)) (hKs j hj _))
     (fun _ _ => loopFrames)
-    (fun j _ M _ _ =>
-      (Refine.DeadSweep.sweepImplements (jd := j) hB).mono
-        (hKd j (arenaWeight n G M)))
+    (fun jd i => tabName_notMem_warrs_phases jd i)
     (fun M π ord Xoff Xmem asg cps mm cnum hordby _ hout hcomp =>
       Refine.MassWeight.mass_of_alive_compaction_weight G hordby hout
         (hbinj M π ord Xoff Xmem asg mm hout) (hdeg M π) hcomp)
-    hKl
+    hKl j hj M Gm C ∅
 
 end Level
 

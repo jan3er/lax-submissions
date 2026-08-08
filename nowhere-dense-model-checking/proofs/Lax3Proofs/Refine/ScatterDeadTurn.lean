@@ -373,16 +373,28 @@ theorem scatDead_spec {bw nb : ℕ}
   -- the atom's set, as the child's table row decides it
   set S := ScatterDeadFold.satSet G (masked G M) Alv' (colRead n C (sigL cap mb j)) X w σs.β
     with hSdef
-  have hbitS : ∀ v : Fin n, Tb (v : ℕ) ≠ 0 ↔ v ∈ S := by
-    intro v
-    rw [hTbS v, hpβ, hcolread, hSdef]
+  -- **the row decides the atom on `alive ∪ kills` and nowhere else** (wave
+  -- R1.8-T3-flip (c2b)): the domain `RamDriverCluster.rowDom` is where the rows
+  -- exist, and every read below is inside it — the kill list's entries, the
+  -- child's member list, and nothing more
+  have hbitS : ∀ v : Fin n, v ∈ RamDriverCluster.rowDom M Alv' X W →
+      (Tb (v : ℕ) ≠ 0 ↔ v ∈ S) := by
+    intro v hv
+    rw [hTbS v hv, hpβ, hcolread, hSdef]
     exact Iff.rfl
+  have hklrow : ∀ e, (he : e < kq) →
+      (⟨kl e, hkllt e he⟩ : Fin n) ∈ RamDriverCluster.rowDom M Alv' X W := by
+    intro e he
+    obtain ⟨v, hv, hM, hX, hW⟩ := hklsnd e he
+    have hvv : (⟨kl e, hkllt e he⟩ : Fin n) = v := Fin.ext hv.symm
+    rw [hvv]
+    exact RamDriverCluster.mem_rowDom_of_kill ⟨hM, hX, hW⟩
   -- **pass 1**: the atom's bits at the turn's kills
   obtain ⟨σ₁, hr₁, hkc₁, hkk₁, hklA₁, hTbA₁⟩ :=
     (ScatterDeadPass.killSumCom_spec (B := B) (n := n) (mb := mb) (j := j)
       (ti := posOf σs.β (tablesAt q_top cap mb φ (j + 1))) (kq := kq) (kl := kl) (Tb := Tb)
       h1B hnB hmbB hkqmb hkllt
-      (fun e he => hTb1 (kl e) (hkllt e he))).run ⟨hkkV, hklA, hTbA⟩
+      (fun e he => hTb1 ⟨kl e, hkllt e he⟩ (hklrow e he))).run ⟨hkkV, hklA, hTbA⟩
   have hfa₁ : ∀ a : String, σ₁.arrs a = σ.arrs a :=
     fun a => hr₁.frame_arr a (by rw [ScatterDeadPass.warrs_killSumCom]; simp)
   have hfv₁ : ∀ y : String, y ≠ "kc" → y ≠ "ke" → σ₁.vars y = σ.vars y :=
@@ -477,7 +489,9 @@ theorem scatDead_spec {bw nb : ℕ}
     (ScatterDeadPass.atomMemCom_spec (B := B) (n := n) (j := j)
       (ti := posOf σs.β (tablesAt q_top cap mb φ (j + 1))) (mm1 := mm1) (Mem1 := Mem1)
       (Tb := Tb) (A := Alv') h1B hnB hmem1E
-      (fun p hp' => lt_of_le_of_lt (hTb1 (Mem1 p) (hmem1E.1 p hp')) h1B)).run
+      (fun p hp' => lt_of_le_of_lt
+        (hTb1 ⟨Mem1 p, hmem1E.1 p hp'⟩
+          (RamDriverCluster.mem_rowDom_of_alive (hmem1E.2.2.1 p hp'))) h1B)).run
       ⟨hmm₄,
         by rw [hfa₄, hfa₃ _ (not_ext_bb_memName (j + 1)), hfa₂, hfa₁]; exact hmem1A,
         by rw [hfa₄, hfa₃ _ (not_ext_bb_tabName (j + 1) _), hfa₂, hfa₁]; exact hTbA,
@@ -567,7 +581,8 @@ theorem scatDead_spec {bw nb : ℕ}
     rw [hkc₈]
     calc (∑ e ∈ Finset.range kq, Tb (kl e)) ≤ ∑ _e ∈ Finset.range kq, 1 :=
           Finset.sum_le_sum fun e he =>
-            hTb1 (kl e) (hkllt e (Finset.mem_range.1 he))
+            hTb1 ⟨kl e, hkllt e (Finset.mem_range.1 he)⟩
+              (hklrow e (Finset.mem_range.1 he))
       _ = kq := by simp
   have hbble : σ₈.vars "bb" ≤ 1 := by rw [hbb₈]; exact hbb1₃
   have hocle : σ₈.vars "oc" ≤ n := by rw [hoc₈]; omega
@@ -628,14 +643,16 @@ theorem scatDead_spec {bw nb : ℕ}
       rw [this]
       exact ⟨hM, hX, hW⟩
     · exact fun v hv => hklcmp v hv.1 hv.2.1 hv.2.2
-    · exact fun v _ => ⟨hTb1 (v : ℕ) v.isLt, hbitS v⟩
+    · exact fun v hv => ⟨hTb1 v (RamDriverCluster.mem_rowDom_of_kill hv),
+        hbitS v (RamDriverCluster.mem_rowDom_of_kill hv)⟩
     · rw [hbb₈]
       rcases hout₃ with ⟨hno, hbb0⟩ | ⟨zo, h₁, h₂, h₃, h₄⟩
       · exact Or.inl ⟨hno, hbb0⟩
       · exact Or.inr ⟨zo, h₁, h₂, h₃, h₄⟩
     · intro e
       have := hkey₈ e
-      rwa [ScatterDeadPass.bitSet_eq_inter (fun v _ => hbitS v)] at this
+      rwa [ScatterDeadPass.bitSet_eq_inter
+        (fun v hv => hbitS v (RamDriverCluster.mem_rowDom_of_alive hv))] at this
 
 /-! ### §5 The folds
 

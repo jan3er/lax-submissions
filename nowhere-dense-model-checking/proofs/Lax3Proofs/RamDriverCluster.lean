@@ -760,6 +760,48 @@ def ColourStep (B cap mb ns Ws j : ℕ) (G : SimpleGraph (Fin n)) (O T M Gm : �
         colRead n C' (sigL cap mb (j + 1)) =
           stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w) K
 
+/-- **The kill set of one turn, as a set** (wave R1.8-T3-flip (c2b)):
+the vertices alive at the parent depth, in the cluster and in the batch.
+
+This is `KillRowsAt`'s domain and `KillListAt`'s enumerated set, named
+so that the child depth's table obligation can be *stated* at it. Its
+body is character for character `Refine.ScatterDeadPass.turnKills`'s —
+that file sits above this one in the import order, so the reading the
+driver's obligations are written in has to be here. -/
+def killSet {n : ℕ} (M : ℕ → ℕ) (X W : Set (Fin n)) : Set (Fin n) :=
+  {v : Fin n | M (v : ℕ) ≠ 0 ∧ v ∈ X ∧ v ∈ W}
+
+theorem mem_killSet {M : ℕ → ℕ} {X W : Set (Fin n)} {v : Fin n} :
+    v ∈ killSet M X W ↔ (M (v : ℕ) ≠ 0 ∧ v ∈ X ∧ v ∈ W) := Iff.rfl
+
+/-- **A kill is dead at the child depth.** `BatchData`'s pointwise
+clause (wave R1.8-T1), read in the direction the flip needs: what the
+kill pass wrote rows for is exactly what the child mask has killed, so
+the domain the nested level is handed is a subset of its own dead set —
+which is `RamDriver.LevelImplementsD`'s standing hypothesis. -/
+theorem killSet_dead {M Alv' : ℕ → ℕ} {X W : Set (Fin n)}
+    (hpt : ∀ v : Fin n, Alv' (v : ℕ) ≠ 0 ↔ (M (v : ℕ) ≠ 0 ∧ v ∈ X ∧ v ∉ W))
+    {v : Fin n} (hv : v ∈ killSet M X W) : Alv' (v : ℕ) = 0 := by
+  by_contra hc
+  exact ((hpt v).1 hc).2.2 hv.2.2
+
+/-- **The rows that exist at the child depth while a turn is running**:
+the child's alive vertices, whose rows its own turns write, and the
+parent turn's kills, whose rows the kill pass wrote before the nested
+call. Nothing else has a row, and — since wave R1.8-T3-flip (c2b) —
+nothing else is read: the readback's dead reads are kills
+(`Refine.DeadRowProbe.readback_dead_read_is_kill`) and the atom phase
+folds the outside class arithmetically
+(`Refine.ScatterDeadPass.atomTerms_iff_scatVal`). -/
+def rowDom {n : ℕ} (M Alv' : ℕ → ℕ) (X W : Set (Fin n)) : Set (Fin n) :=
+  {v : Fin n | Alv' (v : ℕ) ≠ 0} ∪ killSet M X W
+
+theorem mem_rowDom_of_alive {M Alv' : ℕ → ℕ} {X W : Set (Fin n)} {v : Fin n}
+    (h : Alv' (v : ℕ) ≠ 0) : v ∈ rowDom M Alv' X W := Or.inl h
+
+theorem mem_rowDom_of_kill {M Alv' : ℕ → ℕ} {X W : Set (Fin n)} {v : Fin n}
+    (h : v ∈ killSet M X W) : v ∈ rowDom M Alv' X W := Or.inr h
+
 /-- **The kill rows of one turn** (wave R1.8-T2, design §2.3): the table
 rows the turn owes at the vertices *it* killed.
 
@@ -786,6 +828,22 @@ def KillRowsAt (q_top cap mb j : ℕ) (φ : Lax3.FirstOrder.FO 0) (G : SimpleGra
       Tb (v : ℕ) ≤ 1 ∧
       (Tb (v : ℕ) ≠ 0 ↔ Sat (masked G Alv') (colRead n C' (sigL cap mb (j + 1)))
         (fun _ => v) (tablesAt q_top cap mb φ (j + 1))[i])
+
+/-- **The kill pass's capital, as the nested level's precondition**
+(wave R1.8-T3-flip (c2b)). `KillRowsAt` names the array's cell function
+under a binder; `RamDriver.TableInvOn` produces it existentially, which
+is the shape a level's obligation is written in. The bridge is the
+depth's table *lengths* — `RamDriver.TablesSized`, a clause the turn
+holds throughout — and nothing else. -/
+theorem KillRowsAt.tableInvOn {q_top cap mb j : ℕ} {φ : Lax3.FirstOrder.FO 0}
+    {G : SimpleGraph (Fin n)} {M Alv' : ℕ → ℕ} {X W : Set (Fin n)} {C' : ℕ → ℕ → ℕ}
+    {σ : Env} (h : KillRowsAt q_top cap mb j φ G M Alv' X W C' σ)
+    (htsz : TablesSized q_top cap mb φ n σ) :
+    TableInvOn q_top cap mb φ G (j + 1) Alv' C' (killSet M X W) σ := by
+  intro i hi
+  obtain ⟨Tb, harr⟩ := htsz.get (j + 1) hi
+  exact ⟨Tb, harr, fun v hv => (h i hi Tb harr v hv.1 hv.2.1 hv.2.2).1,
+    fun v hv => (h i hi Tb harr v hv.1 hv.2.1 hv.2.2).2⟩
 
 /-- **The kill pass.** That `RamDriver.killCom` writes the child-depth
 row of every vertex this turn killed, and nothing else of what the turn
@@ -951,13 +1009,14 @@ def ScatterStep (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
       (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) ∧
       colRead n C' (sigL cap mb (j + 1)) =
         stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w ∧
-      TableInv q_top cap mb φ G (j + 1) Alv' C' σ ∧ KillListAt mb j M X W σ ∧
+      TableInvOn q_top cap mb φ G (j + 1) Alv' C' (rowDom M Alv' X W) σ ∧
+      KillListAt mb j M X W σ ∧
       BaseArrs B q_top cap mb ℓ φ σ)
     (foldIdx (fun i β => scatterDeadCom q_top cap mb φ j i β) 0 (tablesAt q_top cap mb φ j))
     (fun σ σ' => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ' ∧
       (∀ c < sigL cap mb (j + 1), σ'.arrs (colName (j + 1) c) = arrOf n (C' c)) ∧
-      TableInv q_top cap mb φ G (j + 1) Alv' C' σ' ∧
+      TableInvOn q_top cap mb φ G (j + 1) Alv' C' (rowDom M Alv' X W) σ' ∧
       σ'.out = σ.out ∧ σ'.vars (curName j) = σ.vars (curName j) ∧
       ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length),
         ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2,
@@ -994,8 +1053,9 @@ def ReadbackStep (B q_top cap mb ns Ws j : ℕ) (φ : Lax3.FirstOrder.FO 0)
       (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) ∧
       colRead n C' (sigL cap mb (j + 1)) =
         stepColoringP cap (masked G M) (colRead n C (sigL cap mb j)) X w ∧
-      TableInv q_top cap mb φ G (j + 1) Alv' C' σ ∧
+      TableInvOn q_top cap mb φ G (j + 1) Alv' C' (rowDom M Alv' X W) σ ∧
       TablesSized q_top cap mb φ n σ ∧ σ.vars (curName j) < n ∧
+      (∀ v : Fin n, asg (v : ℕ) = σ.vars (curName j) → M (v : ℕ) ≠ 0 ∧ v ∈ X) ∧
       ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length),
         ∀ σs ∈ (bcAtomsOf q_top (stepFml cap mb j (tablesAt q_top cap mb φ j)[i])).2,
           σ.vars (flgName j i
@@ -1038,11 +1098,14 @@ in the import order, which is why the reading is a parameter). -/
 def InnerAvail (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (wA : (ℕ → ℕ) → ℕ)
     (inner : Com) (Kin : ℕ → ℕ) : Prop :=
-  ∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ), (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
+  ∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ) (D' : Set (Fin n)),
+    (∀ v : Fin n, v ∈ D' → M' (v : ℕ) = 0) →
+    (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
     Spec B (fun σ => LevelPre B n cap mb ns Ws O T (j + 1) M' Gm' C' σ ∧
         TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
-        PlayRec B cap G (j + 1) M' Gm' σ) inner
-      (fun σ σ' => LevelPost B q_top cap mb φ G ns Ws O T (j + 1) M' Gm' C' σ σ' ∧
+        PlayRec B cap G (j + 1) M' Gm' σ ∧
+        TableInvOn q_top cap mb φ G (j + 1) M' C' D' σ) inner
+      (fun σ σ' => LevelPostD B q_top cap mb φ G ns Ws O T (j + 1) M' Gm' C' D' σ σ' ∧
         σ'.out = σ.out) (Kin (wA M'))
 
 /-- **What the nested driver leaves alone.** The driver's obligation
@@ -1066,7 +1129,8 @@ def InnerFrames (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
       TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ ∧
       TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
-      PlayRec B cap G (j + 1) Alv' Gam' σ ∧ KillListAt mb j M X W σ)
+      PlayRec B cap G (j + 1) Alv' Gam' σ ∧ KillListAt mb j M X W σ ∧
+      TableInvOn q_top cap mb φ G (j + 1) Alv' C' (killSet M X W) σ)
     inner
     (fun σ σ' => TurnPre B n cap mb ns Ws j G O T M Gm C π ord Xoff Xmem asg m σ' ∧
       ClusterData n mb j B G M X W w Alv' Gam' σ' ∧
@@ -1210,7 +1274,7 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
   have hwaₖ : ClusterWa mb w σₖ := by
     show σₖ.arrs "wa" = _
     rw [hrₖ.frame_arr "wa" hwakfr]; exact hwa₃
-  obtain ⟨σₗ, hrₗ, hturnₗ, hdatₗ, hcolarrₗ, hplayₗ, houtₗ, hcₗ, -, hkllistₗ⟩ :=
+  obtain ⟨σₗ, hrₗ, hturnₗ, hdatₗ, hcolarrₗ, hplayₗ, houtₗ, hcₗ, hkillₗ, hkllistₗ⟩ :=
     (hklist X W w Alv' Gam' C' hB).run (σ := σₖ)
       ⟨hturnₖ, hdatₖ, hwaₖ, hcolarrₖ, hplayₖ, htszₖ, hkillₖ⟩
   have hlevin : LevelPre B n cap mb ns Ws O T (j + 1) Alv' Gam' C' σₗ := by
@@ -1225,12 +1289,21 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
       hmem₃, hdep₃, hm₃, hom₃, hpad₃, hwrd₃, hmemin₃⟩
   have htszₗ : TablesSized q_top cap mb φ n σₗ := htszₖ.run hrₗ
   have hbarrₗ : BaseArrs B q_top cap mb ℓ φ σₗ := hbarrₖ.run hrₗ
-  -- the nested driver, with the frame of the depth it was called from
+  -- **the nested driver, at the turn's own kill set** (wave R1.8-T3-flip
+  -- (c2b)). The domain the child level is handed is `killSet M X W`, the set
+  -- the kill pass wrote rows for and the kill list enumerated; `killSet_dead`
+  -- off `BatchData`'s pointwise clause is why it is a subset of the child's
+  -- dead set, and `KillRowsAt.tableInvOn` is the rows themselves. What comes
+  -- back is `alive' ∪ kills` — every row the atom phase and the readback read,
+  -- and no row outside them
+  have hDdead : ∀ v : Fin n, v ∈ killSet M X W → Alv' (v : ℕ) = 0 :=
+    fun v hv => killSet_dead hdatₗ.1.2.2.2.2.2.2.1 hv
   obtain ⟨σ₄, hr₄, ⟨⟨-, -, htab₄⟩, hout₄⟩, hturn₄, hdat₄, hcolarr₄, hc₄, hkllist₄⟩ :=
-    (spec_conj ((hinner Alv' Gam' C' hcolbit₃).pre
-        (fun _ h => ⟨h.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1⟩))
+    (spec_conj ((hinner Alv' Gam' C' (killSet M X W) hDdead hcolbit₃).pre
+        (fun _ h => ⟨h.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2.2⟩))
       (hfr hinner X W w Alv' Gam' C')).run
-      (σ := σₗ) ⟨hlevin, hturnₗ, hdatₗ, htszₗ, hbarrₗ, hplayₗ, hkllistₗ⟩
+      (σ := σₗ)
+      ⟨hlevin, hturnₗ, hdatₗ, htszₗ, hbarrₗ, hplayₗ, hkllistₗ, hkillₗ.tableInvOn htszₗ⟩
   have htsz₄ : TablesSized q_top cap mb φ n σ₄ := htszₗ.run hr₄
   have hbarr₄ : BaseArrs B q_top cap mb ℓ φ σ₄ := hbarrₗ.run hr₄
   -- the scatter atoms
@@ -1240,11 +1313,21 @@ theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.Firs
   have htsz₅ : TablesSized q_top cap mb φ n σ₅ := htsz₄.run hr₅
   have hc₅₀ : σ₅.vars (curName j) = σ.vars (curName j) := by
     rw [hc₅, hc₄, hcₗ, hcₖ, hc₃, hc₂, hc₁]
+  -- **the readback's own vertices are in the cluster and alive** (wave
+  -- R1.8-T3-flip (c2b)): its dead reads are therefore this turn's kills, which
+  -- is `Refine.DeadRowProbe.readback_dead_read_is_kill` at the turn's data.
+  -- The producer of the cluster half is the descent's ball clause, and of the
+  -- alive half `hXalive` — both live only inside this proof, since `X` is
+  -- existential here
+  have hvis : ∀ v : Fin n, asgf (v : ℕ) = σ₅.vars (curName j) → M (v : ℕ) ≠ 0 ∧ v ∈ X := by
+    intro v hv
+    have hvX : v ∈ X := hball v (by rw [hv]; exact hc₅₀) (mem_ball_self _ _ _)
+    exact ⟨hXalive v hvX, hvX⟩
   -- the readback
   obtain ⟨σ₆, hr₆, hturn₆, hout₆, hc₆, hrb₆⟩ :=
     (hread X W w Alv' Gam' C').run (σ := σ₅)
       ⟨hturn₅, hdat₅, hcolarr₅, hcolbit₃, hcolread₃, htab₅, htsz₅,
-        by rw [hc₅₀]; exact hcnlt, hflag₅⟩
+        by rw [hc₅₀]; exact hcnlt, hvis, hflag₅⟩
   have hrun := hr₁.seq (hr₂.seq (hr₃.seq (hrₖ.seq (hrₗ.seq (hr₄.seq (hr₅.seq hr₆))))))
   refine ⟨σ₆, _, hrun, by omega, hturn₆.1, htsz₅.run hr₆, hbarrₗ.run (hr₄.seq (hr₅.seq hr₆)),
     hturn₆.2.1,
@@ -1391,11 +1474,14 @@ def ClusterFrames (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (ord Xoff Xmem asg : ℕ → ℕ) (m k : ℕ) (wA : (ℕ → ℕ) → ℕ)
     (inner : Com) (Kin : ℕ → ℕ) (K : ℕ) : Prop :=
   k < n → M (ord k) ≠ 0 →
-  (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ), (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
+  (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ) (D' : Set (Fin n)),
+      (∀ v : Fin n, v ∈ D' → M' (v : ℕ) = 0) →
+      (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
       Spec B (fun σ => LevelPre B n cap mb ns Ws O T (j + 1) M' Gm' C' σ ∧
           TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
-          PlayRec B cap G (j + 1) M' Gm' σ) inner
-        (fun σ σ' => LevelPost B q_top cap mb φ G ns Ws O T (j + 1) M' Gm' C' σ σ' ∧
+          PlayRec B cap G (j + 1) M' Gm' σ ∧
+          TableInvOn q_top cap mb φ G (j + 1) M' C' D' σ) inner
+        (fun σ σ' => LevelPostD B q_top cap mb φ G ns Ws O T (j + 1) M' Gm' C' D' σ σ' ∧
           σ'.out = σ.out) (Kin (wA M'))) →
     Spec B (fun σ => LevelPre B n cap mb ns Ws O T j M Gm C σ ∧
         TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
@@ -1419,10 +1505,22 @@ compacted list `cps`, and "already processed" is therefore
 partition the carrier, but they enumerate the *listed* positions and no
 longer the carrier. `Compacted.covers` at the exit is what says every
 vertex has had its turn — its assigned position holds it, so its block
-is nonempty, so the compaction listed it. -/
+is nonempty, so the compaction listed it.
+
+**Wave R1.8-T3-flip (c2b).** The table clause's dead half is no longer
+"every dead vertex" but "every vertex of the pre-written domain `D`" —
+the level owes rows on `alive ∪ D` and on nothing else, and `D`'s rows
+were written by the caller, not by any pass of this level. At entry the
+clause is exactly `RamDriver.TableInvOn` at `D`, which is the level's
+own precondition; at the exit the alive half is supplied by
+`Compacted.covers` as before. What keeps `D` intact across a turn is
+the same fact that used to force the sweep:
+`Refine.ArenaBlock.dead_vertex_has_no_alive_turn` — the centre of a dead
+vertex is dead, and the compaction lists live centres only. -/
 def LevelInv (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
-    (ord Xoff Xmem asg cps : ℕ → ℕ) (m cnum : ℕ) (outs : List ℕ) (σ : Env) : Prop :=
+    (ord Xoff Xmem asg cps : ℕ → ℕ) (m cnum : ℕ) (D : Set (Fin n)) (outs : List ℕ)
+    (σ : Env) : Prop :=
   LevelPre B n cap mb ns Ws O T j M Gm C σ ∧ TablesSized q_top cap mb φ n σ ∧
     BaseArrs B q_top cap mb ℓ φ σ ∧ PlayRec B cap G j M Gm σ ∧
     CoverHeld B n j G M π ord cap Xoff Xmem asg m σ ∧
@@ -1430,7 +1528,7 @@ def LevelInv (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     σ.out = outs ∧ σ.vars (cixName j) ≤ cnum ∧
     ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length) (Tb : ℕ → ℕ),
       σ.arrs (tabName j i) = arrOf n Tb →
-      ∀ v : Fin n, (M (v : ℕ) = 0 ∨ ∃ k < σ.vars (cixName j), asg (v : ℕ) = cps k) →
+      ∀ v : Fin n, (v ∈ D ∨ ∃ k < σ.vars (cixName j), asg (v : ℕ) = cps k) →
         Tb (v : ℕ) ≤ 1 ∧
         (Tb (v : ℕ) ≠ 0 ↔ Sat (masked G M) (colRead n C (sigL cap mb j)) (fun _ => v)
           (tablesAt q_top cap mb φ j)[i])
@@ -1550,7 +1648,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
         DistIndependent (deleteVerts G S) (2 * cap) Bd)
     (hℓ : ℓ = N (2 * s + 2))
     (hbase : ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ), masked G M = ⊥ →
-      LevelImplements B q_top cap mb R ℓ W ns ℓ φ G O T M Gm C (Kl ℓ (wA M)))
+      LevelImplementsFull B q_top cap mb R ℓ W ns ℓ φ G O T M Gm C (Kl ℓ (wA M)))
     (horder : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
       OrderImplements B n R W cap mb ns j G O T M Gm C P (Ko j (wA M)))
     (hcover : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ)
@@ -1571,8 +1669,8 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
           (driverAt q_top cap mb R ℓ φ (j + 1))).wvars ∧
         cixName j ∉ (clusterCom q_top cap mb φ j
           (driverAt q_top cap mb R ℓ φ (j + 1))).wvars)
-    (hsweep : ∀ (j : ℕ), j < ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
-      SweepImplements B q_top cap mb ns W ℓ j φ G O T M Gm C (Kd j (wA M)))
+    (hphfr : ∀ (jd i : ℕ), tabName jd i ∉ (orderCom R jd).warrs ∧
+      tabName jd i ∉ (coverPhase cap jd).warrs)
     (hmass : ∀ (M : ℕ → ℕ) (π : Equiv.Perm (Fin n)) (ord Xoff Xmem asg cps : ℕ → ℕ)
         (mm cnum : ℕ), RamCover.OrdersBy n π ord → P π ord →
       RamCover.CoverOut G M π ord cap mm Xoff Xmem asg → Compacted n cnum mm M ord Xoff cps →
@@ -1582,34 +1680,42 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
       (∑ c ∈ Finset.range t, bs c) ≤ Kmass * (m + 1) →
       Ko j m + (Kc j m + (Kd j m + ((∑ c ∈ Finset.range t, (Ks j (bs c) + 11)) + 6)))
         ≤ Kl j m) :
-    ∀ (j : ℕ), j ≤ ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
-      LevelImplements B q_top cap mb R ℓ W ns j φ G O T M Gm C (Kl j (wA M)) := by
+    ∀ (j : ℕ), j ≤ ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (D : Set (Fin n)),
+      LevelImplementsD B q_top cap mb R ℓ W ns j φ G O T M Gm C D (Kl j (wA M)) := by
   classical
-  have key : ∀ (f j : ℕ), ℓ - j = f → j ≤ ℓ → ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
-      LevelImplements B q_top cap mb R ℓ W ns j φ G O T M Gm C (Kl j (wA M)) := by
+  have key : ∀ (f j : ℕ), ℓ - j = f → j ≤ ℓ →
+      ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (D : Set (Fin n)),
+      LevelImplementsD B q_top cap mb R ℓ W ns j φ G O T M Gm C D (Kl j (wA M)) := by
     intro f
     induction f with
     | zero =>
-      intro j hf hj M Gm C hbit
+      intro j hf hj M Gm C D hDdead hbit
       have hje : j = ℓ := by omega
       subst hje
       intro σ hσ
       -- the budget is spent, so the play cannot have got this far: the arena is edgeless
       have hbot : masked G M = ⊥ :=
-        eq_bot_of_playOk_full hQ (by rw [← hℓ]; exact playOk_of_playRec hσ.2.2.2)
-      exact hbase M Gm C hbot hbit σ hσ
+        eq_bot_of_playOk_full hQ (by rw [← hℓ]; exact playOk_of_playRec hσ.2.2.2.1)
+      -- **the bottom still writes every row** (wave R1.8-T3-flip (c2b)): the base
+      -- pass walks the carrier, so it owes nothing to a domain and its
+      -- carrier-wide postcondition restricts to `alive ∪ D` for free
+      obtain ⟨σ', hrun, hpost, hout⟩ :=
+        hbase M Gm C hbot hbit σ ⟨hσ.1, hσ.2.1, hσ.2.2.1, hσ.2.2.2.1⟩
+      exact ⟨σ', hrun, hpost.onD _, hout⟩
     | succ f ih =>
-      intro j hf hj M Gm C hbit
+      intro j hf hj M Gm C D hDdead hbit
       have hjl : j < ℓ := by omega
-      have hinner : ∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ),
+      have hinner : ∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ) (D' : Set (Fin n)),
+          (∀ v : Fin n, v ∈ D' → M' (v : ℕ) = 0) →
           (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
           Spec B (fun σ => LevelPre B n cap mb ns W O T (j + 1) M' Gm' C' σ ∧
               TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
-              PlayRec B cap G (j + 1) M' Gm' σ)
+              PlayRec B cap G (j + 1) M' Gm' σ ∧
+              TableInvOn q_top cap mb φ G (j + 1) M' C' D' σ)
             (driverAt q_top cap mb R ℓ φ (j + 1))
-            (fun σ σ' => LevelPost B q_top cap mb φ G ns W O T (j + 1) M' Gm' C' σ σ' ∧
+            (fun σ σ' => LevelPostD B q_top cap mb φ G ns W O T (j + 1) M' Gm' C' D' σ σ' ∧
               σ'.out = σ.out) (Kl (j + 1) (wA M')) :=
-        fun M' Gm' C' hb' => ih (j + 1) (by omega) (by omega) M' Gm' C' hb'
+        fun M' Gm' C' D' hD' hb' => ih (j + 1) (by omega) (by omega) M' Gm' C' D' hD' hb'
       refine Spec.of_exists fun σ hσ => ?_
       rw [driverAt_succ q_top cap mb R ℓ φ hjl]
       -- the ordering pass
@@ -1618,7 +1724,7 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
       have htsz₁ : TablesSized q_top cap mb φ n σ₁ := hσ.2.1.run hr₁
       have hbarr₁ : BaseArrs B q_top cap mb ℓ φ σ₁ := hσ.2.2.1.run hr₁
       have hplay₁ : PlayRec B cap G j M Gm σ₁ :=
-        hσ.2.2.2.congr (fun a _ => hctr₁ a) (fun a _ => hgam₁ a)
+        hσ.2.2.2.1.congr (fun a _ => hctr₁ a) (fun a _ => hgam₁ a)
       -- the cover pass, and the compaction that ends it
       obtain ⟨σ₂, hr₂, hlev₂, hout₂, hctr₂, hgam₂, Xoff, Xmem, asg, cps, mm, cnum,
           hheld₂, hcps₂, hcnum₂, hcomp₂⟩ :=
@@ -1630,26 +1736,28 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
       have hplay₂ : PlayRec B cap G j M Gm σ₂ :=
         hplay₁.congr (fun a _ => hctr₂ a) (fun a _ => hgam₂ a)
       have hcnB : cnum < B := lt_of_le_of_lt hcomp₂.le_carrier hB.n_lt
-      -- **the dead-row sweep** (rebase B8): the rows of the vertices the mask has
-      -- killed, written once, before any turn — so the compacted loop may skip them
-      obtain ⟨σ₃, hr₃, hlev₃, hout₃, hctr₃, hgam₃, hodr₃, hxof₃, hxmm₃, hasg₃, hxp₃,
-          hcpsf₃, hcnumf₃, hdead₃⟩ :=
-        (hsweep j hjl M Gm C).run (σ := σ₂) ⟨hlev₂, htsz₂, hbarr₂⟩
-      have htsz₃ : TablesSized q_top cap mb φ n σ₃ := htsz₂.run hr₃
-      have hbarr₃ : BaseArrs B q_top cap mb ℓ φ σ₃ := hbarr₂.run hr₃
-      have hplay₃ : PlayRec B cap G j M Gm σ₃ :=
-        hplay₂.congr (fun a _ => hctr₃ a) (fun a _ => hgam₃ a)
-      have hheld₃ : CoverHeld B n j G M π ord cap Xoff Xmem asg mm σ₃ :=
-        ⟨by rw [hodr₃ j]; exact hheld₂.1, by rw [hxof₃ j]; exact hheld₂.2.1,
-          by rw [hxmm₃ j]; exact hheld₂.2.2.1, by rw [hasg₃ j]; exact hheld₂.2.2.2.1,
-          by rw [hxp₃ j]; exact hheld₂.2.2.2.2.1, hheld₂.2.2.2.2.2.1,
-          hheld₂.2.2.2.2.2.2.1, hheld₂.2.2.2.2.2.2.2.1, hheld₂.2.2.2.2.2.2.2.2⟩
-      have hcps₃ : σ₃.arrs (cpsName j) = arrOf n cps := by rw [hcpsf₃ j]; exact hcps₂
-      have hcnum₃ : σ₃.vars (cnumName j) = cnum := by rw [hcnumf₃ j]; exact hcnum₂
-      -- **the partition, split** (rebase B8). An *alive* vertex's assigned position is
-      -- alive too — clusters are alive-homogeneous — so its block is not empty and the
-      -- compaction listed it. A dead vertex's position is not listed, and does not need
-      -- to be: the sweep has already written its row.
+      -- **no sweep** (wave R1.8-T3-flip (c2b)). What the level owes on the dead
+      -- side is `D`, and `D`'s rows were written by the caller: they arrive in the
+      -- precondition and cross the two carrier phases because neither writes a
+      -- table (`hphfr`, read off the two phases' own text).
+      have hdead₂ : ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length) (Tb : ℕ → ℕ),
+          σ₂.arrs (tabName j i) = arrOf n Tb →
+          ∀ v : Fin n, v ∈ D →
+            Tb (v : ℕ) ≤ 1 ∧
+            (Tb (v : ℕ) ≠ 0 ↔ Sat (masked G M) (colRead n C (sigL cap mb j)) (fun _ => v)
+              (tablesAt q_top cap mb φ j)[i]) := by
+        intro i hi Tb harr v hv
+        obtain ⟨Tb₀, harr₀, hbit₀, hval₀⟩ := hσ.2.2.2.2 i hi
+        have hfr : σ₂.arrs (tabName j i) = σ.arrs (tabName j i) := by
+          rw [hr₂.frame_arr _ (hphfr j i).2, hr₁.frame_arr _ (hphfr j i).1]
+        have := eq_of_arrOf_eq ((harr.symm.trans hfr).trans harr₀) v.isLt
+        rw [this]
+        exact ⟨hbit₀ v hv, hval₀ v hv⟩
+      -- **the partition, split** (rebase B8, re-read at the domain). An *alive*
+      -- vertex's assigned position is alive too — clusters are alive-homogeneous —
+      -- so its block is not empty and the compaction listed it. A vertex of `D` is
+      -- dead, its position is not listed, and it does not need to be: its row is
+      -- already there and no turn of this level can touch it.
       have hasgcps : ∀ v < n, M v ≠ 0 → ∃ k < cnum, asg v = cps k := by
         intro v hv hal
         have hout := hheld₂.2.2.2.2.2.2.2.2
@@ -1672,13 +1780,13 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
       have hbody : ∀ kk : ℕ, kk < cnum → Spec B
           (fun τ =>
             LevelInv B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg cps mm cnum
-              σ₃.out τ ∧ τ.vars (cixName j) = kk)
+              D σ₂.out τ ∧ τ.vars (cixName j) = kk)
           (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
             (.seq (clusterCom q_top cap mb φ j (driverAt q_top cap mb R ℓ φ (j + 1)))
               (.assign (cixName j) (.add (.var (cixName j)) (.lit 1)))))
           (fun _ τ' =>
             LevelInv B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg cps mm cnum
-              σ₃.out τ' ∧
+              D σ₂.out τ' ∧
             τ'.vars (cixName j) = kk + 1) (Ks j (wB Xoff Xmem (cps kk)) + 7) := by
         intro kk hkk
         have hpos : cps kk < n := hcomp₂.lt _ hkk
@@ -1749,10 +1857,11 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
           have hTb : Tb (v : ℕ) = Tb' (v : ℕ) :=
             eq_of_arrOf_eq (harr.symm.trans harr') v.isLt
           rcases hv with hdv | ⟨k, hk, hkv⟩
-          · -- a dead vertex: the sweep wrote its row, and this turn's centre is alive
+          · -- a vertex of the pre-written domain: its row is already there, and this
+            -- turn's centre is alive, so the turn cannot have been its turn
             obtain ⟨Tb₀, harr₀⟩ := htszτ.get j hi
             have hne : asg (v : ℕ) ≠ τ₁.vars (curName j) := by
-              rw [hcur₁]; exact hdeadne v hdv _ hcixlt
+              rw [hcur₁]; exact hdeadne v (hDdead v hdv) _ hcixlt
             have := hfr' i hi Tb' Tb₀ harr' (by rw [hτ₁, arrs_setVar]; exact harr₀) v hne
             rw [hTb, this]
             exact htabτ i hi Tb₀ harr₀ v (Or.inl hdv)
@@ -1774,35 +1883,38 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
       obtain ⟨σ₄, hr₄, hI₄, hcn₄⟩ :=
         (Refine.SigmaLoop.forRangeZeroSum (cixName j) (cnumName j)
           (LevelInv B q_top cap mb ns W ℓ j φ G O T M Gm C π ord Xoff Xmem asg cps mm cnum
-            σ₃.out) cnum
+            D σ₂.out) cnum
           (fun kk => Ks j (wB Xoff Xmem (cps kk)) + 7) hcnB
           (fun _ hτ => hτ.2.2.2.2.2.2.2.2.1) (fun _ hτ => hτ.2.2.2.2.2.2.1)
           hbody).run
-          (σ := σ₃) ⟨levelPre_setVar_ci hlev₃ 0, tablesSized_setVar_c htsz₃ _ 0,
-            baseArrs_setVar_c hbarr₃ _ 0, playRec_setVar_ci hplay₃ 0,
-            coverHeld_setVar_ci hheld₃ 0, by simpa using hcps₃,
-            by rw [vars_setVar, if_neg (Ne.symm (cixName_ne_cnumName j j))]; exact hcnum₃,
+          (σ := σ₂) ⟨levelPre_setVar_ci hlev₂ 0, tablesSized_setVar_c htsz₂ _ 0,
+            baseArrs_setVar_c hbarr₂ _ 0, playRec_setVar_ci hplay₂ 0,
+            coverHeld_setVar_ci hheld₂ 0, by simpa using hcps₂,
+            by rw [vars_setVar, if_neg (Ne.symm (cixName_ne_cnumName j j))]; exact hcnum₂,
             by simp,
             by simp,
             by intro i hi Tb harr v hv
                rw [arrs_setVar] at harr
                rcases hv with hdv | ⟨k, hk, -⟩
-               · exact hdead₃ i hi Tb harr v hdv
+               · exact hdead₂ i hi Tb harr v hdv
                · rw [vars_setVar, if_pos rfl] at hk; omega⟩
-      -- the exit: the alive vertices by their turn, the dead ones by the sweep
-      have htabinv : TableInv q_top cap mb φ G j M C σ₄ := by
+      -- **the exit**: the alive vertices by their turn, the domain's by the caller
+      -- who wrote them. This is the flip: what the level establishes is
+      -- `alive ∪ D`, and it never had to say anything about a dead vertex outside
+      -- `D` — no row for it exists and no consumer reads one.
+      have htabinv : TableInvOn q_top cap mb φ G j M C ({v : Fin n | M (v : ℕ) ≠ 0} ∪ D) σ₄ := by
         intro i hi
         obtain ⟨Tb, harr⟩ := hI₄.2.1.get j hi
-        have hrow : ∀ v : Fin n, Tb (v : ℕ) ≤ 1 ∧
+        have hrow : ∀ v : Fin n, v ∈ ({v : Fin n | M (v : ℕ) ≠ 0} ∪ D) →
+            Tb (v : ℕ) ≤ 1 ∧
             (Tb (v : ℕ) ≠ 0 ↔ Sat (masked G M) (colRead n C (sigL cap mb j)) (fun _ => v)
               (tablesAt q_top cap mb φ j)[i]) := by
-          intro v
-          by_cases hdv : M (v : ℕ) = 0
-          · exact hI₄.2.2.2.2.2.2.2.2.2 i hi Tb harr v (Or.inl hdv)
-          · obtain ⟨k, hk, hkv⟩ := hasgcps (v : ℕ) v.isLt hdv
+          rintro v (hal | hdv)
+          · obtain ⟨k, hk, hkv⟩ := hasgcps (v : ℕ) v.isLt hal
             exact hI₄.2.2.2.2.2.2.2.2.2 i hi Tb harr v
               (Or.inr ⟨k, by rw [hcn₄]; exact hk, hkv⟩)
-        exact ⟨Tb, harr, fun v hv => (hrow ⟨v, hv⟩).1, fun v => (hrow v).2⟩
+          · exact hI₄.2.2.2.2.2.2.2.2.2 i hi Tb harr v (Or.inl hdv)
+        exact ⟨Tb, harr, fun v hv => (hrow v hv).1, fun v hv => (hrow v hv).2⟩
       -- **the cost, in the Σ shape.** The turns' blocks are distinct blocks of the one
       -- cluster arena, so their sizes sum to at most its mass; the mass mathematics
       -- turns that into the coefficient the level condition consumes.
@@ -1811,11 +1923,13 @@ theorem levelImplements {B q_top cap mb R ℓ W ns : ℕ} {N : ℕ → ℕ} {s :
       have hsum : (∑ kk ∈ Finset.range cnum, (Ks j (wB Xoff Xmem (cps kk)) + 7 + 4)) =
           ∑ kk ∈ Finset.range cnum, (Ks j (wB Xoff Xmem (cps kk)) + 11) :=
         Finset.sum_congr rfl fun _ _ => by omega
-      have hcost := hK j hjl (wA M) cnum hturns
-        (fun c => wB Xoff Xmem (cps c)) hbs
-      refine ⟨σ₄, _, hr₁.seq (hr₂.seq (hr₃.seq hr₄)), ?_,
+      have hcost : Ko j (wA M) + (Kc j (wA M) + (Kd j (wA M) +
+            ((∑ kk ∈ Finset.range cnum, (Ks j (wB Xoff Xmem (cps kk)) + 11)) + 6)))
+          ≤ Kl j (wA M) :=
+        hK j hjl (wA M) cnum hturns (fun c => wB Xoff Xmem (cps c)) hbs
+      refine ⟨σ₄, _, hr₁.seq (hr₂.seq hr₄), ?_,
         ⟨hI₄.1, hI₄.2.1, htabinv⟩,
-        by rw [hI₄.2.2.2.2.2.2.2.1, hout₃, hout₂, hout₁]⟩
+        by rw [hI₄.2.2.2.2.2.2.2.1, hout₂, hout₁]⟩
       rw [hsum]
       omega
   exact fun j hj => key (ℓ - j) j rfl hj

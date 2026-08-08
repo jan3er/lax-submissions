@@ -2067,17 +2067,6 @@ def descendCom (cap j : ℕ) : Com :=
                   (memFilterCom (j + 1)))))))))
 
 open Classical in
-/-- The scatter atoms of one tabled formula, decided over the
-depth-`(j + 1)` tables in the cluster arena. -/
-noncomputable def scatterCom (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) (j i : ℕ)
-    (β : DistFO (sigL cap mb j) 1) : Com :=
-  foldIdx (fun k σ =>
-      .seq (copyCom (alvName (j + 1)) "alv")
-        (.seq (copyCom (tabName (j + 1) (posOf σ.β (tablesAt q_top cap mb φ (j + 1)))) "tab")
-          (.seq (RamScatter.scatterCom σ.r σ.t) (.assign (flgName j i k) (.var "flag")))))
-    0 (bcAtomsOf q_top (stepFml cap mb j β)).2
-
-open Classical in
 /-- The value of a boolean combination, as an expression over the
 valuations of its atoms. Every atom of the driver's combinations is a
 bit, so negation is a truncated subtraction and conjunction a
@@ -2215,8 +2204,8 @@ def killListCom (mb j : ℕ) : Com :=
 
 /-! ### The dead-aware atom pass (wave R1.8-T3-flip, design §6 (b))
 
-The four driver-side passes of the atom program that replaces
-`RamDriver.scatterCom`'s carrier walk. Each is stated here, beside the
+The four driver-side passes of the atom program that replaced the
+retired `scatterCom`'s carrier walk. Each is stated here, beside the
 kill list, because each is plain driver text over the depth's own names;
 the *composite* — these four around `Refine.ScatterBlock.scatBlockCom`
 and one `botCom` fragment — is `Refine.ScatterDeadPass.scatDeadCom`,
@@ -2403,7 +2392,7 @@ noncomputable def scatDeadCom (j ti : ℕ) {L : ℕ} (β : DistFO L 1) (r t : �
 open Classical in
 /-- The dead-aware scatter atoms of one tabled formula, decided over the
 depth-`(j + 1)` tables in the cluster arena — the successor of
-`scatterCom`, atom for atom, with the same flag names.
+the retired `scatterCom`, atom for atom, with the same flag names.
 
 The atom's own table row enters by its *index* `RamDriver.posOf` rather
 than by a copy into `"tab"`: the new program reads the row at the
@@ -2435,8 +2424,15 @@ to read afterwards.
 **Rebase R1.8-T3-flip (c1d).** The scatter phase is the fold of
 `scatterDeadCom`: no carrier walk, no copy of a table row, and no read
 of a row outside `alive ∪ kills`. `Refine.ScatterDeadTurn` is the walk
-and `RamDriverCluster.ScatterStep` the obligation; the landed
-`scatterCom` stays in the file as the statement of what it replaces. -/
+and `RamDriverCluster.ScatterStep` the obligation.
+
+**Rebase R1.8-T3-flip (c2b).** The landed `scatterCom` and its whole
+discharge chain (`RamDriverFrames.atomCom`/`atom_spec`/`atoms_spec`/
+`blocks_spec`) are **gone**: with `RamDriver.TableInv` weakened to
+`TableInvOn` at `alive ∪ kills`, the call they made —
+`RamScatter.scatter_spec` at a carrier-width copy of the atom's row — is
+no longer even statable from the phase's precondition, and nothing
+referenced them. -/
 noncomputable def clusterCom (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) (j : ℕ)
     (inner : Com) : Com :=
   .seq (descendCom cap j)
@@ -2500,14 +2496,18 @@ What used to stop that is the induction, not the walk:
 `Refine.ArenaBlock.dead_vertex_has_no_alive_turn` compiles the reason. A
 vertex lies in its assigned centre's cluster, and by
 `Refine.MassAlive.inCluster_alive_iff` a cluster is alive-homogeneous,
-so an alive-filtered list omits exactly the *dead* vertices' positions —
-while `RamDriver.TableInv` asks for every carrier vertex's row. The
-answer is `RamDriver.sweepCom`, run once at the head of the level: on
-the arena a dead vertex sees, nothing happens, so its row is the
-edgeless row and the level can write it without a turn
-(`Refine.DeadRow.sat_bot_of_dead`). `RamDriverCluster.levelImplements`'
-partition step therefore splits — alive vertices by their turn, dead
-vertices by the sweep — and the loop runs at the alive turn count. -/
+so an alive-filtered list omits exactly the *dead* vertices' positions.
+
+**Wave R1.8-T3-flip (c2b): and nothing owes them a row.** B8's answer
+was `RamDriver.sweepCom`, run once at the head of every level — a
+carrier walk per level, which is what R1.8 exists to remove. The level's
+postcondition is now `RamDriver.TableInvOn` at `alive ∪ D`, so the
+alive-filtered loop discharges exactly its own domain: the alive
+vertices by their turn, and the pre-written `D` by the caller that wrote
+it and by no pass of this level. `RamDriverCluster.levelImplements`'
+partition step is that split, and the same
+`dead_vertex_has_no_alive_turn` that used to *force* the sweep is what
+says no turn of the loop can disturb `D`. -/
 def compactCom (j : ℕ) : Com :=
   .seq (.assign (cnumName j) (.lit 0))
     (.seq (.assign "i" (.lit 0))
@@ -2539,13 +2539,12 @@ noncomputable def driverAux (q_top cap mb R ℓ : ℕ) (φ : Lax3.FirstOrder.FO 
   | f + 1, j =>
       .seq (orderCom R j)
         (.seq (coverPhase cap j)
-          (.seq (sweepCom q_top cap mb j φ)
-            (.seq (.assign (cixName j) (.lit 0))
-              (.while (.lt (.var (cixName j)) (.var (cnumName j)))
-                (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
-                  (.seq (clusterCom q_top cap mb φ j
-                      (driverAux q_top cap mb R ℓ φ f (j + 1)))
-                    (.assign (cixName j) (.add (.var (cixName j)) (.lit 1)))))))))
+          (.seq (.assign (cixName j) (.lit 0))
+            (.while (.lt (.var (cixName j)) (.var (cnumName j)))
+              (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
+                (.seq (clusterCom q_top cap mb φ j
+                    (driverAux q_top cap mb R ℓ φ f (j + 1)))
+                  (.assign (cixName j) (.add (.var (cixName j)) (.lit 1))))))))
 
 open Classical in
 /-- **The driver at depth `j`.** The fuel is the budget still to spend;
@@ -2565,13 +2564,12 @@ theorem driverAt_succ (q_top cap mb R ℓ : ℕ) (φ : Lax3.FirstOrder.FO 0) {j 
     driverAt q_top cap mb R ℓ φ j =
       .seq (orderCom R j)
         (.seq (coverPhase cap j)
-          (.seq (sweepCom q_top cap mb j φ)
-            (.seq (.assign (cixName j) (.lit 0))
-              (.while (.lt (.var (cixName j)) (.var (cnumName j)))
-                (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
-                  (.seq (clusterCom q_top cap mb φ j
-                      (driverAt q_top cap mb R ℓ φ (j + 1)))
-                    (.assign (cixName j) (.add (.var (cixName j)) (.lit 1))))))))) := by
+          (.seq (.assign (cixName j) (.lit 0))
+            (.while (.lt (.var (cixName j)) (.var (cnumName j)))
+              (.seq (.assign (curName j) (.get (cpsName j) (.var (cixName j))))
+                (.seq (clusterCom q_top cap mb φ j
+                    (driverAt q_top cap mb R ℓ φ (j + 1)))
+                  (.assign (cixName j) (.add (.var (cixName j)) (.lit 1)))))))) := by
   obtain ⟨f, hf⟩ : ∃ f, ℓ - j = f + 1 := ⟨ℓ - j - 1, by omega⟩
   rw [driverAt, hf, driverAux, driverAt, show ℓ - (j + 1) = f by omega]
 
@@ -2685,6 +2683,65 @@ def TableInv (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) {n : ℕ} (G : Sim
     ∀ v : Fin n, (Tb (v : ℕ) ≠ 0 ↔
       Sat (masked G M) (colRead n C (sigL cap mb j)) (fun _ => v)
         (tablesAt q_top cap mb φ j)[i])
+
+/-- **The table invariant on a domain** (wave R1.8-T3-flip (c2b), design
+§6 (c)): what a level owes on `D` and nothing off it.
+
+`TableInv` is this at the whole carrier (`TableInv.on` below is the one
+direction anything uses). The body is character for character
+`Refine.DeadRowProbe.TableInvOn`'s, which is where the design compiled
+it — that file sits far above this one in the import order (it imports
+`Refine.DeadSweep`, which imports the driver), so the *landed* form of
+the reading has to be stated here, at the surface the driver's
+obligations are written in. `Refine.DeadRowDomain.tableInvOn_eq` is the
+`rfl` bridge between the two, so the probe's `tableInv_iff_on_split` and
+its separations apply to this definition verbatim.
+
+The domain the incremental design states a level's post at is
+`alive ∪ kills`: the turns write the alive rows, the enclosing turn's
+kill pass wrote the kill rows *before* the nested call, and the outside
+class is carried by the count-plus-default-bit convention of the
+dead-aware atom phase and by no row at all. -/
+def TableInvOn (q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) {n : ℕ}
+    (G : SimpleGraph (Fin n)) (j : ℕ) (M : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (D : Set (Fin n))
+    (σ : Env) : Prop :=
+  ∀ (i : ℕ) (hi : i < (tablesAt q_top cap mb φ j).length), ∃ Tb : ℕ → ℕ,
+    σ.arrs (tabName j i) = arrOf n Tb ∧ (∀ v : Fin n, v ∈ D → Tb (v : ℕ) ≤ 1) ∧
+    ∀ v : Fin n, v ∈ D → (Tb (v : ℕ) ≠ 0 ↔
+      Sat (masked G M) (colRead n C (sigL cap mb j)) (fun _ => v)
+        (tablesAt q_top cap mb φ j)[i])
+
+/-- **The carrier-wide invariant restricts to any domain.** The base
+case still writes every row, so this is how the bottom of the recursion
+meets the domain-restricted postcondition of the levels above it. -/
+theorem TableInv.on {q_top cap mb : ℕ} {φ : Lax3.FirstOrder.FO 0} {n : ℕ}
+    {G : SimpleGraph (Fin n)} {j : ℕ} {M : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {σ : Env}
+    (h : TableInv q_top cap mb φ G j M C σ) (D : Set (Fin n)) :
+    TableInvOn q_top cap mb φ G j M C D σ := by
+  intro i hi
+  obtain ⟨Tb, harr, hbit, hval⟩ := h i hi
+  exact ⟨Tb, harr, fun v _ => hbit _ v.isLt, fun v _ => hval v⟩
+
+/-- **A domain-restricted invariant at the whole carrier is the
+carrier-wide one.** The root's mask kills nothing, so its level's
+postcondition — stated at `alive ∪ ∅` — is exactly what the sentence
+readback asks for. -/
+theorem TableInvOn.tableInv {q_top cap mb : ℕ} {φ : Lax3.FirstOrder.FO 0} {n : ℕ}
+    {G : SimpleGraph (Fin n)} {j : ℕ} {M : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {D : Set (Fin n)}
+    {σ : Env} (h : TableInvOn q_top cap mb φ G j M C D σ) (hD : ∀ v : Fin n, v ∈ D) :
+    TableInv q_top cap mb φ G j M C σ := by
+  intro i hi
+  obtain ⟨Tb, harr, hbit, hval⟩ := h i hi
+  exact ⟨Tb, harr, fun v hv => hbit ⟨v, hv⟩ (hD _), fun v => hval v (hD v)⟩
+
+/-- **The domain only grows.** -/
+theorem TableInvOn.mono {q_top cap mb : ℕ} {φ : Lax3.FirstOrder.FO 0} {n : ℕ}
+    {G : SimpleGraph (Fin n)} {j : ℕ} {M : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {D D' : Set (Fin n)}
+    {σ : Env} (h : TableInvOn q_top cap mb φ G j M C D σ) (hsub : D' ⊆ D) :
+    TableInvOn q_top cap mb φ G j M C D' σ := by
+  intro i hi
+  obtain ⟨Tb, harr, hbit, hval⟩ := h i hi
+  exact ⟨Tb, harr, fun v hv => hbit v (hsub hv), fun v hv => hval v (hsub hv)⟩
 
 /-- **The table arrays of every depth, at the carrier's length.** A
 depth's tables are *written* by the level of that depth and by nothing
@@ -2956,6 +3013,35 @@ def LevelPost (B q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) {n : ℕ}
     (C : ℕ → ℕ → ℕ) (_σ σ' : Env) : Prop :=
   LevelPre B n cap mb ns W O T j M Gm C σ' ∧ TablesSized q_top cap mb φ n σ' ∧
     TableInv q_top cap mb φ G j M C σ'
+
+/-- **What a level leaves, on the domain it was asked for** (wave
+R1.8-T3-flip (c2b)). The same as `LevelPost` but for its table clause:
+the rows the level owes are the *alive* ones — the ones its turns write
+— together with the pre-written domain `D` its caller handed it, which
+the level neither writes nor destroys.
+
+`D` is a subset of the depth's dead set, and at the one call site that
+supplies a nonempty one it is the enclosing turn's own kill set: those
+rows were written by `RamDriver.killCom` before the nested call, they
+are correct for the child arena (`Refine.DeadRow.sat_bot_of_dead₁`), and
+nothing below the turn writes them again
+(`Refine.ArenaBlock.dead_vertex_has_no_alive_turn` — a dead vertex's
+centre is dead, so no turn of any level below claims it — now that
+`RamDriver.sweepCom`, the only other writer, has left the driver). -/
+def LevelPostD (B q_top cap mb : ℕ) (φ : Lax3.FirstOrder.FO 0) {n : ℕ}
+    (G : SimpleGraph (Fin n)) (ns W : ℕ) (O T : ℕ → ℕ) (j : ℕ) (M Gm : ℕ → ℕ)
+    (C : ℕ → ℕ → ℕ) (D : Set (Fin n)) (_σ σ' : Env) : Prop :=
+  LevelPre B n cap mb ns W O T j M Gm C σ' ∧ TablesSized q_top cap mb φ n σ' ∧
+    TableInvOn q_top cap mb φ G j M C ({v : Fin n | M (v : ℕ) ≠ 0} ∪ D) σ'
+
+/-- The carrier-wide postcondition is the restricted one at every
+domain: what the *base case* leaves, read as what a level leaves. -/
+theorem LevelPost.onD {B q_top cap mb : ℕ} {φ : Lax3.FirstOrder.FO 0} {n : ℕ}
+    {G : SimpleGraph (Fin n)} {ns W : ℕ} {O T : ℕ → ℕ} {j : ℕ} {M Gm : ℕ → ℕ}
+    {C : ℕ → ℕ → ℕ} {σ σ' : Env}
+    (h : LevelPost B q_top cap mb φ G ns W O T j M Gm C σ σ') (D : Set (Fin n)) :
+    LevelPostD B q_top cap mb φ G ns W O T j M Gm C D σ σ' :=
+  ⟨h.1, h.2.1, h.2.2.on _⟩
 
 /-! ### The memory of the base case's generated evaluator
 
@@ -3682,11 +3768,14 @@ def ClusterStepImplements (q_top cap mb ns W ℓ j : ℕ) (φ : Lax3.FirstOrder.
     (wA : (ℕ → ℕ) → ℕ) (inner : Com) (Kin : ℕ → ℕ) (K : ℕ) : Prop :=
   ∀ {d : ℕ}, WordBoundK B n d ns cap mb → CsrGraph G ns O T → k < n → M (ord k) ≠ 0 →
   (∀ c < sigL cap mb j, ∀ v < n, C c v ≤ 1) →
-  (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ), (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
+  (∀ (M' Gm' : ℕ → ℕ) (C' : ℕ → ℕ → ℕ) (D' : Set (Fin n)),
+      (∀ v : Fin n, v ∈ D' → M' (v : ℕ) = 0) →
+      (∀ c < sigL cap mb (j + 1), ∀ v < n, C' c v ≤ 1) →
       Spec B (fun σ => LevelPre B n cap mb ns W O T (j + 1) M' Gm' C' σ ∧
           TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
-          PlayRec B cap G (j + 1) M' Gm' σ) inner
-        (fun σ σ' => LevelPost B q_top cap mb φ G ns W O T (j + 1) M' Gm' C' σ σ' ∧
+          PlayRec B cap G (j + 1) M' Gm' σ ∧
+          TableInvOn q_top cap mb φ G (j + 1) M' C' D' σ) inner
+        (fun σ σ' => LevelPostD B q_top cap mb φ G ns W O T (j + 1) M' Gm' C' D' σ σ' ∧
           σ'.out = σ.out) (Kin (wA M'))) →
     Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧
         TablesSized q_top cap mb φ n σ ∧ BaseArrs B q_top cap mb ℓ φ σ ∧
@@ -3795,8 +3884,33 @@ along the fuel.
   partition the carrier, since `RamCover.CoverOut.asg_lt` assigns every
   vertex to exactly one centre, and each turn is correct on its own
   vertices by `sat_iff_eval_step` at the cluster it processed and the
-  batch its searches produced. -/
-def LevelImplements (q_top cap mb R ℓ W ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
+  batch its searches produced.
+
+**Wave R1.8-T3-flip (c2b): the pre-written domain.** The obligation is
+stated at a set `D` of vertices the caller has *already* written rows
+for — a subset of the depth's dead set — and it owes, at the exit, the
+alive rows plus `D`. `LevelImplementsFull` below is the carrier-wide
+form the bottom of the recursion still satisfies, and
+`LevelImplements` is this one at `D = ∅`, which is what the root needs
+(its mask kills nothing, so `alive ∪ ∅` is the carrier). -/
+def LevelImplementsD (q_top cap mb R ℓ W ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
+    (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ)
+    (C : ℕ → ℕ → ℕ) (D : Set (Fin n)) (K : ℕ) : Prop :=
+  (∀ v : Fin n, v ∈ D → M (v : ℕ) = 0) →
+  (∀ c < sigL cap mb j, ∀ v < n, C c v ≤ 1) →
+  Spec B (fun σ => LevelPre B n cap mb ns W O T j M Gm C σ ∧ TablesSized q_top cap mb φ n σ ∧
+      BaseArrs B q_top cap mb ℓ φ σ ∧ PlayRec B cap G j M Gm σ ∧
+      TableInvOn q_top cap mb φ G j M C D σ)
+    (driverAt q_top cap mb R ℓ φ j)
+    (fun σ σ' => LevelPostD B q_top cap mb φ G ns W O T j M Gm C D σ σ' ∧ σ'.out = σ.out) K
+
+/-- **The carrier-wide level obligation**, which since wave
+R1.8-T3-flip (c2b) only the *bottom* of the recursion satisfies:
+`RamDriver.baseCom` writes every vertex's row, so it owes nothing to a
+domain. It is what `RamDriverCluster.levelImplements` takes as its
+`hbase`, and `RamDriverCompose.baseImplements` is unchanged by the
+flip. -/
+def LevelImplementsFull (q_top cap mb R ℓ W ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ)
     (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
   (∀ c < sigL cap mb j, ∀ v < n, C c v ≤ 1) →
@@ -3804,6 +3918,17 @@ def LevelImplements (q_top cap mb R ℓ W ns j : ℕ) (φ : Lax3.FirstOrder.FO 0
       BaseArrs B q_top cap mb ℓ φ σ ∧ PlayRec B cap G j M Gm σ)
     (driverAt q_top cap mb R ℓ φ j)
     (fun σ σ' => LevelPost B q_top cap mb φ G ns W O T j M Gm C σ σ' ∧ σ'.out = σ.out) K
+
+/-- **One level, at the empty pre-written domain.** The name, the arity
+and the argument order are what they were before the flip — every
+consumer above (`RamDriverRoot.levelAt`, `Refine.G2CostProbe.g2_plug`,
+`Refine.DriverRootD`) reads it unchanged. What moved is the
+postcondition's table clause, from the carrier to the level's *alive*
+set; at the root those are the same thing. -/
+def LevelImplements (q_top cap mb R ℓ W ns j : ℕ) (φ : Lax3.FirstOrder.FO 0)
+    (G : SimpleGraph (Fin n)) (O T : ℕ → ℕ) (M Gm : ℕ → ℕ)
+    (C : ℕ → ℕ → ℕ) (K : ℕ) : Prop :=
+  LevelImplementsD B q_top cap mb R ℓ W ns j φ G O T M Gm C ∅ K
 
 end Obligations
 
@@ -3924,19 +4049,28 @@ theorem driver_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
       fun i k hik hk => by rw [hMemid i (by omega), hMemid k hk]; exact hik,
       fun k hk => by rw [hMemid k hk, hMone k hk]; omega,
       fun a ha _ => ⟨a, ha, hMemid a ha⟩⟩
+  -- **the level, at the EMPTY pre-written domain** (wave R1.8-T3-flip
+  -- (c2b)): the root has written no dead row and owes none — its mask kills
+  -- nothing, so what the level leaves at `alive ∪ ∅` is the whole carrier
   obtain ⟨σ₂, hrun₂, ⟨hpre₂, -, htab₂⟩, hout₂⟩ :=
-    (hlev M Gm (fun _ _ => 0) hMpos hcolbit).run
+    (hlev M Gm (fun _ _ => 0) hMpos (fun v hv => absurd hv (Set.notMem_empty v))
+        hcolbit).run
       (σ := σ₁) ⟨⟨hn₁, hoff₁, htgt₁, hM₁, hGm₁, hcolempty, hMB, hGmB, hcolbit, hmem₁, hdep₁, hm₁,
         hordmem₁, hpad0, hTB,
         Mem, n, hMem₁, hmm₁, hmemE,
         fun z hz => by rw [hMemid z hz]; exact lt_trans hz hB.n_lt⟩,
-        htsz₁, hbarr₁, hplay₀⟩
+        htsz₁, hbarr₁, hplay₀,
+        fun i hi => by
+          obtain ⟨g, hg⟩ := htsz₁.get 0 hi
+          exact ⟨g, hg, fun v hv => absurd hv (Set.notMem_empty v),
+            fun v hv => absurd hv (Set.notMem_empty v)⟩⟩
   -- the sentence readback
   obtain ⟨σ₃, hrun₃, hcond, hout₃⟩ :=
     -- the readback takes the value bound at a degree parameter (rebase
     -- E-mem/W3); the root carries it at `Kmass`, and hands it down unchanged
     (hsent M Gm (fun _ _ => 0) hB hMpos).run (σ := σ₂)
-      ⟨hpre₂, htab₂, by rw [hout₂, hout₁]⟩
+      ⟨hpre₂, htab₂.tableInv (fun v => Or.inl (hMpos (v : ℕ) v.isLt)),
+        by rw [hout₂, hout₁]⟩
   refine ⟨σ₃, _, (hrun₁.seq (hrun₂.seq hrun₃)).mono le_rfl, le_rfl, ?_⟩
   -- and the one thing that is not composition
   rw [hout₃]

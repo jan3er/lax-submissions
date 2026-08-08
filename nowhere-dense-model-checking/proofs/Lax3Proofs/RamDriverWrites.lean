@@ -680,31 +680,6 @@ theorem belowVar_notMem_wvars_colourCom (cap mb d : ℕ) {y : String} (h : Below
     y ∉ (colourCom cap mb d).wvars :=
   fun hm => notHasDigit_wvars_colourCom cap mb d y hm (hasDigit_of_belowVar h)
 
-open Classical in
-theorem belowArr_notMem_warrs_scatterFold (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
-    {a : String} (h : BelowArr d a) :
-    a ∉ (foldIdx (fun i β => scatterCom q_top cap mb φ d i β) 0
-      (tablesAt q_top cap mb φ d)).warrs := by
-  intro hm
-  have := RamDriverFrames.warrs_scatterFold q_top cap mb φ d _ 0 a hm
-  exact (by decide : ∀ q ∈ scratchArrs, ¬ HasDigit q) _ this (hasDigit_of_belowArr h)
-
-open Classical in
-theorem belowVar_notMem_wvars_scatterFold (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
-    {y : String} (hb : BelowVar d y) :
-    y ∉ (foldIdx (fun i β => scatterCom q_top cap mb φ d i β) 0
-      (tablesAt q_top cap mb φ d)).wvars := by
-  have hy1 : '_' ∉ y.toList := belowVar_notMem_underscore hb
-  have hy2 : y ≠ "i" := fun hq => (by decide : ¬ HasDigit "i") (hq ▸ hasDigit_of_belowVar hb)
-  have hy3 : y ∉ (RamScatter.scatterCom 0 0).wvars := fun hq =>
-    (by decide : ∀ q ∈ (RamScatter.scatterCom 0 0).wvars, ¬ HasDigit q) _ hq
-      (hasDigit_of_belowVar hb)
-  intro hm
-  obtain ⟨i, β, -, hm'⟩ := mem_wvars_foldIdx _ _ 0 hm
-  rw [RamDriverFrames.scatterCom_eq] at hm'
-  obtain ⟨k, σs, -, hm''⟩ := mem_wvars_foldIdx _ _ 0 hm'
-  exact RamDriverFrames.notMem_wvars_atomCom hy1 hy2 hy3 hm''
-
 theorem belowArr_notMem_warrs_readbackCom (q_top cap mb d : ℕ) (φ : Lax3.FirstOrder.FO 0)
     {a : String} (h : BelowArr d a) : a ∉ (readbackCom q_top cap mb φ d).warrs := by
   intro hm
@@ -1572,13 +1547,6 @@ theorem belowArr_notMem_warrs_driverAux (q_top cap mb ℓ : ℕ) (φ : Lax3.Firs
       rcases mem_warrs_seq hq with hq | hq
       · exact belowArr_notMem_warrs_coverPhase cap d h hq
       rcases mem_warrs_seq hq with hq | hq
-      · -- the dead-row sweep (rebase B8): the base case's own text, which
-        -- since R1.8-T4a is exactly this pass at the bottom depth
-        refine belowArr_notMem_warrs_baseCom q_top cap mb d φ h ?_
-        rw [show (baseCom q_top cap mb d φ).warrs
-            = (sweepCom q_top cap mb d φ).warrs from rfl]
-        exact hq
-      rcases mem_warrs_seq hq with hq | hq
       · rw [warrs_assign] at hq; exact absurd hq List.not_mem_nil
       rw [warrs_while] at hq
       rcases mem_warrs_seq hq with hq | hq
@@ -1623,13 +1591,6 @@ theorem belowVar_notMem_wvars_driverAux (q_top cap mb ℓ : ℕ) (φ : Lax3.Firs
       · exact belowVar_notMem_wvars_orderCom d h hq
       rcases mem_wvars_seq hq with hq | hq
       · exact belowVar_notMem_wvars_coverPhase cap d h hq
-      rcases mem_wvars_seq hq with hq | hq
-      · -- the dead-row sweep (rebase B8): the base case's own text, which
-        -- since R1.8-T4a is exactly this pass at the bottom depth
-        refine belowVar_notMem_wvars_baseCom q_top cap mb d φ h ?_
-        rw [show (baseCom q_top cap mb d φ).wvars
-            = (sweepCom q_top cap mb d φ).wvars from rfl]
-        exact hq
       rcases mem_wvars_seq hq with hq | hq
       · rw [wvars_assign] at hq
         exact belowVar_ne h (le_refl d) (by tauto) (List.eq_of_mem_singleton hq)
@@ -1835,8 +1796,8 @@ open Classical in
 theorem wa_mem_warrs_driverAt {q_top cap mb ℓ W d : ℕ} {φ : Lax3.FirstOrder.FO 0}
     (h : d < ℓ) : "wa" ∈ (driverAt q_top cap mb 0 ℓ φ d).warrs := by
   rw [driverAt_succ q_top cap mb 0 ℓ φ h]
-  refine mem_warrs_seq_right (mem_warrs_seq_right (mem_warrs_seq_right (mem_warrs_seq_right
-    (mem_warrs_while_body (mem_warrs_seq_right (mem_warrs_seq_left ?_))))))
+  refine mem_warrs_seq_right (mem_warrs_seq_right (mem_warrs_seq_right
+    (mem_warrs_while_body (mem_warrs_seq_right (mem_warrs_seq_left ?_)))))
   rw [clusterCom]
   refine mem_warrs_seq_right (mem_warrs_seq_left ?_)
   rw [RamDriverFrames.warrs_enumBatch]

@@ -834,7 +834,10 @@ theorem levelAtR {N : ℕ → ℕ} {s : ℕ} {Kb : ℕ} {Ki Ksc : ℕ → ℕ} {
     ∀ j ≤ ℓ, ∀ (M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ),
       LevelImplements B q_top cap mb R ℓ W ns j φ G O T M Gm C
         (Kl j (arenaWeight n G M)) :=
-  RamDriverCluster.levelImplements hB hWB hcsr
+  -- **wave R1.8-T3-flip (c2b)**: the induction runs over a pre-written domain and
+  -- this restatement instantiates it at `∅`, exactly as `RamDriverRoot.levelAt`
+  -- does; the sweep argument is gone and `hKd` is vestigial
+  fun j hj M Gm C => RamDriverCluster.levelImplements hB hWB hcsr
     (fun _ _ _ _ _ _ => RamElim.implements)
     (fun _ _ _ _ _ _ _ => RamDriverAugment.implements)
     (fun A₀ ord π => RamDriverOrder.coverTurnImplements B n ns G A₀ O T ord π cap)
@@ -856,9 +859,7 @@ theorem levelAtR {N : ℕ → ℕ} {s : ℕ} {Kb : ℕ} {Ki Ksc : ℕ → ℕ} {
       clusterFramesAtR hfr hmb hj hB hcsr.csr (hbnd j hj) (hcostI j hj) (hKsc j hj)
         (hKmono (j + 1)) (hKs j hj _))
     (fun _ _ => loopFramesR hfr)
-    (fun j _ M _ _ =>
-      (Refine.DeadSweep.sweepImplements (jd := j) hB).mono
-        (hKd j (arenaWeight n G M)))
+    (fun jd i => RamDriverRoot.tabName_notMem_warrs_phases jd i)
     (fun M π ord Xoff Xmem asg cps mm cnum hordby hP hout hcomp =>
       Refine.MassWeight.mass_of_alive_compaction_weight G hordby hout
         (hbinj M π ord Xoff Xmem asg mm hout)
@@ -866,7 +867,7 @@ theorem levelAtR {N : ℕ → ℕ} {s : ℕ} {Kb : ℕ} {Ki Ksc : ℕ → ℕ} {
           (Set.ncard_le_ncard (wreach_masked_subset G M π (2 * cap) v) (Set.toFinite _))
           (hP v))
         hcomp)
-    hKl
+    hKl j hj M Gm C ∅
 
 end LevelR
 
@@ -1001,14 +1002,21 @@ theorem driverD_correct (hrank : Lax3.FirstOrder.rank φ ≤ q_top)
       fun k hk => by rw [hMemid k hk]; exact hMpos k hk,
       fun a ha _ => ⟨a, ha, hMemid a ha⟩⟩, fun z hz => by
         rw [hMemid z hz]; exact lt_trans hz hB.n_lt⟩
+  -- **the level, at the empty pre-written domain** (wave R1.8-T3-flip (c2b))
   obtain ⟨σ₂, hrun₂, ⟨hpre₂, -, htab₂⟩, hout₂⟩ :=
-    (hlev M Gm (fun _ _ => 0) hMpos hcolbit).run
+    (hlev M Gm (fun _ _ => 0) hMpos (fun v hv => absurd hv (Set.notMem_empty v))
+        hcolbit).run
       (σ := σ₁) ⟨⟨hn₁, hoff₁, htgt₁, hM₁, hGm₁, hcolempty, hMB, hGmB, hcolbit, hmem₁, hdep₁,
-        hm₁, hordmem₁, hpadD', hTB, hmemcl₀⟩, htsz₁, hbarr₁, hplay₀⟩
+        hm₁, hordmem₁, hpadD', hTB, hmemcl₀⟩, htsz₁, hbarr₁, hplay₀,
+        fun i hi => by
+          obtain ⟨g, hg⟩ := htsz₁.get 0 hi
+          exact ⟨g, hg, fun v hv => absurd hv (Set.notMem_empty v),
+            fun v hv => absurd hv (Set.notMem_empty v)⟩⟩
   -- the sentence readback
   obtain ⟨σ₃, hrun₃, hcond, hout₃⟩ :=
     (hsent M Gm (fun _ _ => 0) hBD hMpos).run (σ := σ₂)
-      ⟨hpre₂, htab₂, by rw [hout₂, hout₁]⟩
+      ⟨hpre₂, htab₂.tableInv (fun v => Or.inl (hMpos (v : ℕ) v.isLt)),
+        by rw [hout₂, hout₁]⟩
   refine ⟨σ₃, _, (hrun₁.seq (hrun₂.seq hrun₃)).mono le_rfl, le_rfl, ?_⟩
   rw [hout₃]
   congr 1
