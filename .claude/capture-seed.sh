@@ -23,6 +23,12 @@
 # directories, installed the capture, and `lake build` compiled 0 of the 11
 # modules it had just compiled from scratch.
 #
+# What it is worth, measured the same day on word-ram, the largest submission
+# whose tree still matches its capture (165 MB, 148 proof modules):
+#
+#     cold `lake build`     stopped at 121/148 modules after 30 minutes
+#     capture-seeded        6 s to seed, 3 s to build, 0 modules compiled
+#
 # Drift is safe, not fatal. When our tree has moved past the capture's
 # sourceCommit, lake's content-hash traces rebuild whatever actually differs
 # and replay the rest — the same bargain worktree-seed.sh makes when it copies
