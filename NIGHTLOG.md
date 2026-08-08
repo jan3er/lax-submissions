@@ -4920,3 +4920,60 @@ before the engine, the `hout` branch split for `atomBitCom`, the two
 folds, and widening `ScatPre`'s `scratchArrs` with `"mem"`, `"qd"` and
 `RamDriverBot.Ext "bb"` — the last is not a list membership, so
 `ScatPre.run`'s `hA` changes shape.
+
+**R1.8-T3-flip (c1d) — THE SWAP IS MADE.** Both halves landed:
+`RamDriver.clusterCom` runs the `scatterDeadCom` fold, `ScatterStep` is
+re-derived against it with its **postcondition unchanged**, the frames
+leg is re-discharged, and the root pays `deadAtomK = scatDeadK + 2`
+(both checked by `rfl` against the full package). New satellite
+`Refine/ScatterDeadTurn.lean`, 884 lines. **Σ closure closes** —
+`levelAt_of_sigma`, `levelCost_of_sigma`, `killList_interface_closes`
+and `SlotSweep.driverRoot_decides_sentence_floored` all kernel-three;
+`turnCost`'s slot is still `Ksc` and the level's cost algebra never sees
+the atom charge. `scatBlockK`, `outCntCost`, `ScatterDeadEngine`,
+`ScatterDeadFold` and `KillListPass` have **zero diff**;
+`TableInv`/`LevelPost`/`LevelImplements`/`LevelInv` byte-identical to
+`main`, verified by extraction and diff.
+
+**Three more corrections to the brief, one of them a latent defect.**
+(i) The brief said `ScatPre`'s `scratchArrs` must gain `"mem"`/`"qd"`.
+True, but it hid a prerequisite: **nothing in the package sized either
+array.** `ScatterBlock.ArenaA` pins both at `arrOf n _` and
+`ArenaSeam.arenaA_of_levelPre` took them as hypotheses **with no
+producer**, so the block engine could not be entered at all. They now
+sit in `LevelMem` beside `"exc"` — a sub-program's scratch, both
+lengths, so `levelMem_run`/`levelMem_initEnv` are unchanged and
+`MemThreadProbe.levelMem_rootEnv`/`_childEnv` witness them concretely.
+(ii) The brief said the swap changes *exactly one* expression. It
+changes **two**: `atomFlagCom` forms the machine sum
+`cnt + (kc + bb·oc)`, which `evalB` needs below `B`, so `hbnd`'s word
+clause strengthens from `σs.t < B` to `σs.t + n + mb < B` (`cnt ≤ t`,
+`kc ≤ mb`, `bb·oc ≤ n`). The landed `scatterCom` never formed such a
+sum. (iii) The obstacle list missed `BaseArrs` in `ScatterStep`'s
+precondition (the outside bit is a `botCom` fragment and `BotMem` is a
+precondition of running one) and the recursion's frame needing the
+phase's **scalar** reading, which did not exist —
+`wvars_scatDeadCom`/`wvars_scatterDeadFold`/`wvars_scatterDeadPhase` and
+the `belowArr`/`belowVar` corollaries were added so `driverAux`,
+`cpsName_notMem_warrs_clusterCom` and
+`perDepthVar_notMem_wvars_clusterCom` can walk the new `clusterCom`.
+
+**Two honest debts, both recorded rather than hidden.** `hbnd` is
+strengthened at 16 sites; it has no in-package producer, the same status
+as the clause it replaces, so **C0's assembly inherits the stronger
+obligation** — flagged for the root re-run. And the *instantiated*
+per-atom charge carries `n` and `ns`, because `ballBudget_carrier`
+supplies `bw := ns`, `nb := n`; `scatBlockK` itself still contains
+neither, and narrowing the instantiation is E4c's, the same disposition
+as `outProbeCost`, the mask copy and the distance fill.
+`RamDriverFrames.scatterStep` is deleted (its `ScatterStep` no longer
+typechecks); `RamDriver.scatterCom` stays in the tree for (c2b).
+Five files outside the ownership list were touched, each one clause,
+all flagged: `MemThreadProbe` and `SlotSweep`/`BridgeCrossing`/
+`BridgeSeamProbe`/`G2CostProbe` (each restates and forwards `hbnd`).
+
+**R1.8 now needs only (c2b), the statement flip** — `LevelPost` gaining
+the `D ⊆ dead` parameter and `TableInv` weakening to `TableInvOn` over
+`alive ∪ kills`. Everything above was deliberately built to be sound
+under the *un-flipped* invariant, so (c2b) weakens preconditions on
+proofs that already exist instead of re-deriving them.
