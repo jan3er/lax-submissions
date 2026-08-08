@@ -3623,8 +3623,16 @@ def CoverImplements (cap mb ns W j : ℕ) (G : SimpleGraph (Fin n)) (O T : ℕ �
 
 /-! ### The dead-row sweep of a level
 
-**Rebase B8.** The obligation that resolves B2's stop. `sweepCom` runs
-between the cover phase and the centre loop, and what it leaves is the
+**Rebase B8, retired by R1.8-T3-flip (c2b).** `sweepCom` used to run
+between the cover phase and the centre loop; since the level's
+postcondition became `RamDriver.TableInvOn` at `alive ∪ D` it has no
+obligation to discharge, and `driverAux` no longer contains it. The
+program text, this obligation and its discharge
+(`Refine.DeadSweep.sweepImplements`) are left standing as the record of
+what the flip removed — an `Ω(n)` pass per level
+(`Refine.DeadSweep.sweepCost`) — and nothing runs them.
+
+What it leaves is the
 table row of every vertex the mask has killed — the vertices the
 alive-filtered compaction gives no turn. Its content is the *edgeless*
 reading, because a dead vertex has no incident edge in `masked G M` and

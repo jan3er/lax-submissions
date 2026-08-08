@@ -78,6 +78,7 @@ import Lax3Proofs.Refine.DeadRow
 import Lax3Proofs.Refine.DeadSweep
 import Lax3Proofs.Refine.BaseShed
 import Lax3Proofs.Refine.DeadRowProbe
+import Lax3Proofs.Refine.DeadRowDomain
 import Lax3Proofs.Refine.KillPass
 import Lax3Proofs.Refine.KillListWalk
 import Lax3Proofs.Refine.KillListPass

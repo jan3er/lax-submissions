@@ -657,10 +657,10 @@ theorem scatDead_spec {bw nb : ℕ}
 /-! ### §5 The folds
 
 One atom's flag, then the fold over a formula's atoms, then the fold
-over a depth's table — the same three-step shape
-`RamDriverFrames.atom_spec`/`atoms_spec`/`blocks_spec` has for the
-landed `RamScatter.scatterCom` phase, at the same flag names and with
-the same postcondition. -/
+over a depth's table — the three-step shape the retired
+`RamDriverFrames.atom_spec`/`atoms_spec`/`blocks_spec` had for
+`RamDriver.scatterCom`, at the same flag names and with the same
+postcondition. -/
 
 /-- The per-atom charge: the nine passes and the flag. -/
 noncomputable def deadAtomK {L : ℕ} (β : DistFO L 1) (n mm1 kq mm bw nb t : ℕ) : ℕ :=

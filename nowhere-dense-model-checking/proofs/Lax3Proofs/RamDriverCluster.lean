@@ -950,8 +950,9 @@ def KillListStep (B q_top cap mb ns Ws j : ℕ) (φ : Lax3.FirstOrder.FO 0)
       KillRowsAt q_top cap mb j φ G M Alv' X W C' σ' ∧
       KillListAt mb j M X W σ') K
 
-/-- **The scatter atoms.** That the fold of `RamDriver.scatterCom` over
-the depth's table decides every scatter atom of every tabled formula.
+/-- **The scatter atoms.** That the fold of the depth's atom programs
+over the depth's table decides every scatter atom of every tabled
+formula.
 
 One call of `RamScatter.scatterCom` per atom, preceded by the two copies
 that are the driver's calling convention: the depth-`(j+1)` mask into
@@ -982,8 +983,8 @@ about the *turn's data* and neither is about a state.
   `RamDriverRoot.clusterStepAt`.
 
 **Wave R1.8-T3-flip (c1d): the phase IS the dead-aware one.** The
-command below is the fold of `RamDriver.scatterDeadCom`, not of
-`RamDriver.scatterCom`, and the two antecedents above are no longer
+command below is the fold of `RamDriver.scatterDeadCom`, not of the
+retired `scatterCom`, and the two antecedents above are no longer
 vacuous — both are consumed by
 `Refine.ScatterDeadPass.atomTerms_iff_scatVal_of_clusterData` inside
 `Refine.ScatterDeadTurn.scatterDeadStep`, which is the discharge. The
@@ -996,7 +997,16 @@ The precondition gains `RamDriver.BaseArrs` (and with it the level's
 fragment and the generated evaluator's candidate arrays are a
 precondition of running one. `clusterStepImplements` already holds it at
 the point the phase runs — it is `hbarr` carried across the recursion —
-so nothing above the turn owes anything new. -/
+so nothing above the turn owes anything new.
+
+**Wave R1.8-T3-flip (c2b): the table clause is on `rowDom`.** The
+phase's input contract is no longer `RamDriver.TableInv` at the child
+depth but `RamDriver.TableInvOn` at `rowDom M Alv' X W` — the child's
+alive vertices plus this turn's kills. That is exactly the set the walk
+reads (`Refine.ScatterDeadTurn.scatDead_spec`: the kill list's entries,
+the child's filtered member list, and no other cell), and exactly the
+set the nested level hands back. The postcondition carries the same
+clause; the *flag* clause is untouched. -/
 def ScatterStep (B q_top cap mb ns Ws ℓ j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
     (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (X W : Set (Fin n)) (w : Fin mb → Fin n)
@@ -1042,7 +1052,20 @@ indexed by the vertex the readback stands on, and here it is. The walk itself is
 loop, a conditional, a straight line of stores, and the arithmetic of
 the bits — that `RamDriver.bcExpr` of a valuation into `{0, 1}` is again
 in `{0, 1}` and is nonzero exactly when `BC.eval` holds, an induction on
-the combination. What the value *means* is not asked here. -/
+the combination. What the value *means* is not asked here.
+
+**Wave R1.8-T3-flip (c2b): `rowDom`, and the visited-vertex clause.**
+The child-depth table clause is `RamDriver.TableInvOn` at
+`rowDom M Alv' X W`, and what makes that enough is the new precondition
+conjunct — every vertex the turn was assigned is alive at the parent
+depth and lies in the cluster. A visited vertex is then either alive at
+the child depth or a vertex THIS turn killed (`BatchData`'s pointwise
+clause), so its row exists; that is
+`Refine.DeadRowProbe.readback_dead_read_is_kill` at the turn's own data,
+and it is the reason the readback needs no outside-class row. The
+producer of the clause is the descent's ball postcondition plus the
+alive-centre guard, both of which live only inside
+`clusterStepImplements`, where `X` is existential. -/
 def ReadbackStep (B q_top cap mb ns Ws j : ℕ) (φ : Lax3.FirstOrder.FO 0)
     (G : SimpleGraph (Fin n)) (O T M Gm : ℕ → ℕ) (C : ℕ → ℕ → ℕ) (π : Equiv.Perm (Fin n))
     (ord Xoff Xmem asg : ℕ → ℕ) (m : ℕ) (X W : Set (Fin n)) (w : Fin mb → Fin n)
@@ -1184,7 +1207,18 @@ argument `hwa₃` makes across the colouring. Its postcondition
 the nested call, since the name is per-depth and the recursion leaves it
 alone. Like `hkill`'s, it is not threaded into this obligation's own
 postcondition: nothing above the turn owes it yet, and the list crosses
-`inner` only when (b) makes it. -/
+`inner` only when (b) makes it.
+
+**Wave R1.8-T3-flip (c2b): the nested call's pre-written domain.** The
+turn instantiates `RamDriver.LevelImplementsD`'s domain `D'` at
+`killSet M X W` — the set the kill pass wrote rows for and the kill list
+enumerated. `KillRowsAt.tableInvOn` (off `RamDriver.TablesSized`) is the
+precondition, `killSet_dead` off `BatchData`'s pointwise clause is the
+subset-of-dead side condition, and what comes back is
+`RamDriver.TableInvOn` at `alive' ∪ kills` — exactly the domain the atom
+phase and the readback read. Nothing above the turn is asked for
+anything new: `X`, `W` and `Alv'` are existential here, so `D'` is
+built and consumed inside this proof. -/
 theorem clusterStepImplements {B q_top cap mb ns Ws ℓ j : ℕ} {φ : Lax3.FirstOrder.FO 0}
     {G : SimpleGraph (Fin n)}
     {O T M Gm : ℕ → ℕ} {C : ℕ → ℕ → ℕ} {π : Equiv.Perm (Fin n)}
@@ -1588,7 +1622,23 @@ neither is about the program:
 * `hK`, the level's cost side condition in the Σ shape —
   `CostRecurrence.exists_driverCostsSigma` discharges it in one call, up
   to the three-unit shift the compacted loop's `cps` read costs
-  (`RamDriverRoot.levelCost_of_sigma`).
+  (`RamDriverRoot.levelCost_of_sigma`). Its `Kd` summand is **vestigial**
+  since wave R1.8-T3-flip (c2b): the dead-row sweep it paid for is out of
+  `RamDriver.driverAux`, and the slot is kept only so that the cost
+  interface above — and with it `RamDriverRoot.driverRoot_decides_sentence`'s
+  hypothesis list — is unchanged.
+
+**Wave R1.8-T3-flip (c2b): the pre-written domain, and no sweep.** The
+statement runs over a set `D` of vertices whose rows the caller has
+already written, and it establishes `alive ∪ D`. `hsweep` is gone; what
+replaced it is `hphfr`, that neither carrier phase of a level writes a
+table, which carries the caller's rows across the ordering and the cover
+to the loop's first turn. Inside the loop `LevelInv`'s dead half is
+`v ∈ D`, and what keeps it there is the landed `hdeadne` block —
+`Refine.ArenaBlock.dead_vertex_has_no_alive_turn` plus the compaction's
+alive filter: a vertex of `D` is dead, its assigned centre is dead, and
+the loop lists live centres only, so no turn of this level can be its
+turn.
 
 `Refine.ArenaBlock.sum_blockSize_compacted_le` is what connects them:
 the turns' blocks are distinct blocks of the one arena, so their sizes

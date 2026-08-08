@@ -13,18 +13,16 @@ program *variable*.
 the third, at the fold of `RamScatter.scatterCom`; it is now stated at
 the fold of `RamDriver.scatterDeadCom` and its discharge is
 `Refine.ScatterDeadTurn.scatterDeadStep`, which cannot live here because
-the dead-aware passes' walks import `Lax3Proofs.RamDriverCluster`. The
-landed reading of `RamScatter.scatterCom`'s fold —
-`atomCom`/`atom_spec`/`atoms_spec`/`blocks_spec` and `ScatPre` — stays,
-as the statement of what the flip replaced.
+the dead-aware passes' walks import `Lax3Proofs.RamDriverCluster`.
+
+**Wave R1.8-T3-flip (c2b).** The landed reading of
+`RamDriver.scatterCom`'s fold — `atomCom`/`atom_spec`/`atoms_spec`/
+`blocks_spec` — is **deleted**, and so is `RamDriver.scatterCom`: with
+the table invariant weakened to `RamDriver.TableInvOn` at
+`alive ∪ kills`, `RamScatter.scatter_spec`'s carrier-wide `hTab` is no
+longer statable from `ScatPre`, and nothing referenced the chain.
 
 # The scatter phase
-
-`atomCom` is one atom: the two copies the calling convention asks for —
-the depth-`(j+1)` mask into `alv`, the atom's own depth-`(j+1)` table row
-into `tab` — the pass, and the atom's flag. `atom_spec` is what one is
-worth, `atoms_spec` folds it over one formula's atoms and `blocks_spec`
-folds *that* over the depth's table.
 
 `ScatPre` is what the phase carries — the obligation's own precondition,
 named once — and `ScatPre.run` is that a call of the phase preserves it:

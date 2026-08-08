@@ -4,6 +4,16 @@ import Lax3Proofs.Refine.DeadRow
 /-!
 **The dead-row sweep, walked** — rebase B8, the machine half.
 
+**Retired by wave R1.8-T3-flip (c2b).** `RamDriver.driverAux` no longer
+contains this pass: the level's postcondition is `RamDriver.TableInvOn`
+at `alive ∪ D`, so nothing asks for a row at a dead vertex the enclosing
+turn did not kill, and the kills are written at kill time by
+`RamDriver.killCom` (`Refine.KillPass`). The program text, the
+obligation and this discharge stay in the tree as the record of what the
+flip removed — a carrier walk per level, `sweepCost` below — and no
+theorem downstream consumes them. `Refine.G2CostProbe.hKd_gap` and
+`RamDriverRoot.levelAt`'s `hKd` are the vestigial cost slot.
+
 `RamDriver.SweepImplements` is the obligation; this file discharges it.
 There is almost no new walk in it: `RamDriver.sweepCom` *is* the vertex
 loop of the base case, factored out of `RamDriver.baseCom` and run at a
