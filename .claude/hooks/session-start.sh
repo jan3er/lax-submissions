@@ -4,11 +4,19 @@
 # `.claude/dev-setup.sh`; this wrapper only decides whether to run it and
 # publishes the environment the session then needs.
 #
-# Synchronous on purpose. The measured cold run is about five minutes and the
-# hook budget is ten, and the whole point is that the session wakes up warm —
-# an async hook would let the agent start `lake build` or the lean-lsp tools
-# against a half-installed toolchain, which is the one failure this is meant
-# to prevent. Later sessions on a cached container re-run it in seconds.
+# This runs *after* the environment cache snapshot is taken, so nothing it
+# writes is ever cached — it is charged to every session, including resumed
+# ones. That is why the expensive machine provisioning belongs in the
+# environment's Setup script (`.claude/cloud-setup.sh`) and this hook is left
+# with the per-checkout work: ~3 s when the snapshot already carries the
+# toolchain and the warm store. dev-setup.sh still calls the machine half, so
+# the hook alone is enough on a container whose cache expired or was never
+# configured — it just costs the full ~4 minutes there.
+#
+# Synchronous on purpose. The whole point is that the session wakes up able to
+# build; an async hook would let the agent start `lake build` or the lean-lsp
+# tools against a half-seeded checkout, which is the one failure this is meant
+# to prevent.
 #
 # Local checkouts are left alone: Jan's machine is already warm, and its store
 # is the source worktree-seed.sh copies from.
