@@ -29,11 +29,16 @@
 #     cold `lake build`     stopped at 121/148 modules after 30 minutes
 #     capture-seeded        6 s to seed, 3 s to build, 0 modules compiled
 #
-# Drift is safe, not fatal. When our tree has moved past the capture's
-# sourceCommit, lake's content-hash traces rebuild whatever actually differs
-# and replay the rest — the same bargain worktree-seed.sh makes when it copies
-# a possibly-stale `.lake/build` from main. This script reports the drift per
-# submission so the reuse you get is never a surprise.
+# Drift is expected to be safe, not fatal: when our tree has moved past the
+# capture's sourceCommit, lake's content-hash traces should rebuild whatever
+# actually differs and replay the rest — the same bargain worktree-seed.sh
+# makes when it copies a possibly-stale `.lake/build` from main. Treat that as
+# reasoning from lake's model, not as a measurement: what was measured is the
+# identical case, plus one drifted submission whose *concept* package had not
+# changed and replayed all 12 of its modules. Partial reuse inside a package
+# whose sources moved has not been timed. This script reports the drift per
+# submission, so a build that recompiles more than you expected is at least
+# never a surprise.
 #
 # It never overwrites work. A package that already has a `.lake/build` is left
 # alone; seeding is for cold packages only. Pass --force to override.
