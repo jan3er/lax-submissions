@@ -120,4 +120,5 @@ import Lax3Proofs.Refine.AugCompact
 import Lax3Proofs.Refine.CompactPreps
 import Lax3Proofs.Refine.AugCompactScatter
 import Lax3Proofs.Refine.ScatterDeadPass
+import Lax3Proofs.Refine.ScatterDeadTurn
 import Lax3Proofs.Refine.DeadRowSigma

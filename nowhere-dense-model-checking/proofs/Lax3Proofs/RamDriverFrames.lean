@@ -4,11 +4,19 @@ import Lax3Proofs.RamDriverIO
 /-!
 The scatter phase of a cluster, and the two frames of a turn.
 
-Three of `Lax3Proofs.RamDriverCluster`'s obligations are discharged here:
-`RamDriverCluster.ScatterStep`, the fold of `RamScatter.scatterCom` over
-the depth's table; and the two frame conditions `InnerFrames` and
-`ClusterFrames`, which no syntax can supply because both commands
-contain the nested driver, which is a program *variable*.
+Two of `Lax3Proofs.RamDriverCluster`'s obligations are discharged here:
+the frame conditions `InnerFrames` and `ClusterFrames`, which no syntax
+can supply because both commands contain the nested driver, which is a
+program *variable*.
+
+**Wave R1.8-T3-flip (c1d).** `RamDriverCluster.ScatterStep` used to be
+the third, at the fold of `RamScatter.scatterCom`; it is now stated at
+the fold of `RamDriver.scatterDeadCom` and its discharge is
+`Refine.ScatterDeadTurn.scatterDeadStep`, which cannot live here because
+the dead-aware passes' walks import `Lax3Proofs.RamDriverCluster`. The
+landed reading of `RamScatter.scatterCom`'s fold —
+`atomCom`/`atom_spec`/`atoms_spec`/`blocks_spec` and `ScatPre` — stays,
+as the statement of what the flip replaced.
 
 # The scatter phase
 
@@ -16,7 +24,7 @@ contain the nested driver, which is a program *variable*.
 the depth-`(j+1)` mask into `alv`, the atom's own depth-`(j+1)` table row
 into `tab` — the pass, and the atom's flag. `atom_spec` is what one is
 worth, `atoms_spec` folds it over one formula's atoms and `blocks_spec`
-folds *that* over the depth's table; `scatterStep` is the obligation.
+folds *that* over the depth's table.
 
 `ScatPre` is what the phase carries — the obligation's own precondition,
 named once — and `ScatPre.run` is that a call of the phase preserves it:
@@ -43,7 +51,7 @@ the colouring and the scatter phase write no table.
 The three conjuncts this file once carried as hypotheses are now in the
 surface, and all three theorems consume them from it.
 
-* `hcolread` is gone from `scatterStep` and from
+* `hcolread` is gone from the scatter phase's obligation and from
   `RamDriverBase.readbackStep`: `RamDriverCluster.ScatterStep` and
   `ReadbackStep` carry the palette equation — and the bit clause beside
   it — in their own preconditions, which is where
