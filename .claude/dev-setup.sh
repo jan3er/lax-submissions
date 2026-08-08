@@ -32,10 +32,19 @@
 # still correct anywhere — a laptop, a worktree, a container whose cache
 # expired — because the machine half short-circuits when it is already done.
 #
-# Optional: LAX_SETUP_BUILD="finite-ramsey word-ram" also runs `lake build` in
-# those submissions' packages (concepts before proofs), so the session wakes
-# with their artifacts on disk too, not just mathlib's. Unset by default —
-# a cold submission build is hours, not minutes.
+# Neither half touches the submissions' own `.lake/build`, so a fresh checkout
+# still compiles each package once. Two optional knobs close that gap, both
+# unset by default:
+#
+#   LAX_SEED_CAPTURES=all            install the archive's published build
+#   LAX_SEED_CAPTURES="word-ram ..." artifacts from ghcr instead of compiling
+#                                    (`.claude/capture-seed.sh`, seconds). The
+#                                    usual choice — but it can only help where
+#                                    the tree still matches a submitted commit.
+#   LAX_SETUP_BUILD="word-ram ..."   compile those submissions' packages,
+#                                    concepts before proofs. What you need when
+#                                    the working tree has moved past the last
+#                                    submission and no capture matches it.
 #
 # What it deliberately does not do: `lax login` (a browser device flow) and
 # anything that talks to the archive server. Submitting is Jan's step, from
@@ -135,6 +144,19 @@ JS
   note "WARNING: sibling-overrides.sh failed; cross-submission builds will use the pins"
 
 # --- 4. optional: warm the submissions themselves --------------------------
+# Two ways, and captures are usually the one you want: seconds and a download
+# against minutes of compilation, for any submission whose tree still matches
+# the commit the archive built. LAX_SETUP_BUILD compiles the working tree
+# instead, which is what you need when it has moved past the last submission.
+
+if [ -n "${LAX_SEED_CAPTURES:-}" ]; then
+  step "capture seeding (LAX_SEED_CAPTURES)"
+  # "1" or "all" means every submission with a capture; otherwise a folder list
+  case "$LAX_SEED_CAPTURES" in
+    1|all) "$root/.claude/capture-seed.sh" >&2 || note "WARNING: capture seeding failed" ;;
+    *) "$root/.claude/capture-seed.sh" $LAX_SEED_CAPTURES >&2 || note "WARNING: capture seeding failed" ;;
+  esac
+fi
 
 if [ -n "${LAX_SETUP_BUILD:-}" ]; then
   step "submission builds (LAX_SETUP_BUILD)"
