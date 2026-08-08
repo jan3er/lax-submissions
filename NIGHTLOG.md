@@ -4977,3 +4977,65 @@ the `D ⊆ dead` parameter and `TableInv` weakening to `TableInvOn` over
 `alive ∪ kills`. Everything above was deliberately built to be sound
 under the *un-flipped* invariant, so (c2b) weakens preconditions on
 proofs that already exist instead of re-deriving them.
+
+**R1.8-T3-flip (c2b) — THE STATEMENT FLIP. R1.8 IS COMPLETE.**
+All six design bullets landed; 3588 jobs; kernel-three on
+`clusterStepImplements`, `levelImplements`, `levelAt`,
+`driverRoot_decides_sentence`, `DriverRootD.driverD_correct`.
+
+`LevelImplementsD`/`LevelPostD` carry a pre-written domain `D` under the
+antecedent `∀ v ∈ D, M v = 0`: pre `TableInvOn … D`, post
+`TableInvOn … ({alive} ∪ D)`. The turn instantiates `D' := killSet M X W`
+off `KillRowsAt.tableInvOn`, with `killSet_dead` from `BatchData`'s
+pointwise clause as the subset-of-dead side condition. `LevelInv`'s
+table clause is `v ∈ D ∨ earlier-turn`; the partition re-derivation used
+the landed `hdeadne` block verbatim, as the design predicted;
+`ScatterStep`/`ReadbackStep` sit at
+`rowDom M Alv' X W = {alive'} ∪ killSet M X W`.
+
+**The headline is byte-identical.** `driverRoot_decides_sentence`'s
+statement is unchanged — verified by extraction and diff — because
+`LevelImplements` keeps its name, arity and argument order (it is
+`LevelImplementsD … ∅`), so `G2CostProbe.g2_plug`, `BridgeSeamProbe`,
+`BridgeCrossing` and `SlotSweep` still elaborate untouched. The root is
+all-alive, so `TableInvOn … ({alive} ∪ ∅)` converts back by
+`TableInvOn.tableInv` inside `driver_correct`.
+
+**What a level no longer owes:** any table row at a dead vertex outside
+`D` — at a nested level, precisely the enclosing turn's **outside
+class**, the `n − mm − kills` vertices of design §3. `sweepCom`'s
+`Ω(n)`-per-level walk is **out of the program**; `ScatPre` no longer
+carries the carrier-wide row; `RbBase`'s atom valuation is now only at
+the visited vertices (quantified over the whole carrier before, which
+was unsuppliable once the rows stopped existing). That this is a genuine
+weakening and not a rename is compiled:
+`Refine.DeadRowDomain.tableInvOn_strictly_weaker` — at an all-dead mask
+the level's own domain is empty, the junk state satisfies `TableInvOn`
+and refutes `TableInv`, generic in `φ`.
+
+`RamDriver.scatterCom` is **deleted**, checked rather than assumed: once
+`ScatPre` carried the weakened clause, `RamScatter.scatter_spec`'s
+carrier-wide `hTab` was no longer *statable*, so
+`atom_spec`/`atoms_spec`/`blocks_spec` became unprovable rather than
+merely dead. Nothing outside `RamDriverFrames` referenced them; they and
+`atomCom`, `ScatPre.tab` and the scatter-fold write lemmas went with it.
+
+**Two more overridden instructions, nine and ten.** (i) The brief said
+to make `hKd` vestigial per design §2.1. Refused: four *unowned*
+consumers (`g2_plug`, `BridgeSeamProbe`, `BridgeCrossing`, `SlotSweep`)
+apply the root's hypothesis list argument-for-argument, so dropping it
+breaks them. **Honest consequence: the program's cost fell by
+`DeadSweep.sweepCost` per level and the stated budget did not — the
+interface still reserves the slot.** Narrowing it is a follow-on that
+must own those four files. (ii) The brief called
+`Refine.DeadRowProbe.TableInvOn` the landed reading to use; it cannot
+be — `DeadRowProbe` imports `DeadSweep` which imports the driver, so the
+probe is downstream of every statement that needed it.
+`RamDriver.TableInvOn` restates it and new `Refine/DeadRowDomain.lean`
+records by `rfl` that they are the same function. Third import-order
+defect of this road.
+
+`levelImplements` traded `hsweep` for `hphfr` (the phases write no table
+row), producer `RamDriverRoot.tabName_notMem_warrs_phases`, discharged
+at `levelAt` and `levelAtR` — that is what supplies the dead half at
+loop entry now that the sweep is gone.
